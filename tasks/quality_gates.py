@@ -75,67 +75,94 @@ def fetch_pr_metrics(pr_number: int) -> dict[str, GateMetricsData]:
     """
     Fetch metrics for a specific PR from Datadog.
 
+    Uses a single API call to fetch all 4 metric types at once.
+
     Returns a dict mapping gate_name to GateMetricsData.
     """
-    metric_queries = [
-        ("on_disk_size", "current_on_disk_size"),
-        ("on_wire_size", "current_on_wire_size"),
-        ("max_allowed_on_disk_size", "max_on_disk_size"),
-        ("max_allowed_on_wire_size", "max_on_wire_size"),
-    ]
-
+    # Fetch all metrics in a single query using comma-separated metric names
     metrics_data: dict[str, GateMetricsData] = {}
 
-    for metric_suffix, attr_name in metric_queries:
-        query = f"avg:datadog.agent.static_quality_gate.{metric_suffix}{{pr_number:{pr_number}}} by {{gate_name}}"
-        print(color_message(f"  Querying {metric_suffix}...", "cyan"))
-        result = query_metrics(query, from_time="now-1d", to_time="now")
+    # Map metric names to attribute names
+    metric_map = {
+        "on_disk_size": "current_on_disk_size",
+        "on_wire_size": "current_on_wire_size",
+        "max_allowed_on_disk_size": "max_on_disk_size",
+        "max_allowed_on_wire_size": "max_on_wire_size",
+    }
 
-        for series in result:
-            gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
-            if not gate_name:
-                continue
+    # Single query with all metrics (comma-separated)
+    queries = ",".join(
+        f"avg:datadog.agent.static_quality_gate.{m}{{pr_number:{pr_number}}} by {{gate_name}}" for m in metric_map
+    )
+    result = query_metrics(queries, from_time="now-1d", to_time="now")
 
-            if gate_name not in metrics_data:
-                metrics_data[gate_name] = GateMetricsData()
+    for series in result:
+        gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
+        if not gate_name:
+            continue
 
-            latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
-            if latest_value is not None:
-                setattr(metrics_data[gate_name], attr_name, int(latest_value))
+        if gate_name not in metrics_data:
+            metrics_data[gate_name] = GateMetricsData()
+
+        # Determine which metric this series is for from the expression
+        expression = series.get("expression", "")
+        for metric_suffix, attr_name in metric_map.items():
+            if f".{metric_suffix}" in expression:
+                latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
+                if latest_value is not None:
+                    setattr(metrics_data[gate_name], attr_name, int(latest_value))
+                break
 
     return metrics_data
 
 
-def fetch_main_headroom() -> dict[str, dict[str, int]]:
+def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
     """
     Fetch main branch metrics to calculate headroom (max - current).
 
+    Only fetches metrics for the specified failing gates to minimize API footprint.
+
     Returns a dict mapping gate_name to {'disk_headroom': int, 'wire_headroom': int}.
     """
-    metric_queries = [
-        ("on_disk_size", "current_disk"),
-        ("on_wire_size", "current_wire"),
-        ("max_allowed_on_disk_size", "max_disk"),
-        ("max_allowed_on_wire_size", "max_wire"),
-    ]
+    if not failing_gates:
+        return {}
 
     main_metrics: dict[str, dict[str, int]] = {}
 
-    for metric_suffix, key in metric_queries:
-        query = f"avg:datadog.agent.static_quality_gate.{metric_suffix}{{git_ref:main}} by {{gate_name}}"
-        result = query_metrics(query, from_time="now-1d", to_time="now")
+    # Map metric names to keys
+    metric_map = {
+        "on_disk_size": "current_disk",
+        "on_wire_size": "current_wire",
+        "max_allowed_on_disk_size": "max_disk",
+        "max_allowed_on_wire_size": "max_wire",
+    }
 
-        for series in result:
-            gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
-            if not gate_name:
-                continue
+    # Build gate filter - only query for failing gates
+    gate_filter = " OR ".join(f"gate_name:{g}" for g in failing_gates)
 
-            if gate_name not in main_metrics:
-                main_metrics[gate_name] = {}
+    # Single query with all metrics for failing gates only
+    queries = ",".join(
+        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main,({gate_filter})}} by {{gate_name}}"
+        for m in metric_map
+    )
+    result = query_metrics(queries, from_time="now-1d", to_time="now")
 
-            latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
-            if latest_value is not None:
-                main_metrics[gate_name][key] = int(latest_value)
+    for series in result:
+        gate_name = _extract_gate_name_from_scope(series.get("scope", ""))
+        if not gate_name:
+            continue
+
+        if gate_name not in main_metrics:
+            main_metrics[gate_name] = {}
+
+        # Determine which metric this series is for from the expression
+        expression = series.get("expression", "")
+        for metric_suffix, key in metric_map.items():
+            if f".{metric_suffix}" in expression:
+                latest_value = _get_latest_value_from_pointlist(series.get("pointlist", []))
+                if latest_value is not None:
+                    main_metrics[gate_name][key] = int(latest_value)
+                break
 
     # Calculate headroom for each gate
     headroom: dict[str, dict[str, int]] = {}
@@ -851,9 +878,9 @@ def exception_threshold_bump(ctx, pr_number):
             )
         )
 
-    # Step 3: Fetch main branch headroom
+    # Step 3: Fetch main branch headroom (only for failing gates to minimize API footprint)
     print(color_message("Fetching main branch metrics for headroom calculation...", "cyan"))
-    main_headroom = fetch_main_headroom()
+    main_headroom = fetch_main_headroom(list(failing_gates.keys()))
 
     if not main_headroom:
         print(color_message("[ERROR] Unable to fetch main branch metrics from Datadog.", "red"))

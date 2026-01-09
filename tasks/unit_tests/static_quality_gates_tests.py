@@ -1843,30 +1843,35 @@ class TestFetchPrMetrics(unittest.TestCase):
 
     @patch("tasks.quality_gates.query_metrics")
     def test_fetches_and_parses_metrics(self, mock_query):
-        """Should fetch metrics and parse them correctly."""
-        mock_query.side_effect = [
-            # on_disk_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 100 * 1024 * 1024]],
-                }
-            ],
-            # on_wire_size
-            [{"scope": "gate_name:static_quality_gate_agent_deb_amd64", "pointlist": [[1704240000, 50 * 1024 * 1024]]}],
-            # max_allowed_on_disk_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 150 * 1024 * 1024]],
-                }
-            ],
-            # max_allowed_on_wire_size
-            [{"scope": "gate_name:static_quality_gate_agent_deb_amd64", "pointlist": [[1704240000, 75 * 1024 * 1024]]}],
+        """Should fetch metrics and parse them correctly with single API call."""
+        # Single API call returns all 4 metrics
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+            },
         ]
 
         result = fetch_pr_metrics(12345)
 
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
         self.assertEqual(len(result), 1)
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
         gate = result["static_quality_gate_agent_deb_amd64"]
@@ -1886,56 +1891,35 @@ class TestFetchPrMetrics(unittest.TestCase):
 
     @patch("tasks.quality_gates.query_metrics")
     def test_handles_multiple_gates(self, mock_query):
-        """Should handle metrics for multiple gates."""
-        mock_query.side_effect = [
-            # on_disk_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 100 * 1024 * 1024]],
-                },
-                {
-                    "scope": "gate_name:static_quality_gate_docker_agent_amd64",
-                    "pointlist": [[1704240000, 200 * 1024 * 1024]],
-                },
-            ],
-            # on_wire_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 50 * 1024 * 1024]],
-                },
-                {
-                    "scope": "gate_name:static_quality_gate_docker_agent_amd64",
-                    "pointlist": [[1704240000, 80 * 1024 * 1024]],
-                },
-            ],
-            # max_allowed_on_disk_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 150 * 1024 * 1024]],
-                },
-                {
-                    "scope": "gate_name:static_quality_gate_docker_agent_amd64",
-                    "pointlist": [[1704240000, 250 * 1024 * 1024]],
-                },
-            ],
-            # max_allowed_on_wire_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 75 * 1024 * 1024]],
-                },
-                {
-                    "scope": "gate_name:static_quality_gate_docker_agent_amd64",
-                    "pointlist": [[1704240000, 100 * 1024 * 1024]],
-                },
-            ],
+        """Should handle metrics for multiple gates in single API call."""
+        # Single API call returns metrics for multiple gates
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": [[1704240000, 200 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": [[1704240000, 80 * 1024 * 1024]],
+            },
         ]
 
         result = fetch_pr_metrics(12345)
 
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
         self.assertEqual(len(result), 2)
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
         self.assertIn("static_quality_gate_docker_agent_amd64", result)
@@ -1947,28 +1931,31 @@ class TestFetchMainHeadroom(unittest.TestCase):
     @patch("tasks.quality_gates.query_metrics")
     def test_calculates_headroom_correctly(self, mock_query):
         """Should calculate headroom as max - current."""
-        mock_query.side_effect = [
-            # on_disk_size (current)
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 100 * 1024 * 1024]],
-                }
-            ],
-            # on_wire_size (current)
-            [{"scope": "gate_name:static_quality_gate_agent_deb_amd64", "pointlist": [[1704240000, 50 * 1024 * 1024]]}],
-            # max_allowed_on_disk_size
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 150 * 1024 * 1024]],
-                }
-            ],
-            # max_allowed_on_wire_size
-            [{"scope": "gate_name:static_quality_gate_agent_deb_amd64", "pointlist": [[1704240000, 75 * 1024 * 1024]]}],
+        # Single API call returns all 4 metrics for the gate
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+            },
         ]
 
-        result = fetch_main_headroom()
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
 
         self.assertEqual(len(result), 1)
         self.assertIn("static_quality_gate_agent_deb_amd64", result)
@@ -1981,34 +1968,40 @@ class TestFetchMainHeadroom(unittest.TestCase):
     @patch("tasks.quality_gates.query_metrics")
     def test_headroom_never_negative(self, mock_query):
         """Headroom should never be negative (clamped to 0)."""
-        mock_query.side_effect = [
-            # current > max (edge case)
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 200 * 1024 * 1024]],
-                }
-            ],
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 100 * 1024 * 1024]],
-                }
-            ],
-            [
-                {
-                    "scope": "gate_name:static_quality_gate_agent_deb_amd64",
-                    "pointlist": [[1704240000, 150 * 1024 * 1024]],
-                }
-            ],
-            [{"scope": "gate_name:static_quality_gate_agent_deb_amd64", "pointlist": [[1704240000, 75 * 1024 * 1024]]}],
+        # Single API call with current > max
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": [[1704240000, 200 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+            },
         ]
 
-        result = fetch_main_headroom()
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
 
         headroom = result["static_quality_gate_agent_deb_amd64"]
         # disk_headroom = max(0, 150 - 200) = 0
         self.assertEqual(headroom["disk_headroom"], 0)
+
+    def test_returns_empty_for_no_gates(self):
+        """Should return empty dict when no gates provided."""
+        result = fetch_main_headroom([])
+        self.assertEqual(result, {})
 
 
 class TestGateMetricsData(unittest.TestCase):
