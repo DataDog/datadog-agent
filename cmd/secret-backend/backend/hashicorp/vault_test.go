@@ -26,6 +26,9 @@ import (
 )
 
 func TestVaultBackend(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
@@ -60,6 +63,9 @@ func TestVaultBackend(t *testing.T) {
 }
 
 func TestVaultBackend_KeyNotFound(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
@@ -198,6 +204,9 @@ func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
 }
 
 func TestVaultBackend_KVV2Support(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	err := client.Sys().Mount("kv2/", &api.MountInput{
@@ -336,6 +345,9 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 }
 
 func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	createTestVault(t) // Start vault server, cleanup handled via t.Cleanup()
 
 	tmpFile, err := os.CreateTemp("", "jwt-token-test")
@@ -452,6 +464,9 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 }
 
 func TestVaultBackend_VaultURIFormat(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	// Create test data - KV v1 stores data directly (no nested "data" field)
@@ -601,6 +616,9 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 }
 
 func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	// Set up KV v2 mount
@@ -680,6 +698,9 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 }
 
 func TestVaultBackend_BackwardCompatibility(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	// Create test data
@@ -711,6 +732,9 @@ func TestVaultBackend_BackwardCompatibility(t *testing.T) {
 }
 
 func TestVaultBackend_ErrorHandling(t *testing.T) {
+	// Clear VAULT_ADDR to ensure we use the test vault address from config
+	t.Setenv("VAULT_ADDR", "")
+
 	client, token := createTestVault(t)
 
 	backendConfig := map[string]interface{}{
