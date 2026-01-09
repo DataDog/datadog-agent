@@ -4,7 +4,6 @@ description "Enforce building dependencies as soon as possible so they can be ca
 
 # Linux-specific dependencies
 if linux_target?
-  dependency 'procps-ng'
   dependency 'curl'
 end
 
