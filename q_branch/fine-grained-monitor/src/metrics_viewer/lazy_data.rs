@@ -634,10 +634,13 @@ impl LazyDataStore {
         self.index.read().unwrap().namespaces.clone()
     }
 
-    /// Refresh container metadata from sidecar files.
+    /// Refresh container metadata from sidecar files (incremental).
     ///
     /// This is called periodically by a background task to pick up new containers
     /// without requiring a viewer restart. Only works in directory mode.
+    ///
+    /// Only reads NEW sidecar files - sidecars are immutable once written, so we
+    /// skip files we've already processed (tracked via file_containers keys).
     ///
     /// Returns the number of containers after refresh, or None if not in directory mode.
     pub fn refresh_containers_from_sidecars(&self) -> Option<usize> {
@@ -646,7 +649,7 @@ impl LazyDataStore {
 
         // Discover all parquet files
         let pattern = format!("{}/**/*.parquet", data_dir.display());
-        let mut parquet_files: Vec<PathBuf> = glob::glob(&pattern)
+        let parquet_files: Vec<PathBuf> = glob::glob(&pattern)
             .ok()?
             .filter_map(Result::ok)
             .collect();
@@ -656,64 +659,169 @@ impl LazyDataStore {
             return Some(0);
         }
 
-        // Sort by modification time (newest first)
-        parquet_files.sort_by(|a, b| {
-            let a_time = a.metadata().and_then(|m| m.modified()).ok();
-            let b_time = b.metadata().and_then(|m| m.modified()).ok();
-            b_time.cmp(&a_time)
-        });
+        // Find NEW parquet files (not yet in file_containers)
+        let new_files: Vec<PathBuf> = {
+            let index = self.index.read().unwrap();
+            parquet_files
+                .iter()
+                .filter(|p| !index.file_containers.contains_key(*p))
+                .cloned()
+                .collect()
+        };
 
-        // Compute updated data_range
-        let data_range = compute_data_range(&parquet_files);
+        if new_files.is_empty() {
+            // No new files - just return current count
+            let count = self.index.read().unwrap().containers.len();
+            tracing::trace!("Sidecar refresh: no new files, {} containers", count);
+            return Some(count);
+        }
 
-        // Try to load from sidecars
-        match load_from_sidecars(&parquet_files, data_range) {
-            Ok(new_index) => {
-                let container_count = new_index.containers.len();
-                let old_count = {
-                    let old_index = self.index.read().unwrap();
-                    old_index.containers.len()
-                };
+        // Read only the NEW sidecars
+        let mut new_containers: HashMap<String, ContainerInfo> = HashMap::new();
+        let mut new_file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+        let mut new_qos: HashSet<String> = HashSet::new();
+        let mut new_namespaces: HashSet<String> = HashSet::new();
+        let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
+        let mut sidecars_read = 0usize;
 
-                // Update the index
-                {
-                    let mut index = self.index.write().unwrap();
-                    index.containers = new_index.containers;
-                    index.file_containers = new_index.file_containers;
-                    index.qos_classes = new_index.qos_classes;
-                    index.namespaces = new_index.namespaces;
-                    index.data_range = new_index.data_range;
-                    // Keep metrics from initial load (sidecars don't have metrics)
-                    if !new_index.metrics.is_empty() {
-                        index.metrics = new_index.metrics;
+        for parquet_path in &new_files {
+            let sidecar_path = sidecar::sidecar_path_for_parquet(parquet_path);
+
+            let sidecar = match sidecar::ContainerSidecar::read(&sidecar_path) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+
+            // Parse file timestamp for container time bounds
+            let file_ts_ms = parquet_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(parse_file_timestamp)
+                .map(|dt| dt.timestamp_millis());
+
+            sidecars_read += 1;
+            let mut file_container_ids: HashSet<String> = HashSet::new();
+
+            for sc in sidecar.containers {
+                file_container_ids.insert(sc.container_id.clone());
+                new_qos.insert(sc.qos_class.clone());
+                if let Some(ref ns) = sc.namespace {
+                    new_namespaces.insert(ns.clone());
+                }
+
+                // Update container time bounds
+                if let Some(ts_ms) = file_ts_ms {
+                    container_timestamps
+                        .entry(sc.container_id.clone())
+                        .and_modify(|(min, max)| {
+                            if ts_ms < *min { *min = ts_ms; }
+                            if ts_ms > *max { *max = ts_ms; }
+                        })
+                        .or_insert((ts_ms, ts_ms));
+                }
+
+                new_containers.entry(sc.container_id.clone()).or_insert_with(|| {
+                    ContainerInfo {
+                        id: sc.container_id.clone(),
+                        short_id: sc.container_id.clone(),
+                        qos_class: Some(sc.qos_class),
+                        namespace: sc.namespace,
+                        pod_name: sc.pod_name,
+                        container_name: sc.container_name,
+                        first_seen_ms: None,
+                        last_seen_ms: None,
+                        labels: None,
                     }
-                }
-
-                // Update paths
-                *self.paths.write().unwrap() = parquet_files;
-
-                if container_count != old_count {
-                    tracing::info!(
-                        "Sidecar refresh: {} -> {} containers in {:.1}ms",
-                        old_count,
-                        container_count,
-                        start.elapsed().as_secs_f64() * 1000.0
-                    );
-                } else {
-                    tracing::debug!(
-                        "Sidecar refresh: {} containers (unchanged) in {:.1}ms",
-                        container_count,
-                        start.elapsed().as_secs_f64() * 1000.0
-                    );
-                }
-
-                Some(container_count)
+                });
             }
-            Err(e) => {
-                tracing::debug!("Sidecar refresh failed: {}", e);
-                None
+
+            new_file_containers.insert(parquet_path.clone(), file_container_ids);
+        }
+
+        // Apply timestamps to new containers
+        for (container_id, (first_seen, last_seen)) in container_timestamps {
+            if let Some(info) = new_containers.get_mut(&container_id) {
+                info.first_seen_ms = Some(first_seen);
+                info.last_seen_ms = Some(last_seen);
             }
         }
+
+        // Merge into existing index
+        let (old_count, new_count) = {
+            let mut index = self.index.write().unwrap();
+            let old_count = index.containers.len();
+
+            // Merge containers (update timestamps for existing, add new)
+            for (id, new_info) in new_containers {
+                index.containers
+                    .entry(id)
+                    .and_modify(|existing| {
+                        // Update time bounds
+                        if let Some(new_first) = new_info.first_seen_ms {
+                            match existing.first_seen_ms {
+                                Some(old) if new_first < old => existing.first_seen_ms = Some(new_first),
+                                None => existing.first_seen_ms = Some(new_first),
+                                _ => {}
+                            }
+                        }
+                        if let Some(new_last) = new_info.last_seen_ms {
+                            match existing.last_seen_ms {
+                                Some(old) if new_last > old => existing.last_seen_ms = Some(new_last),
+                                None => existing.last_seen_ms = Some(new_last),
+                                _ => {}
+                            }
+                        }
+                    })
+                    .or_insert(new_info);
+            }
+
+            // Merge file_containers
+            index.file_containers.extend(new_file_containers);
+
+            // Merge qos_classes and namespaces
+            for qos in new_qos {
+                if !index.qos_classes.contains(&qos) {
+                    index.qos_classes.push(qos);
+                }
+            }
+            for ns in new_namespaces {
+                if !index.namespaces.contains(&ns) {
+                    index.namespaces.push(ns);
+                }
+            }
+
+            // Update data_range
+            index.data_range = compute_data_range(&parquet_files);
+
+            (old_count, index.containers.len())
+        };
+
+        // Update paths
+        *self.paths.write().unwrap() = parquet_files;
+
+        if new_count != old_count {
+            tracing::info!(
+                "Sidecar refresh: {} -> {} containers ({} new sidecars) in {:.1}ms",
+                old_count,
+                new_count,
+                sidecars_read,
+                start.elapsed().as_secs_f64() * 1000.0
+            );
+        } else if sidecars_read > 0 {
+            tracing::debug!(
+                "Sidecar refresh: {} containers, {} new sidecars (no new containers) in {:.1}ms",
+                new_count,
+                sidecars_read,
+                start.elapsed().as_secs_f64() * 1000.0
+            );
+        } else {
+            tracing::trace!(
+                "Sidecar refresh: {} containers (no changes)",
+                new_count
+            );
+        }
+
+        Some(new_count)
     }
 
     /// Clear all caches (useful for testing or memory pressure).
