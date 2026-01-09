@@ -221,19 +221,12 @@ pkg_files(
     attributes = pkg_attributes("0755")
 )
 
-pkg_files(
-    name = "install_files",
-    srcs = select({
-        "@platforms//os:windows": [":python_win"],
-        "//conditions:default": []
-    })
-)
-
 pkg_install(
     name = "install",
-    srcs = [":install_files"] + select({
+    srcs = select({
         "@platforms//os:windows": [
             "@openssl//:openssl_exe_file",
+            ":install_files_win"
         ],
         "//conditions:default": [
             ":install_libs_unix",
