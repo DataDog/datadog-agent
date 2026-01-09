@@ -49,7 +49,7 @@ func TestTargetEnvs(t *testing.T) {
 		assert.Greater(collect, len(procEnv), 1)
 	}, 5*time.Second, 10*time.Millisecond)
 
-	vars, err := getTargetEnvs(proc)
+	vars, err := GetTargetEnvs(proc)
 	require.NoError(t, err)
 
 	expectedMap := envs.GetExpectedMap()
@@ -103,7 +103,7 @@ func BenchmarkGetEnvsTarget(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		if _, err := getTargetEnvs(proc); err != nil {
+		if _, err := GetTargetEnvs(proc); err != nil {
 			return
 		}
 	}

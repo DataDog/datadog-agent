@@ -300,6 +300,7 @@ func (s *message) init(
 		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
 	var returnHeader *output.EventHeader
+	var durationMissingReason *string
 	if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
@@ -331,20 +332,27 @@ func (s *message) init(
 			reason = "call map capacity exceeded"
 		case output.EventPairingExpectationCallCountExceeded:
 			reason = "maximum call count exceeded"
+		case output.EventPairingExpectationNoneInlined:
+			reason = "function was inlined"
+		case output.EventPairingExpectationNoneNoBody:
+			reason = "function has no body"
 		}
+		log.Tracef("no return reason: %v pairing expectation: %v", reason, pairingExpectation)
 		// The choice to use @duration here is somewhat arbitrary; we want to
 		// choose something that definitely can't collide with a real variable
 		// and is evocative of the thing that is missing. Indeed we know in this
 		// situation we will never @duration, so it seems like a good choice.
 		const missingReturnReasonExpression = "@duration"
 		if reason != "" {
+			message := "not available: " + reason
 			s.Debugger.EvaluationErrors = append(
 				s.Debugger.EvaluationErrors,
 				evaluationError{
 					Expression: missingReturnReasonExpression,
-					Message:    "no return value available: " + reason,
+					Message:    message,
 				},
 			)
+			durationMissingReason = &message
 		}
 	}
 
@@ -432,6 +440,8 @@ func (s *message) init(
 		}
 		if s.Duration != 0 {
 			s.Message.duration = &s.Duration
+		} else if durationMissingReason != nil {
+			s.Message.durationMissingReason = durationMissingReason
 		}
 	}
 

@@ -5,10 +5,10 @@ go 1.24.0
 require github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.68.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.70.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.70.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.73.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.73.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.73.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.73.2 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -119,7 +119,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../../../pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface

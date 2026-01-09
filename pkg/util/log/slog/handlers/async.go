@@ -61,7 +61,7 @@ func (h *Async) writeList(queue list.List) {
 		msg := e.Value.(msg)
 		err := h.innerHandler.Handle(msg.ctx, msg.record)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
+			fmt.Fprintf(os.Stderr, "log: async internal error: %v\n", err)
 		}
 	}
 }

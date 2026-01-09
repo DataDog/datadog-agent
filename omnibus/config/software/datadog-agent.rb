@@ -102,11 +102,7 @@ build do
     command "dda inv -- -e rtloader.make --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER -DPython3_EXECUTABLE=#{install_dir}/embedded/bin/python3'", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e rtloader.install", :live_stream => Omnibus.logger.live_stream(:info)
 
-    include_sds = ""
-    if linux_target?
-        include_sds = "--include-sds" # we only support SDS on Linux targets for now
-    end
-    command "dda inv -- -e agent.build --exclude-rtloader #{include_sds} --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
   if osx_target?
@@ -244,14 +240,6 @@ build do
   if cws_inst_support
     command "dda inv -- -e cws-instrumentation.build #{fips_args}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
-  end
-
-  # APM Injection agent
-  if windows_target?
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
-    end
   end
 
   if osx_target?

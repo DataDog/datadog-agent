@@ -27,8 +27,9 @@ from tasks.new_e2e_tests import DEFAULT_DYNTEST_BUCKET_URI
 def compute_and_upload_job_index(ctx: Context, bucket_uri: str, coverage_folder: str, commit_sha: str, job_id: str):
     uploader = S3Backend(bucket_uri)
     run_all_paths = [
-        "test/new-e2e/pkg/**/*",  # Modification to the framework should trigger all tests
+        "test/e2e-framework/**/*",  # Modification to the framework should trigger all tests
         "test/new-e2e/go.mod",
+        "go.mod",  # incident-47421
         "flakes.yaml",
         "release.json",
         ".gitlab/e2e/e2e.yml",

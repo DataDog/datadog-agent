@@ -49,19 +49,19 @@ func TestChdir(t *testing.T) {
 	t.Run("chdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chdir(testFolder)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
 
 			validateSyscallContext(t, event, "$.syscall.chdir.path")
-		})
+		}, "test_chdir_rule")
 	})
 
 	t.Run("fchdir", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Open(testFolder)
 			if err != nil {
 				return err
@@ -71,7 +71,7 @@ func TestChdir(t *testing.T) {
 			return f.Chdir()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
-		})
+		}, "test_chdir_rule")
 	})
 
 	t.Run("syscall-context", func(t *testing.T) {
@@ -87,12 +87,12 @@ func TestChdir(t *testing.T) {
 		}
 		defer os.RemoveAll(testFolder)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return os.Chdir("../../../.." + testFolder)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_ctx")
 
 			validateSyscallContext(t, event, "$.syscall.chdir.path")
-		})
+		}, "test_chdir_ctx")
 	})
 }

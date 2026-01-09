@@ -21,12 +21,12 @@ The main component interface provides methods to check if workloads should be ex
 type Component interface {
 	// GetContainerFilters retrieves the selected container FilterBundle
 	GetContainerFilters(containerFilters [][]ContainerFilter) FilterBundle
-    // GetPodFilters retrieves the selected container FilterBundle
+	// GetPodFilters retrieves the selected container FilterBundle
 	GetPodFilters(podFilters [][]PodFilter) FilterBundle
-    // GetServiceFilters retrieves the selected container FilterBundle
-	GetServiceFilters(serviceFilters [][]ServiceFilter) FilterBundle
-    // GetEndpointFilters retrieves the selected container FilterBundle
-	GetEndpointFilters(endpointFilters [][]EndpointFilter) FilterBundle
+    // GetKubeServiceFilters retrieves the selected container FilterBundle
+	GetKubeServiceFilters(serviceFilters [][]KubeServiceFilter) FilterBundle
+    // GetKubeEndpointFilters retrieves the selected container FilterBundle
+	GetKubeEndpointFilters(endpointFilters [][]KubeEndpointFilter) FilterBundle
     ... 
 }
 ```

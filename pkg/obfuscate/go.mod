@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/obfuscate
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-go/v5 v5.8.1
+	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/go-sqllexer v0.1.10
 	github.com/outcaste-io/ristretto v0.2.3
 	github.com/stretchr/testify v1.11.1
@@ -122,7 +122,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sds => ../../pkg/logs/sds
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface

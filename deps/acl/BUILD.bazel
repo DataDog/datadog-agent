@@ -1,4 +1,4 @@
-load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("//bazel/tools:generate_module_bazel.bzl", "generate_module_bazel")
 
 VERSION = "2.3.1"
@@ -10,12 +10,14 @@ generate_module_bazel(
     sha256 = "c0234042e17f11306c23c038b08e5e070edb7be44bef6697fb8734dcff1c66b1",
     strip_prefix = "acl-%s" % VERSION,
     tags = ["manual"],
-    url = "http://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/acl-%s.tar.xz" % VERSION,
+        "https://download.savannah.nongnu.org/releases/acl/acl-%s.tar.xz" % VERSION,
+    ],
 )
 
-diff_test(
-    name = "module_consistency_test",
-    failure_message = "To update: cp bazel-bin/deps/openssl3/openssl3.MODULE.bazel.new openssl3.MODULE.bazel",
-    file1 = ":acl.MODULE.bazel.new",
-    file2 = "acl.MODULE.bazel",
+write_source_file(
+    name = "module_consistency",
+    in_file = ":acl.MODULE.bazel.new",
+    out_file = "acl.MODULE.bazel",
 )
