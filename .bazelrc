@@ -47,11 +47,5 @@ build:ci --output_groups=+clippy_checks
 build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
 build:ci --output_groups=+rustfmt_checks
 
-# For Rust targets, enable clippy and rustfmt checks during the build
-build:ci --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
-build:ci --output_groups=+clippy_checks
-build:ci --aspects=@rules_rust//rust:defs.bzl%rustfmt_aspect
-build:ci --output_groups=+rustfmt_checks
-
 # Local development options --------------------------------------------------------------------------------------------
 try-import %workspace%/user.bazelrc
