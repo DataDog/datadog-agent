@@ -13,9 +13,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,6 +22,8 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+var deploymentsGVR = appsv1.SchemeGroupVersion.WithResource("deployments")
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}
@@ -32,21 +33,12 @@ func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	return deployment == nil
 }
 
-func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, cfg config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
-	deploymentListerWatcher := &cache.ListWatch{
-		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
-			return client.AppsV1().Deployments(metav1.NamespaceAll).List(ctx, options)
-		},
-		WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-			return client.AppsV1().Deployments(metav1.NamespaceAll).Watch(ctx, options)
-		},
-	}
-
+func newDeploymentStore(ctx context.Context, wlm workloadmeta.Component, cfg config.Reader, _ kubernetes.Interface, metadataclient metadata.Interface) (*cache.Reflector, *reflectorStore) {
 	deploymentStore := newDeploymentReflectorStore(wlm, cfg)
 	deploymentReflector := cache.NewNamedReflector(
 		componentName,
-		deploymentListerWatcher,
-		&appsv1.Deployment{},
+		createMetadataListerWatcher(ctx, metadataclient, deploymentsGVR),
+		&metav1.PartialObjectMetadata{},
 		deploymentStore,
 		noResync,
 	)

@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/framer"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -336,16 +337,16 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 }
 
-func newPodStore(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStore(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, _ metadata.Interface) (*cache.Reflector, *reflectorStore) {
 	// The REST client approach doesn't work with protobuf, so fallback to typed
 	// client.
 	if config.GetBool("kubernetes_apiserver_use_protobuf") {
-		return newPodStoreWithTypedClient(ctx, wlm, config, client)
+		return newPodStoreWithTypedClient(ctx, wlm, config, client, nil)
 	}
-	return newPodStoreWithRestClient(wlm, config, client)
+	return newPodStoreWithRestClient(wlm, config, client, nil)
 }
 
-func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, _ metadata.Interface) (*cache.Reflector, *reflectorStore) {
 	restClient := client.CoreV1().RESTClient()
 
 	listFunc := func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
@@ -395,7 +396,7 @@ func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader,
 	return podReflector, podStore
 }
 
-func newPodStoreWithTypedClient(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
+func newPodStoreWithTypedClient(ctx context.Context, wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface, _ metadata.Interface) (*cache.Reflector, *reflectorStore) {
 	podListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return client.CoreV1().Pods(metav1.NamespaceAll).List(ctx, options)

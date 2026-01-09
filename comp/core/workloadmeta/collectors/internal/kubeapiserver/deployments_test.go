@@ -11,27 +11,29 @@ import (
 	"context"
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/metadata"
+	"k8s.io/client-go/tools/cache"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 )
 
 func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	tests := []struct {
-		name           string
-		createResource func(cl *fake.Clientset) error
-		deployment     *workloadmeta.KubernetesDeployment
-		expected       workloadmeta.EventBundle
+		name          string
+		createObjects func() []runtime.Object
+		deployment    *workloadmeta.KubernetesDeployment
+		expected      workloadmeta.EventBundle
 	}{
 		{
 			name: "has env label",
-			createResource: func(cl *fake.Clientset) error {
-				_, err := cl.AppsV1().Deployments("test-namespace").Create(
-					context.TODO(),
-					&appsv1.Deployment{
+			createObjects: func() []runtime.Object {
+				return []runtime.Object{
+					&metav1.PartialObjectMetadata{
 						TypeMeta: metav1.TypeMeta{
 							APIVersion: "apps/v1",
 							Kind:       "Deployment",
@@ -40,10 +42,9 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 							Name:      "test-deployment",
 							Namespace: "test-namespace",
 							Labels:    map[string]string{"test-label": "test-value", "tags.datadoghq.com/env": "env"},
-						}},
-					metav1.CreateOptions{},
-				)
-				return err
+						},
+					},
+				}
 			},
 			expected: workloadmeta.EventBundle{
 				Events: []workloadmeta.Event{
@@ -69,10 +70,9 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 
 		{
 			name: "has language annotation",
-			createResource: func(cl *fake.Clientset) error {
-				_, err := cl.AppsV1().Deployments("test-namespace").Create(
-					context.TODO(),
-					&appsv1.Deployment{
+			createObjects: func() []runtime.Object {
+				return []runtime.Object{
+					&metav1.PartialObjectMetadata{
 						TypeMeta: metav1.TypeMeta{
 							APIVersion: "apps/v1",
 							Kind:       "Deployment",
@@ -83,10 +83,9 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 							Annotations: map[string]string{"test-label": "test-value",
 								"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
 								"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python"},
-						}},
-					metav1.CreateOptions{},
-				)
-				return err
+						},
+					},
+				}
 			},
 			expected: workloadmeta.EventBundle{
 				Events: []workloadmeta.Event{
@@ -124,7 +123,12 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			testCollectEvent(t, tt.createResource, newDeploymentStore, tt.expected)
+
+			newDeploymentStoreFunc := func(ctx context.Context, wlm workloadmeta.Component, cfg config.Reader, metadataclient metadata.Interface, _ schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+				return newDeploymentStore(ctx, wlm, cfg, nil, metadataclient)
+			}
+
+			testCollectMetadataEventWithStore(t, tt.createObjects, deploymentsGVR, newDeploymentStoreFunc, tt.expected)
 		})
 	}
 }

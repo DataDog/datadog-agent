@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
-	metadataListerWatcher := &cache.ListWatch{
+func createMetadataListerWatcher(ctx context.Context, metadataclient metadata.Interface, gvr schema.GroupVersionResource) *cache.ListWatch {
+	return &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return metadataclient.Resource(gvr).List(ctx, options)
 		},
@@ -32,6 +32,10 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 			return metadataclient.Resource(gvr).Watch(ctx, options)
 		},
 	}
+}
+
+func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+	metadataListerWatcher := createMetadataListerWatcher(ctx, metadataclient, gvr)
 
 	annotationsExclude := config.GetStringSlice("cluster_agent.kube_metadata_collection.resource_annotations_exclude")
 	parser, err := kubernetesresourceparsers.NewMetadataParser(gvr, annotationsExclude)

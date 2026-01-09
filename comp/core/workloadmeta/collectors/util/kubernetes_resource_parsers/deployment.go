@@ -11,8 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -21,7 +20,6 @@ import (
 
 type deploymentParser struct {
 	annotationsFilter []*regexp.Regexp
-	gvr               *schema.GroupVersionResource
 }
 
 // NewDeploymentParser initialises and returns a deployment parser
@@ -32,11 +30,6 @@ func NewDeploymentParser(annotationsExclude []string) (ObjectParser, error) {
 	}
 	return deploymentParser{
 		annotationsFilter: filters,
-		gvr: &schema.GroupVersionResource{
-			Group:    "apps",
-			Version:  "v1",
-			Resource: "deployments",
-		},
 	}, nil
 }
 
@@ -51,7 +44,8 @@ func updateContainerLanguage(cl languagemodels.ContainersLanguages, container la
 }
 
 func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
-	deployment := obj.(*appsv1.Deployment)
+	// We don't need the full Deployment object. We can extract all we need from the metadata.
+	deployment := obj.(*metav1.PartialObjectMetadata)
 	containerLanguages := make(languagemodels.ContainersLanguages)
 
 	for annotation, languages := range deployment.Annotations {

@@ -17,8 +17,11 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/metadata"
 	metafake "k8s.io/client-go/metadata/fake"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,7 +35,9 @@ import (
 
 const dummySubscriber = "dummy-subscriber"
 
-func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected workloadmeta.EventBundle) {
+type newStoreFunc func(context.Context, workloadmeta.Component, config.Reader, metadata.Interface, schema.GroupVersionResource) (*cache.Reflector, *reflectorStore)
+
+func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface, metadata.Interface) (*cache.Reflector, *reflectorStore), expected workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
 	client := fake.NewSimpleClientset()
 
@@ -56,7 +61,7 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	))
 	ctx := context.TODO()
 
-	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client)
+	store, _ := newStore(ctx, wlm, wlm.GetConfig(), client, nil)
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)
 
@@ -99,7 +104,10 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 }
 
 func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Object, gvr schema.GroupVersionResource, expected workloadmeta.EventBundle) {
+	testCollectMetadataEventWithStore(t, createObjects, gvr, newMetadataStore, expected)
+}
 
+func testCollectMetadataEventWithStore(t *testing.T, createObjects func() []runtime.Object, gvr schema.GroupVersionResource, newStore newStoreFunc, expected workloadmeta.EventBundle) {
 	// Create a resource before starting the reflector store or workloadmeta so that if the reflector calls `List()` then
 	// this resource can't be skipped
 
@@ -123,7 +131,7 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// Create a fake metadata client to mock API calls.
 	_, err = metadataclient.Resource(gvr).List(ctx, v1.ListOptions{})
 	assert.NoError(t, err)
-	store, _ := newMetadataStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
+	store, _ := newStore(ctx, wlm, wlm.GetConfig(), metadataclient, gvr)
 
 	stopStore := make(chan struct{})
 	go store.Run(stopStore)

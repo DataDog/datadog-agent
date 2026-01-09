@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -41,7 +42,7 @@ type dependencies struct {
 }
 
 // storeGenerator returns a new store specific to a given resource
-type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
+type storeGenerator func(context.Context, workloadmeta.Component, config.Reader, kubernetes.Interface, metadata.Interface) (*cache.Reflector, *reflectorStore)
 
 func shouldHavePodStore(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
@@ -219,7 +220,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 
 	for _, storeBuilder := range storeGenerators(c.config) {
-		reflector, store := storeBuilder(ctx, wlmetaStore, c.config, client)
+		reflector, store := storeBuilder(ctx, wlmetaStore, c.config, client, metadataclient)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())
 	}

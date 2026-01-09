@@ -99,7 +99,7 @@ func collectResultStoreGenerator(funcs []storeGenerator, config config.Reader) [
 	var stores []*reflectorStore
 	client := fakeclientset.NewClientset()
 	for _, f := range funcs {
-		_, s := f(nil, nil, config, client)
+		_, s := f(nil, nil, config, client, nil)
 		stores = append(stores, s)
 	}
 	return stores

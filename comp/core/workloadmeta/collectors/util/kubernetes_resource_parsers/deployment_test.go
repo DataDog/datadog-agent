@@ -12,7 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -25,7 +24,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 	tests := []struct {
 		name       string
 		expected   *workloadmeta.KubernetesDeployment
-		deployment *appsv1.Deployment
+		deployment *metav1.PartialObjectMetadata
 	}{
 		{
 			name: "everything",
@@ -65,7 +64,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				},
 			},
 
-			deployment: &appsv1.Deployment{
+			deployment: &metav1.PartialObjectMetadata{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Deployment",
 					APIVersion: "apps/v1",
@@ -110,7 +109,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				Version:             "version",
 				InjectableLanguages: make(languagemodels.ContainersLanguages),
 			},
-			deployment: &appsv1.Deployment{
+			deployment: &metav1.PartialObjectMetadata{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Deployment",
 					APIVersion: "apps/v1",
@@ -162,7 +161,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 					},
 				},
 			},
-			deployment: &appsv1.Deployment{
+			deployment: &metav1.PartialObjectMetadata{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Deployment",
 					APIVersion: "apps/v1",
