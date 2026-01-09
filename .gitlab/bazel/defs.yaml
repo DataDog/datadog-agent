@@ -19,7 +19,6 @@
       key: bazel-$CI_RUNNER_DESCRIPTION
       paths:
         - .cache/bazel/*/cache
-        - .cache/bazel/*/*/external
         - .cache/pip
       policy: pull-push
       when: on_success
