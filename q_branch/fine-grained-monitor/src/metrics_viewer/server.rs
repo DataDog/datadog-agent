@@ -32,6 +32,8 @@ pub struct AppState {
 pub struct ServerConfig {
     pub port: u16,
     pub open_browser: bool,
+    /// Interval in seconds for background sidecar refresh (0 to disable).
+    pub refresh_interval_secs: u64,
 }
 
 impl Default for ServerConfig {
@@ -39,6 +41,7 @@ impl Default for ServerConfig {
         Self {
             port: 8050,
             open_browser: true,
+            refresh_interval_secs: 30,
         }
     }
 }
@@ -49,6 +52,21 @@ pub async fn run_server(data: LazyDataStore, config: ServerConfig) -> anyhow::Re
         data,
         studies: StudyRegistry::new(),
     });
+
+    // Spawn background sidecar refresh task
+    if config.refresh_interval_secs > 0 {
+        let refresh_state = state.clone();
+        let interval_secs = config.refresh_interval_secs;
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            interval.tick().await; // Skip immediate first tick
+            loop {
+                interval.tick().await;
+                refresh_state.data.refresh_containers_from_sidecars();
+            }
+        });
+        eprintln!("Background sidecar refresh enabled (every {}s)", interval_secs);
+    }
 
     // Find the static files directory
     let static_dir = find_static_dir();
@@ -234,7 +252,7 @@ const PRIORITY_METRICS: &[&str] = &[
 /// REQ-MV-002: Returns list of available metric names with sample counts.
 /// Priority metrics appear first, then remaining metrics alphabetically.
 async fn metrics_handler(State(state): State<Arc<AppState>>) -> Json<MetricsResponse> {
-    let mut metrics = state.data.index.metrics.clone();
+    let mut metrics = state.data.get_metrics();
 
     // Sort: priority metrics first (in order), then alphabetically
     metrics.sort_by(|a, b| {
@@ -261,8 +279,8 @@ struct MetricsResponse {
 /// Returns available qos_class and namespace values for filtering.
 async fn filters_handler(State(state): State<Arc<AppState>>) -> Json<FiltersResponse> {
     Json(FiltersResponse {
-        qos_classes: state.data.index.qos_classes.clone(),
-        namespaces: state.data.index.namespaces.clone(),
+        qos_classes: state.data.get_qos_classes(),
+        namespaces: state.data.get_namespaces(),
     })
 }
 

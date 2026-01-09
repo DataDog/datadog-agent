@@ -279,8 +279,8 @@ pub struct LazyDataStore {
     paths: RwLock<Vec<PathBuf>>,
     /// Data directory for file discovery (None for static file list).
     data_dir: Option<PathBuf>,
-    /// Metadata index (loaded at startup).
-    pub index: MetadataIndex,
+    /// Metadata index (loaded at startup, refreshed periodically).
+    index: RwLock<MetadataIndex>,
     /// Cached timeseries data: metric -> container -> points.
     timeseries_cache: RwLock<HashMap<String, HashMap<String, Vec<TimeseriesPoint>>>>,
     /// Fix #9: Last refresh timestamp to avoid redundant file discovery.
@@ -316,7 +316,7 @@ impl LazyDataStore {
         Ok(Self {
             paths: RwLock::new(paths),
             data_dir: None, // Static file list, no refresh
-            index,
+            index: RwLock::new(index),
             timeseries_cache: RwLock::new(HashMap::new()),
             last_refresh: RwLock::new(None),
         })
@@ -403,7 +403,7 @@ impl LazyDataStore {
         Ok(Self {
             paths: RwLock::new(parquet_files),
             data_dir: Some(data_dir),
-            index,
+            index: RwLock::new(index),
             timeseries_cache: RwLock::new(HashMap::new()),
             last_refresh: RwLock::new(Some(std::time::Instant::now())),
         })
@@ -414,7 +414,7 @@ impl LazyDataStore {
         Self {
             paths: RwLock::new(vec![]),
             data_dir: Some(data_dir),
-            index: MetadataIndex {
+            index: RwLock::new(MetadataIndex {
                 metrics: vec![],
                 qos_classes: vec![],
                 namespaces: vec![],
@@ -426,7 +426,7 @@ impl LazyDataStore {
                     latest: Utc::now(),
                     rotation_interval_sec: 90,
                 },
-            },
+            }),
             timeseries_cache: RwLock::new(HashMap::new()),
             last_refresh: RwLock::new(Some(std::time::Instant::now())),
         }
@@ -452,7 +452,8 @@ impl LazyDataStore {
 
             // Use the index's data_range for discovery instead of creating a new one
             // This ensures we use the actual data timespan, not a synthetic "now"
-            let new_files = discover_files_by_time_range(data_dir, &self.index.data_range, time_range);
+            let data_range = self.index.read().unwrap().data_range.clone();
+            let new_files = discover_files_by_time_range(data_dir, &data_range, time_range);
             let new_count = new_files.len();
 
             let mut paths = self.paths.write().unwrap();
@@ -510,17 +511,18 @@ impl LazyDataStore {
         // Load missing data
         if !missing.is_empty() {
             let all_paths = self.paths.read().unwrap();
+            let index = self.index.read().unwrap();
 
             // File-level pruning: only process files that contain requested containers
             let missing_set: HashSet<&str> = missing.iter().copied().collect();
-            let paths: Vec<PathBuf> = if self.index.file_containers.is_empty() {
+            let paths: Vec<PathBuf> = if index.file_containers.is_empty() {
                 // No file_containers index available, use all files
                 all_paths.clone()
             } else {
                 all_paths
                     .iter()
                     .filter(|path| {
-                        self.index
+                        index
                             .file_containers
                             .get(*path)
                             .map(|containers| containers.iter().any(|c| missing_set.contains(c.as_str())))
@@ -529,6 +531,7 @@ impl LazyDataStore {
                     .cloned()
                     .collect()
             };
+            drop(index); // Release lock before expensive I/O
 
             tracing::debug!(
                 "[PERF] File-level pruning: {} -> {} files for {} containers",
@@ -581,8 +584,8 @@ impl LazyDataStore {
             (now - d).timestamp_millis()
         });
 
-        let mut containers: Vec<ContainerInfo> = self
-            .index
+        let index = self.index.read().unwrap();
+        let mut containers: Vec<ContainerInfo> = index
             .containers
             .values()
             .filter(|c| {
@@ -597,6 +600,7 @@ impl LazyDataStore {
             })
             .cloned()
             .collect();
+        drop(index);
 
         // Sort by last_seen descending (most recent first)
         containers.sort_by(|a, b| {
@@ -613,6 +617,103 @@ impl LazyDataStore {
         );
 
         containers
+    }
+
+    /// Get a clone of the metrics list.
+    pub fn get_metrics(&self) -> Vec<MetricInfo> {
+        self.index.read().unwrap().metrics.clone()
+    }
+
+    /// Get a clone of the QoS classes list.
+    pub fn get_qos_classes(&self) -> Vec<String> {
+        self.index.read().unwrap().qos_classes.clone()
+    }
+
+    /// Get a clone of the namespaces list.
+    pub fn get_namespaces(&self) -> Vec<String> {
+        self.index.read().unwrap().namespaces.clone()
+    }
+
+    /// Refresh container metadata from sidecar files.
+    ///
+    /// This is called periodically by a background task to pick up new containers
+    /// without requiring a viewer restart. Only works in directory mode.
+    ///
+    /// Returns the number of containers after refresh, or None if not in directory mode.
+    pub fn refresh_containers_from_sidecars(&self) -> Option<usize> {
+        let data_dir = self.data_dir.as_ref()?;
+        let start = std::time::Instant::now();
+
+        // Discover all parquet files
+        let pattern = format!("{}/**/*.parquet", data_dir.display());
+        let mut parquet_files: Vec<PathBuf> = glob::glob(&pattern)
+            .ok()?
+            .filter_map(Result::ok)
+            .collect();
+
+        if parquet_files.is_empty() {
+            tracing::debug!("No parquet files found during sidecar refresh");
+            return Some(0);
+        }
+
+        // Sort by modification time (newest first)
+        parquet_files.sort_by(|a, b| {
+            let a_time = a.metadata().and_then(|m| m.modified()).ok();
+            let b_time = b.metadata().and_then(|m| m.modified()).ok();
+            b_time.cmp(&a_time)
+        });
+
+        // Compute updated data_range
+        let data_range = compute_data_range(&parquet_files);
+
+        // Try to load from sidecars
+        match load_from_sidecars(&parquet_files, data_range) {
+            Ok(new_index) => {
+                let container_count = new_index.containers.len();
+                let old_count = {
+                    let old_index = self.index.read().unwrap();
+                    old_index.containers.len()
+                };
+
+                // Update the index
+                {
+                    let mut index = self.index.write().unwrap();
+                    index.containers = new_index.containers;
+                    index.file_containers = new_index.file_containers;
+                    index.qos_classes = new_index.qos_classes;
+                    index.namespaces = new_index.namespaces;
+                    index.data_range = new_index.data_range;
+                    // Keep metrics from initial load (sidecars don't have metrics)
+                    if !new_index.metrics.is_empty() {
+                        index.metrics = new_index.metrics;
+                    }
+                }
+
+                // Update paths
+                *self.paths.write().unwrap() = parquet_files;
+
+                if container_count != old_count {
+                    tracing::info!(
+                        "Sidecar refresh: {} -> {} containers in {:.1}ms",
+                        old_count,
+                        container_count,
+                        start.elapsed().as_secs_f64() * 1000.0
+                    );
+                } else {
+                    tracing::debug!(
+                        "Sidecar refresh: {} containers (unchanged) in {:.1}ms",
+                        container_count,
+                        start.elapsed().as_secs_f64() * 1000.0
+                    );
+                }
+
+                Some(container_count)
+            }
+            Err(e) => {
+                tracing::debug!("Sidecar refresh failed: {}", e);
+                None
+            }
+        }
     }
 
     /// Clear all caches (useful for testing or memory pressure).

@@ -138,6 +138,7 @@ async fn main() -> Result<()> {
     let config = server::ServerConfig {
         port: args.port,
         open_browser: !args.no_browser,
+        refresh_interval_secs: 30, // Refresh container list every 30s
     };
 
     // Check if input is a single directory (directory scan mode)
