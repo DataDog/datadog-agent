@@ -5,8 +5,8 @@
 needs-rules:
   allowed-stages:
     - .pre
+    - .post
     - lint
-    - notify
     - deploy_dca
     - deploy_dca_mutable_tags
     - deploy_containers

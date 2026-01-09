@@ -100,7 +100,6 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,

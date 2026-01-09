@@ -49,12 +49,8 @@ type symdbManager struct {
 		stopped       bool
 
 		// trackedProcesses stores processes for which an upload was requested
-		// (and perhaps completed).
-		//
-		// Repeated requests for the same process (through queueProcess()) are
-		// no-ops. However, removeUpload() can be called to remove a process
-		// from this map, making future queueProcess() calls for it actually
-		// upload data again.
+		// (and perhaps completed). Repeated requests for the same process
+		// (through queueProcess()) are no-ops.
 		//
 		// Note that uploads are also tracked in persistentCache (if we're
 		// configured with a persistent cache), in addition to trackedProcesses.
@@ -73,9 +69,8 @@ type scheduledUpload struct {
 
 type symdbManagerInterface interface {
 	// queueUpload queues a new upload request, if the process' data has not
-	// been uploaded previously (since the last corresponding removeUpload()
-	// call, if any). Calling queueUpload() again for the same process is a
-	// no-op.
+	// been uploaded previously. Calling queueUpload() again for the same
+	// process is a no-op.
 	//
 	// The upload will be performed asynchronously. A single upload can be in
 	// progress at a time. Returns an error if the manager has been stopped.
@@ -163,10 +158,11 @@ type symdbManagerConfig struct {
 	testingKnobs   struct {
 		onDeferUpload                     func()
 		onUploadRejectedByPersistentCache func()
-		onUploadQueued                    func()
+		onUploadQueued                    func(queuedUploadInfo)
 		cacheOptions                      []cacheOption
 		backoffPolicy                     backoff.Policy
 		dontAccountForElapsedTime         bool
+		networkErrorRetryDelay            time.Duration
 	}
 }
 
@@ -202,7 +198,13 @@ func withBackoffPolicy(policy backoff.Policy) option {
 	}
 }
 
-func withTestingKnobOnUploadQueued(onUploadQueued func()) option {
+// queuedUploadInfo contains information about a queued upload, for testing.
+type queuedUploadInfo struct {
+	Request       uploadRequest
+	ScheduledTime time.Time
+}
+
+func withTestingKnobOnUploadQueued(onUploadQueued func(queuedUploadInfo)) option {
 	return func(c *symdbManagerConfig) {
 		c.testingKnobs.onUploadQueued = onUploadQueued
 	}
@@ -211,6 +213,12 @@ func withTestingKnobOnUploadQueued(onUploadQueued func()) option {
 func withDontAccountForElapsedTime() option {
 	return func(c *symdbManagerConfig) {
 		c.testingKnobs.dontAccountForElapsedTime = true
+	}
+}
+
+func withNetworkErrorRetryDelay(d time.Duration) option {
+	return func(c *symdbManagerConfig) {
+		c.testingKnobs.networkErrorRetryDelay = d
 	}
 }
 
@@ -227,8 +235,8 @@ func (m *symdbManager) stop() {
 }
 
 // queueUpload queues a new upload request, if the process' data has not been
-// uploaded previously (since the last corresponding removeUpload() call, if
-// any). Calling queueUpload() again for the same process is a no-op.
+// uploaded previously. Calling queueUpload() again for the same process is a
+// no-op.
 //
 // The upload will be performed asynchronously. A single upload can be in
 // progress at a time. Returns an error if the manager has been stopped.
@@ -258,12 +266,10 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 		version: runtimeID.version,
 	}
 	if _, ok := m.mu.trackedProcesses[key]; ok {
+		// We're already tracking this process, nothing to do.
 		return nil
 	}
 	// Track this process so that we don't upload it multiple times.
-	// TODO(andrei): We will never retry an upload on errors until the
-	// system-probe restarts; we should use an exponential backoff like we do
-	// across restarts.
 	m.mu.trackedProcesses[key] = struct{}{}
 
 	// Check if we already have performed, or attempted to perform, an upload
@@ -280,7 +286,7 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 			case entryTypeCompleted:
 				// We already uploaded symbols for this process before the agent
 				// restarted. Nothing more to do, now that we added the process
-				// to m.mmu.trackedProcesses.
+				// to m.mu.trackedProcesses.
 				if m.cfg.testingKnobs.onUploadRejectedByPersistentCache != nil {
 					m.cfg.testingKnobs.onUploadRejectedByPersistentCache()
 				}
@@ -338,6 +344,12 @@ func (m *symdbManager) queueUpload(runtimeID procRuntimeID, executablePath strin
 	return nil
 }
 
+func (m *symdbManager) addToQueue(req uploadRequest, scheduledTime time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.addToQueueLocked(req, scheduledTime)
+}
+
 func (m *symdbManager) addToQueueLocked(req uploadRequest, scheduledTime time.Time) {
 	m.mu.queuedUploads = append(m.mu.queuedUploads, scheduledUpload{
 		req:           req,
@@ -345,7 +357,10 @@ func (m *symdbManager) addToQueueLocked(req uploadRequest, scheduledTime time.Ti
 	})
 	m.notifyWorker()
 	if m.cfg.testingKnobs.onUploadQueued != nil {
-		m.cfg.testingKnobs.onUploadQueued()
+		m.cfg.testingKnobs.onUploadQueued(queuedUploadInfo{
+			Request:       req,
+			ScheduledTime: scheduledTime,
+		})
 	}
 }
 
@@ -409,7 +424,7 @@ func (m *symdbManager) removeUploadInner(key processKey) {
 	}
 	m.mu.Unlock()
 
-	// Wait for upload to finish.
+	// Wait for upload to finish without holding the lock.
 	if doneCh != nil {
 		<-doneCh
 	}
@@ -469,7 +484,7 @@ func (m *symdbManager) worker(ctx context.Context) {
 				}
 			}
 			// Check if the earliest upload is ready to be processed.
-			workReady = time.Now().After(earliestTime)
+			workReady = !time.Now().Before(earliestTime)
 		}
 
 		// If there's no work ready, wait for either new work to come in, or the
@@ -516,8 +531,22 @@ func (m *symdbManager) worker(ctx context.Context) {
 				log.Infof("SymDB: upload cancelled for process %v (executable: %s): %v",
 					req.runtimeID, req.executablePath, context.Cause(uploadCtx))
 			} else {
-				log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v",
-					req.procID.pid, req.executablePath, err)
+				// We'll retry the upload on network errors, but not on other errors.
+				var ue uploadError
+				networkError := errors.As(err, &ue)
+				if networkError {
+					retryDelay := time.Hour
+					if m.cfg.testingKnobs.networkErrorRetryDelay > 0 {
+						retryDelay = m.cfg.testingKnobs.networkErrorRetryDelay
+					}
+					nextAttempt := time.Now().Add(retryDelay)
+					log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v. Will be attempted again at: %s.",
+						req.procID.pid, req.executablePath, err, nextAttempt)
+					m.addToQueue(req, nextAttempt)
+				} else {
+					log.Errorf("SymDB: failed to upload symbols for process %v (executable: %s): %v. It will not be attempted again.",
+						req.procID.pid, req.executablePath, err)
+				}
 			}
 		}
 
@@ -563,7 +592,8 @@ func (m *symdbManager) performUpload(
 					retErr = fmt.Errorf("failed to update cache entry for process %v: %w", procID.pid, err)
 				}
 			} else {
-				// Upload failed, update the entry with the error message.
+				// Upload failed, update the cache entry we created above with
+				// the error message.
 				if err := m.persistentCache.AddAttempt(
 					procID.pid.PID, procID.service, procID.version, errorNumber, retErr.Error(),
 				); err != nil {
@@ -615,7 +645,7 @@ func (m *symdbManager) performUpload(
 				uploadBuffer,
 			)
 			if err != nil {
-				return fmt.Errorf("upload failed: %w", err)
+				return uploadError{cause: err}
 			}
 			uploadBuffer = uploadBuffer[:0]
 			bufferFuncs = 0
@@ -649,3 +679,18 @@ func (m *symdbManager) performUpload(
 		totalPackages, totalFuncs, batchNum, time.Since(startTime))
 	return nil
 }
+
+// uploadError represents network errors that occurred while uploading symbols.
+type uploadError struct {
+	cause error
+}
+
+func (u uploadError) Error() string {
+	return fmt.Sprintf("upload failed: %s", u.cause)
+}
+
+func (u uploadError) Cause() error {
+	return u.cause
+}
+
+var _ error = uploadError{}
