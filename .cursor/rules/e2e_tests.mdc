@@ -1,13 +1,14 @@
 ---
 description: Guidelines for working with E2E tests in the datadog-agent repository
 alwaysApply: false
+globs: test/new-e2e/**/*
 ---
 
 # E2E Test Development Guidelines
 
 ## Overview
 
-E2E tests are located in `test/new-e2e/` and use a framework based on [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to provision cloud resources and run tests.
+E2E tests are located in `test/new-e2e/` and use a framework integrated in `test/e2e-framework/` to provision cloud resources and run tests.
 
 ## Running E2E Tests
 
@@ -36,7 +37,7 @@ configParams:
     apiKey: "00000000000000000000000000000000"
 ```
 
-The default environment is `agent-sandbox` (see `test/new-e2e/pkg/runner/local_profile.go`). If you're running in a different AWS account, EC2 instances won't have the correct IAM permissions to pull images from ECR.
+The default environment is `agent-sandbox`. If you're running in a different AWS account, EC2 instances won't have the correct IAM permissions to pull images from ECR.
 
 **Common Error**: If you see `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`, verify your AWS account configuration in `~/.test_infra_config.yaml`.
 
@@ -73,22 +74,37 @@ func TestMySuite(t *testing.T) {
     }
     e2e.Run(t, &mySuite{}, suiteParams...)
 }
+
+func (v *mySuite) TestExecute() {
+    vm := v.Env().RemoteHost
+    out, err := vm.Execute("whoami")
+    v.Require().NoError(err)
+    v.Require().NotEmpty(out)
+}
 ```
 
 ### Provisioners
 
-Provisioners create and manage cloud resources. Common patterns:
+Provisioners create and manage cloud resources. They are located in `test/e2e-framework/testing/provisioners/`.
 
-- **Typed Provisioners**: Use `provisioners.NewTypedPulumiProvisioner[environments.Type]`
-- **Dependencies**: Use `utils.PulumiDependsOn()` to ensure resources are created in order
-- **Export**: Use `resource.Export()` to expose resources to the test environment
+**Available provisioners by cloud provider:**
+- **AWS**: `aws/host`, `aws/docker`, `aws/ecs`, `aws/kubernetes/eks`, `aws/kubernetes/kindvm`
+- **Azure**: `azure/host/linux`, `azure/host/windows`, `azure/kubernetes/aks`
+- **GCP**: `gcp/host/linux`, `gcp/kubernetes/gke`
+- **Local**: `local/host/podman`, `local/kubernetes/kind`
+
+**Key concepts:**
+- **Typed Provisioners**: Provisioners typed with the environment they provision. Use `component.Export()` to match Environment fields with Pulumi resources.
+- **Untyped Provisioners**: More flexible provisioners. The environment needs to be annotated with the `import` tag to match resource keys.
 
 ### Environments
 
-Common environments:
-- `environments.Host`: Single VM with agent installed
-- `environments.Kubernetes`: Kubernetes cluster with agent deployed via Helm
+Environments are defined in `test/e2e-framework/testing/environments/`:
+
+- `environments.Host`: Single VM with agent installed (fields: `RemoteHost`, `FakeIntake`, `Agent`, `Updater`)
+- `environments.Kubernetes`: Kubernetes cluster with agent deployed via Helm (fields: `KubernetesCluster`, `FakeIntake`, `Agent`)
 - `environments.DockerHost`: VM with Docker and agent in containers
+- `environments.ECS`: ECS cluster environment
 
 ## Common Patterns
 
@@ -100,6 +116,8 @@ dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(ins
 ```
 
 ### Pulling Docker Images
+
+Use this in host environments to pull Docker images.
 
 ```go
 func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
@@ -153,6 +171,7 @@ E2E_DEV_MODE=true dda inv -- -e new-e2e-tests.run --targets ./tests/gpu --run Te
 Test output is stored in `~/e2e-output/<TestName>_<timestamp>/` and includes:
 - Pulumi logs
 - Agent logs
+- Agent flares (on test failure)
 - Test artifacts
 
 ### Diagnose Function
@@ -177,7 +196,7 @@ Run the cleanup task to remove local Pulumi locks:
 dda inv new-e2e-tests.clean
 ```
 
-If the issue persists, also clean local stack state (this removes local Pulumi stacks; it won’t destroy cloud resources unless you omit the skip flag inside the task):
+If the issue persists, also clean local stack state (this removes local Pulumi stacks; it won't destroy cloud resources unless you omit the skip flag inside the task):
 
 ```bash
 dda inv new-e2e-tests.clean -s
@@ -189,7 +208,7 @@ Optionally clear local test output:
 dda inv new-e2e-tests.clean --output
 ```
 
-Note: Cleanup is supported for local Pulumi state only. If you see “Cleanup supported for local state only”, run:
+Note: Cleanup is supported for local Pulumi state only. If you see "Cleanup supported for local state only", run:
 
 ```bash
 pulumi login --local
@@ -197,10 +216,17 @@ pulumi login --local
 
 ## Key Files
 
-- `test/new-e2e/pkg/e2e/suite.go`: Core e2e framework
-- `test/new-e2e/pkg/environments/`: Environment definitions
-- `test/new-e2e/pkg/provisioners/`: Provisioner implementations
+Framework:
+- `test/e2e-framework/testing/e2e/suite.go`: Core e2e BaseSuite and Run function
+- `test/e2e-framework/testing/environments/`: Environment definitions (Host, Kubernetes, DockerHost, ECS)
+- `test/e2e-framework/testing/provisioners/`: Provisioner implementations by cloud provider
+- `test/e2e-framework/components/`: Pulumi component definitions (datadog agent, kubernetes, remote hosts)
+- `test/e2e-framework/scenarios/`: Pre-built scenario configurations
+- `test/e2e-framework/resources/`: Cloud-specific resource definitions (aws, azure, gcp)
+
+Tests:
 - `test/new-e2e/tests/`: Test packages
+- `test/new-e2e/examples/`: Example test implementations
 
 ## Best Practices
 
@@ -209,3 +235,4 @@ pulumi login --local
 3. **Use dependencies** (`utils.PulumiDependsOn`) to ensure correct resource creation order
 4. **Handle flaky tests** using `flake.MarkOnLog()` when appropriate
 5. **Store test output** using `tee` to review logs later
+6. **Clean up stacks** when done testing to avoid resource costs
