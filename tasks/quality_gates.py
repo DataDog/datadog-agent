@@ -88,6 +88,7 @@ def fetch_pr_metrics(pr_number: int) -> dict[str, GateMetricsData]:
 
     for metric_suffix, attr_name in metric_queries:
         query = f"avg:datadog.agent.static_quality_gate.{metric_suffix}{{pr_number:{pr_number}}} by {{gate_name}}"
+        print(color_message(f"  Querying {metric_suffix}...", "cyan"))
         result = query_metrics(query, from_time="now-1d", to_time="now")
 
         for series in result:
@@ -807,6 +808,9 @@ def exception_threshold_bump(ctx, pr_number):
     1. Find which gates are failing for this PR
     2. Get the current headroom on main (max - current)
     3. Set new thresholds = PR's current size + main's headroom
+
+    Usage:
+        dd-auth -- dda inv quality-gates.exception-threshold-bump <pr_number>
     """
     pr_number = int(pr_number)
     print(color_message(f"Fetching metrics for PR #{pr_number}...", "cyan"))
