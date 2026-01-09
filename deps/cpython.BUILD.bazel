@@ -344,7 +344,7 @@ pkg_install(
         "@openssl//:openssl_hdr_files",
     ] + select({
         "@platforms//os:windows": [
-            "@openssl//:openssl_exe_file",
+            "@openssl//:openssl_bin_dir",
             "@openssl//:dll_a",
         ],
         "//conditions:default": [
