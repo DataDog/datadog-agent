@@ -183,3 +183,8 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 	sid, _, _, err := windows.LookupSID("", user)
 	return sid, err
 }
+
+// CheckRights checks that others don't have any rights and that group doesn't have write permission
+func CheckRights(path string) error {
+	return checkRights(path, true)
+}

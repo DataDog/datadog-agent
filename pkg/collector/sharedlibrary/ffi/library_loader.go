@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
 )
 
@@ -84,6 +85,11 @@ type SharedLibraryLoader struct {
 func (l *SharedLibraryLoader) Open(name string) (*Library, error) {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	libPath := path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
+
+	// check that the shared library cannot be modified by other users
+	if err := secretsimpl.CheckRights(libPath); err != nil {
+		return nil, err
+	}
 
 	cLibPath := C.CString(libPath)
 	defer C.free(unsafe.Pointer(cLibPath))

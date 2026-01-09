@@ -36,3 +36,8 @@ func checkRights(path string, allowGroupExec bool) error {
 
 	return nil
 }
+
+// CheckRights checks that others don't have any rights and that group doesn't have write permission
+func CheckRights(path string) error {
+	return checkRights(path, true)
+}
