@@ -33,8 +33,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PERSONAL_ACCESS_TOKEN: ${{ steps.octo-sts.outputs.token }}
         with:
-          path-to-signatures: 'cla.json'
+          path-to-signatures: 'datadog-agent.json'
           path-to-document: 'https://gist.github.com/bits-bot/55bdc97a4fdad52d97feb4d6c3d1d618' # e.g. a CLA or a DCO document
-          branch: <branch-in-the-cla-signatures-repo>
+          branch: datadog-agent
           remote-repository-name: cla-signatures
           remote-organization-name: DataDog
+          allowlist: *[bot]
