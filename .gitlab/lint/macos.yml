@@ -15,7 +15,13 @@ include:
 lint_macos_gitlab_amd64:
   extends: .lint_macos_gitlab
   tags: ["macos:sonoma-amd64", "specific:true"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 lint_macos_gitlab_arm64:
   extends: .lint_macos_gitlab
   tags: ["macos:sonoma-arm64", "specific:true"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities

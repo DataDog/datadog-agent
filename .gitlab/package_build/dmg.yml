@@ -73,7 +73,13 @@
 agent_dmg-x64-a7:
   extends: .agent_dmg
   tags: ["macos:sonoma-amd64", "specific:true"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
 
 agent_dmg-arm64-a7:
   extends: .agent_dmg
   tags: ["macos:sonoma-arm64", "specific:true"]
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities

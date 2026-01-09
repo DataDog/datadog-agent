@@ -40,12 +40,12 @@ tests_macos_gitlab_amd64:
   extends: .tests_macos_gitlab
   tags: ["macos:sonoma-amd64", "specific:true"]
   id_tokens:
-    - CI_IDENTITIES_GITLAB_ID_TOKEN:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
 
 tests_macos_gitlab_arm64:
   extends: .tests_macos_gitlab
   tags: ["macos:sonoma-arm64", "specific:true"]
   id_tokens:
-    - CI_IDENTITIES_GITLAB_ID_TOKEN:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
       aud: ci-identities
