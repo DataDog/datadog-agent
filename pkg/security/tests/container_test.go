@@ -72,7 +72,7 @@ func TestContainerCreatedAt(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "container-created-at", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -81,11 +81,11 @@ func TestContainerCreatedAt(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_container_created_at")
 	})
 
 	dockerWrapper.Run(t, "container-created-at-delay", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFileDelay}, nil) // shouldn't trigger an event
 			if err := cmd.Run(); err != nil {
 				return err
@@ -102,7 +102,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			assert.True(t, time.Since(createdAt) > 3*time.Second)
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_container_created_at_delay")
 	})
 }
 
@@ -158,7 +158,7 @@ func TestContainerVariables(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "container-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -167,9 +167,9 @@ func TestContainerVariables(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_container_set_variable")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile2}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -178,7 +178,7 @@ func TestContainerVariables(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_container_check_variable")
 	})
 }
 
@@ -224,7 +224,7 @@ func TestContainerVariablesReleased(t *testing.T) {
 		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		return dockerWrapper.Command("touch", []string{"/tmp/test-open"}, nil).Run()
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_container_set_variable")
@@ -239,7 +239,7 @@ func TestContainerVariablesReleased(t *testing.T) {
 		value, ok := variable.GetValue()
 		assert.True(t, ok)
 		assert.Equal(t, 999, value.(int))
-	})
+	}, "test_container_set_variable")
 
 	_, err = dockerWrapper.stop()
 	if err != nil {
