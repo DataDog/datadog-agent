@@ -105,7 +105,7 @@ The development configuration file should be placed at `dev/dist/datadog.yaml`. 
 - System-probe modules: `cmd/system-probe/modules/`
 - Configuration: Set `<check_name>.enabled: true` in system-probe config
 - See `pkg/collector/corechecks/ebpf/AGENTS.md` for detailed structure
-- Quick reference: `.cursor/rules/system_probe.mdc` for common patterns and pitfalls
+- Quick reference: `.cursor/rules/system_probe_modules.mdc` for common patterns and pitfalls
 
 ## Testing Strategy
 
