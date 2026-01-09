@@ -345,6 +345,17 @@ var TunnelMetadataConfig = profiledefinition.MetadataConfig{
 	},
 }
 
+// RequiredInterfaceFields contains interface metadata fields that must always be collected
+// regardless of what is defined in profiles
+var RequiredInterfaceFields = map[string]profiledefinition.MetadataField{
+	"if_type": {
+		Symbol: profiledefinition.SymbolConfig{
+			OID:  "1.3.6.1.2.1.2.2.1.3",
+			Name: "ifType",
+		},
+	},
+}
+
 // updateMetadataDefinitionWithDefaults will add metadata config for resources
 // that does not have metadata definitions
 func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.MetadataConfig, collectTopology bool, collectVPN bool) profiledefinition.MetadataConfig {
@@ -359,6 +370,8 @@ func updateMetadataDefinitionWithDefaults(metadataConfig profiledefinition.Metad
 		mergeMetadata(newConfig, RouteMetadataConfig)
 		mergeMetadata(newConfig, TunnelMetadataConfig)
 	}
+	// Ensure required interface fields are always present
+	ensureRequiredInterfaceFields(newConfig)
 	return newConfig
 }
 
@@ -368,4 +381,20 @@ func mergeMetadata(metadataConfig profiledefinition.MetadataConfig, extraMetadat
 			metadataConfig[resourceName] = resourceConfig
 		}
 	}
+}
+
+// ensureRequiredInterfaceFields adds required interface fields that must always be collected
+// These fields override any user-defined configuration
+func ensureRequiredInterfaceFields(metadataConfig profiledefinition.MetadataConfig) {
+	interfaceConfig, ok := metadataConfig["interface"]
+	if !ok {
+		return
+	}
+	if interfaceConfig.Fields == nil {
+		interfaceConfig.Fields = make(map[string]profiledefinition.MetadataField)
+	}
+	for fieldName, field := range RequiredInterfaceFields {
+		interfaceConfig.Fields[fieldName] = field
+	}
+	metadataConfig["interface"] = interfaceConfig
 }

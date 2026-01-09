@@ -305,6 +305,7 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
 			AdminStatus: devicemetadata.IfAdminStatus(store.GetColumnAsFloat("interface.admin_status", strIndex)),
 			OperStatus:  devicemetadata.IfOperStatus(store.GetColumnAsFloat("interface.oper_status", strIndex)),
+			IfType:      int(store.GetColumnAsFloat("interface.if_type", strIndex)),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)

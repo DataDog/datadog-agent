@@ -130,6 +130,7 @@ type InterfaceMetadata struct {
 	MacAddress    string        `json:"mac_address,omitempty"`
 	AdminStatus   IfAdminStatus `json:"admin_status,omitempty"`   // IF-MIB ifAdminStatus type is INTEGER
 	OperStatus    IfOperStatus  `json:"oper_status,omitempty"`    // IF-MIB ifOperStatus type is INTEGER
+	IfType        int           `json:"if_type,omitempty"`        // IF-MIB ifType type is INTEGER (IANAifType)
 	MerakiEnabled *bool         `json:"meraki_enabled,omitempty"` // enabled bool for Meraki devices, use a pointer to determine if the value was actually sent
 	MerakiStatus  string        `json:"meraki_status,omitempty"`  // status for Meraki devices
 }
