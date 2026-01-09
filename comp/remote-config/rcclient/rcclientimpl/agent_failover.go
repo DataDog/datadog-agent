@@ -15,7 +15,7 @@ type multiRegionFailoverConfig struct {
 	FailoverMetrics  *bool    `json:"failover_metrics"`
 	FailoverLogs     *bool    `json:"failover_logs"`
 	FailoverAPM      *bool    `json:"failover_apm"`
-	MetricsAllowlist []string `json:"metric_allowlist"`
+	MetricsAllowlist []string `json:"metrics_allowlist"`
 }
 
 // parseMultiRegionFailoverConfig parses an AGENT_FAILOVER Multi-Region Failover configuration file

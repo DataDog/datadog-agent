@@ -278,8 +278,8 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	noLogs := state.RawConfig{Config: []byte(`{"name": "nologs", "failover_logs": false}`)}
 	activeMetrics := state.RawConfig{Config: []byte(`{"name": "yesmetrics", "failover_metrics": true}`)}
 	activeAPM := state.RawConfig{Config: []byte(`{"name": "yesapm", "failover_apm": true}`)}
-	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metric_allowlist": ["system.cpu.usage"]}`)}
-	emptyAllowlist := state.RawConfig{Config: []byte(`{"name": "emptyallowlist", "metric_allowlist": []}`)}
+	activeAllowlist := state.RawConfig{Config: []byte(`{"name": "yesallowlist", "metrics_allowlist": ["system.cpu.usage"]}`)}
+	emptyAllowlist := state.RawConfig{Config: []byte(`{"name": "emptyallowlist", "metrics_allowlist": []}`)}
 	nilAllowlist := state.RawConfig{Config: []byte(`{"name": "nilallowlist"}`)}
 
 	rc := rcComponent.(*rcClient)
