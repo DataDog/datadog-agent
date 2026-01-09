@@ -24,13 +24,13 @@ var (
 // The reason is that data produced by parsing json, yaml, etc should always made up
 // of "plain" go-lang types (maps, slices, scalars). Some unit tests assign structs directly
 // to the state of the config, which then require reflection to properly handle
-func asReflectionNode(v interface{}) (Node, error) {
+func asReflectionNode(v interface{}) (*nodeImpl, error) {
 	if _, ok := v.(reflect.Value); ok {
 		return nil, errReflectValue
 	}
 	rv := reflect.ValueOf(v)
 	if rv.Kind() == reflect.Struct {
-		return &structNodeImpl{val: rv}, nil
+		return nil, errors.New("cannot create node from Struct")
 	} else if rv.Kind() == reflect.Slice {
 		elems := make([]interface{}, 0, rv.Len())
 		for i := 0; i < rv.Len(); i++ {

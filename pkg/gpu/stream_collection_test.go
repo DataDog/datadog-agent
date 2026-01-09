@@ -19,6 +19,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
@@ -114,6 +115,24 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 }
 
 func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
+	// Set a fake procfs to avoid system interactions
+	pid1, pid2 := uint32(1), uint32(2)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid1,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+		},
+		{
+			Pid:     pid2,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+		},
+	}, kernel.WithRealUptime(), kernel.WithRealStat())
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
@@ -121,7 +140,6 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 
 	// Create two streams
-	pid1, pid2 := uint32(1), uint32(2)
 	streamID1, streamID2 := uint64(1), uint64(2)
 
 	header1 := &gpuebpf.CudaEventHeader{

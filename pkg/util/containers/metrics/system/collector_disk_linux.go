@@ -9,7 +9,6 @@ package system
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,7 +99,7 @@ func GetDiskDeviceMapping(procPath string) (map[string]string, error) {
 			log.Debugf("Malformed line in %s, fields: %v", statfile, fields)
 			continue
 		}
-		mapping[fmt.Sprintf("%s:%s", fields[0], fields[1])] = fields[2]
+		mapping[fields[0]+":"+fields[1]] = fields[2]
 	}
 	if err := scanner.Err(); err != nil {
 		log.Debugf("Error while reading %s, disk metrics may be missing, err: %v", statfile, err)

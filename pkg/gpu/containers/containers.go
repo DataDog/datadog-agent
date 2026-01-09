@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -30,6 +31,7 @@ var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
+	dockerInspectTimeout       = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -66,13 +68,34 @@ func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.D
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
-	// We can't use container.EnvVars as it doesn't contain the environment variables
-	// added by the container runtime. We need to get them from the main PID environment.
+	// We can't use container.EnvVars as it doesn't contain the environment
+	// variables added by the container runtime, we only get those defined by
+	// the container image, and those can be overridden by the container
+	// runtime. We need to get them from the main PID environment.
 	envVar, err := kernel.GetProcessEnvVariable(container.PID, kernel.ProcFSRoot(), nvidiaVisibleDevicesEnvVar)
-	if err != nil {
-		return "", fmt.Errorf("error getting %s for container %s: %w", nvidiaVisibleDevicesEnvVar, container.ID, err)
+	if err == nil {
+		return strings.TrimSpace(envVar), nil
 	}
-	return strings.TrimSpace(envVar), nil
+
+	// If we have an error (e.g, the agent does not have permissions to inspect
+	// the process environment variables) fall back to the container runtime
+	// data
+	if container.Resources.GPURequest == nil {
+		return "", nil // no GPUs requested, so no visible devices
+	}
+
+	if *container.Resources.GPURequest == workloadmeta.RequestAllGPUs {
+		return "all", nil
+	}
+
+	// return 0,1,...numGpus-1 as the assumed visible devices variable,
+	// that's how Docker assigns devices to containers, there's no exclusive
+	// allocation.
+	visibleDevices := make([]string, int(*container.Resources.GPURequest))
+	for i := 0; i < int(*container.Resources.GPURequest); i++ {
+		visibleDevices[i] = strconv.Itoa(i)
+	}
+	return strings.Join(visibleDevices, ","), nil
 }
 
 func matchDockerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {

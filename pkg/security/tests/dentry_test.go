@@ -57,7 +57,7 @@ func TestDentryPathERPC(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
@@ -86,7 +86,7 @@ func TestDentryPathERPC(t *testing.T) {
 
 		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.Empty(t, test.statsdClient.Get(key))
-	})
+	}, "test_erpc_path_rule")
 }
 
 func TestDentryPathMap(t *testing.T) {
@@ -121,7 +121,7 @@ func TestDentryPathMap(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
@@ -150,7 +150,7 @@ func TestDentryPathMap(t *testing.T) {
 
 		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.NotEmpty(t, test.statsdClient.Get(key))
-	})
+	}, "test_map_path_rule")
 }
 
 func TestDentryName(t *testing.T) {
@@ -185,7 +185,7 @@ func TestDentryName(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
@@ -205,7 +205,7 @@ func TestDentryName(t *testing.T) {
 		res, err = p.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
 		assert.NoError(test.t, err)
 		assert.Equal(test.t, basename, path.Base(res))
-	})
+	}, "test_dentry_name_rule")
 }
 
 func BenchmarkERPCDentryResolutionPath(b *testing.B) {

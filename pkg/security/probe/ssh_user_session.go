@@ -58,7 +58,7 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 				event.ProcessContext.UserSession.SSHClientPort = port
 			}
 		} else {
-			seclog.Warnf("SSH_CLIENT is not in the expected format: %q", sshClientVar)
+			seclog.Tracef("SSH_CLIENT is not in the expected format: %q", sshClientVar)
 		}
 	}
 }
@@ -141,10 +141,7 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 	p.resolver.SSHSessionParsed.Mu.Unlock()
 
 	if ok {
-		if model.SSHAuthMethodStrings == nil {
-			model.InitSSHAuthMethodConstants()
-		}
-		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodStrings[usersession.AuthType(value.AuthenticationMethod)]
+		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(value.AuthenticationMethod))
 		ev.ProcessContextSerializer.UserSession.SSHPublicKey = value.PublicKey
 	}
 }

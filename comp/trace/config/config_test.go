@@ -500,6 +500,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.False(t, cfg.InstallSignature.Found)
 
 	assert.True(t, cfg.ReceiverEnabled)
+
+	assert.Empty(t, cfg.APMMode)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -623,6 +625,8 @@ func TestFullYamlConfig(t *testing.T) {
 		InstallType: "manual",
 		InstallTime: 1699623821,
 	}, cfg.InstallSignature)
+
+	assert.Equal(t, "edge", cfg.APMMode)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {
@@ -1748,6 +1752,18 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, 30, cfg.ProfilingProxy.ReceiverTimeout)
 		assert.Equal(t, 30, pkgconfigsetup.Datadog().GetInt("apm_config.profiling_receiver_timeout"))
 	})
+
+	env = "DD_APM_MODE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "edge")
+
+		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "edge", cfg.APMMode)
+	})
+
 }
 
 func TestFargateConfig(t *testing.T) {
@@ -2319,4 +2335,47 @@ func TestMultiRegionFailoverConfig(t *testing.T) {
 		assert.True(t, cfg.Endpoints[1].IsMRF)
 		assert.Equal(t, "https://custom.mrf.site", cfg.Endpoints[1].Host)
 	})
+}
+
+func TestNormalizeAPMMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected string
+	}{
+		{
+			name:     "valid_edge",
+			envValue: "edge",
+			expected: "edge",
+		},
+		{
+			name:     "empty_defaults_to_empty",
+			envValue: "",
+			expected: "",
+		},
+		{
+			name:     "invalid_defaults_to_empty",
+			envValue: "invalid_mode",
+			expected: "",
+		},
+		{
+			name:     "case_sensitive",
+			envValue: "Edge",
+			expected: "edge",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				t.Setenv("DD_APM_MODE", tt.envValue)
+			}
+
+			config := buildConfigComponentFromYAML(t, true, "./testdata/no_apm_config.yaml")
+			cfg := config.Object()
+
+			assert.NotNil(t, cfg)
+			assert.Equal(t, tt.expected, cfg.APMMode)
+		})
+	}
 }

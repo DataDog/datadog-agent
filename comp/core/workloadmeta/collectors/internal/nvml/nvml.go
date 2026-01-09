@@ -62,15 +62,22 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
 		},
-		TotalCores:  devInfo.CoreCount,
-		TotalMemory: devInfo.Memory,
+		TotalCores:   devInfo.CoreCount,
+		TotalMemory:  devInfo.Memory,
+		Architecture: gpuArchToString(devInfo.Architecture),
 	}
 
-	switch device.(type) {
+	switch d := device.(type) {
 	case *ddnvml.PhysicalDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypePhysical
+		for _, child := range d.MIGChildren {
+			gpuDeviceInfo.ChildrenGPUUUIDs = append(gpuDeviceInfo.ChildrenGPUUUIDs, child.GetDeviceInfo().UUID)
+		}
 	case *ddnvml.MIGDevice:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeMIG
+		if d.Parent != nil {
+			gpuDeviceInfo.ParentGPUUUID = d.Parent.UUID
+		}
 	default:
 		gpuDeviceInfo.DeviceType = workloadmeta.GPUDeviceTypeUnknown
 	}
@@ -83,15 +90,6 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 
 // fillNVMLAttributes fills the attributes of the GPU device by querying NVML API
 func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
-	arch, err := device.GetArchitecture()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.Architecture = gpuArchToString(arch)
-	}
-
 	virtMode, err := device.GetVirtualizationMode()
 	if err != nil {
 		if logLimiter.ShouldLog() {

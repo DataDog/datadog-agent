@@ -4,7 +4,7 @@ Exposes a catch-all API for Datadog Agent POST requests.
 
 ## Requirements
 
-- [Golang 1.24](https://go.dev/dl/)
+- [Golang 1.25](https://go.dev/dl/)
 
 ## How to run
 

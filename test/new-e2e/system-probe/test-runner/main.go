@@ -221,6 +221,15 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 
 	env = append(env, testConfig.AdditionalEnvVars...)
 
+	if jobEnv, err := os.ReadFile("/job_env.txt"); err == nil {
+		for line := range strings.SplitSeq(string(jobEnv), "\n") {
+			name, val, ok := strings.Cut(line, "=")
+			if ok {
+				env = append(env, fmt.Sprintf("%s=%s", name, val))
+			}
+		}
+	}
+
 	return env
 }
 
@@ -292,7 +301,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 
 		if err := cmd.Run(); err != nil {
 			// log but do not return error
-			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", testsuite, err)
+			fmt.Fprintf(os.Stderr, "cmd run %s: %s\n", strings.Join(cmd.Args, " "), err)
 		}
 
 		if err := addProperties(xmlpath, props); err != nil {

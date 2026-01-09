@@ -17,6 +17,7 @@ import (
 	"time"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
@@ -267,7 +268,7 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 // with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := os.Stat(path)
+	_, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
 		return []*tailer.File{
@@ -401,9 +402,9 @@ func ShouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	}
 
 	infos := make(map[string]string)
-	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, d os.DirEntry, err error) error {
 		// we only wants to follow symlinks
-		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+		if d == nil || d.Type()&os.ModeSymlink != os.ModeSymlink || d.IsDir() {
 			// not a symlink, we are not interested in this file
 			return nil
 		}

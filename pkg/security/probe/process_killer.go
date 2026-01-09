@@ -80,7 +80,7 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS(nil)
+		pkos = NewProcessKillerOS(nil, nil)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,

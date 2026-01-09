@@ -145,7 +145,7 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 			set := componenttest.NewNopTelemetrySettings()
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator, options...)
+			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			if testinstance.err != "" {
 				assert.EqualError(t, err, testinstance.err)
 				return
@@ -173,7 +173,7 @@ func TestNonMonotonicCount(t *testing.T) {
 	attributesTranslator, err := attributes.NewTranslator(set)
 	assert.NoError(t, err)
 
-	translator, err := NewTranslator(set, attributesTranslator, options...)
+	translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	assert.NoError(t, err)
 
 	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
@@ -382,7 +382,7 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 			set.Logger = zap.New(core)
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator, options...)
+			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())

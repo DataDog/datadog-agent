@@ -147,19 +147,6 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessIsThread(_ *model.Event, process 
 	return !process.IsExec
 }
 
-// GetProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(sprocess.CacheResolverKey{
-		Pid:  ev.PIDContext.Pid,
-		NSID: ev.PIDContext.NSID,
-	})
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
-		return ev.ProcessCacheEntry, false
-	}
-	return ev.ProcessCacheEntry, true
-}
-
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
 func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
@@ -647,4 +634,14 @@ func (fh *EBPFLessFieldHandlers) ResolveSessionID(_ *model.Event, _ *model.UserS
 // ResolveSessionIdentity resolves the user of the event
 func (fh *EBPFLessFieldHandlers) ResolveSessionIdentity(_ *model.Event, _ *model.UserSessionContext) string {
 	return ""
+}
+
+// ResolveSignature resolves the event signature
+func (fh *EBPFLessFieldHandlers) ResolveSignature(e *model.Event) string {
+	if e.Signature == "" && e.ProcessContext != nil {
+		if sign, err := fh.resolvers.SignatureResolver.Sign(e.ProcessContext); err != nil && sign != "" {
+			e.Signature = sign
+		}
+	}
+	return e.Signature
 }

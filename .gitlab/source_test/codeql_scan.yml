@@ -3,7 +3,7 @@
 # Contains CodeQL scan job to perform security static analysis
 
 run_codeql_scan:
-  image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent
+  image: registry.ddbuild.io/code-scanning:v89505840-d7f7832-datadog-agent
   tags: ["arch:amd64", "specific:true"]
   stage: source_test
   rules:

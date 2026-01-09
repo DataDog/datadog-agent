@@ -89,7 +89,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 
 	err := w.handler.Handle(context.Background(), r)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
+		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
 	}
 }
 
