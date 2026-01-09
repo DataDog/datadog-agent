@@ -33,6 +33,9 @@ var minimalProvidedConfig string
 //go:embed testdata/minimal-full-config.yml
 var minimalFullConfig string
 
+//go:embed testdata/minimal-full-config-datadogextension.yml
+var minimalFullConfigDatadogExtension string
+
 //go:embed testdata/sources.json
 var sources string
 
@@ -112,7 +115,7 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 }
 
 func (s *minimalTestSuite) TestDatadogExtensionPayload() {
-	utils.TestDatadogExtensionPayload(s, minimalFullConfig)
+	utils.TestDatadogExtensionPayload(s, minimalFullConfigDatadogExtension)
 }
 
 func (s *minimalTestSuite) TestCoreAgentStatus() {
