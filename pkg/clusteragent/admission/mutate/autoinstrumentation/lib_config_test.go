@@ -21,14 +21,14 @@ func TestInjectLibConfig(t *testing.T) {
 	tests := []struct {
 		name         string
 		pod          *corev1.Pod
-		lang         language
+		lang         Language
 		wantErr      bool
 		expectedEnvs []corev1.EnvVar
 	}{
 		{
 			name:    "nominal case",
 			pod:     common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", `{"version":1,"service_language":"java","runtime_metrics_enabled":true,"tracing_rate_limit":50}`),
-			lang:    java,
+			lang:    Java,
 			wantErr: false,
 			expectedEnvs: []corev1.EnvVar{
 				{
@@ -60,7 +60,7 @@ func TestInjectLibConfig(t *testing.T) {
 		{
 			name:         "invalid json",
 			pod:          common.FakePodWithAnnotation("admission.datadoghq.com/java-lib.config.v1", "invalid"),
-			lang:         java,
+			lang:         Java,
 			wantErr:      true,
 			expectedEnvs: nil,
 		},

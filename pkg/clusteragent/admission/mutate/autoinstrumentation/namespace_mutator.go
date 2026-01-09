@@ -124,7 +124,7 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 		injected = true
 	}
 
-	if err := configInjector.podMutator(language("all")).mutatePod(pod); err != nil {
+	if err := configInjector.podMutator(Language("all")).mutatePod(pod); err != nil {
 		metrics.LibInjectionErrors.Inc("all", strconv.FormatBool(autoDetected), injectionType)
 		lastError = err
 		log.Errorf("Cannot inject library configuration into pod %s: %s", mutatecommon.PodString(pod), err)
@@ -249,17 +249,18 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	libs := []libInfo{}
 
 	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
+	for _, l := range SupportedLanguages {
 		// Check for a custom library image.
 		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
 		if found {
-			libs = append(libs, l.libInfo("", customImage))
+			libs = append(libs, newLibInfo(l, customImage, ""))
 		}
 
 		// Check for a custom library version.
 		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
 		if found {
-			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
+			lib := NewLibrary(l, libVersion)
+			libs = append(libs, lib.LibInfo(registry, ""))
 		}
 
 		// Check all containers in the pod for container specific Local SDK Injection.
@@ -267,13 +268,14 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 			// Check for custom library image.
 			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
 			if found {
-				libs = append(libs, l.libInfo(container.Name, customImage))
+				libs = append(libs, newLibInfo(l, customImage, container.Name))
 			}
 
 			// Check for custom library version.
 			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
 			if found {
-				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
+				lib := NewLibrary(l, libVersion)
+				libs = append(libs, lib.LibInfo(registry, container.Name))
 			}
 		}
 	}
@@ -727,8 +729,15 @@ func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymen
 				lang = "js"
 			}
 
-			l := language(lang)
-			libList = append(libList, l.defaultLibInfo(registry, container.Name))
+			l, err := NewLanguage(string(lang))
+			if err != nil {
+				log.Warnf("injectable language from deployment is not supported: %v", err)
+				continue
+			}
+
+			lib := NewLibrary(l, DefaultVersionMagicString)
+			info := lib.LibInfo(registry, container.Name)
+			libList = append(libList, info)
 		}
 	}
 

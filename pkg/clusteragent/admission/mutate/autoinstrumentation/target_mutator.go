@@ -182,7 +182,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	log.Debugf("Mutating pod in target mutator %q", mutatecommon.PodString(pod))
 
 	// The admission can be re-run for the same pod. Fast return if we injected the library already.
-	for _, lang := range supportedLanguages {
+	for _, lang := range SupportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
@@ -487,8 +487,10 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 // that should be enabled by default
 func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	var libsToInject []libInfo
-	for _, lang := range supportedLanguages {
-		libsToInject = append(libsToInject, lang.defaultLibInfo(containerRegistry, ""))
+
+	for _, lang := range SupportedLanguages {
+		lib := DefaultLibraries[lang]
+		libsToInject = append(libsToInject, lib.LibInfo(containerRegistry, ""))
 	}
 
 	return libsToInject

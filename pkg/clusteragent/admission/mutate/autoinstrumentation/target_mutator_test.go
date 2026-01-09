@@ -41,13 +41,13 @@ var (
 	}
 
 	// TODO: Add new entry when a new language is supported
-	defaultLibImageVersions = map[language]string{
-		java:   "registry/dd-lib-java-init:" + defaultLibraries["java"],
-		js:     "registry/dd-lib-js-init:" + defaultLibraries["js"],
-		python: "registry/dd-lib-python-init:" + defaultLibraries["python"],
-		dotnet: "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
-		ruby:   "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
-		php:    "registry/dd-lib-php-init:" + defaultLibraries["php"],
+	defaultLibImageVersions = map[Language]string{
+		Java:       "registry/dd-lib-java-init:" + defaultLibraries["java"],
+		Javascript: "registry/dd-lib-js-init:" + defaultLibraries["js"],
+		Python:     "registry/dd-lib-python-init:" + defaultLibraries["python"],
+		Dotnet:     "registry/dd-lib-dotnet-init:" + defaultLibraries["dotnet"],
+		Ruby:       "registry/dd-lib-ruby-init:" + defaultLibraries["ruby"],
+		PHP:        "registry/dd-lib-php-init:" + defaultLibraries["php"],
 	}
 
 	imageResolver = newNoOpImageResolver()
@@ -446,7 +446,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(Python, "v3"),
 				},
 			},
 		},
@@ -525,7 +525,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(js, "v5"),
+					defaultLibInfoWithVersion(Javascript, "v5"),
 				},
 			},
 		},
@@ -559,7 +559,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(Python, "v3"),
 				},
 			},
 		},
@@ -578,7 +578,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(java, "v1"),
+					defaultLibInfoWithVersion(Java, "v1"),
 				},
 			},
 		},
@@ -613,7 +613,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(dotnet, "v1"),
+					defaultLibInfoWithVersion(Dotnet, "v1"),
 				},
 			},
 		},
@@ -658,12 +658,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v4"),
-					defaultLibInfoWithVersion(dotnet, "v3"),
-					defaultLibInfoWithVersion(ruby, "v2"),
-					defaultLibInfoWithVersion(php, "v1"),
+					defaultLibInfoWithVersion(Java, "v1"),
+					defaultLibInfoWithVersion(Javascript, "v5"),
+					defaultLibInfoWithVersion(Python, "v4"),
+					defaultLibInfoWithVersion(Dotnet, "v3"),
+					defaultLibInfoWithVersion(Ruby, "v2"),
+					defaultLibInfoWithVersion(PHP, "v1"),
 				},
 			},
 		},
@@ -694,7 +694,7 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(python, "v3"),
+					defaultLibInfoWithVersion(Python, "v3"),
 				},
 			},
 		},
@@ -710,12 +710,12 @@ func TestGetTargetLibraries(t *testing.T) {
 			},
 			expected: &targetInternal{
 				libVersions: []libInfo{
-					defaultLibInfoWithVersion(java, "v1"),
-					defaultLibInfoWithVersion(js, "v5"),
-					defaultLibInfoWithVersion(python, "v4"),
-					defaultLibInfoWithVersion(dotnet, "v3"),
-					defaultLibInfoWithVersion(ruby, "v2"),
-					defaultLibInfoWithVersion(php, "v1"),
+					defaultLibInfoWithVersion(Java, "v1"),
+					defaultLibInfoWithVersion(Javascript, "v5"),
+					defaultLibInfoWithVersion(Python, "v4"),
+					defaultLibInfoWithVersion(Dotnet, "v3"),
+					defaultLibInfoWithVersion(Ruby, "v2"),
+					defaultLibInfoWithVersion(PHP, "v1"),
 				},
 			},
 		},
@@ -900,7 +900,7 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 	return set
 }
 
-func defaultLibInfo(l language) libInfo {
+func defaultLibInfo(l Language) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      defaultLibImageVersions[l],
@@ -911,7 +911,7 @@ func defaultLibInfo(l language) libInfo {
 	}
 }
 
-func defaultLibInfoWithVersion(l language, version string) libInfo {
+func defaultLibInfoWithVersion(l Language, version string) libInfo {
 	return libInfo{
 		lang:       l,
 		image:      fmt.Sprintf("registry/dd-lib-%s-init:%s", l, version),

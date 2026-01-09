@@ -41,7 +41,7 @@ func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
 
 type libConfigInjector struct{}
 
-func (l *libConfigInjector) podMutator(lang language) podMutator {
+func (l *libConfigInjector) podMutator(lang Language) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
 		config, found := GetAnnotation(pod, AnnotationLibraryConfigV1.Format(string(lang)))
 		if !found {
@@ -62,7 +62,7 @@ func (l *libConfigInjector) podMutator(lang language) podMutator {
 }
 
 // injectLibConfig injects additional library configuration extracted from pod annotations
-func injectLibConfig(pod *corev1.Pod, lang language) error {
+func injectLibConfig(pod *corev1.Pod, lang Language) error {
 	return (&libConfigInjector{}).podMutator(lang).mutatePod(pod)
 }
 

@@ -376,24 +376,25 @@ func getPinnedLibraries(libVersions map[string]string, registry string, checkDef
 	allDefaults := true
 
 	for lang, version := range libVersions {
-		l := language(lang)
-		if !l.isSupported() {
+		l, err := NewLanguage(lang)
+		if err != nil {
 			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
 			continue
 		}
 
-		info := l.libInfoWithResolver("", registry, version)
+		lib := NewLibrary(l, version)
+		info := lib.LibInfo(registry, "")
 		log.Infof("Library version %s is specified for language %s, going to use %s", version, lang, info.image)
 		libs = append(libs, info)
 
-		if info.image != l.libImageName(registry, l.defaultLibVersion()) {
+		if !lib.IsDefault() {
 			allDefaults = false
 		}
 	}
 
 	return pinnedLibraries{
 		libs:             libs,
-		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(defaultSupportedLanguagesMap()),
+		areSetToDefaults: checkDefaults && allDefaults && len(libs) == len(SupportedLanguages),
 	}
 }
 

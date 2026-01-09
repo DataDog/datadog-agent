@@ -162,9 +162,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "default",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				java.defaultLibInfo("registry", "container-1"),
-				js.defaultLibInfo("registry", "container-1"),
-				python.defaultLibInfo("registry", "container-2"),
+				JavaDefaultLibrary.LibInfo("registry", "container-1"),
+				JavascriptDefaultLibrary.LibInfo("registry", "container-1"),
+				PythonDefaultLibrary.LibInfo("registry", "container-2"),
 			},
 		},
 		{
@@ -173,9 +173,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "custom",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				ruby.defaultLibInfo("registry", "container-1"),
-				python.defaultLibInfo("registry", "container-1"),
-				java.defaultLibInfo("registry", "container-2"),
+				RubyDefaultLibrary.LibInfo("registry", "container-1"),
+				PythonDefaultLibrary.LibInfo("registry", "container-1"),
+				JavaDefaultLibrary.LibInfo("registry", "container-2"),
 			},
 		},
 	}
