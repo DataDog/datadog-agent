@@ -3,8 +3,8 @@ target/
 # dev.py state directory
 .dev/
 
-# Generated benchmark data
-testdata/bench/
+# Generated test/benchmark data
+testdata/
 
 # MCP server config (worktree-specific)
 .mcp.json
