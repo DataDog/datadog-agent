@@ -241,3 +241,35 @@ func (s *configSuite) TestConfigFilePermissions() {
 	assert.Equal(s.T(), "dd-agent", nginxPerms.Owner)
 	assert.Equal(s.T(), "dd-agent", nginxPerms.Group)
 }
+
+func (s *configSuite) TestSystemProbeConfig() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Configure system-probe settings with runtime security
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: "system-probe-config",
+		FileOperations: []backend.FileOperation{
+			{
+				FileOperationType: backend.FileOperationMergePatch,
+				FilePath:          "/system-probe.yaml",
+				Patch:             []byte(`{"runtime_security_config": {"enabled": true}}`),
+			},
+		},
+	}, nil)
+	require.NoError(s.T(), err)
+
+	// Check agent is alive during experiment
+	status, err := s.Agent.Status()
+	require.NoError(s.T(), err, "agent should be running during experiment")
+	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available during experiment")
+
+	// Promote the experiment
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	// Check agent is alive after promotion to stable
+	status, err = s.Agent.Status()
+	require.NoError(s.T(), err, "agent should be running after promotion to stable")
+	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
+}
