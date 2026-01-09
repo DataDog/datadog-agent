@@ -151,7 +151,7 @@ configure_make(
     out_include_dir = "include",
     visibility = ["//visibility:public"],
     deps = [
-        "@libffi//:ffi",
+        "@libffi//:libffi",
         "@openssl//:openssl",
         "@libyaml//:libyaml",
         "@sqlite3//:libsqlite3",
@@ -164,6 +164,7 @@ configure_make(
         "@bzip2//:bz2",
         "@libyaml//:yaml",
         "@sqlite3//:sqlite3",
+        "@libffi//:ffi",
     ],
     targets = [
         # Build in parallel but install without parallel execution
