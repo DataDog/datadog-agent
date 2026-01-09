@@ -137,6 +137,8 @@ type PipelineConfig struct {
 	TracesEnabled bool
 	// LogsEnabled states whether OTLP logs support is enabled.
 	LogsEnabled bool
+	// Enable/disable InfraAttributes processor for Traces pipeline
+	TracesInfraAttributesEnabled bool
 	// Logs contains configuration options for the logs
 	Logs map[string]interface{}
 	// Debug contains debug configurations.
