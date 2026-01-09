@@ -13,22 +13,10 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
-/// Get the base path for testdata files, handling both Cargo and Bazel environments.
-///
-/// - In Cargo: CARGO_MANIFEST_DIR points to workspace root, returns "tests/testdata"
-/// - In Bazel: CARGO_MANIFEST_DIR is "tests", so testdata is directly under it
+/// Get the base path for testdata files.
 pub fn testdata_path() -> PathBuf {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-
-    if manifest_dir.ends_with("tests") || manifest_dir == "tests" {
-        // Bazel case: CARGO_MANIFEST_DIR is "tests", so testdata is directly under it
-        PathBuf::from(manifest_dir).join("testdata").normalize()
-    } else {
-        // Cargo case: CARGO_MANIFEST_DIR is workspace root
-        PathBuf::from(manifest_dir)
-            .join("testdata")
-            .normalize()
-    }
+    PathBuf::from(manifest_dir).join("testdata").normalize()
 }
 
 pub struct TestDataFs {

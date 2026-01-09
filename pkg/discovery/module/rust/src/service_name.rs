@@ -71,15 +71,6 @@ pub fn get(
     cmdline: &Cmdline,
     ctx: &mut DetectionContext,
 ) -> Option<ServiceNameMetadata> {
-    // TODO: add name adjustments from Go implem here.
-    extract_name_metadata(language, cmdline, ctx)
-}
-
-fn extract_name_metadata(
-    language: &Language,
-    cmdline: &Cmdline,
-    ctx: &mut DetectionContext,
-) -> Option<ServiceNameMetadata> {
     if cmdline.is_empty() {
         return None;
     }

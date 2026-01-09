@@ -119,7 +119,6 @@ When adding new Rust source files to the library:
 #### Common Maintenance Tasks
 
 - **Update Rust toolchain**: Modify `MODULE.bazel` to specify a different Rust version
-- **Add test data**: Place files in `tests/testdata/` and they'll be automatically included via the `testdata` filegroup
 - **Check for outdated deps**: Run `cargo update` and then re-sync Bazel with `CARGO_BAZEL_REPIN=1 bazel sync --only=crates`
 
 ### Bazel vs Cargo
