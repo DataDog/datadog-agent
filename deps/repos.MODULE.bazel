@@ -25,7 +25,9 @@ http_file(
     url = "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md".format(".".join([v.lstrip("0") for v in sqlite_ver])),
 )
 
-http_archive(
+dd_http = use_extension("//deps:dd_http.bzl", "dd_http")
+
+dd_http.archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
     files = {
@@ -35,39 +37,19 @@ http_archive(
         "config.lzma-osx-x86_64.h": "//deps/xz:config.lzma-osx-x86_64.h",
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
-    sha256 = "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
-    strip_prefix = "xz-5.8.1",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/xz-5.8.1.tar.gz",
-        "https://tukaani.org/xz/xz-5.8.1.tar.gz",
-    ],
 )
 
-http_archive(
+dd_http.archive(
     name = "zlib",
     build_file = "//deps:zlib.BUILD.bazel",
-    sha256 = "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
-    strip_prefix = "zlib-1.3.1",
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/zlib-1.3.1.tar.gz",
-        "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
-    ],
 )
 
-http_archive(
+dd_http.archive(
     name = "bzip2",
     files = {
         "BUILD.bazel": "//deps/bzip2:overlay.BUILD.bazel",
         "bzip2.pc.in": "//deps/bzip2:bzip2.pc.in",
     },
-    sha256 = "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
-    strip_prefix = "bzip2-1.0.8",
-    # The canonical source is in https://sourceware.org/pub/bzip2/, but the Bazel
-    # team mirror is more reliable.
-    urls = [
-        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/bzip2-1.0.8.tar.gz",
-        "https://mirror.bazel.build/sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
-    ],
 )
 
 # Defines a "rules_foreign_cc" target to build openssl
@@ -345,4 +327,11 @@ http_archive(
         "config-linux-x86_64.h": "//deps:xmlsec/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:xmlsec/config-linux-arm64.h",
     },
+)
+
+use_repo(
+    dd_http,
+    "xz",
+    "zlib",
+    "bzip2",
 )
