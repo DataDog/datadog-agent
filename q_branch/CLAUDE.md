@@ -50,45 +50,31 @@ Multiple worktrees can run concurrently without conflicts.
 
 ### Benchmarking
 
-**ALWAYS use `./dev.py bench`** - NEVER run `cargo bench` directly. The dev.py wrapper:
-- Runs benchmarks in background (non-blocking)
-- Tracks runs with GUIDs for comparison
-- Manages benchmark data scenarios
-- Stores logs for later analysis
+**Generate benchmark data first**, then run benchmarks:
 
 ```bash
-# Run a specific benchmark (preferred for quick iterations)
-./dev.py bench --filter get_timeseries_single_container
-# Returns: Running benchmark a1b2c3d4
-#          Wait: ./dev.py bench wait a1b2c3d4
+# Generate data with two scenarios: realistic or stress
+cargo run --release --bin generate-bench-data -- --scenario realistic --duration 1h
+cargo run --release --bin generate-bench-data -- --scenario stress --duration 1h
 
-# Run with different data scenarios
-./dev.py bench --filter get_timeseries_single_container --data multipod
-./dev.py bench --filter get_timeseries_single_container --data container-churn
+# Run benchmarks with generated data
+BENCH_DATA=testdata/bench/realistic cargo bench
+BENCH_DATA=testdata/bench/stress cargo bench
 
-# Run full suite (for comprehensive testing)
-./dev.py bench --full-suite
-
-# Wait for completion and see results
-./dev.py bench wait a1b2c3d4
-
-# List recent runs (shows scenario, filter, status)
-./dev.py bench list
+# Run specific benchmark
+BENCH_DATA=testdata/bench/realistic cargo bench -- scan_metadata
 ```
 
-**Available benchmarks (--filter):**
+**Available benchmarks:**
 - `scan_metadata` - Startup path, measures parquet file scanning
 - `get_timeseries_single_container` - Single container timeseries query
 - `get_timeseries_all_containers` - All containers timeseries query
 
-**Available data scenarios (--data):**
-- `realistic1h` - Single pod, same containers throughout (default)
-- `multipod` - Multiple pods with different containers per pod
-- `container-churn` - Single pod with container restarts over time
+**Available data scenarios:**
+- `realistic` - Stable workload: ~20 containers, 2-3 pod restarts/day, ~150-200 MB/day
+- `stress` - Heavy churn: ~50 containers, 5-7 restarts/day, container turnover, ~500-800 MB/day
 
-Generate new scenarios: `cargo run --release --bin generate-bench-data -- --scenario <name>`
-
-Logs stored in `.dev/bench/<guid>/` and auto-cleaned after 30 days.
+**Duration examples:** `1h`, `6h`, `24h`, `2d`, `7d`
 
 ## Architecture: aarch64 (ARM64)
 

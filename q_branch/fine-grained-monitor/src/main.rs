@@ -6,7 +6,7 @@
 //! a valid footer and is immediately readable. The 90-second interval exceeds
 //! the 60-second accumulator window, ensuring complete time slices per file.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -194,7 +194,7 @@ fn generate_filename() -> String {
 /// The sidecar contains the list of containers active at rotation time,
 /// enabling the viewer to discover containers by reading tiny sidecar files
 /// instead of decompressing parquet row groups.
-fn write_container_sidecar(parquet_path: &PathBuf, index: &ContainerIndex) {
+fn write_container_sidecar(parquet_path: &Path, index: &ContainerIndex) {
     let sidecar_path = sidecar::sidecar_path_for_parquet(parquet_path);
 
     // Convert index entries to sidecar format

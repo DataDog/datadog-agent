@@ -1,76 +1,112 @@
-//! Realistic synthetic parquet data generator for benchmarks.
+//! Benchmark data generator for fine-grained-monitor.
 //!
-//! Models actual fine-grained-monitor data patterns:
-//! - Directory structure: dt=YYYY-MM-DD/identifier=<pod>/
-//! - Fresh files: metrics-YYYYMMDDTHHMMSSZ.parquet (~200K rows, 90s of data)
-//! - Consolidated files: consolidated-START-END.parquet (~2M rows, ~14min of data)
-//! - Mix of file types matching real 1-hour query patterns
+//! Generates realistic parquet data matching observed production patterns.
 //!
-//! Usage:
-//!   cargo run --release --bin generate-bench-data -- --scenario realistic-1h
-//!   cargo run --release --bin generate-bench-data -- --scenario stress-test
-//!   cargo run --release --bin generate-bench-data -- --help
+//! ## Scenarios
+//!
+//! **Realistic**: Models stable workload with occasional pod restarts.
+//! - ~20 containers per identifier
+//! - 2-3 pod identifiers per day (DaemonSet restarts)
+//! - ~150-200 MB/day pattern
+//!
+//! **Stress**: Models heavy churn with many containers and frequent restarts.
+//! - ~50 containers per identifier
+//! - 5-7 pod identifiers per day
+//! - ~500-800 MB/day pattern
+//!
+//! ## Usage
+//!
+//! ```bash
+//! cargo run --release --bin generate-bench-data -- --scenario realistic
+//! cargo run --release --bin generate-bench-data -- --scenario stress
+//! cargo run --release --bin generate-bench-data -- --scenario realistic --duration 24h
+//! ```
+//!
+//! ## Running benchmarks
+//!
+//! ```bash
+//! BENCH_DATA=testdata/bench/realistic cargo bench
+//! BENCH_DATA=testdata/bench/stress cargo bench
+//! ```
 
 use anyhow::Result;
-use arrow::array::{ArrayRef, BinaryBuilder, Float64Builder, StringBuilder, TimestampMillisecondBuilder, UInt64Builder};
+use arrow::array::{
+    ArrayRef, BinaryBuilder, Float64Builder, StringBuilder, TimestampMillisecondBuilder,
+    UInt64Builder,
+};
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use chrono::{DateTime, Duration, Utc};
 use clap::{Parser, ValueEnum};
+use fine_grained_monitor::sidecar::{ContainerSidecar, SidecarContainer, sidecar_path_for_parquet};
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
-use parquet::schema::types::ColumnPath;
+use std::collections::HashMap;
 use std::fs::{self, File};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Benchmark scenarios modeling real data patterns
+/// Benchmark scenarios based on observed production patterns.
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum Scenario {
-    /// Realistic 1-hour window: 4 fresh + 4 consolidated files per identifier
-    Realistic1h,
-    /// Single consolidated file for isolated testing
-    SingleConsolidated,
-    /// Single fresh file for isolated testing
-    SingleFresh,
-    /// Stress test: 24 hours of data with realistic consolidation
-    StressTest,
-    /// Legacy format for backwards compatibility
-    Legacy,
-    /// Multi-pod: each pod has DIFFERENT containers (tests file pruning)
-    MultiPod,
-    /// Container churn: containers restart over time within a pod
-    ContainerChurn,
+    /// Stable workload: ~20 containers, 2-3 identifiers/day, ~150-200 MB/day
+    Realistic,
+    /// Heavy churn: ~50 containers, 5-7 identifiers/day, ~500-800 MB/day
+    Stress,
+}
+
+impl Scenario {
+    /// Containers per pod identifier
+    fn containers(&self) -> usize {
+        match self {
+            Scenario::Realistic => 20,
+            Scenario::Stress => 50,
+        }
+    }
+
+    /// Pod identifiers per day (from DaemonSet restarts)
+    fn identifiers_per_day(&self) -> usize {
+        match self {
+            Scenario::Realistic => 3,  // Worst-case stable: 2-3 restarts/day
+            Scenario::Stress => 7,     // Heavy churn: ~7 restarts/day
+        }
+    }
+
+    /// Whether containers churn within each identifier's lifetime
+    fn container_churn(&self) -> bool {
+        match self {
+            Scenario::Realistic => false, // Same containers throughout
+            Scenario::Stress => true,     // Containers restart mid-identifier
+        }
+    }
 }
 
 #[derive(Parser)]
 #[command(name = "generate-bench-data")]
-#[command(about = "Generate realistic synthetic parquet data for benchmarks")]
+#[command(about = "Generate benchmark data for fine-grained-monitor")]
 struct Args {
-    /// Benchmark scenario to generate
-    #[arg(short, long, value_enum, default_value = "realistic-1h")]
+    /// Scenario: realistic (stable workload) or stress (heavy churn)
+    #[arg(short, long, value_enum, default_value = "realistic")]
     scenario: Scenario,
 
-    /// Output directory (default: testdata/bench/<scenario>)
-    #[arg(short, long)]
-    output: Option<PathBuf>,
+    /// Duration of data to generate (e.g., "1h", "6h", "24h", "7d")
+    #[arg(short, long, default_value = "1h")]
+    duration: String,
+}
 
-    /// Number of identifiers (pods) to generate
-    #[arg(long, default_value = "1")]
-    identifiers: usize,
-
-    /// Number of containers per identifier
-    #[arg(long, default_value = "10")]
-    containers: usize,
-
-    /// Use ZSTD compression (like consolidated files) instead of Snappy
-    #[arg(long)]
-    zstd: bool,
-
-    /// Enable bloom filter on l_container_id column for faster single-container queries
-    #[arg(long)]
-    bloom_filter: bool,
+/// Parse duration string like "1h", "6h", "24h", "7d"
+fn parse_duration(s: &str) -> Result<Duration> {
+    let s = s.trim().to_lowercase();
+    if let Some(hours) = s.strip_suffix('h') {
+        Ok(Duration::hours(hours.parse()?))
+    } else if let Some(days) = s.strip_suffix('d') {
+        Ok(Duration::days(days.parse()?))
+    } else if let Some(mins) = s.strip_suffix('m') {
+        Ok(Duration::minutes(mins.parse()?))
+    } else {
+        anyhow::bail!("Invalid duration format. Use: 1h, 6h, 24h, 7d, etc.")
+    }
 }
 
 /// Real metrics from fine-grained-monitor
@@ -108,21 +144,20 @@ const METRIC_NAMES: &[&str] = &[
 ];
 
 const QOS_CLASSES: &[&str] = &["Guaranteed", "Burstable", "BestEffort"];
-const NAMESPACES: &[&str] = &["default", "kube-system", "monitoring", "app-production", "app-staging"];
+const NAMESPACES: &[&str] = &["default", "kube-system", "monitoring", "app-prod", "app-staging"];
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    let duration = parse_duration(&args.duration)?;
 
-    let output_dir = args.output.unwrap_or_else(|| {
-        PathBuf::from("testdata/bench").join(format!("{:?}", args.scenario).to_lowercase().replace("_", "-"))
-    });
+    let output_dir = PathBuf::from("testdata/bench").join(format!("{:?}", args.scenario).to_lowercase());
 
     println!("Generating {:?} scenario:", args.scenario);
+    println!("  Duration: {} ({} hours)", args.duration, duration.num_hours());
+    println!("  Containers per identifier: {}", args.scenario.containers());
+    println!("  Identifiers per day: {}", args.scenario.identifiers_per_day());
+    println!("  Container churn: {}", args.scenario.container_churn());
     println!("  Output: {}", output_dir.display());
-    println!("  Identifiers: {}", args.identifiers);
-    println!("  Containers per identifier: {}", args.containers);
-    println!("  Compression: {}", if args.zstd { "ZSTD" } else { "Snappy" });
-    println!("  Bloom filter: {}", if args.bloom_filter { "enabled (l_container_id)" } else { "disabled" });
 
     // Clean and create output directory
     if output_dir.exists() {
@@ -130,38 +165,8 @@ fn main() -> Result<()> {
     }
     fs::create_dir_all(&output_dir)?;
 
-    // Generate containers
-    let containers: Vec<Container> = (0..args.containers)
-        .map(|i| Container::new(i))
-        .collect();
-
-    // Base time: now minus 1 hour (so data is "recent")
-    let now = Utc::now();
-    let base_time = now - Duration::hours(1);
-
-    match args.scenario {
-        Scenario::Realistic1h => {
-            generate_realistic_1h(&output_dir, &containers, args.identifiers, base_time, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::SingleConsolidated => {
-            generate_single_file_scenario(&output_dir, &containers, "consolidated", 2_000_000, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::SingleFresh => {
-            generate_single_file_scenario(&output_dir, &containers, "fresh", 200_000, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::StressTest => {
-            generate_stress_test(&output_dir, &containers, args.identifiers, base_time, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::Legacy => {
-            generate_legacy(&output_dir, &containers, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::MultiPod => {
-            generate_multi_pod(&output_dir, args.identifiers, args.containers, base_time, args.zstd, args.bloom_filter)?;
-        }
-        Scenario::ContainerChurn => {
-            generate_container_churn(&output_dir, args.containers, base_time, args.zstd, args.bloom_filter)?;
-        }
-    }
+    // Generate data
+    generate_scenario(&output_dir, args.scenario, duration)?;
 
     // Print summary
     let total_size: u64 = walkdir::WalkDir::new(&output_dir)
@@ -172,396 +177,211 @@ fn main() -> Result<()> {
         .map(|m| m.len())
         .sum();
 
-    let file_count: usize = walkdir::WalkDir::new(&output_dir)
+    let parquet_count: usize = walkdir::WalkDir::new(&output_dir)
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().map(|x| x == "parquet").unwrap_or(false))
         .count();
 
-    println!("\nSummary:");
-    println!("  Files: {}", file_count);
+    let sidecar_count: usize = walkdir::WalkDir::new(&output_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().extension().map(|x| x == "containers").unwrap_or(false))
+        .count();
+
+    println!("\nGenerated:");
+    println!("  Parquet files: {}", parquet_count);
+    println!("  Sidecar files: {} (v2 with labels)", sidecar_count);
     println!("  Total size: {:.1} MB", total_size as f64 / 1_000_000.0);
+    println!("\nRun benchmarks with:");
+    println!("  BENCH_DATA={} cargo bench", output_dir.display());
 
     Ok(())
 }
 
-/// Generate realistic 1-hour window data
-fn generate_realistic_1h(
-    output_dir: &PathBuf,
-    containers: &[Container],
-    num_identifiers: usize,
-    base_time: DateTime<Utc>,
-    use_zstd: bool,
-    use_bloom_filter: bool,
-) -> Result<()> {
-    // Real pattern for 1-hour window:
-    // - 4 consolidated files (~14 min each, covering minutes 0-54)
-    // - 4 fresh files (90 sec each, covering minutes 54-60)
+/// Generate data for the given scenario and duration.
+fn generate_scenario(output_dir: &Path, scenario: Scenario, duration: Duration) -> Result<()> {
+    let now = Utc::now();
+    let start_time = now - duration;
+
+    // Calculate number of identifiers based on duration
+    let duration_days = (duration.num_hours() as f64 / 24.0).max(1.0 / 24.0); // At least 1 hour
+    let num_identifiers = ((duration_days * scenario.identifiers_per_day() as f64).ceil() as usize).max(1);
+
+    println!("  Generating {} identifiers for {:.1} days of data", num_identifiers, duration_days);
+
+    // Each identifier covers a portion of the total duration
+    let identifier_duration = duration / num_identifiers as i32;
 
     for id_idx in 0..num_identifiers {
-        let identifier = format!("bench-pod-{}", id_idx);
-        let date_str = base_time.format("%Y-%m-%d").to_string();
-        let id_dir = output_dir
-            .join(format!("dt={}", date_str))
-            .join(format!("identifier={}", identifier));
-        fs::create_dir_all(&id_dir)?;
+        let identifier = format!("fgm-bench-{:05}", id_idx);
+        let id_start = start_time + identifier_duration * id_idx as i32;
+        let id_end = (id_start + identifier_duration).min(now);
 
-        println!("  Generating identifier: {}", identifier);
+        println!("\n  Identifier {}/{}: {}", id_idx + 1, num_identifiers, identifier);
+        println!("    Time range: {} to {}",
+            id_start.format("%Y-%m-%d %H:%M"),
+            id_end.format("%Y-%m-%d %H:%M"));
 
-        // Generate 4 consolidated files (each ~14 minutes, ~2M rows)
-        for i in 0..4 {
-            let start_offset = Duration::minutes(i * 14);
-            let end_offset = Duration::minutes((i + 1) * 14 - 1);
-            let file_start = base_time + start_offset;
-            let file_end = base_time + end_offset;
-
-            let filename = format!(
-                "consolidated-{}-{}.parquet",
-                file_start.format("%Y%m%dT%H%M%SZ"),
-                file_end.format("%Y%m%dT%H%M%SZ")
-            );
-            let path = id_dir.join(&filename);
-
-            print!("    {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, true, use_bloom_filter)?;
-            println!("({} rows)", rows);
-        }
-
-        // Generate 4 fresh files (each ~90 seconds, ~200K rows)
-        for i in 0..4 {
-            let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
-            let file_start = base_time + start_offset;
-
-            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
-            let path = id_dir.join(&filename);
-
-            let file_end = file_start + Duration::seconds(90);
-            print!("    {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
-            println!("({} rows)", rows);
-        }
+        generate_identifier_data(
+            output_dir,
+            &identifier,
+            scenario,
+            id_start,
+            id_end,
+            id_idx,
+        )?;
     }
 
     Ok(())
 }
 
-/// Generate a single test file
-fn generate_single_file_scenario(
-    output_dir: &PathBuf,
-    containers: &[Container],
-    file_type: &str,
-    target_rows: usize,
-    use_zstd: bool,
-    use_bloom_filter: bool,
+/// Generate data for a single identifier (pod instance).
+fn generate_identifier_data(
+    output_dir: &Path,
+    identifier: &str,
+    scenario: Scenario,
+    start_time: DateTime<Utc>,
+    end_time: DateTime<Utc>,
+    id_idx: usize,
 ) -> Result<()> {
-    let now = Utc::now();
-    let identifier = "bench-single";
+    let duration = end_time - start_time;
+    let duration_mins = duration.num_minutes();
 
-    // Calculate duration based on target rows
-    // Real data: ~30 metrics × 10 containers × 1 sample/sec = 300 rows/sec
-    // For 2M rows, need ~6600 seconds (~110 minutes, ~14 min × 10 containers)
-    let rows_per_sec = containers.len() * METRIC_NAMES.len();
-    let duration_secs = (target_rows / rows_per_sec).max(90) as i64;
+    // Consolidated files: ~15 minutes each (like production)
+    let consolidated_duration = Duration::minutes(15);
+    let num_consolidated = (duration_mins / 15).max(1) as usize;
 
-    let file_start = now - Duration::seconds(duration_secs);
-    let file_end = now;
+    // Fresh files: last 6 minutes (4 files × 90 seconds)
+    let fresh_duration = Duration::minutes(6);
+    let has_fresh = duration > fresh_duration;
 
-    let filename = match file_type {
-        "consolidated" => format!(
-            "consolidated-{}-{}.parquet",
-            file_start.format("%Y%m%dT%H%M%SZ"),
-            file_end.format("%Y%m%dT%H%M%SZ")
-        ),
-        _ => format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ")),
+    // Consolidated files cover all but the last 6 minutes
+    let consolidated_end = if has_fresh {
+        end_time - fresh_duration
+    } else {
+        end_time
     };
 
-    let path = output_dir.join(&filename);
-    print!("  {} ", filename);
-    let rows = generate_file(&path, containers, identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
-    println!("({} rows)", rows);
+    // Container generations (for churn scenario)
+    let num_generations = if scenario.container_churn() {
+        (duration_mins / 30).max(1) as usize // New containers every ~30 mins
+    } else {
+        1
+    };
 
-    Ok(())
-}
-
-/// Generate 24-hour stress test data
-fn generate_stress_test(
-    output_dir: &PathBuf,
-    containers: &[Container],
-    num_identifiers: usize,
-    base_time: DateTime<Utc>,
-    use_zstd: bool,
-    use_bloom_filter: bool,
-) -> Result<()> {
-    // 24 hours of data:
-    // - ~100 consolidated files per identifier
-    // - 4 fresh files (most recent)
-
-    let base_time = base_time - Duration::hours(23); // Start 24 hours ago
-
-    for id_idx in 0..num_identifiers {
-        let identifier = format!("bench-pod-{}", id_idx);
-        println!("  Generating identifier: {}", identifier);
-
-        // Generate consolidated files for first 23.9 hours
-        let num_consolidated = 100;
-        let consolidated_duration = Duration::minutes(14);
-
-        for i in 0..num_consolidated {
-            let file_start = base_time + Duration::minutes(i as i64 * 14);
-            let file_end = file_start + consolidated_duration;
-
-            let date_str = file_start.format("%Y-%m-%d").to_string();
-            let id_dir = output_dir
-                .join(format!("dt={}", date_str))
-                .join(format!("identifier={}", identifier));
-            fs::create_dir_all(&id_dir)?;
-
-            let filename = format!(
-                "consolidated-{}-{}.parquet",
-                file_start.format("%Y%m%dT%H%M%SZ"),
-                file_end.format("%Y%m%dT%H%M%SZ")
-            );
-            let path = id_dir.join(&filename);
-
-            print!("\r    Consolidated {}/{}", i + 1, num_consolidated);
-            generate_file(&path, containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
-        }
-        println!();
-
-        // Generate fresh files for last 6 minutes
-        let now = Utc::now();
-        for i in 0..4 {
-            let file_start = now - Duration::seconds((4 - i) * 90);
-            let file_end = file_start + Duration::seconds(90);
-
-            let date_str = file_start.format("%Y-%m-%d").to_string();
-            let id_dir = output_dir
-                .join(format!("dt={}", date_str))
-                .join(format!("identifier={}", identifier));
-            fs::create_dir_all(&id_dir)?;
-
-            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
-            let path = id_dir.join(&filename);
-
-            print!("    Fresh {} ", filename);
-            let rows = generate_file(&path, containers, &identifier, file_start, file_end, false, use_bloom_filter)?;
-            println!("({} rows)", rows);
-        }
+    println!("    Consolidated files: {} ({}-min each)", num_consolidated, consolidated_duration.num_minutes());
+    if has_fresh {
+        println!("    Fresh files: 4 (90-sec each)");
+    }
+    if scenario.container_churn() {
+        println!("    Container generations: {} (churn every ~30 mins)", num_generations);
     }
 
-    Ok(())
-}
+    // Generate consolidated files
+    let mut current_time = start_time;
+    let mut file_idx = 0;
 
-/// Generate legacy flat file format
-fn generate_legacy(output_dir: &PathBuf, containers: &[Container], use_zstd: bool, use_bloom_filter: bool) -> Result<()> {
-    let now = Utc::now();
-    let file_start = now - Duration::hours(1);
+    while current_time < consolidated_end {
+        let file_end = (current_time + consolidated_duration).min(consolidated_end);
 
-    // Generate 50 flat files like the old generator
-    for i in 0..50 {
-        let file_time = file_start + Duration::minutes(i as i64);
-        let file_end = file_time + Duration::seconds(60);
-        let filename = format!("bench-{:04}.parquet", i);
-        let path = output_dir.join(&filename);
+        // Determine which container generation this file uses
+        let generation = if scenario.container_churn() {
+            let elapsed_mins = (current_time - start_time).num_minutes();
+            (elapsed_mins / 30) as usize
+        } else {
+            0
+        };
 
-        print!("\r  Generating {}", filename);
-        generate_file(&path, containers, "legacy", file_time, file_end, use_zstd, use_bloom_filter)?;
-    }
-    println!();
+        let containers = generate_containers(scenario.containers(), id_idx, generation);
 
-    Ok(())
-}
-
-/// Generate multi-pod data where each pod has DIFFERENT containers.
-/// This tests file-level pruning: querying container from pod-0 should skip pod-1 files.
-fn generate_multi_pod(
-    output_dir: &PathBuf,
-    num_pods: usize,
-    containers_per_pod: usize,
-    base_time: DateTime<Utc>,
-    use_zstd: bool,
-    use_bloom_filter: bool,
-) -> Result<()> {
-    println!(
-        "\n  Multi-pod scenario: {} pods × {} containers = {} unique containers",
-        num_pods,
-        containers_per_pod,
-        num_pods * containers_per_pod
-    );
-    println!("  Each pod has completely different container IDs (simulates DaemonSet)");
-
-    for pod_idx in 0..num_pods {
-        let identifier = format!("bench-pod-{}", pod_idx);
-        let date_str = base_time.format("%Y-%m-%d").to_string();
+        let date_str = current_time.format("%Y-%m-%d").to_string();
         let id_dir = output_dir
             .join(format!("dt={}", date_str))
             .join(format!("identifier={}", identifier));
         fs::create_dir_all(&id_dir)?;
 
-        // Create containers unique to this pod
-        let containers: Vec<Container> = (0..containers_per_pod)
-            .map(|c| Container::new_for_pod(c, pod_idx))
-            .collect();
-
-        println!("  Pod {}: containers {}", pod_idx,
-            containers.iter().map(|c| c.id[..8].to_string()).collect::<Vec<_>>().join(", "));
-
-        // Generate 4 consolidated files (each ~14 minutes)
-        for i in 0..4 {
-            let start_offset = Duration::minutes(i * 14);
-            let end_offset = Duration::minutes((i + 1) * 14 - 1);
-            let file_start = base_time + start_offset;
-            let file_end = base_time + end_offset;
-
-            let filename = format!(
-                "consolidated-{}-{}.parquet",
-                file_start.format("%Y%m%dT%H%M%SZ"),
-                file_end.format("%Y%m%dT%H%M%SZ")
-            );
-            let path = id_dir.join(&filename);
-
-            print!("    {} ", filename);
-            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, true, use_bloom_filter)?;
-            println!("({} rows)", rows);
-        }
-
-        // Generate 4 fresh files (each ~90 seconds)
-        for i in 0..4 {
-            let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
-            let file_start = base_time + start_offset;
-            let file_end = file_start + Duration::seconds(90);
-
-            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
-            let path = id_dir.join(&filename);
-
-            print!("    {} ", filename);
-            let rows = generate_file(&path, &containers, &identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
-            println!("({} rows)", rows);
-        }
-    }
-
-    Ok(())
-}
-
-/// Generate container churn data where containers restart over time within a single pod.
-/// This tests file-level pruning across time: older files have different container IDs.
-fn generate_container_churn(
-    output_dir: &PathBuf,
-    containers_per_generation: usize,
-    base_time: DateTime<Utc>,
-    use_zstd: bool,
-    use_bloom_filter: bool,
-) -> Result<()> {
-    // Simulate 4 container "generations" over 1 hour (containers restart every ~15 min)
-    let num_generations = 4;
-
-    println!(
-        "\n  Container churn scenario: {} generations × {} containers = {} unique containers over time",
-        num_generations,
-        containers_per_generation,
-        num_generations * containers_per_generation
-    );
-    println!("  Simulates container restarts - older files have different container IDs");
-
-    let identifier = "bench-pod-churn";
-    let date_str = base_time.format("%Y-%m-%d").to_string();
-    let id_dir = output_dir
-        .join(format!("dt={}", date_str))
-        .join(format!("identifier={}", identifier));
-    fs::create_dir_all(&id_dir)?;
-
-    // Each generation covers ~15 minutes
-    for gen in 0..num_generations {
-        let containers: Vec<Container> = (0..containers_per_generation)
-            .map(|c| Container::new_for_churn(c, gen))
-            .collect();
-
-        println!("  Generation {}: containers {}", gen,
-            containers.iter().map(|c| c.id[..8].to_string()).collect::<Vec<_>>().join(", "));
-
-        let gen_start = base_time + Duration::minutes(gen as i64 * 15);
-        let gen_end = gen_start + Duration::minutes(14);
-
-        // Generate consolidated file for this generation
         let filename = format!(
             "consolidated-{}-{}.parquet",
-            gen_start.format("%Y%m%dT%H%M%SZ"),
-            gen_end.format("%Y%m%dT%H%M%SZ")
+            current_time.format("%Y%m%dT%H%M%SZ"),
+            file_end.format("%Y%m%dT%H%M%SZ")
         );
         let path = id_dir.join(&filename);
 
-        print!("    {} ", filename);
-        let rows = generate_file(&path, &containers, identifier, gen_start, gen_end, use_zstd, use_bloom_filter)?;
-        println!("({} rows)", rows);
+        let rows = generate_file(&path, &containers, identifier, current_time, file_end)?;
+        print!("\r    [{}/{}] {} ({} rows)          ",
+            file_idx + 1, num_consolidated, filename, rows);
+
+        current_time = file_end;
+        file_idx += 1;
     }
+    println!();
 
-    // Most recent generation also gets fresh files (last 6 minutes)
-    let latest_containers: Vec<Container> = (0..containers_per_generation)
-        .map(|c| Container::new_for_churn(c, num_generations - 1))
-        .collect();
+    // Generate fresh files (most recent 6 minutes)
+    if has_fresh {
+        let latest_generation = if scenario.container_churn() {
+            num_generations - 1
+        } else {
+            0
+        };
+        let containers = generate_containers(scenario.containers(), id_idx, latest_generation);
 
-    for i in 0..4 {
-        let start_offset = Duration::minutes(54) + Duration::seconds(i * 90);
-        let file_start = base_time + start_offset;
-        let file_end = file_start + Duration::seconds(90);
+        for i in 0..4 {
+            let file_start = end_time - Duration::seconds((4 - i) * 90);
+            let file_end = file_start + Duration::seconds(90);
 
-        let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
-        let path = id_dir.join(&filename);
+            if file_start < start_time {
+                continue;
+            }
 
-        print!("    {} ", filename);
-        let rows = generate_file(&path, &latest_containers, identifier, file_start, file_end, use_zstd, use_bloom_filter)?;
-        println!("({} rows)", rows);
+            let date_str = file_start.format("%Y-%m-%d").to_string();
+            let id_dir = output_dir
+                .join(format!("dt={}", date_str))
+                .join(format!("identifier={}", identifier));
+            fs::create_dir_all(&id_dir)?;
+
+            let filename = format!("metrics-{}.parquet", file_start.format("%Y%m%dT%H%M%SZ"));
+            let path = id_dir.join(&filename);
+
+            let rows = generate_file(&path, &containers, identifier, file_start, file_end)?;
+            println!("    Fresh: {} ({} rows)", filename, rows);
+        }
     }
 
     Ok(())
 }
 
-/// Generate a single parquet file with realistic data
+/// Generate container metadata for a given configuration.
+fn generate_containers(count: usize, id_idx: usize, generation: usize) -> Vec<Container> {
+    (0..count)
+        .map(|c| Container::new(c, id_idx, generation))
+        .collect()
+}
+
+/// Generate a single parquet file with realistic data and companion sidecar file.
 fn generate_file(
     path: &PathBuf,
     containers: &[Container],
     identifier: &str,
     start_time: DateTime<Utc>,
     end_time: DateTime<Utc>,
-    use_zstd: bool,
-    use_bloom_filter: bool,
 ) -> Result<usize> {
     let schema = create_schema();
 
-    let compression = if use_zstd {
-        Compression::ZSTD(parquet::basic::ZstdLevel::try_new(3).unwrap())
-    } else {
-        Compression::SNAPPY
-    };
-
-    let mut props_builder = WriterProperties::builder()
-        .set_compression(compression);
-
-    // Enable bloom filter on l_container_id for faster single-container queries
-    // NDV (number of distinct values) set to expected container count per file
-    // FPP (false positive probability) defaults to 0.05 which is reasonable
-    if use_bloom_filter {
-        props_builder = props_builder
-            .set_column_bloom_filter_enabled(ColumnPath::from("l_container_id"), true)
-            .set_column_bloom_filter_ndv(ColumnPath::from("l_container_id"), 100); // ~100 containers max
-    }
-
-    let props = props_builder.build();
+    // Use ZSTD compression like production consolidated files
+    let props = WriterProperties::builder()
+        .set_compression(Compression::ZSTD(parquet::basic::ZstdLevel::try_new(3).unwrap()))
+        .build();
 
     let file = File::create(path)?;
     let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))?;
 
-    // Generate data: 1 sample per second per container per metric
-    let duration_secs = (end_time - start_time).num_seconds() as usize;
-    let samples_per_container = duration_secs.max(1);
-    let batch_size = 65536;
-
     let mut total_rows = 0;
     let mut current_time = start_time;
     let mut fetch_index = 0u64;
+    let batch_duration = Duration::seconds(60); // Build batches of 60 seconds
 
     while current_time < end_time {
-        let batch_duration = Duration::seconds((batch_size / (containers.len() * METRIC_NAMES.len())).max(1) as i64);
         let batch_end = (current_time + batch_duration).min(end_time);
 
         let batch = build_batch(
@@ -579,10 +399,20 @@ fn generate_file(
     }
 
     writer.close()?;
+
+    // Write companion sidecar file (v2 format with labels)
+    let sidecar_containers: Vec<SidecarContainer> = containers
+        .iter()
+        .map(|c| c.to_sidecar_container())
+        .collect();
+    let sidecar = ContainerSidecar::new(sidecar_containers);
+    let sidecar_path = sidecar_path_for_parquet(path);
+    sidecar.write(&sidecar_path)?;
+
     Ok(total_rows)
 }
 
-/// Create the schema matching real fine-grained-monitor files
+/// Create the schema matching real fine-grained-monitor files.
 fn create_schema() -> Arc<Schema> {
     Arc::new(Schema::new(vec![
         Field::new("run_id", DataType::Utf8, false),
@@ -606,7 +436,7 @@ fn create_schema() -> Arc<Schema> {
     ]))
 }
 
-/// Build a record batch for a time range
+/// Build a record batch for a time range.
 fn build_batch(
     schema: &Arc<Schema>,
     containers: &[Container],
@@ -650,7 +480,6 @@ fn build_batch(
                 fetch_idx.append_value(*fetch_index);
                 metric_name.append_value(*metric);
 
-                // Determine metric kind
                 let kind = if metric.contains("usec") || metric.contains("bytes") {
                     "counter"
                 } else {
@@ -658,7 +487,6 @@ fn build_batch(
                 };
                 metric_kind.append_value(kind);
 
-                // Generate value
                 let value = generate_value(metric, seed);
                 if kind == "counter" {
                     value_int.append_value(value as u64);
@@ -668,14 +496,13 @@ fn build_batch(
                     value_float.append_value(value);
                 }
 
-                // Labels
                 l_cluster_name.append_value("bench-cluster");
                 l_container_id.append_value(&container.id);
                 l_container_name.append_value(&container.name);
-                l_device.append_null(); // Only for I/O metrics with device
+                l_device.append_null();
                 l_namespace.append_value(&container.namespace);
-                l_node_name.append_value("bench-node-0");
-                l_pid.append_null(); // Only for process metrics
+                l_node_name.append_value("bench-node");
+                l_pid.append_null();
                 l_pod_name.append_value(&container.pod_name);
                 l_pod_uid.append_value(&container.pod_uid);
                 l_qos_class.append_value(&container.qos_class);
@@ -686,7 +513,7 @@ fn build_batch(
         }
 
         *fetch_index += 1;
-        current_time = current_time + Duration::seconds(1);
+        current_time += Duration::seconds(1);
     }
 
     let arrays: Vec<ArrayRef> = vec![
@@ -713,7 +540,7 @@ fn build_batch(
     Ok(RecordBatch::try_new(schema.clone(), arrays)?)
 }
 
-/// Generate realistic metric values
+/// Generate realistic metric values.
 fn generate_value(metric: &str, seed: usize) -> f64 {
     let noise = ((seed * 17 + 31) % 100) as f64 / 100.0;
     let time_factor = (seed / 1000) as f64;
@@ -727,10 +554,8 @@ fn generate_value(metric: &str, seed: usize) -> f64 {
     } else if metric.contains("millicores") {
         noise * 4000.0
     } else if metric.contains("usec") {
-        // Cumulative counter: increases over time
         time_factor * 1_000_000.0 + noise * 10000.0
     } else if metric.contains("bytes") {
-        // Cumulative counter: increases over time
         time_factor * 100_000.0 + noise * 100000.0
     } else if metric.contains("pid") || metric.contains("thread") {
         1.0 + noise * 99.0
@@ -741,7 +566,7 @@ fn generate_value(metric: &str, seed: usize) -> f64 {
     }
 }
 
-/// Container metadata
+/// Container metadata.
 struct Container {
     id: String,
     name: String,
@@ -749,44 +574,53 @@ struct Container {
     pod_name: String,
     pod_uid: String,
     qos_class: String,
+    labels: HashMap<String, String>,
 }
 
 impl Container {
-    fn new(index: usize) -> Self {
-        Self::new_for_pod(index, 0)
-    }
+    /// Create container with unique ID based on identifier index, container index, and generation.
+    fn new(container_idx: usize, id_idx: usize, generation: usize) -> Self {
+        // Create deterministic but unique container ID
+        let unique_seed = (id_idx * 10000) + (generation * 1000) + container_idx;
+        let id = format!("{:064x}", unique_seed as u128 * 0x123456789abcdef0u128);
 
-    /// Create container with unique ID based on pod and container index
-    fn new_for_pod(container_index: usize, pod_index: usize) -> Self {
-        // Create unique container ID incorporating both pod and container index
-        let unique_seed = pod_index * 1000 + container_index;
-        let short_id = format!("{:012x}", (unique_seed as u64 + 1) * 0x111111111111u64);
-        let id = format!("{}{:052x}", short_id, unique_seed);
+        // Generate realistic K8s labels
+        let app_name = format!("app-{}", container_idx);
+        let namespace = NAMESPACES[container_idx % NAMESPACES.len()].to_string();
+        let labels = HashMap::from([
+            ("app".to_string(), app_name.clone()),
+            ("app.kubernetes.io/name".to_string(), app_name.clone()),
+            ("app.kubernetes.io/instance".to_string(), format!("{}-{}", app_name, id_idx)),
+            ("app.kubernetes.io/component".to_string(), "backend".to_string()),
+            ("pod-template-hash".to_string(), format!("{:08x}", unique_seed)),
+            ("team".to_string(), format!("team-{}", container_idx % 5)),
+            ("env".to_string(), if namespace.contains("prod") { "production" } else { "development" }.to_string()),
+        ]);
 
         Container {
             id,
-            name: format!("container-p{}-c{}", pod_index, container_index),
-            namespace: NAMESPACES[container_index % NAMESPACES.len()].to_string(),
-            pod_name: format!("pod-{}", pod_index),
-            pod_uid: format!("00000000-0000-0000-{:04x}-{:012x}", pod_index, container_index),
-            qos_class: QOS_CLASSES[container_index % QOS_CLASSES.len()].to_string(),
+            name: app_name,
+            namespace,
+            pod_name: format!("app-{}-pod", container_idx),
+            pod_uid: format!(
+                "{:08x}-{:04x}-{:04x}-{:04x}-{:012x}",
+                id_idx, generation, container_idx, 0, unique_seed
+            ),
+            qos_class: QOS_CLASSES[container_idx % QOS_CLASSES.len()].to_string(),
+            labels,
         }
     }
 
-    /// Create container with unique ID for churn scenario (time-based)
-    fn new_for_churn(container_index: usize, generation: usize) -> Self {
-        // Each generation gets completely new container IDs (simulating restarts)
-        let unique_seed = generation * 1000 + container_index;
-        let short_id = format!("{:012x}", (unique_seed as u64 + 1) * 0xdeadbeef1111u64);
-        let id = format!("{}{:052x}", short_id, unique_seed);
-
-        Container {
-            id,
-            name: format!("container-{}", container_index),
-            namespace: NAMESPACES[container_index % NAMESPACES.len()].to_string(),
-            pod_name: format!("pod-gen{}", generation),
-            pod_uid: format!("00000000-0000-{:04x}-0000-{:012x}", generation, container_index),
-            qos_class: QOS_CLASSES[container_index % QOS_CLASSES.len()].to_string(),
+    /// Convert to sidecar format
+    fn to_sidecar_container(&self) -> SidecarContainer {
+        SidecarContainer {
+            container_id: self.id[..12].to_string(), // Short ID (first 12 chars)
+            pod_name: Some(self.pod_name.clone()),
+            container_name: Some(self.name.clone()),
+            namespace: Some(self.namespace.clone()),
+            pod_uid: Some(self.pod_uid.clone()),
+            qos_class: self.qos_class.clone(),
+            labels: Some(self.labels.clone()),
         }
     }
 }

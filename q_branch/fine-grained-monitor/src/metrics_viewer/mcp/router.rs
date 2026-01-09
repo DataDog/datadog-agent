@@ -112,7 +112,7 @@ impl NodeRouter {
             Ok(body) => return Ok(body),
             Err(e) => {
                 // Don't retry on 4xx errors
-                if matches!(e, RouterError::ViewerError(_, status, _) if status >= 400 && status < 500)
+                if matches!(e, RouterError::ViewerError(_, status, _) if (400..500).contains(&status))
                 {
                     return Err(e);
                 }

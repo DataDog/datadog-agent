@@ -19,7 +19,6 @@ use fine_grained_monitor::metrics_viewer::{server, LazyDataStore};
 use glob::glob;
 use std::path::PathBuf;
 use std::time::Duration;
-use tracing_subscriber;
 
 #[derive(Parser, Debug)]
 #[command(name = "fgm-viewer")]
@@ -155,7 +154,7 @@ async fn main() -> Result<()> {
         }
 
         // Create store by scanning parquet files directly (no index.json needed)
-        LazyDataStore::from_directory(data_dir.clone())?
+        LazyDataStore::new(data_dir.clone())?
     } else {
         // Legacy mode: explicit file list
         let files = expand_inputs(&args.input)?;
@@ -173,7 +172,7 @@ async fn main() -> Result<()> {
             }
         }
 
-        LazyDataStore::new(&files)?
+        LazyDataStore::from_files(&files)?
     };
 
     server::run_server(store, config).await?;

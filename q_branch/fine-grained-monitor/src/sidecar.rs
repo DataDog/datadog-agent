@@ -71,6 +71,7 @@ impl ContainerSidecar {
     }
 
     /// Read sidecar from file using bincode
+    #[allow(dead_code)] // Used by metrics_viewer but not by collector binary
     pub fn read(path: &Path) -> Result<Self, SidecarError> {
         let bytes = std::fs::read(path)?;
         let sidecar: Self = bincode::deserialize(&bytes)?;
@@ -102,6 +103,7 @@ pub enum SidecarError {
     Bincode(#[from] bincode::Error),
 
     #[error("Unsupported sidecar version: found {found}, max supported {max_supported}")]
+    #[allow(dead_code)] // Used by read() which is only used by metrics_viewer
     UnsupportedVersion { found: u8, max_supported: u8 },
 }
 

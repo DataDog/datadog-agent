@@ -307,37 +307,30 @@ pub struct MetadataIndex {
 }
 
 impl LazyDataStore {
-    /// Create a new lazy data store by scanning metadata only.
-    /// This is much faster than loading all data upfront.
-    pub fn new<P: AsRef<Path>>(paths: &[P]) -> Result<Self> {
-        let paths: Vec<PathBuf> = paths.iter().map(|p| p.as_ref().to_path_buf()).collect();
-        let index = scan_metadata(&paths)?;
-
-        Ok(Self {
-            paths: RwLock::new(paths),
-            data_dir: None, // Static file list, no refresh
-            index: RwLock::new(index),
-            timeseries_cache: RwLock::new(HashMap::new()),
-            last_refresh: RwLock::new(None),
-        })
-    }
-
-    /// Create from a data directory by scanning parquet files directly.
-    /// This eliminates the need for index.json - container metadata comes from parquet.
+    /// Create a new lazy data store from a data directory.
+    ///
+    /// This is the **primary constructor** - discovers parquet files in the directory
+    /// and loads metadata using the fastest available method.
     ///
     /// ## Data Flow
     ///
     /// Two loading strategies, chosen automatically:
     ///
-    /// 1. **Sidecar fast path** (preferred, ~10ms total):
+    /// 1. **Sidecar fast path** (preferred, ~20ms):
     ///    - Read `.containers` sidecar files written by collector on rotation
     ///    - Read ONE parquet schema for metric names
     ///    - No row group decompression required
     ///
-    /// 2. **Parquet scan fallback** (legacy, ~1s per file):
+    /// 2. **Parquet scan fallback** (~700ms per file):
     ///    - Sample row groups to discover containers from label columns
     ///    - Used when sidecars don't exist (older data, first run)
-    pub fn from_directory(data_dir: PathBuf) -> Result<Self> {
+    ///
+    /// ## Example
+    ///
+    /// ```ignore
+    /// let store = LazyDataStore::new("/var/lib/fine-grained-monitor/data".into())?;
+    /// ```
+    pub fn new(data_dir: PathBuf) -> Result<Self> {
         tracing::info!("Building metadata from data directory...");
         let start = std::time::Instant::now();
 
@@ -406,6 +399,77 @@ impl LazyDataStore {
             index: RwLock::new(index),
             timeseries_cache: RwLock::new(HashMap::new()),
             last_refresh: RwLock::new(Some(std::time::Instant::now())),
+        })
+    }
+
+    /// Create from explicit file paths.
+    ///
+    /// Tries sidecar fast path first (looks for `.containers` files next to each parquet),
+    /// then falls back to parquet scanning if sidecars don't exist.
+    ///
+    /// **Prefer `new(data_dir)` when possible** - it enables automatic file refresh
+    /// and is the standard production path.
+    ///
+    /// This method is useful for:
+    /// - Testing with specific file subsets
+    /// - Processing files from non-standard locations
+    pub fn from_files<P: AsRef<Path>>(paths: &[P]) -> Result<Self> {
+        let paths: Vec<PathBuf> = paths.iter().map(|p| p.as_ref().to_path_buf()).collect();
+
+        if paths.is_empty() {
+            return Ok(Self {
+                paths: RwLock::new(vec![]),
+                data_dir: None,
+                index: RwLock::new(MetadataIndex {
+                    metrics: vec![],
+                    qos_classes: vec![],
+                    namespaces: vec![],
+                    containers: HashMap::new(),
+                    metric_containers: HashMap::new(),
+                    file_containers: HashMap::new(),
+                    data_range: DataRange {
+                        earliest: None,
+                        latest: Utc::now(),
+                        rotation_interval_sec: 90,
+                    },
+                }),
+                timeseries_cache: RwLock::new(HashMap::new()),
+                last_refresh: RwLock::new(None),
+            });
+        }
+
+        let start = std::time::Instant::now();
+        let data_range = compute_data_range(&paths);
+
+        // Try sidecar fast path first
+        let index = match load_from_sidecars(&paths, data_range.clone()) {
+            Ok(idx) => {
+                tracing::info!(
+                    "Sidecar fast path: {} containers from {} sidecars in {:.3}s",
+                    idx.containers.len(),
+                    idx.file_containers.len(),
+                    start.elapsed().as_secs_f64()
+                );
+                idx
+            }
+            Err(e) => {
+                // Fall back to parquet scanning
+                tracing::debug!(
+                    "Sidecar fast path unavailable ({}), falling back to parquet scan...",
+                    e
+                );
+                let mut idx = scan_metadata(&paths)?;
+                idx.data_range = data_range;
+                idx
+            }
+        };
+
+        Ok(Self {
+            paths: RwLock::new(paths),
+            data_dir: None, // Static file list, no refresh
+            index: RwLock::new(index),
+            timeseries_cache: RwLock::new(HashMap::new()),
+            last_refresh: RwLock::new(None),
         })
     }
 

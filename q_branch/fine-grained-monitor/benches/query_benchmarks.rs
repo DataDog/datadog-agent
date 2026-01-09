@@ -8,8 +8,8 @@
 //!
 //! First generate test data:
 //! ```bash
-//! cargo run --release --bin generate-bench-data -- --scenario small
-//! cargo run --release --bin generate-bench-data -- --scenario medium
+//! cargo run --release --bin generate-bench-data -- --scenario realistic --duration 1h
+//! cargo run --release --bin generate-bench-data -- --scenario stress --duration 1h
 //! ```
 //!
 //! Then run benchmarks:
@@ -20,7 +20,8 @@
 //!
 //! Use BENCH_DATA env var to select scenario:
 //! ```bash
-//! BENCH_DATA=testdata/bench/medium cargo bench
+//! BENCH_DATA=testdata/bench/realistic cargo bench
+//! BENCH_DATA=testdata/bench/stress cargo bench
 //! ```
 
 use divan::Bencher;
@@ -32,11 +33,11 @@ fn main() {
     divan::main();
 }
 
-/// Get the benchmark data directory from env or default to small scenario
+/// Get the benchmark data directory from env or default to realistic scenario
 fn get_bench_data_dir() -> PathBuf {
     std::env::var("BENCH_DATA")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("testdata/bench/small"))
+        .unwrap_or_else(|_| PathBuf::from("testdata/bench/realistic"))
 }
 
 /// Get all parquet files in the benchmark data directory (recursively)
@@ -61,21 +62,39 @@ fn get_parquet_files() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Benchmark: LazyDataStore::new() which calls scan_metadata
+/// Benchmark: LazyDataStore::from_files() which tries sidecars first, then scans parquet
 ///
-/// This is the startup path - measures how long it takes to scan parquet
-/// files and build the metadata index.
+/// This measures the explicit file list path. With sidecars present, this should
+/// be fast. Without sidecars, it falls back to parquet scanning (slow).
 #[divan::bench]
-fn scan_metadata(bencher: Bencher) {
+fn scan_metadata_from_files(bencher: Bencher) {
     let files = get_parquet_files();
     if files.is_empty() {
         eprintln!("No benchmark data found at {:?}", get_bench_data_dir());
-        eprintln!("Run: cargo run --release --bin generate-bench-data -- --scenario small");
+        eprintln!("Run: cargo run --release --bin generate-bench-data -- --scenario realistic");
         return;
     }
 
     bencher.bench(|| {
-        LazyDataStore::new(&files).expect("Failed to create LazyDataStore")
+        LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore")
+    });
+}
+
+/// Benchmark: LazyDataStore::new() which is the primary constructor
+///
+/// This is the RECOMMENDED path - discovers parquet files in a directory and
+/// uses sidecar fast path for metadata loading.
+#[divan::bench]
+fn scan_metadata_directory(bencher: Bencher) {
+    let dir = get_bench_data_dir();
+    if !dir.exists() {
+        eprintln!("No benchmark data found at {:?}", dir);
+        eprintln!("Run: cargo run --release --bin generate-bench-data -- --scenario realistic");
+        return;
+    }
+
+    bencher.bench(|| {
+        LazyDataStore::new(dir.clone()).expect("Failed to create LazyDataStore")
     });
 }
 
@@ -88,11 +107,13 @@ fn get_timeseries_single_container(bencher: Bencher) {
     }
 
     bencher
-        .with_inputs(|| LazyDataStore::new(&files).expect("Failed to create LazyDataStore"))
+        .with_inputs(|| LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore"))
         .bench_values(|store| {
-            if let Some(metric) = store.index.metrics.first() {
-                if let Some(container_id) = store.index.containers.keys().next() {
-                    let _ = store.get_timeseries(&metric.name, &[container_id.as_str()], TimeRange::All);
+            let metrics = store.get_metrics();
+            let containers = store.get_containers_by_recency(TimeRange::All);
+            if let Some(metric) = metrics.first() {
+                if let Some(container) = containers.first() {
+                    let _ = store.get_timeseries(&metric.name, &[container.id.as_str()], TimeRange::All);
                 }
             }
         });
@@ -108,12 +129,17 @@ fn get_timeseries_all_containers(bencher: Bencher) {
 
     bencher
         .with_inputs(|| {
-            let store = LazyDataStore::new(&files).expect("Failed to create LazyDataStore");
-            let container_ids: Vec<String> = store.index.containers.keys().cloned().collect();
+            let store = LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore");
+            let container_ids: Vec<String> = store
+                .get_containers_by_recency(TimeRange::All)
+                .into_iter()
+                .map(|c| c.id)
+                .collect();
             (store, container_ids)
         })
         .bench_values(|(store, container_ids)| {
-            if let Some(metric) = store.index.metrics.first() {
+            let metrics = store.get_metrics();
+            if let Some(metric) = metrics.first() {
                 let ids: Vec<&str> = container_ids.iter().map(|s| s.as_str()).collect();
                 let _ = store.get_timeseries(&metric.name, &ids, TimeRange::All);
             }
