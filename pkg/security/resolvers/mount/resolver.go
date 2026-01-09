@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +38,8 @@ const (
 	fallbackLimiterPeriod                = time.Second
 	redemptionTime                       = 2 * time.Second
 	// mounts LRU limit: 100000 mounts
-	mountsLimit = 100000
+	mountsLimit       = 100000
+	danglingListLimit = 2000
 )
 
 type redemptionEntry struct {
@@ -61,6 +63,7 @@ type Resolver struct {
 	mounts          *simplelru.LRU[uint32, *model.Mount]
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
+	dangling        *simplelru.LRU[uint32, *model.Mount]
 	fallbackLimiter *utils.Limiter[uint64]
 
 	// stats
@@ -273,18 +276,14 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		}
 	}
 
-	// Iterate over the current mount, its children, the children of their children, etc. and collect for deletion
-	toDelete := make([]*model.Mount, 0, 1)
-	mr.walkMountSubtree(mount, false, func(child *model.Mount) {
-		toDelete = append(toDelete, child)
-	})
-
-	// Delete all
 	now := time.Now()
-	for _, mnt := range toDelete {
-		mr.moveToRedemption(mnt, now)
+	mr.moveToRedemption(mount, now)
+
+	if _, exists := mr.dangling.Get(mount.MountID); exists {
+		mr.dangling.Remove(mount.MountID)
 	}
 
+	fmt.Println("[DELETE] Current dangling: ", mr.getDangling())
 }
 
 func (mr *Resolver) moveToRedemption(mount *model.Mount, time time.Time) {
@@ -359,8 +358,13 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount, moved bool) {
+	invalidateChildrenPath := false
+
 	// Remove the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
+		if prev.ParentPathKey != m.ParentPathKey {
+			invalidateChildrenPath = true
+		}
 		m.Children = prev.Children
 		prev.Children = []uint32{}
 		mr.delete(prev)
@@ -385,9 +389,46 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 		if !slices.Contains(parent.Children, m.MountID) {
 			parent.Children = append(parent.Children, m.MountID)
 		}
+	} else if m.ParentPathKey.MountID != 0 {
+		// No parent found. Add to dangling list
+		fmt.Printf("Adding mount %d to dangling list\n", m.MountID)
+		mr.dangling.Add(m.MountID, m)
 	}
 
+	if invalidateChildrenPath {
+		mr.walkMountSubtree(m, false, func(child *model.Mount) {
+			child.Path = ""
+		})
+	}
+
+	// check if this mount has any dangling children
+	start := len(m.Children)
+	for danglingElem := range mr.dangling.ValuesIter() {
+		if danglingElem.ParentPathKey.MountID == m.MountID {
+			fmt.Printf("Added %d from dangling list as a child\n", danglingElem.MountID)
+			m.Children = append(m.Children, danglingElem.MountID)
+		}
+	}
+
+	// remove appended from dangling list
+	for i := start; i < len(m.Children); i++ {
+		mr.dangling.Remove(m.Children[i])
+		fmt.Printf("Removed %d from dangling list\n", m.Children[i])
+	}
+
+	fmt.Println("Current dangling: ", mr.getDangling())
+
 	mr.mounts.Add(m.MountID, m)
+}
+
+func (mr *Resolver) getDangling() string {
+	r := ""
+
+	for m := range mr.dangling.ValuesIter() {
+		r += strconv.Itoa(int(m.MountID)) + ":" + strconv.Itoa(int(m.ParentPathKey.MountID)) + " "
+	}
+
+	return r
 }
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
@@ -605,6 +646,11 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		return nil, err
 	}
 
+	dangling, err := simplelru.NewLRU[uint32, *model.Mount](danglingListLimit, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	mr := &Resolver{
 		opts:            opts,
 		statsdClient:    statsdClient,
@@ -612,6 +658,7 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		lock:            sync.RWMutex{},
 		mounts:          mounts,
 		dentryResolver:  dentryResolver,
+		dangling:        dangling,
 	}
 
 	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
