@@ -165,6 +165,7 @@ configure_make(
         "@libyaml//:yaml",
         "@sqlite3//:sqlite3",
         "@libffi//:ffi",
+        "@xz//:lzma",
     ],
     targets = [
         # Build in parallel but install without parallel execution
