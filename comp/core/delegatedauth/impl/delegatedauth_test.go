@@ -181,12 +181,13 @@ func TestCalculateNextRetryInterval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			comp := &delegatedAuthComponent{
+			comp := &delegatedAuthComponent{}
+			instance := &authInstance{
 				refreshInterval:     tt.refreshInterval,
 				consecutiveFailures: tt.consecutiveFailures,
 			}
 
-			result := comp.calculateNextRetryInterval()
+			result := comp.calculateNextRetryInterval(instance)
 			assert.Equal(t, tt.expectedInterval, result,
 				"Expected %v but got %v for %d consecutive failures with base interval %v",
 				tt.expectedInterval, result, tt.consecutiveFailures, tt.refreshInterval)
@@ -196,7 +197,8 @@ func TestCalculateNextRetryInterval(t *testing.T) {
 
 func TestExponentialBackoffBehavior(t *testing.T) {
 	// Test the backoff progression for a typical scenario
-	comp := &delegatedAuthComponent{
+	comp := &delegatedAuthComponent{}
+	instance := &authInstance{
 		refreshInterval:     15 * time.Minute,
 		consecutiveFailures: 0,
 	}
@@ -211,36 +213,37 @@ func TestExponentialBackoffBehavior(t *testing.T) {
 	}
 
 	for i, expected := range expectedIntervals {
-		result := comp.calculateNextRetryInterval()
+		result := comp.calculateNextRetryInterval(instance)
 		assert.Equal(t, expected, result,
 			"Failure %d: expected %v but got %v", i, expected, result)
 
 		// Simulate a failure for the next iteration
 		if i < len(expectedIntervals)-1 {
-			comp.consecutiveFailures++
+			instance.consecutiveFailures++
 		}
 	}
 }
 
 func TestConsecutiveFailuresCap(t *testing.T) {
 	// Test that consecutiveFailures is capped at maxConsecutiveFailures
-	comp := &delegatedAuthComponent{
+	instance := &authInstance{
 		refreshInterval:     5 * time.Minute,
 		consecutiveFailures: 0,
 	}
 
 	// Simulate many failures - consecutiveFailures should be capped
 	for i := 0; i < maxConsecutiveFailures+5; i++ {
-		if comp.consecutiveFailures < maxConsecutiveFailures {
-			comp.consecutiveFailures++
+		if instance.consecutiveFailures < maxConsecutiveFailures {
+			instance.consecutiveFailures++
 		}
 	}
 
-	assert.Equal(t, maxConsecutiveFailures, comp.consecutiveFailures,
+	assert.Equal(t, maxConsecutiveFailures, instance.consecutiveFailures,
 		"consecutiveFailures should be capped at %d", maxConsecutiveFailures)
 
 	// Verify backoff still works correctly at the cap
-	result := comp.calculateNextRetryInterval()
+	comp := &delegatedAuthComponent{}
+	result := comp.calculateNextRetryInterval(instance)
 	assert.Equal(t, time.Hour, result,
 		"Backoff should still be capped at max interval even with max consecutive failures")
 }
@@ -250,12 +253,13 @@ func TestMaxConsecutiveFailuresValue(t *testing.T) {
 	// that ensures we reach maxBackoffInterval with any reasonable refresh_interval
 
 	// Test with minimum reasonable refresh interval (1 minute)
-	comp := &delegatedAuthComponent{
+	comp := &delegatedAuthComponent{}
+	instance := &authInstance{
 		refreshInterval:     1 * time.Minute,
 		consecutiveFailures: maxConsecutiveFailures,
 	}
 
-	result := comp.calculateNextRetryInterval()
+	result := comp.calculateNextRetryInterval(instance)
 	assert.Equal(t, maxBackoffInterval, result,
 		"With maxConsecutiveFailures, even a 1-minute refresh interval should reach maxBackoffInterval")
 
@@ -264,4 +268,55 @@ func TestMaxConsecutiveFailuresValue(t *testing.T) {
 	assert.GreaterOrEqual(t, calculatedBackoff, maxBackoffInterval,
 		"maxConsecutiveFailures (%d) should be high enough that 1 minute * 2^%d >= 1 hour",
 		maxConsecutiveFailures, maxConsecutiveFailures-1)
+}
+
+func TestAddJitter(t *testing.T) {
+	tests := []struct {
+		name     string
+		duration time.Duration
+	}{
+		{
+			name:     "1 minute",
+			duration: 1 * time.Minute,
+		},
+		{
+			name:     "15 minutes",
+			duration: 15 * time.Minute,
+		},
+		{
+			name:     "60 minutes",
+			duration: 60 * time.Minute,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Run multiple times to verify jitter variability
+			results := make([]time.Duration, 100)
+			for i := 0; i < 100; i++ {
+				jittered := addJitter(tt.duration)
+				results[i] = jittered
+
+				// Verify jittered value is within expected range
+				minExpected := time.Duration(float64(tt.duration) * (1 - jitterPercent))
+				maxExpected := time.Duration(float64(tt.duration) * (1 + jitterPercent))
+
+				assert.GreaterOrEqual(t, jittered, minExpected,
+					"Jittered value %v should be >= %v", jittered, minExpected)
+				assert.LessOrEqual(t, jittered, maxExpected,
+					"Jittered value %v should be <= %v", jittered, maxExpected)
+			}
+
+			// Verify that we got some variation (not all the same value)
+			allSame := true
+			firstValue := results[0]
+			for _, v := range results[1:] {
+				if v != firstValue {
+					allSame = false
+					break
+				}
+			}
+			assert.False(t, allSame, "Jitter should produce varying values")
+		})
+	}
 }

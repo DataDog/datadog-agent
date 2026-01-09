@@ -22,66 +22,74 @@ type ConfigParams struct {
 	// The implementation will type-assert to config.Component.
 	Config interface{}
 
-	// Enabled indicates whether delegated authentication should be active.
-	// When false, the component does nothing.
-	Enabled bool
-
-	// Provider specifies the cloud provider to use for authentication.
-	// Currently supported values: "aws"
-	Provider string
-
 	// OrgUUID is the Datadog organization UUID for which to fetch credentials.
-	// This is required when Enabled is true.
+	// This is required. If empty, delegated auth will not be configured.
 	OrgUUID string
 
 	// RefreshInterval specifies how often to refresh the API key, in minutes.
 	// Default is 60 minutes if not specified or set to 0.
 	RefreshInterval int
 
+	// Provider specifies the cloud provider to use for authentication.
+	// This field is for internal/testing use only. In normal operation, the cloud provider
+	// is auto-detected from the environment. Currently supported: AWS (via EC2 metadata service).
+	// Leave empty for auto-detection.
+	Provider string
+
 	// AWSRegion is the AWS region to use for AWS provider authentication.
-	// Only used when Provider is "aws".
+	// This field is for internal/testing use only. In normal operation, the region
+	// is auto-detected from the EC2 metadata service. If auto-detection fails, the default
+	// region (us-east-1) will be used. Leave empty for auto-detection.
 	AWSRegion string
+
+	// APIKeyConfigKey specifies the configuration key where the fetched API key should be written.
+	// Examples: "api_key" (default), "logs_config.api_key"
+	// When not specified or empty, defaults to "api_key".
+	APIKeyConfigKey string
 }
 
 // Component manages delegated authentication with cloud providers.
 //
 // Thread Safety:
 //   - All methods are safe to call concurrently from multiple goroutines.
-//   - Configure should be called once during agent startup before other components initialize.
-//   - GetAPIKey and RefreshAPIKey can be called at any time after Configure.
+//   - Configure can be called multiple times with different APIKeyConfigKey values to manage
+//     separate API keys for different products (e.g., global api_key and logs_config.api_key).
 //
 // Lifecycle:
 //   - The component is created with minimal dependencies during fx initialization.
 //   - Configure() must be called explicitly after config is loaded to activate the component.
-//   - If Configure is not called or Enabled is false, all methods are no-ops.
+//   - If Configure is not called, the component does nothing.
 //   - When configured, the component starts a background goroutine for periodic refreshes.
+//   - Each Configure() call with a unique APIKeyConfigKey creates an independent refresh loop.
 //
 // API Key Management:
-//   - When a new API key is fetched, it's automatically written to config via config.Set("api_key", ...).
+//   - When a new API key is fetched, it's automatically written to config via config.Set(APIKeyConfigKey, ...).
 //   - This triggers the config notification system, allowing other components to react to API key changes.
-//   - The component maintains an internal cache of the current API key.
+//   - The component maintains internal caches of API keys per config key.
 //   - Refresh operations use exponential backoff on failures (doubling interval, capped at 1 hour).
 type Component interface {
-	// Configure initializes the delegated auth component with the provided configuration parameters.
+	// Configure initializes delegated auth for a specific API key configuration.
 	//
-	// This method should be called once during agent startup, after the config is loaded but before
-	// other components that depend on the API key are initialized. Calling Configure multiple times
-	// is not supported and may cause undefined behavior.
+	// This method can be called multiple times with different APIKeyConfigKey values to manage
+	// separate API keys. For example:
+	//   - Configure(params with APIKeyConfigKey="api_key") for global API key
+	//   - Configure(params with APIKeyConfigKey="logs_config.api_key") for logs-specific API key
 	//
-	// If params.Enabled is false, this method returns immediately and the component remains inactive.
+	// Each call with a unique APIKeyConfigKey creates an independent refresh loop.
+	// Calling Configure multiple times with the same APIKeyConfigKey will replace the previous configuration.
 	//
-	// When params.Enabled is true, Configure will:
+	// Configure will:
 	//   1. Validate the configuration parameters (OrgUUID, Provider, etc.)
 	//   2. Fetch the initial API key from the cloud provider
-	//   3. Write the API key to config via config.Set("api_key", ...)
+	//   3. Write the API key to config via config.Set(params.APIKeyConfigKey, ...)
 	//   4. Start a background goroutine for periodic API key refreshes
 	//
 	// The method does not block on the initial API key fetch. If the fetch fails, the error is logged
 	// and exponential backoff is used for retries in the background goroutine.
 	//
 	// Goroutines:
-	//   - If enabled, Configure starts exactly one background goroutine for periodic refreshes.
-	//   - The goroutine continues until the agent shuts down.
+	//   - Each Configure call with a unique APIKeyConfigKey starts a background goroutine for periodic refreshes.
+	//   - Goroutines continue until the agent shuts down.
 	//   - There is no explicit Stop or Close method; cleanup happens automatically on process exit.
-	Configure(config ConfigParams)
+	Configure(params ConfigParams)
 }

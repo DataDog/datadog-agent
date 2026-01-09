@@ -1245,9 +1245,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Vsock
 	config.BindEnvAndSetDefault("vsock_addr", "")
 
-	// Delegated authentication
-	config.BindEnvAndSetDefault("delegated_auth.enabled", false)
-	config.BindEnvAndSetDefault("delegated_auth.provider", "", "DD_DELEGATED_AUTH_PROVIDER")
+	// Delegated authentication (global)
+	// Cloud provider and region are auto-detected
+	// Enabled automatically when org_uuid is specified
 	config.BindEnvAndSetDefault("delegated_auth.org_uuid", "", "DD_DELEGATED_AUTH_ORG_UUID")
 	config.BindEnvAndSetDefault("delegated_auth.refresh_interval_mins", 60)
 
@@ -1826,6 +1826,12 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+
+	// Delegated authentication for logs
+	// Cloud provider and region are auto-detected
+	// Enabled automatically when org_uuid is specified
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.org_uuid", "", "DD_LOGS_CONFIG_DELEGATED_AUTH_ORG_UUID")
+	config.BindEnvAndSetDefault("logs_config.delegated_auth.refresh_interval_mins", 60)
 
 	// Duration during which the host tags will be submitted with log events.
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
@@ -2656,25 +2662,47 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 // configureDelegatedAuth initializes the delegated auth component with configuration parameters.
 // This allows the component to fetch API keys from cloud providers and write them to the config
 // before other components are initialized.
+// Both global and logs-specific delegated auth can be enabled independently.
+// Delegated auth is automatically enabled when org_uuid is specified.
 func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
-	// Check if delegated auth is enabled before configuring
-	if !config.GetBool("delegated_auth.enabled") {
-		log.Debug("Delegated authentication is not enabled, skipping configuration")
-		return nil
+	configured := false
+
+	// Configure global delegated auth (writes to api_key)
+	// Cloud provider and region are auto-detected
+	// Enabled automatically when org_uuid is specified
+	orgUUID := config.GetString("delegated_auth.org_uuid")
+	if orgUUID != "" {
+		log.Info("Configuring global delegated authentication")
+		delegatedAuthComp.Configure(delegatedauth.ConfigParams{
+			Config:          config,
+			OrgUUID:         orgUUID,
+			RefreshInterval: config.GetInt("delegated_auth.refresh_interval_mins"),
+			APIKeyConfigKey: "api_key",
+		})
+		configured = true
 	}
 
-	log.Info("Configuring delegated authentication")
+	// Configure logs-specific delegated auth (writes to logs_config.api_key)
+	// Cloud provider and region are auto-detected
+	// Enabled automatically when org_uuid is specified
+	logsOrgUUID := config.GetString("logs_config.delegated_auth.org_uuid")
+	if logsOrgUUID != "" {
+		log.Info("Configuring logs-specific delegated authentication")
+		delegatedAuthComp.Configure(delegatedauth.ConfigParams{
+			Config:          config,
+			OrgUUID:         logsOrgUUID,
+			RefreshInterval: config.GetInt("logs_config.delegated_auth.refresh_interval_mins"),
+			APIKeyConfigKey: "logs_config.api_key",
+		})
+		configured = true
+	}
 
-	delegatedAuthComp.Configure(delegatedauth.ConfigParams{
-		Config:          config,
-		Enabled:         true, // Already checked above
-		Provider:        config.GetString("delegated_auth.provider"),
-		OrgUUID:         config.GetString("delegated_auth.org_uuid"),
-		RefreshInterval: config.GetInt("delegated_auth.refresh_interval_mins"),
-		AWSRegion:       config.GetString("delegated_auth.aws_region"),
-	})
+	if !configured {
+		log.Debug("Delegated authentication is not configured")
+	} else {
+		log.Info("Finished configuring delegated authentication")
+	}
 
-	log.Info("Finished configuring delegated authentication")
 	return nil
 }
 

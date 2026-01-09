@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -29,7 +31,27 @@ const (
 	// With a minimum reasonable refresh_interval of 1 minute: 1 * 2^(10-1) = 512 minutes > 60 minutes
 	// So capping at 10 gives us plenty of headroom for any configuration
 	maxConsecutiveFailures = 10
+	// jitterPercent is the percentage of jitter to add to refresh intervals (10%)
+	// This prevents all agents from hitting the intake-key API at the same time
+	jitterPercent = 0.10
 )
+
+// authInstance holds the state for a single delegated auth configuration (one API key target).
+type authInstance struct {
+	apiKey          *string
+	provider        common.Provider
+	authConfig      *common.AuthConfig
+	refreshInterval time.Duration
+	apiKeyConfigKey string // Configuration key where the API key should be written
+
+	// Exponential backoff tracking
+	consecutiveFailures int
+	nextRetryInterval   time.Duration
+
+	// Context and cancellation for background refresh goroutine
+	refreshCtx    context.Context
+	refreshCancel context.CancelFunc
+}
 
 // delegatedAuthComponent implements the delegatedauth.Component interface.
 //
@@ -40,19 +62,9 @@ type delegatedAuthComponent struct {
 	config config.Component
 
 	// Mutable fields (protected by mu)
-	mu              sync.RWMutex
-	apiKey          *string
-	provider        common.Provider
-	authConfig      *common.AuthConfig
-	refreshInterval time.Duration
-
-	// Exponential backoff tracking (protected by mu)
-	consecutiveFailures int
-	nextRetryInterval   time.Duration
-
-	// Context and cancellation for background refresh goroutine (protected by mu for initialization)
-	refreshCtx    context.Context
-	refreshCancel context.CancelFunc
+	// Map of APIKeyConfigKey -> authInstance
+	mu        sync.RWMutex
+	instances map[string]*authInstance
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -62,90 +74,149 @@ type Provides struct {
 
 // NewComponent creates a new delegated auth Component
 func NewComponent() Provides {
-	comp := &delegatedAuthComponent{}
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+	}
 
 	return Provides{
 		Comp: comp,
 	}
 }
 
-// Configure initializes the delegated auth component with the provided configuration
+// addJitter adds random jitter to a duration to prevent thundering herd
+// Returns a duration in the range [duration * (1 - jitterPercent), duration * (1 + jitterPercent)]
+// For example, with jitterPercent=0.10 and duration=60m, returns a value between 54m and 66m
+func addJitter(duration time.Duration) time.Duration {
+	// Calculate the jitter range
+	jitterRange := float64(duration) * jitterPercent
+	// Generate a random value between -jitterRange and +jitterRange
+	jitter := (rand.Float64()*2 - 1) * jitterRange
+	// Add the jitter to the base duration
+	return duration + time.Duration(jitter)
+}
+
+// Configure initializes delegated auth for a specific API key configuration.
+// Can be called multiple times with different APIKeyConfigKey values.
 func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
-	// Store the config for later use
-	if params.Config != nil {
+	// Store the config component on first call
+	if params.Config != nil && d.config == nil {
 		d.config = params.Config.(config.Component)
 	}
 
-	if !params.Enabled {
-		log.Info("Delegated authentication is disabled")
-		return
+	// Determine the API key config key, defaulting to "api_key"
+	apiKeyConfigKey := params.APIKeyConfigKey
+	if apiKeyConfigKey == "" {
+		apiKeyConfigKey = "api_key"
 	}
 
 	refreshInterval := time.Duration(params.RefreshInterval) * time.Minute
 	if refreshInterval == 0 {
 		// Default to 60 minutes if refresh interval was set incorrectly
 		refreshInterval = 60 * time.Minute
-		log.Warn("Refresh interval was set to 0 defaulting to 60 minutes")
+		log.Warnf("Refresh interval was set to 0 for '%s', defaulting to 60 minutes", apiKeyConfigKey)
 	}
 
 	if params.OrgUUID == "" {
-		log.Error("delegated_auth.org_uuid is required when delegated_auth.enabled is true")
+		log.Errorf("org_uuid is required when delegated_auth is enabled for '%s'", apiKeyConfigKey)
 		return
 	}
 
+	// Auto-detect cloud provider if not specified
+	provider := params.Provider
+	awsRegion := params.AWSRegion
+
+	if provider == "" {
+		// Try to detect if we're running on AWS
+		ctx := context.Background()
+		if ec2.IsRunningOn(ctx) {
+			provider = cloudauth.ProviderAWS
+			log.Infof("Auto-detected AWS as cloud provider for '%s'", apiKeyConfigKey)
+
+			// Auto-detect AWS region if not specified
+			if awsRegion == "" {
+				region, err := ec2.GetRegion(ctx)
+				if err != nil {
+					log.Warnf("Failed to auto-detect AWS region for '%s': %v. Will use default region.", apiKeyConfigKey, err)
+				} else {
+					awsRegion = region
+					log.Infof("Auto-detected AWS region '%s' for '%s'", awsRegion, apiKeyConfigKey)
+				}
+			}
+		} else {
+			log.Errorf("Could not auto-detect cloud provider for '%s'. Please specify 'provider' in the config. Currently only 'aws' is supported.", apiKeyConfigKey)
+			return
+		}
+	}
+
 	var tokenProvider common.Provider
-	switch params.Provider {
+	switch provider {
 	case cloudauth.ProviderAWS:
 		tokenProvider = &cloudauth.AWSAuth{
-			AwsRegion: params.AWSRegion,
+			AwsRegion: awsRegion,
 		}
 	default:
-		log.Errorf("unsupported delegated auth provider: %s", params.Provider)
+		log.Errorf("unsupported delegated auth provider '%s' for '%s'. Currently only 'aws' is supported.", provider, apiKeyConfigKey)
 		return
 	}
 
 	authConfig := &common.AuthConfig{
 		OrgUUID:      params.OrgUUID,
-		Provider:     params.Provider,
+		Provider:     provider, // Use the detected/resolved provider
 		ProviderAuth: tokenProvider,
 	}
 
+	// Create a context for the background refresh goroutine
+	refreshCtx, refreshCancel := context.WithCancel(context.Background())
+
+	// Create new auth instance
+	instance := &authInstance{
+		provider:        tokenProvider,
+		authConfig:      authConfig,
+		refreshInterval: refreshInterval,
+		apiKeyConfigKey: apiKeyConfigKey,
+		refreshCtx:      refreshCtx,
+		refreshCancel:   refreshCancel,
+	}
+
+	// Check if we're replacing an existing instance
 	d.mu.Lock()
-	d.provider = tokenProvider
-	d.authConfig = authConfig
-	d.refreshInterval = refreshInterval
+	if existingInstance, exists := d.instances[apiKeyConfigKey]; exists {
+		log.Infof("Replacing existing delegated auth configuration for '%s'", apiKeyConfigKey)
+		// Cancel the existing refresh goroutine
+		if existingInstance.refreshCancel != nil {
+			existingInstance.refreshCancel()
+		}
+	}
+	d.instances[apiKeyConfigKey] = instance
 	d.mu.Unlock()
 
-	log.Info("Delegated authentication is enabled, fetching initial API key...")
-
-	// Create a context for the background refresh goroutine
-	d.refreshCtx, d.refreshCancel = context.WithCancel(context.Background())
+	log.Infof("Delegated authentication is enabled for '%s', fetching initial API key...", apiKeyConfigKey)
 
 	// Fetch the initial API key synchronously
-	apiKey, _, err := d.refreshAndGetAPIKey(context.Background(), false)
+	apiKey, _, err := d.refreshAndGetAPIKey(instance, context.Background(), false)
 	if err != nil {
-		log.Errorf("Failed to get initial delegated API key: %v", err)
+		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
 		// Track the initial failure for exponential backoff
 		d.mu.Lock()
-		d.consecutiveFailures = 1
+		instance.consecutiveFailures = 1
 		d.mu.Unlock()
 	} else {
 		// Update the config with the initial API key
-		d.updateConfigWithAPIKey(*apiKey)
-		log.Info("Successfully fetched and set initial delegated API key")
+		d.updateConfigWithAPIKey(instance, *apiKey)
+		log.Infof("Successfully fetched and set initial delegated API key for '%s'", apiKeyConfigKey)
 	}
 
 	// Always start the background refresh goroutine, even if initial fetch failed
 	// This ensures retries will happen with exponential backoff
-	d.startBackgroundRefresh()
+	d.startBackgroundRefresh(instance)
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
-func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRefresh bool) (*string, bool, error) {
+func (d *delegatedAuthComponent) refreshAndGetAPIKey(instance *authInstance, _ context.Context, forceRefresh bool) (*string, bool, error) {
 	// If not forcing refresh, check if we already have a cached key
 	if !forceRefresh {
 		d.mu.RLock()
-		apiKey := d.apiKey
+		apiKey := instance.apiKey
 		d.mu.RUnlock()
 
 		if apiKey != nil {
@@ -158,34 +229,34 @@ func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, forceRef
 	defer d.mu.Unlock()
 
 	// Double-check pattern - another goroutine might have refreshed while we were waiting for the write lock
-	if !forceRefresh && d.apiKey != nil {
-		return d.apiKey, false, nil
+	if !forceRefresh && instance.apiKey != nil {
+		return instance.apiKey, false, nil
 	}
 
-	log.Info("Fetching delegated API key")
+	log.Infof("Fetching delegated API key for '%s'", instance.apiKeyConfigKey)
 
 	// Authenticate with the configured provider
-	apiKey, err := d.authenticate()
+	apiKey, err := d.authenticate(instance)
 	if err != nil {
-		log.Errorf("Failed to generate auth proof: %v", err)
+		log.Errorf("Failed to generate auth proof for '%s': %v", instance.apiKeyConfigKey, err)
 		return nil, false, err
 	}
 
-	d.apiKey = apiKey
+	instance.apiKey = apiKey
 
 	return apiKey, true, nil
 }
 
 // calculateNextRetryInterval calculates the next retry interval using exponential backoff
 // First retry after failure is at the base interval, then doubles on each subsequent failure, capped at 1 hour
-func (d *delegatedAuthComponent) calculateNextRetryInterval() time.Duration {
+func (d *delegatedAuthComponent) calculateNextRetryInterval(instance *authInstance) time.Duration {
 	// Base interval is the configured refresh interval
-	baseInterval := d.refreshInterval
+	baseInterval := instance.refreshInterval
 
 	// Calculate exponential backoff: baseInterval * 2^max(0, consecutiveFailures-1)
 	// This ensures the first retry is at the base interval, not doubled
 	// Using math.Pow for clarity, though bit shifting could also be used
-	exponent := float64(d.consecutiveFailures - 1)
+	exponent := float64(instance.consecutiveFailures - 1)
 	if exponent < 0 {
 		exponent = 0
 	}
@@ -202,59 +273,65 @@ func (d *delegatedAuthComponent) calculateNextRetryInterval() time.Duration {
 
 // startBackgroundRefresh starts the background goroutine that periodically refreshes the API key
 // with exponential backoff on failures
-func (d *delegatedAuthComponent) startBackgroundRefresh() {
+func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) {
 	// Start background refresh
 	go func() {
-		// Initialize with the configured refresh interval
+		// Initialize with the configured refresh interval plus jitter
 		d.mu.Lock()
-		d.nextRetryInterval = d.refreshInterval
+		instance.nextRetryInterval = instance.refreshInterval
 		d.mu.Unlock()
 
-		ticker := time.NewTicker(d.nextRetryInterval)
+		// Add jitter to prevent all agents from hitting the API at the same time
+		jitteredInterval := addJitter(instance.nextRetryInterval)
+		ticker := time.NewTicker(jitteredInterval)
 		defer ticker.Stop()
 
 		for {
 			select {
-			case <-d.refreshCtx.Done():
+			case <-instance.refreshCtx.Done():
 				// Context was canceled, exit the goroutine
-				log.Debug("Background refresh goroutine exiting due to context cancellation")
+				log.Debugf("Background refresh goroutine for '%s' exiting due to context cancellation", instance.apiKeyConfigKey)
 				return
 			case <-ticker.C:
 				// Time to refresh
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(d.refreshCtx, true)
+				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance, instance.refreshCtx, true)
 
 				d.mu.Lock()
 				if lErr != nil {
 					// Check if the error is due to context cancellation
-					if d.refreshCtx.Err() != nil {
+					if instance.refreshCtx.Err() != nil {
 						d.mu.Unlock()
-						log.Debug("Refresh failed due to context cancellation, exiting")
+						log.Debugf("Refresh for '%s' failed due to context cancellation, exiting", instance.apiKeyConfigKey)
 						return
 					}
 
 					// Increment consecutive failures (capped to prevent overflow)
-					if d.consecutiveFailures < maxConsecutiveFailures {
-						d.consecutiveFailures++
+					if instance.consecutiveFailures < maxConsecutiveFailures {
+						instance.consecutiveFailures++
 					}
-					d.nextRetryInterval = d.calculateNextRetryInterval()
-					log.Errorf("Failed to refresh delegated API key (attempt %d): %v. Next retry in %v",
-						d.consecutiveFailures, lErr, d.nextRetryInterval)
+					instance.nextRetryInterval = d.calculateNextRetryInterval(instance)
+					// Add jitter and log the actual retry time
+					jitteredInterval := addJitter(instance.nextRetryInterval)
+					log.Errorf("Failed to refresh delegated API key for '%s' (attempt %d): %v. Next retry in %v (base: %v)",
+						instance.apiKeyConfigKey, instance.consecutiveFailures, lErr, jitteredInterval, instance.nextRetryInterval)
+					ticker.Reset(jitteredInterval)
 				} else {
 					// Success - reset backoff
-					if d.consecutiveFailures > 0 {
-						log.Infof("Successfully refreshed delegated API key after %d failed attempts", d.consecutiveFailures)
+					if instance.consecutiveFailures > 0 {
+						log.Infof("Successfully refreshed delegated API key for '%s' after %d failed attempts", instance.apiKeyConfigKey, instance.consecutiveFailures)
 					}
-					d.consecutiveFailures = 0
-					d.nextRetryInterval = d.refreshInterval
+					instance.consecutiveFailures = 0
+					instance.nextRetryInterval = instance.refreshInterval
 
 					// Update the config with the new API key
 					if updated {
-						d.updateConfigWithAPIKey(*lCreds)
+						d.updateConfigWithAPIKey(instance, *lCreds)
 					}
-				}
 
-				// Reset the ticker with the new interval
-				ticker.Reset(d.nextRetryInterval)
+					// Reset the ticker with the new interval plus jitter
+					jitteredInterval := addJitter(instance.nextRetryInterval)
+					ticker.Reset(jitteredInterval)
+				}
 				d.mu.Unlock()
 			}
 		}
@@ -262,18 +339,18 @@ func (d *delegatedAuthComponent) startBackgroundRefresh() {
 }
 
 // authenticate uses the configured provider to get creds
-func (d *delegatedAuthComponent) authenticate() (*string, error) {
-	creds, err := d.authConfig.ProviderAuth.GetAPIKey(d.config, d.authConfig)
+func (d *delegatedAuthComponent) authenticate(instance *authInstance) (*string, error) {
+	creds, err := instance.authConfig.ProviderAuth.GetAPIKey(d.config, instance.authConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate with AWS: %w", err)
+		return nil, fmt.Errorf("failed to authenticate: %w", err)
 	}
 	return creds, nil
 }
 
-// Update the updateConfigWithAPIKey method to use the correct Set method
-func (d *delegatedAuthComponent) updateConfigWithAPIKey(apiKey string) {
-	// Update the api_key config value using the Writer interface
+// updateConfigWithAPIKey updates the config with the new API key
+func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, apiKey string) {
+	// Update the config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
-	d.config.Set("api_key", apiKey, pkgconfigmodel.SourceAgentRuntime)
-	log.Infof("Updated config with new apiKey")
+	d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
+	log.Infof("Updated config key '%s' with new delegated API key", instance.apiKeyConfigKey)
 }
