@@ -9,7 +9,6 @@ package hashicorp
 import (
 	"context"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,8 +26,7 @@ import (
 )
 
 func TestVaultBackend(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
 		"key1": "value1",
@@ -49,24 +47,20 @@ func TestVaultBackend(t *testing.T) {
 
 	ctx := context.Background()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key1")
-	require.Nil(t, secretOutput.Error, "unexpected error fetching secret")
-	require.NotNil(t, secretOutput.Value, "expected non-nil value")
 	assert.Equal(t, "value1", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
 
 	secretOutput = secretsBackend.GetSecretOutput(ctx, "secret/foo;key2")
-	require.Nil(t, secretOutput.Error, "unexpected error fetching secret")
-	require.NotNil(t, secretOutput.Value, "expected non-nil value")
 	assert.Equal(t, "value2", *secretOutput.Value)
+	assert.Nil(t, secretOutput.Error)
 
 	secretOutput = secretsBackend.GetSecretOutput(ctx, "secret/foo;key_noexist")
 	assert.Nil(t, secretOutput.Value)
-	require.NotNil(t, secretOutput.Error, "expected error for non-existent key")
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
 func TestVaultBackend_KeyNotFound(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	_, err := client.Logical().Write("secret/foo", map[string]interface{}{
 		"key1": "value1",
@@ -88,11 +82,10 @@ func TestVaultBackend_KeyNotFound(t *testing.T) {
 	ctx := context.Background()
 	secretOutput := secretsBackend.GetSecretOutput(ctx, "secret/foo;key_noexist")
 	assert.Nil(t, secretOutput.Value)
-	require.NotNil(t, secretOutput.Error, "expected error for non-existent key")
 	assert.Equal(t, secret.ErrKeyNotFound.Error(), *secretOutput.Error)
 }
 
-func createTestVault(t *testing.T) (net.Listener, *api.Client, string) {
+func createTestVault(t *testing.T) (*api.Client, string) {
 	t.Helper()
 
 	// Create an in-memory, unsealed core (the "backend", if you will).
@@ -101,6 +94,11 @@ func createTestVault(t *testing.T) (net.Listener, *api.Client, string) {
 
 	// Start an HTTP server for the core.
 	ln, addr := vaultHttp.TestServer(t, core)
+
+	// listener cleanup before Vault shutdown.
+	t.Cleanup(func() {
+		ln.Close()
+	})
 
 	// Create a client that talks to the server, initially authenticating with
 	// the root token.
@@ -113,7 +111,7 @@ func createTestVault(t *testing.T) (net.Listener, *api.Client, string) {
 	}
 	client.SetToken(rootToken)
 
-	return ln, client, rootToken
+	return client, rootToken
 }
 
 func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
@@ -200,8 +198,7 @@ func TestNewAuthenticationFromBackendConfig_AWSAuth(t *testing.T) {
 }
 
 func TestVaultBackend_KVV2Support(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	err := client.Sys().Mount("kv2/", &api.MountInput{
 		Type: "kv",
@@ -339,8 +336,7 @@ func TestGetKubernetesJWTToken(t *testing.T) {
 }
 
 func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
-	ln, _, _ := createTestVault(t)
-	defer ln.Close()
+	createTestVault(t) // Start vault server, cleanup handled via t.Cleanup()
 
 	tmpFile, err := os.CreateTemp("", "jwt-token-test")
 	require.NoError(t, err)
@@ -456,8 +452,7 @@ func TestNewVaultBackend_KubernetesAuth(t *testing.T) {
 }
 
 func TestVaultBackend_VaultURIFormat(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	// Create test data - KV v1 stores data directly (no nested "data" field)
 	complexData := map[string]interface{}{
@@ -606,8 +601,7 @@ func TestVaultBackend_VaultURIFormat(t *testing.T) {
 }
 
 func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	// Set up KV v2 mount
 	err := client.Sys().Mount("kv2/", &api.MountInput{
@@ -686,8 +680,7 @@ func TestVaultBackend_VaultURIFormat_KVv2(t *testing.T) {
 }
 
 func TestVaultBackend_BackwardCompatibility(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	// Create test data
 	_, err := client.Logical().Write("secret/test", map[string]interface{}{
@@ -718,8 +711,7 @@ func TestVaultBackend_BackwardCompatibility(t *testing.T) {
 }
 
 func TestVaultBackend_ErrorHandling(t *testing.T) {
-	ln, client, token := createTestVault(t)
-	defer ln.Close()
+	client, token := createTestVault(t)
 
 	backendConfig := map[string]interface{}{
 		"vault_address": client.Address(),
