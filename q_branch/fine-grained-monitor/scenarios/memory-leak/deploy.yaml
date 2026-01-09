@@ -1,21 +1,21 @@
 # Memory Leak Scenario
 #
 # Deploys a pod that gradually leaks memory over time,
-# eventually triggering OOM after ~2 minutes.
+# eventually triggering OOM after ~8-10 minutes.
 #
 # Expected behavior:
-# - Container starts with low memory usage
-# - Leaks ~1MB every 2 seconds
-# - After ~2 minutes, hits 64Mi limit and gets OOMKilled
+# - Container starts with low memory usage (~30-40Mi for Python)
+# - Leaks ~512KB every 2 seconds
+# - After ~8-10 minutes, hits 256Mi limit and gets OOMKilled
 # - Exit code 137 (128 + 9 = SIGKILL from OOM)
 # - Kubernetes restarts container
 # - Cycle repeats
 #
 # Observable in fine-grained-monitor:
-# - Gradual memory growth over time (sawtooth pattern)
-# - Predictable OOM kills every ~2 minutes
-# - Memory timeseries shows leak rate
-# - Useful for demonstrating time-range correlation
+# - Clear gradual memory growth over ~8-10 minutes (sawtooth pattern)
+# - Predictable OOM kills with long enough intervals to see the trend
+# - Memory timeseries shows consistent leak rate
+# - Useful for demonstrating changepoint detection and time-range correlation
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -29,19 +29,19 @@ data:
     from datetime import datetime
 
     print("Starting memory leak scenario", flush=True)
-    print("Leaking ~1MB every 2 seconds...", flush=True)
+    print("Leaking ~512KB every 2 seconds...", flush=True)
 
     # Store leaked memory so it's not garbage collected
     leaked = []
-    chunk_size = 1024 * 1024  # 1MB chunks
+    chunk_size = 512 * 1024  # 512KB chunks (slower leak for better demo visibility)
     start_time = time.time()
 
     while True:
         leaked.append(bytearray(chunk_size))
-        mb_leaked = len(leaked)
+        mb_leaked = (len(leaked) * chunk_size) / (1024 * 1024)
         elapsed = int(time.time() - start_time)
         timestamp = datetime.now().strftime("%H:%M:%S")
-        print(f"[{timestamp}] Leaked {mb_leaked}MB (elapsed: {elapsed}s)", flush=True)
+        print(f"[{timestamp}] Leaked {mb_leaked:.1f}MB (elapsed: {elapsed}s)", flush=True)
         time.sleep(2)
 ---
 apiVersion: v1
@@ -67,8 +67,8 @@ spec:
           mountPath: /scripts
       resources:
         requests:
-          memory: "32Mi"
+          memory: "64Mi"
           cpu: "10m"
         limits:
-          memory: "64Mi"
+          memory: "256Mi"
           cpu: "100m"
