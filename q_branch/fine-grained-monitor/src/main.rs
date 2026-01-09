@@ -208,6 +208,7 @@ fn write_container_sidecar(parquet_path: &PathBuf, index: &ContainerIndex) {
             namespace: entry.namespace.clone(),
             pod_uid: entry.pod_uid.clone(),
             qos_class: entry.qos_class.clone(),
+            labels: entry.labels.clone(),
         })
         .collect();
 

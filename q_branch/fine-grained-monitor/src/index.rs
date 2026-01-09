@@ -23,6 +23,8 @@ pub struct ContainerEntry {
     pub container_name: Option<String>,
     /// Namespace from Kubernetes API (e.g., "kube-system")
     pub namespace: Option<String>,
+    /// Pod labels from Kubernetes API
+    pub labels: Option<HashMap<String, String>>,
 }
 
 /// In-memory container metadata index for sidecar generation.
@@ -51,16 +53,19 @@ impl ContainerIndex {
                 let needs_pod_name = container.pod_name.is_some() && entry.pod_name.is_none();
                 let needs_container_name =
                     container.container_name.is_some() && entry.container_name.is_none();
-                if needs_pod_name || needs_container_name {
+                let needs_labels = container.labels.is_some() && entry.labels.is_none();
+                if needs_pod_name || needs_container_name || needs_labels {
                     entry.pod_name = entry.pod_name.clone().or(container.pod_name.clone());
                     entry.container_name =
                         entry.container_name.clone().or(container.container_name.clone());
                     entry.namespace = entry.namespace.clone().or(container.namespace.clone());
+                    entry.labels = entry.labels.clone().or(container.labels.clone());
                     tracing::info!(
                         container_id = %sid,
                         pod_name = ?entry.pod_name,
                         container_name = ?entry.container_name,
                         namespace = ?entry.namespace,
+                        labels_count = entry.labels.as_ref().map(|l| l.len()).unwrap_or(0),
                         "Updated container with Kubernetes metadata"
                     );
                 }
@@ -73,6 +78,7 @@ impl ContainerIndex {
                         pod_name: container.pod_name.clone(),
                         container_name: container.container_name.clone(),
                         namespace: container.namespace.clone(),
+                        labels: container.labels.clone(),
                     },
                 );
                 tracing::info!(

@@ -724,13 +724,13 @@ impl LazyDataStore {
                     ContainerInfo {
                         id: sc.container_id.clone(),
                         short_id: sc.container_id.clone(),
-                        qos_class: Some(sc.qos_class),
-                        namespace: sc.namespace,
-                        pod_name: sc.pod_name,
-                        container_name: sc.container_name,
+                        qos_class: Some(sc.qos_class.clone()),
+                        namespace: sc.namespace.clone(),
+                        pod_name: sc.pod_name.clone(),
+                        container_name: sc.container_name.clone(),
                         first_seen_ms: None,
                         last_seen_ms: None,
-                        labels: None,
+                        labels: sc.labels.clone(),
                     }
                 });
             }
@@ -934,13 +934,13 @@ fn load_from_sidecars(parquet_files: &[PathBuf], data_range: DataRange) -> Resul
                     // Sidecar has short_id as container_id, construct full id placeholder
                     id: sc.container_id.clone(),
                     short_id: sc.container_id.clone(),
-                    qos_class: Some(sc.qos_class),
-                    namespace: sc.namespace,
-                    pod_name: sc.pod_name,
-                    container_name: sc.container_name,
+                    qos_class: Some(sc.qos_class.clone()),
+                    namespace: sc.namespace.clone(),
+                    pod_name: sc.pod_name.clone(),
+                    container_name: sc.container_name.clone(),
                     first_seen_ms: None,
                     last_seen_ms: None,
-                    labels: None,
+                    labels: sc.labels.clone(),
                 });
         }
 

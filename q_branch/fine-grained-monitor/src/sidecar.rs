@@ -10,6 +10,7 @@
 //! Format: bincode-serialized `ContainerSidecar` struct for ~10-100x faster
 //! serialization than JSON.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -20,8 +21,7 @@ pub const SIDECAR_EXTENSION: &str = "containers";
 /// Container metadata stored in sidecar files.
 ///
 /// Minimal subset of fields needed for viewer display/filtering.
-/// Optimized for fast serialization - no timestamps or labels HashMap.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SidecarContainer {
     /// Short container ID (first 12 chars)
     pub container_id: String,
@@ -35,6 +35,9 @@ pub struct SidecarContainer {
     pub pod_uid: Option<String>,
     /// QoS class as string
     pub qos_class: String,
+    /// Pod labels from Kubernetes API (added in v2)
+    #[serde(default)]
+    pub labels: Option<HashMap<String, String>>,
 }
 
 /// Sidecar file contents - list of containers active during the parquet file's time window.
@@ -47,8 +50,8 @@ pub struct ContainerSidecar {
 }
 
 impl ContainerSidecar {
-    /// Current sidecar format version
-    pub const VERSION: u8 = 1;
+    /// Current sidecar format version (v2 adds labels field)
+    pub const VERSION: u8 = 2;
 
     /// Create a new sidecar with the given containers
     pub fn new(containers: Vec<SidecarContainer>) -> Self {
@@ -115,6 +118,10 @@ mod tests {
             namespace: Some("default".to_string()),
             pod_uid: Some(format!("uid-{}", id)),
             qos_class: "Burstable".to_string(),
+            labels: Some(HashMap::from([
+                ("app".to_string(), "test".to_string()),
+                ("env".to_string(), "dev".to_string()),
+            ])),
         }
     }
 
@@ -132,6 +139,7 @@ mod tests {
                 namespace: None,
                 pod_uid: None,
                 qos_class: "BestEffort".to_string(),
+                labels: None,
             },
         ]);
 
