@@ -664,13 +664,28 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
+
+func TestInfrastructureModeLegacyAliases(t *testing.T) {
+	// Test that legacy allowed_additional_checks is aliased to mode-specific
+	// key via applyInfrastructureModeOverrides
+	datadogYaml := `
+infrastructure_mode: basic
+allowed_additional_checks:
+  - prometheus
+  - redis
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	// Legacy allowed_additional_checks should be merged into integration.basic.additional
+	additional := config.GetStringSlice("integration.basic.additional")
+	assert.Contains(t, additional, "prometheus")
+	assert.Contains(t, additional, "redis")
+}
+
 func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: end_user_device
 `
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-
 	filters := config.Get("network_path.collector.filters")
 	require.NotNil(t, filters, "filters should be set in end_user_device mode")
 
@@ -698,6 +713,7 @@ infrastructure_mode: end_user_device
 	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
 	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
 	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
+
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
