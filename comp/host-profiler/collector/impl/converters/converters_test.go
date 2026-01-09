@@ -126,6 +126,21 @@ func readFromYamlFileWithAgent(t *testing.T, yamlContent string, agentConfig con
 	return conf.ToStringMap()
 }
 
+func verifySymbolEndpointKeys(t *testing.T, conf map[string]any, expectedAPIKey, expectedAppKey string) {
+	symbolUploader, err := getMapStr(conf, []string{"receivers", "hostprofiler", "symbol_uploader"})
+	require.NoError(t, err)
+	endpoints := symbolUploader["symbol_endpoints"].([]any)
+	endpoint := endpoints[0].(map[string]any)
+	require.Equal(t, expectedAPIKey, endpoint["api_key"])
+	require.Equal(t, expectedAppKey, endpoint["app_key"])
+}
+
+func verifyExporterHeaderKey(t *testing.T, conf map[string]any, expectedAPIKey string) {
+	headers, err := getMapStr(conf, []string{"exporters", "otlphttp", "headers"})
+	require.NoError(t, err)
+	require.Equal(t, expectedAPIKey, headers["dd-api-key"])
+}
+
 func TestAPIKeyInferenceAddsKeysWhenMissing(t *testing.T) {
 	yaml := `
 receivers:
@@ -134,8 +149,6 @@ receivers:
       enabled: true
       symbol_endpoints:
         - site: datadoghq.com
-processors:
-  cumulativetodelta: {}
 exporters:
   otlphttp:
     metrics_endpoint: https://otlp.datad0g.com/v1/metrics
@@ -151,19 +164,10 @@ exporters:
 	conf := readFromYamlFileWithAgent(t, yaml, mockConfig)
 
 	// Verify API keys were added to symbol endpoint
-	receivers := conf["receivers"].(map[string]any)
-	hostprofiler := receivers["hostprofiler"].(map[string]any)
-	symbolUploader := hostprofiler["symbol_uploader"].(map[string]any)
-	endpoints := symbolUploader["symbol_endpoints"].([]any)
-	endpoint := endpoints[0].(map[string]any)
-	require.Equal(t, "inferred-api-key", endpoint["api_key"])
-	require.Equal(t, "inferred-app-key", endpoint["app_key"])
+	verifySymbolEndpointKeys(t, conf, "inferred-api-key", "inferred-app-key")
 
 	// Verify API key was added to exporter headers
-	exporters := conf["exporters"].(map[string]any)
-	otlphttp := exporters["otlphttp"].(map[string]any)
-	headers := otlphttp["headers"].(map[string]any)
-	require.Equal(t, "inferred-api-key", headers["dd-api-key"])
+	verifyExporterHeaderKey(t, conf, "inferred-api-key")
 }
 
 func TestAPIKeyInferenceDoesNotOverrideExistingKeys(t *testing.T) {
@@ -192,17 +196,8 @@ exporters:
 	conf := readFromYamlFileWithAgent(t, yaml, mockConfig)
 
 	// Verify existing API keys in symbol endpoint were NOT overridden
-	receivers := conf["receivers"].(map[string]any)
-	hostprofiler := receivers["hostprofiler"].(map[string]any)
-	symbolUploader := hostprofiler["symbol_uploader"].(map[string]any)
-	endpoints := symbolUploader["symbol_endpoints"].([]any)
-	endpoint := endpoints[0].(map[string]any)
-	require.Equal(t, "existing-symbol-api-key", endpoint["api_key"])
-	require.Equal(t, "existing-symbol-app-key", endpoint["app_key"])
+	verifySymbolEndpointKeys(t, conf, "existing-symbol-api-key", "existing-symbol-app-key")
 
 	// Verify existing API key in exporter headers was NOT overridden
-	exporters := conf["exporters"].(map[string]any)
-	otlphttp := exporters["otlphttp"].(map[string]any)
-	headers := otlphttp["headers"].(map[string]any)
-	require.Equal(t, "existing-exporter-api-key", headers["dd-api-key"])
+	verifyExporterHeaderKey(t, conf, "existing-exporter-api-key")
 }

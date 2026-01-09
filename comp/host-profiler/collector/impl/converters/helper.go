@@ -117,28 +117,16 @@ func getMapStr(confStringMap map[string]any, keys []string) (map[string]any, err
 	return confStringMap, nil
 }
 
-func getSymbolEndpoints(confStringMap map[string]any) []any {
+func getSymbolEndpoints(confStringMap map[string]any) ([]any, error) {
 	symbolUploader, err := getMapStr(confStringMap, []string{"receivers", "hostprofiler", "symbol_uploader"})
 	if err != nil || symbolUploader == nil {
-		return nil
+		return nil, err
 	}
-	endpoints, ok := symbolUploader["symbol_endpoints"].([]any)
-	if !ok {
-		return nil
-	}
+	endpoints := symbolUploader["symbol_endpoints"].([]any)
 
-	return endpoints
+	return endpoints, nil
 }
 
-func getExporterHeaders(confStringMap map[string]any) map[string]any {
-	otlphttp, err := getMapStr(confStringMap, []string{"exporters", "otlphttp"})
-	if err != nil || otlphttp == nil {
-		return nil
-	}
-	headers, ok := otlphttp["headers"].(map[string]any)
-
-	if !ok {
-		return nil
-	}
-	return headers
+func getExporterHeaders(confStringMap map[string]any) (map[string]any, error) {
+	return getMapStr(confStringMap, []string{"exporters", "otlphttp", "headers"})
 }

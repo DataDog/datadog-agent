@@ -54,24 +54,31 @@ func (c *converterWithAgent) ensureKey(configMap map[string]any, key string, age
 }
 
 // checkAPIKeys validates that all required API keys are configured
-func (c *converterWithAgent) checkAPIKeys(confStringMap map[string]any) {
+func (c *converterWithAgent) checkAPIKeys(confStringMap map[string]any) error {
 	log.Debug("Checking API/APP keys in hostprofiler")
-	symbolEndpoints := getSymbolEndpoints(confStringMap)
-	if symbolEndpoints == nil {
-		return
+	symbolEndpoints, err := getSymbolEndpoints(confStringMap)
+	if err != nil {
+		return err
 	}
+
 
 	for _, endpoint := range symbolEndpoints {
 		c.ensureKey(endpoint.(map[string]any), "api_key", "api_key")
 		c.ensureKey(endpoint.(map[string]any), "app_key", "app_key")
 	}
 
+	exporterHeaders, err := getExporterHeaders(confStringMap)
+	if err != nil {
+		return err
+	}
+
 	// Check exporter API key
-	exporterHeaders := getExporterHeaders(confStringMap)
 	if exporterHeaders != nil {
 		log.Debug("Checking API key in otlphttpexporter")
 		c.ensureKey(exporterHeaders, "dd-api-key", "api_key")
 	}
+
+	return nil
 }
 
 func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
@@ -80,7 +87,10 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 
-	c.checkAPIKeys(confStringMap)
+	if err := c.checkAPIKeys(confStringMap); err != nil {
+		return err
+	}
+
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
