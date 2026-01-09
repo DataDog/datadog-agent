@@ -155,6 +155,64 @@ function getCssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
+// Format bytes with appropriate SI unit suffix
+function formatBytes(bytes) {
+    if (bytes === 0 || bytes === null) return '0';
+    const units = ['', 'K', 'M', 'G', 'T', 'P'];
+    const base = 1000;
+    const exp = Math.floor(Math.log(Math.abs(bytes)) / Math.log(base));
+    const clampedExp = Math.min(exp, units.length - 1);
+    const scaled = bytes / Math.pow(base, clampedExp);
+    const suffix = units[clampedExp];
+    // Show up to 2 decimal places, but trim trailing zeros
+    const formatted = scaled.toFixed(2).replace(/\.?0+$/, '');
+    return suffix ? `${formatted}${suffix}` : formatted;
+}
+
+// Format microseconds with appropriate time unit
+function formatMicroseconds(usec) {
+    if (usec === 0 || usec === null) return '0';
+    if (usec < 1000) return `${usec.toFixed(0)}us`;
+    if (usec < 1000000) return `${(usec / 1000).toFixed(1)}ms`;
+    return `${(usec / 1000000).toFixed(2)}s`;
+}
+
+// Determine unit type from metric name
+function getMetricUnitType(metric) {
+    if (!metric) return 'number';
+    const m = metric.toLowerCase();
+    // Bytes metrics
+    if (m.includes('memory') || m.includes('bytes') || m.includes('.current') ||
+        m.includes('rbytes') || m.includes('wbytes') || m.includes('io.stat')) {
+        return 'bytes';
+    }
+    // Time metrics (microseconds)
+    if (m.includes('_usec') || m.includes('.usec') || m.includes('throttled_usec') ||
+        m.includes('usage_usec') || m.includes('system_usec') || m.includes('user_usec')) {
+        return 'microseconds';
+    }
+    return 'number';
+}
+
+// Get Y-axis value formatter for a metric
+function getMetricValueFormatter(metric) {
+    const unitType = getMetricUnitType(metric);
+    switch (unitType) {
+        case 'bytes':
+            return (u, v) => v == null ? '' : formatBytes(v);
+        case 'microseconds':
+            return (u, v) => v == null ? '' : formatMicroseconds(v);
+        default:
+            // Default: use SI suffixes for large numbers
+            return (u, v) => {
+                if (v == null) return '';
+                if (Math.abs(v) >= 1000000) return `${(v / 1000000).toFixed(1)}M`;
+                if (Math.abs(v) >= 1000) return `${(v / 1000).toFixed(1)}K`;
+                return v.toFixed(v % 1 === 0 ? 0 : 1);
+            };
+    }
+}
+
 export function setLoading(isLoading, message = 'Loading data...') {
     const overlay = document.getElementById('loadingOverlay');
     const textEl = overlay?.querySelector('.loading-text');
@@ -515,6 +573,9 @@ export const ChartRenderer = {
         // Clear and rebuild panels HTML structure (REQ-MV-023: removed metric dropdown)
         panelsContainer.innerHTML = state.panels.map(panel => `
             <div class="panel" data-panel-id="${panel.id}">
+                <div class="panel-header">
+                    <span class="panel-title">${escapeHtml(panel.metric || 'No metric')}</span>
+                </div>
                 <div class="panel-chart-area">
                     ${panel.loading ? `
                         <div class="loading-overlay">
@@ -642,7 +703,12 @@ export const ChartRenderer = {
             },
             axes: [
                 { stroke: getCssVar('--chart-axis'), grid: { stroke: getCssVar('--chart-grid') } },
-                { stroke: getCssVar('--chart-axis'), grid: { stroke: getCssVar('--chart-grid') }, size: 80 }
+                {
+                    stroke: getCssVar('--chart-axis'),
+                    grid: { stroke: getCssVar('--chart-grid') },
+                    size: 80,
+                    values: (u, splits) => splits.map(v => getMetricValueFormatter(panel.metric)(u, v))
+                }
             ],
             padding: [8, 16, 8, 8],
             legend: { show: false }
