@@ -41,7 +41,7 @@ func (s *configSuite) TestConfig() {
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
@@ -68,7 +68,7 @@ func (s *configSuite) TestMultipleConfigs() {
 					Patch:             []byte(fmt.Sprintf(`{"extra_tags": ["debug:step-%d"]}`, i)),
 				},
 			},
-		})
+		}, nil)
 		require.NoError(s.T(), err)
 		config, err := s.Agent.Configuration()
 		require.NoError(s.T(), err)
@@ -105,7 +105,7 @@ func (s *configSuite) TestConfigFailureCrash() {
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "ENC[invalid_secret]"}`)}},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 
 	config, err := s.Agent.Configuration()
@@ -122,7 +122,7 @@ func (s *configSuite) TestConfigFailureTimeout() {
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
@@ -143,7 +143,7 @@ func (s *configSuite) TestConfigFailureHealth() {
 	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
 		DeploymentID:   "123",
 		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)}},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 	config, err := s.Agent.Configuration()
 	require.NoError(s.T(), err)
@@ -194,7 +194,7 @@ func (s *configSuite) TestConfigFilePermissions() {
 				Patch:             []byte(nginxConfig),
 			},
 		},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 
 	// Check datadog.yaml permissions (should be restricted: 640)
@@ -242,6 +242,28 @@ func (s *configSuite) TestConfigFilePermissions() {
 	assert.Equal(s.T(), "dd-agent", nginxPerms.Group)
 }
 
+func (s *configSuite) TestConfigWithSecrets() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	err := s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID:   "123",
+		FileOperations: []backend.FileOperation{{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "SEC[log_level]"}`)}},
+	}, map[string]string{
+		"log_level": "WARN",
+	})
+	require.NoError(s.T(), err)
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "WARN", config["log_level"])
+	err = s.Backend.PromoteConfigExperiment()
+	require.NoError(s.T(), err)
+
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "WARN", config["log_level"])
+}
+
 func (s *configSuite) TestSystemProbeConfig() {
 	s.Agent.MustInstall()
 	defer s.Agent.MustUninstall()
@@ -256,7 +278,7 @@ func (s *configSuite) TestSystemProbeConfig() {
 				Patch:             []byte(`{"runtime_security_config": {"enabled": true}}`),
 			},
 		},
-	})
+	}, nil)
 	require.NoError(s.T(), err)
 
 	// Check agent is alive during experiment
