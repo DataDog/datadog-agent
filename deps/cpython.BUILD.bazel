@@ -173,6 +173,11 @@ configure_make(
         "-j 16",
         "install"
     ],
+    target_compatible_with = select({
+        "@platforms//os:osx": [],
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
 )
 
 pkg_files(
