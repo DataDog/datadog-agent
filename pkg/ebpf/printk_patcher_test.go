@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"bufio"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 )
 
@@ -28,10 +28,13 @@ func TestPatchPrintkNewline(t *testing.T) {
 	kernelVersion, err := ebpfkernel.NewKernelVersion()
 	require.NoError(t, err)
 
+	tracefsRoot, err := tracefs.Root()
+	require.NoError(t, err)
 	// Check that tracing is on, if it's off we might try to enable it
-	tracingOn, err := os.ReadFile("/sys/kernel/debug/tracing/tracing_on")
+	tracingOnPath := tracefsRoot + "/tracing_on"
+	tracingOn, err := os.ReadFile(tracingOnPath)
 	if err == nil && strings.TrimSpace(string(tracingOn)) != "1" { // Try to continue with the tests even if we cannot read the tracing file
-		if err := os.WriteFile("/sys/kernel/debug/tracing/tracing_on", []byte("1"), 0); err != nil {
+		if err := os.WriteFile(tracingOnPath, []byte("1"), 0); err != nil {
 			t.Skipf("Cannot enable tracing: %s", err)
 		}
 	}
@@ -70,9 +73,8 @@ func TestPatchPrintkNewline(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
+	tp, err := ebpftest.NewTracePipe()
 	require.NoError(t, err)
-	traceReader := bufio.NewReader(tp)
 	t.Cleanup(func() { _ = tp.Close() })
 
 	progs, ok, err := mgr.GetProgram(idPair)
@@ -81,7 +83,9 @@ func TestPatchPrintkNewline(t *testing.T) {
 	require.NotNil(t, progs)
 	require.NotEmpty(t, progs)
 
-	// The logdebugtest program is a kprobe on do_vfs_ioctl, so we can use that to trigger the
+	require.NoError(t, tp.Clear())
+
+	// The logdebugtest program is a kprobe on do_vfs_ioctl, so we can use that to trigger
 	// it and check that the output is correct. We do not actually care about the arguments.
 	if _, _, errno := syscall.Syscall(syscall.SYS_IOCTL, uintptr(0), 0xfafafefe, uintptr(0)); errno != 0 {
 		// Only valid return value is ENOTTY (invalid ioctl for device) because indeed we
@@ -98,7 +102,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 		"12", "21", "with args: 2+2=4", "with more args and vars: 1+2=3", "with a function call in the argument: 70", "bye",
 	}
 
-	foundLines := []string{}
+	var foundLines []string
 
 	for i, line := range expectedLines {
 		// We allow up to two lines that don't match, to avoid failures with other tests outputting to
@@ -112,12 +116,15 @@ func TestPatchPrintkNewline(t *testing.T) {
 			maxLinesToRead = 1000 // Except for the first line, we might need to flush previous trace pipe output
 		}
 		for readLines := 0; readLines < maxLinesToRead; readLines++ {
-			actualLine, err = traceReader.ReadString('\n')
+			event, err := tp.ReadLine()
 			require.NoError(t, err)
-			foundLines = append(foundLines, actualLine)
 
-			if strings.Contains(actualLine, line) {
-				break
+			if event != nil {
+				actualLine = event.Message
+				foundLines = append(foundLines, event.Raw)
+				if strings.Contains(actualLine, line) {
+					break
+				}
 			}
 		}
 		require.Contains(t, actualLine, line, "line %s not found in output, all lines until now:\n%s", line, strings.Join(foundLines, ""))
