@@ -154,7 +154,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 				return autoscaling.Requeue
 			}
 
-			// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
+			// Only create or update if the TargetHash has not changed
 			if !checkTargetHash(npi, targetNp) {
 				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
 				return autoscaling.NoRequeue
@@ -194,7 +194,7 @@ func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool)
 	if targetNp == nil {
 		return false
 	}
-	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
+	return npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
 }
 
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {
