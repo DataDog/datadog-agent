@@ -228,11 +228,11 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 
 	if lookIntoRedemption {
 		getMount = func(mountid uint32) *model.Mount {
-			return mr.lookupByMountID(mountid)
+			return mr.lookupByMountID(mountid, true)
 		}
 	} else {
 		getMount = func(mountid uint32) *model.Mount {
-			m, _ := mr.mounts.Get(mountid, true)
+			m, _ := mr.mounts.Get(mountid)
 			return m
 		}
 	}
@@ -260,7 +260,7 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 }
 
 func (mr *Resolver) delete(mount *model.Mount) {
-	// Remove it as its parents' children
+	// Remove it from the parents' list of children
 	// Parent MountID == 0 means that it was a detached mount, no need to update its parent
 	if mount.ParentPathKey.MountID != 0 {
 		parent, exists := mr.mounts.Get(mount.ParentPathKey.MountID)
@@ -276,9 +276,20 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		}
 	}
 
+	// Add any children to the dangling list
+	for _, childID := range mount.Children {
+		child, ok := mr.mounts.Get(childID)
+		if ok {
+			mr.dangling.Add(childID, child)
+		} else {
+			fmt.Printf("Child mount %d not present in cache\n", childID)
+		}
+	}
+
 	now := time.Now()
 	mr.moveToRedemption(mount, now)
 
+	// Remove it from the dangling list too
 	if _, exists := mr.dangling.Get(mount.MountID); exists {
 		mr.dangling.Remove(mount.MountID)
 	}
@@ -308,7 +319,7 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
-		seclog.Warnf("tried to delete non-existant mount id %d", m)
+		seclog.Warnf("tried to delete non-existant mount id %d", mountID)
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -358,8 +369,8 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 }
 
 func (mr *Resolver) insert(m *model.Mount, moved bool) {
-	invalidateChildrenPath := false
 
+	invalidateChildrenPath := false
 	// Remove the previous one if exists
 	if prev, ok := mr.mounts.Get(m.MountID); prev != nil && ok {
 		if prev.ParentPathKey != m.ParentPathKey {
@@ -443,13 +454,9 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 	return entry.mount
 }
 
-func (mr *Resolver) lookupByMountID(mountID uint32, useRedemption bool) *model.Mount {
+func (mr *Resolver) lookupByMountID(mountID uint32, _ bool) *model.Mount {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		return mount
-	}
-
-	if useRedemption {
-		return mr.getFromRedemption(mountID)
 	}
 
 	return nil
