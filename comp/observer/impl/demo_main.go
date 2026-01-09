@@ -37,7 +37,22 @@ func RunDemoWithConfig(config DemoConfig) {
 	fmt.Printf("Starting observer demo (timeScale=%.2f, duration=%.1fs)\n", config.TimeScale, phaseTotalDuration*config.TimeScale)
 
 	// Create components directly for demo so we can wire up HTML reporter
-	correlator := NewCorrelator(CorrelatorConfig{})
+	// Toggle between pattern-based and time-based correlation:
+	useTimeBasedCorrelation := true
+
+	var correlator interface {
+		observerdef.AnomalyProcessor
+		ActiveCorrelations() []observerdef.ActiveCorrelation
+	}
+	if useTimeBasedCorrelation {
+		correlator = NewTimeClusterCorrelator(TimeClusterConfig{
+			SlackSeconds:   5,  // anomalies within 5s of each other can cluster
+			MinClusterSize: 2,  // need at least 2 anomalies to report
+			WindowSeconds:  60, // keep anomalies for 60s
+		})
+	} else {
+		correlator = NewCorrelator(CorrelatorConfig{})
+	}
 	stdoutReporter := &StdoutReporter{}
 	stdoutReporter.SetCorrelationState(correlator)
 
@@ -96,6 +111,9 @@ func RunDemoWithConfig(config DemoConfig) {
 
 	// Small buffer to let final events flush through the pipeline
 	time.Sleep(time.Duration(float64(500*time.Millisecond) * config.TimeScale))
+
+	// Print final cluster state
+	stdoutReporter.PrintFinalState()
 
 	fmt.Println("---")
 	fmt.Println("Demo complete.")

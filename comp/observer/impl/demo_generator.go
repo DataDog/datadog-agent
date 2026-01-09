@@ -17,6 +17,8 @@ import (
 type GeneratorConfig struct {
 	TimeScale     float64 // multiplier for time (1.0 = realtime, 0.1 = 10x faster)
 	BaselineNoise float64 // amplitude of random baseline variation (default: 0.1 = 10%)
+	Seed          int64   // random seed for deterministic noise (default: 42)
+	BaseTimestamp int64   // base timestamp for deterministic timing (default: 1000000)
 }
 
 // Timeline constants (in simulation seconds at TimeScale=1.0)
@@ -87,12 +89,20 @@ func NewDataGenerator(handle observer.Handle, config GeneratorConfig) *DataGener
 	if config.BaselineNoise < 0 {
 		config.BaselineNoise = 0.1
 	}
+	// Use fixed seed for deterministic behavior (0 means use default)
+	if config.Seed == 0 {
+		config.Seed = 42
+	}
+	// Use fixed base timestamp for deterministic timing (0 means use default)
+	if config.BaseTimestamp == 0 {
+		config.BaseTimestamp = 1000000
+	}
 
 	return &DataGenerator{
 		handle:        handle,
 		config:        config,
-		rng:           rand.New(rand.NewSource(time.Now().UnixNano())),
-		baseTimestamp: time.Now().Unix(),
+		rng:           rand.New(rand.NewSource(config.Seed)),
+		baseTimestamp: config.BaseTimestamp,
 	}
 }
 

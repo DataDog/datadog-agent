@@ -116,3 +116,23 @@ func (r *StdoutReporter) reportCorrelationChanges() {
 		}
 	}
 }
+
+// PrintFinalState prints the current state of all correlations.
+// Call this at the end of a demo to see final cluster contents.
+func (r *StdoutReporter) PrintFinalState() {
+	if r.correlationState == nil {
+		return
+	}
+	activeCorrelations := r.correlationState.ActiveCorrelations()
+	if len(activeCorrelations) == 0 {
+		fmt.Println("[observer] Final state: no active correlations")
+		return
+	}
+	fmt.Println("[observer] Final state:")
+	for _, ac := range activeCorrelations {
+		fmt.Printf("  Cluster: %d anomalies\n", len(ac.Anomalies))
+		for _, anomaly := range ac.Anomalies {
+			fmt.Printf("    - %s\n", anomaly.Description)
+		}
+	}
+}
