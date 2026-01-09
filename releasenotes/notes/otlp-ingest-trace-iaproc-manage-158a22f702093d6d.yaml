@@ -1,6 +1,6 @@
 enhancements:
   - |
-    Add option to switch on/off Infra-Attribute-Processor for traces OTLP ingest pipeline.
+    Add option to switch on/off Infra-Attribute-Processor for traces in the OTLP ingest pipeline.
       otlp_config:
        traces:
         infra_attributes:
