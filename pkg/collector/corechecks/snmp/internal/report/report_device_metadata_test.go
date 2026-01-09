@@ -1198,6 +1198,7 @@ func Test_resolveLocalInterface(t *testing.T) {
 			"00:00:00:00:00:01": []int32{1},
 			"00:00:00:00:00:02": []int32{2},
 			"00:00:00:00:00:03": []int32{3, 4},
+			"00:00:00:00:00:05": []int32{5, 50, 500}, // shared MAC across multiple logical interfaces
 		},
 		"interface_name": {
 			"eth1": []int32{1},
@@ -1212,94 +1213,195 @@ func Test_resolveLocalInterface(t *testing.T) {
 			"eth4":   []int32{44},
 		},
 		"interface_index": {
-			"1": []int32{1},
-			"2": []int32{2},
+			"1":   []int32{1},
+			"2":   []int32{2},
+			"3":   []int32{3},
+			"4":   []int32{4},
+			"5":   []int32{5},
+			"50":  []int32{50},
+			"500": []int32{500},
+			"99":  []int32{99},
 		},
 	}
 	deviceID := "default:1.2.3.4"
 
 	tests := []struct {
-		name        string
-		localIDType string
-		localID     string
-		expectedID  string
+		name         string
+		localIDType  string
+		localID      string
+		localPortNum string
+		expectedID   string
 	}{
+		// Single match scenarios (unchanged behavior)
 		{
-			name:        "mac_address",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:01",
-			expectedID:  "default:1.2.3.4:1",
+			name:         "mac_address single match",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:01",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:1",
 		},
 		{
-			name:        "mac_address cannot resolve due to multiple results",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:03",
-			expectedID:  "",
+			name:         "interface_name single match",
+			localIDType:  "interface_name",
+			localID:      "eth2",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:2",
 		},
 		{
-			name:        "interface_name",
-			localIDType: "interface_name",
-			localID:     "eth2",
-			expectedID:  "default:1.2.3.4:2",
+			name:         "interface_alias single match",
+			localIDType:  "interface_alias",
+			localID:      "alias2",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:2",
 		},
 		{
-			name:        "interface_alias",
-			localIDType: "interface_alias",
-			localID:     "alias2",
-			expectedID:  "default:1.2.3.4:2",
+			name:         "mac_address by trying single match",
+			localIDType:  "",
+			localID:      "00:00:00:00:00:01",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:1",
 		},
 		{
-			name:        "mac_address by trying",
-			localIDType: "",
-			localID:     "00:00:00:00:00:01",
-			expectedID:  "default:1.2.3.4:1",
+			name:         "interface_name by trying single match",
+			localIDType:  "",
+			localID:      "eth2",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:2",
 		},
 		{
-			name:        "interface_name by trying",
-			localIDType: "",
-			localID:     "eth2",
-			expectedID:  "default:1.2.3.4:2",
+			name:         "interface_alias by trying single match",
+			localIDType:  "",
+			localID:      "alias2",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:2",
 		},
 		{
-			name:        "interface_alias by trying",
-			localIDType: "",
-			localID:     "alias2",
-			expectedID:  "default:1.2.3.4:2",
+			name:         "interface_alias+interface_name match with same interface should resolve",
+			localIDType:  "",
+			localID:      "eth3",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:3",
 		},
 		{
-			name:        "interface_alias+interface_name match with same interface should resolve",
-			localIDType: "",
-			localID:     "eth3",
-			expectedID:  "default:1.2.3.4:3",
+			name:         "interface_index by trying single match",
+			localIDType:  "",
+			localID:      "2",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:2",
+		},
+		// Multiple matches - resolved using localPortNum
+		{
+			name:         "multiple mac matches resolved by localPortNum in set",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:03",
+			localPortNum: "4",
+			expectedID:   "default:1.2.3.4:4",
 		},
 		{
-			name:        "interface_alias+interface_name match with different interface should not resolve",
-			localIDType: "",
-			localID:     "eth4",
-			expectedID:  "",
+			name:         "multiple mac matches resolved by localPortNum in set (first match)",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:03",
+			localPortNum: "3",
+			expectedID:   "default:1.2.3.4:3",
 		},
 		{
-			name:        "interface_index by trying",
-			localIDType: "",
-			localID:     "2",
-			expectedID:  "default:1.2.3.4:2",
+			name:         "multiple mac matches with localPortNum selecting middle index",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:05",
+			localPortNum: "50",
+			expectedID:   "default:1.2.3.4:50",
 		},
 		{
-			name:        "mac_address not found",
-			localIDType: "mac_address",
-			localID:     "00:00:00:00:00:99",
-			expectedID:  "",
+			name:         "interface_alias+interface_name match different interfaces resolved by localPortNum",
+			localIDType:  "",
+			localID:      "eth4",
+			localPortNum: "44",
+			expectedID:   "default:1.2.3.4:44",
+		},
+		// Multiple matches - localPortNum not in set, fallback to lowest index
+		{
+			name:         "multiple mac matches localPortNum not in set fallback to lowest",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:03",
+			localPortNum: "99",
+			expectedID:   "default:1.2.3.4:3",
 		},
 		{
-			name:        "invalid",
-			localIDType: "invalid_type",
-			localID:     "invalidID",
-			expectedID:  "",
+			name:         "multiple mac matches no localPortNum fallback to lowest",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:03",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:3",
+		},
+		{
+			name:         "multiple mac matches fallback to lowest with larger set",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:05",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:5",
+		},
+		{
+			name:         "interface_alias+interface_name different interfaces no localPortNum fallback to lowest",
+			localIDType:  "",
+			localID:      "eth4",
+			localPortNum: "",
+			expectedID:   "default:1.2.3.4:4",
+		},
+		// Zero matches - localPortNum fallback
+		{
+			name:         "mac_address not found but localPortNum valid",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:99",
+			localPortNum: "2",
+			expectedID:   "default:1.2.3.4:2",
+		},
+		{
+			name:         "invalid type but localPortNum valid",
+			localIDType:  "invalid_type",
+			localID:      "invalidID",
+			localPortNum: "1",
+			expectedID:   "default:1.2.3.4:1",
+		},
+		{
+			name:         "empty localID with valid localPortNum",
+			localIDType:  "",
+			localID:      "",
+			localPortNum: "2",
+			expectedID:   "default:1.2.3.4:2",
+		},
+		// Zero matches - no fallback available
+		{
+			name:         "mac_address not found and localPortNum not valid",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:99",
+			localPortNum: "999",
+			expectedID:   "",
+		},
+		{
+			name:         "mac_address not found no localPortNum",
+			localIDType:  "mac_address",
+			localID:      "00:00:00:00:00:99",
+			localPortNum: "",
+			expectedID:   "",
+		},
+		{
+			name:         "invalid type no localPortNum",
+			localIDType:  "invalid_type",
+			localID:      "invalidID",
+			localPortNum: "",
+			expectedID:   "",
+		},
+		{
+			name:         "both localID and localPortNum empty",
+			localIDType:  "",
+			localID:      "",
+			localPortNum: "",
+			expectedID:   "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID))
+			assert.Equal(t, tt.expectedID, resolveLocalInterface(deviceID, interfaceIndexByIDType, tt.localIDType, tt.localID, tt.localPortNum))
 		})
 	}
 }

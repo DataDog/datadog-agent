@@ -387,7 +387,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 		localInterfaceIDType := lldp.PortIDSubTypeMap[store.GetColumnAsString("lldp_local.interface_id_type", localPortNum)]
 		localInterfaceID := formatID(localInterfaceIDType, store, "lldp_local.interface_id", localPortNum)
 
-		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID)
+		resolvedLocalInterfaceID := resolveLocalInterface(deviceID, interfaceIndexByIDType, localInterfaceIDType, localInterfaceID, localPortNum)
 
 		// remEntryUniqueID: The combination of localPortNum and lldpRemIndex is expected to be unique for each entry in
 		//                   lldpRemTable. We don't include lldpRemTimeMark (used for filtering only recent data) since it can change often.
@@ -513,8 +513,8 @@ func getRemDeviceAddressIfIPType(store *metadata.Store, strIndex string, address
 	return ""
 }
 
-func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string) string {
-	if localInterfaceID == "" {
+func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]map[string][]int32, localInterfaceIDType string, localInterfaceID string, localPortNum string) string {
+	if localInterfaceID == "" && localPortNum == "" {
 		return ""
 	}
 
@@ -528,13 +528,15 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		typesToTry = []string{localInterfaceIDType}
 	}
 	matchedIfIndexesMap := make(map[int32]struct{})
-	for _, idType := range typesToTry {
-		interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
-		if ok {
-			ifIndexes, ok := interfaceIndexByIDValue[localInterfaceID]
+	if localInterfaceID != "" {
+		for _, idType := range typesToTry {
+			interfaceIndexByIDValue, ok := interfaceIndexByIDType[idType]
 			if ok {
-				for _, ifIndex := range ifIndexes {
-					matchedIfIndexesMap[ifIndex] = struct{}{}
+				ifIndexes, ok := interfaceIndexByIDValue[localInterfaceID]
+				if ok {
+					for _, ifIndex := range ifIndexes {
+						matchedIfIndexesMap[ifIndex] = struct{}{}
+					}
 				}
 			}
 		}
@@ -547,11 +549,40 @@ func resolveLocalInterface(deviceID string, interfaceIndexByIDType map[string]ma
 		interfaceID := deviceID + ":" + strconv.Itoa(int(matchedIfIndexes[0]))
 		log.Tracef("[local interface resolution] found 1 matching interface (idType=%s, id=%s) resolved to interface_id `%s`", localInterfaceIDType, localInterfaceID, interfaceID)
 		return interfaceID
-	} else if len(matchedIfIndexesMap) > 1 {
-		log.Tracef("[local interface resolution] expected 1 matching interface but found %d (idType=%s, id=%s): %+v", len(matchedIfIndexesMap), localInterfaceIDType, localInterfaceID, matchedIfIndexesMap)
-	} else {
-		log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s)", localInterfaceIDType, localInterfaceID)
 	}
+	if len(matchedIfIndexesMap) > 1 {
+		// Multiple matches found (e.g., logical interfaces sharing MAC with parent).
+		// Try to resolve using localPortNum (lldpRemLocalPortNum), which typically corresponds to ifIndex.
+		if localPortNum != "" {
+			localPortNumInt, err := strconv.Atoi(localPortNum)
+			if err == nil {
+				if _, exists := matchedIfIndexesMap[int32(localPortNumInt)]; exists {
+					interfaceID := deviceID + ":" + localPortNum
+					log.Tracef("[local interface resolution] found %d matching interfaces, resolved using localPortNum to interface_id `%s`", len(matchedIfIndexesMap), interfaceID)
+					return interfaceID
+				}
+			}
+		}
+		// localPortNum not in matched set, fall back to lowest index (physical interfaces typically have lower indexes)
+		var minIndex = int32(^uint32(0) >> 1) // max int32
+		for idx := range matchedIfIndexesMap {
+			if idx < minIndex {
+				minIndex = idx
+			}
+		}
+		interfaceID := deviceID + ":" + strconv.Itoa(int(minIndex))
+		log.Tracef("[local interface resolution] found %d matching interfaces, resolved using lowest index to interface_id `%s`", len(matchedIfIndexesMap), interfaceID)
+		return interfaceID
+	}
+	// No matches found, try using localPortNum directly as ifIndex
+	if localPortNum != "" {
+		if _, exists := interfaceIndexByIDType["interface_index"][localPortNum]; exists {
+			interfaceID := deviceID + ":" + localPortNum
+			log.Tracef("[local interface resolution] no matches found, resolved using localPortNum fallback to interface_id `%s`", interfaceID)
+			return interfaceID
+		}
+	}
+	log.Tracef("[local interface resolution] expected 1 matching interface but found 0 (idType=%s, id=%s, localPortNum=%s)", localInterfaceIDType, localInterfaceID, localPortNum)
 	return ""
 }
 
