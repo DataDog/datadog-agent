@@ -80,6 +80,9 @@ func TestAutoinstrumentation(t *testing.T) {
 		initSecurityContext *corev1.SecurityContext
 		// initResourceRequirements (optional) ensures that the init containers contain the proper resource requirements.
 		initResourceRequirements *corev1.ResourceRequirements
+		// unmutatedContainers (optional) ensures that specific containers have NO Datadog-related env vars (DD_*, LD_PRELOAD).
+		// This is useful to verify containers like istio-proxy are completely excluded from mutation.
+		unmutatedContainers []string
 	}
 
 	tests := map[string]struct {
@@ -1510,12 +1513,20 @@ func TestAutoinstrumentation(t *testing.T) {
 		"istio-proxy is not injected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
 			},
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
 				ParentKind: "replicaset",
 				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
 				Containers: []corev1.Container{
 					{
 						Name: defaultTestContainer,
@@ -1534,6 +1545,8 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: []string{
 					defaultTestContainer,
 				},
+				// Verify istio-proxy has NO Datadog env vars at all (DD_*, LD_PRELOAD)
+				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
 		"injection does not occur in the namespace where datadog is deployed": {
@@ -2418,6 +2431,9 @@ func TestAutoinstrumentation(t *testing.T) {
 			// Require environments to be set.
 			validator.RequireEnvs(t, test.expected.requiredEnvs, test.expected.containerNames)
 			validator.RequireMissingEnvs(t, test.expected.unsetEnvs, test.expected.containerNames)
+
+			// Require specific containers have NO Datadog env vars (e.g., istio-proxy should be completely excluded).
+			validator.RequireUnmutatedContainers(t, test.expected.unmutatedContainers)
 
 			// Require security context to match expected.
 			validator.RequireInitSecurityContext(t, test.expected.initSecurityContext)

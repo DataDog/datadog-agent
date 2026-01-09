@@ -44,8 +44,8 @@ func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatec
 	}
 }
 
-func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator) error {
-	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm))
+func (m *mutatorCore) mutatePodContainers(pod *corev1.Pod, cm containerMutator, includeInitContainers bool) error {
+	return mutatePodContainers(pod, filteredContainerMutator(m.config.containerFilter, cm), includeInitContainers)
 }
 
 func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo) error {
@@ -100,7 +100,7 @@ func (m *mutatorCore) resolveInitSecurityContext(nsName string) *corev1.Security
 // (DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID)
 func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		return m.mutatePodContainers(pod, config.source.containerMutator())
+		return m.mutatePodContainers(pod, config.source.containerMutator(), true)
 	})
 }
 
@@ -194,43 +194,25 @@ func (m *mutatorCore) libConfigFromAnnotationsMutator(config extractedPodLibInfo
 // DD_TRACE_HEALTH_METRICS_ENABLED=true, DD_RUNTIME_METRICS_ENABLED=true.
 func (m *mutatorCore) defaultLibConfigMutator(namespace string) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		if m.filter.IsNamespaceEligible(namespace) {
-			_ = basicLibConfigInjector{}.mutatePod(pod)
+		if !m.filter.IsNamespaceEligible(namespace) {
+			return nil
 		}
-		return nil
+
+		return m.mutatePodContainers(pod, basicLibConfigInjector{}.containerMutator(), true)
 	})
 }
 
-// ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to all containers.
+// ustEnvVarsPodMutator returns a mutator that injects UST env vars (DD_VERSION, DD_ENV) to filtered containers.
 func (m *mutatorCore) ustEnvVarsPodMutator() podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		mutator := m.ustEnvVarMutator(pod)
-		// Apply to application containers
-		for i := range pod.Spec.Containers {
-			if err := mutator.mutateContainer(&pod.Spec.Containers[i]); err != nil {
-				return err
-			}
-		}
-		// Apply to init containers
-		for i := range pod.Spec.InitContainers {
-			if err := mutator.mutateContainer(&pod.Spec.InitContainers[i]); err != nil {
-				return err
-			}
-		}
-		return nil
+		return m.mutatePodContainers(pod, m.ustEnvVarMutator(pod), true)
 	})
 }
 
-// languageDetectionMutator returns a mutator that applies language detection mutations.
+// languageDetectionMutator returns a mutator that applies language detection mutations to filtered containers.
 func (m *mutatorCore) languageDetectionMutator(config extractedPodLibInfo) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		mutator := config.languageDetection.containerMutator()
-		for i := range pod.Spec.Containers {
-			if err := mutator.mutateContainer(&pod.Spec.Containers[i]); err != nil {
-				return err
-			}
-		}
-		return nil
+		return m.mutatePodContainers(pod, config.languageDetection.containerMutator(), false)
 	})
 }
 
