@@ -75,7 +75,7 @@ jobs:
           **IMPORTANT:**
           - For `team=`, provide ONLY the team name without "team/" prefix (e.g., "container-platform", not "team/container-platform")
           - Use HIGH confidence if you're very sure, LOW confidence if uncertain
-          - If you don't find a corresponding slack channel, use #agent-devx
+          - If you don't find a corresponding slack channel, use #agent-devx-help
           - Keep explanation under 150 characters
 
           ## Output Format
