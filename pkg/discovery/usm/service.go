@@ -19,8 +19,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 )
 
 type detectorCreatorFn func(ctx DetectionContext) detector

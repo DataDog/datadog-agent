@@ -17,8 +17,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 )
 
@@ -37,7 +37,7 @@ func MakeTestSubDirFS(t *testing.T) SubDirFS {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	full := filepath.Join(curDir, "..", "..", "..", "..", "discovery", "testdata", "root")
+	full := filepath.Join(curDir, "..", "testdata", "root")
 	return NewSubDirFS(full)
 }
 

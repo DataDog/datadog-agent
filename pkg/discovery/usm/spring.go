@@ -17,7 +17,7 @@ import (
 	"github.com/rickar/props"
 	"github.com/vibrantbyte/go-antpath/antpath"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/envs"
+	"github.com/DataDog/datadog-agent/pkg/discovery/envs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
