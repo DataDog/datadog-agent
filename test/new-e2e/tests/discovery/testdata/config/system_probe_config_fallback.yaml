@@ -1,4 +1,4 @@
 log_level: 'debug'
 discovery:
   enabled: true
-  use_sd_agent: true
+  use_sd_agent: false
