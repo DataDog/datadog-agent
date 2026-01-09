@@ -52,8 +52,8 @@ func TestCommonRootOrPath(t *testing.T) {
 			expected: "/opt/datadog-agent/run/dsd.socket",
 		},
 		{
-			name:     "dogstatsd log file is transformed",
-			path:     DogstatsDLogFile,
+			name:     "dogstatsd protocol log file is transformed",
+			path:     dogstatsDProtocolLogFile,
 			expected: "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log",
 		},
 	}
@@ -71,4 +71,39 @@ func TestCommonRootOrPath(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestGettersWithCommonRoot(t *testing.T) {
+	// Save original and restore after test
+	originalRoot := commonRoot
+	defer func() { commonRoot = originalRoot }()
+
+	// Test without common root set
+	t.Run("without common root", func(t *testing.T) {
+		SetCommonRoot("")
+		assert.Equal(t, "/etc/datadog-agent", GetConfPath())
+		assert.Equal(t, "/var/log/datadog/agent.log", GetLogFile())
+		assert.Equal(t, "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
+	})
+
+	// Test with common root set
+	t.Run("with common root", func(t *testing.T) {
+		SetCommonRoot("/opt/datadog-agent")
+		assert.Equal(t, "/opt/datadog-agent/etc", GetConfPath())
+		assert.Equal(t, "/opt/datadog-agent/logs/agent.log", GetLogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/cluster-agent.log", GetDCALogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/jmxfetch.log", GetJmxLogFile())
+		// Note: filepath.Join strips trailing slashes when common root is applied
+		assert.Equal(t, "/opt/datadog-agent/logs/checks", GetCheckFlareDirectory())
+		assert.Equal(t, "/opt/datadog-agent/logs/jmxinfo", GetJMXFlareDirectory())
+		assert.Equal(t, "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
+		assert.Equal(t, "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log", GetStreamlogsLogFile())
+	})
+
+	// Test with custom common root
+	t.Run("with custom common root", func(t *testing.T) {
+		SetCommonRoot("/custom/path")
+		assert.Equal(t, "/custom/path/etc", GetConfPath())
+		assert.Equal(t, "/custom/path/logs/agent.log", GetLogFile())
+	})
 }

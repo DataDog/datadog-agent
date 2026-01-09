@@ -14,6 +14,7 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 type transformerFunction func(string) []map[string]string
@@ -78,7 +79,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// SBOM configuration
 	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
 	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
+	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultpaths.GetRunPath(), "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
@@ -97,7 +98,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// logging
 	cfg.BindEnvAndSetDefault(join(spNS, "log_file"), "")
 	cfg.BindEnvAndSetDefault(join(spNS, "log_level"), "")
-	cfg.BindEnvAndSetDefault("log_file", defaultSystemProbeLogFilePath)
+	cfg.BindEnvAndSetDefault("log_file", defaultpaths.GetSystemProbeLogFile())
 	cfg.BindEnvAndSetDefault("log_level", "info", "DD_LOG_LEVEL", "LOG_LEVEL")
 	cfg.BindEnvAndSetDefault("syslog_uri", "")
 	cfg.BindEnvAndSetDefault("syslog_rfc", false)

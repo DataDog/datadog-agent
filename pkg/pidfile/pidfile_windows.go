@@ -6,8 +6,7 @@
 package pidfile
 
 import (
-	"path/filepath"
-
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -18,9 +17,5 @@ func isProcess(pid int) bool {
 
 // Path returns a suitable location for the pidfile under Windows
 func Path() string {
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		return filepath.Join(pd, "datadog-agent.pid")
-	}
-	return "c:\\ProgramData\\DataDog\\datadog-agent.pid"
+	return defaultpaths.GetPidFilePath()
 }

@@ -21,6 +21,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -1027,7 +1028,7 @@ func TestLogDefaults(t *testing.T) {
 
 	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
 	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
-	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, defaultpaths.GetSystemProbeLogFile(), SystemProbe.GetString("log_file"))
 	require.Equal(t, "info", SystemProbe.GetString("log_level"))
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))
@@ -1463,9 +1464,4 @@ func TestCommonRootFilePathDefaults(t *testing.T) {
 	assert.Equal(t, "/tmp/datadog-agent/etc/checks.d", cfg.Get("additional_checksd"))
 	assert.Equal(t, "/tmp/datadog-agent/logs/agent.log", cfg.Get("log_file"))
 	assert.Equal(t, "/tmp/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", cfg.Get("dogstatsd_log_file"))
-	assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("trace_agent_host_socket_path"))
-	// TODO: these are unix specific
-	// assert.Equal(t, "/tmp/datadog-agent/run", cfg.Get("dogstatsd_host_socket_path"))
-	// assert.Equal(t, "/tmp/datadog-agent/run/dsd.socket", cfg.Get("dogstatsd_socket"))
-	// assert.Equal(t, "/tmp/datadog-agent/run/runtime-security.sock", cfg.Get("runtime_security_config.socket"))
 }

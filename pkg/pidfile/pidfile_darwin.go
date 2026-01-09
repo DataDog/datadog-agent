@@ -7,6 +7,8 @@ package pidfile
 
 import (
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // isProcess uses `kill -0` to check whether a process is running
@@ -16,5 +18,5 @@ func isProcess(pid int) bool {
 
 // Path returns a suitable location for the pidfile under OSX
 func Path() string {
-	return "/var/run/datadog/datadog-agent.pid"
+	return defaultpaths.GetPidFilePath()
 }

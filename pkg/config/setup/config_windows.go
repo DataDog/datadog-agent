@@ -11,59 +11,45 @@ import (
 	"golang.org/x/sys/windows/registry"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+const (
+	// defaultGuiPort is the default GUI port on Windows
+	defaultGuiPort = 5002
+)
+
+// Exported default paths - sourced from defaultpaths package (the source of truth)
+// These are used by external packages that need default paths for logging setup.
+// For runtime path access, use defaultpaths getters
+// Note: On Windows, defaultpaths.init() handles registry-based path customization.
 var (
-	defaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
-	defaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
-	defaultRunPath              = "c:\\programdata\\datadog\\run"
-	defaultGuiPort              = 5002
 	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = "c:\\programdata\\datadog\\logs\\updater.log"
+	DefaultUpdaterLogFile = defaultpaths.DefaultUpdaterLogFile
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
 	// DefaultProcessAgentLogFile is the default process-agent log file
-	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
+	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
 	// DefaultOTelAgentLogFile is the default otel-agent log file
-	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
+	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
 	// DefaultHostProfilerLogFile is the default host-profiler log file
-	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
+	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
+	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
-	// defaultSystemProbeLogFilePath is the default system probe log file
-	defaultSystemProbeLogFilePath = "c:\\programdata\\datadog\\logs\\system-probe.log"
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 	// InstallPath is the default install path for the agent
 	InstallPath = "c:\\Program Files\\Datadog\\Datadog Agent"
-	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
-	defaultStatsdSocket = ""
-	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
-	defaultReceiverSocket = ""
-	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 )
 
 func osinit() {
-	// The config dir is configurable on Windows, so fetch the path from the registry
-	pd, err := winutil.GetProgramDataDir()
-	if err == nil {
-		defaultConfdPath = filepath.Join(pd, "conf.d")
-		defaultAdditionalChecksPath = filepath.Join(pd, "checks.d")
-		defaultRunPath = filepath.Join(pd, "run")
-		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
-		defaultSystemProbeLogFilePath = filepath.Join(pd, "logs", "system-probe.log")
-		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
-		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
-		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
-		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
-	}
-
 	// The install path is configurable on Windows, so fetch the path from the registry
 	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
 	// so this can lead to an incorrect result.
-	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	pd, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
 	if err == nil {
 		InstallPath = pd
 		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")

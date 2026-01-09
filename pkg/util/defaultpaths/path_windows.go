@@ -26,41 +26,219 @@ const defaultInstallPath = `C:\Program Files\Datadog\Datadog Agent`
 
 var (
 	installPath string
-	// PyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	PyChecksPath string
+	// pyChecksPath holds the path to the python checks from integrations-core shipped with the agent
+	pyChecksPath string
 	distPath     string
 )
 
+// Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
+// These are the static default values before init() may update them based on registry.
+// For runtime paths that reflect registry customization, use getter functions instead.
+const (
+	DefaultConfPath             = "c:\\programdata\\datadog"
+	DefaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
+	DefaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
+	DefaultLogFile              = "c:\\programdata\\datadog\\logs\\agent.log"
+	DefaultUpdaterLogFile       = "c:\\programdata\\datadog\\logs\\updater.log"
+	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	DefaultProcessAgentLogFile  = "c:\\programdata\\datadog\\logs\\process-agent.log"
+	DefaultOTelAgentLogFile     = "c:\\programdata\\datadog\\logs\\otel-agent.log"
+	DefaultHostProfilerLogFile  = "c:\\programdata\\datadog\\logs\\host-profiler.log"
+	DefaultStreamlogsLogFile    = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	DefaultSystemProbeLogFile   = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	DefaultStatsdSocket         = ""
+	DefaultReceiverSocket       = ""
+	DefaultRunPath              = "c:\\programdata\\datadog\\run"
+)
+
+// Default paths for Windows systems.
+// These may be updated by init() based on the registry and ProgramData location.
 var (
-	// ConfPath points to the folder containing datadog.yaml
-	ConfPath = "c:\\programdata\\datadog"
-	// LogFile points to the log file that will be used if not configured
-	LogFile = "c:\\programdata\\datadog\\logs\\agent.log"
-	// DCALogFile points to the log file that will be used if not configured
-	DCALogFile = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
-	//JmxLogFile points to the jmx fetch log file that will be used if not configured
-	JmxLogFile = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
-	// CheckFlareDirectory a flare friendly location for checks to be written
-	CheckFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
-	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
-	JMXFlareDirectory = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
-	// DogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
-	DogstatsDLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
-	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
-	StreamlogsLogFile = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	// Config paths
+	confPath             = DefaultConfPath
+	confdPath            = DefaultConfdPath
+	additionalChecksPath = DefaultAdditionalChecksPath
+
+	// Log files
+	logFile                  = DefaultLogFile
+	dcaLogFile               = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	jmxLogFile               = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
+	dogstatsDProtocolLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
+	dogstatsDServiceLogFile  = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
+	traceAgentLogFile        = "c:\\programdata\\datadog\\logs\\trace-agent.log"
+	streamlogsLogFile        = DefaultStreamlogsLogFile
+	updaterLogFile           = DefaultUpdaterLogFile
+	securityAgentLogFile     = DefaultSecurityAgentLogFile
+	processAgentLogFile      = DefaultProcessAgentLogFile
+	otelAgentLogFile         = DefaultOTelAgentLogFile
+	hostProfilerLogFile      = DefaultHostProfilerLogFile
+	systemProbeLogFile       = DefaultSystemProbeLogFile
+
+	// Flare directories
+	checkFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
+	jmxFlareDirectory   = "c:\\programdata\\datadog\\logs\\jmxinfo\\"
+
+	// Socket paths (empty on Windows by default - Windows uses named pipes)
+	statsdSocket   = DefaultStatsdSocket
+	receiverSocket = DefaultReceiverSocket
+
+	// Run path
+	runPath = DefaultRunPath
+
+	// PID file path
+	pidFilePath = "c:\\programdata\\datadog\\datadog-agent.pid"
 )
 
 func init() {
 	pd, err := winutil.GetProgramDataDir()
 	if err == nil {
-		ConfPath = pd
-		LogFile = filepath.Join(pd, "logs", "agent.log")
-		DCALogFile = filepath.Join(pd, "logs", "cluster-agent.log")
-		DogstatsDLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
-		StreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
+		confPath = pd
+		confdPath = filepath.Join(pd, "conf.d")
+		additionalChecksPath = filepath.Join(pd, "checks.d")
+		logFile = filepath.Join(pd, "logs", "agent.log")
+		dcaLogFile = filepath.Join(pd, "logs", "cluster-agent.log")
+		dogstatsDProtocolLogFile = filepath.Join(pd, "logs", "dogstatsd_info", "dogstatsd-stats.log")
+		dogstatsDServiceLogFile = filepath.Join(pd, "logs", "dogstatsd.log")
+		traceAgentLogFile = filepath.Join(pd, "logs", "trace-agent.log")
+		streamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
+		updaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		securityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
+		processAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+		otelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
+		hostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
+		systemProbeLogFile = filepath.Join(pd, "logs", "system-probe.log")
+		checkFlareDirectory = filepath.Join(pd, "logs", "checks") + "\\"
+		jmxFlareDirectory = filepath.Join(pd, "logs", "jmxinfo") + "\\"
+		runPath = filepath.Join(pd, "run")
+		pidFilePath = filepath.Join(pd, "datadog-agent.pid")
 	}
 	installPath = fetchInstallPath()
-	PyChecksPath = filepath.Join(installPath, "checks.d")
+	pyChecksPath = filepath.Join(installPath, "checks.d")
+}
+
+// Config path getters
+
+// GetConfPath returns the path to the folder containing datadog.yaml
+func GetConfPath() string {
+	return CommonRootOrPath(commonRoot, confPath)
+}
+
+// GetConfdPath returns the path to the conf.d directory
+func GetConfdPath() string {
+	return CommonRootOrPath(commonRoot, confdPath)
+}
+
+// GetAdditionalChecksPath returns the path to the checks.d directory
+func GetAdditionalChecksPath() string {
+	return CommonRootOrPath(commonRoot, additionalChecksPath)
+}
+
+// Log file getters
+
+// GetLogFile returns the path to the agent log file
+func GetLogFile() string {
+	return CommonRootOrPath(commonRoot, logFile)
+}
+
+// GetDCALogFile returns the path to the cluster-agent log file
+func GetDCALogFile() string {
+	return CommonRootOrPath(commonRoot, dcaLogFile)
+}
+
+// GetJmxLogFile returns the path to the jmxfetch log file
+func GetJmxLogFile() string {
+	return CommonRootOrPath(commonRoot, jmxLogFile)
+}
+
+// GetDogstatsDProtocolLogFile returns the path to the DogStatsD protocol stats log file
+func GetDogstatsDProtocolLogFile() string {
+	return CommonRootOrPath(commonRoot, dogstatsDProtocolLogFile)
+}
+
+// GetDogstatsDServiceLogFile returns the path to the dogstatsd service log file
+func GetDogstatsDServiceLogFile() string {
+	return dogstatsDServiceLogFile
+}
+
+// GetTraceAgentLogFile returns the path to the trace-agent log file
+func GetTraceAgentLogFile() string {
+	return traceAgentLogFile
+}
+
+// GetStreamlogsLogFile returns the path to the streamlogs log file
+func GetStreamlogsLogFile() string {
+	return CommonRootOrPath(commonRoot, streamlogsLogFile)
+}
+
+// GetUpdaterLogFile returns the path to the updater log file
+func GetUpdaterLogFile() string {
+	return CommonRootOrPath(commonRoot, updaterLogFile)
+}
+
+// GetSecurityAgentLogFile returns the path to the security-agent log file
+func GetSecurityAgentLogFile() string {
+	return CommonRootOrPath(commonRoot, securityAgentLogFile)
+}
+
+// GetProcessAgentLogFile returns the path to the process-agent log file
+func GetProcessAgentLogFile() string {
+	return CommonRootOrPath(commonRoot, processAgentLogFile)
+}
+
+// GetOTelAgentLogFile returns the path to the otel-agent log file
+func GetOTelAgentLogFile() string {
+	return CommonRootOrPath(commonRoot, otelAgentLogFile)
+}
+
+// GetHostProfilerLogFile returns the path to the host-profiler log file
+func GetHostProfilerLogFile() string {
+	return CommonRootOrPath(commonRoot, hostProfilerLogFile)
+}
+
+// GetSystemProbeLogFile returns the path to the system-probe log file
+func GetSystemProbeLogFile() string {
+	return CommonRootOrPath(commonRoot, systemProbeLogFile)
+}
+
+// Flare directory getters
+
+// GetCheckFlareDirectory returns the path to the check flare directory
+func GetCheckFlareDirectory() string {
+	return CommonRootOrPath(commonRoot, checkFlareDirectory)
+}
+
+// GetJMXFlareDirectory returns the path to the JMX flare directory
+func GetJMXFlareDirectory() string {
+	return CommonRootOrPath(commonRoot, jmxFlareDirectory)
+}
+
+// Socket path getters
+
+// GetStatsdSocket returns the path to the dogstatsd Unix socket (empty on Windows)
+func GetStatsdSocket() string {
+	return statsdSocket
+}
+
+// GetReceiverSocket returns the path to the APM receiver Unix socket (empty on Windows)
+func GetReceiverSocket() string {
+	return receiverSocket
+}
+
+// GetPidFilePath returns the path to the agent PID file
+func GetPidFilePath() string {
+	return pidFilePath
+}
+
+// GetRunPath returns the path to the run directory
+func GetRunPath() string {
+	return runPath
+}
+
+// Other path getters
+
+// GetPyChecksPath returns the path to the python checks directory
+func GetPyChecksPath() string {
+	return pyChecksPath
 }
 
 // GetInstallPath returns the fully qualified path to the datadog-agent installation directory

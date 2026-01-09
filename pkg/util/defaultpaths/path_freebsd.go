@@ -24,8 +24,8 @@ const (
 	CheckFlareDirectory = "/var/log/datadog/checks/"
 	// JMXFlareDirectory a flare friendly location for jmx command logs to be written
 	JMXFlareDirectory = "/var/log/datadog/jmxinfo/"
-	// DogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
-	DogstatsDLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
+	// DogstatsDProtocolLogFile points to the DogStatsD protocol stats log file that will be used if not configured
+	DogstatsDProtocolLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
 	// StreamlogsLogFile points to the stream logs log file that will be used if not configured
 	StreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )

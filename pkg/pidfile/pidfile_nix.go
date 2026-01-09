@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // isProcess searches for the PID under /proc
@@ -21,5 +23,5 @@ func isProcess(pid int) bool {
 
 // Path returns a suitable location for the pidfile under Linux
 func Path() string {
-	return "/var/run/datadog/datadog-agent.pid"
+	return defaultpaths.GetPidFilePath()
 }
