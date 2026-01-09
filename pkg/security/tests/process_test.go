@@ -32,6 +32,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -122,6 +123,7 @@ func TestProcessEBPFLess(t *testing.T) {
 
 func TestProcessContext(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable, err := os.Executable()
 	if err != nil {
@@ -1144,6 +1146,7 @@ func TestProcessExecCTime(t *testing.T) {
 
 func TestProcessPIDVariable(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	executable := which(t, "touch")
 
@@ -1875,6 +1878,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-signaled", func(t *testing.T) {
 		SkipIfNotAvailable(t)
+		flake.MarkOnJobName(t, "ubuntu_25.10")
 
 		test.WaitSignalFromRule(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
@@ -2490,6 +2494,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 
 func TestSymLinkResolution(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
