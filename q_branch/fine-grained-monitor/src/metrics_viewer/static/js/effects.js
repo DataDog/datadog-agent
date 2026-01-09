@@ -7,6 +7,16 @@
 
 import * as DataStore from './data-store.js';
 import { Effects } from './state-machine.js';
+import { Api, setProvider, hasProvider } from './data-provider.js';
+import { createApiProvider } from './api-provider.js';
+
+// Re-export Api for backwards compatibility
+export { Api, setProvider };
+
+// Initialize default provider (API-based)
+if (!hasProvider()) {
+    setProvider(createApiProvider());
+}
 
 // ============================================================
 // EFFECT HANDLERS REGISTRY
@@ -42,85 +52,6 @@ export async function executeEffects(effects, context) {
         }
     }
 }
-
-// ============================================================
-// API MODULE
-// ============================================================
-
-export const Api = {
-    async fetchMetrics() {
-        const res = await fetch('/api/metrics');
-        const data = await res.json();
-        return data.metrics || [];
-    },
-
-    // REQ-MV-037: Include time range in container queries
-    async fetchContainers(metricName, dashboard = null, timeRange = '1h') {
-        const params = new URLSearchParams();
-        params.set('metric', metricName);
-        params.set('range', timeRange);
-
-        // REQ-MV-034: Apply dashboard container filters
-        if (dashboard?.containers) {
-            const { namespace, label_selector, name_pattern } = dashboard.containers;
-            if (namespace) {
-                params.set('namespace', namespace);
-            }
-            if (label_selector && typeof label_selector === 'object') {
-                const labels = Object.entries(label_selector)
-                    .map(([k, v]) => `${k}:${v}`)
-                    .join(',');
-                if (labels) {
-                    params.set('labels', labels);
-                }
-            }
-            if (name_pattern) {
-                params.set('search', name_pattern);
-            }
-        }
-
-        const res = await fetch(`/api/containers?${params.toString()}`);
-        const data = await res.json();
-        return data.containers || [];
-    },
-
-    // REQ-MV-037: Include time range in timeseries queries
-    async fetchTimeseries(metricName, containerIds, timeRange = '1h') {
-        if (containerIds.length === 0) return {};
-
-        const params = new URLSearchParams();
-        params.set('metric', metricName);
-        params.set('containers', containerIds.join(','));
-        params.set('range', timeRange);
-
-        const res = await fetch(`/api/timeseries?${params.toString()}`);
-        const data = await res.json();
-
-        // Transform array response to object keyed by container
-        const result = {};
-        for (const item of data) {
-            result[item.container] = item.data;
-        }
-        return result;
-    },
-
-    // REQ-MV-037: Include time range in study queries
-    async fetchStudy(studyType, metricName, containerId, timeRange = '1h') {
-        const params = new URLSearchParams();
-        params.set('metric', metricName);
-        params.set('containers', containerId);
-        params.set('range', timeRange);
-
-        const res = await fetch(`/api/study/${studyType}?${params.toString()}`);
-        const data = await res.json();
-        return data.results?.[0] || null;
-    },
-
-    async fetchInstance() {
-        const res = await fetch('/api/instance');
-        return res.json();
-    },
-};
 
 // ============================================================
 // BUILT-IN EFFECT HANDLERS
