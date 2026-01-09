@@ -22,12 +22,12 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 type LauncherTestSuite struct {
