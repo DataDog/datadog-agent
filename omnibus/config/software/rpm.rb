@@ -15,24 +15,12 @@
 #
 
 name "rpm"
-default_version "4.18.1"
 
 license "LGPLv2"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
-dependency "config_guess"
-dependency "popt"
-dependency "libsqlite3"
-
 ship_source_offer true
-
-version "4.18.1" do
-  source url: "http://ftp.rpm.org/releases/rpm-4.18.x/rpm-#{version}.tar.bz2",
-         sha256: "37f3b42c0966941e2ad3f10fde3639824a6591d07197ba8fd0869ca0779e1f56"
-end
-
-relative_path "rpm-#{version}"
 
 build do
   command_on_repo_root "bazelisk run -- @rpm//:install --destdir='#{install_dir}/embedded'"
