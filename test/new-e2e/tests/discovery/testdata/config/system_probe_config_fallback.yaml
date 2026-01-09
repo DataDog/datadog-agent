@@ -1,0 +1,5 @@
+log_level: 'debug'
+discovery:
+  enabled: true
+system_probe_config:
+  enabled: true  # Triggers sd-agent → system-probe fallback (no feature side effects)

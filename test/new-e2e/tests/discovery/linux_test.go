@@ -44,6 +44,19 @@ var agentProcessConfigStr string
 //go:embed testdata/config/agent_process_disabled_config.yaml
 var agentProcessDisabledConfigStr string
 
+//go:embed testdata/config/system_probe_config_fallback.yaml
+var systemProbeConfigFallbackStr string
+
+//go:embed testdata/config/system_probe_config_privileged_logs_fallback.yaml
+var systemProbeConfigPrivilegedLogsFallbackStr string
+
+type discoveryMode string
+
+const (
+	discoveryModeSdAgent     discoveryMode = "sd-agent"
+	discoveryModeSystemProbe discoveryMode = "system-probe"
+)
+
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
@@ -77,18 +90,56 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscovery() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			systemProbeConfig := s.getSystemProbeConfigForMode(mode)
+			s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentProcessConfigStr),
+					agentparams.WithSystemProbeConfig(systemProbeConfig)),
+			)))
+			s.validateDiscoveryMode(mode)
+			s.testProcessCheckWithServiceDiscovery(agentProcessConfigStr, systemProbeConfig)
+		})
+	}
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryProcessCollectionDisabled() {
-	s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfigStr)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			systemProbeConfig := s.getSystemProbeConfigForMode(mode)
+			s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentProcessDisabledConfigStr),
+					agentparams.WithSystemProbeConfig(systemProbeConfig)),
+			)))
+			s.validateDiscoveryMode(mode)
+			s.testProcessCheckWithServiceDiscovery(agentProcessDisabledConfigStr, systemProbeConfig)
+		})
+	}
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithServiceDiscoveryPrivilegedLogs() {
 	servicesWithRestricted := []string{
 		"python-restricted",
 	}
-	s.testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentProcessConfigStr, systemProbeConfigPrivilegedLogsStr, servicesWithRestricted)
+	for _, mode := range []discoveryMode{discoveryModeSdAgent, discoveryModeSystemProbe} {
+		s.Run(string(mode), func() {
+			// Skip sd-agent mode since privileged_logs is not implemented in sd-agent
+			if mode == discoveryModeSdAgent {
+				s.T().Skip("privileged_logs is not implemented in sd-agent, skipping sd-agent mode")
+			}
+
+			systemProbeConfig := s.getSystemProbeConfigForModePrivilegedLogs(mode)
+			s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentProcessConfigStr),
+					agentparams.WithSystemProbeConfig(systemProbeConfig)),
+			)))
+			s.validateDiscoveryMode(mode)
+			s.testProcessCheckWithServiceDiscoveryPrivilegedLogs(agentProcessConfigStr, systemProbeConfig, servicesWithRestricted)
+		})
+	}
 }
 
 func (s *linuxTestSuite) testLogs(t *testing.T) {
@@ -158,7 +209,7 @@ func (s *linuxTestSuite) dumpDebugInfo(t *testing.T) {
 	// This is very useful for debugging, but we probably don't want to decode
 	// and assert based on this in this E2E test since this is an internal
 	// interface between the agent and system-probe.
-	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
+	discoveredServices := s.Env().RemoteHost.MustExecute("sudo curl -s --unix-socket /opt/datadog-agent/run/sysprobe.sock http://unix/discovery/debug")
 	t.Log("system-probe services", discoveredServices)
 
 	workloadmetaStore := s.Env().RemoteHost.MustExecute("sudo datadog-agent workload-list --verbose")
@@ -517,6 +568,42 @@ func matchingTracerMetadata(expectedTracerMetadata []*agentmodel.TracerMetadata,
 
 	diff := cmp.Diff(expectedTracerMetadata, actualTracerMetadata, cmpopts.EquateEmpty(), ignoreID, sortByName)
 	return diff == ""
+}
+
+func (s *linuxTestSuite) getSystemProbeConfigForMode(mode discoveryMode) string {
+	switch mode {
+	case discoveryModeSdAgent:
+		return systemProbeConfigStr // Only discovery config
+	case discoveryModeSystemProbe:
+		return systemProbeConfigFallbackStr // Discovery + system_probe_config.enabled (triggers fallback)
+	}
+	return systemProbeConfigStr
+}
+
+func (s *linuxTestSuite) getSystemProbeConfigForModePrivilegedLogs(mode discoveryMode) string {
+	switch mode {
+	case discoveryModeSdAgent:
+		return systemProbeConfigPrivilegedLogsStr // Discovery + privileged logs
+	case discoveryModeSystemProbe:
+		return systemProbeConfigPrivilegedLogsFallbackStr // Discovery + privileged logs + fallback trigger
+	}
+	return systemProbeConfigPrivilegedLogsStr
+}
+
+func (s *linuxTestSuite) validateDiscoveryMode(mode discoveryMode) {
+	ps := s.Env().RemoteHost.MustExecute("ps aux | grep -E '(system-probe|sd-agent)' | grep -v grep")
+	s.T().Logf("Process list:\n%s", ps)
+
+	// sd-agent execs into system-probe (process replacement), they don't run simultaneously
+	if mode == discoveryModeSdAgent {
+		// In sd-agent mode, sd-agent runs its own server (no exec)
+		require.Contains(s.T(), ps, "sd-agent", "sd-agent should be running in sd-agent mode")
+		s.T().Logf("Found sd-agent process (mode: %s)", mode)
+	} else if mode == discoveryModeSystemProbe {
+		// In system-probe mode, sd-agent exec'd into system-probe (replaced itself)
+		require.Contains(s.T(), ps, "system-probe", "system-probe should be running in system-probe mode")
+		s.T().Logf("Found system-probe process (mode: %s)", mode)
+	}
 }
 
 func (s *linuxTestSuite) provisionServer() {
