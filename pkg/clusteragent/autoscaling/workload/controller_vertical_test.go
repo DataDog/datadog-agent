@@ -506,7 +506,7 @@ func TestSyncDeploymentKind_PatchError(t *testing.T) {
 	}
 
 	// Add a reactor that returns an error for patch operations
-	f.dynamicClient.PrependReactor("patch", "deployments", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+	f.dynamicClient.PrependReactor("patch", "deployments", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, nil, assert.AnError
 	})
 
@@ -971,7 +971,7 @@ func TestSyncStatefulSetKind_PatchError(t *testing.T) {
 	}
 
 	// Add a reactor that returns an error for patch operations
-	f.dynamicClient.PrependReactor("patch", "statefulsets", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
+	f.dynamicClient.PrependReactor("patch", "statefulsets", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, nil, assert.AnError
 	})
 
