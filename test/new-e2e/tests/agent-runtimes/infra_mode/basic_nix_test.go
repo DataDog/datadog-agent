@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package infrabasic
+package inframode
 
 import (
 	"testing"
@@ -13,16 +13,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-type infraBasicWindowsSuite struct {
-	infraBasicSuite
+type basicLinuxSuite struct {
+	basicSuite
 }
 
-func TestInfraBasicWindowsSuite(t *testing.T) {
+func TestBasicLinuxSuite(t *testing.T) {
 	t.Parallel()
 
-	suite := &infraBasicWindowsSuite{
-		infraBasicSuite{
-			descriptor: e2eos.WindowsServerDefault,
+	suite := &basicLinuxSuite{
+		basicSuite{
+			descriptor: e2eos.Ubuntu2204,
 		},
 	}
 
