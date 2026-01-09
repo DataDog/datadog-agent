@@ -86,7 +86,7 @@ pkg_files(
 pkg_files(
     name = "fipsinstall_sh",
     srcs = ["fipsinstall.sh"],
-    prefix = "embedded/bin",
+    prefix = "bin",
     attributes = pkg_attributes(
         mode = "0755",
     ),

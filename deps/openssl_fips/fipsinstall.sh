@@ -10,7 +10,7 @@
 
 set -euo pipefail
 
-INSTALL_DIR="{{install_dir}}/embedded"
+INSTALL_DIR="{{install_dir}}"
 
 FIPS_MODULE_PATH="${INSTALL_DIR}/ssl/fipsmodule.cnf"
 OPENSSL_CONF_PATH="${INSTALL_DIR}/ssl/openssl.cnf"

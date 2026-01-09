@@ -10,11 +10,10 @@ import sys
 from pathlib import Path
 
 
-def replace_in_file(filepath: Path, placeholder: str, replacement: str) -> bool:
-    """Replace placeholder with replacement in file. Returns True if file was updated."""
+def replace_in_file(filepath: Path, placeholder: str, replacement: str):
+    """Replace placeholder with replacement in file."""
     if not filepath.exists():
-        print(f"Warning: {filepath} not found")
-        return False
+        raise RuntimeError(f"Warning: {filepath} not found")
 
     content = filepath.read_text()
     new_content = content.replace(placeholder, replacement)
@@ -26,16 +25,14 @@ def replace_in_file(filepath: Path, placeholder: str, replacement: str) -> bool:
 def main():
     parser = argparse.ArgumentParser(description="Configure FIPS installation paths")
     parser.add_argument("--destdir", required=True, help="Destination directory")
-    parser.add_argument(
-        "--embedded_ssl_dir", required=False, help="Embedded SSL directory (defaults to destdir/embedded/ssl)"
-    )
+    parser.add_argument("--embedded_ssl_dir", required=False, help="Embedded SSL directory (defaults to destdir/ssl)")
     args = parser.parse_args()
 
     destdir = Path(args.destdir)
-    embedded_ssl_dir = args.embedded_ssl_dir if args.embedded_ssl_dir else str(destdir / "embedded" / "ssl")
+    embedded_ssl_dir = args.embedded_ssl_dir if args.embedded_ssl_dir else str(destdir / "ssl")
 
-    openssl_cnf_tmp = destdir / "embedded" / "ssl" / "openssl.cnf.tmp"
-    fipsinstall_sh = destdir / "embedded" / "bin" / "fipsinstall.sh"
+    openssl_cnf_tmp = destdir / "ssl" / "openssl.cnf.tmp"
+    fipsinstall_sh = destdir / "bin" / "fipsinstall.sh"
 
     # Replace {{embedded_ssl_dir}} in openssl.cnf.tmp
     replace_in_file(openssl_cnf_tmp, "{{embedded_ssl_dir}}", embedded_ssl_dir)
