@@ -251,8 +251,6 @@ func (mr *Resolver) delete(mount *model.Mount) {
 					break
 				}
 			}
-		} else {
-			seclog.Warnf("inconsistent mount resolver: parent %d for mount %d not found. mount = %+v", mount.ParentPathKey.MountID, mount.MountID, mount)
 		}
 	}
 
@@ -268,6 +266,8 @@ func (mr *Resolver) delete(mount *model.Mount) {
 	if _, exists := mr.dangling.Get(mount.MountID); exists {
 		mr.dangling.Remove(mount.MountID)
 	}
+
+	mr.mounts.Remove(mount.MountID)
 }
 
 // Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
