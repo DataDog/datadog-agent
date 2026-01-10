@@ -105,3 +105,7 @@ path = "src/bin/generate-bench-data.rs"
 [[bin]]
 name = "mcp-metrics-viewer"
 path = "src/bin/mcp_metrics_viewer.rs"
+
+[[bin]]
+name = "alloc-profile"
+path = "src/bin/alloc-profile.rs"
