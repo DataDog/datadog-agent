@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package infraeudm
+package infra
 
 import (
 	"testing"
@@ -13,15 +13,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
-type eudmWindowsSuite struct {
-	eudmSuite
+type basicWindowsSuite struct {
+	basicSuite
 }
 
-func TestEUDMWindowsSuite(t *testing.T) {
+func TestBasicWindowsSuite(t *testing.T) {
 	t.Parallel()
 
-	suite := &eudmWindowsSuite{
-		eudmSuite{
+	suite := &basicWindowsSuite{
+		basicSuite{
 			descriptor: e2eos.WindowsServerDefault,
 		},
 	}
