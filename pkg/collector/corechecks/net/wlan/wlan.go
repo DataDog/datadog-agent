@@ -21,6 +21,8 @@ const (
 	defaultMinCollectionInterval = 15
 )
 
+var getWiFiInfo = GetWiFiInfo
+
 // wifiInfo contains information about the WiFi connection (defined in Mac wlan_darwin.h and Windows wlan.h)
 type wifiInfo struct {
 	rssi             int
@@ -102,63 +104,30 @@ func (c *WLANCheck) isChannelSwap(wi *wifiInfo) bool {
 	return c.lastChannel != wi.channel
 }
 
-// Status metric values (replacing deprecated service checks)
-const (
-	statusOK       float64 = 0 // WiFi operational
-	statusWarning  float64 = 1 // WiFi interface inactive
-	statusCritical float64 = 2 // WiFi collection failed
-)
-
 // Run runs the check
 func (c *WLANCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
-
-	// Attempt to get WiFi info from GUI via IPC
-	wi, err := c.GetWiFiInfo()
+	wi, err := getWiFiInfo()
 	if err != nil {
-		// Failed to get WiFi info - emit CRITICAL status
-		log.Errorf("WLAN check failed: %v", err)
-		log.Error("Ensure the Datadog Agent GUI is running for WiFi metrics collection on macOS 15+")
-
-		// Emit status metric: CRITICAL (replaces deprecated service check)
-		sender.Gauge("system.wlan.status", statusCritical, "", []string{
-			"status:critical",
-			"reason:ipc_failure",
-		})
-		// Track error count for monitoring
-		sender.Count("system.wlan.check.errors", 1, "", []string{
-			"error_type:ipc_failure",
-		})
-		sender.Commit()
+		log.Error(err)
 		return err
 	}
 
-	// Check if WiFi interface is active
 	if wi.phyMode == "None" {
 		log.Warn("No active Wi-Fi interface detected: PHYMode is none.")
-
-		// Emit status metric: WARNING (replaces deprecated service check)
-		sender.Gauge("system.wlan.status", statusWarning, "", []string{
-			"status:warning",
-			"reason:interface_inactive",
-		})
-		sender.Commit()
 		return nil
 	}
 
-	// Prepare tags
 	ssid := wi.ssid
 	if ssid == "" {
 		ssid = "unknown"
-		log.Debug("SSID is empty - this may indicate missing location permission")
 	}
 	bssid := wi.bssid
 	if bssid == "" {
 		bssid = "unknown"
-		log.Debug("BSSID is empty - this may indicate missing location permission")
 	}
 
 	macAddress := strings.ToLower(strings.ReplaceAll(wi.macAddress, " ", "_"))
@@ -166,17 +135,11 @@ func (c *WLANCheck) Run() error {
 		macAddress = "unknown"
 	}
 
-	tags := []string{
-		"ssid:" + ssid,
-		"bssid:" + bssid,
-		"mac_address:" + macAddress,
-		"status:ok",
-	}
+	tags := []string{}
+	tags = append(tags, "ssid:"+ssid)
+	tags = append(tags, "bssid:"+bssid)
+	tags = append(tags, "mac_address:"+macAddress)
 
-	// WiFi data collected successfully - emit OK status (replaces deprecated service check)
-	sender.Gauge("system.wlan.status", statusOK, "", tags)
-
-	// Emit metrics
 	sender.Gauge("system.wlan.rssi", float64(wi.rssi), "", tags)
 	if wi.noiseValid {
 		sender.Gauge("system.wlan.noise", float64(wi.noise), "", tags)
@@ -186,7 +149,6 @@ func (c *WLANCheck) Run() error {
 		sender.Gauge("system.wlan.rxrate", float64(wi.receiveRate), "", tags)
 	}
 
-	// Emit event metrics for roaming and channel swaps
 	if c.isRoaming(&wi) {
 		sender.Count("system.wlan.roaming_events", 1.0, "", tags)
 		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
@@ -198,7 +160,7 @@ func (c *WLANCheck) Run() error {
 		sender.Count("system.wlan.channel_swap_events", 0.0, "", tags)
 	}
 
-	// Update last values for next run
+	// update last values
 	c.lastChannel = wi.channel
 	c.lastBSSID = wi.bssid
 	c.lastSSID = wi.ssid

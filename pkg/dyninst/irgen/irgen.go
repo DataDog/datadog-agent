@@ -3559,6 +3559,7 @@ func pickInjectionPoint(
 				PC:                  ranges[0][0],
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonInlined,
 			})
 		} else {
 			call, err := pickCallInjectionPoint(arch, addr, frameless, lines)
@@ -3580,21 +3581,30 @@ func pickInjectionPoint(
 				return buf, nil, issue, nil
 			}
 
-			// Add a workaround for the fact that single-instruction functions
-			// would have the same entry and exit probes, but the ordering between
-			// them would not be well-defined, so in this extremely uncommon case
-			// the user doesn't get to see the return probe. It's okay because
-			// there literally cannot be a return value.
-			hasAssociatedReturn := !skipReturnEvents
-			if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+			var hasAssociatedReturn bool
+			var noReturnReason ir.NoReturnReason
+			if skipReturnEvents {
 				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+				// Add a workaround for the fact that single-instruction
+				// functions would have the same entry and exit probes, but the
+				// ordering between them would not be well-defined, so in this
+				// extremely uncommon case the user doesn't get to see the
+				// return probe. It's okay because there literally cannot be a
+				// return value.
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
 				returnLocations = returnLocations[:0]
+			} else {
+				hasAssociatedReturn = true
 			}
 
 			buf = append(buf, ir.InjectionPoint{
 				PC:                  call.pc,
 				Frameless:           call.frameless,
 				HasAssociatedReturn: hasAssociatedReturn,
+				NoReturnReason:      noReturnReason,
 				TopPCOffset:         call.topPCOffset,
 			})
 			if hasAssociatedReturn {
@@ -3635,6 +3645,7 @@ func pickInjectionPoint(
 			PC:                  injectionPC,
 			Frameless:           frameless,
 			HasAssociatedReturn: false,
+			NoReturnReason:      ir.NoReturnReasonLineProbe,
 		})
 	}
 	return buf, returnEvent, ir.Issue{}, nil
@@ -3826,6 +3837,7 @@ func disassembleAmd64Function(
 					PC:                  epilogueStart,
 					Frameless:           frameless,
 					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonIsReturn,
 				})
 			}
 		}
@@ -3834,6 +3846,7 @@ func disassembleAmd64Function(
 				PC:                  addr + uint64(offset),
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonIsReturn,
 			})
 		}
 		offset += instruction.Len

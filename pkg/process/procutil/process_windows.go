@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/hashicorp/golang-lru/v2/simplelru"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
@@ -46,11 +46,11 @@ var (
 	PIDBufferIncrement uint32 = 1024
 )
 
-var fileDescCache *simplelru.LRU[string, string]
+var fileDescCache *lru.Cache[string, string]
 
 func init() {
 	var err error
-	fileDescCache, err = simplelru.NewLRU[string, string](512, nil)
+	fileDescCache, err = lru.New[string, string](512)
 	if err != nil {
 		log.Errorf("Failed to create file description cache: %v", err)
 	}

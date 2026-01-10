@@ -6,24 +6,7 @@
 
 # Datadog Agent install script for macOS.
 set -e
-install_script_version=1.6.0
-
-# Terminal color detection
-# Colors are enabled only when outputting to a terminal (not when piped/redirected)
-# This prevents ANSI escape codes from appearing in logs or breaking through SSH layers
-if [ -t 1 ]; then
-    RED='\033[31m'
-    GREEN='\033[32m'
-    YELLOW='\033[33m'
-    BLUE='\033[34m'
-    NC='\033[0m'  # No Color
-else
-    RED=''
-    GREEN=''
-    YELLOW=''
-    BLUE=''
-    NC=''
-fi
+install_script_version=1.5.1
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
 etc_dir=/opt/datadog-agent/etc
@@ -117,7 +100,7 @@ function prepare_dmg_file() {
     fi
 
     if [[ "$file_owner" -ne 0 ]] || [[ "$file_permission" -ne 600 ]] || [[ "$file_size" -ne 0 ]]; then
-        echo -e "${RED}Failed to prepare datadog-agent dmg file${NC}\n"
+        echo -e "\033[31mFailed to prepare datadog-agent dmg file\033[0m\n"
         exit 1;
     fi
 }
@@ -129,21 +112,21 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
     if [ -n "$DD_SYSTEMDAEMON_USER_GROUP" ]; then
         systemdaemon_user_group=$DD_SYSTEMDAEMON_USER_GROUP
     else
-        printf "${RED}DD_SYSTEMDAEMON_INSTALL set without DD_SYSTEDAEMON_USER_GROUP${NC}\n"
+        printf "\033[31mDD_SYSTEMDAEMON_INSTALL set without DD_SYSTEDAEMON_USER_GROUP\033[0m\n"
         exit 1;
     fi
     if ! echo "$systemdaemon_user_group" | grep "^[^:]\+:[^:]\+$" > /dev/null; then
-        printf "${RED}DD_SYSTEMDAEMON_USER_GROUP must be in format UserName:GroupName${NC}\n"
+        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP must be in format UserName:GroupName\033[0m\n"
         exit 1;
     fi
     if echo "$systemdaemon_user_group" | grep ">\|<" > /dev/null; then
-        printf "${RED}DD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file${NC}\n"
+        printf "\033[31mDD_SYSTEMDAEMON_USER_GROUP can't contain '>' or '<', because it will be used in XML file\033[0m\n"
         exit 1;
     fi
     systemdaemon_user="$(echo "$systemdaemon_user_group" | awk -F: '{ print $1 }')"
     systemdaemon_group="$(echo "$systemdaemon_user_group" | awk -F: '{ print $2 }')"
     if ! id -u "$systemdaemon_user" >/dev/null 2>&1 ; then
-        printf "${RED}User $systemdaemon_user not found, can't proceed with installation${NC}\n"
+        printf "\033[31mUser $systemdaemon_user not found, can't proceed with installation\033[0m\n"
         exit 1;
     fi
     # dscacheutil -q group output is in form:
@@ -153,7 +136,7 @@ if [ -n "$DD_SYSTEMDAEMON_INSTALL" ]; then
     #   users: user1 user2
     # so we use `grep` and `awk` to get the group name
     if ! dscacheutil -q group | grep "name:" | awk '{print $2}' | grep -w "$systemdaemon_group" >/dev/null 2>&1; then
-        printf "${RED}Group $systemdaemon_group not found, can't proceed with installation${NC}\n"
+        printf "\033[31mGroup $systemdaemon_group not found, can't proceed with installation\033[0m\n"
         exit 1;
     fi
 fi
@@ -175,38 +158,38 @@ if [ -n "$DD_AGENT_MAJOR_VERSION" ]; then
   fi
   agent_major_version=$DD_AGENT_MAJOR_VERSION
 else
-  echo -e "${YELLOW}Warning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.${NC}"
+  echo -e "\033[33mWarning: DD_AGENT_MAJOR_VERSION not set. Installing Agent version 7 by default.\033[0m"
 fi
 
 dmg_version=
 if [ "${macos_major_version}" -lt 10 ] || { [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -lt 12 ]; }; then
-    echo -e "${RED}Datadog Agent doesn't support macOS < 10.12.${NC}\n"
+    echo -e "\033[31mDatadog Agent doesn't support macOS < 10.12.\033[0m\n"
     exit 1
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 12 ]; then
     if [ -n "${clean_agent_minor_version}" ]; then
         if [ "${agent_minor_version_without_patch}" -gt 34 ]; then
-            echo -e "${RED}macOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.${NC}\n"
+            echo -e "\033[31mmacOS 10.12 only supports Datadog Agent $agent_major_version up to $agent_major_version.34.\033[0m\n"
             exit 1;
         fi
     else
-        echo -e "${YELLOW}Warning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.${NC}"
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.34.0 is the last supported version for macOS 10.12. Selecting it for installation.\033[0m"
         agent_minor_version_without_patch=34
         agent_patch_version=0
     fi
 elif [ "${macos_major_version}" -eq 10 ] && [ "${macos_minor_version}" -eq 13 ]; then
     if [ -n "${clean_agent_minor_version}" ]; then
         if [ "${agent_minor_version_without_patch}" -gt 38 ]; then
-            echo -e "${RED}macOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.${NC}\n"
+            echo -e "\033[31mmacOS 10.13 only supports Datadog Agent $agent_major_version up to $agent_major_version.38.\033[0m\n"
             exit 1;
         fi
     else
-        echo -e "${YELLOW}Warning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.${NC}"
+        echo -e "\033[33mWarning: Agent ${agent_major_version}.38.2 is the last supported version for macOS 10.13. Selecting it for installation.\033[0m"
         agent_minor_version_without_patch=38
         agent_patch_version=2
     fi
 else
     if [ "${agent_major_version}" -eq 6 ]; then
-        echo -e "${RED}The latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7${NC}\n"
+        echo -e "\033[31mThe latest Agent 6 is no longer built for for macOS $macos_full_version. Please invoke again with DD_AGENT_MAJOR_VERSION=7\033[0m\n"
         exit 1
     else
         if [ -z "${agent_minor_version}" ]; then
@@ -219,7 +202,7 @@ if [ -z "$dmg_version" ]; then
     if [ -z "$agent_patch_version" ]; then
         agent_patch_version=$(find_latest_patch_version_for "${agent_major_version}.${agent_minor_version_without_patch}")
         if [ -z "$agent_patch_version" ] || [ "$agent_patch_version" -lt 0 ]; then
-            echo -e "${YELLOW}Warning: Failed to obtain latest patch version for Agent ${agent_major_version}.${agent_minor_version_without_patch}. Defaulting to '0'.${NC}"
+            echo -e "\033[33mWarning: Failed to obtain latest patch version for Agent ${agent_major_version}.${agent_minor_version_without_patch}. Defaulting to '0'.\033[0m"
             agent_patch_version=0
         fi
     fi
@@ -233,7 +216,7 @@ fi
 
 if [ "$upgrade" ]; then
     if [ ! -f $etc_dir/datadog.conf ]; then
-        printf "${RED}DD_UPGRADE set but no config was found at $etc_dir/datadog.conf.${NC}\n"
+        printf "\033[31mDD_UPGRADE set but no config was found at $etc_dir/datadog.conf.\033[0m\n"
         exit 1;
     fi
 fi
@@ -241,68 +224,24 @@ fi
 if [ ! "$apikey" ]; then
     # if it's an upgrade, then we will use the transition script
     if [ ! "$upgrade" ]; then
-        printf "${RED}API key not available in DD_API_KEY environment variable.${NC}\n"
+        printf "\033[31mAPI key not available in DD_API_KEY environment variable.\033[0m\n"
         exit 1;
     fi
 fi
 
-# Deprecation warning for per-user installations
-if [ "$systemdaemon_install" = false ] && [ ! "$upgrade" ]; then
-    printf "${YELLOW}
-================================================================================
-WARNING: Per-User Installation Mode
-================================================================================
-Per-user installations may be deprecated in the future.
-We recommend using system-wide installation instead going forward.
-
-    DD_SYSTEMDAEMON_INSTALL=true DD_SYSTEMDAEMON_USER_GROUP=<user>:staff \\
-        bash install_mac_os.sh
-
-System-wide installation provides:
-  - Better multi-user support
-  - Consistent behavior across user sessions
-  - Improved security and resource management
-
-Continuing with per-user installation in 10 seconds...
-Press Ctrl+C to cancel and switch to system-wide installation.
-================================================================================
-${NC}\n"
-    sleep 10
-fi
-
 if [ "$systemdaemon_install" == false ] && [ -f "$systemwide_servicefile_name" ]; then
-    printf "${RED}
+    printf "\033[31m
 $systemwide_servicefile_name exists, suggesting a
 systemwide Agent installation is present. Individual users
 can't install the Agent when systemwide installation exists.
 
-To proceed, uninstall the system-wide agent first:
-    sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+If no systemwide installation is present or you want to remove it, run:
 
-Then rerun this script.
-${NC}\n"
+    sudo launchctl unload -wF $systemwide_servicefile_name
+    sudo rm $systemwide_servicefile_name
 
-    exit 1;
-fi
-
-# Check for system-wide GUI installation (from partial/failed installations)
-if [ "$systemdaemon_install" == false ] && [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-    printf "${RED}
-System-wide GUI installation detected at:
-    /Library/LaunchAgents/com.datadoghq.gui.plist
-
-This may be from a partial or incomplete system-wide installation.
-Cannot proceed with per-user installation.
-
-To proceed, remove the system-wide components:
-    sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-    sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-    sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-
-Then rerun this script.
-${NC}\n"
+Then rerun this script to install the Agent for your user account.
+\033[0m\n"
 
     exit 1;
 fi
@@ -352,7 +291,7 @@ rm -f /tmp/datadog-install-user
 echo "$real_user" > /tmp/datadog-install-user
 
 function on_error() {
-    printf "${RED}$ERROR_MESSAGE
+    printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Agent.
 
 Troubleshooting and basic usage information for the Agent are available at:
@@ -361,7 +300,7 @@ Troubleshooting and basic usage information for the Agent are available at:
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of ddagent-install.log and we'll do our very best to help you
-solve your problem.\n${NC}\n"
+solve your problem.\n\033[0m\n"
 }
 trap on_error ERR
 
@@ -389,7 +328,7 @@ function new_config() {
 }
 
 function import_config() {
-    printf "${BLUE}\n* Converting old datadog.conf file to new datadog.yaml format\n${NC}\n"
+    printf "\033[34m\n* Converting old datadog.conf file to new datadog.yaml format\n\033[0m\n"
     $cmd_agent import $etc_dir $etc_dir -f
 }
 
@@ -405,7 +344,7 @@ function plist_modify_user_group() {
     terms="UserName GroupName"
     for term in $terms; do
         if grep "<key>$term</key>" "$1"; then
-            printf "${RED}$plist_file already contains <key>$term</key>, please update this script to the latest version${NC}\n"
+            printf "\033[31m$plist_file already contains <key>$term</key>, please update this script to the latest version\033[0m\n"
             return 1
         fi
     done
@@ -414,119 +353,6 @@ function plist_modify_user_group() {
     i_cmd="$(sed_inplace_arg)"
     closing_dict_line=$($sudo_cmd cat "$plist_file" | grep -n "</dict>" | tail -1 | cut -f1 -d:)
     $sudo_cmd sh -c "sed $i_cmd -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$user_parameter</key><string>$user_value</string>\n</dict>|\" -e \"${closing_dict_line},${closing_dict_line}s|</dict>|<key>$group_parameter</key><string>$group_value</string>\n</dict>|\" \"$plist_file\""
-}
-
-# Function: cleanup_per_user_installation
-# Description: Removes per-user Datadog Agent and GUI LaunchAgent plists
-# Arguments:
-#   $1 - username (the user whose installation to clean up)
-#   $2 - user_home (the user's home directory path)
-#   $3 - user_uid (the user's UID)
-# Returns: 0 on success
-function cleanup_per_user_installation() {
-    local username="$1"
-    local user_home="$2"
-    local uid="$3"
-    local cleaned=false
-
-    # Check and remove per-user agent plist
-    local agent_plist="$user_home/Library/LaunchAgents/com.datadoghq.agent.plist"
-    if [ -f "$agent_plist" ]; then
-        printf "${YELLOW}      - Removing per-user agent for user '%s'...\n${NC}" "$username"
-        # Try to bootout if user is logged in (graceful stop)
-        $sudo_cmd launchctl bootout "gui/$uid/com.datadoghq.agent" 2>/dev/null || true
-        rm -f "$agent_plist"
-        cleaned=true
-    fi
-
-    # Check and remove per-user GUI plist
-    local gui_plist="$user_home/Library/LaunchAgents/com.datadoghq.gui.plist"
-    if [ -f "$gui_plist" ]; then
-        printf "${YELLOW}      - Removing per-user GUI for user '%s'...\n${NC}" "$username"
-        # Try to bootout if user is logged in (graceful stop)
-        $sudo_cmd launchctl bootout "gui/$uid/com.datadoghq.gui" 2>/dev/null || true
-        rm -f "$gui_plist"
-        cleaned=true
-    fi
-
-    if [ "$cleaned" = true ]; then
-        printf "${GREEN}      ✓ Cleaned up per-user installation for user '%s'\n${NC}" "$username"
-    fi
-
-    return 0
-}
-
-# Function: cleanup_all_per_user_installations
-# Description: Iterates through all user home directories and removes per-user installations
-# This prevents conflicts when system-wide installation is performed
-# Arguments: None
-# Returns: 0 on success
-function cleanup_all_per_user_installations() {
-    printf "${BLUE}    - Cleaning up per-user installations for all users...\n${NC}"
-
-    local found_installations=false
-    local current_install_uid="$user_uid"
-
-    # Iterate through all user home directories
-    for user_home in /Users/*; do
-        # Skip if not a directory or doesn't have Library folder
-        if [ ! -d "$user_home" ] || [ ! -d "$user_home/Library" ]; then
-            continue
-        fi
-
-        local username
-        username=$(basename "$user_home")
-
-        # Get user UID
-        local user_uid_check
-        user_uid_check=$(id -u "$username" 2>/dev/null)
-
-        # Skip if:
-        # - User doesn't exist
-        # - UID < 500 (system accounts)
-        # - Is the currently installing user (their plist will be moved to system location)
-        if [ -z "$user_uid_check" ] || [ "$user_uid_check" -lt 500 ] || [ "$user_uid_check" = "$current_install_uid" ]; then
-            continue
-        fi
-
-        # Check if this user has per-user installations
-        if [ -f "$user_home/Library/LaunchAgents/com.datadoghq.agent.plist" ] || \
-           [ -f "$user_home/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-            found_installations=true
-            cleanup_per_user_installation "$username" "$user_home" "$user_uid_check"
-        fi
-    done
-
-    if [ "$found_installations" = false ]; then
-        printf "${BLUE}    - No per-user installations found in other user accounts\n${NC}"
-    else
-        printf "${GREEN}    ✓ All per-user installations cleaned up\n${NC}"
-    fi
-
-    return 0
-}
-
-# Function: cleanup_stale_sockets
-# Description: Removes stale GUI socket files from the run directory
-# This prevents "Address already in use" errors during reinstallation
-# Should be called after GUI processes are confirmed stopped
-# Arguments: None
-# Returns: 0 on success
-function cleanup_stale_sockets() {
-    if [ ! -d "$run_dir" ]; then
-        # Run directory doesn't exist, nothing to clean
-        return 0
-    fi
-
-    # Check if any socket files exist
-    local socket_files=("$run_dir"/gui-*.sock)
-    if [ -e "${socket_files[0]}" ]; then
-        printf "${BLUE}    - Cleaning up stale socket files...\n${NC}"
-        $sudo_cmd rm -f "$run_dir"/gui-*.sock
-        printf "${GREEN}      ✓ Stale sockets removed\n${NC}"
-    fi
-
-    return 0
 }
 
 # Determine agent flavor to install
@@ -540,24 +366,24 @@ dmg_url="$dmg_url_prefix.$arch.dmg"  # favor architecture-specific DMG, if avail
 if [ "$(curl --head --location --output /dev/null "${curl_retries[@]}" --silent --write-out '%{http_code}' "$dmg_url")" != 200 ]; then
     dmg_url="$dmg_url_prefix.dmg"  # fallback to "universal" DMG
     if [ "$arch" = arm64 ] && ! /usr/bin/pgrep oahd >/dev/null 2>&1; then
-        printf "${RED}Rosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license${NC}\n"
+        printf "\033[31mRosetta is needed to run datadog-agent on $arch.\nYou can install it by running the following command :\n/usr/sbin/softwareupdate --install-rosetta --agree-to-license\033[0m\n"
         exit 1
     fi
 fi
 
 # # Install the agent
-printf "${BLUE}\n* Downloading datadog-agent\n${NC}"
+printf "\033[34m\n* Downloading datadog-agent\n\033[0m"
 prepare_dmg_file $dmg_file
 if ! $sudo_cmd curl --fail --progress-bar "$dmg_url" "${curl_retries[@]}" --output $dmg_file; then
-    printf "${RED}Couldn't download the installer for macOS Agent version ${dmg_version}.${NC}\n"
+    printf "\033[31mCouldn't download the installer for macOS Agent version ${dmg_version}.\033[0m\n"
     exit 1;
 fi
-printf "${BLUE}\n* Installing datadog-agent, you might be asked for your sudo password...\n${NC}"
+printf "\033[34m\n* Installing datadog-agent, you might be asked for your sudo password...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
-printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
+printf "\033[34m\n    - Mounting the DMG installer...\n\033[0m"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
-    printf "${BLUE}\n    - Stopping systemwide Datadog Agent daemon ...\n${NC}"
+    printf "\033[34m\n    - Stopping systemwide Datadog Agent daemon ...\n\033[0m"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
     if $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null; then
@@ -567,7 +393,7 @@ fi
 
 # Shut down and remove system probe service if present
 if [ -f "$sysprobe_servicefile_name" ]; then
-    printf "${BLUE}\n    - Stopping System Probe daemon ...\n${NC}"
+    printf "\033[34m\n    - Stopping System Probe daemon ...\n\033[0m"
     $sudo_cmd launchctl stop $sysprobe_service_name || true
     if $sudo_cmd launchctl print system/$sysprobe_service_name 2>/dev/null >/dev/null; then
         $sudo_cmd launchctl unload -wF $sysprobe_servicefile_name || true
@@ -575,44 +401,9 @@ if [ -f "$sysprobe_servicefile_name" ]; then
     $sudo_cmd rm -f "${sysprobe_servicefile_name}"
 fi
 
-# Stop GUI app before installation/upgrade (handles both per-user and system-wide modes)
-# In system-wide mode, GUI runs for each logged-in user; we need to stop all instances
-if [ -f "$user_plist_file" ] || [ -f "/Library/LaunchAgents/com.datadoghq.gui.plist" ]; then
-    printf "${BLUE}\n    - Stopping GUI app ...\n${NC}"
-
-    # Method 1: Try current user (most common case)
-    $cmd_launchctl bootout "gui/$user_uid/com.datadoghq.gui" 2>/dev/null || true
-
-    # Method 2: Try all logged-in users (multi-user system-wide installations)
-    for logged_user in $(who | awk '{print $1}' | sort -u); do
-        logged_uid=$(id -u "$logged_user" 2>/dev/null)
-        if [ -n "$logged_uid" ] && [ "$logged_uid" != "$user_uid" ]; then
-            $sudo_cmd launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
-        fi
-    done
-
-    # Wait for GUI processes to actually terminate (with 10 second timeout to match ExitTimeOut)
-    max_wait=100  # 100 * 0.1s = 10 seconds
-    count=0
-    while [ $count -lt $max_wait ]; do
-        if ! pgrep -f "Datadog Agent.app/Contents/MacOS/gui" > /dev/null 2>&1; then
-            break
-        fi
-        sleep 0.1
-        count=$((count + 1))
-    done
-
-    if [ $count -ge $max_wait ]; then
-        printf "${YELLOW}    Warning: GUI processes still running after 10s, proceeding anyway${NC}\n"
-    fi
-
-    # Clean up stale socket files to prevent binding conflicts
-    cleanup_stale_sockets
-fi
-
-printf "${BLUE}\n    - Unpacking and copying files (this usually takes about a minute) ...\n${NC}"
+printf "\033[34m\n    - Unpacking and copying files (this usually takes about a minute) ...\n\033[0m"
 cd / && $sudo_cmd /usr/sbin/installer -pkg "`find "/Volumes/datadog_agent" -name \*.pkg 2>/dev/null`" -target / >/dev/null
-printf "${BLUE}\n    - Unmounting the DMG installer ...\n${NC}"
+printf "\033[34m\n    - Unmounting the DMG installer ...\n\033[0m"
 $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null
 
 # Creating or overriding the install information
@@ -633,7 +424,7 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
     else
         new_config
     fi
-    printf "\n${BLUE}* Restarting the Agent...\n${NC}\n"
+    printf "\n\033[34m* Restarting the Agent...\n\033[0m\n"
     # systemwide installation is stopped at this point and will be started later on
     if [ "$systemdaemon_install" != true ]; then
       $cmd_launchctl stop $service_name
@@ -646,22 +437,22 @@ if grep -E 'api_key:( APIKEY)?$' "$etc_dir/datadog.yaml" > /dev/null 2>&1; then
           sleep 5
       done
       if [ "$retry" -ge 5 ]; then
-          printf "\n${YELLOW}Could not restart the agent.
+          printf "\n\033[33mCould not restart the agent.
 You may have to restart it manually using the systray app or the
-\"launchctl start $service_name\" command.\n${NC}\n"
+\"launchctl start $service_name\" command.\n\033[0m\n"
       fi
 
       $cmd_launchctl start $service_name
     fi
 else
-    printf "${BLUE}\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n${NC}\n"
+    printf "\033[34m\n* A datadog.yaml configuration file already exists. It will not be overwritten.\n\033[0m\n"
 fi
 
 # Starting the app
 if [ "$systemdaemon_install" = false ]; then
     $cmd_real_user open -a 'Datadog Agent.app'
 else
-    printf "${BLUE}\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n${NC}"
+    printf "\033[34m\n* Installing $service_name as a systemwide LaunchDaemon ...\n\n\033[0m"
     # Remove the Agent login item and unload the agent for current user
     # if it is running - it's not running if the script was launched when
     # the GUI was not running for the user (e.g. a run of this script via
@@ -672,19 +463,6 @@ else
         $cmd_launchctl stop "$service_name"
         $cmd_launchctl unload "$user_plist_file"
     fi
-
-    # Clean up installing user's per-user GUI plist (if exists from previous per-user installation)
-    installing_user_gui_plist="${install_user_home}/Library/LaunchAgents/com.datadoghq.gui.plist"
-    if [ -f "$installing_user_gui_plist" ]; then
-        printf "${BLUE}    - Removing installing user's per-user GUI plist...\n${NC}"
-        rm -f "$installing_user_gui_plist"
-        printf "${GREEN}      ✓ Per-user GUI plist removed\n${NC}"
-    fi
-
-    # Clean up per-user installations for ALL users on the system
-    # This prevents conflicts when other users log in after system-wide installation
-    cleanup_all_per_user_installations
-
     # move the plist file to the system location
     $sudo_cmd mv "$user_plist_file" /Library/LaunchDaemons/
     # make sure the daemon launches under proper user/group and that it has access
@@ -694,21 +472,12 @@ else
     $sudo_cmd chown -R "$systemdaemon_user_group" "$etc_dir" "$log_dir" "$run_dir"
     $sudo_cmd launchctl load -w "$systemwide_servicefile_name"
     $sudo_cmd launchctl kickstart "system/$service_name"
-
-    # Try to load headless GUI app for current user if they have a user session
-    # The headless GUI LaunchAgent was installed in /Library/LaunchAgents/ by postinst
-    if $cmd_real_user launchctl managername | grep -q "Aqua"; then
-        printf "${BLUE}\n* User session detected, loading headless GUI app for current user...\n${NC}"
-        $cmd_real_user launchctl load -w /Library/LaunchAgents/com.datadoghq.gui.plist
-    else
-        printf "${BLUE}\n* No user session detected, headless GUI app will launch at next user login\n${NC}"
-    fi
 fi
 
 # Set up and start the system-probe service if this version includes support for it
 sysprobe_plist_example_file="${etc_dir}/${sysprobe_service_name}.plist.example"
 if [ -f "$sysprobe_plist_example_file" ]; then
-    printf "${BLUE}\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n${NC}"
+    printf "\033[34m\n* Setting up system-probe ($sysprobe_service_name) as a systemwide LaunchDaemon ...\n\n\033[0m"
     $sudo_cmd mv "$sysprobe_plist_example_file" "$sysprobe_servicefile_name"
     $sudo_cmd chown "0:0" "$sysprobe_servicefile_name"
     $sudo_cmd launchctl load -w "$sysprobe_servicefile_name"
@@ -716,7 +485,7 @@ if [ -f "$sysprobe_plist_example_file" ]; then
 fi
 
 # Agent works, echo some instructions and exit
-printf "${GREEN}
+printf "\033[32m
 
 Your Agent is running properly. It will continue to run in the
 background and submit metrics to Datadog.
@@ -724,16 +493,16 @@ background and submit metrics to Datadog.
 You can check the agent status using the \"datadog-agent status\" command
 or by opening the webui using the \"datadog-agent launch-gui\" command.
 
-${NC}"
+\033[0m"
 
 if [ "$systemdaemon_install" = false ]; then
-    printf "${GREEN}
+    printf "\033[32m
 If you ever want to stop the Agent, please use the Datadog Agent App or
 the launchctl command. It will start automatically at login.
-${NC}"
+\033[0m"
 else
-    printf "${GREEN}
+    printf "\033[32m
 If you ever want to stop the Agent, please use the the launchctl command.
 The Agent will start automatically at system startup.
-${NC}"
+\033[0m"
 fi
