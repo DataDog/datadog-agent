@@ -727,9 +727,7 @@ def cmd_export(run_id: str | None, output: str | None):
         labels = containers_config["label_selector"]
         params["labels"] = ",".join(f"{k}:{v}" for k, v in labels.items())
 
-    # Extract metrics from panels
-    if dashboard.get("panels"):
-        params["metrics"] = ",".join(p["metric"] for p in dashboard["panels"])
+    # Export all available metrics (not just dashboard panels)
 
     # Use all available data
     params["range"] = "all"
@@ -794,7 +792,22 @@ def cmd_export(run_id: str | None, output: str | None):
     print("done")
 
     try:
-        # Call export API
+        # Fetch all available metrics (for the picker dropdown)
+        metrics_url = f"http://localhost:{viewer_port}/api/metrics"
+        print("Fetching metric list...", end=" ", flush=True)
+        try:
+            response = urlopen(metrics_url, timeout=30)
+            metrics_data = json.loads(response.read().decode())
+            all_metrics = [m["name"] for m in metrics_data.get("metrics", [])]
+            print(f"done ({len(all_metrics)} metrics)")
+        except URLError as e:
+            print(f"FAILED ({e}), continuing with dashboard metrics only")
+            all_metrics = None
+
+        # Call export API (with dashboard metrics only for speed)
+        if dashboard.get("panels"):
+            params["metrics"] = ",".join(p["metric"] for p in dashboard["panels"])
+
         url = f"http://localhost:{viewer_port}/api/export?{urlencode(params)}"
         print(f"Fetching data from {url}...", end=" ", flush=True)
 
@@ -809,7 +822,7 @@ def cmd_export(run_id: str | None, output: str | None):
 
         # Generate HTML with embedded parquet
         print("Generating HTML...", end=" ", flush=True)
-        html = generate_export_html(parquet_data, dashboard, metadata)
+        html = generate_export_html(parquet_data, dashboard, metadata, all_metrics)
         print("done")
 
         # Write output file
@@ -828,12 +841,18 @@ def cmd_export(run_id: str | None, output: str | None):
         pf_proc.wait()
 
 
-def generate_export_html(parquet_data: bytes, dashboard: dict, metadata: dict) -> str:
+def generate_export_html(parquet_data: bytes, dashboard: dict, metadata: dict, all_metrics: list = None) -> str:
     """Generate a self-contained HTML file with embedded parquet data.
 
     Uses the main viewer (index.html) as base and bundles all JS modules
     using esbuild for a truly self-contained export that reuses all the
     existing viewer code.
+
+    Args:
+        parquet_data: The parquet file data to embed
+        dashboard: Dashboard configuration dict
+        metadata: Scenario run metadata
+        all_metrics: Optional list of all available metric names (for picker dropdown)
     """
     import re
     import tempfile
@@ -910,6 +929,11 @@ if (document.readyState === 'loading') {{
     if dashboard:
         dashboard_script = f'<script id="dashboard-config" type="application/json">{json.dumps(dashboard)}</script>'
         html = html.replace("</body>", f"    {dashboard_script}\n</body>")
+
+    # Add all available metrics list (for picker dropdown even if data not exported)
+    if all_metrics:
+        metrics_script = f'<script id="all-metrics" type="application/json">{json.dumps(all_metrics)}</script>'
+        html = html.replace("</body>", f"    {metrics_script}\n</body>")
 
     return html
 

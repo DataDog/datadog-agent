@@ -58,12 +58,28 @@ export async function createParquetProvider(options) {
     const index = buildIndex(arrowTable);
     console.log('[ParquetProvider] Indexed', index.metrics.size, 'metrics,', index.containers.size, 'containers');
 
+    // Check for embedded all-metrics list (for full picker even with partial data export)
+    let allMetricsSet = new Set(index.metrics);
+    const allMetricsEl = document.getElementById('all-metrics');
+    if (allMetricsEl) {
+        try {
+            const embeddedMetrics = JSON.parse(allMetricsEl.textContent);
+            if (Array.isArray(embeddedMetrics)) {
+                embeddedMetrics.forEach(m => allMetricsSet.add(m));
+                console.log('[ParquetProvider] Merged embedded metrics list:', embeddedMetrics.length, 'total metrics available');
+            }
+        } catch (e) {
+            console.warn('[ParquetProvider] Failed to parse embedded metrics list:', e);
+        }
+    }
+
     return {
         name: 'ParquetProvider',
 
         async getMetrics() {
             // Return metric objects matching API format: {name: string}
-            return Array.from(index.metrics).sort().map(name => ({ name }));
+            // Includes both metrics with data AND metrics from embedded all-metrics list
+            return Array.from(allMetricsSet).sort().map(name => ({ name }));
         },
 
         async getContainers(metricName, dashboard = null, timeRange = '1h') {
