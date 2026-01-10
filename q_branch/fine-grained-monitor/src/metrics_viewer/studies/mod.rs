@@ -4,6 +4,7 @@
 //! REQ-MV-017: Changepoint detection study.
 
 pub mod changepoint;
+pub mod pelt;
 pub mod periodicity;
 
 use crate::metrics_viewer::data::TimeseriesPoint;

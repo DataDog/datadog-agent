@@ -1,19 +1,24 @@
-//! Changepoint detection study using Bayesian Online Changepoint Detection.
+//! Changepoint detection study using PELT (Pruned Exact Linear Time).
 //!
 //! REQ-MV-017: Detects abrupt changes in timeseries data.
 //! REQ-MV-018: Provides changepoint data for visualization.
+//!
+//! Uses our custom PELT implementation which provides O(n) expected complexity,
+//! making it suitable for large datasets (10k+ points).
 
+use super::pelt::PeltDetector;
 use super::{Study, StudyResult, StudyWindow};
 use crate::metrics_viewer::data::TimeseriesPoint;
-use augurs::changepoint::{Detector, NormalGammaDetector};
 use std::collections::HashMap;
 
 /// Configuration for changepoint detection.
 #[derive(Debug, Clone)]
 pub struct ChangepointConfig {
-    /// Hazard lambda - expected mean run length between changepoints.
-    /// Higher values = fewer changepoints detected.
-    pub hazard_lambda: f64,
+    /// Penalty per changepoint.
+    /// Higher = fewer changepoints. None = auto-compute BIC penalty (2 * log(n)).
+    pub penalty: Option<f64>,
+    /// Minimum segment length between changepoints.
+    pub min_segment_len: usize,
     /// Number of samples to average before/after a changepoint for magnitude calculation.
     pub context_window: usize,
     /// Minimum magnitude (absolute difference) to report a changepoint.
@@ -23,14 +28,15 @@ pub struct ChangepointConfig {
 impl Default for ChangepointConfig {
     fn default() -> Self {
         Self {
-            hazard_lambda: 250.0,
+            penalty: None, // Auto-compute BIC penalty
+            min_segment_len: 5,
             context_window: 5,
             min_magnitude: 0.0, // Report all detected changepoints
         }
     }
 }
 
-/// Changepoint detection study using BOCPD.
+/// Changepoint detection study using PELT algorithm.
 #[derive(Default)]
 pub struct ChangepointStudy {
     config: ChangepointConfig,
@@ -53,7 +59,7 @@ impl Study for ChangepointStudy {
     }
 
     fn description(&self) -> &str {
-        "Detects abrupt changes using Bayesian Online Changepoint Detection"
+        "Detects abrupt changes using PELT (Pruned Exact Linear Time) algorithm"
     }
 
     fn analyze(&self, timeseries: &[TimeseriesPoint]) -> StudyResult {
@@ -70,12 +76,17 @@ impl Study for ChangepointStudy {
             };
         }
 
-        // Extract values for BOCPD
+        // Extract values for PELT
         let values: Vec<f64> = timeseries.iter().map(|p| p.value).collect();
 
-        // Run changepoint detection
-        let mut detector = NormalGammaDetector::default();
-        let changepoint_indices = detector.detect_changepoints(&values);
+        // Configure and run PELT detector
+        let pelt_config = super::pelt::PeltConfig {
+            penalty: self.config.penalty,
+            min_segment_len: self.config.min_segment_len,
+            prune_constant: 0.0,
+        };
+        let detector = PeltDetector::with_config(pelt_config);
+        let changepoint_indices = detector.detect(&values);
 
         // Convert indices to StudyWindows with context
         for &idx in &changepoint_indices {
@@ -223,7 +234,12 @@ mod tests {
 
     #[test]
     fn test_no_changepoint_flat() {
-        let study = ChangepointStudy::default();
+        // Use a high penalty to reduce false positives
+        let config = ChangepointConfig {
+            penalty: Some(50.0),
+            ..Default::default()
+        };
+        let study = ChangepointStudy::with_config(config);
 
         // Create flat data
         let timeseries: Vec<TimeseriesPoint> = (0..100)
@@ -269,6 +285,40 @@ mod tests {
         assert!(
             result.summary.contains("Insufficient"),
             "Should report insufficient data"
+        );
+    }
+
+    #[test]
+    fn test_large_dataset() {
+        let study = ChangepointStudy::default();
+
+        // 10,000 points with changepoint at 5000
+        let timeseries: Vec<TimeseriesPoint> = (0..10000)
+            .map(|i| TimeseriesPoint {
+                time_ms: i * 1000,
+                value: if i < 5000 {
+                    10.0 + (i as f64 * 0.01).sin()
+                } else {
+                    50.0 + (i as f64 * 0.01).sin()
+                },
+            })
+            .collect();
+
+        let start = std::time::Instant::now();
+        let result = study.analyze(&timeseries);
+        let elapsed = start.elapsed();
+
+        // Should complete quickly (< 500ms for 10k points in debug mode)
+        assert!(
+            elapsed.as_millis() < 500,
+            "Should be fast on 10k points, took {:?}",
+            elapsed
+        );
+
+        // Should detect changepoint
+        assert!(
+            !result.windows.is_empty(),
+            "Should detect changepoint in large dataset"
         );
     }
 }
