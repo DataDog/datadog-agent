@@ -34,6 +34,46 @@ kubectl cp <pod>:/data ./collected-metrics --context kind-gadget-dev
 
 **Visualize:**
 
+More realistic multi-service applications generated via k8s-adapter from Gensim:
+
+| Scenario | Components | Purpose |
+|----------|------------|---------|
+| `todo-app` | frontend, backend, postgres | Realistic app with service interactions |
+
+These scenarios exercise complex behaviors that emerge from service interactions rather than isolated faults.
+
+### Exporting Scenario Results
+
+Export captured metrics as a self-contained HTML file for offline analysis or sharing:
+
+```bash
+# Run a scenario and let it collect data
+./scenario.py run memory-leak
+# Wait for interesting behavior (~5-10 minutes for memory-leak)
+
+# Export to self-contained HTML
+./scenario.py export <run_id>
+# Creates: scenario-results-<run_id>.html (~280KB-5MB depending on data)
+
+# Or specify output path
+./scenario.py export <run_id> --output my-analysis.html
+```
+
+The exported HTML includes:
+- **All captured metrics** embedded as Parquet (loaded via parquet-wasm)
+- **Full viewer UI** with theme switching, panel management, container selection
+- **Works offline** - no server required, just open in any modern browser
+
+Use cases:
+- Share findings with teammates without cluster access
+- Archive scenario results for future reference
+- Present analysis in environments without network access
+
+## Validation Paths
+
+The same captured data validates both human and LLM analysis:
+
+**Human validation (fgm-viewer):**
 ```bash
 ./dev.py start --data ./collected-metrics/some-file.parquet
 # Opens browser to interactive viewer with pan/zoom, periodicity detection
