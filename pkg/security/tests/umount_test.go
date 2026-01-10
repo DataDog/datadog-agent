@@ -48,7 +48,7 @@ func TestUmount(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(mountID, 0, true)
+	mnt, _, _, err := p.Resolvers.MountResolver.ResolveMount(mountID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestUmount(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	// Resolve the mount after detaching, without using redemption or reloading. Should return nil
-	mnt, _, _, err = p.Resolvers.MountResolver.ResolveMount(mountID, 0, false)
+	mnt, _, _, err = p.Resolvers.MountResolver.ResolveMount(mountID, 0)
 	if err == nil {
 		t.Fatal("No error")
 	}

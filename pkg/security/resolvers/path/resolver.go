@@ -53,7 +53,7 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDC
 		return nil
 	}
 
-	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, pidCtx.Pid, true)
+	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, pidCtx.Pid)
 	if err != nil {
 		return fmt.Errorf("attribute resolution error: %w", err)
 	}

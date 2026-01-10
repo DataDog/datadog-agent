@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"path"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,16 +35,10 @@ import (
 const (
 	numAllowedMountIDsToResolvePerPeriod = 5
 	fallbackLimiterPeriod                = time.Second
-	redemptionTime                       = 20 * time.Second
 	// mounts LRU limit: 100000 mounts
 	mountsLimit       = 100000
 	danglingListLimit = 2000
 )
-
-type redemptionEntry struct {
-	mount      *model.Mount
-	insertedAt time.Time
-}
 
 // ResolverOpts defines mount resolver options
 type ResolverOpts struct {
@@ -62,7 +55,6 @@ type Resolver struct {
 	lock            sync.RWMutex
 	mounts          *simplelru.LRU[uint32, *model.Mount]
 	minMountID      uint32 // used to find the first userspace visible mount ID
-	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	dangling        *simplelru.LRU[uint32, *model.Mount]
 	fallbackLimiter *utils.Limiter[uint64]
 
@@ -214,28 +206,15 @@ func (mr *Resolver) insertMoved(mount *model.Mount) {
 	}
 
 	// Update the mount path for all the children
-	mr.walkMountSubtree(mount, false, func(child *model.Mount) {
+	mr.walkMountSubtree(mount, func(child *model.Mount) {
 		child.Path = ""
 		_, _, _, _ = mr.getMountPath(child.MountID, 0)
 	})
 }
 
-func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool, cb func(*model.Mount)) {
+func (mr *Resolver) walkMountSubtree(mount *model.Mount, cb func(*model.Mount)) {
 	stack := []*model.Mount{mount}
 	visited := make(map[uint32]struct{})
-
-	var getMount func(uint32) *model.Mount
-
-	if lookIntoRedemption {
-		getMount = func(mountid uint32) *model.Mount {
-			return mr.lookupByMountID(mountid, true)
-		}
-	} else {
-		getMount = func(mountid uint32) *model.Mount {
-			m, _ := mr.mounts.Get(mountid)
-			return m
-		}
-	}
 
 	for len(stack) > 0 {
 		n := len(stack) - 1
@@ -248,7 +227,7 @@ func (mr *Resolver) walkMountSubtree(mount *model.Mount, lookIntoRedemption bool
 		visited[curr.MountID] = struct{}{}
 
 		for _, childID := range curr.Children {
-			if child := getMount(childID); child != nil {
+			if child, _ := mr.mounts.Get(childID); child != nil {
 				if _, seen := visited[childID]; !seen {
 					stack = append(stack, child)
 				}
@@ -281,35 +260,18 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		child, ok := mr.mounts.Get(childID)
 		if ok {
 			mr.dangling.Add(childID, child)
-		} else {
-			fmt.Printf("Child mount %d not present in cache\n", childID)
 		}
 	}
-
-	now := time.Now()
-	mr.moveToRedemption(mount, now)
 
 	// Remove it from the dangling list too
 	if _, exists := mr.dangling.Get(mount.MountID); exists {
 		mr.dangling.Remove(mount.MountID)
 	}
-
-	fmt.Println("[DELETE] Current dangling: ", mr.getDangling())
-}
-
-func (mr *Resolver) moveToRedemption(mount *model.Mount, time time.Time) {
-	entry := redemptionEntry{
-		mount:      mount,
-		insertedAt: time,
-	}
-	mr.redemption.Add(mount.MountID, &entry)
-	mr.mounts.Remove(mount.MountID)
 }
 
 // Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
 func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if mountID == 0 {
-		seclog.Warnf("Trying to delete mountid=0")
 		return fmt.Errorf("Tried to delete mountid=0")
 	}
 	mr.lock.Lock()
@@ -331,7 +293,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, _, _, err := mr.resolveMount(mountID, pid, true)
+	mount, _, _, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -379,12 +341,9 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 		m.Children = prev.Children
 		prev.Children = []uint32{}
 		mr.delete(prev)
-	} else {
-		// Remove this mount id from redemption
-		mr.redemption.Remove(m.MountID)
 	}
 
-	// if we're inserting a mountpoint from a kernel event (!= procfs) that isn't the root fs
+	// if we're inserting a mount from a kernel event (!= procfs) that isn't the root fs
 	// then remove the leading slash from the mountpoint
 	if len(m.Path) == 0 && m.MountPointStr != "/" {
 		m.MountPointStr = strings.TrimPrefix(m.MountPointStr, "/")
@@ -402,12 +361,11 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 		}
 	} else if m.ParentPathKey.MountID != 0 {
 		// No parent found. Add to dangling list
-		fmt.Printf("Adding mount %d to dangling list\n", m.MountID)
 		mr.dangling.Add(m.MountID, m)
 	}
 
 	if invalidateChildrenPath {
-		mr.walkMountSubtree(m, false, func(child *model.Mount) {
+		mr.walkMountSubtree(m, func(child *model.Mount) {
 			child.Path = ""
 		})
 	}
@@ -416,7 +374,6 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 	start := len(m.Children)
 	for danglingElem := range mr.dangling.ValuesIter() {
 		if danglingElem.ParentPathKey.MountID == m.MountID {
-			fmt.Printf("Added %d from dangling list as a child\n", danglingElem.MountID)
 			m.Children = append(m.Children, danglingElem.MountID)
 		}
 	}
@@ -424,37 +381,12 @@ func (mr *Resolver) insert(m *model.Mount, moved bool) {
 	// remove appended from dangling list
 	for i := start; i < len(m.Children); i++ {
 		mr.dangling.Remove(m.Children[i])
-		fmt.Printf("Removed %d from dangling list\n", m.Children[i])
 	}
-
-	fmt.Println("Current dangling: ", mr.getDangling())
 
 	mr.mounts.Add(m.MountID, m)
 }
 
-func (mr *Resolver) getDangling() string {
-	r := ""
-
-	for m := range mr.dangling.ValuesIter() {
-		r += strconv.Itoa(int(m.MountID)) + ":" + strconv.Itoa(int(m.ParentPathKey.MountID)) + " "
-	}
-
-	return r
-}
-
-func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
-	entry, exists := mr.redemption.Get(mountID)
-	if !exists {
-		return nil
-	}
-	if time.Since(entry.insertedAt) > redemptionTime {
-		mr.redemption.Remove(mountID)
-		return nil
-	}
-	return entry.mount
-}
-
-func (mr *Resolver) lookupByMountID(mountID uint32, _ bool) *model.Mount {
+func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
 		return mount
 	}
@@ -462,8 +394,8 @@ func (mr *Resolver) lookupByMountID(mountID uint32, _ bool) *model.Mount {
 	return nil
 }
 
-func (mr *Resolver) lookupMount(mountID uint32, useRedemption bool) (*model.Mount, model.MountSource, model.MountOrigin) {
-	mount := mr.lookupByMountID(mountID, useRedemption)
+func (mr *Resolver) lookupMount(mountID uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
+	mount := mr.lookupByMountID(mountID)
 
 	if mount == nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown
@@ -477,7 +409,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID, true)
+	mount, source, origin := mr.lookupMount(mountID)
 	if mount == nil {
 		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
@@ -541,7 +473,7 @@ func (mr *Resolver) ResolveMountRoot(mountID uint32, pid uint32) (string, model.
 }
 
 func (mr *Resolver) resolveMountRoot(mountID uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
-	mount, source, origin, err := mr.resolveMount(mountID, pid, true)
+	mount, source, origin, err := mr.resolveMount(mountID, pid)
 	if err != nil {
 		return "", source, origin, err
 	}
@@ -587,36 +519,24 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, pid uint32, dontUseRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	return mr.resolveMount(mountID, pid, dontUseRedemptionAndSync)
+	return mr.resolveMount(mountID, pid)
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, pid uint32, useRedemptionAndSync bool) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount, source, origin := mr.lookupMount(mountID, useRedemptionAndSync)
+	mount, source, origin := mr.lookupMount(mountID)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
-
-	if useRedemptionAndSync {
-		if err := mr.syncPidNamespace(pid); err != nil {
-			return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
-		}
-
-		if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
-			mr.procHitsStats.Inc()
-			return mount, model.MountSourceMountID, mount.Origin, nil
-		}
-		mr.procMissStats.Inc()
-	}
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
@@ -677,14 +597,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		dentryResolver:  dentryResolver,
 		dangling:        dangling,
 	}
-
-	redemption, err := simplelru.NewLRU(1024, func(_ uint32, entry *redemptionEntry) {
-		mr.mounts.Remove(entry.mount.MountID)
-	})
-	if err != nil {
-		return nil, err
-	}
-	mr.redemption = redemption
 
 	// create a rate limiter that allows for 64 mount IDs
 	limiter, err := utils.NewLimiter[uint64](64, numAllowedMountIDsToResolvePerPeriod, fallbackLimiterPeriod)
