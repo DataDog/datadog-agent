@@ -59,7 +59,7 @@ COPY --from=builder /build/target/release/mcp-metrics-viewer /usr/local/bin/
 # Server checks /static/index.html first, falls back to embedded version
 COPY src/metrics_viewer/static/ /static/
 
-# Copy dashboard configurations
-COPY dashboards/ /dashboards/
+# Copy scenario dashboards (preserves directory structure: /scenarios/<name>/dashboard.json)
+COPY scenarios/ /scenarios/
 
 ENTRYPOINT ["/usr/local/bin/fine-grained-monitor"]
