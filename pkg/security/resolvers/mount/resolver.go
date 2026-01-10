@@ -10,6 +10,7 @@ package mount
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -82,7 +83,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 func (mr *Resolver) syncCacheFromListMount() error {
 	nrMounts := 0
 	err := GetAll(kernel.ProcFSRoot(), func(sm *model.Mount) {
-		mr.insert(sm, false)
+		mr.insert(sm)
 		nrMounts++
 	})
 
@@ -97,7 +98,7 @@ func (mr *Resolver) syncCacheFromListMount() error {
 func (mr *Resolver) syncCacheFromProcfs() error {
 	nrMounts := 0
 	err := GetAllProcfs(kernel.ProcFSRoot(), func(sm *model.Mount) {
-		mr.insert(sm, false)
+		mr.insert(sm)
 		nrMounts++
 	})
 
@@ -136,7 +137,7 @@ func (mr *Resolver) syncCache() error {
 func (mr *Resolver) syncPidProcfs(pid uint32) error {
 	nrMounts := 0
 	err := GetPidProcfs(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm, false)
+		mr.insert(sm)
 		nrMounts++
 	})
 
@@ -151,7 +152,7 @@ func (mr *Resolver) syncPidProcfs(pid uint32) error {
 func (mr *Resolver) syncPidListmount(pid uint32) error {
 	nrMounts := 0
 	err := GetPidListmount(kernel.ProcFSRoot(), pid, func(sm *model.Mount) {
-		mr.insert(sm, false)
+		mr.insert(sm)
 		nrMounts++
 	})
 
@@ -191,7 +192,7 @@ func (mr *Resolver) SyncCache() error {
 func (mr *Resolver) insertMoved(mount *model.Mount) {
 	mount.MountPointStr, _ = mr.dentryResolver.Resolve(mount.ParentPathKey, false)
 
-	mr.insert(mount, true)
+	mr.insert(mount)
 	_, _, _, _ = mr.getMountPath(mount.MountID, 0)
 
 	// Find all the mounts that I'm the parent of
@@ -272,7 +273,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 // Delete a mount from the cache. Set mountIDUnique to 0 if you don't have a unique mount id.
 func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if mountID == 0 {
-		return fmt.Errorf("Tried to delete mountid=0")
+		return errors.New("tried to delete mountid=0")
 	}
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
@@ -281,7 +282,7 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
-		seclog.Warnf("tried to delete non-existant mount id %d", mountID)
+		seclog.Warnf("tried to delete non-existent mount id %d", mountID)
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
@@ -311,7 +312,7 @@ func (mr *Resolver) Insert(m model.Mount) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(&m, false)
+	mr.insert(&m)
 
 	return nil
 }
@@ -330,7 +331,7 @@ func (mr *Resolver) InsertMoved(m model.Mount) error {
 	return nil
 }
 
-func (mr *Resolver) insert(m *model.Mount, moved bool) {
+func (mr *Resolver) insert(m *model.Mount) {
 
 	invalidateChildrenPath := false
 	// Remove the previous one if exists
