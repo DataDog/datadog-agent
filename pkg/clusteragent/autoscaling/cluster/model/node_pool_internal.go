@@ -210,8 +210,9 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 
 	// Update NodePool with recommendation
 	instanceTypeLabelFound := false
-	for _, r := range knp.Spec.Template.Spec.Requirements {
-		if r.NodeSelectorRequirement.Key == corev1.LabelInstanceTypeStable {
+	for i := range knp.Spec.Template.Spec.Requirements {
+		r := &knp.Spec.Template.Spec.Requirements[i]
+		if r.Key == corev1.LabelInstanceTypeStable {
 			r.Operator = corev1.NodeSelectorOpIn
 			r.Values = npi.RecommendedInstanceTypes()
 
@@ -241,6 +242,11 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 	knp.Spec.Weight = &weight
 
+	knp.TypeMeta = metav1.TypeMeta{
+		Kind:       "NodePool",
+		APIVersion: "karpenter.sh/v1",
+	}
+
 	// Reset the top-level labels and annotations
 	knp.ObjectMeta = metav1.ObjectMeta{
 		Name:        npi.Name(),
@@ -249,7 +255,13 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 
 	// Append to NodeClaimTemplate labels
+	if knp.Spec.Template.ObjectMeta.Labels == nil {
+		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
 	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+
+	// Reset the status
+	knp.Status = karpenterv1.NodePoolStatus{}
 }
 
 // BuildNodePoolPatch is used to construct JSON patch

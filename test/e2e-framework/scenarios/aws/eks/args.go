@@ -15,15 +15,12 @@ type Params struct {
 	LinuxARMNodeGroup     bool
 	BottleRocketNodeGroup bool
 	WindowsNodeGroup      bool
-	UseAL2023Nodes        bool
 }
 
 type Option = func(*Params) error
 
 func NewParams(options ...Option) (*Params, error) {
-	version := &Params{
-		UseAL2023Nodes: true,
-	}
+	version := &Params{}
 	return common.ApplyOption(version, options)
 }
 
@@ -51,13 +48,6 @@ func WithBottlerocketNodeGroup() Option {
 func WithWindowsNodeGroup() Option {
 	return func(p *Params) error {
 		p.WindowsNodeGroup = true
-		return nil
-	}
-}
-
-func WithUseAL2023Nodes() Option {
-	return func(p *Params) error {
-		p.UseAL2023Nodes = true
 		return nil
 	}
 }
