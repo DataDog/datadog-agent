@@ -29,6 +29,12 @@
 //! BENCH_DATA=testdata/bench/realistic cargo bench
 //! BENCH_DATA=testdata/bench/stress cargo bench
 //! ```
+//!
+//! ## Determinism
+//!
+//! Benchmarks use deterministic selection of metrics and containers (sorted by name/ID)
+//! to ensure consistent results across runs. This avoids variability from HashMap
+//! iteration order or recency-based sorting.
 
 use divan::Bencher;
 use fine_grained_monitor::metrics_viewer::data::TimeRange;
@@ -49,26 +55,57 @@ fn get_bench_data_dir() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("testdata/bench/realistic"))
 }
 
-/// Get all parquet files in the benchmark data directory (recursively)
+/// Get all parquet files in the benchmark data directory (recursively).
+/// Files are sorted by path for deterministic ordering.
 fn get_parquet_files() -> Vec<PathBuf> {
     let dir = get_bench_data_dir();
     // Try recursive pattern first (for realistic scenarios with dt=/identifier= structure)
     let recursive_pattern = format!("{}/**/*.parquet", dir.display());
-    let files: Vec<PathBuf> = glob::glob(&recursive_pattern)
+    let mut files: Vec<PathBuf> = glob::glob(&recursive_pattern)
         .expect("Failed to read glob pattern")
         .filter_map(Result::ok)
         .collect();
 
-    if !files.is_empty() {
-        return files;
+    if files.is_empty() {
+        // Fall back to flat pattern for legacy scenarios
+        let flat_pattern = format!("{}/*.parquet", dir.display());
+        files = glob::glob(&flat_pattern)
+            .expect("Failed to read glob pattern")
+            .filter_map(Result::ok)
+            .collect();
     }
 
-    // Fall back to flat pattern for legacy scenarios
-    let flat_pattern = format!("{}/*.parquet", dir.display());
-    glob::glob(&flat_pattern)
-        .expect("Failed to read glob pattern")
-        .filter_map(Result::ok)
-        .collect()
+    // Sort for deterministic ordering
+    files.sort();
+    files
+}
+
+/// Get the first metric name sorted alphabetically (deterministic selection).
+fn get_first_metric_sorted(store: &LazyDataStore) -> Option<String> {
+    let mut metrics = store.get_metrics();
+    metrics.sort_by(|a, b| a.name.cmp(&b.name));
+    metrics.first().map(|m| m.name.clone())
+}
+
+/// Get the first container ID sorted alphabetically (deterministic selection).
+fn get_first_container_sorted(store: &LazyDataStore) -> Option<String> {
+    let mut containers = store.get_containers_by_recency(TimeRange::All);
+    containers.sort_by(|a, b| a.id.cmp(&b.id));
+    containers.first().map(|c| c.id.clone())
+}
+
+/// Get all container IDs sorted alphabetically (deterministic ordering).
+fn get_all_containers_sorted(store: &LazyDataStore) -> Vec<String> {
+    let mut containers = store.get_containers_by_recency(TimeRange::All);
+    containers.sort_by(|a, b| a.id.cmp(&b.id));
+    containers.into_iter().map(|c| c.id).collect()
+}
+
+/// Get the first N metric names sorted alphabetically (deterministic selection).
+fn get_first_n_metrics_sorted(store: &LazyDataStore, n: usize) -> Vec<String> {
+    let mut metrics = store.get_metrics();
+    metrics.sort_by(|a, b| a.name.cmp(&b.name));
+    metrics.into_iter().take(n).map(|m| m.name).collect()
 }
 
 /// Create a store for benchmarking, with error message if data missing
@@ -131,14 +168,17 @@ fn get_timeseries_single_container(bencher: Bencher) {
     }
 
     bencher
-        .with_inputs(|| LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore"))
-        .bench_values(|store| {
-            let metrics = store.get_metrics();
-            let containers = store.get_containers_by_recency(TimeRange::All);
-            if let Some(metric) = metrics.first() {
-                if let Some(container) = containers.first() {
-                    let _ = store.get_timeseries(&metric.name, &[container.id.as_str()], TimeRange::All);
-                }
+        .with_inputs(|| {
+            let store =
+                LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore");
+            let metric = get_first_metric_sorted(&store);
+            let container = get_first_container_sorted(&store);
+            (store, metric, container)
+        })
+        .bench_values(|(store, metric, container)| {
+            if let (Some(metric_name), Some(container_id)) = (metric, container) {
+                let _ =
+                    store.get_timeseries(&metric_name, &[container_id.as_str()], TimeRange::All);
             }
         });
 }
@@ -153,19 +193,16 @@ fn get_timeseries_all_containers(bencher: Bencher) {
 
     bencher
         .with_inputs(|| {
-            let store = LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore");
-            let container_ids: Vec<String> = store
-                .get_containers_by_recency(TimeRange::All)
-                .into_iter()
-                .map(|c| c.id)
-                .collect();
-            (store, container_ids)
+            let store =
+                LazyDataStore::from_files(&files).expect("Failed to create LazyDataStore");
+            let metric = get_first_metric_sorted(&store);
+            let container_ids = get_all_containers_sorted(&store);
+            (store, metric, container_ids)
         })
-        .bench_values(|(store, container_ids)| {
-            let metrics = store.get_metrics();
-            if let Some(metric) = metrics.first() {
+        .bench_values(|(store, metric, container_ids)| {
+            if let Some(metric_name) = metric {
                 let ids: Vec<&str> = container_ids.iter().map(|s| s.as_str()).collect();
-                let _ = store.get_timeseries(&metric.name, &ids, TimeRange::All);
+                let _ = store.get_timeseries(&metric_name, &ids, TimeRange::All);
             }
         });
 }
@@ -221,6 +258,7 @@ fn index_list_containers_1h(bencher: Bencher) {
 ///
 /// Analyzes timeseries for periodic patterns using autocorrelation.
 /// Uses with_inputs to pre-load timeseries data.
+/// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn study_periodicity(bencher: Bencher) {
     let store = match create_store() {
@@ -228,13 +266,12 @@ fn study_periodicity(bencher: Bencher) {
         None => return,
     };
 
-    let metrics = store.get_metrics();
-    let containers = store.get_containers_by_recency(TimeRange::All);
+    let metric = get_first_metric_sorted(&store);
+    let container = get_first_container_sorted(&store);
 
-    let timeseries = if let (Some(metric), Some(container)) = (metrics.first(), containers.first())
-    {
+    let timeseries = if let (Some(metric_name), Some(container_id)) = (metric, container) {
         store
-            .get_timeseries(&metric.name, &[container.id.as_str()], TimeRange::All)
+            .get_timeseries(&metric_name, &[container_id.as_str()], TimeRange::All)
             .ok()
             .and_then(|mut ts| ts.pop())
             .map(|(_, points)| points)
@@ -258,10 +295,11 @@ fn study_periodicity(bencher: Bencher) {
         });
 }
 
-/// Benchmark: Changepoint detection algorithm (BOCPD)
+/// Benchmark: Changepoint detection algorithm (PELT)
 ///
-/// Uses Bayesian Online Changepoint Detection via augurs library.
+/// Uses PELT (Pruned Exact Linear Time) changepoint detection.
 /// Uses with_inputs to pre-load timeseries data.
+/// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn study_changepoint(bencher: Bencher) {
     let store = match create_store() {
@@ -269,13 +307,12 @@ fn study_changepoint(bencher: Bencher) {
         None => return,
     };
 
-    let metrics = store.get_metrics();
-    let containers = store.get_containers_by_recency(TimeRange::All);
+    let metric = get_first_metric_sorted(&store);
+    let container = get_first_container_sorted(&store);
 
-    let timeseries = if let (Some(metric), Some(container)) = (metrics.first(), containers.first())
-    {
+    let timeseries = if let (Some(metric_name), Some(container_id)) = (metric, container) {
         store
-            .get_timeseries(&metric.name, &[container.id.as_str()], TimeRange::All)
+            .get_timeseries(&metric_name, &[container_id.as_str()], TimeRange::All)
             .ok()
             .and_then(|mut ts| ts.pop())
             .map(|(_, points)| points)
@@ -306,6 +343,7 @@ fn study_changepoint(bencher: Bencher) {
 /// Benchmark: analyze_container with single metric
 ///
 /// MCP pattern: Get timeseries + run one study for a single container.
+/// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn mcp_analyze_single_metric(bencher: Bencher) {
     let store = match create_store() {
@@ -313,13 +351,18 @@ fn mcp_analyze_single_metric(bencher: Bencher) {
         None => return,
     };
 
-    let metrics = store.get_metrics();
-    let containers = store.get_containers_by_recency(TimeRange::All);
+    let metric_name = match get_first_metric_sorted(&store) {
+        Some(m) => m,
+        None => {
+            eprintln!("No metrics for mcp_analyze_single_metric benchmark");
+            return;
+        }
+    };
 
-    let (metric_name, container_id) = match (metrics.first(), containers.first()) {
-        (Some(m), Some(c)) => (m.name.clone(), c.id.clone()),
-        _ => {
-            eprintln!("No data for mcp_analyze_single_metric benchmark");
+    let container_id = match get_first_container_sorted(&store) {
+        Some(c) => c,
+        None => {
+            eprintln!("No containers for mcp_analyze_single_metric benchmark");
             return;
         }
     };
@@ -341,6 +384,7 @@ fn mcp_analyze_single_metric(bencher: Bencher) {
 ///
 /// MCP pattern: List metrics matching prefix, then analyze each.
 /// Simulates metric_prefix="cgroup.v2.cpu" which matches multiple metrics.
+/// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn mcp_analyze_metric_prefix(bencher: Bencher) {
     let store = match create_store() {
@@ -348,19 +392,16 @@ fn mcp_analyze_metric_prefix(bencher: Bencher) {
         None => return,
     };
 
-    let metrics = store.get_metrics();
-    let containers = store.get_containers_by_recency(TimeRange::All);
-
-    let container_id = match containers.first() {
-        Some(c) => c.id.clone(),
+    let container_id = match get_first_container_sorted(&store) {
+        Some(c) => c,
         None => {
             eprintln!("No containers for mcp_analyze_metric_prefix benchmark");
             return;
         }
     };
 
-    // Get first 5 metrics to simulate prefix match
-    let matching_metrics: Vec<String> = metrics.iter().take(5).map(|m| m.name.clone()).collect();
+    // Get first 5 metrics (sorted) to simulate prefix match
+    let matching_metrics = get_first_n_metrics_sorted(&store, 5);
 
     if matching_metrics.is_empty() {
         eprintln!("No metrics for mcp_analyze_metric_prefix benchmark");
@@ -402,6 +443,7 @@ const KEY_METRICS: &[&str] = &[
 ///
 /// MCP pattern: Fetch 12 KEY_METRICS for quick container health summary.
 /// No studies run - just timeseries fetching.
+/// Uses deterministic container selection (sorted alphabetically).
 #[divan::bench]
 fn mcp_summarize_container(bencher: Bencher) {
     let store = match create_store() {
@@ -409,10 +451,8 @@ fn mcp_summarize_container(bencher: Bencher) {
         None => return,
     };
 
-    let containers = store.get_containers_by_recency(TimeRange::All);
-
-    let container_id = match containers.first() {
-        Some(c) => c.id.clone(),
+    let container_id = match get_first_container_sorted(&store) {
+        Some(c) => c,
         None => {
             eprintln!("No containers for mcp_summarize_container benchmark");
             return;
@@ -430,15 +470,14 @@ fn mcp_summarize_container(bencher: Bencher) {
         .copied()
         .collect();
 
-    // If no key metrics match, fall back to first 12 available metrics
+    // If no key metrics match, fall back to first 12 available metrics (sorted)
     let metrics_to_fetch: Vec<String> = if metrics_to_fetch.is_empty() {
-        available_metrics
-            .iter()
-            .take(12)
-            .map(|m| m.name.clone())
-            .collect()
+        get_first_n_metrics_sorted(&store, 12)
     } else {
-        metrics_to_fetch.iter().map(|s| s.to_string()).collect()
+        // Sort key metrics for determinism
+        let mut sorted: Vec<String> = metrics_to_fetch.iter().map(|s| s.to_string()).collect();
+        sorted.sort();
+        sorted
     };
 
     if metrics_to_fetch.is_empty() {
@@ -456,6 +495,7 @@ fn mcp_summarize_container(bencher: Bencher) {
 /// Benchmark: Full analyze_container flow with both studies
 ///
 /// Most expensive MCP pattern: single metric analyzed with BOTH studies.
+/// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn mcp_analyze_all_studies(bencher: Bencher) {
     let store = match create_store() {
@@ -463,13 +503,18 @@ fn mcp_analyze_all_studies(bencher: Bencher) {
         None => return,
     };
 
-    let metrics = store.get_metrics();
-    let containers = store.get_containers_by_recency(TimeRange::All);
+    let metric_name = match get_first_metric_sorted(&store) {
+        Some(m) => m,
+        None => {
+            eprintln!("No metrics for mcp_analyze_all_studies benchmark");
+            return;
+        }
+    };
 
-    let (metric_name, container_id) = match (metrics.first(), containers.first()) {
-        (Some(m), Some(c)) => (m.name.clone(), c.id.clone()),
-        _ => {
-            eprintln!("No data for mcp_analyze_all_studies benchmark");
+    let container_id = match get_first_container_sorted(&store) {
+        Some(c) => c,
+        None => {
+            eprintln!("No containers for mcp_analyze_all_studies benchmark");
             return;
         }
     };
