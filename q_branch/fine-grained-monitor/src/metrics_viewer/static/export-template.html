@@ -602,7 +602,9 @@
         // ============================================================
         async function loadParquetData() {
             const b64Data = document.getElementById('parquet-data').textContent.trim();
-            if (!b64Data || b64Data === '{{PARQUET_DATA}}') {
+            // Check for valid parquet data - must start with "PAR" magic (base64: "UEFS")
+            // and not be the unreplaced template placeholder
+            if (!b64Data || b64Data.length < 100 || !b64Data.startsWith('UEFS')) {
                 throw new Error('No parquet data embedded');
             }
 
@@ -1062,17 +1064,17 @@
                 // Auto-select all containers
                 state.selectedContainerIds = state.containers.map(c => c.short_id);
 
-                // Render UI
+                // Show app container first so chart elements have proper dimensions
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('appContainer').style.display = 'grid';
+
+                // Render UI (after container is visible so clientWidth is correct)
                 renderContainerList();
                 renderPanels(dashboard);
                 renderOverview();
 
                 // Setup events
                 setupEventListeners(dashboard);
-
-                // Show app
-                document.getElementById('loadingOverlay').style.display = 'none';
-                document.getElementById('appContainer').style.display = 'grid';
 
                 console.log('[Export] Initialization complete');
             } catch (err) {
@@ -1081,8 +1083,12 @@
             }
         }
 
-        // Start
-        init();
+        // Start after DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
     </script>
 </body>
 </html>
