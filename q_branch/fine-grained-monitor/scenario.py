@@ -829,23 +829,87 @@ def cmd_export(run_id: str | None, output: str | None):
 
 
 def generate_export_html(parquet_data: bytes, dashboard: dict, metadata: dict) -> str:
-    """Generate a self-contained HTML file with embedded parquet data."""
+    """Generate a self-contained HTML file with embedded parquet data.
+
+    Uses the main viewer (index.html) as base and bundles all JS modules
+    using esbuild for a truly self-contained export that reuses all the
+    existing viewer code.
+    """
+    import re
+    import tempfile
+
     # Base64 encode the parquet data
     parquet_b64 = base64.b64encode(parquet_data).decode("ascii")
 
-    # Read the export template
-    template_path = PROJECT_ROOT / "src/metrics_viewer/static/export-template.html"
-    if not template_path.exists():
-        raise FileNotFoundError(f"Export template not found: {template_path}")
+    static_dir = PROJECT_ROOT / "src/metrics_viewer/static"
+    index_path = static_dir / "index.html"
+    if not index_path.exists():
+        raise FileNotFoundError(f"Index file not found: {index_path}")
 
-    template = template_path.read_text()
+    # Bundle JS modules using esbuild
+    print("  Bundling JS modules...")
+    entry_point = static_dir / "js/ui.js"
 
-    # Substitute placeholders
-    html = template.replace("{{PARQUET_DATA}}", parquet_b64)
-    html = html.replace("{{DASHBOARD_JSON}}", json.dumps(dashboard))
-    html = html.replace("{{SCENARIO_NAME}}", metadata.get("scenario", "unknown"))
-    html = html.replace("{{RUN_ID}}", metadata.get("run_id", "unknown"))
-    html = html.replace("{{EXPORTED_AT}}", datetime.now().isoformat())
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False) as f:
+        bundle_path = f.name
+
+    try:
+        result = subprocess.run(
+            [
+                "npx",
+                "esbuild",
+                str(entry_point),
+                "--bundle",
+                "--format=iife",
+                "--global-name=FGM",  # Expose exports as window.FGM
+                f"--outfile={bundle_path}",
+                "--minify",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=static_dir,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"esbuild failed to bundle JS modules: {result.stderr}")
+
+        bundled_js = Path(bundle_path).read_text()
+    finally:
+        Path(bundle_path).unlink(missing_ok=True)
+
+    # Read index.html
+    html = index_path.read_text()
+
+    # Update title to show it's an export
+    scenario_name = metadata.get("scenario", "unknown")
+    run_id = metadata.get("run_id", "unknown")[:8]
+    html = html.replace(
+        "<title>Fine-Grained Monitor</title>", f"<title>FGM Export - {scenario_name} ({run_id})</title>"
+    )
+
+    # Replace the ES module script with bundled IIFE script
+    # Original: <script type="module">import { initialize } from './static/js/ui.js'; ...
+    module_script_pattern = r'<script type="module">.*?</script>'
+    bundled_script = f'''<script>
+{bundled_js}
+// Initialize when DOM is ready (FGM is the global namespace from esbuild IIFE)
+if (document.readyState === 'loading') {{
+    document.addEventListener('DOMContentLoaded', function() {{ FGM.initialize(); }});
+}} else {{
+    FGM.initialize();
+}}
+</script>'''
+    # Use lambda to avoid backslash interpretation in replacement string
+    # (bundled JS contains patterns like \w that would be interpreted as backreferences)
+    html = re.sub(module_script_pattern, lambda m: bundled_script, html, flags=re.DOTALL)
+
+    # Add embedded parquet data before closing </body>
+    parquet_script = f'<script id="parquet-data" type="application/base64">{parquet_b64}</script>'
+    html = html.replace("</body>", f"    {parquet_script}\n</body>")
+
+    # Add dashboard config if provided
+    if dashboard:
+        dashboard_script = f'<script id="dashboard-config" type="application/json">{json.dumps(dashboard)}</script>'
+        html = html.replace("</body>", f"    {dashboard_script}\n</body>")
 
     return html
 

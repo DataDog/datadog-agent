@@ -16,7 +16,6 @@ import {
     registerHandler,
     parseDashboardParams,
     loadDashboard,
-    buildContainerFilterParams,
     computeTimeRangeFromContainers,
 } from './effects.js';
 import { createParquetProvider } from './parquet-provider.js';
@@ -164,37 +163,61 @@ export function getAllTimestamps() {
 // ============================================================
 
 /**
+ * Load parquet data from base64 string and create a provider.
+ * @param {string} b64Data - Base64-encoded parquet file
+ * @returns {Promise<DataProvider>}
+ */
+async function loadParquetFromBase64(b64Data) {
+    const binaryString = atob(b64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return createParquetProvider({ parquetData: bytes });
+}
+
+/**
  * Initialize the application.
  */
 export async function init() {
     console.log('[App] Initializing...');
 
     try {
-        // Check for snapshot mode
-        const urlParams = new URLSearchParams(window.location.search);
-        const mode = urlParams.get('mode');
-        console.log('[App] URL mode param:', mode, '| search:', window.location.search);
+        // Check for embedded parquet data first (self-contained HTML exports)
+        // PAR1 magic bytes encode to base64 starting with "UEFS"
+        const embeddedDataEl = document.getElementById('parquet-data');
+        const embeddedData = embeddedDataEl?.textContent?.trim();
+        if (embeddedData && embeddedData.length > 100 && embeddedData.startsWith('UEFS')) {
+            console.log('[App] Found embedded parquet data:', embeddedData.length, 'chars');
+            try {
+                const provider = await loadParquetFromBase64(embeddedData);
+                setProvider(provider);
+                console.log('[App] Parquet provider initialized from embedded data');
+            } catch (err) {
+                console.error('[App] Failed to load embedded parquet:', err);
+            }
+        }
+        // Check for snapshot mode via URL param (sessionStorage-based)
+        else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode');
+            console.log('[App] URL mode param:', mode, '| search:', window.location.search);
 
-        if (mode === 'snapshot') {
-            const snapshotData = sessionStorage.getItem('parquetSnapshot');
-            console.log('[App] Snapshot data in sessionStorage:', snapshotData ? `${snapshotData.length} chars` : 'null');
-            if (snapshotData) {
-                console.log('[App] Snapshot mode: loading parquet data from sessionStorage');
-                try {
-                    // Decode base64 to ArrayBuffer
-                    const binaryString = atob(snapshotData);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
+            if (mode === 'snapshot') {
+                const snapshotData = sessionStorage.getItem('parquetSnapshot');
+                console.log('[App] Snapshot data in sessionStorage:', snapshotData ? `${snapshotData.length} chars` : 'null');
+                if (snapshotData) {
+                    console.log('[App] Snapshot mode: loading parquet data from sessionStorage');
+                    try {
+                        const provider = await loadParquetFromBase64(snapshotData);
+                        setProvider(provider);
+                        console.log('[App] Parquet provider initialized from sessionStorage');
+                    } catch (err) {
+                        console.error('[App] Failed to load snapshot:', err);
                     }
-                    const provider = await createParquetProvider({ parquetData: bytes });
-                    setProvider(provider);
-                    console.log('[App] Parquet provider initialized');
-                } catch (err) {
-                    console.error('[App] Failed to load snapshot:', err);
+                } else {
+                    console.warn('[App] Snapshot mode but no data in sessionStorage');
                 }
-            } else {
-                console.warn('[App] Snapshot mode but no data in sessionStorage');
             }
         }
 
@@ -279,19 +302,12 @@ export async function init() {
             console.log('[App] Created default 3-panel view:', state.panels.map(p => p.metric));
         }
 
-        // REQ-MV-034: Build container filter params from dashboard
-        const filterParams = buildContainerFilterParams(dashboard);
-        filterParams.set('metric', panelMetrics[0] || '');
-        // REQ-MV-038: Default to 1 hour time range
-        filterParams.set('range', state.dataTimeRange || '1h');
-
         // Fetch containers (with dashboard filters if specified)
         let containers = [];
         if (panelMetrics[0]) {
-            const url = `/api/containers?${filterParams.toString()}`;
-            const res = await fetch(url);
-            const data = await res.json();
-            containers = data.containers || [];
+            // Use Api facade which routes through the current provider
+            // (works with both API server and embedded parquet data)
+            containers = await Api.fetchContainers(panelMetrics[0], dashboard, state.dataTimeRange || '1h');
             dispatch({ type: Actions.SET_CONTAINERS, containers });
 
             // REQ-MV-034: Auto-select all filtered containers when dashboard specifies filters
