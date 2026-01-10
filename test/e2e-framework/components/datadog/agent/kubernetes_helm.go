@@ -166,6 +166,16 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 		values = buildLinuxHelmValuesAutopilot(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result)
 	} else if args.OTelAgentGateway {
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, false, args.FIPS)
+		otelAgentGatewayImagePath := dockerOTelAgentGatewayFullImagePath(e, "", "")
+		otelAgentGatewayImagePath, otelAgentGatewayImageTag := utils.ParseImageReference(otelAgentGatewayImagePath)
+		values["otelAgentGateway"] = pulumi.Map{
+			"enabled": pulumi.Bool(true),
+			"image": pulumi.Map{
+				"repository":    pulumi.String(otelAgentGatewayImagePath),
+				"tag":           pulumi.String(otelAgentGatewayImageTag),
+				"doNotCheckTag": pulumi.Bool(true),
+			},
+		}
 	} else {
 		values = buildLinuxHelmValues(baseName, agentImagePath, agentImageTag, clusterAgentImagePath, clusterAgentImageTag, randomClusterAgentToken.Result, !args.DisableLogsContainerCollectAll, e.TestingWorkloadDeploy(), args.FIPS)
 	}
