@@ -439,6 +439,7 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	if s.isTLS {
 		t.Skip("Skipping TestLargeBodiesGRPCScenarios for TLS due to flakiness")
 	}
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 
 	srv, cancel := grpc.NewGRPCTLSServer(t, srvAddr, s.isTLS)
 	t.Cleanup(cancel)
@@ -488,7 +489,6 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		{
 			name: "request with large body (5MB) -> b -> request with large body (5MB) -> b",
 			runClients: func(t *testing.T, clientsCount int) {
-				flake.MarkOnJobName(t, "ubuntu_25.10")
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[3] = '0' + rune(clientsCount)

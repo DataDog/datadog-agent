@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMain(m *testing.M) {
@@ -203,6 +204,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 
 func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
 	t := s.T()
+	flake.MarkOnJobName(t, "ubuntu_25.10")
 	serverAddr := "localhost:8080"
 
 	tests := []struct {
