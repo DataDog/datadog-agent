@@ -45,7 +45,6 @@
             --chart-axis: #666666;
 
             --loading-overlay: rgba(255, 255, 255, 0.85);
-            --range-dim: rgba(0, 0, 0, 0.15);
 
             --instance-bg: #e8f4ff;
             --instance-border: #007bff;
@@ -75,7 +74,6 @@
             --chart-axis: #b0b0b0;
 
             --loading-overlay: rgba(22, 33, 62, 0.9);
-            --range-dim: rgba(0, 0, 0, 0.4);
 
             --instance-bg: #1e3a5f;
             --instance-border: #4a9eff;
@@ -347,66 +345,6 @@
             font-size: 14px;
         }
 
-        /* Shared overview */
-        #sharedOverview {
-            height: 80px;
-            background: var(--bg-tertiary);
-            border-radius: 4px;
-            border-top: 2px solid var(--border-accent);
-            margin: 0 12px 12px 12px;
-            padding: 8px;
-            position: relative;
-            flex-shrink: 0;
-        }
-
-        /* Range selector overlay */
-        .range-overlay {
-            position: absolute;
-            top: 8px;
-            left: 0;
-            right: 0;
-            height: 60px;
-            pointer-events: none;
-        }
-
-        .range-dim {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            background: var(--range-dim);
-            pointer-events: auto;
-            cursor: crosshair;
-        }
-
-        .range-dim.left { left: 0; }
-        .range-dim.right { right: 0; }
-
-        .range-selection {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            background: transparent;
-            border: 2px solid var(--border-accent);
-            border-radius: 3px;
-            box-sizing: border-box;
-            pointer-events: auto;
-            cursor: grab;
-        }
-
-        .range-handle {
-            position: absolute;
-            top: 0;
-            width: 8px;
-            height: 100%;
-            background: var(--bg-accent);
-            cursor: ew-resize;
-            pointer-events: auto;
-            border-radius: 2px;
-        }
-
-        .range-handle.left { left: -4px; }
-        .range-handle.right { right: -4px; }
-
         /* Loading overlay */
         .loading-overlay {
             position: fixed;
@@ -563,7 +501,6 @@
         <!-- Main content -->
         <div class="main-content">
             <div class="panels-container" id="panelsContainer"></div>
-            <div id="sharedOverview"></div>
         </div>
     </div>
 
@@ -595,7 +532,6 @@
         };
 
         let plots = new Map(); // panelId -> uPlot instance
-        let overviewPlot = null;
 
         // ============================================================
         // Parquet Loading
@@ -915,57 +851,6 @@
             plots.set(panelId, plot);
         }
 
-        function renderOverview() {
-            const overviewDiv = document.getElementById('sharedOverview');
-            if (!overviewDiv) return;
-
-            if (state.selectedContainerIds.length === 0) {
-                overviewDiv.innerHTML = '';
-                return;
-            }
-
-            // Get all timestamps
-            const allTimes = new Set();
-            for (const [metric, metricData] of state.timeseries) {
-                for (const id of state.selectedContainerIds) {
-                    const fullId = state.containers.find(c => c.short_id === id)?.full_id;
-                    if (fullId && metricData.has(fullId)) {
-                        metricData.get(fullId).forEach(p => allTimes.add(p.time_ms));
-                    }
-                }
-            }
-            const timestamps = Array.from(allTimes).sort((a, b) => a - b);
-
-            if (timestamps.length === 0) return;
-
-            // Simple flat data for overview
-            const series = state.selectedContainerIds.map(() => new Array(timestamps.length).fill(1));
-            const uplotData = [timestamps.map(t => t / 1000), ...series];
-
-            const uplotSeries = [
-                { label: 'Time' },
-                ...state.selectedContainerIds.map((id, i) => ({
-                    label: id,
-                    stroke: COLORS[i % COLORS.length],
-                    width: 1
-                }))
-            ];
-
-            const opts = {
-                width: overviewDiv.clientWidth,
-                height: 60,
-                series: uplotSeries,
-                scales: { x: { time: true }, y: { range: [0, 2] } },
-                cursor: { show: false },
-                axes: [{ show: false }, { show: false }],
-                legend: { show: false }
-            };
-
-            if (overviewPlot) overviewPlot.destroy();
-            overviewDiv.innerHTML = '';
-            overviewPlot = new uPlot(opts, uplotData, overviewDiv);
-        }
-
         // ============================================================
         // Event Handlers
         // ============================================================
@@ -981,7 +866,6 @@
                     }
                     renderContainerList();
                     renderPanels(dashboard);
-                    renderOverview();
                 }
             });
 
@@ -990,7 +874,6 @@
                 state.selectedContainerIds = state.containers.map(c => c.short_id);
                 renderContainerList();
                 renderPanels(dashboard);
-                renderOverview();
             });
 
             // Clear all
@@ -998,7 +881,6 @@
                 state.selectedContainerIds = [];
                 renderContainerList();
                 renderPanels(dashboard);
-                renderOverview();
             });
 
             // Reset zoom
@@ -1026,7 +908,6 @@
 
                     // Re-render charts with new theme colors
                     renderPanels(dashboard);
-                    renderOverview();
                 });
             });
 
@@ -1036,12 +917,6 @@
                     const chartDiv = document.getElementById(`chart-${panelId}`);
                     if (chartDiv) {
                         plot.setSize({ width: chartDiv.clientWidth, height: chartDiv.clientHeight });
-                    }
-                }
-                if (overviewPlot) {
-                    const overviewDiv = document.getElementById('sharedOverview');
-                    if (overviewDiv) {
-                        overviewPlot.setSize({ width: overviewDiv.clientWidth, height: 60 });
                     }
                 }
             });
@@ -1071,7 +946,6 @@
                 // Render UI (after container is visible so clientWidth is correct)
                 renderContainerList();
                 renderPanels(dashboard);
-                renderOverview();
 
                 // Setup events
                 setupEventListeners(dashboard);
