@@ -114,8 +114,9 @@ fn discover_files_by_time_range(
         time_range
     );
 
-    // Determine which date directories to scan
-    let mut dates_to_scan = Vec::new();
+    // Determine which date directories to scan (pre-size for typical week span)
+    let days_span = (search_end - search_start).num_days().max(1) as usize;
+    let mut dates_to_scan = Vec::with_capacity(days_span + 1);
     let mut current_date = search_start.date_naive();
     let end_date = search_end.date_naive();
     while current_date <= end_date {
@@ -552,9 +553,9 @@ impl LazyDataStore {
         // Refresh file list to pick up newly written files for this time range
         self.refresh_files(time_range);
 
-        // Check what's already cached
-        let mut result = Vec::new();
-        let mut missing: Vec<&str> = Vec::new();
+        // Check what's already cached (pre-size based on requested containers)
+        let mut result = Vec::with_capacity(container_ids.len());
+        let mut missing: Vec<&str> = Vec::with_capacity(container_ids.len());
 
         {
             let cache = self.timeseries_cache.read().unwrap();
@@ -649,21 +650,18 @@ impl LazyDataStore {
         });
 
         let index = self.index.read().unwrap();
-        let mut containers: Vec<ContainerInfo> = index
-            .containers
-            .values()
-            .filter(|c| {
-                // Filter by time range - container must have last_seen within range
-                match (cutoff_ms, c.last_seen_ms) {
-                    (Some(cutoff), Some(last_seen)) => last_seen >= cutoff,
-                    // Include containers with unknown last_seen (parquet fallback path)
-                    // since we can't determine their relevance - data queries will filter
-                    (Some(_), None) => true,
-                    (None, _) => true, // TimeRange::All, include all
-                }
-            })
-            .cloned()
-            .collect();
+        // Pre-allocate based on index size (filter will reduce but avoids reallocation)
+        let mut containers: Vec<ContainerInfo> = Vec::with_capacity(index.containers.len());
+        containers.extend(index.containers.values().filter(|c| {
+            // Filter by time range - container must have last_seen within range
+            match (cutoff_ms, c.last_seen_ms) {
+                (Some(cutoff), Some(last_seen)) => last_seen >= cutoff,
+                // Include containers with unknown last_seen (parquet fallback path)
+                // since we can't determine their relevance - data queries will filter
+                (Some(_), None) => true,
+                (None, _) => true, // TimeRange::All, include all
+            }
+        }).cloned());
         drop(index);
 
         // Sort by last_seen descending (most recent first)
@@ -740,12 +738,12 @@ impl LazyDataStore {
             return Some(count);
         }
 
-        // Read only the NEW sidecars
-        let mut new_containers: HashMap<String, ContainerInfo> = HashMap::new();
-        let mut new_file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-        let mut new_qos: HashSet<String> = HashSet::new();
-        let mut new_namespaces: HashSet<String> = HashSet::new();
-        let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
+        // Read only the NEW sidecars (pre-size based on number of new files)
+        let mut new_containers: HashMap<String, ContainerInfo> = HashMap::with_capacity(new_files.len() * 4);
+        let mut new_file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::with_capacity(new_files.len());
+        let mut new_qos: HashSet<String> = HashSet::with_capacity(4);
+        let mut new_namespaces: HashSet<String> = HashSet::with_capacity(16);
+        let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::with_capacity(new_files.len() * 4);
         let mut sidecars_read = 0usize;
 
         for parquet_path in &new_files {
@@ -764,7 +762,7 @@ impl LazyDataStore {
                 .map(|dt| dt.timestamp_millis());
 
             sidecars_read += 1;
-            let mut file_container_ids: HashSet<String> = HashSet::new();
+            let mut file_container_ids: HashSet<String> = HashSet::with_capacity(sidecar.containers.len());
 
             for sc in sidecar.containers {
                 file_container_ids.insert(sc.container_id.clone());
@@ -924,6 +922,13 @@ fn compute_data_range(parquet_files: &[PathBuf]) -> DataRange {
     }
 }
 
+/// Estimated number of containers in a typical workload.
+/// Based on stress scenario: ~50 containers, realistic: ~20.
+const ESTIMATED_CONTAINERS: usize = 64;
+
+/// Estimated number of unique metrics.
+const ESTIMATED_METRICS: usize = 64;
+
 /// Load metadata from sidecar files (fast path).
 ///
 /// Sidecars are small binary files (`.containers`) written by the collector alongside
@@ -932,14 +937,15 @@ fn compute_data_range(parquet_files: &[PathBuf]) -> DataRange {
 ///
 /// Returns error if no sidecars found (caller should fall back to parquet scan).
 fn load_from_sidecars(parquet_files: &[PathBuf], data_range: DataRange) -> Result<MetadataIndex> {
-    let mut all_containers: HashMap<String, ContainerInfo> = HashMap::new();
-    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-    let mut qos_set: HashSet<String> = HashSet::new();
-    let mut namespace_set: HashSet<String> = HashSet::new();
+    // Pre-size HashMaps to avoid rehashing during population
+    let mut all_containers: HashMap<String, ContainerInfo> = HashMap::with_capacity(ESTIMATED_CONTAINERS);
+    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::with_capacity(parquet_files.len());
+    let mut qos_set: HashSet<String> = HashSet::with_capacity(4); // Typically: Guaranteed, Burstable, BestEffort
+    let mut namespace_set: HashSet<String> = HashSet::with_capacity(16);
     let mut sidecars_read = 0usize;
 
     // Track min/max timestamps per container (from file timestamps)
-    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
+    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::with_capacity(ESTIMATED_CONTAINERS);
 
     for parquet_path in parquet_files {
         let sidecar_path = sidecar::sidecar_path_for_parquet(parquet_path);
@@ -965,7 +971,7 @@ fn load_from_sidecars(parquet_files: &[PathBuf], data_range: DataRange) -> Resul
             .map(|dt| dt.timestamp_millis());
 
         sidecars_read += 1;
-        let mut file_container_ids: HashSet<String> = HashSet::new();
+        let mut file_container_ids: HashSet<String> = HashSet::with_capacity(sidecar.containers.len());
 
         for sc in sidecar.containers {
             file_container_ids.insert(sc.container_id.clone());
@@ -1056,10 +1062,10 @@ fn load_from_sidecars(parquet_files: &[PathBuf], data_range: DataRange) -> Resul
     // (We don't know which containers have which metrics without scanning parquet,
     // so we assume all containers might have any metric - queries will filter)
     let all_container_ids: HashSet<String> = all_containers.keys().cloned().collect();
-    let metric_containers: HashMap<String, HashSet<String>> = metrics
-        .iter()
-        .map(|m| (m.name.clone(), all_container_ids.clone()))
-        .collect();
+    let mut metric_containers: HashMap<String, HashSet<String>> = HashMap::with_capacity(metrics.len());
+    for m in &metrics {
+        metric_containers.insert(m.name.clone(), all_container_ids.clone());
+    }
 
     tracing::debug!(
         "Loaded {} containers from {} sidecars, {} metrics from schema",
@@ -1100,7 +1106,7 @@ fn get_metrics_from_schema(path: &PathBuf) -> Result<Vec<MetricInfo>> {
         .with_batch_size(10000) // Small batch
         .build()?;
 
-    let mut metric_set: HashSet<String> = HashSet::new();
+    let mut metric_set: HashSet<String> = HashSet::with_capacity(ESTIMATED_METRICS);
 
     for batch_result in reader {
         let batch = batch_result?;
@@ -1159,20 +1165,21 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
 
     let start = std::time::Instant::now();
 
-    let mut metric_set: HashSet<String> = HashSet::new();
-    let mut metric_containers: HashMap<String, HashSet<String>> = HashMap::new();
-    let mut all_containers: HashMap<String, ContainerInfo> = HashMap::new();
-    let mut qos_set: HashSet<String> = HashSet::new();
-    let mut namespace_set: HashSet<String> = HashSet::new();
-    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::new();
+    // Pre-size HashMaps to avoid rehashing during population
+    let mut metric_set: HashSet<String> = HashSet::with_capacity(ESTIMATED_METRICS);
+    let mut metric_containers: HashMap<String, HashSet<String>> = HashMap::with_capacity(ESTIMATED_METRICS);
+    let mut all_containers: HashMap<String, ContainerInfo> = HashMap::with_capacity(ESTIMATED_CONTAINERS);
+    let mut qos_set: HashSet<String> = HashSet::with_capacity(4);
+    let mut namespace_set: HashSet<String> = HashSet::with_capacity(16);
+    let mut file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::with_capacity(paths.len());
     // Track min/max timestamps per container (from file timestamps)
-    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::new();
+    let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::with_capacity(ESTIMATED_CONTAINERS);
 
     let mut rows_sampled = 0u64;
 
     for path in paths {
-        // Track containers found in this specific file
-        let mut this_file_containers: HashSet<String> = HashSet::new();
+        // Track containers found in this specific file (pre-sized for typical container count per file)
+        let mut this_file_containers: HashSet<String> = HashSet::with_capacity(ESTIMATED_CONTAINERS);
         tracing::debug!("Scanning {:?}", path);
 
         // Parse file timestamp for container time bounds
@@ -1423,14 +1430,44 @@ fn scan_metadata(paths: &[PathBuf]) -> Result<MetadataIndex> {
     })
 }
 
+/// Interned container ID for zero-copy sharing across parallel file reads.
+/// Uses Arc<str> to avoid String cloning - incrementing ref count is much faster.
+type InternedId = Arc<str>;
+
+/// Container ID interner - maps string to its interned Arc<str> representation.
+/// This eliminates thousands of String allocations per query by reusing the same
+/// Arc<str> for each unique container ID.
+type ContainerInterner = Arc<HashMap<Box<str>, InternedId>>;
+
+/// Create an interner from container IDs.
+/// The interner maps each container ID (as borrowed str) to its Arc<str> representation.
+fn create_interner(container_ids: &[&str]) -> ContainerInterner {
+    Arc::new(
+        container_ids
+            .iter()
+            .map(|&s| {
+                let boxed: Box<str> = s.into();
+                let arc: Arc<str> = Arc::from(s);
+                (boxed, arc)
+            })
+            .collect(),
+    )
+}
+
 /// Load timeseries data for a specific metric and set of containers.
 /// Uses predicate pushdown and parallel processing for speed.
+/// Uses Arc<str> interning to eliminate String cloning in the hot path.
 fn load_metric_data(
     paths: &[PathBuf],
     metric: &str,
     container_ids: &[&str],
 ) -> Result<Vec<(String, Vec<TimeseriesPoint>)>> {
     let start = std::time::Instant::now();
+
+    // Create interner for zero-copy container ID sharing across parallel reads
+    let interner = create_interner(container_ids);
+
+    // Also keep a simple HashSet for fast contains() checks in predicates
     let container_set: Arc<HashSet<String>> = Arc::new(
         container_ids
             .iter()
@@ -1448,12 +1485,18 @@ fn load_metric_data(
 
 
     // Process files in parallel, each file returns its own HashMap
+    // Uses interner for zero-copy container ID sharing
     let parallel_start = std::time::Instant::now();
-    let file_results: Vec<(PathBuf, Result<HashMap<String, RawContainerData>>)> = paths
+    let file_results: Vec<(PathBuf, Result<HashMap<InternedId, RawContainerData>>)> = paths
         .par_iter()
         .map(|path| {
-            let result =
-                load_metric_from_file(path, &metric, Arc::clone(&container_set), is_cumulative_metric);
+            let result = load_metric_from_file(
+                path,
+                &metric,
+                Arc::clone(&container_set),
+                Arc::clone(&interner),
+                is_cumulative_metric,
+            );
             (path.clone(), result)
         })
         .collect();
@@ -1463,9 +1506,10 @@ fn load_metric_data(
         parallel_elapsed.as_secs_f64() * 1000.0
     );
 
-    // Merge results from all files
+    // Merge results from all files (pre-size based on requested containers)
+    // Uses InternedId (Arc<str>) for zero-copy key sharing
     let merge_start = std::time::Instant::now();
-    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    let mut raw_data: HashMap<InternedId, RawContainerData> = HashMap::with_capacity(container_ids.len());
     for (path, result) in file_results {
         let file_data = match result {
             Ok(data) => data,
@@ -1486,11 +1530,11 @@ fn load_metric_data(
         merge_start.elapsed().as_secs_f64() * 1000.0
     );
 
-    // Convert to timeseries
+    // Convert to timeseries (convert InternedId back to String for API)
     let convert_start = std::time::Instant::now();
     let result: Vec<(String, Vec<TimeseriesPoint>)> = raw_data
         .into_iter()
-        .map(|(id, raw)| (id, raw.into_points()))
+        .map(|(id, raw)| (id.to_string(), raw.into_points()))
         .filter(|(_, points)| !points.is_empty())
         .collect();
     tracing::debug!(
@@ -1513,12 +1557,14 @@ fn load_metric_data(
 /// Parallelism is at the file level (in load_metric_data), not within files,
 /// to avoid thread pool contention from nested parallelism.
 /// Uses row group statistics to skip row groups that can't contain the target metric.
+/// Uses interner for zero-copy container ID sharing.
 fn load_metric_from_file(
     path: &PathBuf,
     metric: &str,
     container_set: Arc<HashSet<String>>,
+    interner: ContainerInterner,
     is_cumulative_metric: bool,
-) -> Result<HashMap<String, RawContainerData>> {
+) -> Result<HashMap<InternedId, RawContainerData>> {
     let file_start = std::time::Instant::now();
 
     // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
@@ -1659,6 +1705,7 @@ fn load_metric_from_file(
         builder,
         metric,
         container_set,
+        interner,
         is_cumulative_metric,
         row_groups_to_read,
     )?;
@@ -1685,13 +1732,15 @@ fn load_metric_from_file(
 /// Uses flat `l_*` columns for labels with predicate pushdown for efficient filtering.
 /// Fix #1: Takes Arc<HashSet> directly to avoid cloning in predicates.
 /// Fix #2: Takes pre-opened builder to avoid double file open.
+/// Uses interner for zero-copy container ID sharing.
 fn load_row_groups(
     builder: ParquetRecordBatchReaderBuilder<File>,
     metric: &str,
     container_set: Arc<HashSet<String>>,
+    interner: ContainerInterner,
     is_cumulative_metric: bool,
     row_groups: Option<Vec<usize>>,
-) -> Result<HashMap<String, RawContainerData>> {
+) -> Result<HashMap<InternedId, RawContainerData>> {
     let schema = builder.schema().clone();
 
     // Build projection: only columns we actually use in the data loop
@@ -1780,7 +1829,9 @@ fn load_row_groups(
         reader_builder.build()?
     };
 
-    let mut raw_data: HashMap<String, RawContainerData> = HashMap::new();
+    // Pre-size based on number of containers in the filter set
+    // Uses InternedId (Arc<str>) for zero-copy key sharing
+    let mut raw_data: HashMap<InternedId, RawContainerData> = HashMap::with_capacity(container_set.len());
 
     for batch_result in reader {
         let batch = batch_result?;
@@ -1829,10 +1880,17 @@ fn load_row_groups(
                 continue;
             }
 
+            // Look up the interned ID (Arc<str>) - this is O(1) and avoids String allocation
+            // The interner was created with all requested container IDs, so this should always succeed
+            let interned_id = match interner.get(short_id) {
+                Some(id) => Arc::clone(id),
+                None => continue, // Container not in interner (shouldn't happen with predicate pushdown)
+            };
+
             let value = extract_value(values_float, values_int, row);
             if let Some(v) = value {
                 raw_data
-                    .entry(short_id.to_string())
+                    .entry(interned_id)
                     .or_insert_with(|| RawContainerData::with_capacity(is_cumulative_metric))
                     .add_point(time, v);
             }
