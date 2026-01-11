@@ -129,7 +129,6 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
     if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
-        log_debug("[http2] HPACK int parsing failed in parse_field_literal: offset=%u index=%llu", pktbuf_data_offset(pkt), index);
         return false;
     }
 
@@ -387,7 +386,6 @@ static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_i
                 current_stream->path.is_huffman_encoded = current_header->is_huffman_encoded;
                 current_stream->path.finalized = true;
                 bpf_memcpy(current_stream->path.raw_buffer, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
-//                log_debug("[http2] path extracted: pid=%d stream_id=%u length=%u huffman=%d", dynamic_index->tup.pid, current_stream->tags, current_stream->path.length, current_stream->path.is_huffman_encoded);
             } else if (is_status_index(current_header->original_index)) {
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value.buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = current_header->is_huffman_encoded;
@@ -609,8 +607,6 @@ static __always_inline bool pktbuf_find_relevant_frames(pktbuf_t pkt, http2_tail
 static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_data_offset, conn_tuple_t *tup) {
     const __u32 zero = 0;
     http2_frame_t current_frame = {};
-
-    log_debug("[http2] handle_first_frame: pid=%d sport=%u dport=%u", tup->pid, tup->sport, tup->dport);
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
