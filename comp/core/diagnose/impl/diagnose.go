@@ -49,6 +49,9 @@ type diagnoseRegistry struct {
 // NewComponent creates a new diagnose component
 func NewComponent(_ Requires) (Provides, error) {
 	comp := &diagnoseRegistry{}
+
+	diagnose.GetCatalog().Register(diagnose.ForwarderTriage, ForwarderTriageSuite)
+
 	provides := Provides{
 		Comp: comp,
 		APIDiagnose: api.NewAgentEndpointProvider(func(w http.ResponseWriter, r *http.Request) { comp.getDiagnose(w, r) },
