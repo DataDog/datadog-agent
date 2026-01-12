@@ -22,7 +22,7 @@
       "title": "Memory Usage (watch for sawtooth pattern)"
     },
     {
-      "metric": "total_pss_bytes",
+      "metric": "smaps_rollup.pss",
       "title": "PSS Memory"
     },
     {

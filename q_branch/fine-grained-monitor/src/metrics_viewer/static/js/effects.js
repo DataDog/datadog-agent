@@ -390,11 +390,22 @@ export async function loadDashboard(url, inlineBase64, templateVars = {}) {
     try {
         let dashboardJson;
 
-        if (inlineBase64) {
+        // Check for embedded dashboard config in the HTML (used in exported snapshots)
+        const embeddedEl = document.getElementById('dashboard-config');
+        if (embeddedEl) {
+            try {
+                dashboardJson = JSON.parse(embeddedEl.textContent);
+                console.log('[Dashboard] Using embedded dashboard config');
+            } catch (e) {
+                console.warn('[Dashboard] Failed to parse embedded dashboard config:', e);
+            }
+        }
+
+        if (!dashboardJson && inlineBase64) {
             // REQ-MV-033: Decode inline base64 dashboard
             const decoded = atob(inlineBase64);
             dashboardJson = JSON.parse(decoded);
-        } else if (url) {
+        } else if (!dashboardJson && url) {
             // REQ-MV-033: Fetch dashboard from URL
             // For relative paths (not starting with / or http), prepend /dashboards/
             // But avoid double-prefixing if path already starts with dashboards/
@@ -407,7 +418,8 @@ export async function loadDashboard(url, inlineBase64, templateVars = {}) {
                 throw new Error(`Failed to fetch dashboard: ${res.status} ${res.statusText}`);
             }
             dashboardJson = await res.json();
-        } else {
+        } else if (!dashboardJson) {
+            // No embedded, inline, or URL dashboard - return null
             return null;
         }
 
