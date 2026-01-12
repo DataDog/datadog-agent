@@ -61,7 +61,7 @@ type batchStrategy struct {
 	grpcDatums []*statefulpb.Datum
 
 	// Delta encoding state - tracks previous values within current batch
-	lastTimestamp     uint64 // milliseconds since epoch
+	lastTimestamp     int64  // milliseconds since epoch
 	lastPatternID     uint64 // pattern identifier
 	lastTagsDictIndex uint64 // dictionary index of tag string
 
@@ -190,18 +190,11 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 	if s.lastTimestamp == 0 {
 		s.lastTimestamp = currentTimestamp
 		// Keep absolute value in logDatum.Timestamp
-	} else if currentTimestamp == s.lastTimestamp {
-		// No change: omit timestamp field (set to 0, proto3 omits it)
-		logDatum.Timestamp = 0
-	} else if currentTimestamp < s.lastTimestamp {
-		// Clock skew detected (time went backwards): send absolute timestamp
-		s.lastTimestamp = currentTimestamp
-		// Keep absolute value in logDatum.Timestamp
 	} else {
 		// Normal case: compute and send delta
 		delta := currentTimestamp - s.lastTimestamp
 		s.lastTimestamp = currentTimestamp
-		logDatum.Timestamp = delta
+		logDatum.Timestamp = delta // Note that when delta is 0, proto3 omits the timestamp field
 	}
 
 	// Pattern ID delta encoding (for structured logs only)
