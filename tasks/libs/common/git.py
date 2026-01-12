@@ -175,7 +175,7 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
         ctx: The invoke context.
         branch: The branch to get the common ancestor with.
         base: The base branch to get the common ancestor with. Defaults to the default branch.
-        try_fetch: Try to fetch the base branch if it's not found (to avoid S3 caching issues).
+        try_fetch: Fetch the base/branch refs before computing merge-base to avoid stale S3-cached refs.
 
     Returns:
         The common ancestor between two branches.
@@ -185,19 +185,15 @@ def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> st
     base = get_full_ref_name(base)
     branch = get_full_ref_name(branch)
 
-    try:
-        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
-    except Exception:
-        if not try_fetch:
-            raise
-
-        # With S3 caching, it's possible that the base branch is not fetched
+    # With S3 caching, origin refs can be stale. Fetch them proactively to ensure
+    # we compute the merge-base against the latest remote state.
+    if try_fetch:
         if base.startswith("origin/"):
             ctx.run(f"git fetch origin {base.removeprefix('origin/')}", hide=hide)
         if branch.startswith("origin/"):
             ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=hide)
 
-        return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
+    return ctx.run(f"git merge-base {branch} {base}", hide=hide).stdout.strip()
 
 
 def check_uncommitted_changes(ctx):
