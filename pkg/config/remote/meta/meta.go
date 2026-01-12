@@ -59,7 +59,7 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootDirector)
-	} else if strings.HasSuffix(site, "ddog-gov.com") {
+	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
 		return NewEmbeddedRoot(govRootDirector)
 	}
 	return NewEmbeddedRoot(prodRootDirector)
@@ -74,7 +74,7 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 
 	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootConfig)
-	} else if strings.HasSuffix(site, "ddog-gov.com") {
+	} else if site == "ddog-gov.com" || strings.HasSuffix(site, ".ddog-gov.com") {
 		return NewEmbeddedRoot(govRootConfig)
 	}
 	return NewEmbeddedRoot(prodRootConfig)
