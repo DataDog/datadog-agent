@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"runtime"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -90,17 +91,22 @@ func NewSystemInfoProvider(deps Requires) Provides {
 	hh.InventoryPayload.MinInterval = 1 * time.Hour
 	hh.InventoryPayload.MaxInterval = 1 * time.Hour
 
-	// Only enable system info metadata collection for end user device infrastructure mode
+	// Only enable system info metadata collection for end user device infrastructure mode on Windows
 	infraMode := deps.Config.GetString("infrastructure_mode")
 	isEndUserDevice := infraMode == "end_user_device"
-	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice
+	isWindows := runtime.GOOS == "windows"
+	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice && isWindows
 
 	var provider runnerimpl.Provider
 	if hh.InventoryPayload.Enabled {
 		provider = hh.MetadataProvider()
 		deps.Log.Info("System info metadata collection enabled for end user device mode")
 	} else {
-		deps.Log.Debugf("System info metadata collection disabled: infrastructure_mode is '%s' (requires 'end_user_device')", infraMode)
+		if !isWindows {
+			deps.Log.Debugf("System info metadata collection disabled: only supported on Windows (current OS: %s)", runtime.GOOS)
+		} else {
+			deps.Log.Debugf("System info metadata collection disabled: infrastructure_mode is '%s' (requires 'end_user_device')", infraMode)
+		}
 	}
 
 	return Provides{
@@ -112,11 +118,25 @@ func NewSystemInfoProvider(deps Requires) Provides {
 }
 
 func (hh *hostSystemInfo) fillData() error {
+	// System info collection is only supported on Windows
+	if runtime.GOOS != "windows" {
+		hh.log.Debugf("System information collection not supported on %s", runtime.GOOS)
+		hh.data = &hostSystemInfoMetadata{}
+		return nil
+	}
+
 	sysInfo, err := systeminfo.Collect()
 	if err != nil {
 		hh.log.Errorf("Failed to collect system information: %v", err)
 		hh.data = &hostSystemInfoMetadata{}
 		return err
+	}
+
+	// Handle case where collection returns nil data
+	if sysInfo == nil {
+		hh.log.Debug("System information collection returned no data")
+		hh.data = &hostSystemInfoMetadata{}
+		return nil
 	}
 
 	hh.data.Manufacturer = sysInfo.Manufacturer

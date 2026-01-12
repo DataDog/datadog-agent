@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build test && windows
 
 package hostsysteminfoimpl
 
@@ -14,33 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
-
-// getTestHostSystemInfo creates a test hostsysteminfoimpl instance with mocked dependencies
-func getTestHostSystemInfo(t *testing.T, overrides map[string]any) *hostSystemInfo {
-
-	if overrides == nil {
-		overrides = map[string]any{
-			"infrastructure_mode": "end_user_device",
-		}
-	}
-
-	p := NewSystemInfoProvider(Requires{
-		Log:        logmock.New(t),
-		Config:     config.NewMockWithOverrides(t, overrides),
-		Serializer: serializermock.NewMetricSerializer(t),
-		Hostname:   hostnameimpl.NewHostnameService(),
-		IPCClient:  ipcmock.New(t).GetClient(),
-	})
-
-	return p.Comp.(*hostSystemInfo)
-}
 
 func TestNewSystemInfoProvider_EndUserDeviceMode(t *testing.T) {
 
@@ -50,7 +24,7 @@ func TestNewSystemInfoProvider_EndUserDeviceMode(t *testing.T) {
 	assert.NotNil(t, hh.MetadataProvider, "Provider should not be nil when enabled")
 
 	// Check intervals
-	assert.Equal(t, 10*time.Minute, hh.InventoryPayload.MinInterval, "MinInterval should be 10 minutes")
+	assert.Equal(t, 1*time.Hour, hh.InventoryPayload.MinInterval, "MinInterval should be 1 hour")
 	assert.Equal(t, 1*time.Hour, hh.InventoryPayload.MaxInterval, "MaxInterval should be 1 hour")
 
 	// Check flare filename

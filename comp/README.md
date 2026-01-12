@@ -386,6 +386,12 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
+### [comp/metadata/hostsysteminfo](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo)
+
+*Datadog Team*: windows-products
+
+Package hostsysteminfo exposes the interface for the component to generate the 'host_system_info' metadata payload for inventory.
+
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
