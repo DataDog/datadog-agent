@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    APM: Refactor APM auto-instrumentation library injection to use a provider-based architecture.
+    This is an internal change with no user-visible impact, preparing for future injection methods like CSI driver support.
