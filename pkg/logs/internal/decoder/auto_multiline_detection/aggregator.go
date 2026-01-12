@@ -107,7 +107,7 @@ func (b *bucket) flush() *message.Message {
 		}
 	}
 
-	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags[0], tlmTags[1], "combining")
+	metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
 	return msg
 }
 
@@ -255,7 +255,7 @@ func (d *detectingAggregator) Process(msg *message.Message, label Label) {
 			d.previousMsg.ParsingExtra.Tags = append(d.previousMsg.ParsingExtra.Tags, tag)
 			d.outputFn(d.previousMsg)
 			// Track that we detected and tagged a multiline log
-			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line", "detecting")
+			metrics.TlmAutoMultilineAggregatorFlush.Inc("false", "auto_multi_line_detected")
 			d.previousMsg = nil
 			d.previousWasStartGroup = false
 		} else if d.previousMsg != nil {

@@ -182,7 +182,7 @@ func (h *MultiLineHandler) sendBuffer() {
 				msg.ParsingExtra.Tags = append(msg.ParsingExtra.Tags, message.MultiLineSourceTag(h.multiLineTagValue))
 			}
 		}
-		metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags[0], tlmTags[1], "legacy")
+		metrics.TlmAutoMultilineAggregatorFlush.Inc(tlmTags...)
 		h.outputFn(msg)
 	}
 }
