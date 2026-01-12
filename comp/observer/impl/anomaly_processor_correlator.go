@@ -33,17 +33,17 @@ type timestampedAnomaly struct {
 	anomaly  observer.AnomalyOutput
 }
 
-// timestampedMarker pairs a marker with its timestamp for windowing.
-type timestampedMarker struct {
-	dataTime int64 // timestamp from the marker
-	marker   observer.Marker
+// timestampedEventSignal pairs an event signal with its timestamp for windowing.
+type timestampedEventSignal struct {
+	dataTime int64 // timestamp from the event signal
+	signal   observer.EventSignal
 }
 
 // correlationPattern defines a known pattern of correlated signals.
 type correlationPattern struct {
-	name           string
+	name            string
 	requiredSources []string
-	reportTitle    string
+	reportTitle     string
 }
 
 // knownPatterns contains all known correlation patterns.
@@ -79,7 +79,7 @@ var knownPatterns = []correlationPattern{
 type CrossSignalCorrelator struct {
 	config             CorrelatorConfig
 	buffer             []timestampedAnomaly
-	markers            []timestampedMarker // discrete event markers (OOM, restarts, etc.)
+	eventSignals       []timestampedEventSignal // discrete event signals (OOM, restarts, etc.)
 	activeCorrelations map[string]*observer.ActiveCorrelation
 	currentDataTime    int64 // latest data timestamp seen (max of all TimeRange.End values)
 }
@@ -136,33 +136,33 @@ func (c *CrossSignalCorrelator) evictOldEntries() {
 	}
 	c.buffer = newBuffer
 
-	// Evict old markers
-	newMarkers := c.markers[:0]
-	for _, entry := range c.markers {
+	// Evict old event signals
+	newSignals := c.eventSignals[:0]
+	for _, entry := range c.eventSignals {
 		if entry.dataTime >= cutoff {
-			newMarkers = append(newMarkers, entry)
+			newSignals = append(newSignals, entry)
 		}
 	}
-	c.markers = newMarkers
+	c.eventSignals = newSignals
 }
 
-// AddMarker adds a discrete event marker (e.g., container OOM, restart) to the correlator.
-// Markers are used as correlation evidence/annotations but are not analyzed with CUSUM.
+// AddEventSignal adds a discrete event signal (e.g., container OOM, restart) to the correlator.
+// Event signals are used as correlation evidence/annotations but are not analyzed with CUSUM.
 // They are included in active correlations to provide context about discrete events
 // that occurred within the correlation window.
-func (c *CrossSignalCorrelator) AddMarker(marker observer.Marker) {
-	// Update current data time if this marker is more recent
-	if marker.Timestamp > c.currentDataTime {
-		c.currentDataTime = marker.Timestamp
+func (c *CrossSignalCorrelator) AddEventSignal(signal observer.EventSignal) {
+	// Update current data time if this signal is more recent
+	if signal.Timestamp > c.currentDataTime {
+		c.currentDataTime = signal.Timestamp
 	}
 
-	// Add the marker with its timestamp
-	c.markers = append(c.markers, timestampedMarker{
-		dataTime: marker.Timestamp,
-		marker:   marker,
+	// Add the event signal with its timestamp
+	c.eventSignals = append(c.eventSignals, timestampedEventSignal{
+		dataTime: signal.Timestamp,
+		signal:   signal,
 	})
 
-	// Evict old entries (both anomalies and markers)
+	// Evict old entries (both anomalies and event signals)
 	c.evictOldEntries()
 }
 
@@ -190,25 +190,25 @@ func (c *CrossSignalCorrelator) Flush() []observer.ReportOutput {
 			// Collect the anomalies that match this pattern's required sources
 			matchingAnomalies := c.collectMatchingAnomalies(pattern)
 
-			// Collect all markers within the window
-			currentMarkers := c.collectMarkersInWindow()
+			// Collect all event signals within the window
+			currentEventSignals := c.collectEventSignalsInWindow()
 
 			if existing, ok := c.activeCorrelations[pattern.name]; ok {
 				// Pattern already active - update LastUpdated and Anomalies
 				existing.LastUpdated = c.currentDataTime
 				existing.Signals = c.getSortedSources(sourceSet)
 				existing.Anomalies = matchingAnomalies
-				existing.Markers = currentMarkers
+				existing.EventSignals = currentEventSignals
 			} else {
 				// New pattern match - create ActiveCorrelation
 				c.activeCorrelations[pattern.name] = &observer.ActiveCorrelation{
-					Pattern:     pattern.name,
-					Title:       pattern.reportTitle,
-					Signals:     c.getSortedSources(sourceSet),
-					Anomalies:   matchingAnomalies,
-					Markers:     currentMarkers,
-					FirstSeen:   c.currentDataTime,
-					LastUpdated: c.currentDataTime,
+					Pattern:      pattern.name,
+					Title:        pattern.reportTitle,
+					Signals:      c.getSortedSources(sourceSet),
+					Anomalies:    matchingAnomalies,
+					EventSignals: currentEventSignals,
+					FirstSeen:    c.currentDataTime,
+					LastUpdated:  c.currentDataTime,
 				}
 			}
 		}
@@ -235,15 +235,15 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 	return true
 }
 
-// collectMarkersInWindow returns all markers currently in the window.
-// Markers are sorted by timestamp (oldest first) for consistent output.
-func (c *CrossSignalCorrelator) collectMarkersInWindow() []observer.Marker {
-	if len(c.markers) == 0 {
+// collectEventSignalsInWindow returns all event signals currently in the window.
+// Event signals are sorted by timestamp (oldest first) for consistent output.
+func (c *CrossSignalCorrelator) collectEventSignalsInWindow() []observer.EventSignal {
+	if len(c.eventSignals) == 0 {
 		return nil
 	}
-	result := make([]observer.Marker, len(c.markers))
-	for i, tm := range c.markers {
-		result[i] = tm.marker
+	result := make([]observer.EventSignal, len(c.eventSignals))
+	for i, es := range c.eventSignals {
+		result[i] = es.signal
 	}
 	// Sort by timestamp for deterministic output
 	sort.Slice(result, func(i, j int) bool {
@@ -322,26 +322,26 @@ func (c *CrossSignalCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		anomaliesCopy := make([]observer.AnomalyOutput, len(ac.Anomalies))
 		copy(anomaliesCopy, ac.Anomalies)
 
-		var markersCopy []observer.Marker
-		if len(ac.Markers) > 0 {
-			markersCopy = make([]observer.Marker, len(ac.Markers))
-			copy(markersCopy, ac.Markers)
+		var eventSignalsCopy []observer.EventSignal
+		if len(ac.EventSignals) > 0 {
+			eventSignalsCopy = make([]observer.EventSignal, len(ac.EventSignals))
+			copy(eventSignalsCopy, ac.EventSignals)
 		}
 
 		result = append(result, observer.ActiveCorrelation{
-			Pattern:     ac.Pattern,
-			Title:       ac.Title,
-			Signals:     append([]string(nil), ac.Signals...),
-			Anomalies:   anomaliesCopy,
-			Markers:     markersCopy,
-			FirstSeen:   ac.FirstSeen,
-			LastUpdated: ac.LastUpdated,
+			Pattern:      ac.Pattern,
+			Title:        ac.Title,
+			Signals:      append([]string(nil), ac.Signals...),
+			Anomalies:    anomaliesCopy,
+			EventSignals: eventSignalsCopy,
+			FirstSeen:    ac.FirstSeen,
+			LastUpdated:  ac.LastUpdated,
 		})
 	}
 	return result
 }
 
-// GetMarkers returns the current markers buffer (for testing).
-func (c *CrossSignalCorrelator) GetMarkers() []timestampedMarker {
-	return c.markers
+// GetEventSignals returns the current event signals buffer (for testing).
+func (c *CrossSignalCorrelator) GetEventSignals() []timestampedEventSignal {
+	return c.eventSignals
 }

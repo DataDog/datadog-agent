@@ -234,7 +234,7 @@ type observerImpl struct {
 	obsCh             chan observation
 	// eventBuffer stores recent events (markers) for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
-	eventBuffer []observerdef.Marker
+	eventBuffer []observerdef.EventSignal
 	maxEvents   int
 
 	// Raw anomaly tracking for test bench display
@@ -277,10 +277,10 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
-	// Events (from check-events source) are routed as markers for correlation,
+	// Events (from check-events source) are routed as event signals for correlation,
 	// not processed through log processors for metric derivation.
 	if source == "check-events" {
-		o.routeEventAsMarker(l)
+		o.routeEventSignal(l)
 		return
 	}
 
@@ -310,12 +310,12 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	o.flushAndReport()
 }
 
-// routeEventAsMarker converts an event log observation to a Marker and sends it
-// to all MarkerReceivers (typically the correlator). Events are used as correlation
+// routeEventSignal converts an event log observation to an EventSignal and sends it
+// to all EventSignalReceivers (typically the correlator). Events are used as correlation
 // context, not as inputs for metric derivation or anomaly detection.
-func (o *observerImpl) routeEventAsMarker(l *logObs) {
-	// Extract event type from tags if available (e.g., "event_type:container.oom")
-	eventSource := "event"
+func (o *observerImpl) routeEventSignal(l *logObs) {
+	// Extract event type from tags (already standardized at source, e.g., "event_type:agent_startup")
+	eventSource := "unknown_event"
 	for _, tag := range l.tags {
 		if strings.HasPrefix(tag, "event_type:") {
 			eventSource = strings.TrimPrefix(tag, "event_type:")
@@ -323,7 +323,7 @@ func (o *observerImpl) routeEventAsMarker(l *logObs) {
 		}
 	}
 
-	marker := observerdef.Marker{
+	signal := observerdef.EventSignal{
 		Source:    eventSource,
 		Timestamp: l.timestamp,
 		Tags:      l.tags,
@@ -336,13 +336,13 @@ func (o *observerImpl) routeEventAsMarker(l *logObs) {
 			// Shift out oldest event
 			o.eventBuffer = o.eventBuffer[1:]
 		}
-		o.eventBuffer = append(o.eventBuffer, marker)
+		o.eventBuffer = append(o.eventBuffer, signal)
 	}
 
-	// Send to all anomaly processors that implement MarkerReceiver
+	// Send to all anomaly processors that implement EventSignalReceiver
 	for _, proc := range o.anomalyProcessors {
-		if receiver, ok := proc.(observerdef.MarkerReceiver); ok {
-			receiver.AddMarker(marker)
+		if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
+			receiver.AddEventSignal(signal)
 		}
 	}
 }
@@ -472,8 +472,8 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.storage.DumpToFile(path)
 }
 
-// DumpEvents writes all buffered events (markers) to the specified file as JSON.
-// Events are container lifecycle events (OOM, restart, etc.) used for correlation.
+// DumpEvents writes all buffered event signals to the specified file as JSON.
+// Event signals are container lifecycle events (OOM, restart, etc.) used for correlation.
 func (o *observerImpl) DumpEvents(path string) error {
 	type dumpEvent struct {
 		Source    string   `json:"source"`
@@ -483,12 +483,12 @@ func (o *observerImpl) DumpEvents(path string) error {
 	}
 
 	events := make([]dumpEvent, len(o.eventBuffer))
-	for i, m := range o.eventBuffer {
+	for i, signal := range o.eventBuffer {
 		events[i] = dumpEvent{
-			Source:    m.Source,
-			Timestamp: m.Timestamp,
-			Tags:      m.Tags,
-			Message:   m.Message,
+			Source:    signal.Source,
+			Timestamp: signal.Timestamp,
+			Tags:      signal.Tags,
+			Message:   signal.Message,
 		}
 	}
 
