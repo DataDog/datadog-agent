@@ -6,6 +6,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -16,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	metricapi "go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/embedded"
+	metric_noop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
@@ -112,6 +114,55 @@ func TestGaugeDataRace(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+type mockMeter struct {
+	metric_noop.Meter
+	cond   *sync.Cond
+	before bool
+	after  bool
+}
+
+func (meter *mockMeter) Float64ObservableGauge(string, ...metricapi.Float64ObservableGaugeOption) (metricapi.Float64ObservableGauge, error) {
+	meter.cond.L.Lock()
+	defer meter.cond.L.Unlock()
+	meter.before = true
+	meter.cond.Wait() // synctest bubble guarantees no spurious wake-ups
+	meter.after = true
+	return nil, nil
+}
+
+func TestGaugeDeadlock(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mutex := sync.Mutex{}
+		mock := mockMeter{cond: sync.NewCond(&mutex)}
+		_, metricClient, _ := setupMetricClient(t)
+		metricClient.(*metricsClient).meter = &mock
+
+		go func() {
+			err := metricClient.Gauge("toto", 1, []string{"otlp:true"}, 1)
+			assert.NoError(t, err)
+		}()
+
+		synctest.Wait() // wait for the other goroutine to be durably blocked in cond.Wait
+
+		mutex.Lock()
+		assert.Equal(t, true, mock.before)
+		mutex.Unlock()
+
+		isMetricClientAvailable := metricClient.(*metricsClient).mutex.TryLock()
+		if isMetricClientAvailable {
+			metricClient.(*metricsClient).mutex.Unlock()
+		}
+		// Here is what we're really testing:
+		// did the metricClient properly release its mutex before calling meter's method ?
+		assert.Equal(t, true, isMetricClientAvailable)
+
+		mutex.Lock()
+		assert.Equal(t, false, mock.after)
+		mock.cond.Signal()
+		mutex.Unlock()
+	})
 }
 
 func TestCount(t *testing.T) {
