@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
@@ -332,11 +331,6 @@ func (c *TracerConfig) AsEnvVar() corev1.EnvVar {
 	}
 }
 
-var (
-	minimumCPULimit    resource.Quantity = resource.MustParse("0.05")  // 0.05 core, otherwise copying + library initialization is going to take forever
-	minimumMemoryLimit resource.Quantity = resource.MustParse("100Mi") // 100 MB (recommended minimum by Alpine)
-)
-
 type initResourceRequirementConfiguration map[corev1.ResourceName]resource.Quantity
 
 // getOptionalBoolValue returns a pointer to a bool corresponding to the config value if the key is set in the config
@@ -421,17 +415,6 @@ func initDefaultResources(datadogConfig config.Component) (initResourceRequireme
 	}*/
 
 	return conf, nil
-}
-
-var defaultRestrictedSecurityContext = &corev1.SecurityContext{
-	AllowPrivilegeEscalation: ptr.To(false),
-	RunAsNonRoot:             ptr.To(true),
-	SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
-	Capabilities: &corev1.Capabilities{
-		Drop: []corev1.Capability{
-			"ALL",
-		},
-	},
 }
 
 func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityContext, error) {

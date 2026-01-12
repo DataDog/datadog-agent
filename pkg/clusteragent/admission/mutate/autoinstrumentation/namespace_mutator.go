@@ -12,10 +12,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
@@ -79,22 +77,6 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	}
 
 	return lastError
-}
-
-// resolveInitSecurityContext determines the security context for init containers.
-func (m *mutatorCore) resolveInitSecurityContext(nsName string) *corev1.SecurityContext {
-	if m.config.initSecurityContext != nil {
-		return m.config.initSecurityContext
-	}
-	nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
-	if err != nil {
-		log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
-		return nil
-	}
-	if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
-		return defaultRestrictedSecurityContext
-	}
-	return nil
 }
 
 // kpiEnvVarsMutator returns a mutator that injects KPI-related env vars.
@@ -296,33 +278,6 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	}
 
 	return mutators
-}
-
-func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
-	opts := []injectorOption{
-		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
-	}
-
-	// Check for the injector version set.
-	injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion)
-	if found {
-		opts = append(opts, injectorWithImageTag(injectorVersion, m.imageResolver))
-	}
-
-	// Check for the injector image being set.
-	injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage)
-	if found {
-		opts = append(opts, injectorWithImageName(injectorImage))
-	}
-
-	// Check if the user has debug enabled.
-	debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug)
-	if found {
-		opts = append(opts, injectorDebug(debugEnabled))
-	}
-
-	return newInjector(startTime, m.config.containerRegistry, opts...)
 }
 
 func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
@@ -605,154 +560,6 @@ func (e extractedPodLibInfo) useLanguageDetectionLibs() (extractedPodLibInfo, bo
 	return e, false
 }
 
-// podSumRessourceRequirements computes the sum of cpu/memory necessary for the whole pod.
-// This is computed as max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-// for both limit and request
-// https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers
-func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
-	ressourceRequirement := corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
-		// Take max(initContainer ressource)
-		maxInitContainerLimit := resource.Quantity{}
-		maxInitContainerRequest := resource.Quantity{}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if initContainerIsSidecar(c) {
-				// This is a sidecar container, since it will run alongside the main containers
-				// we need to add it's resources to the main container's resources
-				continue
-			}
-			if limit, ok := c.Resources.Limits[k]; ok {
-				if limit.Cmp(maxInitContainerLimit) == 1 {
-					maxInitContainerLimit = limit
-				}
-			}
-			if request, ok := c.Resources.Requests[k]; ok {
-				if request.Cmp(maxInitContainerRequest) == 1 {
-					maxInitContainerRequest = request
-				}
-			}
-		}
-
-		// Take sum(container resources) + sum(sidecar containers)
-		limitSum := resource.Quantity{}
-		reqSum := resource.Quantity{}
-		for i := range pod.Spec.Containers {
-			c := &pod.Spec.Containers[i]
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if !initContainerIsSidecar(c) {
-				continue
-			}
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-
-		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-		if limitSum.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = limitSum
-		}
-		if reqSum.Cmp(maxInitContainerRequest) == 1 {
-			maxInitContainerRequest = reqSum
-		}
-
-		// Ensure that the limit is greater or equal to the request
-		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = maxInitContainerRequest
-		}
-
-		if maxInitContainerLimit.CmpInt64(0) == 1 {
-			ressourceRequirement.Limits[k] = maxInitContainerLimit
-		}
-		if maxInitContainerRequest.CmpInt64(0) == 1 {
-			ressourceRequirement.Requests[k] = maxInitContainerRequest
-		}
-	}
-
-	return ressourceRequirement
-}
-
-type injectionResourceRequirementsDecision struct {
-	skipInjection bool
-	message       string
-}
-
-// initContainerResourceRequirements computes init container cpu/memory requests and limits.
-// There are two cases:
-//
-//  1. If a resource quantity was set in config, we use it
-//
-//  2. If no quantity was set, we try to use as much of the resource as we can without impacting
-//     pod scheduling.
-//     Init containers are run one after another. This means that any single init container can use
-//     the maximum amount of the resource requested by the original pod wihtout changing how much of
-//     this resource is necessary.
-//     In particular, for the QoS Guaranteed Limits and Requests have to be equal for every container.
-//     which means that the max amount of request/limits that we compute is going to be equal to each other
-//     so our init container will also have request == limit.
-//
-//     In the 2nd case, of we wouldn't have enough memory, we bail on injection
-func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequirementConfiguration) (requirements corev1.ResourceRequirements, decision injectionResourceRequirementsDecision) {
-	requirements = corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-	podRequirements := podSumRessourceRequirements(pod)
-	insufficientResourcesMessage := "The overall pod's containers limit is too low"
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
-		if q, ok := conf[k]; ok {
-			requirements.Limits[k] = q
-			requirements.Requests[k] = q
-		} else {
-			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				// If the pod before adding instrumentation init containers would have had a limits smaller than
-				// a certain amount, we just don't do anything, for two reasons:
-				// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
-				// 2. The APM libraries themselves will increase footprint of the container by a
-				//   non trivial amount, and we don't want to cause issues for constrained apps
-				switch k {
-				case corev1.ResourceMemory:
-					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
-					}
-				case corev1.ResourceCPU:
-					if minimumCPULimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
-					}
-				default:
-					// We don't support other resources
-				}
-				requirements.Limits[k] = maxPodLim
-			}
-			if maxPodReq, ok := podRequirements.Requests[k]; ok {
-				requirements.Requests[k] = maxPodReq
-			}
-		}
-	}
-	if decision.skipInjection {
-		log.Debug(insufficientResourcesMessage)
-		decision.message = insufficientResourcesMessage
-	}
-	return requirements, decision
-}
-
 func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	for _, container := range pod.Spec.InitContainers {
 		if container.Name == initContainerName {
@@ -761,10 +568,6 @@ func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
 	}
 
 	return false
-}
-
-func initContainerIsSidecar(container *corev1.Container) bool {
-	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
 }
 
 // getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists
