@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Update the API of the histogram helpers in the `pkg/opentelemetry-mapping-go/otlp/metrics` package to accept pointers to the OTLP data points - returns blank DDSketches when the pointer is nil.
+    Update the histogram helpers API in the `pkg/opentelemetry-mapping-go/otlp/metrics` package. The API now accepts accept pointers to the OTLP data points, and returns blank DDSketches when the pointer is nil.
