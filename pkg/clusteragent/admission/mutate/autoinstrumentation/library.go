@@ -7,6 +7,12 @@
 
 package autoinstrumentation
 
+import (
+	corev1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
 var (
 	JavaDefaultLibrary       = NewLibrary(Java, JavaDefaultVersion)
 	DotnetDefaultLibrary     = NewLibrary(Dotnet, DotnetDefaultVersion)
@@ -16,7 +22,16 @@ var (
 	PHPDefaultLibrary        = NewLibrary(PHP, PHPDefaultVersion)
 )
 
-var DefaultLibraries = map[Language]*Library{
+var DefaultLibraries = []Library{
+	JavaDefaultLibrary,
+	JavascriptDefaultLibrary,
+	PythonDefaultLibrary,
+	DotnetDefaultLibrary,
+	RubyDefaultLibrary,
+	PHPDefaultLibrary,
+}
+
+var DefaultLibrariesMap = map[Language]Library{
 	Java:       JavaDefaultLibrary,
 	Dotnet:     DotnetDefaultLibrary,
 	Python:     PythonDefaultLibrary,
@@ -31,11 +46,13 @@ type Library struct {
 	// Language is the language the SDK supports.
 	Language Language
 	// Version is the version of the SDK.
-	Version string
+	Version         string
+	customImage     *Image
+	TargetContainer string
 }
 
 // NewLibrary will initialize a library and validate the language and version provided.
-func NewLibrary(lang Language, version string) *Library {
+func NewLibrary(lang Language, version string) Library {
 	// Get the default version.
 	defaultVersion := DefaultVersions[lang]
 
@@ -45,17 +62,40 @@ func NewLibrary(lang Language, version string) *Library {
 	}
 
 	// Return the library.
-	return &Library{
+	return Library{
 		Language: lang,
 		Version:  version,
 	}
 }
 
-func (l *Library) IsDefault() bool {
+func NewTargetedLibrary(lang Language, version string, targetContainer string) Library {
+	lib := NewLibrary(lang, version)
+	lib.TargetContainer = targetContainer
+	return lib
+}
+
+func NewTargetedLibraryFromImage(lang Language, image *Image, targetContainer string) Library {
+	return Library{
+		Language:        lang,
+		Version:         image.Tag,
+		customImage:     image,
+		TargetContainer: targetContainer,
+	}
+}
+
+func NewLibraryFromImage(lang Language, image *Image) Library {
+	return Library{
+		Language:    lang,
+		Version:     image.Tag,
+		customImage: image,
+	}
+}
+
+func (l Library) IsDefault() bool {
 	return l.Version == DefaultVersions[l.Language]
 }
 
-func (l *Library) LibInfo(registry string, ctrName string) libInfo {
+func (l Library) LibInfo(registry string, ctrName string) libInfo {
 	img := l.InitImage(registry)
 	return libInfo{
 		lang:       l.Language,
@@ -68,10 +108,86 @@ func (l *Library) LibInfo(registry string, ctrName string) libInfo {
 }
 
 // InitImage will return a populated container image that can be used to pull a copy of the SDK.
-func (l *Library) InitImage(registry string) *Image {
+func (l Library) InitImage(registry string) *Image {
+	if l.customImage != nil {
+		return l.customImage
+	}
+
 	return &Image{
 		Registry: registry,
 		Name:     "dd-lib-" + string(l.Language) + "-init",
 		Tag:      l.Version,
 	}
+}
+
+func ExtractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []Library {
+	libs := []Library{}
+
+	// Check all supported languages for potential Local SDK Injection.
+	for _, l := range SupportedLanguages {
+		// Check for a custom library image.
+		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
+		if found {
+			image, err := NewImage(customImage)
+			if err != nil {
+				log.Warnf("could not extract custom image: %w", err)
+			} else {
+				libs = append(libs, NewLibraryFromImage(l, image))
+			}
+		}
+
+		// Check for a custom library version.
+		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
+		if found {
+			libs = append(libs, NewLibrary(l, libVersion))
+		}
+
+		// Check all containers in the pod for container specific Local SDK Injection.
+		for _, container := range pod.Spec.Containers {
+			// Check for custom library image.
+			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
+			if found {
+				image, err := NewImage(customImage)
+				if err != nil {
+					log.Warnf("could not extract custom image: %w", err)
+				} else {
+					libs = append(libs, NewTargetedLibraryFromImage(l, image, container.Name))
+				}
+			}
+
+			// Check for custom library version.
+			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, NewTargetedLibrary(l, libVersion, container.Name))
+			}
+		}
+	}
+
+	return libs
+}
+
+func ParseLibraries(libVersions map[string]string) []Library {
+	libs := []Library{}
+
+	for lang, version := range libVersions {
+		l, err := NewLanguage(lang)
+		if err != nil {
+			log.Warnf("APM Instrumentation detected configuration for unsupported language: %s. Tracing library for %s will not be injected", lang, lang)
+			continue
+		}
+
+		libs = append(libs, NewLibrary(l, version))
+	}
+
+	return libs
+}
+
+func AreDefaults(libs []Library) bool {
+	for _, lib := range libs {
+		if !lib.IsDefault() {
+			return false
+		}
+	}
+
+	return true
 }

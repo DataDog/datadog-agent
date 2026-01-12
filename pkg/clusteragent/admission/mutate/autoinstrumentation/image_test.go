@@ -159,7 +159,7 @@ func TestToLibrary(t *testing.T) {
 	tests := map[string]struct {
 		image    *autoinstrumentation.Image
 		wantErr  bool
-		expected *autoinstrumentation.Library
+		expected autoinstrumentation.Library
 	}{
 		"python image converts to python library": {
 			image: &autoinstrumentation.Image{
@@ -168,7 +168,7 @@ func TestToLibrary(t *testing.T) {
 				Tag:      "v4",
 			},
 			wantErr: false,
-			expected: &autoinstrumentation.Library{
+			expected: autoinstrumentation.Library{
 				Language: autoinstrumentation.Python,
 				Version:  "v4",
 			},

@@ -58,10 +58,10 @@ func (i *Image) String() string {
 }
 
 // ToLibrary converts an image to a library if the language is valid. This will error for the injector image.
-func (i *Image) ToLibrary() (*Library, error) {
+func (i *Image) ToLibrary() (Library, error) {
 	lang, err := ExtractLibraryLanguage(i.Name)
 	if err != nil {
-		return nil, fmt.Errorf("could not extract library language: %w", err)
+		return Library{}, fmt.Errorf("could not extract library language: %w", err)
 	}
 	return NewLibrary(lang, i.Tag), nil
 }

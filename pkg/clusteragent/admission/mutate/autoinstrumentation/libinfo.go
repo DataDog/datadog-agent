@@ -25,11 +25,15 @@ type libInfo struct {
 	tag              string
 }
 
-func newLibInfo(lang Language, image string, ctrName string) libInfo {
+func newLibInfo(lib Library, registry string) libInfo {
+	img := lib.InitImage(registry)
 	return libInfo{
-		lang:    lang,
-		image:   image,
-		ctrName: ctrName,
+		ctrName:          lib.TargetContainer,
+		lang:             lib.Language,
+		image:            img.String(),
+		canonicalVersion: img.Tag,
+		registry:         img.Registry,
+		repository:       img.Name,
 	}
 }
 

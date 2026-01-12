@@ -39,7 +39,6 @@ type TargetMutator struct {
 	profilingClientLibraryMutator containerMutator
 	containerRegistry             string
 	mutateUnlabelled              bool
-	defaultLibVersions            []libInfo
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -56,9 +55,6 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 	for _, ns := range defaultDisabled {
 		disabledNamespacesMap[ns] = true
 	}
-
-	// Fetch the default lib versions to use if there are no user defined versions.
-	defaultLibVersions := getAllLatestDefaultLibraries(config.containerRegistry)
 
 	// If there are no targets, we should fall back to enabledNamespace/libVersions. If those are also not defined, the
 	// expected behavior is to inject all pods into all namespaces.
@@ -105,15 +101,14 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 
 			// We build the libVersions based on if they are specified in `tracerVersions` else ask the higher-level configuration from `libVersions`
 			// and/or defer to language detection.
-			var libVersions []libInfo
+			var libs []Library
 			usesDefaultLibs := false
 			if len(t.TracerVersions) == 0 {
-				libVersions = defaultLibVersions
+				libs = DefaultLibraries
 				usesDefaultLibs = true
 			} else {
-				pinnedLibraries := getPinnedLibraries(t.TracerVersions, config.containerRegistry, true)
-				usesDefaultLibs = pinnedLibraries.areSetToDefaults
-				libVersions = pinnedLibraries.libs
+				libs = ParseLibraries(t.TracerVersions)
+				usesDefaultLibs = AreDefaults(libs)
 			}
 
 			// Convert the tracer configs to env vars. We check that the env var names start with the DD_ prefix to avoid
@@ -135,7 +130,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 				nameSpaceSelector:    namespaceSelector,
 				wmeta:                wmeta,
 				enabledNamespaces:    enabledNamespaces,
-				libVersions:          libVersions,
+				libs:                 libs,
 				envVars:              envVars,
 				json:                 createJSON(t),
 				usesDefaultLibs:      usesDefaultLibs,
@@ -151,7 +146,6 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		profilingClientLibraryMutator: config.profilingClientLibraryMutator,
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
-		defaultLibVersions:            defaultLibVersions,
 	}
 
 	// Create the core mutator. This is a bit gross.
@@ -194,7 +188,7 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	if target == nil {
 		return false, nil
 	}
-	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libVersions)
+	extracted := m.core.initExtractedLibInfo(pod).withLibs(target.libs, m.containerRegistry)
 
 	// If the user did not specify versions, this target is eligible for language detection.
 	if target.usesDefaultLibs {
@@ -300,7 +294,7 @@ type targetInternal struct {
 	nameSpaceSelector    labels.Selector
 	useNamespaceSelector bool
 	enabledNamespaces    map[string]bool
-	libVersions          []libInfo
+	libs                 []Library
 	envVars              []corev1.EnvVar
 	wmeta                workloadmeta.Component
 	json                 string
@@ -341,12 +335,12 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	}
 
 	// If local lib is enabled, then we should prefer the user defined libs.
-	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
+	extractedLibraries := ExtractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
 		return &annotationResult{
 			shouldContinue: false,
 			target: &targetInternal{
-				libVersions: extractedLibraries,
+				libs: extractedLibraries,
 			},
 		}
 	}
@@ -356,7 +350,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		return &annotationResult{
 			shouldContinue: false,
 			target: &targetInternal{
-				libVersions: m.defaultLibVersions,
+				libs: DefaultLibraries,
 			},
 		}
 	}
@@ -481,17 +475,4 @@ func getEnabledLabel(pod *corev1.Pod) (bool, bool) {
 	}
 
 	return false, found
-}
-
-// getAllLatestDefaultLibraries returns all supported by APM Instrumentation tracing libraries
-// that should be enabled by default
-func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
-	var libsToInject []libInfo
-
-	for _, lang := range SupportedLanguages {
-		lib := DefaultLibraries[lang]
-		libsToInject = append(libsToInject, lib.LibInfo(containerRegistry, ""))
-	}
-
-	return libsToInject
 }

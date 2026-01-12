@@ -445,8 +445,8 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				},
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Python, "v3"),
+				libs: []Library{
+					NewLibrary(Python, "v3"),
 				},
 			},
 		},
@@ -495,7 +495,7 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 				require.Nil(t, actual.target)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.target.libVersions)
+				require.Equal(t, test.expected.libs, actual.target.libs)
 			}
 		})
 	}
@@ -524,8 +524,8 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("foo", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Javascript, "v5"),
+				libs: []Library{
+					NewLibrary(Javascript, "v5"),
 				},
 			},
 		},
@@ -558,8 +558,8 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("billing-service", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Python, "v3"),
+				libs: []Library{
+					NewLibrary(Python, "v3"),
 				},
 			},
 		},
@@ -577,8 +577,8 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Java, "v1"),
+				libs: []Library{
+					NewLibrary(Java, "v1"),
 				},
 			},
 		},
@@ -612,8 +612,8 @@ func TestGetTargetLibraries(t *testing.T) {
 				}),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Dotnet, "v1"),
+				libs: []Library{
+					NewLibrary(Dotnet, "v1"),
 				},
 			},
 		},
@@ -657,13 +657,13 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Java, "v1"),
-					defaultLibInfoWithVersion(Javascript, "v5"),
-					defaultLibInfoWithVersion(Python, "v4"),
-					defaultLibInfoWithVersion(Dotnet, "v3"),
-					defaultLibInfoWithVersion(Ruby, "v2"),
-					defaultLibInfoWithVersion(PHP, "v1"),
+				libs: []Library{
+					NewLibrary(Java, "v1"),
+					NewLibrary(Javascript, "v5"),
+					NewLibrary(Python, "v4"),
+					NewLibrary(Dotnet, "v3"),
+					NewLibrary(Ruby, "v2"),
+					NewLibrary(PHP, "v1"),
 				},
 			},
 		},
@@ -693,8 +693,8 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Python, "v3"),
+				libs: []Library{
+					NewLibrary(Python, "v3"),
 				},
 			},
 		},
@@ -709,13 +709,13 @@ func TestGetTargetLibraries(t *testing.T) {
 				newTestNamespace("application", nil),
 			},
 			expected: &targetInternal{
-				libVersions: []libInfo{
-					defaultLibInfoWithVersion(Java, "v1"),
-					defaultLibInfoWithVersion(Javascript, "v5"),
-					defaultLibInfoWithVersion(Python, "v4"),
-					defaultLibInfoWithVersion(Dotnet, "v3"),
-					defaultLibInfoWithVersion(Ruby, "v2"),
-					defaultLibInfoWithVersion(PHP, "v1"),
+				libs: []Library{
+					NewLibrary(Java, "v1"),
+					NewLibrary(Javascript, "v5"),
+					NewLibrary(Python, "v4"),
+					NewLibrary(Dotnet, "v3"),
+					NewLibrary(Ruby, "v2"),
+					NewLibrary(PHP, "v1"),
 				},
 			},
 		},
@@ -754,7 +754,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				require.Nil(t, actual)
 			} else {
 				require.NotNil(t, actual)
-				require.Equal(t, test.expected.libVersions, actual.libVersions)
+				require.Equal(t, test.expected.libs, actual.libs)
 			}
 		})
 	}
