@@ -6,6 +6,7 @@
 package metrics
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -72,7 +73,7 @@ func CreateDDSketchFromHistogramOfDuration(dp *pmetric.HistogramDataPoint, unit 
 	explicitBounds := dp.ExplicitBounds()
 
 	if bucketCounts.Len() != explicitBounds.Len()+1 {
-		return nil, fmt.Errorf("bucket counts length does not match explicit bounds length")
+		return nil, errors.New("bucket counts length does not match explicit bounds length")
 	}
 
 	// Get scaling factor to convert unit to nanoseconds
