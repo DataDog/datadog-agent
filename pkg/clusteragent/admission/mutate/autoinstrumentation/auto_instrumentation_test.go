@@ -83,6 +83,8 @@ func TestAutoinstrumentation(t *testing.T) {
 		// unmutatedContainers (optional) ensures that specific containers have NO Datadog-related env vars (DD_*, LD_PRELOAD).
 		// This is useful to verify containers like istio-proxy are completely excluded from mutation.
 		unmutatedContainers []string
+		// expectedAnnotations (optional) ensures that the pod has the expected annotations.
+		expectedAnnotations map[string]string
 	}
 
 	tests := map[string]struct {
@@ -2377,6 +2379,347 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		// Image configuration tests
+		"custom container registry via config is used for init containers": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":                           true,
+				"admission_controller.auto_instrumentation.container_registry": "my-registry.example.com/datadog",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1.2.3",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				initContainerImages: []string{
+					"my-registry.example.com/datadog/dd-lib-java-init:v1.2.3",
+					"my-registry.example.com/datadog/apm-inject:0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"custom injector version via annotation overrides config": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":            true,
+				"apm_config.instrumentation.injector_image_tag": "1.0.0",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/apm-inject.version": "2.0.0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: "2.0.0",
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"custom library image via annotation is used": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					// Note: custom-image annotation triggers injection without needing a version annotation
+					"admission.datadoghq.com/python-lib.custom-image": "my-registry.io/custom-python-lib:custom-tag",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				initContainerImages: []string{
+					"my-registry.io/custom-python-lib:custom-tag",
+					"gcr.io/datadoghq/apm-inject:0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"multiple libraries with different versions are all injected": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1.5.0",
+					"admission.datadoghq.com/python-lib.version": "v2.3.0",
+					"admission.datadoghq.com/js-lib.version":     "v4.1.0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java":   "v1.5.0",
+					"python": "v2.3.0",
+					"js":     "v4.1.0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		// Target annotation tests
+		"target with matching rule sets applied-target annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
+					{
+						Name: "Python Apps",
+						TracerVersions: map[string]string{
+							"python": "v3",
+						},
+						NamespaceSelector: &autoinstrumentation.NamespaceSelector{
+							MatchNames: []string{
+								"application",
+							},
+						},
+					},
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v3",
+				},
+				containerNames: defaultContainerNames,
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"Python Apps","namespaceSelector":{"matchNames":["application"]},"ddTraceVersions":{"python":"v3"}}`,
+				},
+			},
+		},
+		// Debug mode tests via annotation with single step
+		"single step with debug enabled via annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.debug": "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_APM_INSTRUMENTATION_DEBUG": "true",
+					"DD_TRACE_STARTUP_LOGS":        "true",
+					"DD_TRACE_DEBUG":               "true",
+				},
+			},
+		},
+		// Verify LD_PRELOAD and DD_INJECT_SENDER_TYPE are set correctly
+		"injection sets LD_PRELOAD and DD_INJECT_SENDER_TYPE environment variables": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+					"DD_INJECT_SENDER_TYPE": "k8s",
+				},
+			},
+		},
+		// All supported languages tests
+		"all supported languages can be injected simultaneously": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/python-lib.version": "v2",
+					"admission.datadoghq.com/js-lib.version":     "v3",
+					"admission.datadoghq.com/dotnet-lib.version": "v4",
+					"admission.datadoghq.com/ruby-lib.version":   "v5",
+					"admission.datadoghq.com/php-lib.version":    "v6",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java":   "v1",
+					"python": "v2",
+					"js":     "v3",
+					"dotnet": "v4",
+					"ruby":   "v5",
+					"php":    "v6",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		// Default versions resolution test
+		"default magic string resolves to correct versions for all languages": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "default",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				containerNames:  defaultContainerNames,
+			},
+		},
+		// Unsupported language test
+		"unsupported language annotation does not cause mutation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/go-lib.version": "v1", // Go is not supported
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: false,
+		},
+		// Autoscaler safe-to-evict annotation test
+		"injection sets cluster-autoscaler safe-to-evict annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				expectedAnnotations: map[string]string{
+					"cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes": "datadog-auto-instrumentation,datadog-auto-instrumentation-etc",
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -2440,6 +2783,9 @@ func TestAutoinstrumentation(t *testing.T) {
 
 			// Require resources match expected.
 			validator.RequireInitResourceRequirements(t, test.expected.initResourceRequirements)
+
+			// Require annotations match expected.
+			validator.RequireAnnotations(t, test.expected.expectedAnnotations)
 		})
 	}
 }
