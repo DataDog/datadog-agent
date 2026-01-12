@@ -19,6 +19,9 @@ COMMON_TAGS = {
     # removes the import to golang.org/x/net/trace in google.golang.org/grpc,
     # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
     "grpcnotrace",
+    # removes the import to golang.org/x/net/trace in github.com/grpc-ecosystem/go-grpc-middleware
+    # which prevents dead code elimination, see https://github.com/golang/go/issues/62024
+    "retrynotrace",
     # Disables dynamic plugins in containerd v1, which removes the import to std "plugin" package on Linux amd64,
     # which makes the agent significantly smaller.
     # This can be removed when we start using containerd v2.1 or later.
