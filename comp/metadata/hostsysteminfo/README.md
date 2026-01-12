@@ -14,11 +14,11 @@ The payload contains physical system identification attributes collected from th
 
 The system information is collected using platform-specific APIs:
 - **Windows**: WMI queries (`Win32_ComputerSystem`, `Win32_BIOS`, `Win32_SystemEnclosure`)
-- **MacOS**: Work In Pogress
+- **MacOS**: Work in progress
 - **Linux/Unix**: Will not run as it is currently not implemented
 
 Collection includes:
-- Manufacturer name (e.g., Dell, Lenovo, HP, Amazon EC2)
+- Manufacturer name (for example, Dell, Lenovo, HP, Amazon EC2)
 - Model number and name
 - Serial number
 - System SKU/Identifier
