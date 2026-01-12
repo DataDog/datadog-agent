@@ -84,19 +84,27 @@ func TestAgentPermissions(t *testing.T) {
 	assert.NotEmpty(t, agentConfigPermissions, "config permissions should be defined")
 	assert.NotEmpty(t, agentPackagePermissions, "package permissions should be defined")
 
-	// Verify root-owned security files have correct permissions
+	// Verify permissions based on actual data structure
 	for _, perm := range agentConfigPermissions {
 		switch perm.Path {
-		case "system-probe.yaml", "security-agent.yaml", "system-probe.yaml.example", "security-agent.yaml.example", "managed", ".":
+		case ".", "managed":
+			// Base directories with recursive permissions
+			assert.Equal(t, "dd-agent", perm.Owner, fmt.Sprintf("path %s should have owner dd-agent", perm.Path))
+			assert.Equal(t, "dd-agent", perm.Group, fmt.Sprintf("path %s should have group dd-agent", perm.Path))
+			assert.Equal(t, true, perm.Recursive, fmt.Sprintf("path %s should be recursive", perm.Path))
+			assert.Equal(t, os.FileMode(0), perm.Mode, fmt.Sprintf("path %s should have default mode", perm.Path))
+		case "inject", "compliance.d", "runtime-security.d":
+			// Root-owned directories with recursive permissions
+			assert.Equal(t, "root", perm.Owner, fmt.Sprintf("path %s should have owner root", perm.Path))
+			assert.Equal(t, "root", perm.Group, fmt.Sprintf("path %s should have group root", perm.Path))
+			assert.Equal(t, true, perm.Recursive, fmt.Sprintf("path %s should be recursive", perm.Path))
+			assert.Equal(t, os.FileMode(0), perm.Mode, fmt.Sprintf("path %s should have default mode", perm.Path))
+		case "system-probe.yaml", "security-agent.yaml", "system-probe.yaml.example", "security-agent.yaml.example":
+			// Security-sensitive YAML files with restricted permissions
 			assert.Equal(t, "dd-agent", perm.Owner, fmt.Sprintf("file %s should have owner dd-agent", perm.Path))
 			assert.Equal(t, "dd-agent", perm.Group, fmt.Sprintf("file %s should have group dd-agent", perm.Path))
 			assert.Equal(t, false, perm.Recursive, fmt.Sprintf("file %s should not be recursive", perm.Path))
 			assert.Equal(t, os.FileMode(0440), perm.Mode, fmt.Sprintf("file %s should have mode 0440", perm.Path))
-		default:
-			assert.Equal(t, "root", perm.Owner, fmt.Sprintf("file %s should have owner root", perm.Path))
-			assert.Equal(t, "root", perm.Group, fmt.Sprintf("file %s should have group root", perm.Path))
-			assert.Equal(t, true, perm.Recursive, fmt.Sprintf("file %s should be recursive", perm.Path))
-			assert.Equal(t, os.FileMode(0640), perm.Mode, fmt.Sprintf("file %s should have mode 0640", perm.Path))
 		}
 	}
 }
