@@ -152,8 +152,8 @@ github.com/DataDog/datadog-go/v5 v5.8.2 h1:9IEfH1Mw9AjWwhAMqCAkhbxjuJeMxm2ARX2Vd
 github.com/DataDog/datadog-go/v5 v5.8.2/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47 h1:uh2sJ7hctv0J3tRfQDQfauCy6x45Ex/A4RdG4/aEOnk=
 github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47/go.mod h1:Mx5FrO5t4VF62KTT77HQDheyfGsbufrrBidd+jScicE=
-github.com/DataDog/datadog-traceroute v0.1.33 h1:Wd4NbyIuubSnMMGZ1F0f1ECConVv1VjOa28WViY+rDU=
-github.com/DataDog/datadog-traceroute v0.1.33/go.mod h1:sJBXljUoO4m8mcbOH4DCgwEsdq10a81WBCVw/oc1Nes=
+github.com/DataDog/datadog-traceroute v1.0.3 h1:84fcvLfsOmdm7T6+7Y07KmQfXJR8gjMdmD4j+vuf8Qo=
+github.com/DataDog/datadog-traceroute v1.0.3/go.mod h1:aA+OKmKRPghOH/DPIrepgLXos++CHZQ5L/uCCeaaNII=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec h1:Cm7Ksl+mKn9ev56CMpYtUs/rQriT4pmLlgaxzkZ8tXU=
 github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec/go.mod h1:zMOs5XpXrqK5KMLnQDkwwWKF2yVzN2TQGSrBHgPP+eY=
 github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f h1:7IRtVKVS+J5vlepf3RNsR37oe+qrTfRWJkpAzaiezFM=
@@ -544,8 +544,8 @@ github.com/cpuguy83/dockercfg v0.3.2/go.mod h1:sugsbF4//dDlL/i+S+rtpIWp+5h0BHJHf
 github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d/go.mod h1:maD7wRr/U5Z6m/iR4s+kqSMx2CaBsrgA7czyZG/E6dU=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
-github.com/creack/pty v1.1.23 h1:4M6+isWdcStXEf15G/RbrMPOQj1dZ7HPZCGwE4kOeP0=
-github.com/creack/pty v1.1.23/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
+github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
+github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
 github.com/cri-o/ocicni v0.4.3 h1:BfnrZrtr/F+o+b+yOguB1o6I4OzjieF3k3dN4MrsCJA=
 github.com/cri-o/ocicni v0.4.3/go.mod h1:RzIKSln5AT65hyyfGj3/gsfCpjiY1Y6rVK51Uc5YNzk=
 github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 h1:2Dx4IHfC1yHWI12AxQDJM1QbRCDfk6M+blLzlZCXdrc=

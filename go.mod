@@ -177,7 +177,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.73.2
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
-	github.com/DataDog/datadog-traceroute v0.1.33
+	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.10
@@ -980,7 +980,7 @@ require (
 	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/creack/pty v1.1.23
+	github.com/creack/pty v1.1.24
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1

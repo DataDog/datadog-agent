@@ -14,7 +14,13 @@ from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import create_tree, get_common_ancestor, get_current_branch, is_a_release_branch
+from tasks.libs.common.git import (
+    create_tree,
+    get_commit_sha,
+    get_common_ancestor,
+    get_current_branch,
+    is_a_release_branch,
+)
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
 from tasks.static_quality_gates.experimental_gates import (
@@ -502,6 +508,12 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     ancestor = get_common_ancestor(ctx, "HEAD")
+    current_commit = get_commit_sha(ctx)
+    # When on main branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/main
+    # is the current commit. In this case, use the parent commit as the ancestor instead.
+    if ancestor == current_commit:
+        ancestor = get_commit_sha(ctx, commit="HEAD~1")
+        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
     metric_handler.generate_relative_size(ctx, ancestor=ancestor, report_path="ancestor_static_gate_report.json")
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
