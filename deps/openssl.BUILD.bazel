@@ -165,7 +165,10 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_data_dirs = ["lib/pkgconfig"],
+    out_data_dirs = [
+        "lib/pkgconfig",
+        "ssl",
+    ],
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,
@@ -342,6 +345,11 @@ pkg_files(
     ),
 )
 
+pkg_files(
+    name = "ssl_dir_files",
+    srcs = [":ssl_dir"],
+)
+
 filegroup(
     name = "openssl_bin",
     srcs = [":openssl"],
@@ -368,6 +376,7 @@ pkg_install(
         ":openssl_hdr_files",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
+        ":ssl_dir_files",
     ] + select({
         "@platforms//os:windows": [
             ":import_lib_files",
