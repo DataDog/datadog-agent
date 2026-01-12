@@ -84,7 +84,7 @@
 /ci/templates/**                                     @DataDog/agent-devx
 
 # CI units
-/ci/units/agent.toml                                 @DataDog/agent-devx
+/ci/units/agent/**                                   @DataDog/agent-devx
 
 # Auto generated CI files
 /.ci/**                                              @DataDog/agent-devx

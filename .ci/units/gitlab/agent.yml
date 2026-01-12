@@ -12,9 +12,8 @@ unit:agent:
     include:
     - local: .gitlab/pipeline.yml
   rules:
-  - if: "$CI_PIPELINE_SOURCE =~ /^(pipeline|schedule|trigger|web)$/ && $TRIGGER_UNITS\
-      \ =~ /^all$|\bagent\b/"
-  - if: $CI_PIPELINE_SOURCE =~ /^(pipeline|schedule|trigger|web)$/
+  - if: $IS_UNIT_SELECTION && $TRIGGER_UNITS =~ /^all$|\bagent\b/
+  - if: $IS_UNIT_SELECTION
     when: never
   - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
   - if: $DDR_WORKFLOW_ID
@@ -63,7 +62,7 @@ unit:agent:
     - pyproject.toml
     - release.json
     - static-analysis.datadog.yml
-    - ci/units/agent.toml
+    - ci/units/agent/config.toml
   - changes:
       compare_to: $GIT_BASE_BRANCH
       paths: *id001

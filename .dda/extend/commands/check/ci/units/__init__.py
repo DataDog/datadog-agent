@@ -18,38 +18,24 @@ if TYPE_CHECKING:
 @pass_app
 def cmd(app: Application, *, fix: bool) -> None:
     import re
-    import tomllib
 
-    import msgspec
-    from utils.ci.config.model.unit import CIUnit
     from utils.ci.units import RegisteredCIUnit, unit_registration
 
-    config_dir = Path("ci", "units")
+    root_config_dir = Path("ci", "units")
     registry_dir = Path(".ci", "units")
     configured_units: set[str] = set()
     unrecoverable_errors = 0
     fixable_errors = 0
-    for config_file in config_dir.glob("*.toml"):
-        unit_id = config_file.stem
-        configured_units.add(unit_id)
+    for config_dir in root_config_dir.iterdir():
+        unit = RegisteredCIUnit(config_dir)
+        configured_units.add(unit.id)
         try:
-            data = tomllib.loads(config_file.read_text(encoding="utf-8"))
+            registry_file = registry_dir / unit.provider_name / f"{unit.id}.yml"
         except Exception as e:
-            app.display_error(f"Unable to parse CI unit config: {config_file}\n{e}")
+            app.display_error(f"Unable to load CI unit config: {unit.config_file}\n{e}")
             unrecoverable_errors += 1
             continue
 
-        try:
-            config = msgspec.convert(data, CIUnit)
-        except Exception as e:
-            app.display_error(f"Invalid CI unit config: {config_file}\n{e}")
-            unrecoverable_errors += 1
-            continue
-
-        unit = RegisteredCIUnit(id=unit_id, config=config, config_file=config_file.as_posix())
-        provider_name = msgspec.inspect.type_info(type(unit.config.provider)).tag
-
-        registry_file = registry_dir / provider_name / f"{unit_id}.yml"
         try:
             registry_file_contents = registry_file.read_text(encoding="utf-8")
         except Exception:
