@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build windows && npm && test
+//go:build windows && npm
 
 package usm
 
@@ -22,9 +22,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	"github.com/stretchr/testify/require"
+
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
-	"github.com/stretchr/testify/require"
 )
 
 // setupWindowsMonitor initializes the Windows driver and creates a USM monitor for testing.
@@ -66,66 +67,62 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 	return monitor
 }
 
-// getHTTPCfg returns a config with HTTP monitoring enabled.
-func getHTTPCfg() *config.Config {
-	cfg := config.New()
-	cfg.EnableHTTPMonitoring = true
-	return cfg
-}
+// HTTPEndpointValidator defines a function that checks if an HTTP endpoint is relevant and valid.
+// It receives the request key and stats, and should return true if this endpoint matches the expected criteria.
+type HTTPEndpointValidator func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool
 
-// getHTTPLikeProtocolStats retrieves HTTP stats from the monitor for the specified protocol type.
-func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
+// verifyHTTPStats iterates through HTTP stats and checks which of the expected endpoints are found.
+// Each validator in expectedEndpoints determines if an endpoint is "relevant" (matches the criteria) and passes validation.
+// Returns a map where keys are the indices of expectedEndpoints and values indicate if that endpoint was found.
+// This allows testing for multiple different endpoints in a single call.
+func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints ...HTTPEndpointValidator) map[int]bool {
 	t.Helper()
 
 	allStats := monitor.GetHTTPStats()
 	require.NotNil(t, allStats)
 
-	statsObj, ok := allStats[protocolType]
+	statsObj, ok := allStats[protocols.HTTP]
 	if !ok {
-		return make(map[http.Key]*http.RequestStats)
+		return make(map[int]bool)
 	}
 
-	httpStats, ok := statsObj.(map[http.Key]*http.RequestStats)
+	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
 	require.True(t, ok, "expected map[http.Key]*http.RequestStats, got %T", statsObj)
 
-	return httpStats
-}
+	// Track which expected endpoints were found
+	found := make(map[int]bool)
 
-// verifyHTTPStats checks if HTTP stats matching the criteria exist and optionally validates them with a custom function.
-// Returns true if stats are found and pass validation (if provided).
-func verifyHTTPStats(t *testing.T, monitor Monitor, serverPort int, testPath string, expectedStatus int, validateFn func(*testing.T, *http.RequestStat) bool) bool {
-	t.Helper()
-
-	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
-
+	// Iterate through all captured HTTP stats
 	for key, reqStats := range stats {
 		t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
 
-		if key.Method != http.MethodGet {
-			continue
-		}
-		if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
-			continue
-		}
-		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-			continue
-		}
-
-		if stat := reqStats.Data[uint16(expectedStatus)]; stat != nil && stat.Count >= 1 {
-			// If no custom validation, return true
-			if validateFn == nil {
-				return true
+		// Check against each expected endpoint validator
+		for i, validator := range expectedEndpoints {
+			if !found[i] && validator(t, key, reqStats) {
+				found[i] = true
+				t.Logf("Matched expected endpoint #%d", i)
 			}
-			// Run custom validation
-			return validateFn(t, stat)
 		}
 	}
 
-	return false
+	return found
+}
+
+// allEndpointsFound is a helper that checks if all expected endpoints were found.
+func allEndpointsFound(found map[int]bool, expectedCount int) bool {
+	if len(found) != expectedCount {
+		return false
+	}
+	for i := 0; i < expectedCount; i++ {
+		if !found[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // verifyIISDynamicTags validates that IIS-specific dynamic tags are present in the request stats.
-func verifyIISDynamicTags(t *testing.T, stat *http.RequestStat, expectedTags map[string]struct{}) bool {
+func verifyIISDynamicTags(t *testing.T, stat *http.RequestStat, expectedTags map[string]struct{}) {
 	t.Helper()
 
 	// Verify IIS dynamic tags are present
@@ -139,20 +136,12 @@ func verifyIISDynamicTags(t *testing.T, stat *http.RequestStat, expectedTags map
 	}
 
 	// Verify all expected tags are present
-	for tag := range expectedTags {
-		require.Contains(t, statsTags, tag, "Expected IIS tag %s to be present", tag)
-	}
+	require.Subset(t, expectedTags, statsTags, "Expected IIS tags to be present in stats")
 	t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
-	return true
 }
 
 // TestHTTPStats tests basic HTTP monitoring functionality on Windows.
 func TestHTTPStats(t *testing.T) {
-	const (
-		expectedStatus = 204
-		testPath       = "/test"
-	)
-
 	serverPort := tracetestutil.FreeTCPPort(t)
 	serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
 	t.Logf("Using server address: %s (port: %d)", serverAddr, serverPort)
@@ -164,15 +153,54 @@ func TestHTTPStats(t *testing.T) {
 
 	monitor := setupWindowsMonitor(t, getHTTPCfg())
 
-	resp, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusNoContent) + testPath)
+	// Make first request: GET /test with 204 status
+	resp1, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer resp1.Body.Close()
+
+	// Make second request: GET /api/health with 200 status
+	resp2, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusOK) + "/api/health")
+	require.NoError(t, err)
+	defer resp2.Body.Close()
 
 	srvDoneFn()
 
+	// Verify both endpoints were captured by the monitor
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, serverPort, testPath, expectedStatus, nil)
-	}, 3*time.Second, 100*time.Millisecond, "http connection not found for %s", serverAddr)
+		found := verifyHTTPStats(t, monitor,
+			// Endpoint 1: GET /test with 204 status
+			func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+				if key.Method != http.MethodGet {
+					return false
+				}
+				if !strings.HasSuffix(key.Path.Content.Get(), "/test") {
+					return false
+				}
+				if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+					return false
+				}
+
+				stat := reqStats.Data[204]
+				return stat != nil && stat.Count >= 1
+			},
+			// Endpoint 2: GET /api/health with 200 status
+			func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+				if key.Method != http.MethodGet {
+					return false
+				}
+				if !strings.HasSuffix(key.Path.Content.Get(), "/api/health") {
+					return false
+				}
+				if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+					return false
+				}
+
+				stat := reqStats.Data[200]
+				return stat != nil && stat.Count >= 1
+			},
+		)
+		return allEndpointsFound(found, 2)
+	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
 // TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.
@@ -227,8 +255,28 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 
 	// Verify the monitor captured the HTTP traffic
 	require.Eventuallyf(t, func() bool {
-		return verifyHTTPStats(t, monitor, serverPort, testPath, expectedStatus, func(t *testing.T, stat *http.RequestStat) bool {
-			return verifyIISDynamicTags(t, stat, expectedTags)
+		found := verifyHTTPStats(t, monitor, func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+			// Check if this is the endpoint we care about
+			if key.Method != http.MethodGet {
+				return false
+			}
+			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
+				return false
+			}
+			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+				return false
+			}
+
+			// Check if we have the expected status with at least one request
+			stat := reqStats.Data[uint16(expectedStatus)]
+			if stat == nil || stat.Count < 1 {
+				return false
+			}
+
+			// Verify IIS-specific dynamic tags
+			verifyIISDynamicTags(t, stat, expectedTags)
+			return true
 		})
+		return allEndpointsFound(found, 1)
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
