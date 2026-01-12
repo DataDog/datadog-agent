@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from invoke.exceptions import Exit
 
@@ -181,7 +181,7 @@ def query_metrics(query, from_time, to_time):
         if isinstance(time_str, int):
             return time_str
         if time_str == "now":
-            return int(datetime.now().timestamp())
+            return int(datetime.now(timezone.utc).timestamp())
         if time_str.startswith("now-"):
             duration = time_str[4:]
             if duration.endswith("d"):
@@ -192,7 +192,7 @@ def query_metrics(query, from_time, to_time):
                 delta = timedelta(minutes=int(duration[:-1]))
             else:
                 raise ValueError(f"Unknown time format: {time_str}")
-            return int((datetime.now() - delta).timestamp())
+            return int((datetime.now(timezone.utc) - delta).timestamp())
         raise ValueError(f"Unknown time format: {time_str}")
 
     start = parse_time(from_time)
