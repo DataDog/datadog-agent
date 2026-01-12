@@ -93,7 +93,7 @@ def get_file_modifications(
 
     base_branch = base_branch or _get_release_json_value('base_branch')
 
-    last_main_commit = get_common_ancestor(ctx, "HEAD", base_branch)
+    last_main_commit = get_common_ancestor(ctx, "HEAD", base_branch, try_fetch=True)
 
     flags = '--no-renames' if no_renames else ''
 
@@ -167,7 +167,7 @@ def get_full_ref_name(ref: str, remote="origin") -> str:
     return remote_slash + ref
 
 
-def get_common_ancestor(ctx, branch, base=None, try_fetch=True, hide=True) -> str:
+def get_common_ancestor(ctx, branch, base=None, try_fetch=False, hide=True) -> str:
     """
     Get the common ancestor between two branches.
 
