@@ -48,13 +48,8 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-// Deps contains optional dependencies for bundles that need them.
-type Deps struct {
-	Traceroute traceroute.Component
-}
-
 // NewRegistry creates a new bundle registry.
-func NewRegistry(configuration *config.Config, deps Deps) *Registry {
+func NewRegistry(configuration *config.Config, traceroute traceroute.Component) *Registry {
 	bundles := map[string]types.Bundle{
 		"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
 		"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
@@ -84,13 +79,10 @@ func NewRegistry(configuration *config.Config, deps Deps) *Registry {
 		"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
 		"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
 		"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+		"com.datadoghq.networkpath":                com_datadoghq_networkpath.NewNetworkPath(traceroute),
 		"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
 		"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
 		"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
-	}
-
-	if deps.Traceroute != nil {
-		bundles["com.datadoghq.networkpath"] = com_datadoghq_networkpath.NewNetworkPath(deps.Traceroute)
 	}
 
 	return &Registry{
