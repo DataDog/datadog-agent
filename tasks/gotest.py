@@ -325,18 +325,19 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt} std cmd'
+    # build flags are used both for building the stdlib and to run the tests
+    gobuild_flags = '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt} {trimpath_opt}'
+
+    stdlib_build_cmd = f'go build {verbose} {gobuild_flags} std cmd'
     rerun_coverage_fix = '--raw-command {cov_test_path}' if coverage else ""
     gotestsum_flags = (
         '{junit_file_flag} {json_flag} --format {gotestsum_format} {rerun_fails} --packages="{packages}" '
         + rerun_coverage_fix
     )
-    gobuild_flags = (
-        '-mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" -ldflags="{ldflags}" {build_cpus} {race_opt}'
-    )
     govet_flags = '-vet=off'
-    gotest_flags = '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args} {trimpath_opt}'
+    gotest_flags = (
+        '{verbose} {test_cpus} -timeout {timeout}s -short {covermode_opt} {test_run_arg} {nocache} {extra_args}'
+    )
     cmd = f'gotestsum {gotestsum_flags} -- {gobuild_flags} {govet_flags} {gotest_flags}'
     args = {
         "go_mod": go_mod,
