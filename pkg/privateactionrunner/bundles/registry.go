@@ -6,6 +6,7 @@
 package privatebundles
 
 import (
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	com_datadoghq_gitlab_branches "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/branches"
 	com_datadoghq_gitlab_commits "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/gitlab/commits"
@@ -35,51 +36,65 @@ import (
 	com_datadoghq_kubernetes_core "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/core"
 	com_datadoghq_kubernetes_customresources "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources"
 	com_datadoghq_mongodb "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/mongodb"
+	com_datadoghq_networkpath "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/networkpath"
 	com_datadoghq_postgresql "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/postgresql"
 	com_datadoghq_script "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script"
 	com_datadoghq_temporal "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/temporal"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
+// Registry holds all available bundles.
 type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config) *Registry {
+// Deps contains optional dependencies for bundles that need them.
+type Deps struct {
+	Traceroute traceroute.Component
+}
+
+// NewRegistry creates a new bundle registry.
+func NewRegistry(configuration *config.Config, deps Deps) *Registry {
+	bundles := map[string]types.Bundle{
+		"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
+		"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
+		"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
+		"com.datadoghq.gitlab.deployments":         com_datadoghq_gitlab_deployments.NewGitlabDeployments(),
+		"com.datadoghq.gitlab.environments":        com_datadoghq_gitlab_environments.NewGitlabEnvironments(),
+		"com.datadoghq.gitlab.graphql":             com_datadoghq_gitlab_graphql.NewGitlabGraphql(),
+		"com.datadoghq.gitlab.groups":              com_datadoghq_gitlab_groups.NewGitlabGroups(),
+		"com.datadoghq.gitlab.issues":              com_datadoghq_gitlab_issues.NewGitlabIssues(),
+		"com.datadoghq.gitlab.jobs":                com_datadoghq_gitlab_jobs.NewGitlabJobs(),
+		"com.datadoghq.gitlab.labels":              com_datadoghq_gitlab_labels.NewGitlabLabels(),
+		"com.datadoghq.gitlab.members":             com_datadoghq_gitlab_members.NewGitlabMembers(),
+		"com.datadoghq.gitlab.mergerequests":       com_datadoghq_gitlab_merge_requests.NewGitlabMergeRequests(),
+		"com.datadoghq.gitlab.notes":               com_datadoghq_gitlab_notes.NewGitlabNotes(),
+		"com.datadoghq.gitlab.pipelines":           com_datadoghq_gitlab_pipelines.NewGitlabPipelines(),
+		"com.datadoghq.gitlab.projects":            com_datadoghq_gitlab_projects.NewGitlabProjects(),
+		"com.datadoghq.gitlab.protectedbranches":   com_datadoghq_gitlab_protected_branches.NewGitlabProtectedBranches(),
+		"com.datadoghq.gitlab.repositories":        com_datadoghq_gitlab_repositories.NewGitlabRepositories(),
+		"com.datadoghq.gitlab.repositoryfiles":     com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
+		"com.datadoghq.gitlab.tags":                com_datadoghq_gitlab_tags.NewGitlabTags(),
+		"com.datadoghq.gitlab.users":               com_datadoghq_gitlab_users.NewGitlabUsers(),
+		"com.datadoghq.http":                       com_datadoghq_http.NewHttpBundle(configuration),
+		"com.datadoghq.jenkins":                    com_datadoghq_jenkins.NewJenkins(),
+		"com.datadoghq.kubernetes.apiextensions":   com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
+		"com.datadoghq.kubernetes.apps":            com_datadoghq_kubernetes_apps.NewKubernetesApps(),
+		"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
+		"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
+		"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
+		"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
+		"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
+		"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
+		"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
+	}
+
+	if deps.Traceroute != nil {
+		bundles["com.datadoghq.networkpath"] = com_datadoghq_networkpath.NewNetworkPath(deps.Traceroute)
+	}
+
 	return &Registry{
-		Bundles: map[string]types.Bundle{
-			"com.datadoghq.gitlab.branches":            com_datadoghq_gitlab_branches.NewGitlabBranches(),
-			"com.datadoghq.gitlab.commits":             com_datadoghq_gitlab_commits.NewGitlabCommits(),
-			"com.datadoghq.gitlab.customattributes":    com_datadoghq_gitlab_customattributes.NewGitlabCustomAttributes(),
-			"com.datadoghq.gitlab.deployments":         com_datadoghq_gitlab_deployments.NewGitlabDeployments(),
-			"com.datadoghq.gitlab.environments":        com_datadoghq_gitlab_environments.NewGitlabEnvironments(),
-			"com.datadoghq.gitlab.graphql":             com_datadoghq_gitlab_graphql.NewGitlabGraphql(),
-			"com.datadoghq.gitlab.groups":              com_datadoghq_gitlab_groups.NewGitlabGroups(),
-			"com.datadoghq.gitlab.issues":              com_datadoghq_gitlab_issues.NewGitlabIssues(),
-			"com.datadoghq.gitlab.jobs":                com_datadoghq_gitlab_jobs.NewGitlabJobs(),
-			"com.datadoghq.gitlab.labels":              com_datadoghq_gitlab_labels.NewGitlabLabels(),
-			"com.datadoghq.gitlab.members":             com_datadoghq_gitlab_members.NewGitlabMembers(),
-			"com.datadoghq.gitlab.mergerequests":       com_datadoghq_gitlab_merge_requests.NewGitlabMergeRequests(),
-			"com.datadoghq.gitlab.notes":               com_datadoghq_gitlab_notes.NewGitlabNotes(),
-			"com.datadoghq.gitlab.pipelines":           com_datadoghq_gitlab_pipelines.NewGitlabPipelines(),
-			"com.datadoghq.gitlab.projects":            com_datadoghq_gitlab_projects.NewGitlabProjects(),
-			"com.datadoghq.gitlab.protectedbranches":   com_datadoghq_gitlab_protected_branches.NewGitlabProtectedBranches(),
-			"com.datadoghq.gitlab.repositories":        com_datadoghq_gitlab_repositories.NewGitlabRepositories(),
-			"com.datadoghq.gitlab.repositoryfiles":     com_datadoghq_gitlab_repository_files.NewGitlabRepositoryFiles(),
-			"com.datadoghq.gitlab.tags":                com_datadoghq_gitlab_tags.NewGitlabTags(),
-			"com.datadoghq.gitlab.users":               com_datadoghq_gitlab_users.NewGitlabUsers(),
-			"com.datadoghq.http":                       com_datadoghq_http.NewHttpBundle(configuration),
-			"com.datadoghq.jenkins":                    com_datadoghq_jenkins.NewJenkins(),
-			"com.datadoghq.kubernetes.apiextensions":   com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
-			"com.datadoghq.kubernetes.apps":            com_datadoghq_kubernetes_apps.NewKubernetesApps(),
-			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
-			"com.datadoghq.kubernetes.core":            com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources": com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(),
-			"com.datadoghq.mongodb":                    com_datadoghq_mongodb.NewMongoDB(),
-			"com.datadoghq.postgresql":                 com_datadoghq_postgresql.NewPostgreSQL(),
-			"com.datadoghq.script":                     com_datadoghq_script.NewScript(),
-			"com.datadoghq.temporal":                   com_datadoghq_temporal.NewTemporal(),
-		},
+		Bundles: bundles,
 	}
 }
 

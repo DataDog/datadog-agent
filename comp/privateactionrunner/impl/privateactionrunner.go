@@ -15,18 +15,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
+	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // IsEnabled checks if the private action runner is enabled in the configuration
@@ -36,10 +39,11 @@ func IsEnabled(cfg config.Component) bool {
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
-	Config    config.Component
-	Log       log.Component
-	Lifecycle compdef.Lifecycle
-	RcClient  rcclient.Component
+	Config     config.Component
+	Log        log.Component
+	Lifecycle  compdef.Lifecycle
+	RcClient   rcclient.Component
+	Traceroute option.Option[traceroute.Component]
 }
 
 // Provides defines the output of the privateactionrunner component
@@ -95,7 +99,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(cfg)
 
-	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient)
+	deps := privatebundles.Deps{}
+	if tr, ok := reqs.Traceroute.Get(); ok {
+		deps.Traceroute = tr
+	}
+
+	r, err := runners.NewWorkflowRunner(cfg, keysManager, taskVerifier, opmsClient, deps)
 	if err != nil {
 		return Provides{}, err
 	}

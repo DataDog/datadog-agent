@@ -40,9 +40,10 @@ func NewWorkflowRunner(
 	keysManager taskverifier.KeysManager,
 	verifier *taskverifier.TaskVerifier,
 	opmsClient opms.Client,
+	deps privatebundles.Deps,
 ) (*WorkflowRunner, error) {
 	return &WorkflowRunner{
-		registry:     privatebundles.NewRegistry(configuration),
+		registry:     privatebundles.NewRegistry(configuration, deps),
 		opmsClient:   opmsClient,
 		resolver:     resolver.NewPrivateCredentialResolver(),
 		config:       configuration,
