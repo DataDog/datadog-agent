@@ -14,6 +14,14 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
+// Aggregator is the interface for multiline log processing.
+// Both combining and detecting implementations satisfy this interface.
+type Aggregator interface {
+	Process(msg *message.Message, label Label)
+	Flush()
+	IsEmpty() bool
+}
+
 type bucket struct {
 	tagTruncatedLogs bool
 	tagMultiLineLogs bool
@@ -119,8 +127,8 @@ func (b *bucket) incrementLineCount() {
 	b.lineCount++
 }
 
-// Aggregator aggregates multiline logs with a given label.
-type Aggregator struct {
+// combiningAggregator aggregates multiline logs with a given label.
+type combiningAggregator struct {
 	outputFn           func(m *message.Message)
 	bucket             *bucket
 	maxContentSize     int
@@ -128,14 +136,14 @@ type Aggregator struct {
 	linesCombinedInfo  *status.CountInfo
 }
 
-// NewAggregator creates a new aggregator.
-func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) *Aggregator {
+// NewCombiningAggregator creates a new combining aggregator.
+func NewCombiningAggregator(outputFn func(m *message.Message), maxContentSize int, tagTruncatedLogs bool, tagMultiLineLogs bool, tailerInfo *status.InfoRegistry) Aggregator {
 	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
 	linesCombinedInfo := status.NewCountInfo("Lines Combined")
 	tailerInfo.Register(multiLineMatchInfo)
 	tailerInfo.Register(linesCombinedInfo)
 
-	return &Aggregator{
+	return &combiningAggregator{
 		outputFn: outputFn,
 		bucket: &bucket{
 			buffer:           bytes.NewBuffer(nil),
@@ -152,8 +160,8 @@ func NewAggregator(outputFn func(m *message.Message), maxContentSize int, tagTru
 	}
 }
 
-// Aggregate aggregates a multiline log using a label.
-func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
+// Process processes a multiline log using a label.
+func (a *combiningAggregator) Process(msg *message.Message, label Label) {
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
@@ -204,7 +212,7 @@ func (a *Aggregator) Aggregate(msg *message.Message, label Label) {
 }
 
 // Flush flushes the aggregator.
-func (a *Aggregator) Flush() {
+func (a *combiningAggregator) Flush() {
 	if a.bucket.isEmpty() {
 		a.bucket.reset()
 		return
@@ -213,6 +221,86 @@ func (a *Aggregator) Flush() {
 }
 
 // IsEmpty returns true if the bucket is empty.
-func (a *Aggregator) IsEmpty() bool {
+func (a *combiningAggregator) IsEmpty() bool {
 	return a.bucket.isEmpty()
+}
+
+// detectingAggregator detects multiline groups and tags the start line without aggregating.
+// It outputs messages immediately for performance.
+type detectingAggregator struct {
+	outputFn              func(*message.Message)
+	previousMsg           *message.Message
+	previousWasStartGroup bool
+	multiLineMatchInfo    *status.CountInfo
+}
+
+// NewDetectingAggregator creates a new detecting aggregator.
+func NewDetectingAggregator(outputFn func(*message.Message), tailerInfo *status.InfoRegistry) Aggregator {
+	multiLineMatchInfo := status.NewCountInfo("MultiLine matches")
+	tailerInfo.Register(multiLineMatchInfo)
+
+	return &detectingAggregator{
+		outputFn:           outputFn,
+		multiLineMatchInfo: multiLineMatchInfo,
+	}
+}
+
+// Process processes a message with a label and outputs immediately.
+func (d *detectingAggregator) Process(msg *message.Message, label Label) {
+	// Handle aggregate label
+	if label == aggregate {
+		if d.previousMsg != nil && d.previousWasStartGroup {
+			// Tag the previous message as start of multiline group
+			tag := "auto_multiline_detected:true"
+			d.previousMsg.ParsingExtra.Tags = append(d.previousMsg.ParsingExtra.Tags, tag)
+			d.outputFn(d.previousMsg)
+			d.previousMsg = nil
+			d.previousWasStartGroup = false
+		} else if d.previousMsg != nil {
+			// Previous message wasn't a startGroup, so just output it without tags
+			d.outputFn(d.previousMsg)
+			d.previousMsg = nil
+			d.previousWasStartGroup = false
+		}
+		// Output the current aggregate message immediately
+		d.outputFn(msg)
+		return
+	}
+
+	// Handle noAggregate label: output immediately without tags
+	if label == noAggregate {
+		// Flush any pending previous message first
+		if d.previousMsg != nil {
+			d.outputFn(d.previousMsg)
+			d.previousMsg = nil
+			d.previousWasStartGroup = false
+		}
+		d.outputFn(msg)
+		return
+	}
+
+	// Handle startGroup: flush previous and store current
+	if label == startGroup {
+		if d.previousMsg != nil {
+			d.outputFn(d.previousMsg)
+		}
+		d.multiLineMatchInfo.Add(1)
+		d.previousMsg = msg
+		d.previousWasStartGroup = true
+		return
+	}
+}
+
+// Flush outputs any pending message (called on handler flush).
+func (d *detectingAggregator) Flush() {
+	if d.previousMsg != nil {
+		d.outputFn(d.previousMsg)
+		d.previousMsg = nil
+		d.previousWasStartGroup = false
+	}
+}
+
+// IsEmpty returns true if there's no pending message.
+func (d *detectingAggregator) IsEmpty() bool {
+	return d.previousMsg == nil
 }

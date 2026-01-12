@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
@@ -156,10 +157,24 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+			aggregator := automultilinedetection.NewCombiningAggregator(
+				outputFn,
+				maxContentSize,
+				pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+				pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+				tailerInfo)
+			// Read JSON aggregation setting from config, can be overridden by source settings
+			enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+			if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
+				enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
+			}
+			lineHandler = NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
 		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
 			// Detection-only mode: tags lines but doesn't aggregate them
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, true)
+			// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
+			// while only tagging everything else
+			aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+			lineHandler = NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
