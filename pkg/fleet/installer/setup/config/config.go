@@ -233,6 +233,16 @@ type LogProcessingRule struct {
 	Pattern string `yaml:"pattern" json:"pattern"`
 }
 
+// ObfuscationConfig represents the configuration for obfuscation
+type ObfuscationConfig struct {
+	CreditCard CreditCardObfuscationConfig `yaml:"credit_card,omitempty"`
+}
+
+// CreditCardObfuscationConfig represents the configuration for credit card obfuscation
+type CreditCardObfuscationConfig struct {
+	KeepValues []string `yaml:"keep_values,omitempty"`
+}
+
 // ApplicationMonitoringConfig represents the configuration for the application monitoring
 type ApplicationMonitoringConfig struct {
 	Default APMConfigurationDefault `yaml:"apm_configuration_default,omitempty"`
