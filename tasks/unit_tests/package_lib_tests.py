@@ -131,17 +131,21 @@ class TestGetPreviousSize(unittest.TestCase):
 
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_found_on_dev(self):
-        c = MockContext(run={'git merge-base HEAD origin/main': Result('grand_ma')})
+        c = MockContext(
+            run={'git fetch origin main': Result(''), 'git merge-base HEAD origin/main': Result('grand_ma')}
+        )
         self.assertEqual(get_ancestor(c, self.package_sizes, False), "grand_ma")
 
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'puppet'})
     def test_not_found_on_dev(self):
-        c = MockContext(run={'git merge-base HEAD origin/main': Result('grand_pa')})
+        c = MockContext(
+            run={'git fetch origin main': Result(''), 'git merge-base HEAD origin/main': Result('grand_pa')}
+        )
         self.assertEqual(get_ancestor(c, self.package_sizes, False), "ma")
 
     @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'main'})
     def test_on_main(self):
-        c = MockContext(run={'git merge-base HEAD origin/main': Result('kirk')})
+        c = MockContext(run={'git fetch origin main': Result(''), 'git merge-base HEAD origin/main': Result('kirk')})
         self.assertEqual(get_ancestor(c, self.package_sizes, True), "kirk")
 
 
@@ -201,6 +205,7 @@ class TestCompare(unittest.TestCase):
         s = PackageSize(arch, flavor, os_name, 2001)
         c = MockContext(
             run={
+                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('12345'),
                 f"dpkg-deb --info {self.pkg_root}/{flavor}_7_{arch}.{os_name} | grep Installed-Size | cut -d : -f 2 | xargs": Result(
                     42
@@ -224,6 +229,7 @@ class TestCompare(unittest.TestCase):
         s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
+                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
@@ -244,6 +250,7 @@ class TestCompare(unittest.TestCase):
         s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
+                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(68004999),
             }
@@ -263,6 +270,7 @@ class TestCompare(unittest.TestCase):
         s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
+                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.{os_name} | grep Size | cut -d : -f 2 | xargs": Result(
                     69000000
@@ -285,6 +293,7 @@ class TestCompare(unittest.TestCase):
         s = PackageSize(arch, flavor, os_name, 70000000)
         c = MockContext(
             run={
+                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(
                     139000000
