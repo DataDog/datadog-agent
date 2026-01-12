@@ -337,7 +337,7 @@ variables:
 # Rules used to define whether a pipeline should run, and with which variables
 #
 workflow:
-  name: $UNIT_DISPLAY_NAME
+  name: $UNIT_DISPLAY_NAME | $CI_COMMIT_TITLE
   rules:
     - <<: *if_main_branch
       variables:

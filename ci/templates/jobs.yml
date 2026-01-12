@@ -1,3 +1,37 @@
 .job:no-clone:
   variables:
     GIT_STRATEGY: none
+
+.job:unit:base:
+  variables:
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    PARENT_PIPELINE_SOURCE: $CI_PIPELINE_SOURCE
+
+.job:unit:dynamic:generate:
+  extends:
+  - .runner:linux:arm64
+  - .image:build:linux
+  stage: unit-generate
+  needs:
+  - job: validate-units
+  script:
+  - $UNIT_GENERATOR_COMMAND > pipeline.yml
+  artifacts:
+    paths:
+    - pipeline.yml
+
+.job:unit:dynamic:trigger:
+  stage: unit-trigger
+  trigger:
+    strategy: depend
+    forward:
+      pipeline_variables: true
+
+.job:unit:static:trigger:
+  stage: unit-trigger
+  needs:
+  - job: validate-units
+  trigger:
+    strategy: depend
+    forward:
+      pipeline_variables: true

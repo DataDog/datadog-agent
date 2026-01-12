@@ -49,9 +49,8 @@ def unit_registration(unit: RegisteredCIUnit) -> str:
 def _gitlab_static_unit_registration(unit: RegisteredCIUnit) -> str:
     data = {
         f"unit:{unit.id}": {
-            "extends": [".unit:static:trigger"],
+            "extends": [".job:unit:base", ".job:unit:static:trigger"],
             "variables": {
-                "PARENT_PIPELINE_ID": "$CI_PIPELINE_ID",
                 "UNIT_ID": unit.id,
                 "UNIT_DISPLAY_NAME": unit.config.name,
             },
@@ -67,9 +66,8 @@ def _gitlab_dynamic_unit_registration(unit: RegisteredCIUnit) -> str:
     generate_job_name = f"{trigger_job_name}:generate"
     data = {
         generate_job_name: {
-            "extends": [".unit:dynamic:generate"],
+            "extends": [".job:unit:dynamic:generate"],
             "variables": {
-                "PARENT_PIPELINE_ID": "$CI_PIPELINE_ID",
                 "UNIT_ID": unit.id,
                 "UNIT_DISPLAY_NAME": unit.config.name,
                 "UNIT_GENERATOR_COMMAND": unit.config.provider.pipeline.command,
@@ -77,7 +75,7 @@ def _gitlab_dynamic_unit_registration(unit: RegisteredCIUnit) -> str:
             "rules": _gitlab_generate_rules(unit),
         },
         trigger_job_name: {
-            "extends": [".unit:dynamic:trigger"],
+            "extends": [".job:unit:base", ".job:unit:dynamic:trigger"],
             "variables": {
                 "UNIT_ID": unit.id,
                 "UNIT_DISPLAY_NAME": unit.config.name,
@@ -100,13 +98,17 @@ def _gitlab_generate_rules(unit: RegisteredCIUnit) -> list[dict[str, Any]]:
     if unit.config.trigger.watch_config and unit.config_file not in patterns:
         patterns.append(unit.config_file)
 
-    # Disallow tags by default
-    if not unit.config.trigger.allow_tags:
-        rules.append({"when": "never", "if": "$CI_COMMIT_TAG"})
-
     # Allow manual triggering via explicit unit ID or `all`
     if unit.config.trigger.allow_manual:
-        rules.append({"if": rf"$TRIGGER_UNITS =~ /^all$|\b{unit.id}\b/"})
+        allowed_sources = {"pipeline", "schedule", "trigger", "web"}
+        sources_condition = rf"$CI_PIPELINE_SOURCE =~ /^({'|'.join(sorted(allowed_sources))})$/"
+        rules.extend(
+            (
+                {"if": f"{sources_condition} && $TRIGGER_UNITS =~ /^all$|\b{unit.id}\b/"},
+                # Skip if units were selectable and the unit was not included
+                {"if": sources_condition, "when": "never"},
+            )
+        )
 
     # Add the unit-defined rules before change detection to allow for more control
     rules.extend(to_builtins(rule) for rule in unit.config.provider.rules)

@@ -25,10 +25,6 @@ class CIUnitTrigger(Struct, **default_settings):
         bool,
         Meta(description="Whether the unit can be triggered manually"),
     ] = field(name="allow-manual", default=True)
-    allow_tags: Annotated[
-        bool,
-        Meta(description="Whether the unit can be triggered by tags"),
-    ] = field(name="allow-tags", default=False)
 
     def __post_init__(self) -> None:
         patterns_to_indices = {}

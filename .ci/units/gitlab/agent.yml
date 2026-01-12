@@ -3,21 +3,22 @@
 #   dda check ci units --fix
 unit:agent:
   extends:
-  - .unit:static:trigger
+  - .job:unit:base
+  - .job:unit:static:trigger
   variables:
-    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     UNIT_ID: agent
     UNIT_DISPLAY_NAME: Agent CI
   trigger:
     include:
     - local: .gitlab/pipeline.yml
   rules:
-  - when: never
-    if: $CI_COMMIT_TAG
-  - if: $TRIGGER_UNITS =~ /^all$|\bagent\b/
+  - if: "$CI_PIPELINE_SOURCE =~ /^(pipeline|schedule|trigger|web)$/ && $TRIGGER_UNITS\
+      \ =~ /^all$|\bagent\b/"
+  - if: $CI_PIPELINE_SOURCE =~ /^(pipeline|schedule|trigger|web)$/
+    when: never
   - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+\.x$/
-  - if: $DEPLOY_AGENT == "true" || $DEPLOY_INSTALLER == "true" || $DDR_WORKFLOW_ID
-      != "null"
+  - if: $DDR_WORKFLOW_ID
+  - if: $CI_COMMIT_TAG && ($DEPLOY_AGENT == "true" || $DEPLOY_INSTALLER == "true")
   - if: $CI_COMMIT_BRANCH =~ /^(main|[0-9]+\.[0-9]+\.x)$/
     changes: &id001
     - .dda/**/*

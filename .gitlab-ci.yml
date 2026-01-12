@@ -30,28 +30,3 @@ validate-units:
   stage: .pre
   script:
   - dda check ci units
-
-.unit:dynamic:generate:
-  extends:
-  - .runner:linux:arm64
-  - .image:build:linux
-  stage: unit-generate
-  needs:
-  - job: validate-units
-  script:
-  - $UNIT_GENERATOR_COMMAND > pipeline.yml
-  artifacts:
-    paths:
-    - pipeline.yml
-
-.unit:dynamic:trigger:
-  stage: unit-trigger
-  trigger:
-    strategy: depend
-
-.unit:static:trigger:
-  stage: unit-trigger
-  needs:
-  - job: validate-units
-  trigger:
-    strategy: depend

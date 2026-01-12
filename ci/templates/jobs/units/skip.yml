@@ -2,9 +2,12 @@ spec:
   inputs:
     message:
       type: string
-      default: Unit $UNIT_ID does not need to run
+      default: "Unit does not need to run: $UNIT_ID"
 
 ---
+
+workflow:
+  name: "SKIPPED: $UNIT_DISPLAY_NAME | $CI_COMMIT_TITLE"
 
 unit:skip:
   extends:
