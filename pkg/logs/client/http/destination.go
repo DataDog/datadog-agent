@@ -100,7 +100,6 @@ type Destination struct {
 // NewDestination returns a new Destination.
 // minConcurrency denotes the minimum number of concurrent http requests the pipeline will allow at once.
 // maxConcurrency represents the maximum number of concurrent http requests, reachable when the client is experiencing a large latency in sends.
-// TODO: add support for SOCKS5
 func NewDestination(endpoint config.Endpoint,
 	contentType string,
 	destinationsContext *client.DestinationsContext,
@@ -333,6 +332,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		// this can happen when the method or the url are valid.
 		return err
 	}
+
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)

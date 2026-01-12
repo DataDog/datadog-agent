@@ -96,7 +96,6 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 				log.Warn(err)
 				continue
 			}
-			// TODO: handle timeouts with ctx.
 			conn, err = dialer.Dial("tcp", cm.address())
 		} else {
 			var dialer net.Dialer

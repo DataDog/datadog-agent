@@ -28,19 +28,42 @@ import (
 // ProcessID is a unique identifier for a process.
 type ProcessID uint32
 
+// timeWindow represents a time range for process discovery based on how long
+// a process has been alive. The window advances with each scan, capturing
+// processes that have "aged into" the eligibility threshold.
+type timeWindow struct {
+	// startDelay is how long a process must be alive before being eligible.
+	startDelay ticks
+}
+
+// contains checks if a process start time falls within this window for the
+// given current time.
+func (w *timeWindow) contains(startTime, now, lastScan ticks) bool {
+	lastWatermark := computeWatermark(lastScan, w.startDelay)
+	nextWatermark := computeWatermark(now, w.startDelay)
+	return startTime > lastWatermark && startTime <= nextWatermark
+}
+
+// computeNextWatermark calculates the upper bound of the current time window.
+func computeWatermark(now ticks, delay ticks) ticks {
+	if now < delay {
+		return 0
+	}
+	return now - delay
+}
+
 // Scanner discovers Go processes for instrumentation using a watermark-based
 // algorithm. Processes are analyzed exactly once when they've been alive for
-// at least startDelay. Processes that exit before startDelay are never
-// analyzed.
+// at least the duration specified by one of the time windows. Processes that
+// exit before becoming eligible are never analyzed.
 //
 // Thread-safety: Scan is not thread-safe, use from a single goroutine only.
 type Scanner struct {
-
-	// startDelay is how long a process must be alive before analysis.
-	startDelay ticks
-
-	// lastWatermark is the upper bound of the previous scan's time window.
-	lastWatermark ticks
+	// lastScan is the last scan time in ticks since boot.
+	lastScan ticks
+	// windows defines the time windows for process eligibility. A process is
+	// analyzed if its start time falls within any of these windows.
+	windows []timeWindow
 
 	// nowTicks returns the current time in ticks since boot.
 	nowTicks func() (ticks, error)
@@ -62,20 +85,35 @@ type Scanner struct {
 
 	// resolveExecutable resolves the executable metadata for a process.
 	resolveExecutable func(pid int32) (process.Executable, error)
+
+	// startTimeCache caches process start times keyed by PID.
+	startTimeCache startTimeCache
 }
 
 // NewScanner creates a new Scanner that discovers processes in the given
-// procfs root that have been alive for at least startDelay.
+// procfs root.
+//
+// Each processDelay defines a time window for discovering processes. A process
+// becomes eligible for discovery when it has been alive for at least the
+// specified delay. Multiple delays provide redundancy: if metadata isn't
+// available when the first window covers a process, a longer delay window may
+// still catch it later. Windows with smaller delays catch processes sooner but
+// have less time for metadata to become available.
 func NewScanner(
 	procfsRoot string,
-	startDelay time.Duration,
+	processDelays ...time.Duration,
 ) *Scanner {
-	startDelayTicks := ticks(
-		(startDelay.Nanoseconds() * int64(clkTck)) / time.Second.Nanoseconds(),
-	)
+	windows := make([]timeWindow, 0, len(processDelays))
+	for _, delay := range processDelays {
+		windows = append(windows, timeWindow{
+			startDelay: ticks(
+				(delay.Nanoseconds() * int64(clkTck)) / time.Second.Nanoseconds(),
+			),
+		})
+	}
 	reader := newStartTimeReader(procfsRoot)
 	return newScanner(
-		startDelayTicks,
+		windows,
 		nowTicks,
 		func() iter.Seq2[uint32, error] {
 			return listPids(procfsRoot, 512)
@@ -99,7 +137,7 @@ func NewScanner(
 // newScanner creates a Scanner with injected dependencies. Used by NewScanner
 // for production code and by tests for dependency injection.
 func newScanner(
-	startDelay ticks,
+	windows []timeWindow,
 	nowTicks func() (ticks, error),
 	listPids func() iter.Seq2[uint32, error],
 	readStartTime func(pid int32) (ticks, error),
@@ -107,12 +145,13 @@ func newScanner(
 	resolveExecutable func(pid int32) (process.Executable, error),
 ) *Scanner {
 	s := &Scanner{
-		startDelay:           startDelay,
+		windows:              windows,
 		nowTicks:             nowTicks,
 		listPids:             listPids,
 		readStartTime:        readStartTime,
 		tracerMetadataReader: tracerMetadataReader,
 		resolveExecutable:    resolveExecutable,
+		startTimeCache:       makeStartTimeCache(defaultStartTimeCacheSize),
 	}
 	s.mu.live = btree.NewG(16, cmp.Less[uint32])
 	return s
@@ -146,13 +185,6 @@ func (p *Scanner) Scan() (
 	now, err := p.nowTicks()
 	if err != nil {
 		return nil, nil, fmt.Errorf("get timestamp: %w", err)
-	}
-
-	nextWatermark := now - p.startDelay
-
-	// Handle edge cases: machine just booted or clock went backward.
-	if now < p.startDelay || nextWatermark < p.lastWatermark {
-		nextWatermark = now
 	}
 
 	// Rate-limit logging about errors that are interesting.
@@ -190,13 +222,16 @@ func (p *Scanner) Scan() (
 			continue
 		}
 
-		// Only analyze processes in the watermark window.
-		startTime, err := p.readStartTime(int32(pid))
-		if err != nil {
-			maybeLogErr("read start time", err)
-			continue
+		// Only analyze processes whose start time falls within a time window.
+		startTime, ok := p.startTimeCache.getStartTime(pid)
+		if !ok {
+			if startTime, err = p.readStartTime(int32(pid)); err != nil {
+				maybeLogErr("read start time", err)
+				continue
+			}
+			p.startTimeCache.insert(pid, startTime)
 		}
-		if startTime < p.lastWatermark || startTime > nextWatermark {
+		if !p.matchesAnyWindow(startTime, now, p.lastScan) {
 			continue
 		}
 
@@ -237,8 +272,20 @@ func (p *Scanner) Scan() (
 	}
 	p.mu.Unlock()
 
-	p.lastWatermark = nextWatermark
+	p.lastScan = now
+	p.startTimeCache.sweep()
 	return ret, removed, nil
+}
+
+// matchesAnyWindow returns true if the given start time falls within any of
+// the scanner's time windows.
+func (p *Scanner) matchesAnyWindow(startTime, now, lastScan ticks) bool {
+	for i := range p.windows {
+		if p.windows[i].contains(startTime, now, lastScan) {
+			return true
+		}
+	}
+	return false
 }
 
 // LiveProcesses returns the list of processes that were alive as of the last

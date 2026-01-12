@@ -66,6 +66,7 @@ func (e *Event) DeepCopy() *Event {
 	copied.SetXAttr = deepCopySetXAttrEvent(e.SetXAttr)
 	copied.Setrlimit = deepCopySetrlimitEvent(e.Setrlimit)
 	copied.Signal = deepCopySignalEvent(e.Signal)
+	copied.Signature = e.Signature
 	copied.SpanContext = deepCopySpanContext(e.SpanContext)
 	copied.Splice = deepCopySpliceEvent(e.Splice)
 	copied.SysCtl = deepCopySysCtlEvent(e.SysCtl)
@@ -309,13 +310,9 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
-	copied.Releasable = deepCopyReleasable(fieldToCopy.Releasable)
+	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
-	return copied
-}
-func deepCopyReleasable(fieldToCopy Releasable) Releasable {
-	copied := Releasable{}
 	return copied
 }
 func deepCopyCredentials(fieldToCopy Credentials) Credentials {

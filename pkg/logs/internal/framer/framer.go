@@ -126,10 +126,6 @@ func (fr *Framer) GetFrameCount() int64 {
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
 	// we can only process unstructured message in the framer
-	// TODO(remy): the same way the MultiLineHandler use the first part
-	// of a structured message to recompose partials ones into only one,
-	// we might consider doing the same on structured log messages with
-	// the framer.
 	if input.State != message.StateUnstructured {
 		fr.outputFn(input, len(input.GetContent()))
 		fr.frames.Inc()

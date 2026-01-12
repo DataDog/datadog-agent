@@ -25,8 +25,6 @@ import (
 )
 
 const (
-	// AppliedTargetAnnotation is the JSON of the target that was applied to the pod.
-	AppliedTargetAnnotation = "internal.apm.datadoghq.com/applied-target"
 	// AppliedTargetEnvVar is the environment variable that contains the JSON of the target that was applied to the pod.
 	AppliedTargetEnvVar = "DD_INSTRUMENTATION_APPLIED_TARGET"
 )
@@ -207,19 +205,19 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	}
 
 	// Add the configuration for the security client library.
-	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator); err != nil {
+	if err := m.core.mutatePodContainers(pod, m.securityClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for security client: %w", err)
 	}
 
 	// Add the configuration for profiling.
-	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator); err != nil {
+	if err := m.core.mutatePodContainers(pod, m.profilingClientLibraryMutator, true); err != nil {
 		return false, fmt.Errorf("error mutating pod for profiling client: %w", err)
 	}
 
 	// Inject the tracer configs. We do this before lib injection to ensure DD_SERVICE is set if the user configures it
 	// in the target.
 	for _, envVar := range target.envVars {
-		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar))
+		_ = m.core.mutatePodContainers(pod, envVarMutator(envVar), true)
 	}
 
 	// Inject the libraries.
@@ -241,10 +239,10 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	_ = m.core.mutatePodContainers(pod, envVarMutator(corev1.EnvVar{
 		Name:  AppliedTargetEnvVar,
 		Value: target.json,
-	}))
+	}), true)
 
 	// Add the annotations to the pod.
-	mutatecommon.AddAnnotation(pod, AppliedTargetAnnotation, target.json)
+	SetAnnotation(pod, AnnotationAppliedTarget, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -353,7 +351,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	injectAllAnnotation := strings.ToLower(fmt.Sprintf(libVersionAnnotationKeyFormat, "all"))
+	injectAllAnnotation := strings.ToLower(AnnotationLibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
 		return &annotationResult{
 			shouldContinue: false,

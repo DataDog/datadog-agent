@@ -67,7 +67,7 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
-	err = operations.Apply(d.StablePath)
+	err = operations.Apply(ctx, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error applying operations: %w", err)
 	}
@@ -181,4 +181,10 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 	}
 	sddl := sd.String()
 	return paths.SecureCreateDirectory(targetPath, sddl)
+}
+
+// setFileOwnershipAndPermissions is a no-op on Windows as file ownership and permissions
+// are handled differently through ACLs, not POSIX ownership and modes.
+func setFileOwnershipAndPermissions(_ context.Context, _ string, _ *configFileSpec) error {
+	return nil
 }

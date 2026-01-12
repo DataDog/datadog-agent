@@ -68,7 +68,8 @@ func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, 
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	tagFilterList := loadTagFilterList()
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore, tagFilterList)
 
 	demux := &ServerlessDemultiplexer{
 		log:                         logger,

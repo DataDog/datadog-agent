@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -275,6 +276,8 @@ type BufferedAggregator struct {
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
+
+	tagFilterList *TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -354,9 +357,35 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
 		filterListChan: make(chan utilstrings.Matcher),
+		tagFilterList:  loadTagFilterList(),
 	}
 
 	return aggregator
+}
+
+func loadTagFilterList() *TagMatcher {
+	tagFilterListInterface := pkgconfigsetup.Datadog().GetStringMap("metric_tag_filterlist")
+
+	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
+	for metricName, tags := range tagFilterListInterface {
+		// Tags can be configured as an object with fields:
+		// tags - array of tags
+		// action - either `include` or `exclude`.
+		// Roundtrip the struct through yaml to load it.
+		tagBytes, err := yaml.Marshal(tags)
+		if err != nil {
+			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+		} else {
+			var tags MetricTagList
+			err = yaml.Unmarshal(tagBytes, &tags)
+			if err != nil {
+				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+			} else {
+				tagFilterList[metricName] = tags
+			}
+		}
+	}
+	return NewTagMatcher(tagFilterList)
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -454,7 +483,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample)
+			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
@@ -470,7 +499,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket)
+		checkSampler.addBucket(checkBucket.bucket, agg.tagFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}

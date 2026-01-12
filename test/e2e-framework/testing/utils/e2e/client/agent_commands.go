@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 
@@ -195,7 +196,7 @@ func (agent *agentCommandRunner) WorkloadList() (*agentclient.Status, error) {
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
-	agent.t.Log("Waiting for the agent to be ready")
+	utils.Logf(agent.t, "Waiting for the agent to be ready")
 	err := backoff.Retry(func() error {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {

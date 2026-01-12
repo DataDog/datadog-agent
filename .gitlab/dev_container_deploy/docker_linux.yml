@@ -229,7 +229,7 @@ dev_nightly-host-profiler-standalone:
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
-    IMG_DESTINATIONS: ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG}
+    IMG_DESTINATIONS: ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG},ddot-ebpf-dev:nightly-latest
 
 dev_branch-host-profiler-standalone:
   extends: .docker_publish_job_definition

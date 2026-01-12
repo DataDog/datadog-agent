@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"errors"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
@@ -82,7 +81,7 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
-		src, err := t.source(ctx, rm.Resource(), hostFromAttributesHandler)
+		src, err := resolveSource(ctx, t.attributesTranslator, rm.Resource(), t.cfg.fallbackSourceProvider, hostFromAttributesHandler)
 		if err != nil {
 			return metadata, err
 		}
@@ -156,14 +155,6 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 		}
 	}
 	return metadata, nil
-}
-
-func (t *minimalTranslator) source(ctx context.Context, res pcommon.Resource, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
-	src, hasSource := t.attributesTranslator.ResourceToSource(ctx, res, signalTypeSet, hostFromAttributesHandler)
-	if !hasSource {
-		return source.Source{}, errors.New("no source found in resource")
-	}
-	return src, nil
 }
 
 // isUnsupportedMetric returns true if the input metric is not consumable by OTLP metrics intake endpoint.

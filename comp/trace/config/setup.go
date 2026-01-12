@@ -24,6 +24,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/configcheck"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -393,6 +394,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		log.Info("Activating non-local traffic automatically in containerized environment, trace-agent will listen on 0.0.0.0")
 		c.ReceiverHost = "0.0.0.0"
 	}
+
+	dsdConfig := dsdconfig.NewConfig(core)
+	c.StatsdEnabled = dsdConfig.Enabled()
 	c.StatsdPipeName = core.GetString("dogstatsd_pipe_name")
 	c.StatsdSocket = core.GetString("dogstatsd_socket")
 	c.WindowsPipeName = core.GetString("apm_config.windows_pipe_name")
@@ -586,9 +590,6 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.Site = core.GetString("site")
 	if c.Site == "" {
 		c.Site = pkgconfigsetup.DefaultSite
-	}
-	if k := "use_dogstatsd"; core.IsSet(k) {
-		c.StatsdEnabled = core.GetBool(k)
 	}
 	if v := core.GetInt("apm_config.max_catalog_entries"); v > 0 {
 		c.MaxCatalogEntries = v
