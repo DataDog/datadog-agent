@@ -646,12 +646,6 @@ func countRequestOccurrences(allStats map[http.Key]*http.RequestStats, req *neth
 	return occurrences
 }
 
-func getHTTPCfg() *networkConfig.Config {
-	cfg := utils.NewUSMEmptyConfig()
-	cfg.EnableHTTPMonitoring = true
-	return cfg
-}
-
 func skipIfNotSupported(t *testing.T, err error) {
 	notSupported := new(errNotSupported)
 	if errors.As(err, &notSupported) {
