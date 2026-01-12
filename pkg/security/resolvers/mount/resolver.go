@@ -435,7 +435,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, cache map[uint32]b
 	}
 
 	if mount.ParentPathKey.MountID == 0 {
-		return "", source, mount.Origin, ErrMountUndefined
+		return "", source, mount.Origin, ErrParentMountUndefined
 	}
 
 	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, cache)
@@ -538,6 +538,16 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
+
+	if err := mr.syncPidNamespace(pid); err != nil {
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+	}
+
+	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
+		mr.procHitsStats.Inc()
+		return mount, model.MountSourceMountID, mount.Origin, nil
+	}
+	mr.procMissStats.Inc()
 
 	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
