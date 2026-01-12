@@ -62,7 +62,8 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		"databricks_job_id",
 		"databricks_job_run_id",
 		"databricks_task_run_id",
-		"config.spark_app_startTime":
+		"config.spark_app_startTime",
+		"config.spark_databricks_job_parentRunId":
 		return val
 	}
 	if strings.HasPrefix(key, "_") {
