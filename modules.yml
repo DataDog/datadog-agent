@@ -281,6 +281,11 @@ modules:
     used_by_otel: true
   pkg/trace:
     used_by_otel: true
+  pkg/trace/log: default
+  pkg/trace/otel:
+    used_by_otel: true
+  pkg/trace/stats: default
+  pkg/trace/traceutil: default
   pkg/util/backoff:
     used_by_otel: true
   pkg/util/buf:
