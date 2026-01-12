@@ -155,7 +155,7 @@ func SetupDatabricks(s *common.Setup) error {
 	}
 
 	s.Config.DatadogYAML.Obfuscation = config.ObfuscationConfig{CreditCards: config.CreditCardObfuscationConfig{
-		KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime"},
+		KeepValues: []string{"meta.databricks_job_id", "meta.databricks_job_run_id", "meta.databricks_task_run_id", "meta.config.spark_app_startTime"},
 	}}
 
 	setupCommonHostTags(s)
