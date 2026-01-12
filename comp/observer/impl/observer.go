@@ -73,8 +73,18 @@ func NewComponent(deps Requires) Provides {
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
-				// Keep defaults minimal; future steps add filtering + caps.
 				MaxEvalBytes: 4096,
+				// Exclude metadata fields that shouldn't be metrics.
+				// These are common timestamp/ID fields that appear in event JSON.
+				ExcludeFields: map[string]struct{}{
+					"timestamp": {}, // event.Event.Ts serializes as "timestamp"
+					"ts":        {}, // alternate timestamp field name
+					"time":      {},
+					"pid":       {},
+					"ppid":      {},
+					"uid":       {},
+					"gid":       {},
+				},
 			},
 			&BadDetector{},
 			&ConnectionErrorExtractor{},
@@ -88,8 +98,9 @@ func NewComponent(deps Requires) Provides {
 		reporters: []observerdef.Reporter{
 			reporter,
 		},
-		storage: newTimeSeriesStorage(),
-		obsCh:   make(chan observation, 1000),
+		storage:   newTimeSeriesStorage(),
+		obsCh:     make(chan observation, 1000),
+		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
 	go obs.run()
 
@@ -97,6 +108,7 @@ func NewComponent(deps Requires) Provides {
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
+	eventsDumpPath := cfg.GetString("observer.debug_events_dump_path")
 	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
 	if dumpPath != "" && dumpInterval > 0 {
 		go func() {
@@ -107,6 +119,14 @@ func NewComponent(deps Requires) Provides {
 					fmt.Fprintf(os.Stderr, "[observer] dump error: %v\n", err)
 				} else {
 					fmt.Printf("[observer] dumped metrics to %s\n", dumpPath)
+				}
+				// Also dump events if configured
+				if eventsDumpPath != "" {
+					if err := obs.DumpEvents(eventsDumpPath); err != nil {
+						fmt.Fprintf(os.Stderr, "[observer] events dump error: %v\n", err)
+					} else {
+						fmt.Printf("[observer] dumped events to %s\n", eventsDumpPath)
+					}
 				}
 			}
 		}()
@@ -211,6 +231,10 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
+	// eventBuffer stores recent events (markers) for debugging/dumping.
+	// Ring buffer with maxEvents capacity.
+	eventBuffer []observerdef.Marker
+	maxEvents   int
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -246,6 +270,13 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 
 // processLog handles a log observation.
 func (o *observerImpl) processLog(source string, l *logObs) {
+	// Events (from check-events source) are routed as markers for correlation,
+	// not processed through log processors for metric derivation.
+	if source == "check-events" {
+		o.routeEventAsMarker(l)
+		return
+	}
+
 	// Create a view for processors
 	view := &logView{obs: l}
 
@@ -270,6 +301,43 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	}
 
 	o.flushAndReport()
+}
+
+// routeEventAsMarker converts an event log observation to a Marker and sends it
+// to all MarkerReceivers (typically the correlator). Events are used as correlation
+// context, not as inputs for metric derivation or anomaly detection.
+func (o *observerImpl) routeEventAsMarker(l *logObs) {
+	// Extract event type from tags if available (e.g., "event_type:container.oom")
+	eventSource := "event"
+	for _, tag := range l.tags {
+		if strings.HasPrefix(tag, "event_type:") {
+			eventSource = strings.TrimPrefix(tag, "event_type:")
+			break
+		}
+	}
+
+	marker := observerdef.Marker{
+		Source:    eventSource,
+		Timestamp: l.timestamp,
+		Tags:      l.tags,
+		Message:   string(l.content),
+	}
+
+	// Store in event buffer (ring buffer)
+	if o.maxEvents > 0 {
+		if len(o.eventBuffer) >= o.maxEvents {
+			// Shift out oldest event
+			o.eventBuffer = o.eventBuffer[1:]
+		}
+		o.eventBuffer = append(o.eventBuffer, marker)
+	}
+
+	// Send to all anomaly processors that implement MarkerReceiver
+	for _, proc := range o.anomalyProcessors {
+		if receiver, ok := proc.(observerdef.MarkerReceiver); ok {
+			receiver.AddMarker(marker)
+		}
+	}
 }
 
 // runTSAnalyses runs all time series analyses on a series with the given aggregation.
@@ -339,6 +407,36 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
 	return o.storage.DumpToFile(path)
+}
+
+// DumpEvents writes all buffered events (markers) to the specified file as JSON.
+// Events are container lifecycle events (OOM, restart, etc.) used for correlation.
+func (o *observerImpl) DumpEvents(path string) error {
+	type dumpEvent struct {
+		Source    string   `json:"source"`
+		Timestamp int64    `json:"timestamp"`
+		Tags      []string `json:"tags,omitempty"`
+		Message   string   `json:"message"`
+	}
+
+	events := make([]dumpEvent, len(o.eventBuffer))
+	for i, m := range o.eventBuffer {
+		events[i] = dumpEvent{
+			Source:    m.Source,
+			Timestamp: m.Timestamp,
+			Tags:      m.Tags,
+			Message:   m.Message,
+		}
+	}
+
+	data, err := json.MarshalIndent(events, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal events: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write events file: %w", err)
+	}
+	return nil
 }
 
 // handle is the lightweight observation interface passed to other components.
