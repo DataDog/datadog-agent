@@ -23,7 +23,10 @@ while [[ $retry_count -lt $max_retries ]]; do
     else
         # Using SSM; the [<format>] parameter is ignored
         if [[ "$(uname -s)" == "Darwin" ]]; then
-            AWS_SHARED_CREDENTIALS_FILE="${CI_PROJECT_DIR}/.aws/credentials-by-job-id/${CI_JOB_ID}"
+            if [ -z "$AWS_SHARED_CREDENTIALS_FILE" ]; then
+                echo "Error: AWS_SHARED_CREDENTIALS_FILE is not set when using CI Identities for AWS Credentials" >&2
+                exit 1
+            fi
             ci-identities-gitlab-job-client assume-role
         fi
         result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
