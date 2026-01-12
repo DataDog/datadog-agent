@@ -92,11 +92,13 @@ type TimeRange struct {
 // AnomalyOutput is a detected anomaly event.
 type AnomalyOutput struct {
 	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
-	Source      string
-	Title       string
-	Description string
-	Tags        []string
-	TimeRange   TimeRange // period covered by the analysis that produced this anomaly
+	Source string
+	// AnalyzerName identifies which TimeSeriesAnalysis or LogProcessor produced this anomaly.
+	AnalyzerName string
+	Title        string
+	Description  string
+	Tags         []string
+	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
 }
 
 // ReportOutput is a processed summary from anomaly processors.
@@ -170,4 +172,11 @@ type ActiveCorrelation struct {
 	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation
 	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
 	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
+}
+
+// RawAnomalyState provides read access to raw anomalies before correlation processing.
+// Used by test bench reporters to display individual analyzer outputs.
+type RawAnomalyState interface {
+	// RawAnomalies returns all anomalies detected by TimeSeriesAnalysis implementations.
+	RawAnomalies() []AnomalyOutput
 }
