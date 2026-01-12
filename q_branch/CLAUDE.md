@@ -1,5 +1,18 @@
 # q_branch Development Rules
 
+## Execution Modes
+
+The q_branch infrastructure supports two execution modes, auto-detected based on environment:
+
+| Mode | Environment | How it works |
+|------|-------------|--------------|
+| VM | macOS, Linux+KVM | Commands run inside Lima VM via `limactl shell` |
+| Direct | Linux (no KVM) | Commands run directly on host Docker |
+
+Check current mode: `cd q_branch && ./dev.py status`
+
+In **Direct mode** (Workspaces, containers), there is no Lima VM - Kind clusters run directly on the host. All `./dev.py` commands work identically in both modes.
+
 ## Fine-Grained Monitor Development
 
 Use `./dev.py` for all fine-grained-monitor (fgm-*) development workflows:
@@ -36,7 +49,7 @@ cd q_branch/fine-grained-monitor
 ./dev.py bench list               # List recent benchmark runs
 ```
 
-**Prefer dev.py over raw commands** - it handles image loading into Lima VM, Kind cluster operations, port management, and per-worktree isolation automatically.
+**Prefer dev.py over raw commands** - it handles mode detection (VM vs Direct), image loading, Kind cluster operations, port management, and per-worktree isolation automatically.
 
 ### Per-Worktree Isolation
 
@@ -76,15 +89,19 @@ BENCH_DATA=testdata/bench/realistic cargo bench -- scan_metadata
 
 **Duration examples:** `1h`, `6h`, `24h`, `2d`, `7d`
 
-## Architecture: aarch64 (ARM64)
+## Architecture
 
-All local development and testing runs on Apple Silicon (aarch64/ARM64).
+Local development uses the native architecture of the host machine:
+- macOS (Apple Silicon): ARM64 via Lima VM
+- Linux: Native architecture (amd64 or arm64)
 
-**Do NOT specify `--platform linux/amd64`** in docker build commands during local testing loops. The Lima VM, Kind cluster, and all containers run natively on ARM64.
+**Do NOT specify `--platform`** in docker build commands during local testing loops unless cross-compiling.
 
 ## Kubernetes Cluster (Per-Worktree)
 
-Each worktree has its own Kind cluster inside the Lima VM (`gadget-k8s-host`) with the API port-forwarded to the host.
+Each worktree has its own Kind cluster:
+- **VM mode**: Cluster runs inside Lima VM (`gadget-k8s-host`) with API port-forwarded to host
+- **Direct mode**: Cluster runs directly on host Docker
 
 ### MCP Server Setup
 
@@ -115,15 +132,17 @@ Run `./dev.py cluster mcp setup` to configure the kubernetes-mcp-server for this
 When using kubectl, use the worktree's context: `--context kind-fgm-{worktree-basename}`
 (e.g., `--context kind-fgm-beta-datadog-agent`). Run `./dev.py cluster status` to see the current context.
 
-### VM Operations
+### VM Operations (VM Mode Only)
 
-The Kind cluster runs inside a Lima VM. For debugging or inspecting the VM directly:
+In VM mode, the Kind cluster runs inside a Lima VM. For debugging or inspecting the VM directly:
 
 ```bash
 limactl shell gadget-k8s-host -- <command>
 limactl shell gadget-k8s-host -- docker images
 limactl shell gadget-k8s-host -- kind get clusters
 ```
+
+In Direct mode, these commands run directly on the host (no limactl needed).
 
 ### Common Workflows
 

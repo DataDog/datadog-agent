@@ -38,6 +38,18 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+# Add q_branch to path for shared library imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from lib.k8s_backend import (
+    Mode,
+    detect_environment,
+    create_backend,
+    run_cmd,
+    VMBackend,
+)
+import dev as q_branch_dev
+
 # Project root is where this script lives
 PROJECT_ROOT = Path(__file__).parent.resolve()
 DEV_DIR = PROJECT_ROOT / ".dev"
@@ -48,36 +60,51 @@ SCENARIO_STATE_DIR = DEV_DIR / "scenarios"
 SCENARIO_RETENTION_DAYS = 7
 
 # Cluster deployment config
-LIMA_VM = "gadget-k8s-host"
+LIMA_VM = q_branch_dev.LIMA_VM
 DEFAULT_NAMESPACE = "default"  # For legacy scenarios without namespace isolation
 
+# Environment and backend (lazy initialization)
+_env = None
+_backend = None
 
-# === Cluster Utilities (duplicated from dev.py for standalone operation) ===
+
+def _get_env():
+    """Get or initialize environment."""
+    global _env
+    if _env is None:
+        _env = detect_environment()
+    return _env
+
+
+def _get_backend():
+    """Get or initialize backend."""
+    global _backend
+    if _backend is None:
+        _backend = create_backend(_get_env(), LIMA_VM)
+    return _backend
+
+
+# === Cluster Utilities (wrappers around shared library) ===
 
 
 def get_worktree_id() -> str:
-    """Get worktree identifier from directory basename.
-
-    Uses the parent directory of the fine-grained-monitor project root,
-    e.g., /Users/scott/dev/beta-datadog-agent/q_branch/fine-grained-monitor
-    -> "beta-datadog-agent"
-    """
-    return PROJECT_ROOT.parent.parent.name
+    """Get worktree identifier from directory basename."""
+    return q_branch_dev.get_worktree_id(PROJECT_ROOT)
 
 
 def get_cluster_name() -> str:
     """Get Kind cluster name for this worktree."""
-    return f"fgm-{get_worktree_id()}"
+    return q_branch_dev.get_cluster_name("fgm", get_worktree_id())
 
 
 def get_kube_context() -> str:
     """Get kubectl context name for this worktree's cluster."""
-    return f"kind-{get_cluster_name()}"
+    return q_branch_dev.get_kube_context(get_cluster_name())
 
 
 def get_image_tag() -> str:
     """Get Docker image tag for this worktree."""
-    return get_worktree_id()
+    return q_branch_dev.get_image_tag(get_worktree_id())
 
 
 def ensure_dev_dir():
@@ -87,54 +114,25 @@ def ensure_dev_dir():
 
 
 def check_lima_vm() -> bool:
-    """Check if Lima VM is running."""
-    result = subprocess.run(
-        ["limactl", "list", "--format", "{{.Name}}:{{.Status}}"],
-        capture_output=True,
-        text=True,
-    )
-    for line in result.stdout.strip().split("\n"):
-        if line.startswith(f"{LIMA_VM}:"):
-            status = line.split(":")[1]
-            return status == "Running"
-    return False
+    """Check if Lima VM is running (only relevant in VM mode)."""
+    env = _get_env()
+    if env.mode == Mode.DIRECT:
+        return True  # No VM needed in direct mode
+    backend = _get_backend()
+    if isinstance(backend, VMBackend):
+        return backend.status() == "Running"
+    return True
 
 
 def cluster_exists() -> bool:
     """Check if this worktree's Kind cluster exists."""
-    cluster_name = get_cluster_name()
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "clusters"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return False
-    return cluster_name in result.stdout.strip().split("\n")
+    backend = _get_backend()
+    return q_branch_dev.cluster_exists(backend, get_cluster_name())
 
 
-def run_cmd(cmd: list[str], description: str, capture: bool = False) -> tuple[bool, str]:
-    """Run a command with status output. Returns (success, output)."""
-    print(f"{description}...", end=" ", flush=True)
-    start = time.time()
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-    )
-
-    elapsed = time.time() - start
-
-    if result.returncode != 0:
-        print("FAILED")
-        if result.stderr:
-            print(f"  Error: {result.stderr.strip()}")
-        return False, result.stderr
-
-    print(f"done ({elapsed:.1f}s)")
-    return True, result.stdout
+def scenario_run_cmd(cmd: list[str], description: str, capture: bool = False) -> tuple[bool, str]:
+    """Run a command with status output (scenario-specific: uses PROJECT_ROOT as cwd)."""
+    return run_cmd(cmd, description, capture=capture, cwd=PROJECT_ROOT)
 
 
 # === Scenario Helper Functions ===
@@ -280,6 +278,8 @@ def cmd_run(scenario_name: str):
     """Build images, deploy scenario to cluster, return run ID."""
     kube_context = get_kube_context()
     image_tag = get_image_tag()
+    env = _get_env()
+    backend = _get_backend()
 
     # Validate scenario exists
     scenario_dir = SCENARIOS_DIR / scenario_name
@@ -293,11 +293,16 @@ def cmd_run(scenario_name: str):
         print(f"Error: Scenario '{scenario_name}' missing deploy.yaml")
         return 1
 
-    # Check Lima VM is running
-    if not check_lima_vm():
-        print(f"Error: Lima VM '{LIMA_VM}' not running")
-        print("  Start with: limactl start gadget-k8s-host")
-        return 1
+    # Check environment is ready
+    if env.mode == Mode.VM:
+        if not check_lima_vm():
+            print(f"Error: Lima VM '{LIMA_VM}' not running")
+            print("  Start with: limactl start gadget-k8s-host")
+            return 1
+    else:
+        if not env.has_docker:
+            print("Error: Docker is not available")
+            return 1
 
     # Check cluster is available
     if not cluster_exists():
@@ -338,7 +343,7 @@ def cmd_run(scenario_name: str):
         image_name = f"fgm-scenario-{scenario_name}-{component}:{image_tag}"
 
         # Build image
-        success, _ = run_cmd(
+        success, _ = scenario_run_cmd(
             ["docker", "build", "-t", image_name, str(component_dir)],
             f"Building {component}",
         )
@@ -346,35 +351,9 @@ def cmd_run(scenario_name: str):
             print(f"Failed to build {component}")
             return 1
 
-        # Load into Lima VM
-        print(f"Loading {component} into Lima VM...", end=" ", flush=True)
-        start = time.time()
-
-        save_proc = subprocess.Popen(
-            ["docker", "save", image_name],
-            stdout=subprocess.PIPE,
-        )
-        load_proc = subprocess.Popen(
-            ["limactl", "shell", LIMA_VM, "--", "docker", "load"],
-            stdin=save_proc.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        save_proc.stdout.close()
-        stdout, stderr = load_proc.communicate()
-
-        if load_proc.returncode != 0:
-            print("FAILED")
-            print(f"  Error: {stderr.decode()}")
-            return 1
-        print(f"done ({time.time() - start:.1f}s)")
-
-        # Load into Kind cluster
-        success, _ = run_cmd(
-            ["limactl", "shell", LIMA_VM, "--", "kind", "load", "docker-image", image_name, "--name", cluster_name],
-            f"Loading {component} into Kind",
-        )
-        if not success:
+        # Load image into Kind cluster (handles VM vs Direct mode)
+        if not q_branch_dev.load_image(backend, cluster_name, image_name, env.mode):
+            print(f"Failed to load {component}")
             return 1
 
     # Process manifest with placeholder substitution

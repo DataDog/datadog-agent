@@ -46,6 +46,23 @@ import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 
+# Add q_branch to path for shared library imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from lib.k8s_backend import (
+    Mode,
+    Environment,
+    VMBackend,
+    DirectBackend,
+    detect_environment,
+    create_backend,
+    is_process_running,
+    check_health,
+    format_uptime,
+    run_cmd,
+)
+import dev as q_branch_dev
+
 # Project root is where this script lives
 PROJECT_ROOT = Path(__file__).parent.resolve()
 DEV_DIR = PROJECT_ROOT / ".dev"
@@ -70,16 +87,35 @@ BINARY = PROJECT_ROOT / "target" / "release" / "fgm-viewer"
 
 # Cluster deployment config
 IMAGE_NAME = "fine-grained-monitor"
-LIMA_VM = "gadget-k8s-host"
+LIMA_VM = q_branch_dev.LIMA_VM  # Use shared constant
 POD_LABEL = "app=fine-grained-monitor"
 NAMESPACE = "fine-grained-monitor"
 # Note: IMAGE_TAG, KIND_CLUSTER, KUBE_CONTEXT are computed dynamically per-worktree
 
+# Environment and backend are initialized lazily for cluster operations
+_env: Environment | None = None
+_backend: VMBackend | DirectBackend | None = None
+
+
+def _get_env() -> Environment:
+    """Get or initialize environment (lazy singleton)."""
+    global _env
+    if _env is None:
+        _env = detect_environment()
+    return _env
+
+
+def _get_backend() -> VMBackend | DirectBackend:
+    """Get or initialize backend (lazy singleton)."""
+    global _backend
+    if _backend is None:
+        _backend = create_backend(_get_env(), LIMA_VM)
+    return _backend
+
 
 def _worktree_port_offset() -> int:
     """Calculate unique offset (0-499) based on checkout path for worktree support."""
-    path_hash = hashlib.md5(str(PROJECT_ROOT).encode()).hexdigest()
-    return int(path_hash[:8], 16) % 500
+    return q_branch_dev.calculate_port_offset(PROJECT_ROOT)
 
 
 def calculate_local_viewer_port() -> int:
@@ -107,50 +143,37 @@ def calculate_mcp_port() -> int:
     return 9050 + _worktree_port_offset()
 
 
-# --- Worktree identification functions ---
+# --- Worktree identification functions (FGM-specific wrappers) ---
 
 
 def get_worktree_id() -> str:
-    """Get worktree identifier from directory basename.
-
-    Uses the parent directory of the fine-grained-monitor project root,
-    e.g., /Users/scott/dev/beta-datadog-agent/q_branch/fine-grained-monitor
-    -> "beta-datadog-agent"
-    """
-    # PROJECT_ROOT is fine-grained-monitor, parent is q_branch, grandparent is worktree
-    return PROJECT_ROOT.parent.parent.name
+    """Get worktree identifier from directory basename."""
+    return q_branch_dev.get_worktree_id(PROJECT_ROOT)
 
 
 def calculate_api_port() -> int:
-    """Calculate unique API server port (6443-6447) based on worktree ID.
-
-    Uses deterministic hash-based allocation to avoid race conditions
-    when multiple worktrees create clusters simultaneously.
-    """
-    worktree_id = get_worktree_id()
-    port_hash = hashlib.md5(worktree_id.encode()).hexdigest()
-    offset = int(port_hash[:8], 16) % 5
-    return 6443 + offset
+    """Calculate unique API server port (6443-6447) based on worktree ID."""
+    return q_branch_dev.calculate_api_port(get_worktree_id())
 
 
 def get_cluster_name() -> str:
-    """Get Kind cluster name for this worktree."""
-    return f"fgm-{get_worktree_id()}"
+    """Get Kind cluster name for this worktree: fgm-{worktree_id}."""
+    return q_branch_dev.get_cluster_name("fgm", get_worktree_id())
 
 
 def get_kube_context() -> str:
     """Get kubectl context name for this worktree's cluster."""
-    return f"kind-{get_cluster_name()}"
+    return q_branch_dev.get_kube_context(get_cluster_name())
 
 
 def get_image_tag() -> str:
     """Get Docker image tag for this worktree."""
-    return get_worktree_id()
+    return q_branch_dev.get_image_tag(get_worktree_id())
 
 
 def get_data_dir() -> str:
     """Get data directory path inside containers for this worktree."""
-    return f"/var/lib/fine-grained-monitor/{get_worktree_id()}"
+    return q_branch_dev.get_data_dir("fine-grained-monitor", get_worktree_id())
 
 
 def ensure_dev_dir():
@@ -194,15 +217,6 @@ def clear_state():
             f.unlink()
 
 
-def is_process_running(pid: int) -> bool:
-    """Check if a process with given PID is running."""
-    try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
-        return False
-
-
 def is_fgm_viewer_process(pid: int) -> bool:
     """Check if PID is actually an fgm-viewer process."""
     try:
@@ -237,31 +251,9 @@ def get_running_pid() -> int | None:
     return None
 
 
-def check_health(port: int, timeout: float = 1.0) -> bool:
-    """Check if server is healthy via /api/health endpoint."""
-    url = f"http://127.0.0.1:{port}/api/health"
-    try:
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read().decode())
-            return data.get("status") == "ok"
-    except (urllib.error.URLError, json.JSONDecodeError, TimeoutError, OSError):
-        return False
-
-
-def format_uptime(start_time: float) -> str:
-    """Format uptime as human-readable string."""
-    elapsed = int(time.time() - start_time)
-    if elapsed < 60:
-        return f"{elapsed}s"
-    elif elapsed < 3600:
-        mins = elapsed // 60
-        secs = elapsed % 60
-        return f"{mins}m {secs}s"
-    else:
-        hours = elapsed // 3600
-        mins = (elapsed % 3600) // 60
-        return f"{hours}h {mins}m"
+def check_viewer_health(port: int, timeout: float = 1.0) -> bool:
+    """Check if fgm-viewer is healthy via /api/health endpoint."""
+    return check_health(f"http://127.0.0.1:{port}/api/health", timeout)
 
 
 def build() -> bool:
@@ -296,7 +288,7 @@ def cmd_status():
 
     if pid and state:
         uptime = format_uptime(state.get("start_time", time.time()))
-        healthy = check_health(port)
+        healthy = check_viewer_health(port)
         health_str = "ok" if healthy else "UNHEALTHY"
 
         print(f"Server: running (pid {pid}, uptime {uptime})")
@@ -378,7 +370,7 @@ def cmd_start(data_file: str):
             clear_state()
             return 1
 
-        if check_health(port):
+        if check_viewer_health(port):
             elapsed = time.time() - start_wait
             print(f"Server ready ({elapsed:.1f}s)")
             break
@@ -523,150 +515,50 @@ def cmd_clippy():
 # --- Cluster deployment commands ---
 
 
-def run_cmd(cmd: list[str], description: str, capture: bool = False) -> tuple[bool, str]:
-    """Run a command with status output. Returns (success, output)."""
-    print(f"{description}...", end=" ", flush=True)
-    start = time.time()
-
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd=PROJECT_ROOT,
-    )
-
-    elapsed = time.time() - start
-
-    if result.returncode != 0:
-        print("FAILED")
-        if result.stderr:
-            print(f"  Error: {result.stderr.strip()}")
-        return False, result.stderr
-
-    print(f"done ({elapsed:.1f}s)")
-    return True, result.stdout
+def fgm_run_cmd(cmd: list[str], description: str, capture: bool = False) -> tuple[bool, str]:
+    """Run a command with status output (FGM-specific: uses PROJECT_ROOT as cwd)."""
+    return run_cmd(cmd, description, capture=capture, cwd=PROJECT_ROOT)
 
 
 def check_lima_vm() -> bool:
-    """Check if Lima VM is running."""
-    result = subprocess.run(
-        ["limactl", "list", "--format", "{{.Name}}:{{.Status}}"],
-        capture_output=True,
-        text=True,
-    )
-    for line in result.stdout.strip().split("\n"):
-        if line.startswith(f"{LIMA_VM}:"):
-            status = line.split(":")[1]
-            return status == "Running"
-    return False
+    """Check if Lima VM is running (only relevant in VM mode)."""
+    env = _get_env()
+    if env.mode == Mode.DIRECT:
+        return True  # No VM needed in direct mode
+    backend = _get_backend()
+    if isinstance(backend, VMBackend):
+        return backend.status() == "Running"
+    return True
 
 
 def cluster_exists() -> bool:
     """Check if this worktree's Kind cluster exists."""
-    cluster_name = get_cluster_name()
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "clusters"],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return False
-    return cluster_name in result.stdout.strip().split("\n")
+    backend = _get_backend()
+    return q_branch_dev.cluster_exists(backend, get_cluster_name())
 
 
 def merge_kubeconfig(cluster_name: str):
     """Merge cluster kubeconfig into ~/.kube/config."""
-    context_name = f"kind-{cluster_name}"
-    kubeconfig_file = Path.home() / ".kube" / f"{cluster_name}.yaml"
-    default_kubeconfig = Path.home() / ".kube" / "config"
-
-    # Remove existing entries for this cluster
-    for resource in ["context", "cluster", "user"]:
-        subprocess.run(
-            ["kubectl", "config", f"delete-{resource}", context_name],
-            capture_output=True,
-        )
-
-    # Extract kubeconfig from Kind
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "kubeconfig", "--name", cluster_name],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        print(f"Warning: Failed to get kubeconfig: {result.stderr}")
-        return
-
-    kubeconfig_file.parent.mkdir(parents=True, exist_ok=True)
-    kubeconfig_file.write_text(result.stdout)
-    kubeconfig_file.chmod(0o600)
-
-    # Merge with default config
-    if default_kubeconfig.exists():
-        env = os.environ.copy()
-        env["KUBECONFIG"] = f"{default_kubeconfig}:{kubeconfig_file}"
-        result = subprocess.run(
-            ["kubectl", "config", "view", "--flatten"],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        default_kubeconfig.write_text(result.stdout)
-    else:
-        default_kubeconfig.write_text(kubeconfig_file.read_text())
-
-    default_kubeconfig.chmod(0o600)
-    kubeconfig_file.unlink()
+    backend = _get_backend()
+    q_branch_dev.merge_kubeconfig(backend, cluster_name)
 
 
 def get_kind_containers(exclude_cluster: str | None = None) -> list[str]:
     """Get names of all running Kind containers, optionally excluding a cluster."""
-    result = subprocess.run(
-        [
-            "limactl",
-            "shell",
-            LIMA_VM,
-            "--",
-            "docker",
-            "ps",
-            "--filter",
-            "label=io.x-k8s.kind.cluster",
-            "--format",
-            "{{.Names}}",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0:
-        return []
-    containers = [c.strip() for c in result.stdout.strip().split("\n") if c.strip()]
-    if exclude_cluster:
-        containers = [c for c in containers if not c.startswith(f"{exclude_cluster}-")]
-    return containers
+    backend = _get_backend()
+    return q_branch_dev.get_kind_containers(backend, exclude_cluster)
 
 
 def stop_containers(containers: list[str]) -> bool:
     """Stop Docker containers by name."""
-    if not containers:
-        return True
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "docker", "stop"] + containers,
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode == 0
+    backend = _get_backend()
+    return q_branch_dev.stop_containers(backend, containers)
 
 
 def start_containers(containers: list[str]) -> bool:
     """Start Docker containers by name."""
-    if not containers:
-        return True
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "docker", "start"] + containers,
-        capture_output=True,
-        text=True,
-    )
-    return result.returncode == 0
+    backend = _get_backend()
+    return q_branch_dev.start_containers(backend, containers)
 
 
 def create_cluster() -> bool:
@@ -678,18 +570,10 @@ def create_cluster() -> bool:
     """
     cluster_name = get_cluster_name()
     api_port = calculate_api_port()
+    backend = _get_backend()
 
-    print(f"Creating Kind cluster '{cluster_name}' (API port {api_port})...")
-
-    # Kind multi-node creation fails with other clusters running - stop them temporarily
-    other_containers = get_kind_containers(exclude_cluster=cluster_name)
-    if other_containers:
-        print(f"Temporarily stopping {len(other_containers)} containers from other clusters...")
-        if not stop_containers(other_containers):
-            print("Warning: Failed to stop some containers")
-
-    # Kind cluster config
-    config = f"""kind: Cluster
+    # FGM-specific Kind config (single control-plane node)
+    kind_config = f"""kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
   apiServerAddress: "127.0.0.1"
@@ -701,42 +585,23 @@ nodes:
   # - role: worker
 """
 
-    # Create cluster
-    result = subprocess.run(
-        [
-            "limactl",
-            "shell",
-            LIMA_VM,
-            "--",
-            "kind",
-            "create",
-            "cluster",
-            "--name",
-            cluster_name,
-            "--config",
-            "/dev/stdin",
-        ],
-        input=config,
-        capture_output=True,
-        text=True,
+    # Use shared create_cluster with callback for container management
+    success = q_branch_dev.create_cluster(
+        backend,
+        cluster_name,
+        api_port,
+        kind_config=kind_config,
+        other_containers_callback=get_kind_containers,
     )
 
-    # Restart other clusters regardless of success/failure
-    if other_containers:
-        print(f"Restarting {len(other_containers)} containers from other clusters...")
-        if not start_containers(other_containers):
-            print("Warning: Failed to restart some containers")
-
-    if result.returncode != 0:
-        print(f"Failed to create cluster: {result.stderr}")
+    if not success:
         return False
 
-    # Extract and merge kubeconfig
+    # Merge kubeconfig
     print("Merging kubeconfig...", end=" ", flush=True)
     merge_kubeconfig(cluster_name)
     print("done")
 
-    print(f"Cluster '{cluster_name}' created successfully")
     return True
 
 
@@ -789,14 +654,22 @@ def cmd_deploy():
     kube_context = get_kube_context()
     image_tag = get_image_tag()
     image_full = f"{IMAGE_NAME}:{image_tag}"
+    env = _get_env()
+    backend = _get_backend()
 
-    # Check Lima VM is running
-    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
-    if not check_lima_vm():
-        print("NOT RUNNING")
-        print(f"  Start it with: limactl start {LIMA_VM}")
-        return 1
-    print("running")
+    # Check environment is ready
+    if env.mode == Mode.VM:
+        print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+        if not check_lima_vm():
+            print("NOT RUNNING")
+            print(f"  Start it with: limactl start {LIMA_VM}")
+            return 1
+        print("running")
+    else:
+        print(f"Using direct mode (no VM needed)")
+        if not env.has_docker:
+            print("Error: Docker is not available")
+            return 1
 
     # On-demand cluster creation
     if not cluster_exists():
@@ -807,43 +680,15 @@ def cmd_deploy():
         print(f"Using existing cluster '{cluster_name}'")
 
     # Step 1: Build docker image
-    success, _ = run_cmd(
+    success, _ = fgm_run_cmd(
         ["docker", "build", "-t", image_full, "."],
         f"Building docker image ({image_full})",
     )
     if not success:
         return 1
 
-    # Step 2: Save and load into Lima VM
-    print("Loading image into Lima VM...", end=" ", flush=True)
-    start = time.time()
-
-    # Use a pipe: docker save | limactl shell ... docker load
-    save_proc = subprocess.Popen(
-        ["docker", "save", image_full],
-        stdout=subprocess.PIPE,
-    )
-    load_proc = subprocess.Popen(
-        ["limactl", "shell", LIMA_VM, "--", "docker", "load"],
-        stdin=save_proc.stdout,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    save_proc.stdout.close()  # Allow save_proc to receive SIGPIPE
-    stdout, stderr = load_proc.communicate()
-
-    if load_proc.returncode != 0:
-        print("FAILED")
-        print(f"  Error: {stderr.decode()}")
-        return 1
-    print(f"done ({time.time() - start:.1f}s)")
-
-    # Step 3: Load into Kind cluster
-    success, _ = run_cmd(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "load", "docker-image", image_full, "--name", cluster_name],
-        "Loading image into Kind cluster",
-    )
-    if not success:
+    # Step 2: Load image into Kind cluster (handles VM vs Direct mode)
+    if not q_branch_dev.load_image(backend, cluster_name, image_full, env.mode):
         return 1
 
     # Step 4: Apply manifests (always, to pick up any changes)
@@ -1430,14 +1275,21 @@ def update_mcp_json_metrics_viewer() -> None:
 def cmd_cluster_create():
     """Create Kind cluster for this worktree (explicit, though deploy does it on-demand)."""
     cluster_name = get_cluster_name()
+    env = _get_env()
 
-    # Check Lima VM is running
-    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
-    if not check_lima_vm():
-        print("NOT RUNNING")
-        print(f"  Start it with: limactl start {LIMA_VM}")
-        return 1
-    print("running")
+    # Check environment is ready
+    if env.mode == Mode.VM:
+        print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+        if not check_lima_vm():
+            print("NOT RUNNING")
+            print(f"  Start it with: limactl start {LIMA_VM}")
+            return 1
+        print("running")
+    else:
+        print("Using direct mode")
+        if not env.has_docker:
+            print("Error: Docker is not available")
+            return 1
 
     if cluster_exists():
         print(f"Cluster '{cluster_name}' already exists")
@@ -1451,65 +1303,52 @@ def cmd_cluster_create():
 def cmd_cluster_destroy():
     """Destroy this worktree's Kind cluster."""
     cluster_name = get_cluster_name()
+    env = _get_env()
+    backend = _get_backend()
 
-    # Check Lima VM is running
-    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
-    if not check_lima_vm():
-        print("NOT RUNNING")
-        print(f"  Start it with: limactl start {LIMA_VM}")
-        return 1
-    print("running")
+    # Check environment is ready
+    if env.mode == Mode.VM:
+        print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+        if not check_lima_vm():
+            print("NOT RUNNING")
+            print(f"  Start it with: limactl start {LIMA_VM}")
+            return 1
+        print("running")
+    else:
+        print("Using direct mode")
 
     if not cluster_exists():
         print(f"Cluster '{cluster_name}' does not exist")
         return 0
 
-    print(f"Destroying cluster '{cluster_name}'...", end=" ", flush=True)
-
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "delete", "cluster", "--name", cluster_name],
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        print("FAILED")
-        print(f"  Error: {result.stderr}")
-        return 1
-
-    # Clean up kubeconfig
-    context_name = f"kind-{cluster_name}"
-    for resource in ["context", "cluster", "user"]:
-        subprocess.run(
-            ["kubectl", "config", f"delete-{resource}", context_name],
-            capture_output=True,
-        )
-
-    print("done")
-    return 0
+    if q_branch_dev.delete_cluster(backend, cluster_name):
+        return 0
+    return 1
 
 
 def cmd_cluster_list():
     """List all fgm-* Kind clusters."""
-    # Check Lima VM is running
-    print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
-    if not check_lima_vm():
-        print("NOT RUNNING")
-        print(f"  Start it with: limactl start {LIMA_VM}")
+    env = _get_env()
+    backend = _get_backend()
+
+    # Check environment is ready
+    if env.mode == Mode.VM:
+        print(f"Checking Lima VM ({LIMA_VM})...", end=" ", flush=True)
+        if not check_lima_vm():
+            print("NOT RUNNING")
+            print(f"  Start it with: limactl start {LIMA_VM}")
+            return 1
+        print("running\n")
+    else:
+        print("Using direct mode\n")
+
+    returncode, stdout, stderr = backend.exec(["kind", "get", "clusters"], check=False)
+
+    if returncode != 0:
+        print(f"Error getting clusters: {stderr}")
         return 1
-    print("running\n")
 
-    result = subprocess.run(
-        ["limactl", "shell", LIMA_VM, "--", "kind", "get", "clusters"],
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode != 0:
-        print(f"Error getting clusters: {result.stderr}")
-        return 1
-
-    all_clusters = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    all_clusters = stdout.strip().split("\n") if stdout.strip() else []
     fgm_clusters = [c for c in all_clusters if c.startswith("fgm-")]
 
     if not fgm_clusters:

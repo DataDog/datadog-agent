@@ -1,8 +1,82 @@
-# Gadget K8s Host
+# q_branch - Kubernetes Development Infrastructure
 
-Lima VM with a Kind cluster for local Kubernetes development.
+Development infrastructure for Kubernetes-based experiments. Supports both Lima VM mode (macOS, Linux with KVM) and direct Docker mode (Workspaces, containers).
 
-## One-Time Setup
+## Project Structure
+
+```
+q_branch/
+├── lib/                      # Shared Python library
+│   ├── __init__.py
+│   └── k8s_backend.py        # VM/Direct mode backend abstraction
+├── dev.py                    # Environment status CLI (minimal)
+├── gadget-k8s-host.lima.yaml # Lima VM configuration
+└── fine-grained-monitor/     # FGM experiment
+    ├── dev.py                # Full FGM development CLI
+    └── scenario.py           # Scenario runner
+```
+
+## Execution Modes
+
+The infrastructure automatically detects and uses the appropriate mode:
+
+| Environment | Mode | Description |
+|-------------|------|-------------|
+| macOS | VM | Lima VM with nested Kind cluster |
+| Linux + KVM | VM | Lima VM with nested Kind cluster |
+| Linux (no KVM) | Direct | Kind cluster directly on host Docker |
+
+Check current mode:
+```bash
+cd q_branch && ./dev.py status
+```
+
+## Quick Start
+
+### For Fine-Grained Monitor Development
+
+See `fine-grained-monitor/README.md` for full documentation.
+
+```bash
+cd q_branch/fine-grained-monitor
+./dev.py cluster deploy    # Create cluster + deploy FGM
+./dev.py cluster status    # Check pod status
+```
+
+### Using the Shared Library
+
+Projects can import shared utilities:
+
+```python
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from lib.k8s_backend import (
+    Mode, Environment, detect_environment, create_backend,
+    run_cmd, check_health, format_uptime,
+)
+import dev as q_branch_dev
+
+# Auto-detect mode and create backend
+env = detect_environment()
+backend = create_backend(env, "gadget-k8s-host")
+
+# Execute commands through backend (handles VM vs Direct)
+returncode, stdout, stderr = backend.exec(["kind", "get", "clusters"])
+
+# Use shared cluster utilities
+worktree_id = q_branch_dev.get_worktree_id(PROJECT_ROOT)
+cluster_name = q_branch_dev.get_cluster_name("myproject", worktree_id)
+```
+
+---
+
+## Lima VM Setup (VM Mode Only)
+
+For macOS or Linux with KVM, you need to set up the Lima VM first.
+
+### One-Time Setup
 
 ```bash
 # Create VM and Kind cluster
