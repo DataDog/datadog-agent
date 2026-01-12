@@ -142,7 +142,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	}
 
 	// Send StructuredLog with all fields
-	tsMillis := uint64(ts.UnixNano() / nanoToMillis)
+	tsMillis := ts.UnixNano() / nanoToMillis
 	mt.sendStructuredLog(outputChan, msg, tsMillis, pattern.PatternID, dynamicValues, tagSet, jsonContext)
 }
 
@@ -271,7 +271,7 @@ func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage
 }
 
 // sendStructuredLog creates and sends a StructuredLog datum
-func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
+func (mt *MessageTranslator) sendStructuredLog(outputChan chan *message.StatefulMessage, msg *message.Message, timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) {
 	logDatum := buildStructuredLog(timestamp, patternID, dynamicValues, tagSet, jsonContext)
 
 	tlmPipelinePatternLogsProcessed.Inc(mt.pipelineName)
@@ -349,7 +349,7 @@ func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.Dynam
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
-func buildStructuredLog(timestamp uint64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) *statefulpb.Datum {
+func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
@@ -372,7 +372,7 @@ func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet) *state
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_Logs{
 			Logs: &statefulpb.Log{
-				Timestamp: uint64(ts.UnixNano() / nanoToMillis),
+				Timestamp: ts.UnixNano() / nanoToMillis,
 				Content: &statefulpb.Log_Raw{
 					Raw: content,
 				},

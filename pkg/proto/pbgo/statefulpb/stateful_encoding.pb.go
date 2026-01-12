@@ -8,15 +8,14 @@ package statefulpb
 
 import (
 	context "context"
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
 )
 
 const (
@@ -382,7 +381,7 @@ func (x *Tag) GetValue() *DynamicValue {
 
 type Log struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
-	Timestamp uint64                 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	Timestamp int64                  `protobuf:"zigzag64,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	// Types that are valid to be assigned to Content:
 	//
 	//	*Log_Structured
@@ -428,7 +427,7 @@ func (*Log) Descriptor() ([]byte, []int) {
 	return file_datadog_stateful_stateful_encoding_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *Log) GetTimestamp() uint64 {
+func (x *Log) GetTimestamp() int64 {
 	if x != nil {
 		return x.Timestamp
 	}
@@ -1048,7 +1047,7 @@ const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x03key\x12;\n" +
 	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\xc1\x01\n" +
 	"\x03Log\x12\x1c\n" +
-	"\ttimestamp\x18\x01 \x01(\x04R\ttimestamp\x12H\n" +
+	"\ttimestamp\x18\x01 \x01(\x12R\ttimestamp\x12H\n" +
 	"\n" +
 	"structured\x18\x02 \x01(\v2&.datadog.intake.stateful.StructuredLogH\x00R\n" +
 	"structured\x12\x12\n" +
