@@ -15,8 +15,22 @@ import (
 )
 
 func assertTags(actualTags []string, expectedTags []*regexp.Regexp, optionalTags []*regexp.Regexp, acceptUnexpectedTags bool) error {
-	missingTags := make([]*regexp.Regexp, len(expectedTags))
-	copy(missingTags, expectedTags)
+	missingTags := []*regexp.Regexp{}
+
+	// Remove expected tags that are also optional
+	for _, expectedTag := range expectedTags {
+		isOptional := false
+		for _, optionalTag := range optionalTags {
+			if expectedTag.String() == optionalTag.String() {
+				isOptional = true
+				break
+			}
+		}
+		if !isOptional {
+			missingTags = append(missingTags, expectedTag)
+		}
+	}
+
 	unexpectedTags := []string{}
 
 	for _, actualTag := range actualTags {

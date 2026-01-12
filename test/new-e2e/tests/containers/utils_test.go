@@ -118,6 +118,20 @@ func TestAssertTags(t *testing.T) {
 			},
 			expectedOutput: "",
 		},
+		{
+			name: "Expected tag that is also optional",
+			actualTags: []string{
+				"foo:foo",
+			},
+			expectedTags: []*regexp.Regexp{
+				regexp.MustCompile(`^foo:foo$`),
+				regexp.MustCompile(`^bar:bar$`),
+			},
+			optionalTags: []*regexp.Regexp{
+				regexp.MustCompile(`^bar:bar$`), // allow us to be missing bar:bar
+			},
+			expectedOutput: "",
+		},
 	}
 
 	for _, tt := range tests {
