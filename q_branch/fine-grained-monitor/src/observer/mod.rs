@@ -63,6 +63,7 @@ impl Observer {
     /// per-region memory breakdown. This is disabled by default because
     /// reading smaps acquires the kernel mm lock.
     pub async fn sample(&mut self, containers: &[Container], _verbose_perf_risk: bool) {
+        tracing::debug!(container_count = containers.len(), "Observer::sample called");
         // Clean up state for containers that no longer exist
         let current_ids: std::collections::HashSet<_> =
             containers.iter().map(|c| c.id.clone()).collect();
@@ -100,7 +101,13 @@ impl Observer {
             ];
 
             // Emit basic container metrics
-            gauge!("container.pid_count", &labels).set(container.pids.len() as f64);
+            let pid_count = container.pids.len() as f64;
+            gauge!("container.pid_count", &labels).set(pid_count);
+            tracing::debug!(
+                container_id = %container.id,
+                pid_count = pid_count,
+                "Emitted container.pid_count gauge"
+            );
 
             // Sample cgroup v2 metrics (memory.stat, memory.current, etc.)
             if let Err(e) = cgroup_v2::poll(&container.cgroup_path, &labels).await {

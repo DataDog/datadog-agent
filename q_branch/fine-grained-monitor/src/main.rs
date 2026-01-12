@@ -431,30 +431,6 @@ async fn run_rotation_loop(
             _ = rotation_timer.tick() => {
                 rotation_count += 1;
 
-                // Calculate size of completed file before rotation
-                let file_size = match tokio::fs::metadata(&current_output_path).await {
-                    Ok(metadata) => metadata.len(),
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            file = %current_output_path.display(),
-                            "Failed to get file size before rotation"
-                        );
-                        0
-                    }
-                };
-
-                // Check total size limit before rotation
-                total_bytes += file_size;
-                if total_bytes >= MAX_TOTAL_BYTES {
-                    tracing::warn!(
-                        total_bytes = total_bytes,
-                        limit_bytes = MAX_TOTAL_BYTES,
-                        "Total size limit reached, initiating shutdown"
-                    );
-                    break;
-                }
-
                 // Prepare new file path (may cross date boundary)
                 let partition_dir = get_partition_dir(&args.output_dir, &identifier);
                 if let Err(e) = tokio::fs::create_dir_all(&partition_dir).await {
@@ -480,13 +456,39 @@ async fn run_rotation_loop(
                 // Wait for rotation to complete
                 match response_rx.await {
                     Ok(Ok(())) => {
+                        // Get file size AFTER rotation completes - the old file is now
+                        // closed and all data has been flushed to disk
+                        let file_size = match tokio::fs::metadata(&current_output_path).await {
+                            Ok(metadata) => metadata.len(),
+                            Err(e) => {
+                                tracing::warn!(
+                                    error = %e,
+                                    file = %current_output_path.display(),
+                                    "Failed to get file size after rotation"
+                                );
+                                0
+                            }
+                        };
+                        total_bytes += file_size;
+
                         tracing::info!(
                             rotation = rotation_count,
                             old_file = %current_output_path.display(),
                             new_file = %new_output_path.display(),
+                            file_size_bytes = file_size,
                             total_bytes = total_bytes,
                             "File rotation completed"
                         );
+
+                        // Check total size limit after rotation
+                        if total_bytes >= MAX_TOTAL_BYTES {
+                            tracing::warn!(
+                                total_bytes = total_bytes,
+                                limit_bytes = MAX_TOTAL_BYTES,
+                                "Total size limit reached, initiating shutdown"
+                            );
+                            break;
+                        }
 
                         // Write container sidecar for the completed file
                         // (must happen before reassigning current_output_path)
