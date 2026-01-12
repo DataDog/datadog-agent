@@ -55,6 +55,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.11 // indirect
