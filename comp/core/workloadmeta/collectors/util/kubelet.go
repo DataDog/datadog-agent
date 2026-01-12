@@ -217,6 +217,9 @@ func parsePodContainers(
 				log.Debugf("cannot split image name %q: %s", containerSpec.Image, err)
 			}
 
+			// Prefer the image from the spec over the status for the container entity
+			image = podContainer.Image
+
 			podContainer.Image.ID = imageID
 			containerSecurityContext = extractContainerSecurityContext(containerSpec)
 			readinessProbe = extractReadinessProbe(containerSpec)
