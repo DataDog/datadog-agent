@@ -87,11 +87,18 @@ func RunDemoWithConfig(config DemoConfig) {
 		anomalyProcessors: []observerdef.AnomalyProcessor{
 			correlator,
 		},
-		reporters: reporters,
-		storage:   storage,
-		obsCh:     make(chan observation, 1000),
+		reporters:        reporters,
+		storage:          storage,
+		obsCh:            make(chan observation, 1000),
+		rawAnomalyWindow: 120, // keep raw anomalies for 2 minutes
 	}
 	go obs.run()
+
+	// Wire raw anomaly state to reporters for test bench display
+	stdoutReporter.SetRawAnomalyState(obs)
+	if htmlReporter != nil {
+		htmlReporter.SetRawAnomalyState(obs)
+	}
 
 	// Get a handle for the demo generator
 	handle := obs.GetHandle("demo")

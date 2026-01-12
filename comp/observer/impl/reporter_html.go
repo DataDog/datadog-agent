@@ -31,6 +31,7 @@ type HTMLReporter struct {
 	reports          []timestampedReport
 	storage          *timeSeriesStorage
 	correlationState observer.CorrelationState
+	rawAnomalyState  observer.RawAnomalyState
 	server           *http.Server
 }
 
@@ -81,6 +82,13 @@ func (r *HTMLReporter) SetCorrelationState(state observer.CorrelationState) {
 	r.correlationState = state
 }
 
+// SetRawAnomalyState sets the raw anomaly state source for querying individual anomalies.
+func (r *HTMLReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rawAnomalyState = state
+}
+
 // Start starts the HTTP server on the given address.
 func (r *HTMLReporter) Start(addr string) error {
 	mux := http.NewServeMux()
@@ -89,6 +97,7 @@ func (r *HTMLReporter) Start(addr string) error {
 	mux.HandleFunc("/api/series", r.handleAPISeries)
 	mux.HandleFunc("/api/series/list", r.handleAPISeriesList)
 	mux.HandleFunc("/api/correlations", r.handleAPICorrelations)
+	mux.HandleFunc("/api/raw-anomalies", r.handleAPIRawAnomalies)
 
 	r.server = &http.Server{
 		Addr:    addr,
@@ -356,32 +365,54 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         const anomalyCharts = {};  // charts for anomalous metrics
         const allCharts = {};      // charts for all metrics
         const chartColors = ['#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444', '#22c55e'];
-        let anomalyRanges = {}; // chartKey -> [{start, end}, ...]
+        let anomalyRanges = {}; // chartKey -> [{start, end, analyzerName}, ...]
         let correlationData = []; // list of correlations for timeline
+        let rawAnomalyData = []; // raw anomalies from all analyzers
 
-        // Build a map of chart key -> anomaly time ranges from correlations
-        function buildAnomalyRanges(correlations) {
+        // Analyzer colors for distinguishing different detection algorithms
+        const analyzerColors = {
+            'cusum_detector': { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },  // red
+            'arima_detector': { bg: 'rgba(59, 130, 246, 0.15)', border: '#3b82f6' }, // blue
+            'mad_detector':   { bg: 'rgba(34, 197, 94, 0.15)', border: '#22c55e' },  // green
+            'default':        { bg: 'rgba(168, 85, 247, 0.15)', border: '#a855f7' }  // purple
+        };
+
+        function getAnalyzerColor(analyzerName) {
+            return analyzerColors[analyzerName] || analyzerColors['default'];
+        }
+
+        // Build a map of chart key -> anomaly time ranges from raw anomalies
+        function buildAnomalyRanges(rawAnomalies) {
             const ranges = {};
-            for (const c of correlations || []) {
-                for (const a of c.anomalies || []) {
-                    const key = a.source;
-                    if (!ranges[key]) ranges[key] = [];
-                    if (a.timeRange && a.timeRange.start && a.timeRange.end) {
-                        ranges[key].push({
-                            start: a.timeRange.start,
-                            end: a.timeRange.end
-                        });
-                    }
+            for (const a of rawAnomalies || []) {
+                const key = a.source;
+                if (!ranges[key]) ranges[key] = [];
+                if (a.timeRange && a.timeRange.start && a.timeRange.end) {
+                    ranges[key].push({
+                        start: a.timeRange.start,
+                        end: a.timeRange.end,
+                        analyzerName: a.analyzerName || 'unknown'
+                    });
                 }
             }
             return ranges;
+        }
+
+        async function fetchRawAnomalies() {
+            try {
+                const resp = await fetch('/api/raw-anomalies');
+                rawAnomalyData = await resp.json() || [];
+                anomalyRanges = buildAnomalyRanges(rawAnomalyData);
+                renderRawAnomalySummary(rawAnomalyData);
+            } catch (e) {
+                console.error('Failed to fetch raw anomalies:', e);
+            }
         }
 
         async function fetchCorrelations() {
             try {
                 const resp = await fetch('/api/correlations');
                 const correlations = await resp.json();
-                anomalyRanges = buildAnomalyRanges(correlations);
                 correlationData = correlations || [];
                 renderTimeline(correlationData);
             } catch (e) {
@@ -424,6 +455,45 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             container.innerHTML = html;
         }
 
+        function renderRawAnomalySummary(rawAnomalies) {
+            // Group anomalies by analyzer
+            const byAnalyzer = {};
+            for (const a of rawAnomalies || []) {
+                const name = a.analyzerName || 'unknown';
+                if (!byAnalyzer[name]) byAnalyzer[name] = [];
+                byAnalyzer[name].push(a);
+            }
+
+            // Find or create summary container
+            let summaryDiv = document.getElementById('raw-anomaly-summary');
+            if (!summaryDiv) {
+                const timelinePanel = document.querySelector('.timeline-panel');
+                summaryDiv = document.createElement('div');
+                summaryDiv.id = 'raw-anomaly-summary';
+                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3>';
+                timelinePanel.insertBefore(summaryDiv, timelinePanel.querySelector('#timeline'));
+            }
+
+            if (Object.keys(byAnalyzer).length === 0) {
+                summaryDiv.innerHTML = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3><div class="no-anomalies">No anomalies detected yet</div>';
+                return;
+            }
+
+            let html = '<h3 style="margin: 16px 0 8px 0; color: #a1a1aa;">Raw Anomalies by Analyzer</h3>';
+            html += '<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px;">';
+            for (const [analyzer, anomalies] of Object.entries(byAnalyzer)) {
+                const color = getAnalyzerColor(analyzer);
+                const sources = [...new Set(anomalies.map(a => a.source))];
+                html += '<div style="background: ' + color.bg + '; border-left: 3px solid ' + color.border + '; padding: 8px 12px; border-radius: 4px; min-width: 140px;">';
+                html += '<div style="font-weight: 500; color: ' + color.border + ';">' + escapeHtml(analyzer) + '</div>';
+                html += '<div style="color: #d4d4d8; font-size: 0.875rem;">' + anomalies.length + ' anomalies</div>';
+                html += '<div style="color: #71717a; font-size: 0.75rem;">' + sources.length + ' metrics</div>';
+                html += '</div>';
+            }
+            html += '</div>';
+            summaryDiv.innerHTML = html;
+        }
+
         async function fetchSeriesList() {
             try {
                 const resp = await fetch('/api/series/list?namespace=demo');
@@ -449,6 +519,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         const analysisAggregations = ['avg', 'count'];
 
         // Build Chart.js annotations from anomaly ranges for a given chart key
+        // Uses analyzer-specific colors when analyzerName is present
         function buildAnnotations(timestamps, ranges) {
             if (!ranges || ranges.length === 0 || !timestamps || timestamps.length === 0) {
                 return {};
@@ -472,18 +543,19 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                 }
 
                 if (startIdx !== -1 && endIdx !== -1 && startIdx <= endIdx) {
+                    const color = getAnalyzerColor(range.analyzerName);
                     annotations['box' + idx] = {
                         type: 'box',
                         xMin: startIdx,
                         xMax: endIdx,
-                        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                        backgroundColor: color.bg,
                         borderColor: 'transparent'
                     };
                     annotations['lineStart' + idx] = {
                         type: 'line',
                         xMin: startIdx,
                         xMax: startIdx,
-                        borderColor: 'rgba(239, 68, 68, 0.6)',
+                        borderColor: color.border,
                         borderWidth: 2,
                         borderDash: [4, 4]
                     };
@@ -491,7 +563,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                         type: 'line',
                         xMin: endIdx,
                         xMax: endIdx,
-                        borderColor: 'rgba(239, 68, 68, 0.6)',
+                        borderColor: color.border,
                         borderWidth: 2,
                         borderDash: [4, 4]
                     };
@@ -640,8 +712,10 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         }
 
         // Initial load and periodic refresh
+        fetchRawAnomalies();
         fetchCorrelations();
         updateCharts();
+        setInterval(fetchRawAnomalies, 1000);
         setInterval(fetchCorrelations, 1000);
         setInterval(updateCharts, 1000);
     </script>
@@ -837,6 +911,16 @@ type anomalyOutput struct {
 	TimeRange   timeRangeOutput `json:"timeRange"`
 }
 
+// rawAnomalyOutput is the JSON structure for raw anomaly API responses.
+type rawAnomalyOutput struct {
+	Source       string          `json:"source"`
+	AnalyzerName string          `json:"analyzerName"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description"`
+	Tags         []string        `json:"tags"`
+	TimeRange    timeRangeOutput `json:"timeRange"`
+}
+
 // handleAPICorrelations returns currently active correlations.
 func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Request) {
 	r.mu.RLock()
@@ -875,6 +959,39 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(correlations); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleAPIRawAnomalies returns all raw anomalies from TimeSeriesAnalysis implementations.
+func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
+	rawState := r.rawAnomalyState
+	r.mu.RUnlock()
+
+	var anomalies []rawAnomalyOutput
+	if rawState != nil {
+		raw := rawState.RawAnomalies()
+		anomalies = make([]rawAnomalyOutput, len(raw))
+		for i, a := range raw {
+			anomalies[i] = rawAnomalyOutput{
+				Source:       a.Source,
+				AnalyzerName: a.AnalyzerName,
+				Title:        a.Title,
+				Description:  a.Description,
+				Tags:         a.Tags,
+				TimeRange: timeRangeOutput{
+					Start: a.TimeRange.Start,
+					End:   a.TimeRange.End,
+				},
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(anomalies); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

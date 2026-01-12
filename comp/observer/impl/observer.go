@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -211,6 +212,12 @@ type observerImpl struct {
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
+
+	// Raw anomaly tracking for test bench display
+	rawAnomalies     []observerdef.AnomalyOutput
+	rawAnomalyMu     sync.RWMutex
+	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
+	currentDataTime  int64 // latest data timestamp seen
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -282,6 +289,10 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 	for _, tsAnalysis := range o.tsAnalyses {
 		result := tsAnalysis.Analyze(seriesWithAgg)
 		for _, anomaly := range result.Anomalies {
+			// Set the analyzer name so we can identify who produced this anomaly
+			anomaly.AnalyzerName = tsAnalysis.Name()
+			// Capture raw anomaly before passing to processors
+			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
 		}
 	}
@@ -310,6 +321,58 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 	for _, processor := range o.anomalyProcessors {
 		processor.Process(anomaly)
 	}
+}
+
+// captureRawAnomaly stores a raw anomaly for test bench display.
+// Deduplicates by Source+AnalyzerName, keeping the most recent.
+func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
+	o.rawAnomalyMu.Lock()
+	defer o.rawAnomalyMu.Unlock()
+
+	// Update current data time
+	if anomaly.TimeRange.End > o.currentDataTime {
+		o.currentDataTime = anomaly.TimeRange.End
+	}
+
+	// Deduplicate by Source+AnalyzerName (keep most recent)
+	key := anomaly.Source + "|" + anomaly.AnalyzerName
+	found := false
+	for i, existing := range o.rawAnomalies {
+		existingKey := existing.Source + "|" + existing.AnalyzerName
+		if existingKey == key {
+			if anomaly.TimeRange.End > existing.TimeRange.End {
+				o.rawAnomalies[i] = anomaly
+			}
+			found = true
+			break
+		}
+	}
+	if !found {
+		o.rawAnomalies = append(o.rawAnomalies, anomaly)
+	}
+
+	// Evict old anomalies if window is set
+	if o.rawAnomalyWindow > 0 {
+		cutoff := o.currentDataTime - o.rawAnomalyWindow
+		newBuffer := o.rawAnomalies[:0]
+		for _, a := range o.rawAnomalies {
+			if a.TimeRange.End >= cutoff {
+				newBuffer = append(newBuffer, a)
+			}
+		}
+		o.rawAnomalies = newBuffer
+	}
+}
+
+// RawAnomalies returns a copy of currently tracked raw anomalies.
+// Implements observerdef.RawAnomalyState interface.
+func (o *observerImpl) RawAnomalies() []observerdef.AnomalyOutput {
+	o.rawAnomalyMu.RLock()
+	defer o.rawAnomalyMu.RUnlock()
+
+	result := make([]observerdef.AnomalyOutput, len(o.rawAnomalies))
+	copy(result, o.rawAnomalies)
+	return result
 }
 
 // flushAndReport flushes all anomaly processors and notifies all reporters.
