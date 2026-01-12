@@ -10,27 +10,9 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-const (
-	// metaTraceIDHigh is the meta tag key for the high 64 bits of a 128-bit trace ID.
-	// This is used by Datadog tracers to propagate the upper bits of the trace ID.
-	metaTraceIDHigh = "_dd.p.tid"
-)
-
-// copyTraceID copies the trace ID (both low and high 64 bits) from src to dst.
-// This handles both 64-bit and 128-bit trace IDs by copying the TraceID field
-// and the _dd.p.tid meta tag (if present).
-func copyTraceID(dst, src *pb.Span) {
-	dst.TraceID = src.TraceID
-	if tidHigh, ok := src.Meta[metaTraceIDHigh]; ok {
-		if dst.Meta == nil {
-			dst.Meta = make(map[string]string)
-		}
-		dst.Meta[metaTraceIDHigh] = tidHigh
-	}
-}
 
 // SpanModifierSetter is an interface for setting span modifiers
 type SpanModifierSetter interface {
@@ -88,7 +70,7 @@ func (m *CloudRunJobsSpanModifier) ModifySpan(_ *pb.TraceChunk, span *pb.Span) {
 		// Update job span to match (for log-trace correlation)
 		// This copies both low and high 64 bits for 128-bit trace ID support
 		if m.jobSpan != nil {
-			copyTraceID(m.jobSpan, span)
+			traceutil.CopyTraceID(m.jobSpan, span)
 		}
 	}
 

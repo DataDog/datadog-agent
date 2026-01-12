@@ -24,6 +24,9 @@ const (
 	tracerTopLevelKey = "_dd.top_level"
 	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
 	partialVersionKey = "_dd.partial_version"
+	// metaTraceIDHigh is the meta tag key for the high 64 bits of a 128-bit trace ID.
+	// This is used by Datadog tracers to propagate the upper bits of the trace ID.
+	metaTraceIDHigh = "_dd.p.tid"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -206,4 +209,21 @@ func GetMetric(s *pb.Span, key string) (float64, bool) {
 	}
 	val, ok := s.Metrics[key]
 	return val, ok
+}
+
+// CopyTraceID copies the full trace ID (both low and high 64 bits) from src to dst.
+// This handles both 64-bit trace IDs (just the TraceID field) and 128-bit trace IDs
+// by copying the TraceID field and the _dd.p.tid meta tag (if present).
+//
+// For 128-bit trace IDs:
+//   - Low 64 bits: span.TraceID field
+//   - High 64 bits: span.Meta["_dd.p.tid"] (hex-encoded string)
+//
+// This is essential for maintaining trace identity during span manipulation,
+// particularly for log-trace correlation and trace propagation.
+func CopyTraceID(dst, src *pb.Span) {
+	dst.TraceID = src.TraceID
+	if tidHigh, ok := GetMeta(src, metaTraceIDHigh); ok {
+		SetMeta(dst, metaTraceIDHigh, tidHigh)
+	}
 }
