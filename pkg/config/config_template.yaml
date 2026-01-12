@@ -4608,6 +4608,28 @@ api_key:
 ## OpenTelemetry Configuration   ##
 ###################################
 
+## @param otelcollector - custom object - optional
+## This section configures the embedded OpenTelemetry Collector.
+#
+# otelcollector:
+
+#   # @param enabled - boolean - optional - default: false
+#   # @env DD_OTELCOLLECTOR_ENABLED - boolean - optional - default: false
+#   # Set to true to enable the embedded OpenTelemetry Collector.
+#
+#   enabled: false
+
+#   # @param metadata - custom object - optional
+#   # Controls inventory metadata collection for the OpenTelemetry Collector.
+#
+#   metadata:
+
+#     # @param enabled - boolean - optional - default: true
+#     # @env DD_OTELCOLLECTOR_METADATA_ENABLED - boolean - optional - default: true
+#     # Set to false to skip OpenTelemetry Collector metadata collection.
+#
+#     enabled: true
+
 ## @param otlp_config - custom object - optional
 ## This section configures OTLP ingest in the Datadog Agent.
 #
