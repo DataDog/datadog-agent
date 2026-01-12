@@ -6,6 +6,8 @@
 package utils
 
 import (
+	"strings"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -44,7 +46,7 @@ func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
 	// Disable Agent Telemetry for GovCloud
-	if cfg.GetBool("fips.enabled") || cfg.GetString("site") == "ddog-gov.com" {
+	if cfg.GetBool("fips.enabled") || strings.HasSuffix(cfg.GetString("site"), "ddog-gov.com") {
 		return false
 	}
 	return cfg.GetBool("agent_telemetry.enabled")

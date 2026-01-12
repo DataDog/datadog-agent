@@ -9,9 +9,11 @@ package meta
 import (
 	_ "embed"
 	"encoding/json"
+	"strings"
+
+	"github.com/DataDog/go-tuf/data"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/go-tuf/data"
 )
 
 var (
@@ -54,12 +56,12 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 	if directorRootOverride != "" {
 		return NewEmbeddedRoot([]byte(directorRootOverride))
 	}
-	switch site {
-	case "datad0g.com":
+
+	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootDirector)
-	case "ddog-gov.com":
+	} else if strings.HasSuffix(site, "ddog-gov.com") {
 		return NewEmbeddedRoot(govRootDirector)
-	default:
+	} else {
 		return NewEmbeddedRoot(prodRootDirector)
 	}
 }
@@ -70,12 +72,11 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 		return NewEmbeddedRoot([]byte(configRootOverride))
 	}
 
-	switch site {
-	case "datad0g.com":
+	if site == "datad0g.com" {
 		return NewEmbeddedRoot(stagingRootConfig)
-	case "ddog-gov.com":
+	} else if strings.HasSuffix(site, "ddog-gov.com") {
 		return NewEmbeddedRoot(govRootConfig)
-	default:
+	} else {
 		return NewEmbeddedRoot(prodRootConfig)
 	}
 }

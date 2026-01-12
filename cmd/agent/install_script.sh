@@ -106,7 +106,7 @@ Troubleshooting and basic usage information for the %s are available at:
       exit 1;
     fi
 
-    if [ "$site" == "ddog-gov.com" ]; then
+    if [[ "$site" == *"ddog-gov.com" ]]; then
       fallback_msg
       exit 1;
     fi
