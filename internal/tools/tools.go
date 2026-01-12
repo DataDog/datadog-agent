@@ -11,9 +11,10 @@ package tools
 // This is the currently recommended approach: https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
 import (
+	_ "github.com/aarzilli/whydeadcode"
 	_ "github.com/frapposelli/wwhrd"
 	_ "github.com/go-enry/go-license-detector/v4/cmd/license-detector"
-	_ "github.com/golangci/golangci-lint/cmd/golangci-lint"
+	_ "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 	_ "github.com/goware/modvendor"
 	_ "github.com/stormcat24/protodep"
 	_ "github.com/uber-go/gopatch"

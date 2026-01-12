@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,8 +22,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-
-	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -115,17 +114,21 @@ func (s *Snapshot) Snapshot(ignoredBaseNames []string, kernelCompilationFlags ma
 
 // snapshotProcSys recursively reads files in /proc/sys and builds a nested JSON structure.
 func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
-	return filepath.Walk(kernel.HostProc("/sys"), func(file string, info fs.FileInfo, err error) error {
+	return filepath.WalkDir(kernel.HostProc("/sys"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil
@@ -160,17 +163,21 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	}
 
 	// fetch secure boot status, ignore when missing
-	_ = filepath.Walk(kernel.HostSys("/firmware/efi/efivars/"), func(file string, info fs.FileInfo, err error) error {
+	_ = filepath.WalkDir(kernel.HostSys("/firmware/efi/efivars/"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil
@@ -198,17 +205,21 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	})
 
 	// add CPU vulnerabilities, ignore when missing
-	_ = filepath.Walk(kernel.HostSys("/devices/system/cpu/vulnerabilities"), func(file string, info fs.FileInfo, err error) error {
+	_ = filepath.WalkDir(kernel.HostSys("/devices/system/cpu/vulnerabilities"), func(file string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
 		// Skip if mode doesn't allow reading
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
 		mode := info.Mode()
 		if mode&0444 == 0 {
 			return nil
@@ -233,17 +244,12 @@ func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 
 // snapshotCPUFlags fetches the current CPU flags and adds them to the snapshot
 func (s *Snapshot) snapshotCPUFlags() error {
-	// no need for host proc path here, the cpuinfo file is always exposed
-	info, err := cpu.Info()
+	flags, err := parseCPUFlags()
 	if err != nil {
-		return err
+		return fmt.Errorf("error parsing CPU features/flags: %w", err)
 	}
-	if len(info) == 0 {
-		return nil
-	}
-
-	s.CPUFlags = info[0].Flags
-	slices.Sort(s.CPUFlags)
+	slices.Sort(flags)
+	s.CPUFlags = flags
 	return nil
 }
 
@@ -271,7 +277,7 @@ func (s *Snapshot) getKernelConfigPath() (string, error) {
 	if _, err := os.Stat(procConfigGZ); err == nil {
 		return procConfigGZ, nil
 	}
-	return "", fmt.Errorf("kernel config not found")
+	return "", errors.New("kernel config not found")
 }
 
 func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {

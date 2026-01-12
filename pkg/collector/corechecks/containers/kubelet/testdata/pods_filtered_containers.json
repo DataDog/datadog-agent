@@ -1,0 +1,309 @@
+{
+    "items": [
+        {
+            "metadata": {
+                "name": "pause-pod",
+                "namespace": "default",
+                "uid": "pod123",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "POD",
+                        "image": "k8s.gcr.io/pause:3.1"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.10",
+                "containerStatuses": [
+                    {
+                        "name": "POD",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "k8s.gcr.io/pause:3.1",
+                        "imageID": "docker-pullable://k8s.gcr.io/pause@sha256:abc123",
+                        "containerID": "containerd://pause-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "pause-pod2",
+                "namespace": "default",
+                "uid": "pod999",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "POD",
+                        "image": "gcr.io/google_containers/pause-amd64:3.0"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.13",
+                "containerStatuses": [
+                    {
+                        "name": "POD",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "gcr.io/google_containers/pause-amd64:3.0",
+                        "imageID": "docker-pullable://gcr.io/google_containers/pause-amd64@sha256:jkl012",
+                        "containerID": "containerd://pause2-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "pause-pod3",
+                "namespace": "default",
+                "uid": "pod111",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "pause-container",
+                        "image": "registry.k8s.io/pause:3.2"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.14",
+                "containerStatuses": [
+                    {
+                        "name": "pause-container",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "registry.k8s.io/pause:3.2",
+                        "imageID": "docker-pullable://registry.k8s.io/pause@sha256:mno345",
+                        "containerID": "containerd://pause3-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "excluded-pod",
+                "namespace": "default",
+                "uid": "pod789",
+                "creationTimestamp": "2018-02-13T16:10:24Z",
+                "annotations": {
+                    "ad.datadoghq.com/excluded-by-annotation.exclude": "true"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "excluded-by-annotation",
+                        "image": "test:latest"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.12",
+                "containerStatuses": [
+                    {
+                        "name": "excluded-by-annotation",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "test:latest",
+                        "imageID": "docker-pullable://test@sha256:ghi789",
+                        "containerID": "containerd://excluded-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "fluentd-pod",
+                "namespace": "kube-system",
+                "uid": "pod456",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "fluentd-gcp",
+                        "image": "gcr.io/google-containers/fluentd-gcp:2.0.10"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.11",
+                "containerStatuses": [
+                    {
+                        "name": "fluentd-gcp",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "gcr.io/google-containers/fluentd-gcp:2.0.10",
+                        "imageID": "docker-pullable://gcr.io/google-containers/fluentd-gcp@sha256:def456",
+                        "containerID": "containerd://fluentd-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "sidecar-pod",
+                "namespace": "default",
+                "uid": "pod101",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "name": "app-container",
+                        "image": "nginx:latest"
+                    },
+                    {
+                        "name": "istio-proxy",
+                        "image": "istio/proxyv2:1.0"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.15",
+                "containerStatuses": [
+                    {
+                        "name": "app-container",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "nginx:latest",
+                        "imageID": "docker-pullable://nginx@sha256:app123",
+                        "containerID": "containerd://app-ctr"
+                    },
+                    {
+                        "name": "istio-proxy",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "istio/proxyv2:1.0",
+                        "imageID": "docker-pullable://istio/proxyv2@sha256:sidecar123",
+                        "containerID": "containerd://sidecar-ctr"
+                    }
+                ]
+            }
+        },
+        {
+            "metadata": {
+                "name": "init-pod",
+                "namespace": "default",
+                "uid": "pod202",
+                "creationTimestamp": "2018-02-13T16:10:24Z"
+            },
+            "spec": {
+                "initContainers": [
+                    {
+                        "name": "init-container",
+                        "image": "busybox:latest"
+                    }
+                ],
+                "containers": [
+                    {
+                        "name": "main-container",
+                        "image": "nginx:latest"
+                    }
+                ],
+                "nodeName": "test-node"
+            },
+            "status": {
+                "phase": "Running",
+                "podIP": "10.244.0.16",
+                "initContainerStatuses": [
+                    {
+                        "name": "init-container",
+                        "state": {
+                            "terminated": {
+                                "exitCode": 0,
+                                "finishedAt": "2018-02-13T16:10:26Z",
+                                "reason": "Completed",
+                                "startedAt": "2018-02-13T16:10:25Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "busybox:latest",
+                        "imageID": "docker-pullable://busybox@sha256:init123",
+                        "containerID": "containerd://init-ctr"
+                    }
+                ],
+                "containerStatuses": [
+                    {
+                        "name": "main-container",
+                        "state": {
+                            "running": {
+                                "startedAt": "2018-02-13T16:10:27Z"
+                            }
+                        },
+                        "lastState": {},
+                        "ready": true,
+                        "restartCount": 0,
+                        "image": "nginx:latest",
+                        "imageID": "docker-pullable://nginx@sha256:main123",
+                        "containerID": "containerd://main-ctr"
+                    }
+                ]
+            }
+        }
+    ]
+}

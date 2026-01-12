@@ -155,6 +155,18 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "EC2 Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		return ec2internal.GetMetadataItemWithMaxLength(ctx, "/instance-type", ec2internal.UseIMDSv2(), false)
+	},
+}
+
+// GetInstanceType returns the AWS instance type as reported by EC2 IMDS.
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
+}
+
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
 	return isDefaultHostname(hostname, pkgconfigsetup.Datadog().GetBool("ec2_use_windows_prefix_detection"))

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,17 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 const (
+	kubeletConfigPath      = "/configz"
 	kubeletPodPath         = "/pods"
 	kubeletMetricsPath     = "/metrics"
 	kubeletStatsSummary    = "/stats/summary"
 	authorizationHeaderKey = "Authorization"
 	podListCacheKey        = "KubeletPodListCacheKey"
-	unreadyAnnotation      = "ad.datadoghq.com/tolerate-unready"
 	configSourceAnnotation = "kubernetes.io/config.source"
 )
 
@@ -65,11 +67,17 @@ type KubeUtil struct {
 
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration
+	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
+	devicePluginsClient  DevicePluginClient
 
 	useAPIServer bool
+
+	// The node name is immutable in Kubernetes, so once it is fetched it should
+	// be cached
+	nodeName      string
+	nodeNameMutex sync.Mutex
 }
 
 func (ku *KubeUtil) init() error {
@@ -81,7 +89,7 @@ func (ku *KubeUtil) init() error {
 
 	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
 	if ku.kubeletClient.config.scheme == "https" {
-		ku.rawConnectionInfo["verify_tls"] = fmt.Sprintf("%v", ku.kubeletClient.config.tlsVerify)
+		ku.rawConnectionInfo["verify_tls"] = strconv.FormatBool(ku.kubeletClient.config.tlsVerify)
 		if ku.kubeletClient.config.caPath != "" {
 			ku.rawConnectionInfo["ca_cert"] = ku.kubeletClient.config.caPath
 		}
@@ -98,6 +106,13 @@ func (ku *KubeUtil) init() error {
 		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
 		if err != nil {
 			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
+	}
+
+	if env.IsFeaturePresent(env.KubernetesDevicePlugins) {
+		ku.devicePluginsClient, err = NewDevicePluginClient(pkgconfigsetup.Datadog())
+		if err != nil {
+			log.Warnf("Failed to create device plugins client, devices health will not be available: %s", err)
 		}
 	}
 
@@ -169,49 +184,69 @@ func GetKubeUtil() (KubeUtilInterface, error) {
 func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error) {
 	query := fmt.Sprintf("follow=%t&timestamps=%t", logOptions.Follow, logOptions.Timestamps)
 	if logOptions.SinceTime != nil {
-		query += fmt.Sprintf("&sinceTime=%s", logOptions.SinceTime.Format(time.RFC3339))
+		query += "&sinceTime=" + logOptions.SinceTime.Format(time.RFC3339)
 	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
 	return ku.kubeletClient.queryWithResp(ctx, path)
 }
 
-// GetNodename returns the nodename of the first pod.spec.nodeName in the PodList
+// GetNodename returns the nodename
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
+	ku.nodeNameMutex.Lock()
+	defer ku.nodeNameMutex.Unlock()
+
+	if ku.nodeName != "" {
+		return ku.nodeName, nil
+	}
+
+	var nodeName string
+
 	if ku.useAPIServer {
 		if ku.kubeletClient.config.nodeName != "" {
-			return ku.kubeletClient.config.nodeName, nil
+			nodeName = ku.kubeletClient.config.nodeName
+		} else {
+			stats, err := ku.GetLocalStatsSummary(ctx)
+			if err == nil && stats.Node.NodeName != "" {
+				nodeName = stats.Node.NodeName
+			} else {
+				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+			}
 		}
-		stats, err := ku.GetLocalStatsSummary(ctx)
-		if err == nil && stats.Node.NodeName != "" {
-			return stats.Node.NodeName, nil
+	} else {
+		pods, err := ku.GetLocalPodList(ctx)
+		if err != nil {
+			return "", fmt.Errorf("error getting pod list from kubelet: %w", err)
 		}
-		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %v", kubeletStatsSummary, err)
-	}
-	pods, err := ku.GetLocalPodList(ctx)
-	if err != nil {
-		return "", fmt.Errorf("error getting pod list from kubelet: %s", err)
+
+		for _, pod := range pods {
+			if pod.Spec.NodeName != "" {
+				nodeName = pod.Spec.NodeName
+				break
+			}
+		}
+		if nodeName == "" {
+			return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+		}
 	}
 
-	for _, pod := range pods {
-		if pod.Spec.NodeName == "" {
-			continue
-		}
-		return pod.Spec.NodeName, nil
-	}
+	// Cache the node name, it's immutable
+	ku.nodeName = nodeName
 
-	return "", fmt.Errorf("failed to get the kubernetes nodename, pod list length: %d", len(pods))
+	return nodeName, nil
 }
 
 func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	var ok bool
 	pods := PodList{}
 
-	if cached, hit := cache.Cache.Get(podListCacheKey); hit {
-		pods, ok = cached.(PodList)
-		if !ok {
-			log.Errorf("Invalid pod list cache format, forcing a cache miss")
-		} else {
-			return &pods, nil
+	if ku.podListCacheDuration > 0 {
+		if cached, hit := cache.Cache.Get(podListCacheKey); hit {
+			pods, ok = cached.(PodList)
+			if !ok {
+				log.Errorf("Invalid pod list cache format, forcing a cache miss")
+			} else {
+				return &pods, nil
+			}
 		}
 	}
 
@@ -255,8 +290,9 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	}
 	pods.Items = tmpSlice
 
-	// cache the podList to reduce pressure on the kubelet
-	cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	if ku.podListCacheDuration > 0 {
+		cache.Cache.Set(podListCacheKey, pods, ku.podListCacheDuration)
+	}
 
 	return &pods, nil
 }
@@ -307,6 +343,33 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 	}
 }
 
+// GetDevicesList returns the list of devices registered to the kubelet on the node.
+// Information is cached for as configured by kubernetes_kubelet_deviceplugins_cache_duration
+func (ku *KubeUtil) GetDevicesList(ctx context.Context) ([]*Device, error) {
+	if ku.devicePluginsClient == nil {
+		return nil, nil
+	}
+
+	if err := ku.devicePluginsClient.Refresh(ctx); err != nil {
+		return nil, err
+	}
+
+	info, err := ku.devicePluginsClient.ListDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	devices := []*Device{}
+	for _, d := range info {
+		devices = append(devices, &Device{
+			ID:      d.ID,
+			Healthy: d.Health == devicepluginv1beta1.Healthy,
+		})
+	}
+
+	return devices, nil
+}
+
 // GetLocalPodList returns the list of pods running on the node.
 // If kubernetes_pod_expiration_duration is set, old exited pods
 // will be filtered out to keep the podlist size down: see json.go
@@ -324,12 +387,6 @@ func (ku *KubeUtil) GetLocalPodList(ctx context.Context) ([]*Pod, error) {
 // which were expired and therefore removed from the list when it was generated.
 func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, error) {
 	return ku.getLocalPodList(ctx)
-}
-
-// ForceGetLocalPodList reset podList cache and call GetLocalPodList
-func (ku *KubeUtil) ForceGetLocalPodList(ctx context.Context) (*PodList, error) {
-	ResetCache()
-	return ku.GetLocalPodListWithMetadata(ctx)
 }
 
 // GetLocalStatsSummary returns node and pod stats from kubelet
@@ -392,6 +449,25 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	return data, nil
 }
 
+// GetConfig returns the kubelet configuration from /configz
+func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
+	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
+	if err != nil {
+		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletConfigPath, err)
+	}
+	if code != http.StatusOK {
+		return bytes, nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletConfigPath, string(bytes))
+	}
+
+	var config *ConfigDocument
+	err = json.Unmarshal(bytes, &config)
+	if err != nil {
+		return bytes, nil, err
+	}
+
+	return bytes, config, nil
+}
+
 // IsPodReady return a bool if the Pod is ready
 func IsPodReady(pod *Pod) bool {
 	// static pods are always reported as Pending, so we make an exception there
@@ -403,9 +479,6 @@ func IsPodReady(pod *Pod) bool {
 		return false
 	}
 
-	if tolerate, ok := pod.Metadata.Annotations[unreadyAnnotation]; ok && tolerate == "true" {
-		return true
-	}
 	for _, status := range pod.Status.Conditions {
 		if status.Type == "Ready" && status.Status == "True" {
 			return true

@@ -31,6 +31,10 @@ const (
 	OffsetNameFileFpath                 = "file_f_path_offset"
 	OffsetNameDentryDSb                 = "dentry_d_sb_offset"
 	OffsetNameMountMntID                = "mount_id_offset"
+	OffsetNameMountMntIDUnique          = "mount_id_unique_offset"
+	OffsetNameMountMntNs                = "mount_ns_offset"
+	OffsetNameMntNamespaceNs            = "mnt_namespace_ns"
+	OffsetNameNsCommonInum              = "ns_common_inum_offset"
 	OffsetNameSbDev                     = "sb_dev_offset"
 	OffsetNameDentryDInode              = "dentry_d_inode_offset"
 	OffsetNamePathDentry                = "path_dentry_offset"
@@ -112,6 +116,7 @@ const (
 	// TODO: needed for l4_protocol resolution, see network/flow.h
 	OffsetNameFlowI4StructProto = "flowi4_proto_offset"
 	OffsetNameFlowI6StructProto = "flowi6_proto_offset"
+	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile = "binprm_file_offset"

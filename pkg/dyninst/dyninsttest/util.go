@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"testing"
 
@@ -44,6 +45,23 @@ func SkipIfKernelNotSupported(t *testing.T) {
 	}
 }
 
+// Semaphore is a semaphore that can be used to limit the number of concurrent
+// operations.
+type Semaphore chan struct{}
+
+// MakeSemaphore creates a new semaphore with a number of slots equal to the
+// number of CPUs.
+func MakeSemaphore() Semaphore {
+	return make(Semaphore, max(runtime.GOMAXPROCS(0), 1))
+}
+
+// Acquire acquires a slot in the semaphore. It returns a function that must be
+// called to release the slot.
+func (s Semaphore) Acquire() (release func()) {
+	s <- struct{}{}
+	return func() { <-s }
+}
+
 // SetupLogging is used to have a consistent logging setup for all tests.
 // It is best to call this in TestMain.
 func SetupLogging() {
@@ -51,20 +69,8 @@ func SetupLogging() {
 	if logLevel == "" {
 		logLevel = "debug"
 	}
-	const defaultFormat = "%l %Date(15:04:05.000000000) @%File:%Line| %Msg%n"
-	var format string
-	switch formatFromEnv := os.Getenv("DD_LOG_FORMAT"); formatFromEnv {
-	case "":
-		format = defaultFormat
-	case "json":
-		format = `{"time":%Ns,"level":"%Level","msg":"%Msg","path":"%RelFile","func":"%Func","line":%Line}%n`
-	case "json-short":
-		format = `{"t":%Ns,"l":"%Lev","m":"%Msg"}%n`
-	default:
-		format = formatFromEnv
-	}
-	logger, err := log.LoggerFromWriterWithMinLevelAndFormat(
-		os.Stderr, log.TraceLvl, format,
+	logger, err := log.LoggerFromWriterWithMinLevelAndDynTestFormat(
+		os.Stderr, log.TraceLvl, os.Getenv("DD_LOG_FORMAT"),
 	)
 	if err != nil {
 		panic(fmt.Errorf("failed to create logger: %w", err))
@@ -93,13 +99,14 @@ func GenerateIr(
 	tempDir string,
 	binPath string,
 	cfgName string,
-) (*object.ElfFile, *ir.Program) {
+	options ...irgen.Option,
+) (*object.ElfFileWithDwarf, *ir.Program) {
 	probes := testprogs.MustGetProbeDefinitions(t, cfgName)
 
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	require.NoError(t, err)
 
-	irp, err := irgen.GenerateIR(1, obj, probes)
+	irp, err := irgen.GenerateIR(1, obj, probes, options...)
 	require.NoError(t, err)
 	require.Empty(t, irp.Issues)
 
@@ -157,14 +164,14 @@ func StartProcess(ctx context.Context, t *testing.T, tempDir string, binPath str
 func AttachBPFProbes(
 	t *testing.T,
 	binPath string,
-	obj *object.ElfFile,
+	obj object.File,
 	pid int,
 	program *loader.Program,
 ) func() {
 	sampleLink, err := link.OpenExecutable(binPath)
 	require.NoError(t, err)
-	textSection, err := object.FindTextSectionHeader(obj.Underlying.Elf)
-	require.NoError(t, err)
+	textSection := obj.Section(".text")
+	require.NotNil(t, textSection)
 
 	var allAttached []link.Link
 	for _, attachpoint := range program.Attachpoints {

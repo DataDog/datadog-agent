@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build test && otlp
-// +build test,otlp
 
 // Package pipelineimpl implements the collector component
 package pipelineimpl

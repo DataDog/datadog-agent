@@ -57,12 +57,6 @@ type Config struct {
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
 
-	// SocketPath is the path to the socket that is used to communicate with the security agent and process agent
-	SocketPath string
-
-	// EventServerBurst defines the maximum burst of events that can be sent over the grpc server
-	EventServerBurst int
-
 	// PIDCacheSize is the size of the user space PID caches
 	PIDCacheSize int
 
@@ -71,6 +65,9 @@ type Config struct {
 
 	// CustomSensitiveWords defines words to add to the scrubber
 	CustomSensitiveWords []string
+
+	// CustomSensitiveRegexps defines regexps to add to the scrubber
+	CustomSensitiveRegexps []string
 
 	// ERPCDentryResolutionEnabled determines if the ERPC dentry resolution is enabled
 	ERPCDentryResolutionEnabled bool
@@ -84,9 +81,6 @@ type Config struct {
 	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
-
-	// RuntimeMonitor defines if the Go runtime and system monitor should be enabled
-	RuntimeMonitor bool
 
 	// EventStreamUseRingBuffer specifies whether to use eBPF ring buffers when available
 	EventStreamUseRingBuffer bool
@@ -173,6 +167,14 @@ type Config struct {
 
 	// SpanTrackingCacheSize is the size of the span tracking cache
 	SpanTrackingCacheSize int
+
+	// CapabilitiesMonitoringEnabled defines whether process capabilities usage should be reported
+	CapabilitiesMonitoringEnabled bool
+	// CapabilitiesMonitoringPeriod defines the period at which process capabilities usage events should be reported back to userspace
+	CapabilitiesMonitoringPeriod time.Duration
+
+	// SnapshotUsingListmount enables the use of listmount to take filesystem mount snapshots
+	SnapshotUsingListmount bool
 }
 
 // NewConfig returns a new Config object
@@ -191,10 +193,10 @@ func NewConfig() (*Config, error) {
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
 		CustomSensitiveWords:               getStringSlice("custom_sensitive_words"),
+		CustomSensitiveRegexps:             getStringSlice("custom_sensitive_regexps"),
 		ERPCDentryResolutionEnabled:        getBool("erpc_dentry_resolution_enabled"),
 		MapDentryResolutionEnabled:         getBool("map_dentry_resolution_enabled"),
 		DentryCacheSize:                    getInt("dentry_cache_size"),
-		RuntimeMonitor:                     getBool("runtime_monitor.enabled"),
 		NetworkLazyInterfacePrefixes:       getStringSlice("network.lazy_interface_prefixes"),
 		NetworkClassifierPriority:          uint16(getInt("network.classifier_priority")),
 		NetworkClassifierHandle:            uint16(getInt("network.classifier_handle")),
@@ -221,16 +223,19 @@ func NewConfig() (*Config, error) {
 		DNSResolverCacheSize:        getInt("dns_resolution.cache_size"),
 		DNSResolutionEnabled:        getBool("dns_resolution.enabled"),
 
-		// event server
-		SocketPath:       pkgconfigsetup.SystemProbe().GetString(join(evNS, "socket")),
-		EventServerBurst: pkgconfigsetup.SystemProbe().GetInt(join(evNS, "event_server.burst")),
-
 		// runtime compilation
 		RuntimeCompilationEnabled: getBool("runtime_compilation.enabled"),
 
 		// span tracking
 		SpanTrackingEnabled:   getBool("span_tracking.enabled"),
 		SpanTrackingCacheSize: getInt("span_tracking.cache_size"),
+
+		// Process capabilities monitoring
+		CapabilitiesMonitoringEnabled: getBool("capabilities_monitoring.enabled"),
+		CapabilitiesMonitoringPeriod:  getDuration("capabilities_monitoring.period"),
+
+		// Mount resolver
+		SnapshotUsingListmount: getBool("snapshot_using_listmount"),
 	}
 
 	if err := c.sanitize(); err != nil {
@@ -297,10 +302,6 @@ func (c *Config) sanitizeConfigNetwork() {
 			c.NetworkLazyInterfacePrefixes = append(c.NetworkLazyInterfacePrefixes, name)
 		}
 	}
-}
-
-func join(pieces ...string) string {
-	return strings.Join(pieces, ".")
 }
 
 func getAllKeys(key string) (string, string) {

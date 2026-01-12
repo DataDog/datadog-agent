@@ -44,13 +44,14 @@ func (d *DockerCheck) retrieveEvents(du docker.Client) ([]*docker.ContainerEvent
 	if d.lastEventTime.IsZero() {
 		d.lastEventTime = time.Now().Add(-60 * time.Second)
 	}
+	// TODO: update the docker util to use the workloadfilter component
 	events, latest, err := du.LatestContainerEvents(context.TODO(), d.lastEventTime, d.containerFilter)
 	if err != nil {
 		return events, err
 	}
 
 	//nolint:gosimple // TODO(CINT) Fix gosimple linter
-	if latest.IsZero() == false {
+	if !latest.IsZero() {
 		d.lastEventTime = latest.Add(1 * time.Nanosecond)
 	}
 

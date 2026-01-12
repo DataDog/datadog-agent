@@ -1,17 +1,6 @@
-From 001ef5097dbfcec313736e1dc93fd92b942f8e71 Mon Sep 17 00:00:00 2001
-From: Bertrand Mermet <bertrand.mermet@datadoghq.com>
-Date: Fri, 13 Nov 2020 11:08:55 +0100
-Subject: [PATCH] Customize msgpack parsing
-
----
- pkg/trace/pb/span_gen.go | 92 +++++++++++++++++++++++++++++++++-------
- 1 file changed, 76 insertions(+), 16 deletions(-)
-
-diff --git a/pkg/trace/pb/span_gen.go b/pkg/trace/pb/span_gen.go
-index d834873065..9e6cbc401c 100644
---- a/pkg/trace/pb/span_gen.go
-+++ b/pkg/trace/pb/span_gen.go
-@@ -77,60 +77,110 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+--- pkg/proto/pbgo/trace/span_gen.go.clean	2025-09-09 16:31:31
++++ pkg/proto/pbgo/trace/span_gen.go	2025-09-09 16:33:41
+@@ -581,60 +581,110 @@
  		}
  		switch msgp.UnsafeString(field) {
  		case "service":
@@ -133,10 +122,10 @@ index d834873065..9e6cbc401c 100644
  			var zb0002 uint32
  			zb0002, bts, err = msgp.ReadMapHeaderBytes(bts)
  			if err != nil {
-@@ -148,12 +198,12 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
- 				var za0001 string
+@@ -650,12 +700,12 @@
  				var za0002 string
  				zb0002--
+ 				var za0001 string
 -				za0001, bts, err = msgp.ReadStringBytes(bts)
 +				za0001, bts, err = parseStringBytes(bts)
  				if err != nil {
@@ -148,7 +137,7 @@ index d834873065..9e6cbc401c 100644
  				if err != nil {
  					err = msgp.WrapError(err, "Meta", za0001)
  					return
-@@ -161,6 +211,11 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+@@ -663,6 +713,11 @@
  				z.Meta[za0001] = za0002
  			}
  		case "metrics":
@@ -160,10 +149,10 @@ index d834873065..9e6cbc401c 100644
  			var zb0003 uint32
  			zb0003, bts, err = msgp.ReadMapHeaderBytes(bts)
  			if err != nil {
-@@ -178,12 +233,12 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
- 				var za0003 string
+@@ -678,12 +733,12 @@
  				var za0004 float64
  				zb0003--
+ 				var za0003 string
 -				za0003, bts, err = msgp.ReadStringBytes(bts)
 +				za0003, bts, err = parseStringBytes(bts)
  				if err != nil {
@@ -175,7 +164,7 @@ index d834873065..9e6cbc401c 100644
  				if err != nil {
  					err = msgp.WrapError(err, "Metrics", za0003)
  					return
-@@ -191,7 +246,12 @@ func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+@@ -691,7 +746,12 @@
  				z.Metrics[za0003] = za0004
  			}
  		case "type":
@@ -189,6 +178,54 @@ index d834873065..9e6cbc401c 100644
  			if err != nil {
  				err = msgp.WrapError(err, "Type")
  				return
--- 
-2.41.0
-
+@@ -712,7 +772,7 @@
+ 				var za0006 []byte
+ 				zb0004--
+ 				var za0005 string
+-				za0005, bts, err = msgp.ReadStringBytes(bts)
++				za0005, bts, err = parseStringBytes(bts)
+ 				if err != nil {
+ 					err = msgp.WrapError(err, "MetaStruct")
+ 					return
+@@ -891,7 +951,12 @@
+ 				return
+ 			}
+ 		case "name":
+-			z.Name, bts, err = msgp.ReadStringBytes(bts)
++			if msgp.IsNil(bts) {
++				bts, err = msgp.ReadNilBytes(bts)
++				z.Name = ""
++				break
++			}
++			z.Name, bts, err = parseStringBytes(bts)
+ 			if err != nil {
+ 				err = msgp.WrapError(err, "Name")
+ 				return
+@@ -1045,7 +1110,12 @@
+ 		}
+ 		switch msgp.UnsafeString(field) {
+ 		case "trace_id":
+-			z.TraceID, bts, err = msgp.ReadUint64Bytes(bts)
++			if msgp.IsNil(bts) {
++				bts, err = msgp.ReadNilBytes(bts)
++				z.TraceID = 0
++				break
++			}
++			z.TraceID, bts, err = parseUint64Bytes(bts)
+ 			if err != nil {
+ 				err = msgp.WrapError(err, "TraceID")
+ 				return
+@@ -1057,7 +1127,12 @@
+ 				return
+ 			}
+ 		case "span_id":
+-			z.SpanID, bts, err = msgp.ReadUint64Bytes(bts)
++			if msgp.IsNil(bts) {
++				bts, err = msgp.ReadNilBytes(bts)
++				z.SpanID = 0
++				break
++			}
++			z.SpanID, bts, err = parseUint64Bytes(bts)
+ 			if err != nil {
+ 				err = msgp.WrapError(err, "SpanID")
+ 				return

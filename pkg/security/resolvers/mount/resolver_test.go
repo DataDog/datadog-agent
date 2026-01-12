@@ -111,34 +111,6 @@ func TestMountResolver(t *testing.T) {
 			},
 		},
 		{
-			"insert_device",
-			args{
-				[]event{
-					{
-						mount: &model.MountEvent{
-							Mount: model.Mount{
-								MountID: 458,
-								Device:  44,
-								ParentPathKey: model.PathKey{
-									MountID: 27,
-								},
-								MountPointStr: "/usr",
-								RootStr:       "",
-							},
-						},
-					},
-				},
-				[]testCase{
-					{
-						459,
-						44,
-						"/usr",
-						nil,
-					},
-				},
-			},
-		},
-		{
 			"remove_overlay",
 			args{
 				[]event{
@@ -436,18 +408,18 @@ func TestMountResolver(t *testing.T) {
 		pid uint32 = 1
 	)
 
-	cr, _ := cgroup.NewResolver(nil)
+	cr, _ := cgroup.NewResolver(nil, nil)
 
 	// Create mount resolver
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount, pid)
+					mr.insert(&evt.mount.Mount, false)
 				}
 				if evt.umount != nil {
-					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, 0, pid, "")
+					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -459,7 +431,7 @@ func TestMountResolver(t *testing.T) {
 			}
 
 			for _, testC := range tt.args.cases {
-				p, _, _, err := mr.ResolveMountPath(testC.mountID, testC.device, pid, "")
+				p, _, _, err := mr.ResolveMountPath(testC.mountID, pid)
 				if err != nil {
 					if testC.expectedError != nil {
 						assert.Equal(t, testC.expectedError.Error(), err.Error())
@@ -504,13 +476,13 @@ func TestMountGetParentPath(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
 
-	parentPath, _, _, err := mr.getMountPath(4, 44, 1)
+	parentPath, _, _, err := mr.getMountPath(4, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
@@ -545,21 +517,21 @@ func TestMountLoop(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
 	}
 
-	parentPath, _, _, err := mr.getMountPath(3, 44, 1)
+	parentPath, _, _, err := mr.getMountPath(3, 1)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
 
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil)
-	mr, _ := NewResolver(nil, cr, ResolverOpts{})
+	cr, _ := cgroup.NewResolver(nil, nil)
+	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 
 	mr.mounts.Add(1, &model.Mount{
 		MountID:       1,
@@ -578,6 +550,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, _, _ = mr.getMountPath(100, 44, 1)
+		_, _, _, _ = mr.getMountPath(100, 1)
 	}
 }

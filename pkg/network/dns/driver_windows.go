@@ -117,9 +117,7 @@ func (d *dnsDriver) ReadDNSPacket(visit func(data []byte, info filter.PacketInfo
 		return false, errors.Wrap(err, "could not get queued completion status")
 	}
 
-	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
-	var buf *readbuffer
-	buf = (*readbuffer)(unsafe.Pointer(ol))
+	buf := (*readbuffer)(unsafe.Pointer(ol))
 
 	fph := (*driver.FilterPacketHeader)(unsafe.Pointer(&buf.data[0]))
 	captureTime := time.Unix(0, int64(fph.Timestamp))

@@ -13,6 +13,39 @@
             "problemMatcher": []
         },
         {
+            "label": "build debug agent",
+            "command": "DELVE=1 dda inv -e agent.build",
+            "args": [],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build otel-agent",
+            "command": "dda inv -e otel-agent.build",            
+            "args": [],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "build debug otel-agent",
+            "command": "DELVE=1 dda inv -e otel-agent.build",            
+            "args": [],
+            "type": "shell",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },   
+        {
             "label": "clean",
             "command": "dda inv -e agent.clean",
             "args": [],

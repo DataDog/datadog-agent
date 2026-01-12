@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
@@ -27,7 +27,10 @@ func (e *EbpfEvent) Path(buffer []byte) ([]byte, bool) {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (e *EbpfEvent) RequestLatency() float64 {
-	if uint64(e.Http.Request_started) == 0 || uint64(e.Http.Response_last_seen) == 0 {
+	if e.Http.Request_started == 0 || e.Http.Response_last_seen == 0 {
+		return 0
+	}
+	if e.Http.Response_last_seen < e.Http.Request_started {
 		return 0
 	}
 	return protocols.NSTimestampToFloat(e.Http.Response_last_seen - e.Http.Request_started)
@@ -92,7 +95,7 @@ func (e *EbpfEvent) StaticTags() uint64 {
 	return e.Http.Tags
 }
 
-// DynamicTags returns the dynamic tags associated to the HTTP trasnaction
+// DynamicTags returns the dynamic tags associated to the HTTP transaction
 func (e *EbpfEvent) DynamicTags() []string {
 	return nil
 }
@@ -101,8 +104,12 @@ func (e *EbpfEvent) DynamicTags() []string {
 func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
+	output.WriteString("Conn Tuple: " + ebpf.ConnTuple(e.Tuple).String() + "', ")
 	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
+	output.WriteString("Request Start: " + strconv.FormatUint(e.Http.Request_started, 10) + "', ")
+	output.WriteString("Response Last Seen: " + strconv.FormatUint(e.Http.Response_last_seen, 10) + "', ")
+	output.WriteString("Latency: " + strconv.FormatFloat(e.RequestLatency(), 'f', -1, 64) + "', ")
 	output.WriteString("Fragment: '" + hex.EncodeToString(e.Http.Request_fragment[:]) + "', ")
 	output.WriteString("}")
 	return output.String()

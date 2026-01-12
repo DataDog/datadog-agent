@@ -10,11 +10,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestAll(t *testing.T) {
+	for key, value := range testutil.IsolatedGoBuildEnv(t.TempDir()) {
+		t.Setenv(key, value)
+	}
+
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get wd: %s", err)
@@ -37,5 +42,5 @@ func TestAll(t *testing.T) {
 	// We only care about parsing the test file and run the analyzer.
 	analyzer.RunDespiteErrors = true
 
-	analysistest.Run(t, testdata, analyzer, "comp/...")
+	analysistest.Run(t, testdata, analyzer, "./...")
 }

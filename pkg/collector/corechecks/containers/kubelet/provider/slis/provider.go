@@ -12,27 +12,25 @@ package slis
 import (
 	"strings"
 
+	"github.com/samber/lo"
+
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
-	"github.com/samber/lo"
 )
 
 // Provider provides the metrics related to data collected from the `/metrics/slis` Kubelet endpoint
 type Provider struct {
-	filter *containers.Filter
-	store  workloadmeta.Component
+	store workloadmeta.Component
 	prometheus.Provider
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
+func NewProvider(config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
 	provider := &Provider{
-		filter: filter,
-		store:  store,
+		store: store,
 	}
 	transformers := prometheus.Transformers{
 		"kubernetes_healthcheck":        provider.sliHealthCheck,
@@ -53,8 +51,9 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 }
 
 func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Sender) {
-	for _, metric := range metricFam.Samples {
-		metricSuffix := string(metric.Metric["__name__"])
+	for i := range metricFam.Samples {
+		metric := &metricFam.Samples[i]
+		metricSuffix := metric.Metric["__name__"]
 		tags := p.MetricTags(metric)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
@@ -68,9 +67,9 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 
 		switch metricSuffix {
 		case "kubernetes_healthchecks_total":
-			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, metric.Value, "", tags)
 		case "kubernetes_healthcheck":
-			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, metric.Value, "", tags)
 		}
 	}
 }

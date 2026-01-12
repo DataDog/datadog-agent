@@ -6,7 +6,6 @@
 package config
 
 import (
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -118,6 +117,10 @@ func (l *LogsConfigKeys) devModeUseProto() bool {
 	return l.getConfig().GetBool(l.getConfigKey("dev_mode_use_proto"))
 }
 
+func (l *LogsConfigKeys) httpConnectivityRetryIntervalMax() time.Duration {
+	return l.getConfig().GetDuration(l.getConfigKey("http_connectivity_retry_interval_max"))
+}
+
 func (l *LogsConfigKeys) compressionKind() string {
 	configKey := l.getConfigKey("compression_kind")
 	compressionKind := l.getConfig().GetString(configKey)
@@ -163,6 +166,12 @@ func (l *LogsConfigKeys) hasAdditionalEndpoints() bool {
 	return len(endpoints) > 0
 }
 
+// shouldUseTCP returns true if the configuration should use TCP.
+// This happens when force_use_tcp, socks5_proxy_address, or additional_endpoints are set.
+func (l *LogsConfigKeys) shouldUseTCP() bool {
+	return l.isForceTCPUse() || l.isSocks5ProxySet() || l.hasAdditionalEndpoints()
+}
+
 // getMainAPIKey return the global API key for the current config with the path used to get it. Main api key means the
 // top level one, not one from additional_endpoints.
 func (l *LogsConfigKeys) getMainAPIKey() (string, string) {
@@ -181,17 +190,8 @@ func (l *LogsConfigKeys) connectionResetInterval() time.Duration {
 
 func (l *LogsConfigKeys) getAdditionalEndpoints() ([]unmarshalEndpoint, string) {
 	var endpoints []unmarshalEndpoint
-	var err error
 	configKey := l.getConfigKey("additional_endpoints")
-	raw := l.getConfig().Get(configKey)
-	if raw == nil {
-		return nil, ""
-	}
-	if s, ok := raw.(string); ok && s != "" {
-		err = json.Unmarshal([]byte(s), &endpoints)
-	} else {
-		err = structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableSquash)
-	}
+	err := structure.UnmarshalKey(l.getConfig(), configKey, &endpoints, structure.EnableStringUnmarshal, structure.EnableSquash)
 	if err != nil {
 		log.Warnf("Could not parse additional_endpoints for logs: %v", err)
 	}
@@ -210,12 +210,13 @@ func (l *LogsConfigKeys) taggerWarmupDuration() time.Duration {
 
 func (l *LogsConfigKeys) batchWait() time.Duration {
 	key := l.getConfigKey("batch_wait")
-	batchWait := l.getConfig().GetInt(key)
-	if batchWait < 1 || 10 < batchWait {
-		log.Warnf("Invalid %s: %v should be in [1, 10], fallback on %v", key, batchWait, pkgconfigsetup.DefaultBatchWait)
+	batchWaitFloat := l.getConfig().GetFloat64(key)
+	// Valid range: 0.1 seconds (100ms) to 10 seconds
+	if batchWaitFloat < 0.1 || 10 < batchWaitFloat {
+		log.Warnf("Invalid %s: %v should be in [0.1, 10], fallback on %v", key, batchWaitFloat, pkgconfigsetup.DefaultBatchWait)
 		return pkgconfigsetup.DefaultBatchWait * time.Second
 	}
-	return (time.Duration(batchWait) * time.Second)
+	return time.Duration(batchWaitFloat * float64(time.Second))
 }
 
 func (l *LogsConfigKeys) batchMaxConcurrentSend() int {

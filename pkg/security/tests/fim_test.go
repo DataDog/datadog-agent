@@ -43,7 +43,7 @@ func TestFIMOpen(t *testing.T) {
 	defer os.Remove(testFile)
 
 	// open test
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err := os.Create(testFile)
 		if err != nil {
 			return err
@@ -54,17 +54,17 @@ func TestFIMOpen(t *testing.T) {
 		assertTriggeredRule(t, rule, "__fim_expanded_open__test_fim_rule")
 		assert.Equal(t, rule.Def.ID, "test_fim_rule")
 		assertInode(t, event.Open.File.Inode, getInode(t, testFile))
-	})
+	}, "__fim_expanded_open__test_fim_rule")
 
 	// chmod test
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		return os.Chmod(testFile, 0o777)
 	}, func(event *model.Event, rule *rules.Rule) {
 		assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 		assertTriggeredRule(t, rule, "__fim_expanded_chmod__test_fim_rule")
 		assert.Equal(t, rule.Def.ID, "test_fim_rule")
 		assertInode(t, event.Chmod.File.Inode, getInode(t, testFile))
-	})
+	}, "__fim_expanded_chmod__test_fim_rule")
 
 	// open but read only
 	_ = test.GetSignal(t, func() error {
@@ -177,122 +177,122 @@ func TestFIMPermError(t *testing.T) {
 		t.Fatalf("couldn't set %s: %v", fsProcHardlinks, err)
 	}
 
-	test.Run(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "open", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"open", testFile,
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_open_rule")
 			assert.Equal(t, -int64(syscall.EACCES), event.Open.Retval)
-		})
+		}, "test_perm_open_rule")
 	})
 
-	test.Run(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "unlink", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"unlink", testFile,
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_unlink_rule")
 			assert.Equal(t, -int64(syscall.EACCES), event.Unlink.Retval)
-		})
+		}, "test_perm_unlink_rule")
 	})
 
-	test.Run(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "chmod", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chmod", testFile, "0600",
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_chmod_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Chmod.Retval)
-		})
+		}, "test_perm_chmod_rule")
 	})
 
-	test.Run(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "chown", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"chown", testFile, "0", "0",
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_chown_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Chown.Retval)
-		})
+		}, "test_perm_chown_rule")
 	})
 
-	test.Run(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "rename", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"rename", renameFile, testFile,
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_rename_rule")
 			assert.Equal(t, -int64(syscall.EACCES), event.Rename.Retval)
-		})
+		}, "test_perm_rename_rule")
 	})
 
-	test.Run(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "utimes", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"utimes", testFile,
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_utimes_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Utimes.Retval)
-		})
+		}, "test_perm_utimes_rule")
 	})
 
-	test.Run(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "link", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{
 			"process-credentials", "setuid", "4001", "4001", ";",
 			"link", testFile, linkFile,
 		}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			_, _ = cmd.CombinedOutput()
 			return nil
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_perm_link_rule")
 			assert.Equal(t, -int64(syscall.EPERM), event.Link.Retval)
-		})
+		}, "test_perm_link_rule")
 	})
 }

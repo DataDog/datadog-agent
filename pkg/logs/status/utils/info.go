@@ -3,11 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package utils provides status information utilities
 package utils
 
 import (
-	"fmt"
+	"strconv"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -63,7 +63,7 @@ func (c *CountInfo) InfoKey() string {
 
 // Info returns the info
 func (c *CountInfo) Info() []string {
-	return []string{fmt.Sprintf("%d", c.count.Load())}
+	return []string{strconv.FormatInt(c.count.Load(), 10)}
 }
 
 // MappedInfo collects multiple info messages with a unique key

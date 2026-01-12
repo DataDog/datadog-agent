@@ -19,9 +19,9 @@ type client struct {
 	pbClient *pbgo.Client
 }
 
-type cacheBypassClients struct {
-	clock    clock.Clock
-	requests chan chan struct{}
+// rateLimiter limits the number of requests that can be made in a given window.
+type rateLimiter struct {
+	clock clock.Clock
 
 	// Fixed window rate limiting
 	// It allows client requests spikes while limiting the global amount of request
@@ -31,7 +31,7 @@ type cacheBypassClients struct {
 	allowance      int
 }
 
-func (c *cacheBypassClients) Limit() bool {
+func (c *rateLimiter) Limit() bool {
 	now := c.clock.Now()
 	window := now.Truncate(c.windowDuration)
 

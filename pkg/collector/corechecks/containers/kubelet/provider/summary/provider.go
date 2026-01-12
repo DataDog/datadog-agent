@@ -19,10 +19,11 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,15 +35,17 @@ const (
 
 // Provider provides the data collected from the `/stats/summary` Kubelet endpoint
 type Provider struct {
-	filter                *containers.Filter
 	config                *common.KubeletConfig
+	podFilter             workloadfilter.FilterBundle
+	containerFilter       workloadfilter.FilterBundle
 	store                 workloadmeta.Component
 	tagger                tagger.Component
 	defaultRateFilterList []*regexp.Regexp
 }
 
 // NewProvider is created by filter, config and workloadmeta
-func NewProvider(filter *containers.Filter,
+func NewProvider(
+	filterStore workloadfilter.Component,
 	config *common.KubeletConfig,
 	store workloadmeta.Component,
 	tagger tagger.Component,
@@ -54,8 +57,9 @@ func NewProvider(filter *containers.Filter,
 	} //default enabled_rates
 
 	return &Provider{
-		filter:                filter,
 		config:                config,
+		podFilter:             filterStore.GetPodSharedMetricFilters(),
+		containerFilter:       filterStore.GetContainerSharedMetricFilters(),
 		store:                 store,
 		tagger:                tagger,
 		defaultRateFilterList: defaultRateFilterList,
@@ -106,16 +110,17 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 				podStats.PodRef.Namespace, podStats.PodRef.Name, podStats.PodRef.UID)
 			continue
 		}
-		//  Query to check whether a Kubernetes namespace should be excluded.
-		if p.filter.IsExcluded(nil, "", "", podStats.PodRef.Namespace) {
-			continue
-		}
 
 		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
 		if err != nil || podData == nil {
 			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
 		}
+
+		if p.podFilter.IsExcluded(workloadmetafilter.CreatePod(podData)) {
+			continue
+		}
+
 		if podData.Phase == "Running" || podData.Phase == "Pending" {
 			p.processPodStats(sender, podStats, useStatsAsSource, rateFilterList)
 		}
@@ -222,10 +227,10 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName)
 			continue
 		}
-		if p.filter.IsExcluded(nil,
-			containerName,
-			ctr.Image.Name,
-			podStats.PodRef.Namespace) {
+		ctr.Name = containerName
+
+		filterableContainer := workloadmetafilter.CreateContainerFromOrch(ctr, workloadmetafilter.CreatePod(podData))
+		if p.containerFilter.IsExcluded(filterableContainer) {
 			continue
 		}
 		tags, err := p.tagger.Tag(types.NewEntityID(types.ContainerID, ctr.ID), types.HighCardinality)

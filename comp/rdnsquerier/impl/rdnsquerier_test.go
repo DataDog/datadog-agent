@@ -9,6 +9,7 @@ package rdnsquerierimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -580,13 +581,13 @@ func TestRetries(t *testing.T) {
 	ts := testSetup(t, overrides, true,
 		map[string]*fakeResults{
 			"192.168.1.100": {errors: []error{
-				fmt.Errorf("test error1"),
-				fmt.Errorf("test error2")},
+				errors.New("test error1"),
+				errors.New("test error2")},
 			},
 			"192.168.1.101": {errors: []error{
 				&net.DNSError{Err: "test timeout error", IsTimeout: true},
 				&net.DNSError{Err: "test temporary error", IsTemporary: true},
-				fmt.Errorf("test error")},
+				errors.New("test error")},
 			},
 		},
 		0,
@@ -672,9 +673,9 @@ func TestRetriesExceeded(t *testing.T) {
 	ts := testSetup(t, overrides, true,
 		map[string]*fakeResults{
 			"192.168.1.100": {errors: []error{
-				fmt.Errorf("test error1"),
-				fmt.Errorf("test error2"),
-				fmt.Errorf("test error3")},
+				errors.New("test error1"),
+				errors.New("test error2"),
+				errors.New("test error3")},
 			},
 		},
 		0,
@@ -1166,7 +1167,7 @@ func TestGetHostnames(t *testing.T) {
 			ipAddrs: []string{"invalid_ip", "192.168.1.102", "8.8.8.8", "192.168.1.100"},
 			timeout: 1 * time.Second,
 			expected: map[string]rdnsquerierdef.ReverseDNSResult{
-				"invalid_ip":    {IP: "invalid_ip", Err: fmt.Errorf("invalid IP address invalid_ip")},
+				"invalid_ip":    {IP: "invalid_ip", Err: errors.New("invalid IP address invalid_ip")},
 				"192.168.1.102": {IP: "192.168.1.102", Hostname: "fakehostname-192.168.1.102"},
 				"8.8.8.8":       {IP: "8.8.8.8"},
 				"192.168.1.100": {IP: "192.168.1.100", Hostname: "fakehostname-192.168.1.100"},
@@ -1178,8 +1179,8 @@ func TestGetHostnames(t *testing.T) {
 			ipAddrs: []string{"192.168.1.105", "invalid", "8.8.8.8"},
 			timeout: 1 * time.Second,
 			expected: map[string]rdnsquerierdef.ReverseDNSResult{
-				"192.168.1.105": {IP: "192.168.1.105", Err: fmt.Errorf("timeout reached while resolving hostname for IP address 192.168.1.105")},
-				"invalid":       {IP: "invalid", Err: fmt.Errorf("invalid IP address invalid")},
+				"192.168.1.105": {IP: "192.168.1.105", Err: errors.New("timeout reached while resolving hostname for IP address 192.168.1.105")},
+				"invalid":       {IP: "invalid", Err: errors.New("invalid IP address invalid")},
 				"8.8.8.8":       {IP: "8.8.8.8"},
 			},
 		},

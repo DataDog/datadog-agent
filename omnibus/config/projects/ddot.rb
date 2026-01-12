@@ -4,9 +4,14 @@
 # Copyright 2016-present Datadog, Inc.
 require "./lib/ostools.rb"
 require "./lib/project_helpers.rb"
+require "./lib/omnibus/packagers/tarball.rb"
 
 name 'ddot'
-package_name 'datadog-agent-ddot'
+if fips_mode?
+  package_name 'datadog-fips-agent-ddot'
+else
+  package_name 'datadog-agent-ddot'
+end
 
 license "Apache-2.0"
 license_file "../LICENSE"
@@ -33,7 +38,14 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
-INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+if windows_target?
+  # Note: this is the path used by Omnibus to build the agent, the final install
+  # dir will be determined by the Windows installer. This path must not contain
+  # spaces because Omnibus doesn't quote the Git commands it launches.
+  INSTALL_DIR = 'C:/opt/datadog-agent'
+else
+  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
+end
 
 install_dir INSTALL_DIR
 
@@ -73,6 +85,7 @@ if do_build
   dependency 'datadog-otel-agent'
 elsif do_package
   dependency 'package-artifact'
+  dependency 'init-scripts-ddot'
 end
 
 disable_version_manifest do_package
@@ -84,8 +97,13 @@ exclude 'bundler\/git'
 # the stripper will drop the symbols in a `.debug` folder in the installdir
 # we want to make sure that directory is not in the main build, while present
 # in the debug package.
-strip_build do_build
+strip_build windows_target? || do_build
 debug_path ".debug"  # the strip symbols will be in here
+
+if windows_target?
+  windows_symbol_stripping_file "#{install_dir}\\embedded\\bin\\otel-agent.exe"
+  sign_file "#{install_dir}\\embedded\\bin\\otel-agent.exe"
+end
 
 # ------------------------------------
 # Packaging
@@ -145,8 +163,32 @@ package :rpm do
   end
 end
 
+package :msi do
+  skip_packager true
+end
+
 package :xz do
-  skip_packager do_package
+  skip_packager do_package || (ENV["SKIP_PKG_COMPRESSION"] == "true")
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
+end
+
+# Uncompressed tar for faster local builds (skip the slow XZ compression)
+package :tarball do
+  skip_packager !(ENV["SKIP_PKG_COMPRESSION"] == "true")
+end
+
+# all flavors use the same package scripts
+if linux_target?
+  if do_build && !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/ddot-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/ddot-rpm"
+  end
+  if do_package
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/ddot-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/ddot-rpm"
+    end
+  end
 end

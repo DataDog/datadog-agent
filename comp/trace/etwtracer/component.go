@@ -6,7 +6,7 @@
 // Package etwtracer provides ETW events to the .Net tracer
 package etwtracer
 
-// team: windows-agent
+// team: windows-products
 
 // Component is the component type.
 type Component interface {

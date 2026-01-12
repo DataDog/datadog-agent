@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package datadog.privateactionrunner.actionsclient;
+
+option go_package = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient";
+
+enum Client {
+  UNSPECIFIED = 0;
+  WORKFLOWS = 1;
+  APP_BUILDER = 2;
+  WORKFLOWS_SINGLE_ACTION_RUNNER = 4;
+}

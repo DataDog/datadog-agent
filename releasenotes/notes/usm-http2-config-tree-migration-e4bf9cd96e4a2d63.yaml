@@ -1,0 +1,17 @@
+features:
+  - |
+    USM HTTP2 monitoring configuration now uses a tree structure
+    for improved organization and consistency with other protocol configurations.
+
+    Configuration changes:
+    - `service_monitoring_config.enable_http2_monitoring` → `service_monitoring_config.http2.enabled`
+    - `service_monitoring_config.http2_dynamic_table_map_cleaner_interval_seconds` → `service_monitoring_config.http2.dynamic_table_map_cleaner_interval_seconds`
+
+    The previous configuration paths are deprecated but still supported for backward
+    compatibility. Users will receive deprecation warnings and should migrate
+    to the new tree structure. If both old and new configurations are present,
+    the new tree structure takes precedence.
+
+    Environment variable changes:
+    - `DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING` → `DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED`
+    - `DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS` → `DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS`

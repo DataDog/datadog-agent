@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 // Origin represents the Origin of a message
@@ -16,9 +17,14 @@ type Origin struct {
 	Identifier string
 	LogSource  *sources.LogSource
 	Offset     string
-	service    string
-	source     string
-	tags       []string
+	// FilePath is the concrete path to the file that the message originated from.
+	// This is only populated for file and journald sources. It is used by the
+	// auditor to store the file path when fingerprinting is enabled.
+	FilePath    string
+	Fingerprint *types.Fingerprint
+	service     string
+	source      string
+	tags        []string
 }
 
 // NewOrigin returns a new Origin
@@ -74,17 +80,27 @@ func (o *Origin) TagsToString(processingTags []string) string {
 }
 
 func (o *Origin) tagsToStringArray(processingTags []string) []string {
-	tags := o.tags
-
 	sourceCategory := o.LogSource.Config.SourceCategory
+	configTags := o.LogSource.Config.Tags
+
+	// Calculate total capacity needed
+	totalLen := len(o.tags) + len(configTags) + len(processingTags)
 	if sourceCategory != "" {
-		tags = append(tags, "sourcecategory"+":"+sourceCategory)
+		totalLen++
 	}
 
-	tags = append(tags, o.LogSource.Config.Tags...)
-	tags = append(tags, processingTags...)
+	// Preallocate result slice - don't modify o.tags
+	result := make([]string, 0, totalLen)
+	result = append(result, o.tags...)
 
-	return tags
+	if sourceCategory != "" {
+		result = append(result, "sourcecategory:"+sourceCategory)
+	}
+
+	result = append(result, configTags...)
+	result = append(result, processingTags...)
+
+	return result
 }
 
 // SetTags sets the tags of the origin.

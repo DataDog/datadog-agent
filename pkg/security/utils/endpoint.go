@@ -27,5 +27,5 @@ func GetEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 			port = 80 // use default port
 		}
 	}
-	return fmt.Sprintf("%s://%s:%v/%s", protocol, endpoint.Host, port, uri)
+	return fmt.Sprintf("%s://%s:%v%s/%s", protocol, endpoint.Host, port, endpoint.PathPrefix, uri)
 }

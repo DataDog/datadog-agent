@@ -15,6 +15,34 @@ type hasUnsupportedFields struct {
 	d []uint8
 }
 
+// We had a bug at one point exploring the type graph that required structs
+// with cyclic slices of slices. This reproduces that issue.
+type structWithCyclicSlices struct {
+	s1 []structWithCyclicSlices
+	s2 [][]structWithCyclicSlices
+	s3 [][][]structWithCyclicSlices
+	s4 [][][][]structWithCyclicSlices
+	s5 [][][][][]structWithCyclicSlices
+	s6 [][][][][][]structWithCyclicSlices
+}
+
+//nolint:all
+//go:noinline
+func testStructWithCyclicSlices(a structWithCyclicSlices) {}
+
+type structWithCyclicMaps struct {
+	m1 map[struct{}]structWithCyclicMaps
+	m2 map[struct{}]map[struct{}]structWithCyclicMaps
+	m3 map[struct{}]map[struct{}]map[struct{}]structWithCyclicMaps
+	m4 map[struct{}]map[struct{}]map[struct{}]map[struct{}]structWithCyclicMaps
+	m5 map[struct{}]map[struct{}]map[struct{}]map[struct{}]map[struct{}]structWithCyclicMaps
+	m6 map[struct{}]map[struct{}]map[struct{}]map[struct{}]map[struct{}]map[struct{}]structWithCyclicMaps
+}
+
+//nolint:all
+//go:noinline
+func testStructWithCyclicMaps(a structWithCyclicMaps) {}
+
 //nolint:all
 //go:noinline
 func testStructWithUnsupportedFields(a hasUnsupportedFields) {}
@@ -97,6 +125,10 @@ func testEmptyStruct(e emptyStruct) {}
 
 //nolint:all
 //go:noinline
+func testEmptyStructPointer(e *emptyStruct) {}
+
+//nolint:all
+//go:noinline
 func testLotsOfFields(l lotsOfFields) {}
 
 //nolint:all
@@ -156,6 +188,7 @@ func executeStructFuncs() {
 	}
 
 	testEmptyStruct(emptyStruct{})
+	testEmptyStructPointer(&emptyStruct{})
 	testDeepStruct(deep)
 
 	fields := lotsOfFields{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
@@ -179,6 +212,27 @@ func executeStructFuncs() {
 		c: 2.0,
 		d: []uint8{3, 4, 5},
 	})
+	testStructWithCyclicSlices(structWithCyclicSlices{
+		s1: []structWithCyclicSlices{
+			{},
+		},
+		s2: [][]structWithCyclicSlices{
+			{}, {{}},
+		},
+		s3: [][][]structWithCyclicSlices{
+			{}, {{}}, {{{}}},
+		},
+		s4: [][][][]structWithCyclicSlices{
+			{}, {{}}, {{{}}}, {{{{}}}},
+		},
+		s5: [][][][][]structWithCyclicSlices{
+			{}, {{}}, {{{}}}, {{{{}}}}, {{{{}}}},
+		},
+		s6: [][][][][][]structWithCyclicSlices{
+			{}, {{}}, {{{}}}, {{{{}}}}, {{{{}}}}, {{{{{}}}}},
+		},
+	})
+	testStructWithCyclicMaps(structWithCyclicMaps{})
 }
 
 type emptyStruct struct{}

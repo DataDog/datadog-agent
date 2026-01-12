@@ -6,16 +6,17 @@
 package collector
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type MockCheck struct {
@@ -34,7 +35,7 @@ func (m MockCheck) Loader() string {
 }
 
 func (m MockCheck) String() string {
-	return fmt.Sprintf("Loader: %s, Check: %s", m.LoaderName, m.Name)
+	return m.Name
 }
 
 type MockCoreLoader struct{}
@@ -44,7 +45,7 @@ func (l *MockCoreLoader) Name() string {
 }
 
 // Load loads a check
-func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
+func (l *MockCoreLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data, _ int) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
@@ -56,7 +57,7 @@ func (l *MockPythonLoader) Name() string {
 }
 
 // Load loads a check
-func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data) (check.Check, error) {
+func (l *MockPythonLoader) Load(_ sender.SenderManager, config integration.Config, _ integration.Data, _ int) (check.Check, error) {
 	mockCheck := MockCheck{Name: config.Name, LoaderName: l.Name()}
 	return &mockCheck, nil
 }
@@ -116,10 +117,79 @@ func TestGetChecksFromConfigs(t *testing.T) {
 		actualChecks = append(actualChecks, c.String())
 	}
 	assert.Equal(t, []string{
-		"Loader: python, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: core, Check: check_a",
-		"Loader: python, Check: check_b",
-		"Loader: core, Check: check_c",
+		"check_a",
+		"check_a",
+		"check_a",
+		"check_b",
+		"check_c",
 	}, actualChecks)
+}
+
+// MockCollector is a mock implementation of collector.Component for testing
+type MockCollector struct {
+	RunCheckCalls []check.Check // Track which checks were run
+	RunCheckError error         // Error to return from RunCheck
+}
+
+func (m *MockCollector) RunCheck(c check.Check) (checkid.ID, error) {
+	m.RunCheckCalls = append(m.RunCheckCalls, c)
+	if m.RunCheckError != nil {
+		return "", m.RunCheckError
+	}
+	return c.ID(), nil
+}
+
+func (m *MockCollector) StopCheck(_ checkid.ID) error {
+	return nil
+}
+
+func (m *MockCollector) ReloadAllCheckInstances(_ string, _ []check.Check) ([]checkid.ID, error) {
+	return nil, nil
+}
+
+func (m *MockCollector) GetChecks() []check.Check {
+	return nil
+}
+
+func (m *MockCollector) MapOverChecks(cb func([]check.Info)) {
+	cb(nil)
+}
+
+func (m *MockCollector) AddEventReceiver(_ collector.EventReceiver) {
+}
+
+func TestSchedule_AllChecksAllowed(t *testing.T) {
+	// Test that when not in basic mode, all checks are scheduled
+	mockCollector := &MockCollector{}
+	s := &CheckScheduler{
+		collector:      option.New[collector.Component](mockCollector),
+		configToChecks: make(map[string][]checkid.ID),
+	}
+	s.addLoader(&MockCoreLoader{})
+
+	configs := []integration.Config{
+		{
+			Name:       "cpu",
+			Instances:  []integration.Data{integration.Data("{}")},
+			InitConfig: integration.Data("{}"),
+		},
+		{
+			Name:       "disk",
+			Instances:  []integration.Data{integration.Data("{}")},
+			InitConfig: integration.Data("{}"),
+		},
+		{
+			Name:       "custom_check", // Test custom_.* pattern
+			Instances:  []integration.Data{integration.Data("{}")},
+			InitConfig: integration.Data("{}"),
+		},
+	}
+
+	s.Schedule(configs)
+
+	// All checks should be run when not in basic mode
+	assert.Len(t, mockCollector.RunCheckCalls, len(configs))
+	for i, c := range configs {
+		assert.Equal(t, c.Name, mockCollector.RunCheckCalls[i].(*MockCheck).Name)
+	}
 }

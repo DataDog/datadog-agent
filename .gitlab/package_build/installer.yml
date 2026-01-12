@@ -3,6 +3,7 @@
 # Datadog installer payloads
 #
 .common_build_oci:
+  extends: .bazel:defs:cache:omnibus-transition
   script:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-agent/"$AGENT_VERSION"
@@ -31,8 +32,6 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 datadog-agent-oci-x64-a7:
   extends: .common_build_oci
@@ -40,8 +39,8 @@ datadog-agent-oci-x64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -51,9 +50,9 @@ datadog-agent-oci-x64-a7:
     ]
   variables:
     PACKAGE_ARCH: amd64
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/x86_64-unknown-linux-gnu.toolchain.cmake"
 
 datadog-agent-oci-arm64-a7:
   extends: .common_build_oci
@@ -61,8 +60,8 @@ datadog-agent-oci-arm64-a7:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   needs:
     [
       "go_mod_tidy_check",
@@ -72,9 +71,9 @@ datadog-agent-oci-arm64-a7:
     ]
   variables:
     PACKAGE_ARCH: arm64
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
-    DD_CMAKE_TOOLCHAIN: '/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
+    DD_CMAKE_TOOLCHAIN: "/opt/cmake/aarch64-unknown-linux-gnu.toolchain.cmake"
 
 #
 # The installer install scripts (install-djm.sh, ...)
@@ -84,9 +83,15 @@ installer-install-scripts:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
-  needs: ["go_mod_tidy_check", "go_deps", "installer-amd64-oci", "installer-arm64-oci"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "go_deps",
+      "installer-amd64-oci",
+      "installer-arm64-oci",
+    ]
   variables:
     KUBERNETES_CPU_REQUEST: 8
     KUBERNETES_MEMORY_REQUEST: "16Gi"
@@ -128,13 +133,14 @@ powershell_script_signing:
       - $WINDOWS_POWERSHELL_DIR
   script:
     - mkdir $WINDOWS_POWERSHELL_DIR
-    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
+    - docker run --rm -v "$(Get-Location):c:\mnt" -e AWS_NETWORKING=true -e CI -e IS_AWS_CONTAINER=true ${WINBUILDIMAGE} powershell -C "dd-wcs sign \mnt\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1"
     - copy .\tools\windows\DatadogAgentInstallScript\Install-Datadog.ps1 $WINDOWS_POWERSHELL_DIR\Install-Datadog.ps1
 
 #
 # The installer program
 #
 .installer_build_common:
+  extends: .bazel:defs:cache:omnibus-transition
   script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -153,8 +159,6 @@ powershell_script_signing:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path
@@ -165,14 +169,14 @@ installer-amd64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: amd64
     DESTINATION_FILE: "datadog-installer_7-amd64.tar.xz"
-    DD_CC: 'x86_64-unknown-linux-gnu-gcc'
-    DD_CXX: 'x86_64-unknown-linux-gnu-g++'
+    DD_CC: "x86_64-unknown-linux-gnu-gcc"
+    DD_CXX: "x86_64-unknown-linux-gnu-g++"
 
 installer-arm64:
   extends: .installer_build_common
@@ -180,14 +184,14 @@ installer-arm64:
     - !reference [.except_mergequeue]
     - when: on_success
   stage: package_build
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-23-arm64$CI_IMAGE_LINUX_GLIBC_2_23_ARM64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_23_ARM64
-  tags: ["arch:arm64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64", "specific:true"]
   needs: ["go_mod_tidy_check", "go_deps"]
   variables:
     PACKAGE_ARCH: arm64
     DESTINATION_FILE: "datadog-installer_7-arm64.tar.xz"
-    DD_CC: 'aarch64-unknown-linux-gnu-gcc'
-    DD_CXX: 'aarch64-unknown-linux-gnu-g++'
+    DD_CC: "aarch64-unknown-linux-gnu-gcc"
+    DD_CXX: "aarch64-unknown-linux-gnu-g++"
 
 installer-amd64-oci:
   extends: installer-amd64
@@ -206,42 +210,3 @@ installer-arm64-oci:
     - AGENT_VERSION="$(dda inv agent.version -u)-1" || exit $?
     - export INSTALL_DIR=/opt/datadog-packages/datadog-installer/"$AGENT_VERSION"
     - export INSTALL_DIR_PARAM="--install-directory=$INSTALL_DIR"
-
-windows-installer-amd64:
-  stage: package_build
-  extends: .windows_docker_default
-  needs: ["go_mod_tidy_check", "go_deps"]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
-  script:
-    - $ErrorActionPreference = 'Stop'
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-    - if (Test-Path omnibus\pkg) { remove-item -recurse -force omnibus\pkg }
-    - mkdir omnibus\pkg
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):c:\mnt"
-      -e CI_JOB_ID=${CI_JOB_ID}
-      -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
-      -e CI_PROJECT_NAME=${CI_PROJECT_NAME}
-      -e CI_COMMIT_BRANCH=${CI_COMMIT_BRANCH}
-      -e CI_JOB_NAME_SLUG=${CI_JOB_NAME_SLUG}
-      -e CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME}
-      -e WINDOWS_BUILDER=true
-      -e GOMODCACHE="c:\modcache"
-      -e AWS_NETWORKING=true
-      -e SIGN_WINDOWS_DD_WCS=true
-      -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
-      -e API_KEY_ORG2=${API_KEY_ORG2}
-      ${WINBUILDIMAGE}
-      powershell -C "c:\mnt\tasks\winbuildscripts\Build-InstallerPackages.ps1 -BuildOutOfSource 1 -InstallDeps 1 -CheckGoVersion 1"
-  after_script:
-    - '$_instance_id = (iwr  -UseBasicParsing http://169.254.169.254/latest/meta-data/instance-id).content ; Write-Host "Running on instance $($_instance_id)"'
-  artifacts:
-    expire_in: 2 weeks
-    paths:
-      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
-  variables:
-    ARCH: "x64"

@@ -227,14 +227,14 @@ func toTags(tags map[string]string) []string {
 func BuildTaskResourceVersion(model interface{}) string {
 	modelJSON, err := json.Marshal(model)
 	if err != nil {
-		log.Warnc(fmt.Sprintf("Fail to compute ECS task resource version: %s", err.Error()), orchestrator.ExtraLogContext...)
+		log.Warnc("Fail to compute ECS task resource version: "+err.Error(), orchestrator.ExtraLogContext...)
 		return ""
 	}
 
 	h := fnv.New64a()
 	_, err = h.Write(modelJSON)
 	if err != nil {
-		log.Warnc(fmt.Sprintf("Fail to compute ECS task resource version: %s", err.Error()), orchestrator.ExtraLogContext...)
+		log.Warnc("Fail to compute ECS task resource version: "+err.Error(), orchestrator.ExtraLogContext...)
 		return ""
 	}
 

@@ -4,7 +4,7 @@
       <settings>
         <option name="imageTag" value="registry.ddbuild.io/ci/datadog-agent-devenv:1-amd64" />
         <option name="command" value="sleep infinity" />
-        <option name="containerName" value="datadog-agent-devenv" />
+        <option name="containerName" value="datadog-agent-devcontainer" />
         <option name="commandLineOptions" value="--platform linux/amd64 -w /home/datadog/go/src/github.com/DataDog/datadog-agent" />
         <option name="showCommandPreview" value="true" />
         <option name="volumeBindings">

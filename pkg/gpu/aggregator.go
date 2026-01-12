@@ -30,10 +30,10 @@ type aggregator struct {
 	measuredIntervalNs int64
 
 	// currentAllocs is the list of current (active) memory allocations
-	currentAllocs []*memoryAllocation
+	currentAllocs []*memorySpan
 
 	// pastAllocs is the list of past (freed) memory allocations
-	pastAllocs []*memoryAllocation
+	pastAllocs []*memorySpan
 
 	// deviceMaxThreads is the maximum number of threads the GPU can run in parallel, for utilization calculations
 	deviceMaxThreads uint64
@@ -83,8 +83,8 @@ func (agg *aggregator) processKernelSpan(span *kernelSpan) {
 }
 
 // processPastData takes spans/allocations that have already been closed
-func (agg *aggregator) processPastData(data *streamData) {
-	for _, span := range data.spans {
+func (agg *aggregator) processPastData(data *streamSpans) {
+	for _, span := range data.kernels {
 		agg.processKernelSpan(span)
 	}
 
@@ -92,8 +92,8 @@ func (agg *aggregator) processPastData(data *streamData) {
 }
 
 // processCurrentData takes spans/allocations that are active (e.g., unfreed allocations, running kernels)
-func (agg *aggregator) processCurrentData(data *streamData) {
-	for _, span := range data.spans {
+func (agg *aggregator) processCurrentData(data *streamSpans) {
+	for _, span := range data.kernels {
 		agg.processKernelSpan(span)
 	}
 

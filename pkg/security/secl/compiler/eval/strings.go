@@ -204,9 +204,9 @@ func (g *GlobStringMatcher) Matches(value string) bool {
 	return g.glob.Matches(value)
 }
 
-// Contains returns whether the pattern contains the value
-func (g *GlobStringMatcher) Contains(value string) bool {
-	return g.glob.Contains(value)
+// IsPrefix returns whether the pattern is a prefix of the value
+func (g *GlobStringMatcher) IsPrefix(value string) bool {
+	return g.glob.IsPrefix(value)
 }
 
 // PatternStringMatcher defines a pattern matcher
@@ -219,7 +219,7 @@ type PatternStringMatcher struct {
 func (p *PatternStringMatcher) Compile(pattern string, caseInsensitive bool) error {
 	// ** are not allowed in normal patterns
 	if strings.Contains(pattern, "**") {
-		return fmt.Errorf("`**` is not allowed in patterns")
+		return errors.New("`**` is not allowed in patterns")
 	}
 
 	p.pattern = newPatternElement(pattern)

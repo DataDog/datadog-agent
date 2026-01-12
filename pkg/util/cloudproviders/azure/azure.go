@@ -9,12 +9,14 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -23,13 +25,20 @@ import (
 // declare these as vars not const to ease testing
 var (
 	metadataURL = "http://169.254.169.254"
-	timeout     = 300 * time.Millisecond
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
 )
 
-const hostnameStyleSetting = "azure_hostname_style"
+const (
+	hostnameStyleSetting      = "azure_hostname_style"
+	metadataAPIVersionSetting = "azure_metadata_api_version"
+)
+
+// GetMetadataAPIVersion returns the Azure metadata API version query parameter used by the agent
+func GetMetadataAPIVersion() string {
+	return "api-version=" + pkgconfigsetup.Datadog().GetString(metadataAPIVersionSetting)
+}
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
@@ -43,7 +52,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 	Name: "Azure vmID",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		res, err := getResponseWithMaxLength(ctx,
-			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
+			fmt.Sprintf("%s/metadata/instance/compute/vmId?%s&format=text", metadataURL, GetMetadataAPIVersion()),
 			pkgconfigsetup.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
@@ -61,7 +70,7 @@ var resourceGroupNameFetcher = cachedfetch.Fetcher{
 	Name: "Azure Cluster Name",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		rg, err := getResponse(ctx,
-			metadataURL+"/metadata/instance/compute/resourceGroupName?api-version=2017-08-01&format=text")
+			fmt.Sprintf("%s/metadata/instance/compute/resourceGroupName?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
 		}
@@ -95,6 +104,23 @@ func GetNTPHosts(ctx context.Context) []string {
 	return nil
 }
 
+var instanceTypeFetcher = cachedfetch.Fetcher{
+	Name: "Azure Instance Type",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		instanceType, err := getResponse(ctx,
+			fmt.Sprintf("%s/metadata/instance/compute/vmSize?%s&format=text", metadataURL, GetMetadataAPIVersion()))
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure instance type: %s", err)
+		}
+		return instanceType, nil
+	},
+}
+
+// GetInstanceType returns the instance type as reported by Azure instance metadata.
+func GetInstanceType(ctx context.Context) (string, error) {
+	return instanceTypeFetcher.FetchString(ctx)
+}
+
 func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength int) (string, error) {
 	result, err := getResponse(ctx, endpoint)
 	if err != nil {
@@ -107,10 +133,11 @@ func getResponseWithMaxLength(ctx context.Context, endpoint string, maxLength in
 }
 
 func getResponse(ctx context.Context, url string) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
+	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("azure_metadata_timeout")) * time.Millisecond
 	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, pkgconfigsetup.Datadog())
 }
 
@@ -123,7 +150,7 @@ var instanceMetaFetcher = cachedfetch.Fetcher{
 	Name: "Azure Instance Metadata",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		metadataJSON, err := getResponse(ctx,
-			metadataURL+"/metadata/instance/compute?api-version=2017-08-01")
+			fmt.Sprintf("%s/metadata/instance/compute?%s", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure instance metadata: %s", err)
 		}
@@ -135,7 +162,7 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	style := config.GetString(hostnameStyleSetting)
 
 	if style == "os" {
-		return "", fmt.Errorf("azure_hostname_style is set to 'os'")
+		return "", errors.New("azure_hostname_style is set to 'os'")
 	}
 
 	metadataJSON, err := instanceMetaFetcher.FetchString(ctx)
@@ -174,11 +201,35 @@ func getHostnameWithConfig(ctx context.Context, config model.Config) (string, er
 	return name, nil
 }
 
+var hostCCRIDFetcher = cachedfetch.Fetcher{
+	Name: "Azure Host CCRID",
+	Attempt: func(ctx context.Context) (interface{}, error) {
+		rg, err := getResponse(ctx,
+			fmt.Sprintf("%s/metadata/instance/compute/resourceId?%s&format=text", metadataURL, GetMetadataAPIVersion()))
+		if err != nil {
+			return "", fmt.Errorf("unable to query metadata endpoint: %s", err)
+		}
+		return rg, nil
+	},
+}
+
+// GetHostCCRID returns the Canonical Cloud Resource ID for the Azure host
+func GetHostCCRID(ctx context.Context) (string, error) {
+	caseInsensitiveCCRID, err := hostCCRIDFetcher.FetchString(ctx)
+	if err != nil {
+		return "", err
+	}
+	// Azure APIs are inconsistent with handling case, so it is recommended to
+	// lower-case returned strings that represent stable IDs
+	// https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/move-resource-group-and-subscription?tabs=azure-cli
+	return strings.ToLower(caseInsensitiveCCRID), nil
+}
+
 var publicIPv4Fetcher = cachedfetch.Fetcher{
 	Name: "Azure Public IP",
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		publicIPv4, err := getResponse(ctx,
-			metadataURL+"/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?api-version=2017-04-02&format=text")
+			fmt.Sprintf("%s/metadata/instance/network/interface/0/ipv4/ipAddress/0/publicIpAddress?%s&format=text", metadataURL, GetMetadataAPIVersion()))
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure public ip: %s", err)
 		}

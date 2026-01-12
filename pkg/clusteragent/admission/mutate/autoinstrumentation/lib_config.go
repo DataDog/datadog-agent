@@ -39,16 +39,30 @@ func (basicLibConfigInjector) mutatePod(pod *corev1.Pod) error {
 	return nil
 }
 
+// containerMutator returns a containerMutator that injects the basic lib config env vars.
+// This can be used with filteredContainerMutator to apply container filtering.
+func (basicLibConfigInjector) containerMutator() containerMutator {
+	libConfig := basicConfig()
+	envs := libConfig.ToEnvs()
+
+	var mutators containerMutators
+	for _, env := range envs {
+		mutators = append(mutators, envVarMutator(env))
+	}
+	return mutators
+}
+
 type libConfigInjector struct{}
 
 func (l *libConfigInjector) podMutator(lang language) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		c, err := lang.libConfigAnnotationExtractor().extract(pod)
-		if err != nil {
-			if isErrAnnotationNotFound(err) {
-				return nil
-			}
+		config, found := GetAnnotation(pod, AnnotationLibraryConfigV1.Format(string(lang)))
+		if !found {
+			return nil
+		}
 
+		c, err := parseConfigJSON(config)
+		if err != nil {
 			return err
 		}
 

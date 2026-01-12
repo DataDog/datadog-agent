@@ -16,14 +16,14 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -47,10 +47,11 @@ func TestCheckValidAPIKey(t *testing.T) {
 		},
 	}
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
@@ -67,6 +68,7 @@ func TestComputeDomainsURL(t *testing.T) {
 		"https://app.datadoghq.eu":               {utils.NewAPIKeys("path", "api_key4")},
 		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
 		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
+		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "api_key5")},
 		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
 		"https://app.datadoghq.internal": {utils.NewAPIKeys("path", "api_key7")},
@@ -76,13 +78,14 @@ func TestComputeDomainsURL(t *testing.T) {
 	}
 
 	expectedMap := map[string][]string{
-		"https://api.datadoghq.com":      {"api_key1", "api_key2", "api_key3"},
-		"https://api.datadoghq.eu":       {"api_key4"},
-		"https://api.us2.datadoghq.com":  {"api_key5", "api_key6"},
-		"https://api.xx9.datadoghq.com":  {"api_key5"},
-		"https://api.datadoghq.internal": {"api_key7"},
-		"https://app.myproxy.com":        {"api_key8"},
-		"https://api.ddog-gov.com":       {"api_key9", "api_key10"},
+		"https://api.datadoghq.com":        {"api_key1", "api_key2", "api_key3"},
+		"https://api.datadoghq.eu":         {"api_key4"},
+		"https://api.us2.datadoghq.com":    {"api_key5", "api_key6"},
+		"https://api.xx9.datadoghq.com":    {"api_key5"},
+		"https://api.xxxx99.datadoghq.com": {"api_key5"},
+		"https://api.datadoghq.internal":   {"api_key7"},
+		"https://app.myproxy.com":          {"api_key8"},
+		"https://api.ddog-gov.com":         {"api_key9", "api_key10"},
 	}
 
 	// just sort the expected map for easy comparison
@@ -92,7 +95,8 @@ func TestComputeDomainsURL(t *testing.T) {
 	log := logmock.New(t)
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, secrets: secrets, domainResolvers: r}
 	fh.init()
 
 	// lexicographical sort for assert
@@ -132,8 +136,9 @@ func TestCheckValidAPIKeyErrors(t *testing.T) {
 		ts3.URL: {"key4"},
 	}
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
-	fh := forwarderHealth{log: log, config: cfg}
+	cfg := configmock.New(t)
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets}
 	fh.init()
 	fh.keysPerAPIEndpoint = keysPerAPIEndpoint
 	assert.True(t, fh.checkValidAPIKey())
@@ -179,42 +184,29 @@ func TestUpdateAPIKey(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	r, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: r}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: r}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey())
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
+	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1","api_key2"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
-	assert.Eventually(t, func() bool {
-		data, _ := json.Marshal(getKeysCopy(&fh))
-		return assert.Equal(t, expect, string(data))
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.Equal(t, expect, string(data))
 
 	// update the resolver first since the health checker will load the new keys from the resolver
 	r[ts1.URL].UpdateAPIKeys("path1", []utils.APIKeys{utils.NewAPIKeys("path1", "api_key4")})
 	// update the API Key
 	fh.UpdateAPIKeys(ts1.URL, []string{"api_key1"}, []string{"api_key4"})
 
+	// ensure that keysPerAPIEndpoint has the new API Key
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key2","api_key4"],"http://127.0.0.1:%s":["api_key3"]}`, ts1Port, ts2Port)
-	assert.Eventually(t, func() bool {
-		// ensure that keysPerAPIEndpoint has the new API Key
-		data, _ := json.Marshal(getKeysCopy(&fh))
-		return assert.Equal(t, expect, string(data))
-	}, 5*time.Second, 200*time.Millisecond)
-}
-
-func getKeysCopy(fh *forwarderHealth) map[string][]string {
-	fh.keyMapMutex.Lock()
-	defer fh.keyMapMutex.Unlock()
-	keysMapCopy := make(map[string][]string, len(fh.keysPerAPIEndpoint))
-	for k, v := range fh.keysPerAPIEndpoint {
-		keysMapCopy[k] = slices.Clone(v)
-	}
-	return keysMapCopy
+	assert.Equal(t, expect, string(data))
 }
 
 func quoteList(list []string) string {
@@ -266,7 +258,7 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -275,51 +267,44 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
-	assert.Eventually(t, func() bool {
-		return assert.True(t, fh.checkValidAPIKey(), description)
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.True(t, fh.checkValidAPIKey(), description)
 
 	expectBeforeFmt := quoteList(expectBefore)
 	expectAfterFmt := quoteList(expectAfter)
 
 	// forwardHealth's keysPerAPIEndpoint has the given API Keys
+	data, _ := json.Marshal(fh.keysPerAPIEndpoint)
 	expect := fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
 
-	assert.Eventually(t, func() bool {
-		data, _ := json.Marshal(getKeysCopy(&fh))
-		return assert.Equal(t, expect, string(data), description)
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.Equal(t, expect, string(data), description)
+
 	endpoints := map[string][]string{
 		ts2.URL: keysAfter,
 	}
 	// Setting the config will send the change to the resolver, which updates the health check
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
+	// Ensure that keysPerAPIEndpoint has the new API Key
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectAfterFmt)
-	assert.Eventually(t, func() bool {
-		data, _ := json.Marshal(getKeysCopy(&fh))
-		return assert.Equal(t, expect, string(data), description)
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.Equal(t, expect, string(data), description)
 
 	// Check the new keys are now valid
 	for _, key := range expectAfter {
-		assert.Eventually(t, func() bool {
-			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-		}, 5*time.Second, 200*time.Millisecond)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
 	}
 
 	// Check removed keys are not valid
 	for _, key := range expectBefore {
 		if !slices.Contains(expectAfter, key) {
-			assert.Eventually(t, func() bool {
-				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-			}, 5*time.Second, 200*time.Millisecond)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
 		}
 	}
 
@@ -331,27 +316,21 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 	cfg.SetWithoutSource("additional_endpoints", endpoints)
 
 	// Ensure that keysPerAPIEndpoint are restored to previous
+	data, _ = json.Marshal(fh.keysPerAPIEndpoint)
 	expect = fmt.Sprintf(`{"http://127.0.0.1:%s":["api_key1"],"http://127.0.0.1:%s":[%v]}`,
 		ts1Port, ts2Port,
 		expectBeforeFmt)
-	assert.Eventually(t, func() bool {
-		data, _ := json.Marshal(getKeysCopy(&fh))
-		return assert.Equal(t, expect, string(data), description)
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.Equal(t, expect, string(data), description)
 
 	// Check the old keys are now valid again
 	for _, key := range expectBefore {
-		assert.Eventually(t, func() bool {
-			return assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-		}, 5*time.Second, 200*time.Millisecond)
+		assert.Equal(t, &apiKeyValid, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
 	}
 
 	// Check added keys are now not valid
 	for _, key := range expectAfter {
 		if !slices.Contains(expectBefore, key) {
-			assert.Eventually(t, func() bool {
-				return assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
-			}, 5*time.Second, 200*time.Millisecond)
+			assert.Nil(t, apiKeyStatus.Get("API key ending with "+key[len(key)-5:]), key)
 		}
 	}
 }
@@ -425,7 +404,7 @@ func TestOneEndpointNoAPIKeys(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -434,7 +413,8 @@ func TestOneEndpointNoAPIKeys(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
 }
@@ -459,7 +439,7 @@ func TestOneEndpointInvalid(t *testing.T) {
 	}
 
 	log := logmock.New(t)
-	cfg := config.NewMock(t)
+	cfg := configmock.New(t)
 
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 
@@ -468,7 +448,40 @@ func TestOneEndpointInvalid(t *testing.T) {
 	}
 
 	require.NoError(t, err)
-	fh := forwarderHealth{log: log, config: cfg, domainResolvers: resolvers}
+	secrets := secretsmock.New(t)
+	fh := forwarderHealth{log: log, config: cfg, secrets: secrets, domainResolvers: resolvers}
 	fh.init()
 	assert.True(t, fh.checkValidAPIKey(), "Endpoint should be valid")
+}
+
+func TestHealthInvalidAPIKeyTriggersSecretRefresh(t *testing.T) {
+	triggered := false
+
+	secrets := secretsmock.New(t)
+	secrets.SetRefreshHook(func(updateNow bool) (string, error) {
+		if !updateNow {
+			triggered = true
+		}
+		return "", nil
+	})
+
+	// test server that returns 403 for all keys
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer ts.Close()
+
+	log := logmock.New(t)
+	cfg := configmock.New(t)
+	fh := forwarderHealth{
+		log:     log,
+		config:  cfg,
+		secrets: secrets,
+	}
+	fh.init()
+	// keysPerAPIEndpoint needs to be set after init in this test to avoid being overwritten
+	fh.keysPerAPIEndpoint = map[string][]string{ts.URL: {"any_key"}}
+	fh.checkValidAPIKey()
+
+	assert.True(t, triggered, "secrets.Refresh(false) should be called when API key is invalid")
 }

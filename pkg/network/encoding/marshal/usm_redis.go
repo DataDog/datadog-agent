@@ -36,24 +36,30 @@ func newRedisEncoder(redisPayloads map[redis.Key]*redis.RequestStats) *redisEnco
 	}
 }
 
-func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *redisEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection) (staticTags uint64, dynamicTags map[string]struct{}) {
+	var buf bytes.Buffer
+	staticTags = e.encodeData(c, &buf)
+	conn.DatabaseAggregations = buf.Bytes()
+	return
+}
+
+func (e *redisEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
+	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
+		staticTags = e.encodeData(c, b)
+	})
+	return
+}
+
+func (e *redisEncoder) encodeData(c network.ConnectionStats, w io.Writer) uint64 {
 	if e == nil {
-		return 0, nil
+		return 0
 	}
 
 	connectionData := e.byConnection.Find(c)
 	if connectionData == nil || len(connectionData.Data) == 0 || connectionData.IsPIDCollision(c) {
-		return 0, nil
+		return 0
 	}
 
-	staticTags := uint64(0)
-	builder.SetDatabaseAggregations(func(b *bytes.Buffer) {
-		staticTags |= e.encodeData(connectionData, b)
-	})
-	return staticTags, nil
-}
-
-func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *redis.RequestStats], w io.Writer) uint64 {
 	var staticTags uint64
 	e.redisAggregationsBuilder.Reset(w)
 
@@ -71,7 +77,9 @@ func (e *redisEncoder) encodeData(connectionData *USMConnectionData[redis.Key, *
 					aggregationBuilder.SetCommand(uint64(model.RedisCommand_RedisUnknownCommand))
 				}
 				aggregationBuilder.SetTruncated(key.Truncated)
-				aggregationBuilder.SetKeyName(key.KeyName.Get())
+				if key.KeyName != nil {
+					aggregationBuilder.SetKeyName(key.KeyName.Get())
+				}
 
 				for isErr, stats := range errorToStats.ErrorToStats {
 					if stats.Count == 0 {

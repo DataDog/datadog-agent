@@ -6,8 +6,8 @@
 package status
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 	"testing"
 	"time"
 
@@ -44,7 +44,7 @@ func TestSourceAreGroupedByIntegrations(t *testing.T) {
 		case "bar":
 			assert.Equal(t, 1, len(integration.Sources))
 		default:
-			assert.Fail(t, fmt.Sprintf("Expected foo or bar, got %s", integration.Name))
+			assert.Fail(t, "Expected foo or bar, got "+integration.Name)
 		}
 	}
 }
@@ -140,7 +140,7 @@ func TestStatusMetrics(t *testing.T) {
 	metrics.LogsProcessed.Set(math.MaxInt64)
 	metrics.LogsProcessed.Add(1)
 	status = Get(false)
-	assert.Equal(t, fmt.Sprintf("%v", math.MinInt64), status.StatusMetrics["LogsProcessed"])
+	assert.Equal(t, strconv.Itoa(math.MinInt64), status.StatusMetrics["LogsProcessed"])
 }
 
 func TestStatusEndpoints(t *testing.T) {
@@ -148,5 +148,5 @@ func TestStatusEndpoints(t *testing.T) {
 	initStatus(t)
 
 	status := Get(false)
-	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516", status.Endpoints[0])
+	assert.Equal(t, "Reliable: Sending uncompressed logs in SSL encrypted TCP to agent-intake.logs.datadoghq.com. on port 10516 (API Key: ********)", status.Endpoints[0])
 }

@@ -7,14 +7,17 @@ package telemetry
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 //nolint:revive // TODO(TEL) Fix revive linter
@@ -39,14 +42,13 @@ func TestSendFirstTrace(t *testing.T) {
 
 	collector := NewCollector(cfg)
 
-	var events []OnboardingEvent
-	server.assertReq = assertReqGetEvent(t, &events)
+	receiver := newOnboardingEventReceiver(server, t)
 	if !collector.SentFirstTrace() {
 		collector.SendFirstTrace()
 	}
 
 	assert.True(t, collector.SentFirstTrace(), true)
-	assert.Len(t, events, 1)
+	events := receiver.waitN(1, t)
 	assert.Equal(t, events[0].Payload.Tags.InstallID, "foobar")
 	assert.Equal(t, events[0].Payload.Tags.InstallTime, int64(1))
 	assert.Equal(t, events[0].Payload.Tags.InstallType, "manual")
@@ -64,14 +66,13 @@ func TestSendFirstTraceSignatureNotFound(t *testing.T) {
 
 	collector := NewCollector(cfg)
 
-	var events []OnboardingEvent
-	server.assertReq = assertReqGetEvent(t, &events)
+	r := newOnboardingEventReceiver(server, t)
 	if !collector.SentFirstTrace() {
 		collector.SendFirstTrace()
 	}
 
 	assert.True(t, collector.SentFirstTrace(), true)
-	assert.Len(t, events, 1)
+	events := r.waitN(1, t)
 	assert.Equal(t, events[0].Payload.Tags.InstallID, "")
 	assert.Equal(t, events[0].Payload.Tags.InstallTime, int64(0))
 	assert.Equal(t, events[0].Payload.Tags.InstallType, "")
@@ -90,8 +91,7 @@ func TestSendFirstTraceError(t *testing.T) {
 
 	collector := NewCollector(cfg)
 
-	var events []OnboardingEvent
-	server.assertReq = assertReqGetEvent(t, &events)
+	receiver := newOnboardingEventReceiver(server, t)
 	for i := 0; i < 5; i++ {
 		assert.False(t, collector.SentFirstTrace())
 		collector.SendFirstTrace()
@@ -101,7 +101,7 @@ func TestSendFirstTraceError(t *testing.T) {
 		assert.True(t, collector.SentFirstTrace())
 	}
 	assert.True(t, collector.SentFirstTrace(), true)
-	assert.Len(t, events, 5)
+	receiver.waitN(5, t)
 }
 
 func TestTelemetryDisabled(t *testing.T) {
@@ -116,7 +116,7 @@ func TestTelemetryDisabled(t *testing.T) {
 	server.assertReq = func(_ *http.Request) {
 		t.Fail()
 	}
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 }
 
@@ -135,7 +135,7 @@ func TestTelemetryPath(t *testing.T) {
 		path = req.URL.Path
 	}
 
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 
 	assert.Equal(t, 1, reqCount)
@@ -149,13 +149,12 @@ func TestNoSuccessAfterError(t *testing.T) {
 	cfg := testCfg(server.URL)
 	collector := NewCollector(cfg)
 
-	var events []OnboardingEvent
-	server.assertReq = assertReqGetEvent(t, &events)
+	receiver := newOnboardingEventReceiver(server, t)
 
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 	collector.SendStartupSuccess()
 
-	assert.Len(t, events, 1)
+	events := receiver.waitN(1, t)
 	assert.Equal(t, "agent.startup.error", events[0].Payload.EventName)
 }
 
@@ -166,13 +165,12 @@ func TestErrorAfterSuccess(t *testing.T) {
 	cfg := testCfg(server.URL)
 	collector := NewCollector(cfg)
 
-	var events []OnboardingEvent
-	server.assertReq = assertReqGetEvent(t, &events)
+	receiver := newOnboardingEventReceiver(server, t)
 
 	collector.SendStartupSuccess()
-	collector.SendStartupError(GenericError, fmt.Errorf(""))
+	collector.SendStartupError(GenericError, errors.New(""))
 
-	assert.Len(t, events, 2)
+	events := receiver.waitN(2, t)
 	assert.Equal(t, "agent.startup.success", events[0].Payload.EventName)
 	assert.Equal(t, "agent.startup.error", events[1].Payload.EventName)
 }
@@ -246,13 +244,44 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // Close closes the underlying http.Server.
 func (ts *testServer) Close() { ts.server.Close() }
 
-func assertReqGetEvent(t *testing.T, events *[]OnboardingEvent) func(*http.Request) {
-	return func(req *http.Request) {
+type onboardingEventReceiver struct {
+	eventsC chan OnboardingEvent
+}
+
+func newOnboardingEventReceiver(server *testServer, t *testing.T) *onboardingEventReceiver {
+	r := &onboardingEventReceiver{eventsC: make(chan OnboardingEvent, 10)}
+	server.assertReq = func(req *http.Request) {
 		body, err := io.ReadAll(req.Body)
 		assert.NoError(t, err)
 		ev := OnboardingEvent{}
 		err = json.Unmarshal(body, &ev)
 		assert.NoError(t, err)
-		*events = append(*events, ev)
+		select {
+		case r.eventsC <- ev:
+		default:
+			t.Logf("onboarding event buffer full")
+		}
 	}
+	return r
+}
+
+func (r *onboardingEventReceiver) waitN(expected int, t *testing.T) []OnboardingEvent {
+	events := make([]OnboardingEvent, 0, expected)
+	timer := time.NewTimer(time.Duration(expected) * time.Second) // generous
+	defer timer.Stop()
+loop:
+	for {
+		select {
+		case ev := <-r.eventsC:
+			events = append(events, ev)
+			if len(events) >= expected {
+				break loop
+			}
+		case <-timer.C:
+			t.Logf("timed out waiting for onboarding event")
+			break loop
+		}
+	}
+	require.Len(t, events, expected) // `assert` doesn't guard against any next out-of-bounds access to events[N]
+	return events
 }

@@ -56,10 +56,8 @@ package :zip do
 
 
   additional_sign_files [
-    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
     "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\dogstatsd.exe",
-    "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
   ]
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true

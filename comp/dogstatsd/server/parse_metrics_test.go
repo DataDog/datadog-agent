@@ -9,15 +9,29 @@ import (
 	"testing"
 	"time"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/config"
 )
 
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
-	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: overrides}))
+	deps := fxutil.Test[ServerDeps](t,
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) configComponent.Component {
+			return configComponent.NewMockWithOverrides(t, overrides)
+		}),
+		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
 	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	_, found := overrides["parser"]

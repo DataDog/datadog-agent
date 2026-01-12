@@ -23,6 +23,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -140,7 +141,19 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 	// -1 here means 'unknown' and makes this a 'chunked' request. See https://github.com/golang/go/issues/18117
 	request.ContentLength = -1
 
-	return client.Do(request)
+	resp, err := client.Do(request)
+	if err != nil {
+		return resp, err
+	}
+
+	// Convert 5xx HTTP error status codes to Go errors for retry logic
+	if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		return resp, fmt.Errorf("HTTP %d %s\nServer returned:\n%s", resp.StatusCode, http.StatusText(resp.StatusCode), string(body))
+	}
+
+	return resp, nil
 }
 
 func analyzeResponse(r *http.Response, apiKey string) (string, error) {
@@ -254,13 +267,52 @@ func SendTo(cfg pkgconfigmodel.Reader, archivePath, caseID, email, apiKey, url s
 		return "", err
 	}
 
-	r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
-	if err != nil {
-		return "", err
+	// Retry logic for the actual flare file posting
+	var lastErr error
+	var baseDelay = 1 * time.Second
+
+	for attempt := 3; attempt > 0; attempt-- {
+		r, err := readAndPostFlareFile(archivePath, caseID, email, hostname, url, source, client, apiKey)
+		if err != nil {
+			// Always close the response body if it exists
+			statusCode := 0
+			if r != nil {
+				statusCode = r.StatusCode
+				r.Body.Close()
+			}
+			lastErr = err
+
+			if !isRetryableFlareError(err, statusCode) {
+				return "", err
+			}
+			log.Warn("Failed to send flare, retrying in 1 second")
+			time.Sleep(baseDelay)
+			continue
+		}
+
+		// Success case - analyze the response
+		defer r.Body.Close()
+		return analyzeResponse(r, apiKey)
+	}
+	return "", fmt.Errorf("failed to send flare after 3 attempts: %w", lastErr)
+}
+
+func isRetryableFlareError(err error, statusCode int) bool {
+	if err == nil {
+		return false
 	}
 
-	defer r.Body.Close()
-	return analyzeResponse(r, apiKey)
+	if statusCode >= 500 && statusCode < 600 {
+		return true
+	}
+
+	errStr := strings.ToLower(err.Error())
+
+	return strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "connection reset") ||
+		strings.Contains(errStr, "network unreachable") ||
+		strings.Contains(errStr, "temporary failure")
 }
 
 // GetFlareEndpoint creates the flare endpoint URL

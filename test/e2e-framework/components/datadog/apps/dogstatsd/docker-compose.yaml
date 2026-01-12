@@ -1,0 +1,29 @@
+version: "3.9"
+services:
+  dogstatsd-udp:
+    image: ghcr.io/datadog/apps-dogstatsd:{APPS_VERSION}
+    container_name: metric-sender-udp
+    network_mode: host
+    pid: "host"
+    environment:
+      STATSD_URL:  "$HOST_IP:8125"
+    depends_on:
+      - agent
+  dogstatsd-uds:
+    image: ghcr.io/datadog/apps-dogstatsd:{APPS_VERSION}
+    container_name: metric-sender-uds
+    volumes:
+      - /var/run/datadog:/var/run/datadog:ro
+    network_mode: host
+    pid: "host"
+    environment:
+      STATSD_URL:  "unix:///var/run/datadog/dsd.socket"
+    depends_on:
+      - agent
+  agent:
+    environment:
+      DD_DOGSTATSD_ORIGIN_DETECTION: "true"
+      DD_DOGSTATSD_TAG_CARDINALITY: "high"
+      DD_DOGSTATSD_SOCKET: "/var/run/datadog/dsd.socket"
+      DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"

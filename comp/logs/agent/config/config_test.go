@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {
@@ -169,6 +170,59 @@ func (suite *ConfigTestSuite) TestTaggerWarmupDuration() {
 	suite.config.SetWithoutSource("logs_config.tagger_warmup_duration", 5)
 	taggerWarmupDuration = TaggerWarmupDuration(suite.config)
 	suite.Equal(5*time.Second, taggerWarmupDuration)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigCount() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultLinesCount, config.Count, "Expected count to be set to default lines count")
+
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "byte_checksum")
+
+	config, err = GlobalFingerprintConfig(suite.config)
+	suite.Nil(err, "Expected no error")
+	suite.NotNil(config, "Expected config to be set")
+	suite.Equal(types.DefaultBytesCount, config.Count, "Expected count to be set to default bytes count")
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnConfigWithValidMap() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "line_checksum")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.NotNil(config)
+	suite.Equal(types.FingerprintStrategyLineChecksum, config.FingerprintStrategy)
+	suite.Equal(10, config.Count)
+	suite.Equal(5, config.CountToSkip)
+	suite.Equal(1024, config.MaxBytes)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnStrategyDisabled() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "disabled")
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", 10)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.Nil(err)
+	suite.Equal(types.FingerprintStrategyDisabled, config.FingerprintStrategy)
+}
+
+func (suite *ConfigTestSuite) TestGlobalFingerprintConfigShouldReturnErrorWithInvalidConfig() {
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.fingerprint_strategy", "invalid_strategy") // Invalid: unknown strategy
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count", -1)                                // Invalid: negative value
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.count_to_skip", 5)
+	suite.config.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 1024)
+
+	config, err := GlobalFingerprintConfig(suite.config)
+	suite.NotNil(err)
+	suite.Nil(config)
 }
 
 func TestConfigTestSuite(t *testing.T) {
@@ -658,15 +712,15 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        GzipCompressionKind,
-		CompressionLevel:       GzipCompressionLevel,
+		CompressionKind:        ZstdCompressionKind,
+		CompressionLevel:       ZstdCompressionLevel,
 		BackoffFactor:          pkgconfigsetup.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            pkgconfigsetup.DefaultLogsSenderBackoffBase,
 		BackoffMax:             pkgconfigsetup.DefaultLogsSenderBackoffMax,
 		RecoveryInterval:       pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval,
 		Version:                EPIntakeVersion2,
 		TrackType:              "test-track",
-		Origin:                 "lambda-extension",
+		Origin:                 "serverless",
 		Protocol:               "test-proto",
 		isReliable:             true,
 	}
@@ -689,7 +743,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	e := NewEndpoint("123", "", host, port, ssl)
+	e := NewEndpoint("123", "", host, port, EmptyPathPrefix, ssl)
 	e.UseCompression = true
 	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = pkgconfigsetup.DefaultLogsSenderBackoffFactor
@@ -931,12 +985,13 @@ func Test_parseAddressWithScheme(t *testing.T) {
 		defaultParser defaultParseAddressFunc
 	}
 	tests := []struct {
-		name       string
-		args       args
-		wantHost   string
-		wantPort   int
-		wantUseSSL bool
-		wantErr    bool
+		name           string
+		args           args
+		wantHost       string
+		wantPort       int
+		wantPathPrefix string
+		wantUseSSL     bool
+		wantErr        bool
 	}{
 		{
 			name: "url without scheme and port",
@@ -945,10 +1000,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   8080,
-			wantUseSSL: false,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix",
@@ -957,10 +1013,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "url with https prefix and port",
@@ -968,10 +1025,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				address:       "https://localhost:443",
 				defaultParser: parseAddress,
 			},
-			wantHost:   "localhost",
-			wantPort:   443,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       443,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "invalid url",
@@ -980,10 +1038,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "",
-			wantPort:   0,
-			wantUseSSL: false,
-			wantErr:    true,
+			wantHost:       "",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     false,
+			wantErr:        true,
 		},
 		{
 			name: "allow emptyPort",
@@ -992,10 +1051,11 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  true,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
 		},
 		{
 			name: "no schema, not port emptyPort",
@@ -1004,15 +1064,54 @@ func Test_parseAddressWithScheme(t *testing.T) {
 				defaultNoSSL:  false,
 				defaultParser: parseAddressAsHost,
 			},
-			wantHost:   "localhost",
-			wantPort:   0,
-			wantUseSSL: true,
-			wantErr:    false,
+			wantHost:       "localhost",
+			wantPort:       0,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "path prefix",
+			args: args{
+				address:       "https://localhost:8080/path/prefix",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "/path/prefix",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v1 prefix",
+			args: args{
+				address:       "https://localhost:8080/v1/input",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
+			wantErr:        false,
+		},
+		{
+			name: "legacy path v2 prefix",
+			args: args{
+				address:       "https://localhost:8080/api/v2/logs",
+				defaultNoSSL:  true,
+				defaultParser: parseAddress,
+			},
+			wantHost:       "localhost",
+			wantPort:       8080,
+			wantPathPrefix: "",
+			wantUseSSL:     true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotHost, gotPort, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
+			gotHost, gotPort, gotPathPrefix, gotUseSSL, err := parseAddressWithScheme(tt.args.address, tt.args.defaultNoSSL, tt.args.defaultParser)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseAddressWithScheme() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -1023,9 +1122,130 @@ func Test_parseAddressWithScheme(t *testing.T) {
 			if gotPort != tt.wantPort {
 				t.Errorf("parseAddressWithScheme() gotPort = %v, want %v", gotPort, tt.wantPort)
 			}
+			if gotPathPrefix != tt.wantPathPrefix {
+				t.Errorf("parseAddressWithScheme() gotPathPrefix = %v, want %v", gotPathPrefix, tt.wantPathPrefix)
+			}
 			if gotUseSSL != tt.wantUseSSL {
 				t.Errorf("parseAddressWithScheme() gotUseSSL = %v, want %v", gotUseSSL, tt.wantUseSSL)
 			}
 		})
 	}
+}
+
+func TestShouldUseTCP(t *testing.T) {
+	tests := []struct {
+		name                string
+		forceTCP            bool
+		socks5Proxy         string
+		additionalEndpoints bool
+		expectedTCPRequired bool
+	}{
+		{
+			name:                "no TCP requirements",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: false,
+		},
+		{
+			name:                "force_use_tcp enabled",
+			forceTCP:            true,
+			socks5Proxy:         "",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "socks5 proxy set",
+			forceTCP:            false,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: false,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "additional endpoints configured",
+			forceTCP:            false,
+			socks5Proxy:         "",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+		{
+			name:                "all TCP requirements set",
+			forceTCP:            true,
+			socks5Proxy:         "localhost:1080",
+			additionalEndpoints: true,
+			expectedTCPRequired: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetWithoutSource("api_key", "test-key")
+			cfg.SetWithoutSource("logs_config.force_use_tcp", tt.forceTCP)
+			cfg.SetWithoutSource("logs_config.socks5_proxy_address", tt.socks5Proxy)
+
+			if tt.additionalEndpoints {
+				cfg.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+					{
+						"host":    "additional-host.com",
+						"port":    10516,
+						"api_key": "additional-key",
+					},
+				})
+			}
+
+			result := ShouldUseTCP(cfg)
+			if result != tt.expectedTCPRequired {
+				t.Errorf("ShouldUseTCP() = %v, want %v", result, tt.expectedTCPRequired)
+			}
+		})
+	}
+}
+
+func (suite *ConfigTestSuite) TestBatchWaitSubsecondValues() {
+	suite.config.SetWithoutSource("api_key", "123")
+
+	// Test with 0.1 seconds (100ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.1)
+
+	logsConfig := NewLogsConfigKeys("logs_config.", suite.config)
+	endpoints, err := BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(100*time.Millisecond, endpoints.BatchWait, "BatchWait should be 100ms")
+
+	// Test with 0.5 seconds (500ms)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 500ms")
+
+	// Test with 1.5 seconds
+	suite.config.SetWithoutSource("logs_config.batch_wait", 1.5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(1500*time.Millisecond, endpoints.BatchWait, "BatchWait should be 1.5 seconds")
+
+	// Test with integer value for backwards compatibility
+	suite.config.SetWithoutSource("logs_config.batch_wait", 5)
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(5*time.Second, endpoints.BatchWait, "BatchWait should be 5 seconds (integer value)")
+
+	// Test with value below minimum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 0.05) // 50ms, below 100ms minimum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-small values")
+
+	// Test with value above maximum (should fallback to default)
+	suite.config.SetWithoutSource("logs_config.batch_wait", 15) // Above 10 second maximum
+	endpoints, err = BuildHTTPEndpointsWithConfig(suite.config, logsConfig, "http-intake.logs.", "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal(pkgconfigsetup.DefaultBatchWait*time.Second, endpoints.BatchWait, "BatchWait should fallback to default for too-large values")
 }

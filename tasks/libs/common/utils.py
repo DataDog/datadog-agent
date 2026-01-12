@@ -214,7 +214,6 @@ def get_build_flags(
     embedded_path=None,
     rtloader_root=None,
     python_home_3=None,
-    major_version='7',
     headless_mode=False,
     arch: Arch | None = None,
 ):
@@ -228,7 +227,7 @@ def get_build_flags(
         arch = Arch.local()
 
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
+    ldflags = get_version_ldflags(ctx, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -254,12 +253,14 @@ def get_build_flags(
     if sys.platform.startswith('linux') and run_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
+    # lock down the agent to only use the symbols in the datadog-agent.map file
+    # required because some go dependencies (such as go-nvml) will automatically include the --export-dynamic flag
+    if sys.platform.startswith('linux'):
+        extldflags += f"-Wl,--version-script={get_repo_root()}/datadog-agent.map "
+
     # setting python homes in the code
     if python_home_3:
         ldflags += f"-X {REPO_PATH}/pkg/collector/python.pythonHome3={python_home_3} "
-
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.ForceDefaultPython=true "
-    ldflags += f"-X {REPO_PATH}/pkg/config/setup.DefaultPython=3 "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -325,6 +326,9 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+    elif sys.platform.startswith('linux'):
+        # Use lazy symbol resolution to fix NVML issues on distributions with --enable-host-bind-now
+        extldflags += "-Wl,-z,lazy "
 
     if os.getenv("DD_CC"):
         env["CC"] = os.getenv("DD_CC")
@@ -379,7 +383,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, major_version='7', install_path=None):
+def get_version_ldflags(ctx, install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -387,7 +391,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
 
     payload_v = get_payload_version()
     commit = get_commit_sha(ctx, short=True)
-    version = get_version(ctx, include_git=True, major_version=major_version)
+    version = get_version(ctx, include_git=True)
     package_version = os.getenv('PACKAGE_VERSION', version)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
@@ -399,9 +403,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             # so, set the package_version tag in order for Fleet Automation to detect
             # upgrade in the health check.
             # https://github.com/DataDog/dd-go/blob/cada5b3c2929473a2bd4a4142011767fe2dcce52/remote-config/apps/rc-api-internal/updater/health_check.go#L219
-            package_version = get_version(
-                ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-            )
+            package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
             # append suffix
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
@@ -471,7 +473,12 @@ def clean_nested_paths(paths):
 @contextmanager
 def environ(env):
     original_environ = os.environ.copy()
-    os.environ.update(env)
+    # Apply changes: support a special value "DELETE" to remove variables
+    for key, value in env.items():
+        if value == "DELETE":
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
     yield
     for var in env:
         if var in original_environ:

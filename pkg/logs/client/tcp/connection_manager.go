@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package tcp provides TCP connection management for log clients
 package tcp
 
 import (
@@ -96,7 +96,6 @@ func (cm *ConnectionManager) NewConnection(ctx context.Context) (net.Conn, error
 				log.Warn(err)
 				continue
 			}
-			// TODO: handle timeouts with ctx.
 			conn, err = dialer.Dial("tcp", cm.address())
 		} else {
 			var dialer net.Dialer

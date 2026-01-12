@@ -1,0 +1,13 @@
+version: '3'
+name: python
+services:
+  python:
+    image: python:3-alpine
+    command: ["python3", "-u", "/v/server.py", "true"]
+    ports:
+      - ${PORT}:4141
+    environment:
+      - ADDR
+      - CERTS_DIR
+    volumes:
+      - ${TESTDIR}:/v:z

@@ -35,6 +35,7 @@ const (
 	MetricSourceInternal
 	MetricSourceContainer
 	MetricSourceContainerd
+	MetricSourceControlM
 	MetricSourceCri
 	MetricSourceDocker
 	MetricSourceNTP
@@ -102,9 +103,11 @@ const (
 	MetricSourcePhpOpcache
 	MetricSourcePhpApcu
 	MetricSourceOpenPolicyAgent
+	MetricSourcePaloAltoPanorama
 	MetricSourceOctopusDeploy
 	MetricSourceOctoprint
 	MetricSourceNvml
+	MetricSourceNutanix
 	MetricSourceNs1
 	MetricSourceNnSdwan
 	MetricSourceNextcloud
@@ -255,6 +258,7 @@ const (
 	MetricSourceOpenstackController
 	MetricSourceOracle
 	MetricSourcePdhCheck
+	MetricSourcePerfect
 	MetricSourcePgbouncer
 	MetricSourcePhpFpm
 	MetricSourcePostfix
@@ -310,6 +314,7 @@ const (
 	MetricSourceAppgateSDP
 	MetricSourceAnyscale
 	MetricSourceMilvus
+	MetricSourceN8N
 	MetricSourceNvidiaNim
 	MetricSourceQuarkus
 	MetricSourceVelero
@@ -329,6 +334,10 @@ const (
 	MetricSourceSupabase
 	MetricSourceKeda
 	MetricSourceDuckdb
+	MetricSourceBentoMl
+	MetricSourceHuggingFaceTgi
+	MetricSourceIbmSpectrumLsf
+	MetricSourceDatadogOperator
 
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
@@ -377,9 +386,6 @@ const (
 
 	// Serverless
 	MetricSourceServerless
-	MetricSourceAwsLambdaCustom
-	MetricSourceAwsLambdaEnhanced
-	MetricSourceAwsLambdaRuntime
 	MetricSourceAzureContainerAppCustom
 	MetricSourceAzureContainerAppEnhanced
 	MetricSourceAzureContainerAppRuntime
@@ -432,6 +438,8 @@ func (ms MetricSource) String() string {
 		return "container"
 	case MetricSourceContainerd:
 		return "containerd"
+	case MetricSourceControlM:
+		return "controlm"
 	case MetricSourceCri:
 		return "cri"
 	case MetricSourceDocker:
@@ -686,6 +694,8 @@ func (ms MetricSource) String() string {
 		return "oracle"
 	case MetricSourcePdhCheck:
 		return "pdh_check"
+	case MetricSourcePerfect:
+		return "perfect"
 	case MetricSourcePgbouncer:
 		return "pgbouncer"
 	case MetricSourcePhpFpm:
@@ -884,12 +894,16 @@ func (ms MetricSource) String() string {
 		return "ns1"
 	case MetricSourceNvml:
 		return "nvml"
+	case MetricSourceNutanix:
+		return "nutanix"
 	case MetricSourceOctoprint:
 		return "octoprint"
 	case MetricSourceOctopusDeploy:
 		return "octopus_deploy"
 	case MetricSourceOpenPolicyAgent:
 		return "open_policy_agent"
+	case MetricSourcePaloAltoPanorama:
+		return "palo_alto_panorama"
 	case MetricSourcePhpApcu:
 		return "php_apcu"
 	case MetricSourcePhpOpcache:
@@ -962,6 +976,8 @@ func (ms MetricSource) String() string {
 		return "aws_neuron"
 	case MetricSourceMilvus:
 		return "milvus"
+	case MetricSourceN8N:
+		return "n8n"
 	case MetricSourceQuarkus:
 		return "quarkus"
 	case MetricSourceVelero:
@@ -992,6 +1008,14 @@ func (ms MetricSource) String() string {
 		return "keda"
 	case MetricSourceDuckdb:
 		return "duckdb"
+	case MetricSourceBentoMl:
+		return "bentoml"
+	case MetricSourceHuggingFaceTgi:
+		return "hugging_face_tgi"
+	case MetricSourceIbmSpectrumLsf:
+		return "ibm_spectrum_lsf"
+	case MetricSourceDatadogOperator:
+		return "datadog_operator"
 	case MetricSourceOpenTelemetryCollectorUnknown:
 		return "opentelemetry_collector_unknown"
 	case MetricSourceOpenTelemetryCollectorDockerstatsReceiver:
@@ -1080,12 +1104,6 @@ func (ms MetricSource) String() string {
 		return "opentelemetry_collector_couchdbreceiver"
 	case MetricSourceServerless:
 		return "serverless"
-	case MetricSourceAwsLambdaCustom:
-		return "aws_lambda_custom"
-	case MetricSourceAwsLambdaEnhanced:
-		return "aws_lambda_enhanced"
-	case MetricSourceAwsLambdaRuntime:
-		return "aws_lambda_runtime"
 	case MetricSourceAzureContainerAppCustom:
 		return "azure_container_app_custom"
 	case MetricSourceAzureContainerAppEnhanced:
@@ -1122,6 +1140,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceContainer
 	case "containerd":
 		return MetricSourceContainerd
+	case "controlm":
+		return MetricSourceControlM
 	case "cri":
 		return MetricSourceCri
 	case "docker":
@@ -1372,6 +1392,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceOracle
 	case "pdh_check":
 		return MetricSourcePdhCheck
+	case "perfect":
+		return MetricSourcePerfect
 	case "pgbouncer":
 		return MetricSourcePgbouncer
 	case "php_fpm":
@@ -1574,10 +1596,14 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceNs1
 	case "nvml":
 		return MetricSourceNvml
+	case "nutanix":
+		return MetricSourceNutanix
 	case "octoprint":
 		return MetricSourceOctoprint
 	case "open_policy_agent":
 		return MetricSourceOpenPolicyAgent
+	case "palo_alto_panorama":
+		return MetricSourcePaloAltoPanorama
 	case "php_apcu":
 		return MetricSourcePhpApcu
 	case "php_opcache":
@@ -1658,6 +1684,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceTibcoEMS
 	case "milvus":
 		return MetricSourceMilvus
+	case "n8n":
+		return MetricSourceN8N
 	case "quarkus":
 		return MetricSourceQuarkus
 	case "velero":
@@ -1678,6 +1706,20 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceProxmox
 	case "resilience4j":
 		return MetricSourceResilience4j
+	case "supabase":
+		return MetricSourceSupabase
+	case "keda":
+		return MetricSourceKeda
+	case "duckdb":
+		return MetricSourceDuckdb
+	case "bentoml":
+		return MetricSourceBentoMl
+	case "hugging_face_tgi":
+		return MetricSourceHuggingFaceTgi
+	case "ibm_spectrum_lsf":
+		return MetricSourceIbmSpectrumLsf
+	case "datadog_operator":
+		return MetricSourceDatadogOperator
 	case "opentelemetry_collector_unknown":
 		return MetricSourceOpenTelemetryCollectorUnknown
 	case "opentelemetry_collector_dockerstatsreceiver":

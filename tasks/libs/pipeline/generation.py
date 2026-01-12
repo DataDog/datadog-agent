@@ -13,7 +13,7 @@ def update_child_job_variables(kept_jobs):
     # Create n jobs with the same configuration
     for job in kept_jobs:
         new_job = copy.deepcopy(kept_jobs[job])
-        if 'variables' in new_job:
+        if 'variables' in new_job and isinstance(new_job, dict):
             # Variables that reference the parent pipeline should be updated
             for key, value in new_job['variables'].items():
                 new_value = value

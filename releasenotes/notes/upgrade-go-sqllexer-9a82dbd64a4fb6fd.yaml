@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    Upgrade go-sqllexer to v0.1.8  

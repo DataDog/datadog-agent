@@ -56,11 +56,11 @@ func getProcessService(config *config.Config, entry *model.ProcessCacheEntry) (s
 		}
 	}
 
-	inContainer := entry.ContainerID != ""
+	inContainer := entry.ProcessContext.ContainerContext.ContainerID != ""
 
 	// while in container check for each ancestor
 	for ancestor := entry.Ancestor; ancestor != nil; ancestor = ancestor.Ancestor {
-		if inContainer && ancestor.ContainerID == "" {
+		if inContainer && ancestor.ContainerContext.ContainerID == "" {
 			break
 		}
 
@@ -116,9 +116,21 @@ func (bfh *BaseFieldHandlers) ResolveIsIPPublic(_ *model.Event, ipCtx *model.IPP
 	return ipCtx.IsPublic
 }
 
-// ResolveHostname resolve the hostname
+// ResolveHostname resolves the hostname
 func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent) string {
 	return bfh.hostname
+}
+
+// ResolveSource resolves the source of the event
+func (bfh *BaseFieldHandlers) ResolveSource(ev *model.Event, _ *model.BaseEvent) string {
+	if ev.Source == "" {
+		if ev.IsEventFromReplay() {
+			ev.Source = model.EventSourceReplay
+		} else {
+			ev.Source = model.EventSourceRuntime
+		}
+	}
+	return ev.Source
 }
 
 // ResolveService returns the service tag based on the process context

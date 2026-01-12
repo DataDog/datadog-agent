@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -31,7 +32,7 @@ type CronJobV1Collector struct {
 
 // NewCronJobV1Collector creates a new collector for the Kubernetes Job resource.
 func NewCronJobV1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Collector {
-	resourceType := getResourceType(cronJobName, cronJobVersionV1)
+	resourceType := utilTypes.GetResourceType(utilTypes.CronJobName, utilTypes.CronJobVersionV1)
 	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
 	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 
@@ -42,10 +43,10 @@ func NewCronJobV1Collector(metadataAsTags utils.MetadataAsTags) *CronJobV1Collec
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,
-			Name:                                 cronJobName,
+			Name:                                 utilTypes.CronJobName,
 			Kind:                                 kubernetes.CronJobKind,
 			NodeType:                             orchestrator.K8sCronJob,
-			Version:                              cronJobVersionV1,
+			Version:                              utilTypes.CronJobVersionV1,
 			LabelsAsTags:                         labelsAsTags,
 			AnnotationsAsTags:                    annotationsAsTags,
 			SupportsTerminatedResourceCollection: true,

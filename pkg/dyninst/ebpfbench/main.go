@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -62,7 +63,7 @@ func runBenchmark() error {
 
 	fmt.Printf("loading binary %s\n", binPath)
 	// Load the binary and generate the IR.
-	obj, err := object.OpenElfFile(binPath)
+	obj, err := object.OpenElfFileWithDwarf(binPath)
 	if err != nil {
 		return err
 	}
@@ -121,9 +122,9 @@ func runBenchmark() error {
 		return err
 	}
 
-	textSection, err := object.FindTextSectionHeader(obj.Underlying.Elf)
-	if err != nil {
-		return err
+	textSection := obj.Section(".text")
+	if textSection == nil {
+		return errors.New("no .text section found")
 	}
 	var allAttached []link.Link
 	for _, attachpoint := range program.Attachpoints {

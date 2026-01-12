@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build orchestrator
 
-//nolint:revive // TODO(CAPP) Fix revive linter
+// Package util provides utility functions and constants for the orchestrator collectors.
 package util
 
 // ImmutableTagsJoin merges tags from multiple lists, allocating a new resulting slice. It is important to use this

@@ -23,7 +23,7 @@ func TestInitSerializer(t *testing.T) {
 		return "test", nil
 	}
 	cfg := &ExporterConfig{}
-	s, fw, err := initSerializer(logger, cfg, sourceProvider)
+	s, fw, err := InitSerializer(logger, cfg, sourceProvider)
 	assert.Nil(t, err)
 	assert.IsType(t, &defaultforwarder.DefaultForwarder{}, fw)
 	assert.NotNil(t, fw)

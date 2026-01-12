@@ -10,15 +10,18 @@ package external
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"time"
 
-	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
+	"k8s.io/utils/clock"
+
+	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
 	"github.com/DataDog/datadog-operator/api/datadoghq/common"
 
@@ -29,8 +32,7 @@ import (
 )
 
 const (
-	watermarkTolerance = 5
-	apiTimeoutSeconds  = 10
+	apiTimeoutSeconds = 10
 )
 
 type recommenderClient struct {
@@ -38,17 +40,22 @@ type recommenderClient struct {
 	client     *http.Client
 }
 
-func newRecommenderClient(podWatcher workload.PodWatcher) *recommenderClient {
+func newRecommenderClient(ctx context.Context, clock clock.Clock, podWatcher workload.PodWatcher, tlsConfig *TLSFilesConfig) (*recommenderClient, error) {
+	client, err := createHTTPClient(ctx, tlsConfig, clock)
+	if err != nil {
+		return nil, fmt.Errorf("error creating HTTP client: %w", err)
+	}
+
 	return &recommenderClient{
 		podWatcher: podWatcher,
-		client:     http.DefaultClient,
-	}
+		client:     client,
+	}, nil
 }
 
 func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, clusterName string, dpa model.PodAutoscalerInternal) (*model.HorizontalScalingValues, error) {
 	recommenderConfig := dpa.CustomRecommenderConfiguration()
 	if recommenderConfig == nil { // should not happen; we should not process autoscalers without recommender config
-		return nil, fmt.Errorf("external recommender spec is required")
+		return nil, errors.New("external recommender spec is required")
 	}
 
 	u, err := url.Parse(recommenderConfig.Endpoint)
@@ -57,7 +64,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	}
 
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("only http and https schemes are supported")
+		return nil, errors.New("only http and https schemes are supported")
 	}
 
 	req, err := r.buildWorkloadRecommendationRequest(clusterName, dpa, recommenderConfig)
@@ -74,8 +81,6 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 	ctx, cancel := context.WithTimeout(ctx, apiTimeoutSeconds*time.Second)
 	defer cancel()
 
-	client := r.getClient()
-
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %w", err)
@@ -83,7 +88,7 @@ func (r *recommenderClient) GetReplicaRecommendation(ctx context.Context, cluste
 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", "datadog-cluster-agent")
-	resp, err := client.Do(httpReq)
+	resp, err := r.client.Do(httpReq)
 
 	defer func() {
 		if resp != nil && resp.Body != nil {
@@ -122,23 +127,25 @@ func (r *recommenderClient) buildWorkloadRecommendationRequest(clusterName strin
 	targets := []*kubeAutoscaling.WorkloadRecommendationTarget{}
 	for _, objective := range objectives {
 		targetType := ""
-		utilization := int32(0)
+		targetValue := 0.0
 		switch objective.Type {
 		case common.DatadogPodAutoscalerPodResourceObjectiveType:
 			targetType = objective.PodResource.Name.String()
 			if u := objective.PodResource.Value.Utilization; u != nil {
-				utilization = *u
+				targetValue = float64(*u) / 100.0
 			}
 		case common.DatadogPodAutoscalerContainerResourceObjectiveType:
 			targetType = objective.ContainerResource.Name.String()
 			if u := objective.ContainerResource.Value.Utilization; u != nil {
-				utilization = *u
+				targetValue = float64(*u) / 100.0
 			}
+		case common.DatadogPodAutoscalerCustomQueryObjectiveType:
+			continue
 		}
 
 		targets = append(targets, &kubeAutoscaling.WorkloadRecommendationTarget{
 			Type:        targetType,
-			TargetValue: float64(utilization) / 100.0, // convert percentage to decimal
+			TargetValue: targetValue,
 		})
 	}
 
@@ -209,11 +216,16 @@ func (r *recommenderClient) getReadyReplicas(dpa model.PodAutoscalerInternal) *i
 	return pointer.Ptr(r.podWatcher.GetReadyPodsForOwner(podOwner))
 }
 
-func (r *recommenderClient) getClient() *http.Client {
-	// TODO: Add TLS support
-	if r.client.Transport == nil {
-		r.client.Transport = http.DefaultTransport
+func createHTTPClient(ctx context.Context, tlsConfig *TLSFilesConfig, clock clock.Clock) (*http.Client, error) {
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	if tlsConfig != nil {
+		tlsClientConfig, err := createTLSClientConfig(ctx, tlsConfig, clock)
+		if err != nil {
+			return nil, err
+		}
+		tr.TLSClientConfig = tlsClientConfig
 	}
+	client := &http.Client{Transport: tr}
 
-	return r.client
+	return client, nil
 }

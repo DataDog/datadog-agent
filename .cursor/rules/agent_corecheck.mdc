@@ -1,0 +1,699 @@
+---
+description: This rule serves for development of agent core checks.
+alwaysApply: false
+---
+
+# Creating Agent Core Checks
+
+## Required Interfaces and Boilerplate
+
+Core checks implement the `check.Check` interface. The recommended pattern embeds `core.CheckBase` and exposes a `Factory()` for registration.
+
+```go
+package <checkname>
+
+import (
+    "fmt"
+
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+    "github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+    "github.com/DataDog/datadog-agent/pkg/collector/check"
+    core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+    "github.com/DataDog/datadog-agent/pkg/util/option"
+)
+
+const CheckName = "<checkname>"
+
+type Check struct {
+    core.CheckBase
+    // add your dependencies/state here
+}
+
+func Factory() option.Option[func() check.Check] {
+    return option.New(func() check.Check { return newCheck() })
+}
+
+func newCheck() check.Check {
+    return &Check{ CheckBase: core.NewCheckBase(CheckName) }
+}
+
+// Configure is called when the check instance is created
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, conf, initConf integration.Data, source string) error {
+    if err := c.CommonConfigure(senderManager, initConf, conf, source); err != nil {
+        return fmt.Errorf("configure %s: %w", CheckName, err)
+    }
+    // parse conf/initConf if needed, initialize deps
+    return nil
+}
+
+// Run is called on each scheduled execution
+func (c *Check) Run() error {
+    s, err := c.GetSender()
+    if err != nil {
+        return fmt.Errorf("get sender: %w", err)
+    }
+    // collect data
+    value := 1.0
+    tags := []string{"example:tag"}
+    s.Gauge("<namespace>.<metric>", value, "", tags)
+    // optionally: s.Rate, s.Count, s.MonotonicCount, s.Gauge, s.Distribution
+    // optionally: s.ServiceCheck("<sc_name>", status, host, tags, message)
+    // optionally: s.Event(event)
+    s.Commit()
+    return nil
+}
+
+// Interval is optional; use config or default scheduler interval if not set
+// func (c *Check) Interval() time.Duration { return 15 * time.Second }
+```
+
+Key points:
+
+- Always wrap errors with context using `fmt.Errorf("...: %w", err)`.
+- Call `CommonConfigure` in `Configure`.
+- Acquire a `Sender` via `GetSender()` inside `Run()` and call `Commit()` once per run.
+- Use a constant `CheckName` as the public identifier.
+
+---
+
+## Submitting Data
+
+Use the `sender.Sender` API obtained via `GetSender()`:
+
+```go
+// Metrics
+s.Gauge("<ns>.<metric>", 42.0, "", []string{"k:v"})
+s.Count("<ns>.<count>", 1, "", nil)
+s.Rate("<ns>.<rate>", 3.14, "", nil)
+s.Distribution("<ns>.<distr>", 7.0, "", nil)
+
+// Service checks
+// status: servicecheck.ServiceCheckOK/WARNING/CRITICAL/UNKNOWN
+// s.ServiceCheck("<ns>.<sc>", status, "", []string{"k:v"}, "message")
+
+// Events
+// e := &metrics.Event{Title: "title", Text: "text", Tags: []string{"k:v"}}
+// s.Event(e)
+
+s.Commit()
+```
+
+Guidelines:
+
+- Keep metric namespaces consistent (e.g., `<product>.<feature>.<metric>`).
+- Prefer stable tag keys; avoid high-cardinality values unless necessary.
+- Submit all points before a single `Commit()` call.
+
+---
+
+## Configuration Files
+
+### Creating Config Templates
+
+Create a configuration template file in `cmd/agent/dist/conf.d/<checkname>.d/`:
+
+**For manually-enabled checks** (most checks), create `conf.yaml.example`:
+
+```yaml
+init_config:
+    ## @param global_option - type - optional - default: value
+    ## Description of the global option that applies to all instances.
+    #
+    # global_option: value
+
+instances:
+  - ## @param required_param - string - required
+    ## Description of a required parameter.
+    #
+    required_param: <VALUE>
+
+    ## @param optional_param - integer - optional - default: 60
+    ## Description of an optional parameter with a default value.
+    #
+    # optional_param: 60
+
+    ## @param list_param - list of strings - optional
+    ## Description of a list parameter.
+    #
+    # list_param:
+    #   - item1
+    #   - item2
+
+    ## @param tags - list of strings following the pattern: "key:value" - optional
+    ## List of tags to attach to every metric, event, and service check emitted by this integration.
+    ##
+    ## Learn more about tagging: https://docs.datadoghq.com/tagging/
+    #
+    # tags:
+    #   - <KEY_1>:<VALUE_1>
+    #   - <KEY_2>:<VALUE_2>
+```
+
+**For Autodiscovery-enabled checks**, create `conf.yaml.default`:
+
+```yaml
+ad_identifiers:
+  - <container_image_or_identifier>
+instances:
+  - {}
+```
+
+The annotation format `## @param name - type - required/optional - default: value` is used for documentation generation. Users will copy the example/default to `/etc/datadog-agent/conf.d/<checkname>.d/conf.yaml` and uncomment/customize values.
+
+### Parsing Configuration in Go
+
+Define structs for your configuration and parse using `yaml.Unmarshal`:
+
+```go
+package checkname
+
+import (
+    "fmt"
+    "gopkg.in/yaml.v2"
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+)
+
+// Instance config for each instance in the config file
+type instanceConfig struct {
+    RequiredParam string   `yaml:"required_param"`
+    OptionalParam int      `yaml:"optional_param"`
+    ListParam     []string `yaml:"list_param"`
+}
+
+// Init config applies to all instances
+type initConfig struct {
+    GlobalOption string `yaml:"global_option"`
+}
+
+// Combined config structure
+type checkConfig struct {
+    instance instanceConfig
+    initConf initConfig
+}
+
+func (c *checkConfig) parse(instanceData, initData integration.Data) error {
+    // Set defaults before unmarshalling
+    c.instance.OptionalParam = 60  // default value
+
+    // Parse init_config
+    if err := yaml.Unmarshal(initData, &c.initConf); err != nil {
+        return fmt.Errorf("parse init_config: %w", err)
+    }
+
+    // Parse instance config
+    if err := yaml.Unmarshal(instanceData, &c.instance); err != nil {
+        return fmt.Errorf("parse instance: %w", err)
+    }
+
+    // Validate required fields
+    if c.instance.RequiredParam == "" {
+        return fmt.Errorf("required_param is required")
+    }
+
+    return nil
+}
+
+// Configure method in your check
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceData, initData integration.Data, source string) error {
+    // Parse check-specific config
+    cfg := &checkConfig{}
+    if err := cfg.parse(instanceData, initData); err != nil {
+        return fmt.Errorf("config parse failed: %w", err)
+    }
+    c.cfg = cfg
+
+    // Always call CommonConfigure for standard options
+    if err := c.CommonConfigure(senderManager, initData, instanceData, source); err != nil {
+        return fmt.Errorf("common configure: %w", err)
+    }
+
+    return nil
+}
+```
+
+### Common Configuration Options
+
+`CommonConfigure` automatically handles these standard options:
+
+- `min_collection_interval` (int) - Collection interval in seconds
+- `empty_default_hostname` (bool) - Disable default hostname
+- `tags` ([]string) - Custom tags for this check instance
+- `service` (string) - Service name override
+- `no_index` (bool) - Skip metric indexing
+
+These options are available in all checks without additional code.
+
+---
+
+## Registration (Make the Check Runnable)
+
+### 1. Register the check implementation
+
+Add a `RegisterCheck` line in the appropriate registration file:
+
+```go
+// In pkg/commonchecks/corechecks.go (or dedicated area file like corechecks_sysprobe.go)
+import (
+    corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+    "github.com/DataDog/datadog-agent/pkg/collector/corechecks/<checkname>"
+)
+
+func RegisterChecks(/* existing deps */) {
+    // ... existing registrations ...
+    corecheckLoader.RegisterCheck(<checkname>.CheckName, <checkname>.Factory())
+}
+```
+
+Notes:
+
+- Look for an existing registration function for your feature area; many checks are registered in `pkg/commonchecks/corechecks.go` or area-specific files.
+- Some checks require components (e.g., tagger, telemetry, workloadmeta). Match the signature used by neighboring checks and pass the same dependencies into your `Factory` if needed.
+
+### 2. Register in build system
+
+Add your check name to `tasks/agent.py` in the `AGENT_CORECHECKS` list:
+
+```python
+AGENT_CORECHECKS = [
+    "containerd",
+    "cpu",
+    # ... other checks ...
+    "<checkname>",  # ADD YOUR CHECK HERE
+    # ... rest of list ...
+]
+```
+
+This ensures the configuration files are copied to `cmd/agent/dist/conf.d/` during the build process. Without this step, your configuration template won't be included in the agent package.
+
+---
+
+## Build Tags and Stubs (Optional)
+
+If your check is platform-specific, guard files with build tags and provide stubs:
+
+```go
+//go:build linux
+```
+
+Provide a `stub.go` with a `Factory()` returning `option.None[...]()` and a warning log for unsupported platforms.
+
+---
+
+## Ensuring the Check Runs
+
+1. Add the config template in `cmd/agent/dist/conf.d/<checkname>.d/conf.yaml.example` (or `.default` for Autodiscovery).
+2. Add check name to `AGENT_CORECHECKS` list in `tasks/agent.py`.
+3. Confirm registration is in a file that compiles in your agent flavor/build tags.
+4. Build the Agent:
+
+   ```bash
+   dda inv agent.build --build-exclude=systemd
+   ```
+
+5. Create a dev config and run the Agent:
+
+   ```bash
+   echo "api_key: 0000001" > dev/dist/datadog.yaml
+   # Copy and customize the config template if needed
+   cp bin/agent/dist/conf.d/<checkname>.d/conf.yaml.example bin/agent/dist/conf.d/<checkname>.d/conf.yaml
+   ./bin/agent/agent run -c bin/agent/dist/datadog.yaml
+   ```
+
+6. Validate the check can run:
+
+   ```bash
+   ./bin/agent/agent check <checkname>
+   ```
+
+If the check renders output or errors, iterate on `Run()` and configuration accordingly.
+
+---
+
+## Testing
+
+### Basic Testing Setup
+
+Core checks require comprehensive unit tests covering configuration parsing, metric collection, and edge cases. Use the following patterns and mocking utilities.
+
+### Mocking the Sender
+
+Use `mocksender` to intercept and validate submitted metrics, service checks, and events:
+
+```go
+import (
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/require"
+)
+
+func TestEmitMetrics(t *testing.T) {
+    // Create a mock sender for your check
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()  // Accept all calls without pre-defining expectations
+
+    // Create your check and set the sender
+    check := newCheck().(*Check)
+    check.SetSender(mockSender)
+
+    // Run your check
+    require.NoError(t, check.Run())
+
+    // Verify specific metrics were submitted with exact values
+    mockSender.AssertCalled(t, "Gauge", "check.metric_name", 42.0, "", []string{"tag:value"})
+    mockSender.AssertCalled(t, "Count", "check.counter", 1.0, "", mock.Anything)
+
+    // Verify a metric was submitted with tags matching a condition
+    mockSender.AssertCalled(t, "Gauge", "check.metric", 100.0, "",
+        mock.MatchedBy(func(tags []string) bool {
+            return slices.Contains(tags, "expected_tag:value")
+        }),
+    )
+
+    // For metrics with timestamps, use GaugeWithTimestamp
+    expectedTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+    mockSender.AssertCalled(t, "GaugeWithTimestamp",
+        "check.metric",
+        123.0,
+        "",
+        []string{"tag:value"},
+        expectedTimestamp,
+    )
+
+    // Assert specific number of times a metric was called
+    mockSender.AssertNumberOfCalls(t, "Gauge", 5)
+
+    // Verify Commit was called exactly once
+    mockSender.AssertCalled(t, "Commit")
+}
+```
+
+### Advanced Mock Matcher Patterns
+
+Use `mock.MatchedBy` for complex tag validation:
+
+```go
+func TestMetricsWithDynamicTags(t *testing.T) {
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()
+
+    // Build expected tags that should be present
+    expectedTags := []string{"uuid:device-123", "container_id:abc"}
+    slices.Sort(expectedTags)
+
+    // Create a matcher function that sorts both tag lists before comparing
+    matchTagsFunc := func(tags []string) bool {
+        slices.Sort(tags)
+        return slices.Equal(tags, expectedTags)
+    }
+
+    // Collect and verify metrics
+    check := newCheck().(*Check)
+    check.SetSender(mockSender)
+    require.NoError(t, check.Run())
+
+    mockSender.AssertCalled(t, "Gauge",
+        "check.metric",
+        42.0,
+        "",
+        mock.MatchedBy(matchTagsFunc),
+    )
+}
+```
+
+### Mocking the Tagger
+
+Use `taggerfxmock` to set up fake tags for entities:
+
+```go
+import (
+    taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+    taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+)
+
+func TestWithTagger(t *testing.T) {
+    // Set up a fake tagger instance
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+    // Configure tags for specific entities
+    containerID := "container123"
+    containerTags := []string{"container_name:my-app", "image:my-image:v1.0"}
+
+    entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+    fakeTagger.SetTags(entityID, "foo", containerTags, nil, nil, nil)
+
+    // Create your check with the fake tagger as a dependency
+    check := newCheckWithDeps(fakeTagger, ...)
+
+    // Your check can now query tags for the container
+    // and they will return the configured values
+}
+```
+
+### Mocking Workload Metadata
+
+Use `workloadmeta` mocks to simulate container and pod information:
+
+```go
+import (
+    workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+    "github.com/DataDog/datadog-agent/pkg/gpu/testutil"  // or create your own mock
+)
+
+func TestWithWorkloadMeta(t *testing.T) {
+    // Create a workload metadata mock
+    wmetaMock := testutil.GetWorkloadMetaMock(t)  // or workloadmeta.NewMockStore()
+
+    // Add container entities to the mock store
+    wmetaMock.Set(&workloadmeta.Container{
+        EntityID: workloadmeta.EntityID{
+            ID:   "container123",
+            Kind: workloadmeta.KindContainer,
+        },
+        EntityMeta: workloadmeta.EntityMeta{
+            Name: "my-container",
+        },
+        ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+            {
+                Name: "nvidia.com/gpu",
+                ID:   "GPU-abc123",
+            },
+        },
+    })
+
+    // Create check with workloadmeta dependency
+    check := newCheckWithDeps(tagger, wmetaMock)
+
+    // Check can now query workload metadata and find the container
+}
+```
+
+### Testing Configuration
+
+Test that your check correctly parses and validates configuration:
+
+```go
+import (
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+)
+
+func TestConfigure(t *testing.T) {
+    check := newCheck().(*Check)
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+
+    // Test valid configuration
+    instanceConfig := []byte(`
+required_param: "value"
+optional_param: 30
+`)
+    initConfig := []byte(`
+global_option: "test"
+`)
+
+    err := check.Configure(senderManager, integration.FakeConfigHash, instanceConfig, initConfig, "test")
+    require.NoError(t, err)
+    assert.Equal(t, "value", check.cfg.instance.RequiredParam)
+    assert.Equal(t, 30, check.cfg.instance.OptionalParam)
+
+    // Test missing required parameter
+    badConfig := []byte(`
+optional_param: 30
+`)
+    err = check.Configure(senderManager, integration.FakeConfigHash, badConfig, initConfig, "test")
+    require.Error(t, err)
+    assert.Contains(t, err.Error(), "required_param")
+}
+```
+
+### Testing with Configuration Flags
+
+Some checks depend on global configuration:
+
+```go
+import (
+    pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+
+func TestWithConfigFlag(t *testing.T) {
+    // Enable feature flag before configuring check
+    pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
+
+    // Clean up after test
+    t.Cleanup(func() {
+        pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
+    })
+
+    check := newCheck()
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+}
+```
+
+### Testing Run Without Errors
+
+Ensure your check doesn't error even in non-ideal conditions:
+
+```go
+func TestRunDoesNotError(t *testing.T) {
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+    wmetaMock := testutil.GetWorkloadMetaMock(t)
+
+    // Create check with all dependencies
+    check := newCheckWithDeps(fakeTagger, wmetaMock)
+
+    // Configure check
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+
+    // Run should not error
+    require.NoError(t, check.Run())
+
+    // Cancel check to clean up resources
+    t.Cleanup(func() { check.Cancel() })
+}
+```
+
+### Testing Full End-to-End Flow
+
+Test the complete flow with all components:
+
+```go
+func TestEndToEnd(t *testing.T) {
+    // Set up all mocks
+    mockSender := mocksender.NewMockSender("checkname")
+    mockSender.SetupAcceptAll()
+
+    fakeTagger := taggerfxmock.SetupFakeTagger(t)
+    wmetaMock := testutil.GetWorkloadMetaMock(t)
+
+    // Set up entity tags
+    containerID := "container1"
+    containerTags := []string{"container_id:" + containerID}
+    entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+    fakeTagger.SetTags(entityID, "foo", containerTags, nil, nil, nil)
+
+    // Add entity to workload metadata
+    wmetaMock.Set(&workloadmeta.Container{
+        EntityID: workloadmeta.EntityID{
+            ID:   containerID,
+            Kind: workloadmeta.KindContainer,
+        },
+    })
+
+    // Create and configure check
+    check := newCheckWithDeps(fakeTagger, wmetaMock)
+    check.SetSender(mockSender)
+
+    senderManager := mocksender.CreateDefaultDemultiplexer()
+    err := check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
+    require.NoError(t, err)
+
+    // Run check
+    metricTime := time.Now()
+    metricTimestamp := float64(metricTime.UnixNano()) / float64(time.Second)
+    require.NoError(t, check.Run())
+
+    // Verify metrics were emitted with correct tags
+    expectedTags := []string{"container_id:container1"}
+    mockSender.AssertCalled(t, "GaugeWithTimestamp",
+        "check.metric",
+        42.0,
+        "",
+        mock.MatchedBy(func(tags []string) bool {
+            return slices.Contains(tags, "container_id:container1")
+        }),
+        mock.Anything,  // or specific timestamp if known
+    )
+
+    mockSender.AssertCalled(t, "Commit")
+
+    t.Cleanup(func() { check.Cancel() })
+}
+```
+
+```
+
+### Common Test Patterns
+
+1. **Always use `require.NoError(t, err)` for critical setup** - stops test immediately on failure
+2. **Use `assert.*` for non-critical validations** - continues test to show all failures
+3. **Sort tags before comparison** - order can vary
+4. **Use `mock.Anything` when value doesn't matter** - focuses test on what's important
+5. **Use `t.Cleanup()`** - ensures resources are released even if test fails
+6. **Test both success and error paths** - validate error messages contain useful context
+
+### Key Testing Imports
+
+```go
+import (
+    "testing"
+    "time"
+    "slices"
+
+    "github.com/stretchr/testify/assert"
+    "github.com/stretchr/testify/mock"
+    "github.com/stretchr/testify/require"
+
+    "github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+    taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+    taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+    workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+    "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+    pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+)
+```
+
+---
+
+## Style and Error Handling
+
+- Wrap errors with context: `fmt.Errorf("<action> <subject>: %w", err)`.
+- Avoid deep nesting; prefer guard clauses.
+- Use meaningful metric names and tags; keep cardinality under control.
+- Follow existing code formatting and conventions in this repository.
+
+---
+
+## Quick Checklist
+
+- [ ] `pkg/collector/corechecks/<checkname>/<checkname>.go` with `Check`, `Factory`, `Configure`, `Run`
+- [ ] Registration via `corecheckLoader.RegisterCheck(...)` in `pkg/commonchecks/corechecks.go`
+- [ ] Add check name to `AGENT_CORECHECKS` list in `tasks/agent.py`
+- [ ] `cmd/agent/dist/conf.d/<checkname>.d/conf.yaml.example` (or `.default` for Autodiscovery)
+- [ ] Optional: platform build tags and stubs
+- [ ] Unit tests for `Run()` and `Configure`
+
+---
+
+## References in Repository
+
+- Registration pattern: `pkg/commonchecks/corechecks.go`
+- Sender API: `pkg/aggregator/sender`
+- Core check base: `pkg/collector/corechecks`
+- Example checks:
+  - Simple check: `pkg/collector/corechecks/system/cpu/cpu.go`
+  - Check with configuration: `pkg/collector/corechecks/net/ntp/ntp.go`
+  - Example config files: `cmd/agent/dist/conf.d/ntp.d/conf.yaml.default`, `cmd/agent/dist/conf.d/network_path.d/conf.yaml.example`
+  - Complex checks: `pkg/collector/corechecks/network/*`, `pkg/collector/corechecks/gpu/*`

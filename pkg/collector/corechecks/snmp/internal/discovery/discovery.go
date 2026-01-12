@@ -16,15 +16,16 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"go.uber.org/atomic"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"go.uber.org/atomic"
 )
 
 const cacheKeyPrefix = "snmp"
@@ -47,6 +48,7 @@ type Discovery struct {
 
 	sessionFactory session.Factory
 	agentConfig    config.Component
+	scanManager    snmpscanmanager.Component
 }
 
 // Device implements and store results from the Service interface for the SNMP listener
@@ -155,7 +157,7 @@ func (d *Discovery) discoverDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(d.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
-		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, subnet.cacheKey), &expvar.String{})
+		discoveryVar.Set(listeners.GetSubnetVarKey(d.config.Network, 0), &expvar.String{})
 		subnet.devicesScannedCounter.Store(uint32(len(subnet.config.IgnoredIPAddresses)))
 		log.Debugf("subnet %s: Run discovery", d.config.Network)
 		startingIP := make(net.IP, len(subnet.startingIP))
@@ -224,7 +226,7 @@ func (d *Discovery) checkDevice(job checkDeviceJob) error {
 	}
 
 	discoveryStatus := listeners.AutodiscoveryStatus{DevicesFoundList: d.getDevicesFound(), CurrentDevice: job.currentIP.String(), DevicesScannedCount: int(job.subnet.devicesScannedCounter.Inc())}
-	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, job.subnet.cacheKey), &discoveryStatus)
+	discoveryVar.Set(listeners.GetSubnetVarKey(job.subnet.config.Network, 0), &discoveryStatus)
 
 	return nil
 }
@@ -266,6 +268,14 @@ func (d *Discovery) createDevice(deviceDigest checkconfig.DeviceDigest, subnet *
 
 	if writeCache {
 		d.writeCache(subnet)
+	}
+
+	if d.scanManager == nil {
+		log.Errorf("SNMP scan manager not initialized, could not request device scan for '%s'", deviceIP)
+	} else {
+		d.scanManager.RequestScan(snmpscanmanager.ScanRequest{
+			DeviceIP: deviceIP,
+		}, false)
 	}
 }
 
@@ -339,12 +349,13 @@ func (d *Discovery) writeCache(subnet *snmpSubnet) {
 }
 
 // NewDiscovery return a new Discovery instance
-func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component) *Discovery {
+func NewDiscovery(config *checkconfig.CheckConfig, sessionFactory session.Factory, agentConfig config.Component, scanManager snmpscanmanager.Component) *Discovery {
 	return &Discovery{
 		discoveredDevices: make(map[checkconfig.DeviceDigest]Device),
 		stop:              make(chan struct{}),
 		config:            config,
 		sessionFactory:    sessionFactory,
 		agentConfig:       agentConfig,
+		scanManager:       scanManager,
 	}
 }

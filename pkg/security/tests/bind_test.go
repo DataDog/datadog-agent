@@ -53,11 +53,11 @@ func TestBindEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	test.Run(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet-any-success-tcp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "tcp"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -73,10 +73,10 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		})
+		}, "test_bind_af_inet")
 	})
 
-	test.Run(t, "bind-af-inet-any-success-tcp-io-uring", func(t *testing.T, _ wrapperType, _ func(cmd string, args []string, envs []string) *exec.Cmd) {
+	t.Run("bind-af-inet-any-success-tcp-io-uring", func(t *testing.T) {
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
 			t.Fatal(err)
@@ -104,7 +104,7 @@ func TestBindEvent(t *testing.T) {
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
 				return err
 			}
@@ -132,14 +132,14 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_TCP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		})
+		}, "test_bind_af_inet")
 	})
 
-	test.Run(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet-any-success-udp", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET", "any", "udp"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -155,14 +155,14 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, uint16(unix.IPPROTO_UDP), event.Bind.Protocol, "wrong protocol")
 
 			test.validateBindSchema(t, event)
-		})
+		}, "test_bind_af_inet")
 	})
 
-	test.Run(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_INET6", "any"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -177,14 +177,14 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
 			test.validateBindSchema(t, event)
-		})
+		}, "test_bind_af_inet6")
 	})
 
-	test.Run(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	test.RunMultiMode(t, "bind-af-unknown-unix", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		args := []string{"bind", "AF_UNIX"}
 		envs := []string{}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				return fmt.Errorf("%s: %w", out, err)
@@ -200,6 +200,6 @@ func TestBindEvent(t *testing.T) {
 			assert.Equal(t, int64(0), event.Bind.Retval, "wrong retval")
 
 			test.validateBindSchema(t, event)
-		})
+		}, "test_bind_af_unix")
 	})
 }

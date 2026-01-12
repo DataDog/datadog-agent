@@ -56,6 +56,7 @@ func TestExtractCronJobV1(t *testing.T) {
 					StartingDeadlineSeconds:    pointer.Ptr(int64(120)),
 					SuccessfulJobsHistoryLimit: pointer.Ptr(int32(2)),
 					Suspend:                    pointer.Ptr(false),
+					TimeZone:                   pointer.Ptr("Europe/London"),
 				},
 				Status: batchv1.CronJobStatus{
 					Active: []corev1.ObjectReference{
@@ -95,6 +96,7 @@ func TestExtractCronJobV1(t *testing.T) {
 					StartingDeadlineSeconds:    120,
 					SuccessfulJobsHistoryLimit: 2,
 					Suspend:                    false,
+					TimeZone:                   "Europe/London",
 				},
 				Status: &model.CronJobStatus{
 					Active: []*model.ObjectReference{

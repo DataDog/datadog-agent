@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Well Known SIDs
@@ -75,7 +75,12 @@ func MakeDownLevelLogonName(domain string, user string) string {
 
 // GetIdentityForUser returns the Identity for the given user.
 func GetIdentityForUser(host *components.RemoteHost, user string) (Identity, error) {
-	sid, err := GetSIDForUser(host, user)
+	var err error
+	sid, err := GetServiceAliasSID(user)
+	if err == nil {
+		return Identity{Name: user, SID: sid}, nil
+	}
+	sid, err = GetSIDForUser(host, user)
 	if err != nil {
 		return Identity{}, err
 	}
@@ -196,7 +201,7 @@ func GetUserRights(host *components.RemoteHost) (map[string][]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd := fmt.Sprintf(`secedit /export /areas USER_RIGHTS /cfg %s`, outFile)
+	cmd := "secedit /export /areas USER_RIGHTS /cfg " + outFile
 	_, err = host.Execute(cmd)
 	if err != nil {
 		return nil, err

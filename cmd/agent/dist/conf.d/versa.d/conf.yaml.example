@@ -1,0 +1,163 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, please copy this file
+## to `conf.yaml` and make your changes on that file.
+
+## This integration is currently in beta.
+
+instances:
+
+  -
+    ## @param director_endpoint - string - required
+    ## The IP address/hostname of the Versa Director instance.
+    #
+    # director_endpoint: <DIRECTOR_ENDPOINT>
+
+    ## @param analytics_endpoint - string - required
+    ## The IP address/hostname and port of the Versa Analytics instance.
+    ## This should be set to the "Northbound IP" and port found under the
+    ## Analytics Connector in the Versa Director.
+    #
+    # analytics_endpoint: <ANALYTICS_ENDPOINT>:<PORT>
+
+    ## @param username - string - required
+    ## Username to authenticate to the Versa Director and Analytics instances.
+    #
+    # username: <USERNAME>
+
+    ## @param password - string - required
+    ## Password to authenticate to the Versa Director and Analytics instances.
+    #
+    # password: <PASSWORD>
+
+    ## @param director_port - integer - optional - default: auto-detected based on auth_method
+    ## Port of the Versa Director instance. Defaults to 9182 using basic auth.
+    ## Only needs to be set if using non-standard ports.
+    #
+    # director_port: 9182
+
+    ## @param namespace - string - optional - default: default
+    ## Namespace can be used to disambiguate devices with the same IP.
+    #
+    # namespace: default
+
+    ## @param use_http - boolean - optional - default: false
+    ## Use HTTP instead of HTTPS for API connections.
+    #
+    # use_http: false
+
+    ## @param insecure - boolean - optional - default: false
+    ## Skip TLS certificate verification.
+    #
+    # insecure: false
+
+    ## @param ca_file - string - optional
+    ## Path to CA certificate file for TLS verification.
+    #
+    # ca_file: <PATH_TO_CA_FILE>
+
+    ## @param max_attempts - integer - optional - default: 3
+    ## Max number of retries to apply when polling the Versa API.
+    #
+    # max_attempts: 3
+
+    ## @param max_pages - integer - optional - default: 100
+    ## Max number of page to request when polling Versa API.
+    #
+    # max_pages: 100
+
+    ## @param max_count - integer - optional - default: 2000
+    ## Max number of resources to query per request when polling the Versa API.
+    ## Maximum is 10000.
+    #
+    # max_count: 2000
+
+    ## @param lookback_time_window_minutes - integer - optional - default: 30
+    ## The time window to query when polling Versa metrics where available.
+    ## Some metrics must be pulled with a minimum of a 1 day lookback.
+    #
+    # lookback_time_window_minutes: 30
+
+    ## @param min_collection_interval - integer - optional - default: 60
+    ## This changes the collection interval of the check. For more information, see:
+    ## https://docs.datadoghq.com/developers/write_agent_check/#collection-interval
+    #
+    # min_collection_interval: 60
+
+    ## @param included_tenants - list of strings - optional
+    ## List of organization/tenant names to include. If specified, only these tenants will be monitored.
+    #
+    # included_tenants:
+    #   - <TENANT_NAME_1>
+    #   - <TENANT_NAME_2>
+
+    ## @param excluded_tenants - list of strings - optional
+    ## List of organization/tenant names to exclude from monitoring.
+    #
+    # excluded_tenants:
+    #   - <TENANT_NAME_1>
+    #   - <TENANT_NAME_2>
+
+    ## @param collect_hardware_metrics - boolean - optional - default: true
+    ## Enable collection of hardware metrics (CPU, memory, disk, uptime).
+    #
+    # collect_hardware_metrics: true
+
+    ## @param send_interface_metadata - boolean - optional - default: false
+    ## Enable collection and sending of interface metadata. This makes a single
+    ## unpaginated call to the director to retrieve all interfaces. This is NOT
+    ## recommended for large deployments.
+    #
+    # send_interface_metadata: false
+
+    ## @param collect_interface_metrics - boolean - optional - default: false
+    ## Enable collection of interface metrics from analytics (utilization, bandwidth).
+    ## Recommended for most deployments as it's more efficient than director-based collection.
+    #
+    # collect_interface_metrics: false
+
+    ## @param collect_director_interface_metrics - boolean - optional - default: false
+    ## Enable collection of interface metrics from the Director API (volume, bandwidth, errors).
+    ## REQUIRES send_interface_metadata to be enabled as it depends on interface data from GetInterfaces API.
+    ## This performs a call per appliance to retrieve interface metrics, not recommended for large organizations.
+    #
+    # collect_director_interface_metrics: false
+
+    ## @param collect_tunnel_metrics - boolean - optional - default: false
+    ## Enable collection of tunnel metrics.
+    #
+    # collect_tunnel_metrics: false
+
+    ## @param collect_sla_metrics - boolean - optional - default: false
+    ## Enable collection of SLA metrics.
+    #
+    # collect_sla_metrics: false
+
+    ## @param collect_link_metrics - boolean - optional - default: false
+    ## Enable collection of link status and usage metrics.
+    #
+    # collect_link_metrics: false
+
+    ## @param collect_applications_by_appliance_metrics - boolean - optional - default: false
+    ## Enable collection of application metrics.
+    #
+    # collect_applications_by_appliance_metrics: false
+
+    ## @param collect_top_user_metrics - boolean - optional - default: false
+    ## Enable collection of top user metrics.
+    #
+    # collect_top_user_metrics: false
+
+    ## @param collect_qos_metrics - boolean - optional - default: false
+    ## Enable collection of QoS metrics.
+    #
+    # collect_qos_metrics: false
+
+    ## @param collect_dia_metrics - boolean - optional - default: false
+    ## Enable collection of DIA (Direct Internet Access) metrics.
+    #
+    # collect_dia_metrics: false
+
+    ## @param collect_site_metrics - boolean - optional - default: false
+    ## Enable collection of site metrics (availability).
+    #
+    # collect_site_metrics: false

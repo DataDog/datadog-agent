@@ -4,13 +4,19 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !test
-// +build !test
 
 package nodetreemodel
 
-import "github.com/DataDog/datadog-agent/pkg/config/model"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
 
-type treeDebugger struct {}
+type treeDebugger struct{}
+
+func panicInTest(format string, params ...interface{}) {
+	log.Errorf(format, params...)
+}
 
 func (c *ntmConfig) toDebugString(_ model.Source, _ ...model.StringifyOption) (string, error) {
 	// don't show any data outside of tests, that way we don't have to worry about scrubbing

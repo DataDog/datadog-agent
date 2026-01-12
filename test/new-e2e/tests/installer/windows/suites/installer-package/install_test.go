@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awsHostWindows "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awsHostWindows "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -48,6 +48,7 @@ func (s *testInstallerSuite) TestInstalls() {
 
 func (s *testInstallerSuite) startServiceWithConfigFileUpdatesDisabled() {
 	// Arrange
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName)) // Stop the service if it's running
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_disabled", consts.ConfigPath)
 
 	// Act
@@ -69,13 +70,14 @@ func (s *testInstallerSuite) startServiceWithConfigFileUpdatesDisabled() {
 
 func (s *testInstallerSuite) startServiceWithConfigFileUpdatesEnabled() {
 	// Arrange
+	s.Require().NoError(common.StopService(s.Env().RemoteHost, consts.ServiceName)) // Stop the service if it's running
 	s.Env().RemoteHost.CopyFileFromFS(fixturesFS, "fixtures/sample_config_enabled", consts.ConfigPath)
 
 	// Act
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
-	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
+	s.requireRunning()
 	status, err := s.Installer().Status()
 	s.Require().NoError(err)
 	// with no packages installed just prints version
@@ -105,9 +107,7 @@ func (s *testInstallerSuite) installWithExistingConfigFile(logFilename string) {
 
 	// Assert
 	s.requireInstalled()
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Running")
+	s.requireRunning()
 }
 
 func (s *testInstallerSuite) repair() {
@@ -122,9 +122,7 @@ func (s *testInstallerSuite) repair() {
 
 	// Assert
 	s.requireInstalled()
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Running")
+	s.requireRunning()
 }
 
 func (s *testInstallerSuite) purge() {

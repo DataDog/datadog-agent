@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 
@@ -132,7 +133,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 	statsdClient := statsdclient.NewStatsdClient()
 
-	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(t, commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -209,9 +210,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opts.staticOpts.preStartCallback(testMod)
 	}
 
-	if opts.staticOpts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.ruleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.ruleMatchHandler(testMod, e, r)
 		})
 		t.Cleanup(func() {
 			testMod.RegisterRuleEventHandler(nil)
@@ -233,6 +234,30 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 func (tm *testModule) Close() {
 	tm.eventMonitor.Close()
+}
+
+// etwReadyProvider is an interface for probes that support ETW ready signaling
+type etwReadyProvider interface {
+	ETWReady() <-chan struct{}
+}
+
+// WaitForETWReady waits for ETW to be ready (first event received) with a timeout.
+// Returns true if ETW is ready, false if timeout was reached.
+// This replaces the unreliable time.Sleep() approach for waiting on ETW startup.
+func (tm *testModule) WaitForETWReady(timeout time.Duration) bool {
+	provider, ok := tm.probe.PlatformProbe.(etwReadyProvider)
+	if !ok || provider == nil {
+		// Probe doesn't support ETW ready signaling, nothing to wait for
+		return true
+	}
+
+	select {
+	case <-provider.ETWReady():
+		return true
+	case <-time.After(timeout):
+		log.Warnf("Timeout waiting for ETW to be ready after %v", timeout)
+		return false
+	}
 }
 
 func (tm *testModule) writePlatformSpecificTimeoutError(b *strings.Builder) {

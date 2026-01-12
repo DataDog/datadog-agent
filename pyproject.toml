@@ -4,7 +4,7 @@
 # character.
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".git",
     ".github",
@@ -16,6 +16,8 @@ exclude = [
     "vendor",
     "venv",
     "dev",
+    "third_party",
+    "cmd/system-probe/subcommands/usm/debug_scripts",  # Standalone scripts for customer debugging
 ]
 line-length = 120
 
@@ -50,7 +52,9 @@ ban-relative-imports = "all"
 quote-style = "preserve"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
+# Make mypy aware of dda extension modules (e.g. `lab`).
+mypy_path = [".dda/extend/pythonpath"]
 # Follows imports and type-check imported modules.
 follow_imports = "normal"
 # Ignore errors about imported packages that don't provide type hints.
@@ -78,11 +82,14 @@ disable_error_code = [
     "return-value",
 ]
 
+[[tool.mypy.overrides]]
+module = "tasks.kernel_matrix_testing.*,tasks.kmt"
+disable_error_code = []
+
 [tool.vulture]
 ignore_decorators = ["@task"]
-ignore_names = ["test_*", "Test*"]
+ignore_names = ["test_*", "Test*", "model_config"]
 paths = ["tasks"]
 
 [tool.ddev]
 repo = "agent"
-

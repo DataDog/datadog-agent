@@ -22,13 +22,11 @@ func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFen
 	var cflags []string
 
 	if useFentry {
-		cflags = append(cflags, "-DUSE_FENTRY=1")
+		cflags = append(cflags, "-DUSE_FENTRY")
 	}
 
 	if useSyscallWrapper {
-		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER=1")
-	} else {
-		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER=0")
+		cflags = append(cflags, "-DUSE_SYSCALL_WRAPPER")
 	}
 
 	if !config.NetworkEnabled {

@@ -35,8 +35,14 @@ const topologyLinkSourceTypeLLDP = "lldp"
 const topologyLinkSourceTypeCDP = "cdp"
 const ciscoNetworkProtocolIPv4 = "1"
 const ciscoNetworkProtocolIPv6 = "20"
+
 const inetAddressUnknown = "0"
 const inetAddressIPv4 = "1"
+
+var ciscoIPsecStatusByValue = map[string]string{
+	"1": "active",
+	"2": "destroy",
+}
 
 var supportedDeviceTypes = map[string]bool{
 	"access_point":  true,
@@ -104,6 +110,9 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		interfaceCfg, err := getInterfaceConfig(ms.interfaceConfigs, interfaceIndex, interfaceTags)
 		if err != nil {
 			log.Tracef("unable to tag %s metric with interface_config data: %s", interfaceStatusMetric, err.Error())
+		}
+		if interfaceCfg.Disabled {
+			continue
 		}
 		interfaceTags = append(interfaceTags, interfaceCfg.Tags...)
 
@@ -294,8 +303,8 @@ func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []de
 			Alias:       store.GetColumnAsString("interface.alias", strIndex),
 			Description: store.GetColumnAsString("interface.description", strIndex),
 			MacAddress:  store.GetColumnAsString("interface.mac_address", strIndex),
-			AdminStatus: devicemetadata.IfAdminStatus((store.GetColumnAsFloat("interface.admin_status", strIndex))),
-			OperStatus:  devicemetadata.IfOperStatus((store.GetColumnAsFloat("interface.oper_status", strIndex))),
+			AdminStatus: devicemetadata.IfAdminStatus(store.GetColumnAsFloat("interface.admin_status", strIndex)),
+			OperStatus:  devicemetadata.IfOperStatus(store.GetColumnAsFloat("interface.oper_status", strIndex)),
 			IDTags:      ifIDTags,
 		}
 		interfaces = append(interfaces, networkInterface)
@@ -346,7 +355,7 @@ func buildNetworkTopologyMetadata(deviceID string, store *metadata.Store, interf
 func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store, interfaces []devicemetadata.InterfaceMetadata) []devicemetadata.TopologyLinkMetadata {
 	interfaceIndexByIDType := buildInterfaceIndexByIDType(interfaces)
 
-	remManAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
+	remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(store.GetColumnIndexes("lldp_remote_management.interface_id_type"))
 
 	indexes := store.GetColumnIndexes("lldp_remote.interface_id") // using `lldp_remote.interface_id` to get indexes since it's expected to be always present
 	if len(indexes) == 0 {
@@ -394,7 +403,7 @@ func buildNetworkTopologyMetadataWithLLDP(deviceID string, store *metadata.Store
 					Description: store.GetColumnAsString("lldp_remote.device_desc", strIndex),
 					ID:          remoteDeviceID,
 					IDType:      remoteDeviceIDType,
-					IPAddress:   remManAddrByLLDPRemIndex[lldpRemIndex],
+					IPAddress:   remManAddrByLLDPRemIndexAndLLDPRemLocalPortNum[buildLLDPRemoteKey(localPortNum, lldpRemIndex)],
 				},
 				Interface: &devicemetadata.TopologyLinkInterface{
 					ID:          remoteInterfaceID,
@@ -563,7 +572,11 @@ func buildInterfaceIndexByIDType(interfaces []devicemetadata.InterfaceMetadata) 
 	return interfaceIndexByIDType
 }
 
-func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
+func buildLLDPRemoteKey(localPortNum, lldpRemIndex string) string {
+	return fmt.Sprintf("%s.%s", localPortNum, lldpRemIndex)
+}
+
+func getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(remManIndexes []string) map[string]string {
 	remManAddrByRemIndex := make(map[string]string)
 	for _, fullIndex := range remManIndexes {
 		indexElems := strings.Split(fullIndex, ".")
@@ -577,6 +590,7 @@ func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 			//      the first elements is the IP type e.g. 4 for IPv4
 			continue
 		}
+		lldpRemLocalPortNum := indexElems[1]
 		lldpRemIndex := indexElems[2]
 		lldpRemManAddrSubtype := indexElems[3]
 		ipAddrType := indexElems[4]
@@ -585,7 +599,7 @@ func getRemManIPAddrByLLDPRemIndex(remManIndexes []string) map[string]string {
 		// We only support IPv4 for the moment
 		// TODO: Support IPv6
 		if lldpRemManAddrSubtype == "1" && ipAddrType == "4" {
-			remManAddrByRemIndex[lldpRemIndex] = strings.Join(lldpRemManAddr, ".")
+			remManAddrByRemIndex[buildLLDPRemoteKey(lldpRemLocalPortNum, lldpRemIndex)] = strings.Join(lldpRemManAddr, ".")
 		}
 	}
 	return remManAddrByRemIndex
@@ -609,10 +623,15 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 	}
 
 	vpnTunnelIndexes := store.GetColumnIndexes("cisco_ipsec_tunnel.local_outside_ip")
-	if len(vpnTunnelIndexes) == 0 {
-		log.Debugf("Unable to build VPN tunnels metadata: no cisco_ipsec_tunnel.local_outside_ip found")
-		return nil
+	if len(vpnTunnelIndexes) > 0 {
+		return buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes, deviceID, store)
 	}
+
+	log.Debugf("Unable to build VPN tunnels metadata: no indexes found")
+	return nil
+}
+
+func buildCiscoIPsecVPNTunnelsMetadata(vpnTunnelIndexes []string, deviceID string, store *metadata.Store) []devicemetadata.VPNTunnelMetadata {
 	sort.Strings(vpnTunnelIndexes)
 
 	vpnTunnelStore := NewVPNTunnelStore()
@@ -628,11 +647,34 @@ func buildVPNTunnelsMetadata(deviceID string, store *metadata.Store) []devicemet
 		localOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.local_outside_ip", strIndex)).String()
 		remoteOutsideIP := net.IP(store.GetColumnAsByteArray("cisco_ipsec_tunnel.remote_outside_ip", strIndex)).String()
 
+		statusValue := store.GetColumnAsString("cisco_ipsec_tunnel.status", strIndex)
+		status, exists := ciscoIPsecStatusByValue[statusValue]
+		if !exists {
+			status = "unknown"
+		}
+
+		lifeSize, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_size", strIndex), 10, 32)
+		if err != nil {
+			lifeSize = 0
+		}
+		lifeTime, err := strconv.ParseInt(store.GetColumnAsString("cisco_ipsec_tunnel.life_time", strIndex), 10, 32)
+		if err != nil {
+			lifeTime = 0
+		}
+
 		vpnTunnelStore.AddTunnel(devicemetadata.VPNTunnelMetadata{
 			DeviceID:        deviceID,
 			LocalOutsideIP:  localOutsideIP,
 			RemoteOutsideIP: remoteOutsideIP,
-			Protocol:        "ipsec",
+			Status:          status,
+			Protocol:        devicemetadata.IPsec,
+			RouteAddresses:  []string{},
+			Options: devicemetadata.VPNTunnelOptions{
+				IPsecOptions: devicemetadata.IPsecOptions{
+					LifeSize: int32(lifeSize),
+					LifeTime: int32(lifeTime),
+				},
+			},
 		})
 	}
 

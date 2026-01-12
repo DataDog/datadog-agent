@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    ``Install-Datadog.ps1`` now checks that the downloaded ``datadog-installer-x86_64.exe`` has a valid Datadog code signature.

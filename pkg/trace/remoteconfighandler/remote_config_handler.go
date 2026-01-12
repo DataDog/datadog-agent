@@ -78,9 +78,7 @@ func New(conf *config.AgentConfig, prioritySampler prioritySampler, rareSampler 
 				TLSClientConfig: conf.IPCTLSClientConfig,
 			},
 		},
-		configSetEndpointFormatString: fmt.Sprintf(
-			"https://127.0.0.1:%s/config/set?log_level=%%s", strconv.Itoa(conf.DebugServerPort),
-		),
+		configSetEndpointFormatString: "https://127.0.0.1:" + strconv.Itoa(conf.DebugServerPort) + "/config/set?log_level=%s",
 	}
 }
 

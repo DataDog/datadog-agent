@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -24,10 +24,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps"
-	tifecs "github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
+	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
 
-	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/ecs"
+	provecs "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/ecs"
 )
 
 const (
@@ -44,14 +44,16 @@ type ecsSuite struct {
 }
 
 func TestECSSuite(t *testing.T) {
-	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(envecs.Provisioner(
-		envecs.WithECSOptions(
-			tifecs.WithFargateCapacityProvider(),
-			tifecs.WithLinuxNodeGroup(),
-			tifecs.WithWindowsNodeGroup(),
-			tifecs.WithLinuxBottleRocketNodeGroup(),
+	e2e.Run(t, &ecsSuite{}, e2e.WithProvisioner(provecs.Provisioner(
+		provecs.WithRunOptions(
+			scenecs.WithECSOptions(
+				scenecs.WithFargateCapacityProvider(),
+				scenecs.WithLinuxNodeGroup(),
+				scenecs.WithWindowsNodeGroup(),
+				scenecs.WithLinuxBottleRocketNodeGroup(),
+			),
+			scenecs.WithTestingWorkload(),
 		),
-		envecs.WithTestingWorkload(),
 	)))
 }
 
@@ -181,6 +183,7 @@ func (suite *ecsSuite) TestNginxECS() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-nginx-ec2-`,
 				`^docker_image:ghcr\.io/datadog/apps-nginx-server:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -195,8 +198,10 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-nginx-ec2$`,
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -214,6 +219,7 @@ func (suite *ecsSuite) TestNginxECS() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-nginx-ec2-`,
 				`^docker_image:ghcr\.io/datadog/apps-nginx-server:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -227,8 +233,10 @@ func (suite *ecsSuite) TestNginxECS() {
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-nginx-ec2$`,
 				`^task_name:.*-nginx-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -250,6 +258,7 @@ func (suite *ecsSuite) TestRedisECS() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
 				`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -263,8 +272,10 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:redis$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -282,6 +293,7 @@ func (suite *ecsSuite) TestRedisECS() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
 				`^docker_image:ghcr\.io/datadog/redis:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -295,8 +307,10 @@ func (suite *ecsSuite) TestRedisECS() {
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:redis$`,
 				`^task_arn:arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-redis-ec2$`,
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -320,6 +334,7 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^availability_zone:`,
 				`^availability-zone:`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -330,8 +345,10 @@ func (suite *ecsSuite) TestNginxFargate() {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^nginx_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:apps-nginx-server$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-nginx-fg$`,
 				`^task_name:.*-nginx-fg$`,
 				`^task_version:[[:digit:]]+$`,
@@ -355,6 +372,7 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^availability_zone:`,
 				`^availability-zone:`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -364,8 +382,10 @@ func (suite *ecsSuite) TestRedisFargate() {
 				`^image_name:ghcr\.io/datadog/redis$`,
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:redis$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-redis-fg$`,
 				`^task_name:.*-redis-fg*`,
 				`^task_version:[[:digit:]]+$`,
@@ -390,6 +410,7 @@ func (suite *ecsSuite) TestWindowsFargate() {
 				`^availability_zone:`,
 				`^availability-zone:`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:aspnetsample$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -400,8 +421,10 @@ func (suite *ecsSuite) TestWindowsFargate() {
 				`^image_name:mcr.microsoft.com/dotnet/samples$`,
 				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
 				`^region:us-east-1$`,
+				`^service_arn:`,
 				`^short_image:samples$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-aspnet-fg$`,
 				`^task_name:.*-aspnet-fg*`,
 				`^task_version:[[:digit:]]+$`,
@@ -425,6 +448,7 @@ func (suite *ecsSuite) TestWindowsFargate() {
 				`^availability_zone:`,
 				`^availability-zone:`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:aspnetsample$`,
 				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
@@ -436,8 +460,10 @@ func (suite *ecsSuite) TestWindowsFargate() {
 				`^image_tag:aspnetapp-nanoserver-ltsc2022$`,
 				`^region:us-east-1$`,
 				`^runtime:ecsfargate$`,
+				`^service_arn:`,
 				`^short_image:samples$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-aspnet-fg$`,
 				`^task_name:.*-aspnet-fg*`,
 				`^task_version:[[:digit:]]+$`,
@@ -459,6 +485,7 @@ func (suite *ecsSuite) TestCPU() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-stress-ng-ec2-`,
 				`^docker_image:ghcr\.io/datadog/apps-stress-ng:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -472,8 +499,10 @@ func (suite *ecsSuite) TestCPU() {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
 				`^runtime:docker$`,
+				`^service_arn:`,
 				`^short_image:apps-stress-ng$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-stress-ng-ec2$`,
 				`^task_name:.*-stress-ng-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -506,6 +535,7 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-` + regexp.QuoteMeta(taskName) + `-ec2-`,
 				`^docker_image:ghcr\.io/datadog/apps-dogstatsd:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -519,8 +549,10 @@ func (suite *ecsSuite) testDogstatsd(taskName string) {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
 				`^series:`,
+				`^service_arn:`,
 				`^short_image:apps-dogstatsd$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_name:.*-` + regexp.QuoteMeta(taskName) + `-ec2$`,
 				`^task_version:[[:digit:]]+$`,
@@ -539,6 +571,7 @@ func (suite *ecsSuite) TestPrometheus() {
 			Tags: &[]string{
 				`^aws_account:[[:digit:]]{12}$`,
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^cluster_arn:arn:aws:ecs:us-east-1:[[:digit:]]{12}:cluster/` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-prometheus-ec2-`,
 				`^docker_image:ghcr\.io/datadog/apps-prometheus:` + regexp.QuoteMeta(apps.Version) + `$`,
@@ -553,8 +586,10 @@ func (suite *ecsSuite) TestPrometheus() {
 				`^image_tag:` + regexp.QuoteMeta(apps.Version) + `$`,
 				`^region:us-east-1$`,
 				`^series:`,
+				`^service_arn:`,
 				`^short_image:apps-prometheus$`,
 				`^task_arn:`,
+				`^task_definition_arn:`,
 				`^task_family:.*-prometheus-ec2$`,
 				`^task_name:.*-prometheus-ec2$`,
 				`^task_version:[[:digit:]]+$`,

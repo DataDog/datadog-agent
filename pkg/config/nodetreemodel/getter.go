@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cast"
 )
 
-func (c *ntmConfig) leafAtPath(key string) LeafNode {
+func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
 		return missingLeaf
@@ -38,8 +38,8 @@ func (c *ntmConfig) GetKnownKeysLowercased() map[string]interface{} {
 	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	ret := make(map[string]interface{})
-	for key, value := range c.knownKeys {
-		ret[key] = value
+	for key := range c.knownKeys {
+		ret[key] = struct{}{}
 	}
 	return ret
 }
@@ -134,37 +134,38 @@ simplyCopy:
 func (c *ntmConfig) getNodeValue(key string) interface{} {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
 		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return missingLeaf
+		return ""
 	}
-	c.maybeRebuild()
 
 	node := c.nodeAtPathFromNode(key, c.root)
 
-	if leaf, ok := node.(LeafNode); ok {
-		return leaf.Get()
+	if node.IsLeafNode() {
+		return node.Get()
 	}
 
 	// When querying an InnerNode we convert it as a map[string]interface{} to mimic Viper's logic
-	var converter func(node InnerNode) map[string]interface{}
-	converter = func(node InnerNode) map[string]interface{} {
+	var converter func(node *nodeImpl) map[string]interface{}
+	converter = func(node *nodeImpl) map[string]interface{} {
 		res := map[string]interface{}{}
 		for _, name := range node.ChildrenKeys() {
 			child, _ := node.GetChild(name)
 
-			if leaf, ok := child.(LeafNode); ok {
-				res[name] = leaf.Get()
+			if child.IsLeafNode() {
+				res[name] = child.Get()
 			} else {
-				res[name] = converter(child.(InnerNode))
+				res[name] = converter(child)
 			}
 		}
 		return res
 	}
 
-	return converter(node.(InnerNode))
+	return converter(node)
 }
 
 // Get returns a copy of the value for the given key
 func (c *ntmConfig) Get(key string) interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -178,6 +179,8 @@ func (c *ntmConfig) Get(key string) interface{} {
 
 // GetAllSources returns all values for a key for each source in sorted from lower to higher priority
 func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -196,6 +199,8 @@ func (c *ntmConfig) GetAllSources(key string) []model.ValueWithSource {
 
 // GetString returns a string-typed value for the given key
 func (c *ntmConfig) GetString(key string) string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -208,6 +213,8 @@ func (c *ntmConfig) GetString(key string) string {
 
 // GetBool returns a bool-typed value for the given key
 func (c *ntmConfig) GetBool(key string) bool {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -220,6 +227,8 @@ func (c *ntmConfig) GetBool(key string) bool {
 
 // GetInt returns an int-typed value for the given key
 func (c *ntmConfig) GetInt(key string) int {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -232,6 +241,8 @@ func (c *ntmConfig) GetInt(key string) int {
 
 // GetInt32 returns an int32-typed value for the given key
 func (c *ntmConfig) GetInt32(key string) int32 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -244,6 +255,8 @@ func (c *ntmConfig) GetInt32(key string) int32 {
 
 // GetInt64 returns an int64-typed value for the given key
 func (c *ntmConfig) GetInt64(key string) int64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -256,6 +269,8 @@ func (c *ntmConfig) GetInt64(key string) int64 {
 
 // GetFloat64 returns a float64-typed value for the given key
 func (c *ntmConfig) GetFloat64(key string) float64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -268,6 +283,8 @@ func (c *ntmConfig) GetFloat64(key string) float64 {
 
 // GetFloat64 returns a float64-typed value for the given key
 func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -291,6 +308,8 @@ func (c *ntmConfig) GetFloat64Slice(key string) []float64 {
 
 // GetDuration returns a duration-typed value for the given key
 func (c *ntmConfig) GetDuration(key string) time.Duration {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -303,6 +322,8 @@ func (c *ntmConfig) GetDuration(key string) time.Duration {
 
 // GetStringSlice returns a string slice value for the given key
 func (c *ntmConfig) GetStringSlice(key string) []string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -315,6 +336,8 @@ func (c *ntmConfig) GetStringSlice(key string) []string {
 
 // GetStringMap returns a map[string]interface value for the given key
 func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -327,6 +350,8 @@ func (c *ntmConfig) GetStringMap(key string) map[string]interface{} {
 
 // GetStringMapString returns a map[string]string value for the given key
 func (c *ntmConfig) GetStringMapString(key string) map[string]string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -339,6 +364,8 @@ func (c *ntmConfig) GetStringMapString(key string) map[string]string {
 
 // GetStringMapStringSlice returns a map[string][]string value for the given key
 func (c *ntmConfig) GetStringMapStringSlice(key string) map[string][]string {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
@@ -361,8 +388,14 @@ func (c *ntmConfig) GetSizeInBytes(key string) uint {
 
 // GetSource returns the source of the given key
 func (c *ntmConfig) GetSource(key string) model.Source {
+	c.maybeRebuild()
+
 	c.RLock()
 	defer c.RUnlock()
 	c.checkKnownKey(key)
-	return c.leafAtPath(key).Source()
+	leaf := c.leafAtPath(key)
+	if leaf == missingLeaf {
+		return model.SourceUnknown
+	}
+	return leaf.Source()
 }

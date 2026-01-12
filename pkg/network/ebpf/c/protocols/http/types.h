@@ -57,6 +57,12 @@ typedef struct {
 } http_event_t;
 
 // OpenSSL types
+
+typedef struct {
+    __u64 pid_tgid;
+    void *ctx;
+} ssl_ctx_pid_tgid_t;
+
 typedef struct {
     void *ctx;
     void *buf;

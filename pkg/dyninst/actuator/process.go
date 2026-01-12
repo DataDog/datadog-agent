@@ -9,7 +9,7 @@ package actuator
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
 // ProcessesUpdate is a set of updates to the actuator's state.
@@ -27,8 +27,7 @@ type ProcessesUpdate struct {
 
 // ProcessUpdate is an update to a process's instrumentation configuration.
 type ProcessUpdate struct {
-	ProcessID  ProcessID
-	Executable Executable
+	procinfo.Info
 
 	// Probes is the *complete* set of probes for the process.
 	//
@@ -37,8 +36,8 @@ type ProcessUpdate struct {
 	Probes []ir.ProbeDefinition
 }
 
-// Executable forwards the definition from procmon.
-type Executable = procmon.Executable
+// Executable forwards the definition from process.
+type Executable = procinfo.Executable
 
-// ProcessID forwards the definition from procmon.
-type ProcessID = procmon.ProcessID
+// ProcessID forwards the definition from process.
+type ProcessID = procinfo.ID

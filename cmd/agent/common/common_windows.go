@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,11 +35,12 @@ func CheckAndUpgradeConfig() error {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
-	pkgconfigsetup.Datadog().AddConfigPath(defaultpaths.ConfPath)
-	_, err := pkgconfigsetup.LoadWithoutSecret(pkgconfigsetup.Datadog(), nil)
+	ddcfg := pkgconfigsetup.GlobalConfigBuilder()
+	ddcfg.AddConfigPath(defaultpaths.ConfPath)
+	err := pkgconfigsetup.LoadDatadog(ddcfg, secretsnoop.NewComponent().Comp, nil)
 	if err == nil {
 		// was able to read config, check for api key
-		if pkgconfigsetup.Datadog().GetString("api_key") != "" {
+		if ddcfg.GetString("api_key") != "" {
 			log.Debug("Datadog.yaml found, and API key present.  Not upgrading config")
 			return nil
 		}

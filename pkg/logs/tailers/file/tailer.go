@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -18,12 +17,11 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/benbjohnson/clock"
+	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
@@ -31,6 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Tailer tails a file, decodes the messages it contains, and passes them to a
@@ -59,9 +60,9 @@ type Tailer struct {
 	// fullpath is the absolute path to file.Path.
 	fullpath string
 
-	// osFile is the os.File object from which log data is read.  The read implementation
+	// osFile is the afero.File object from which log data is read.  The read implementation
 	// is platform-specific, and not every platform will have a non-nil value here.
-	osFile *os.File
+	osFile afero.File
 
 	// tags are the tags to be attached to each log message, excluding tags provided
 	// by the tag provider.
@@ -75,7 +76,7 @@ type Tailer struct {
 	outputChan chan *message.Message
 
 	// decoder handles decoding the raw bytes read from the file into log messages.
-	decoder *decoder.Decoder
+	decoder decoder.Decoder
 
 	// sleepDuration is the time between polls of the underlying file.
 	sleepDuration time.Duration
@@ -100,6 +101,13 @@ type Tailer struct {
 	// didFileRotate is true when we are tailing a file after it has been rotated
 	didFileRotate *atomic.Bool
 
+	// cachedFileSize stores the file size from the last scan, used for rotation detection metrics
+	cachedFileSize *atomic.Int64
+
+	// rotation mismatch flags ensure we only report telemetry once per continuous mismatch condition
+	rotationMismatchCacheActive  *atomic.Bool
+	rotationMismatchOffsetActive *atomic.Bool
+
 	// stop is monitored by the readForever component, and causes it to stop reading
 	// and close the channel to the decoder.
 	stop chan struct{}
@@ -120,8 +128,11 @@ type Tailer struct {
 	info            *status.InfoRegistry
 	bytesRead       *status.CountInfo
 	movingSum       *util.MovingSum
-	CapacityMonitor *metrics.CapacityMonitor
+	fingerprint     *logstypes.Fingerprint
+	fingerprinter   Fingerprinter
 	registry        auditor.Registry
+	CapacityMonitor *metrics.CapacityMonitor
+	fileOpener      opener.FileOpener
 }
 
 // TailerOptions holds all possible parameters that NewTailer requires in addition to optional parameters that can be optionally passed into. This can be used for more optional parameters if required in future
@@ -129,12 +140,15 @@ type TailerOptions struct {
 	OutputChan      chan *message.Message    // Required
 	File            *File                    // Required
 	SleepDuration   time.Duration            // Required
-	Decoder         *decoder.Decoder         // Required
+	Decoder         decoder.Decoder          // Required
 	Info            *status.InfoRegistry     // Required
 	Rotated         bool                     // Optional
 	TagAdder        tag.EntityTagAdder       // Required
-	CapacityMonitor *metrics.CapacityMonitor // Required
+	Fingerprint     *logstypes.Fingerprint   // Optional
+	Fingerprinter   Fingerprinter            // Required
 	Registry        auditor.Registry         // Required
+	CapacityMonitor *metrics.CapacityMonitor // Required
+	FileOpener      opener.FileOpener        // Required
 }
 
 // NewTailer returns an initialized Tailer, read to be started.
@@ -169,32 +183,37 @@ func NewTailer(opts *TailerOptions) *Tailer {
 	opts.Info.Register(movingSum)
 
 	t := &Tailer{
-		file:                   opts.File,
-		outputChan:             opts.OutputChan,
-		decoder:                opts.Decoder,
-		tagProvider:            tagProvider,
-		lastReadOffset:         atomic.NewInt64(0),
-		decodedOffset:          atomic.NewInt64(0),
-		sleepDuration:          opts.SleepDuration,
-		closeTimeout:           closeTimeout,
-		windowsOpenFileTimeout: windowsOpenFileTimeout,
-		stop:                   make(chan struct{}, 1),
-		done:                   make(chan struct{}, 1),
-		forwardContext:         forwardContext,
-		stopForward:            stopForward,
-		isFinished:             atomic.NewBool(false),
-		didFileRotate:          atomic.NewBool(false),
-		info:                   opts.Info,
-		bytesRead:              bytesRead,
-		movingSum:              movingSum,
-		CapacityMonitor:        opts.CapacityMonitor,
-		registry:               opts.Registry,
+		file:                         opts.File,
+		outputChan:                   opts.OutputChan,
+		decoder:                      opts.Decoder,
+		tagProvider:                  tagProvider,
+		lastReadOffset:               atomic.NewInt64(0),
+		decodedOffset:                atomic.NewInt64(0),
+		sleepDuration:                opts.SleepDuration,
+		closeTimeout:                 closeTimeout,
+		windowsOpenFileTimeout:       windowsOpenFileTimeout,
+		stop:                         make(chan struct{}, 1),
+		done:                         make(chan struct{}, 1),
+		forwardContext:               forwardContext,
+		stopForward:                  stopForward,
+		isFinished:                   atomic.NewBool(false),
+		didFileRotate:                atomic.NewBool(false),
+		cachedFileSize:               atomic.NewInt64(0),
+		rotationMismatchCacheActive:  atomic.NewBool(false),
+		rotationMismatchOffsetActive: atomic.NewBool(false),
+		info:                         opts.Info,
+		bytesRead:                    bytesRead,
+		movingSum:                    movingSum,
+		fingerprint:                  opts.Fingerprint,
+		fingerprinter:                opts.Fingerprinter,
+		CapacityMonitor:              opts.CapacityMonitor,
+		registry:                     opts.Registry,
+		fileOpener:                   opts.FileOpener,
 	}
 
 	if fileRotated {
 		addToTailerInfo("Last Rotation Date", getFormattedTime(), t.info)
 	}
-
 	return t
 }
 
@@ -211,9 +230,11 @@ func (t *Tailer) NewRotatedTailer(
 	file *File,
 	outputChan chan *message.Message,
 	capacityMonitor *metrics.CapacityMonitor,
-	decoder *decoder.Decoder,
+	decoder decoder.Decoder,
 	info *status.InfoRegistry,
 	tagAdder tag.EntityTagAdder,
+	fingerprint *logstypes.Fingerprint,
+	fingerprinter Fingerprinter,
 	registry auditor.Registry,
 ) *Tailer {
 	options := &TailerOptions{
@@ -225,7 +246,10 @@ func (t *Tailer) NewRotatedTailer(
 		Rotated:         true,
 		TagAdder:        tagAdder,
 		CapacityMonitor: capacityMonitor,
+		Fingerprint:     fingerprint,
+		Fingerprinter:   fingerprinter,
 		Registry:        registry,
+		FileOpener:      t.fileOpener,
 	}
 
 	return NewTailer(options)
@@ -270,7 +294,10 @@ func (t *Tailer) StartFromBeginning() error {
 // been flushed to the output channel.
 func (t *Tailer) Stop() {
 	t.registry.SetTailed(t.Identifier(), false)
-	t.stop <- struct{}{}
+	select {
+	case t.stop <- struct{}{}:
+	default: // already signalled
+	}
 	t.file.Source.RemoveInput(t.file.Path)
 	// wait for the decoder to be flushed
 	<-t.done
@@ -297,7 +324,10 @@ func (t *Tailer) StopAfterFileRotation() {
 			}
 		}
 		t.stopForward()
-		t.stop <- struct{}{}
+		select {
+		case t.stop <- struct{}{}:
+		default: // already signalled
+		}
 	}()
 	t.file.Source.RemoveInput(t.file.Path)
 }
@@ -312,15 +342,14 @@ func (t *Tailer) readForever() {
 		t.decoder.Stop()
 		log.Info("Closed", t.file.Path, "for tailer key", t.file.GetScanKey(), "read", t.Source().BytesRead.Get(), "bytes and", t.decoder.GetLineCount(), "lines")
 	}()
-
 	for {
 		n, err := t.read()
 		if err != nil {
 			return
 		}
+
 		t.recordBytes(int64(n))
 		t.movingSum.Add(int64(n))
-
 		select {
 		case <-t.stop:
 			if n != 0 && t.didFileRotate.Load() {
@@ -340,8 +369,8 @@ func (t *Tailer) readForever() {
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
 	tags := []string{
-		fmt.Sprintf("filename:%s", filepath.Base(t.file.Path)),
-		fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)),
+		"filename:" + filepath.Base(t.file.Path),
+		"dirname:" + filepath.Dir(t.file.Path),
 	}
 	return tags
 }
@@ -360,8 +389,10 @@ func (t *Tailer) forwardMessages() {
 		t.isFinished.Store(true)
 		close(t.done)
 	}()
-	for output := range t.decoder.OutputChan {
+	for output := range t.decoder.OutputChan() {
 		offset := t.decodedOffset.Load() + int64(output.RawDataLen)
+		// Track post-framer log line sizes
+		metrics.TlmLogLineSizes.Observe(float64(output.RawDataLen))
 		identifier := t.Identifier()
 		if t.didFileRotate.Load() {
 			offset = 0
@@ -371,6 +402,8 @@ func (t *Tailer) forwardMessages() {
 		origin := message.NewOrigin(t.file.Source.UnderlyingSource())
 		origin.Identifier = identifier
 		origin.Offset = strconv.FormatInt(offset, 10)
+		origin.FilePath = t.file.Path
+		origin.Fingerprint = t.fingerprint
 
 		tags := make([]string, len(t.tags))
 		copy(tags, t.tags)
@@ -384,7 +417,6 @@ func (t *Tailer) forwardMessages() {
 
 		// Preserve ParsingExtra information from decoder output (including IsTruncated flag)
 		msg := message.NewMessageWithParsingExtra(output.GetContent(), origin, output.Status, output.IngestionTimestamp, output.ParsingExtra)
-
 		// Make the write to the output chan cancellable to be able to stop the tailer
 		// after a file rotation when it is stuck on it.
 		// We don't return directly to keep the same shutdown sequence that in the
@@ -431,17 +463,22 @@ func (t *Tailer) Source() *sources.LogSource {
 	return t.file.Source.UnderlyingSource()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (t *Tailer) GetId() string {
+// GetID returns the tailer's unique identifier
+func (t *Tailer) GetID() string {
 	return t.file.GetScanKey()
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// GetType returns the tailer type
 func (t *Tailer) GetType() string {
 	return "file"
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
+// GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// GetFingerprint returns the tailer's fingerprint
+func (t *Tailer) GetFingerprint() *logstypes.Fingerprint {
+	return t.fingerprint
 }

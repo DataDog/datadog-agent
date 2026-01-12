@@ -16,7 +16,7 @@ import (
 func TestStatus(t *testing.T) {
 	provider := statusProvider{
 		agent: &RuntimeSecurityAgent{
-			client:               nil,
+			cmdClient:            nil,
 			hostname:             "test",
 			storage:              nil,
 			running:              atomic.NewBool(false),

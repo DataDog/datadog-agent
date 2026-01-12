@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -44,8 +44,7 @@ func TestConfDisabled(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: overrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -69,8 +68,7 @@ func TestConfInterval(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: overrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 			hostnameimpl.MockModule(),
 		),
@@ -103,7 +101,7 @@ func TestCollect(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		),
@@ -120,7 +118,7 @@ func TestCollect(t *testing.T) {
 func TestCollectError(t *testing.T) {
 	defer func(f func() (interface{}, error)) { collectResources = f }(collectResources)
 	collectResources = func() (interface{}, error) {
-		return nil, fmt.Errorf("some error from gohai")
+		return nil, errors.New("some error from gohai")
 	}
 
 	s := serializermock.NewMetricSerializer(t)
@@ -128,7 +126,7 @@ func TestCollectError(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 			hostnameimpl.MockModule(),
 		),

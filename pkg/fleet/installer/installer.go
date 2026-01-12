@@ -8,19 +8,16 @@ package installer
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 
@@ -47,9 +44,8 @@ type Installer interface {
 
 	AvailableDiskSpace() (uint64, error)
 	State(ctx context.Context, pkg string) (repository.State, error)
-	States(ctx context.Context) (map[string]repository.State, error)
 	ConfigState(ctx context.Context, pkg string) (repository.State, error)
-	ConfigStates(ctx context.Context) (map[string]repository.State, error)
+	ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error)
 
 	Install(ctx context.Context, url string, args []string) error
 	ForceInstall(ctx context.Context, url string, args []string) error
@@ -61,7 +57,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -81,7 +77,7 @@ type installerImpl struct {
 	db         *db.PackagesDB
 	downloader *oci.Downloader
 	packages   *repository.Repositories
-	configs    *repository.Repositories
+	config     *config.Directories
 	hooks      packages.Hooks
 
 	packagesDir    string
@@ -94,29 +90,25 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages and config directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(5*time.Minute))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	pkgs := repository.NewRepositories(paths.PackagesPath, packages.AsyncPreRemoveHooks)
-	configs := repository.NewRepositories(paths.ConfigsPath, nil)
 	i := &installerImpl{
 		env:        env,
 		db:         db,
 		downloader: oci.NewDownloader(env, env.HTTPClient()),
 		packages:   pkgs,
-		configs:    configs,
-		hooks:      packages.NewHooks(env, pkgs),
+		config: &config.Directories{
+			StablePath:     paths.AgentConfigDir,
+			ExperimentPath: paths.AgentConfigDirExp,
+		},
+		hooks: packages.NewHooks(env, pkgs),
 
 		userConfigsDir: paths.DefaultUserConfigsDir,
 		packagesDir:    paths.PackagesPath,
 	}
-
-	err = i.ensurePackagesAreConfigured(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("could not ensure packages are configured: %w", err)
-	}
-
 	return i, nil
 }
 
@@ -130,19 +122,50 @@ func (i *installerImpl) State(_ context.Context, pkg string) (repository.State, 
 	return i.packages.GetState(pkg)
 }
 
-// States returns the states of all packages.
-func (i *installerImpl) States(_ context.Context) (map[string]repository.State, error) {
-	return i.packages.GetStates()
-}
-
 // ConfigState returns the state of a package.
-func (i *installerImpl) ConfigState(_ context.Context, pkg string) (repository.State, error) {
-	return i.configs.GetState(pkg)
+func (i *installerImpl) ConfigState(_ context.Context, _ string) (repository.State, error) {
+	state, err := i.config.GetState()
+	if err != nil {
+		return repository.State{}, fmt.Errorf("could not get config state: %w", err)
+	}
+	return repository.State{
+		Stable:     state.StableDeploymentID,
+		Experiment: state.ExperimentDeploymentID,
+	}, nil
 }
 
-// ConfigStates returns the states of all packages.
-func (i *installerImpl) ConfigStates(_ context.Context) (map[string]repository.State, error) {
-	return i.configs.GetStates()
+// configStates returns the config states of all supported packages (only datadog-agent is supported today).
+func (i *installerImpl) configStates(_ context.Context) (map[string]repository.State, error) {
+	state, err := i.config.GetState()
+	if err != nil {
+		return nil, fmt.Errorf("could not get config state: %w", err)
+	}
+	stableDeploymentID := state.StableDeploymentID
+	if stableDeploymentID == "" {
+		stableDeploymentID = "empty"
+	}
+	return map[string]repository.State{
+		"datadog-agent": {
+			Stable:     stableDeploymentID,
+			Experiment: state.ExperimentDeploymentID,
+		},
+	}, nil
+}
+
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *installerImpl) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
+	configStates, err := i.configStates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	packageStates, err := i.packages.GetStates()
+	if err != nil {
+		return nil, err
+	}
+	return &repository.PackageStates{
+		ConfigStates: configStates,
+		States:       packageStates,
+	}, nil
 }
 
 // IsInstalled checks if a package is installed.
@@ -193,7 +216,7 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 	defer i.m.Unlock()
 
 	// make sure data directory is set up correctly
-	err := paths.EnsureInstallerDataDir()
+	err := paths.SetupInstallerDataDir()
 	if err != nil {
 		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
 	}
@@ -267,7 +290,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
 	if err != nil {
-		return fmt.Errorf("could not download package: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
 	}
 	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
@@ -294,7 +320,10 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	}
 	err = checkAvailableDiskSpace(i.packages, pkg)
 	if err != nil {
-		return fmt.Errorf("not enough disk space: %w", err)
+		return installerErrors.Wrap(
+			installerErrors.ErrNotEnoughDiskSpace,
+			fmt.Errorf("not enough disk space: %w", err),
+		)
 	}
 	tmpDir, err := i.packages.MkdirTemp()
 	if err != nil {
@@ -305,7 +334,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
@@ -317,10 +346,6 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
-	}
-	err = i.initPackageConfig(ctx, pkg.Name) // Config
-	if err != nil {
-		return fmt.Errorf("could not configure package: %w", err)
 	}
 	err = i.hooks.PostInstall(ctx, pkg.Name, packages.PackageTypeOCI, upgrade, args)
 	if err != nil {
@@ -363,7 +388,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 		)
 	}
 	defer os.RemoveAll(tmpDir)
-	configDir := filepath.Join(i.userConfigsDir, pkg.Name)
+	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
 	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
@@ -390,6 +415,10 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 			installerErrors.ErrFilesystemIssue,
 			fmt.Errorf("could not set experiment: %w", err),
 		)
+	}
+	err = i.config.RemoveExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not remove config experiment: %w", err)
 	}
 	// HACK: close so package can be updated as watchdog runs
 	if pkg.Name == packageDatadogAgent && runtime.GOOS == "windows" {
@@ -463,7 +492,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	}
 	if !state.HasExperiment() {
 		// Fail early
-		return fmt.Errorf("no experiment to promote")
+		return errors.New("no experiment to promote")
 	}
 
 	err = i.hooks.PrePromoteExperiment(ctx, pkg)
@@ -494,42 +523,22 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, version string, rawConfigs [][]byte) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	tmpDir, err := i.configs.MkdirTemp()
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not create temporary directory: %w", err),
-		)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Merge config files
-	mergedConfigs, err := mergeConfigs(rawConfigs)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrConfigMergeFailed,
-			fmt.Errorf("could not merge configs: %w", err),
-		)
-	}
-	err = i.writeConfig(tmpDir, mergedConfigs)
-	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not write agent config: %w", err),
-		)
+	// Replace secrets in operations
+	if err := config.ReplaceSecrets(&operations, decryptedSecrets); err != nil {
+		return fmt.Errorf("could not replace secrets: %w", err)
 	}
 
-	configRepo := i.configs.Get(pkg)
-	err = configRepo.SetExperiment(ctx, version, tmpDir)
+	err := i.packages.Get(pkg).DeleteExperiment(ctx)
 	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not set experiment: %w", err),
-		)
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	err = i.config.WriteExperiment(ctx, operations)
+	if err != nil {
+		return fmt.Errorf("could not write experiment: %w", err)
 	}
 
 	// HACK: close so package can be updated as watchdog runs
@@ -545,26 +554,13 @@ func (i *installerImpl) RemoveConfigExperiment(ctx context.Context, pkg string) 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.configs.Get(pkg)
-	state, err := repository.GetState()
-	if err != nil {
-		return fmt.Errorf("could not get repository state: %w", err)
-	}
-	if !state.HasExperiment() {
-		// Return early
-		return nil
-	}
-
-	err = i.hooks.PreStopConfigExperiment(ctx, pkg)
+	err := i.hooks.PreStopConfigExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not stop experiment: %w", err)
 	}
-	err = repository.DeleteExperiment(ctx)
+	err = i.config.RemoveExperiment(ctx)
 	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not delete experiment: %w", err),
-		)
+		return fmt.Errorf("could not remove experiment: %w", err)
 	}
 	return nil
 }
@@ -574,17 +570,9 @@ func (i *installerImpl) PromoteConfigExperiment(ctx context.Context, pkg string)
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.configs.Get(pkg)
-	err := repository.PromoteExperiment(ctx)
+	err := i.config.PromoteExperiment(ctx)
 	if err != nil {
-		return installerErrors.Wrap(
-			installerErrors.ErrFilesystemIssue,
-			fmt.Errorf("could not promote experiment: %w", err),
-		)
-	}
-	err = writeConfigSymlinks(paths.ConfigsPath, repository.StablePath())
-	if err != nil {
-		log.Warnf("could not write user-facing config symlinks: %v", err)
+		return fmt.Errorf("could not promote experiment: %w", err)
 	}
 	return i.hooks.PostPromoteConfigExperiment(ctx, pkg)
 }
@@ -611,6 +599,13 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
+		// Delete the package entry from the database.
+		// This ensures the entry is removed even if os.Remove(packages.db) fails later
+		// due to file locking race conditions on Windows.
+		err = i.db.DeletePackage(pkg.Name)
+		if err != nil {
+			log.Warnf("could not delete package %s from db: %v", pkg.Name, err)
+		}
 	}
 	// NOTE: On Windows, purge must be called from a copy of the installer that
 	//       exists outside of the install directory. If purge is called from
@@ -620,9 +615,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	//         failing the uninstall.
 	//       We can't workaround this by moving removePackage to the end of purge,
 	//       as the daemon may be running and holding locks on files that need to be removed.
-	err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
-	if err != nil {
-		log.Warnf("could not remove agent: %v", err)
+	//
+	// Note: If DD_NO_AGENT_UNINSTALL is set, then the agent will not be uninstalled.
+	//       This is used to prevent the agent from being uninstalled when purge is
+	//       called from within the MSI.
+	if uninstallAgent, ok := os.LookupEnv("DD_NO_AGENT_UNINSTALL"); !ok || strings.ToLower(uninstallAgent) != "true" {
+		err = i.hooks.PreRemove(ctx, packageDatadogAgent, packages.PackageTypeOCI, false)
+		if err != nil {
+			log.Warnf("could not remove agent: %v", err)
+		}
 	}
 	// TODO: wont need this when Linux packages are merged
 	if runtime.GOOS != "windows" {
@@ -635,7 +636,8 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// Must close dependencies before removing the rest of the files,
 	// as some may be open/locked by the dependencies
-	i.close()
+	// TODO: check if error must trigger a specific flow
+	_ = i.close()
 
 	err = os.RemoveAll(paths.ConfigsPath)
 	if err != nil {
@@ -659,6 +661,11 @@ func (i *installerImpl) Purge(ctx context.Context) {
 	defer span.Finish(err)
 	if err != nil {
 		log.Warnf("could not delete packages dir: %v", err)
+	}
+
+	err = purgeTmpDirectory(paths.RootTmpDir)
+	if err != nil {
+		log.Warnf("could not delete tmp directory: %v", err)
 	}
 }
 
@@ -689,9 +696,9 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not cleanup packages: %w", err)
 	}
-	err = i.configs.Cleanup(ctx)
+	err = cleanupTmpDirectory(paths.RootTmpDir)
 	if err != nil {
-		return fmt.Errorf("could not cleanup configs: %w", err)
+		return fmt.Errorf("could not cleanup tmp directory: %w", err)
 	}
 	return nil
 }
@@ -701,12 +708,25 @@ func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.InstrumentAPMInjector(ctx, method)
@@ -721,17 +741,30 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
-	if err != nil {
-		return fmt.Errorf("could not check if APM injector is installed: %w", err)
-	}
-	if !injectorInstalled {
-		return fmt.Errorf("APM injector is not installed")
+	var err error
+	if runtime.GOOS == "windows" && method == env.APMInstrumentationEnabledIIS {
+		var isDotnetInstalled bool
+		isDotnetInstalled, err = i.IsInstalled(ctx, packageAPMLibraryDotnet)
+		if err != nil {
+			return fmt.Errorf("could not check if APM dotnet library is installed: %w", err)
+		}
+		if !isDotnetInstalled {
+			return errors.New("APM dotnet library is not installed")
+		}
+	} else {
+		var isInjectorInstalled bool
+		isInjectorInstalled, err = i.IsInstalled(ctx, packageAPMInjector)
+		if err != nil {
+			return fmt.Errorf("could not check if APM injector is installed: %w", err)
+		}
+		if !isInjectorInstalled {
+			return errors.New("APM injector is not installed")
+		}
 	}
 
 	err = packages.UninstrumentAPMInjector(ctx, method)
 	if err != nil {
-		return fmt.Errorf("could not instrument APM: %w", err)
+		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
 }
@@ -758,150 +791,6 @@ func (i *installerImpl) Close() error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	return i.close()
-}
-
-func (i *installerImpl) ensurePackagesAreConfigured(ctx context.Context) (err error) {
-	pkgList, err := i.packages.GetStates()
-	if err != nil {
-		return fmt.Errorf("could not get package states: %w", err)
-	}
-	for pkg := range pkgList {
-		err = i.initPackageConfig(ctx, pkg)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (i *installerImpl) initPackageConfig(ctx context.Context, pkg string) (err error) {
-	span, _ := telemetry.StartSpanFromContext(ctx, "configure_package")
-	defer func() { span.Finish(err) }()
-	state, err := i.configs.GetState(pkg)
-	if err != nil {
-		return fmt.Errorf("could not get config repository state: %w", err)
-	}
-	// If a config is already set, no need to initialize it
-	if state.Stable != "" {
-		return nil
-	}
-	tmpDir, err := i.configs.MkdirTemp()
-	if err != nil {
-		return fmt.Errorf("could not create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	err = i.configs.Create(ctx, pkg, "empty", tmpDir)
-	if err != nil {
-		return fmt.Errorf("could not create %s repository: %w", pkg, err)
-	}
-	return nil
-}
-
-var (
-	allowedConfigFiles = []string{
-		"/datadog.yaml",
-		"/security-agent.yaml",
-		"/system-probe.yaml",
-		"/application_monitoring.yaml",
-		"/conf.d/*.yaml",
-		"/conf.d/*.d/*.yaml",
-	}
-)
-
-func configNameAllowed(file string) bool {
-	for _, allowedFile := range allowedConfigFiles {
-		match, err := filepath.Match(allowedFile, file)
-		if err != nil {
-			return false
-		}
-		if match {
-			return true
-		}
-	}
-	return false
-}
-
-func cleanConfigName(p string) string {
-	// intentionally not using filepath.Clean so that the
-	// path maintains forward slashes on Windows
-	return path.Clean(p)
-}
-
-type configFileAction string
-
-const (
-	configFileActionUnknown configFileAction = ""
-	configFileActionAdd     configFileAction = "add"
-	configFileActionRemove  configFileAction = "remove"
-)
-
-type configFile struct {
-	Path     string           `json:"path"`
-	Action   configFileAction `json:"action"`
-	Contents json.RawMessage  `json:"contents"`
-}
-
-func (i *installerImpl) writeConfig(dir string, files map[string]configFile) error {
-	for _, file := range files {
-		file.Path = cleanConfigName(file.Path)
-		if !configNameAllowed(file.Path) {
-			return fmt.Errorf("config file %s is not allowed", file)
-		}
-
-		if file.Action != configFileActionAdd {
-			return fmt.Errorf("config file %s has unknown action %s", file.Path, file.Action)
-		}
-		var c interface{}
-		err := json.Unmarshal(file.Contents, &c)
-		if err != nil {
-			return fmt.Errorf("could not unmarshal config file contents: %w", err)
-		}
-		serialized, err := yaml.Marshal(c)
-		if err != nil {
-			return fmt.Errorf("could not serialize config file contents: %w", err)
-		}
-		err = os.MkdirAll(filepath.Join(dir, filepath.Dir(file.Path)), 0755)
-		if err != nil {
-			return fmt.Errorf("could not create config file directory: %w", err)
-		}
-		err = os.WriteFile(filepath.Join(dir, file.Path), serialized, 0644)
-		if err != nil {
-			return fmt.Errorf("could not write config file: %w", err)
-		}
-	}
-	return nil
-}
-
-// writeConfigSymlinks writes `.override` symlinks to help surface configurations to the user
-func writeConfigSymlinks(userDir string, fleetDir string) error {
-	userFiles, err := os.ReadDir(userDir)
-	if err != nil {
-		return fmt.Errorf("could not list user config files: %w", err)
-	}
-	for _, userFile := range userFiles {
-		if userFile.Type()&os.ModeSymlink != 0 && strings.HasSuffix(userFile.Name(), ".override") {
-			err = os.Remove(filepath.Join(userDir, userFile.Name()))
-			if err != nil {
-				return fmt.Errorf("could not remove existing symlink: %w", err)
-			}
-		}
-	}
-	var files []string
-	fleetFiles, err := os.ReadDir(fleetDir)
-	if err != nil {
-		return fmt.Errorf("could not list fleet config files: %w", err)
-	}
-	for _, fleetFile := range fleetFiles {
-		files = append(files, fleetFile.Name())
-	}
-	for _, file := range files {
-		overrideFile := file + ".override"
-		err = os.Symlink(filepath.Join(fleetDir, file), filepath.Join(userDir, overrideFile))
-		if err != nil {
-			return fmt.Errorf("could not create symlink: %w", err)
-		}
-	}
-	return nil
 }
 
 const (
@@ -935,14 +824,22 @@ func checkAvailableDiskSpace(repositories *repository.Repositories, pkg *oci.Dow
 
 // ensureRepositoriesExist creates the temp, packages and configs directories if they don't exist
 func ensureRepositoriesExist() error {
-	// TODO: should we call paths.EnsureInstallerDataDir() here?
-	//       It should probably be anywhere that the below directories must be
-	//       created, but it feels wrong to have the constructor perform work
-	//       like this. For example, "read only" subcommands like `get-states`
-	//       will end up iterating the filesystem tree to apply permissions,
-	//       and every subprocess during experiments will repeat the work,
-	//       even though it should only be needed at install/setup time.
-	err := os.MkdirAll(paths.PackagesPath, 0755)
+	// Enforce permissions on the installer data directory
+	//
+	// TODO: Avoid setup-like work in the installer constructor.
+	// These directories should be created properly at install/setup time, however
+	// the installer constructor is called before install/setup runs, and will fail if
+	// these directories do not exist, so we must do some minimal creation/validation here.
+	// We must avoid doing too much work here (e.g. iterating the filesystem tree)
+	// because the constructor is called for every subprocess, even "read only"
+	// subcommands like `get-states`.
+	err := paths.EnsureInstallerDataDir()
+	if err != nil {
+		return fmt.Errorf("could not ensure installer data directory permissions: %w", err)
+	}
+
+	// create subdirectories
+	err = os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
@@ -962,38 +859,60 @@ func ensureRepositoriesExist() error {
 	return nil
 }
 
-// mergeConfigs merges multiple config files into a single map of config files.
-// Takes remote-config configs as an input, and returns a map of files to write
-// on disk. The map is keyed by the path of the file to write, and the value is
-// the contents of the file.
-//
-// The input is a slice of bytes, which is the JSON-encoded contents of the
-// remote-config config files. The JSON is expected to be an array of objects,
-// each with a `path` and `contents` field.
-func mergeConfigs(rawConfigs [][]byte) (map[string]configFile, error) {
-	mergedFiles := make(map[string]configFile)
-	for _, rawConfig := range rawConfigs {
-		var configFiles []configFile
-		err := json.Unmarshal(rawConfig, &configFiles)
-		if err != nil {
-			return nil, fmt.Errorf("could not unmarshal config files: %w", err)
-		}
-		for _, file := range configFiles {
-			if file.Action == configFileActionUnknown {
-				// Default to add if action is unknown
-				file.Action = configFileActionAdd
-			}
-			file.Path = cleanConfigName(file.Path)
-			if !configNameAllowed(file.Path) {
-				return nil, fmt.Errorf("config file %s is not allowed", file)
-			}
+// cleanupTmpDirectory removes files and directories in RootTmpDir that are older than 24 hours
+func cleanupTmpDirectory(rootTmpDir string) error {
+	// Check if RootTmpDir exists
+	if _, err := os.Stat(rootTmpDir); os.IsNotExist(err) {
+		// Directory doesn't exist, nothing to clean up
+		return nil
+	}
 
-			if file.Action == configFileActionRemove {
-				delete(mergedFiles, file.Path)
-			} else if file.Action == configFileActionAdd {
-				mergedFiles[file.Path] = file
+	// Calculate the cutoff time (24 hours ago)
+	cutoffTime := time.Now().Add(-24 * time.Hour)
+
+	// Read the directory contents
+	entries, err := os.ReadDir(rootTmpDir)
+	if err != nil {
+		return fmt.Errorf("could not read tmp directory: %w", err)
+	}
+
+	var cleanupErrors []string
+	for _, entry := range entries {
+		entryPath := filepath.Join(rootTmpDir, entry.Name())
+
+		// Get file info to check modification time
+		info, err := entry.Info()
+		if err != nil {
+			log.Warnf("Could not get info for %s: %v", entryPath, err)
+			continue
+		}
+
+		// Check if the file/directory is older than 24 hours
+		if info.ModTime().Before(cutoffTime) {
+			log.Debugf("Removing old tmp file/directory: %s (modified: %v)", entryPath, info.ModTime())
+
+			err := os.RemoveAll(entryPath)
+			if err != nil {
+				cleanupErrors = append(cleanupErrors, fmt.Sprintf("failed to remove %s: %v", entryPath, err))
+				log.Warnf("Could not remove old tmp file/directory %s: %v", entryPath, err)
+			} else {
+				log.Debugf("Successfully removed old tmp file/directory: %s", entryPath)
 			}
 		}
 	}
-	return mergedFiles, nil
+
+	if len(cleanupErrors) > 0 {
+		return fmt.Errorf("tmp directory cleanup completed with errors: %s", strings.Join(cleanupErrors, "; "))
+	}
+
+	return nil
+}
+
+// purgeTmpDirectory removes the tmp directory
+var purgeTmpDirectory = func(rootTmpDir string) error {
+	err := os.RemoveAll(rootTmpDir)
+	if err != nil {
+		return err
+	}
+	return nil
 }

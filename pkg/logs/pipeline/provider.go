@@ -193,6 +193,7 @@ func httpSender(
 		destinationsContext,
 		componentName,
 		http.JSONContentType,
+		"",
 		queueCount,
 		workersPerQueue,
 		minSenderConcurrency,

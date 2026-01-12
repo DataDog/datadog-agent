@@ -7,6 +7,7 @@ package event
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -90,6 +91,46 @@ func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtract
 	return numEvents, numExtracted, events
 }
 
+// ProcessV1 takes a processed trace, extracts events from it and samples them, returning a collection of
+// sampled events along with the total count of events.
+// numEvents is the number of sampled events found in the trace
+// numExtracted is the number of events found in the trace
+// events is the slice of sampled analytics events to keep (only has values if pt will be dropped)
+func (p *Processor) ProcessV1(pt *traceutil.ProcessedTraceV1) (numEvents, numExtracted int64, events []*idx.InternalSpan) {
+	clientSampleRate := sampler.GetClientRateV1(pt.Root)
+	preSampleRate := sampler.GetPreSampleRateV1(pt.Root)
+	priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
+
+	for _, span := range pt.TraceChunk.Spans {
+		extractionRate, ok := p.extractV1(span, priority)
+		if !ok {
+			continue
+		}
+		if !sampler.SampleByRate(pt.TraceChunk.LegacyTraceID(), extractionRate) {
+			continue
+		}
+
+		numExtracted++
+
+		sampled, epsRate := p.maxEPSSampleV1(pt.TraceChunk.LegacyTraceID(), priority)
+		if !sampled {
+			continue
+		}
+		// event analytics tags shouldn't be set on sampled single spans
+		sampler.SetMaxEPSRateV1(span, epsRate)
+		sampler.SetClientRateV1(span, clientSampleRate)
+		sampler.SetPreSampleRateV1(span, preSampleRate)
+		sampler.SetEventExtractionRateV1(span, extractionRate)
+		sampler.SetAnalyzedSpanV1(span)
+		span.SetFloat64Attribute(sampler.KeyAnalyzedSpans, 1)
+		if pt.TraceChunk.DroppedTrace {
+			events = append(events, span)
+		}
+		numEvents++
+	}
+	return numEvents, numExtracted, events
+}
+
 func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
 	for _, extractor := range p.extractors {
 		if rate, ok := extractor.Extract(span, priority); ok {
@@ -99,6 +140,14 @@ func (p *Processor) extract(span *pb.Span, priority sampler.SamplingPriority) (f
 	return 0, false
 }
 
+func (p *Processor) extractV1(span *idx.InternalSpan, priority sampler.SamplingPriority) (float64, bool) {
+	for _, extractor := range p.extractors {
+		if rate, ok := extractor.ExtractV1(span, priority); ok {
+			return rate, ok
+		}
+	}
+	return 0, false
+}
 func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriority) (sampled bool, rate float64) {
 	if priority == sampler.PriorityUserKeep {
 		return true, 1
@@ -106,8 +155,16 @@ func (p *Processor) maxEPSSample(event *pb.Span, priority sampler.SamplingPriori
 	return p.maxEPSSampler.Sample(event)
 }
 
+func (p *Processor) maxEPSSampleV1(traceID uint64, priority sampler.SamplingPriority) (sampled bool, rate float64) {
+	if priority == sampler.PriorityUserKeep {
+		return true, 1
+	}
+	return p.maxEPSSampler.SampleV1(traceID)
+}
+
 type eventSampler interface {
 	Start()
 	Sample(event *pb.Span) (sampled bool, rate float64)
+	SampleV1(traceID uint64) (sampled bool, rate float64)
 	Stop()
 }

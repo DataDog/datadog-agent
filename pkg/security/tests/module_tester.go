@@ -15,10 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -28,11 +30,15 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	spconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
@@ -63,7 +69,7 @@ var (
 )
 
 const (
-	testActivityDumpDuration = time.Minute * 10
+	testActivityDumpDuration = time.Second * 30
 )
 
 var testMod *testModule
@@ -109,7 +115,8 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 	}
 }
 
-func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
+// RunMultiMode executes the provided test function in both -std and -docker modes.
+func (tm *testModule) RunMultiMode(t *testing.T, name string, fnc func(t *testing.T, kind wrapperType, cmd func(bin string, args []string, envs []string) *exec.Cmd)) {
 	tm.cmdWrapper.Run(t, name, fnc)
 }
 
@@ -243,7 +250,7 @@ func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules
 func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
 	tb.Helper()
 
-	if err := tm.getSignal(tb, action, cb); err != nil {
+	if err := tm.getSignalFromRule(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -253,13 +260,15 @@ func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*mo
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
-	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+	return tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
 		cb(event, rule)
 		return nil
 	})
 }
 
-func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
+// getSignalForRule is like getSignal but filters events by ruleID
+// to prevent stale events from previous tests from being processed.
+func (tm *testModule) getSignalFromRule(tb testing.TB, action func() error, cb func(event *model.Event, rule *rules.Rule) error, ruleID ...string) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -270,6 +279,11 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 
 	tm.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
 		tb.Helper()
+		// Filter out events that don't match the expected type and rule if ruleID is provided (only when WaitSignalFromRule is called)
+		if len(ruleID) > 0 && r.ID != ruleID[0] {
+			tb.Logf("Filtering event: got rule %q, expected %q", r.ID, ruleID)
+			return
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -544,11 +558,27 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	return ErrTimeout{msg.String()}
 }
 
-func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
+// WaitSignalFromRule is like WaitSignal but filters events by ruleID
+// to prevent stale events from previous sub-tests from being processed.
+func (tm *testModule) WaitSignalFromRule(tb testing.TB, action func() error, cb onRuleHandler, ruleID string) {
+	tb.Helper()
+	if err := tm.getSignalFromRule(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event)
+		cb(event, rule)
+		return nil
+	}, ruleID); err != nil {
+		if _, ok := err.(ErrSkipTest); ok {
+			tb.Skip(err)
+		} else {
+			tb.Fatal(err)
+		}
+	}
+}
+
+func (tm *testModule) WaitSignalWithoutProcessContext(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
 	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
-		validateProcessContext(tb, event)
 		cb(event, rule)
 		return nil
 	})
@@ -556,7 +586,7 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, nil)
+	b, err := serializers.MarshalEvent(ev, nil, tm.probe.GetScrubber())
 	return string(b), err
 }
 
@@ -709,7 +739,7 @@ func setTestPolicy(dir string, macroDefs []*rules.MacroDefinition, ruleDefs []*r
 	return nil
 }
 
-func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {
+func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, nil, err
@@ -777,6 +807,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
 		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
+		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
 		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
@@ -786,6 +817,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"SecurityProfileMaxImageTags":                opts.securityProfileMaxImageTags,
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
+		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
 		"EnableAutoSuppression":                      opts.enableAutoSuppression,
 		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
@@ -817,6 +849,7 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		"EventServerRetention":                       opts.eventServerRetention,
 		"EnableSelfTests":                            opts.enableSelfTests,
 		"NetworkFlowMonitorEnabled":                  opts.networkFlowMonitorEnabled,
+		"CapabilitiesMonitoringEnabled":              opts.capabilitiesMonitoringEnabled,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -844,10 +877,16 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 		return nil, nil, err
 	}
 
-	err = spconfig.SetupOptionalDatadogConfigWithDir(cfgDir, ddConfigName)
+	err = setupOptionalDatadogConfigWithDir(t, cfgDir, ddConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
+
+	// reset the system-probe config to not be adjusted yet
+	// necessary because the config object is a global, and we want the adjustment
+	// to happen again
+	cfg := pkgconfigsetup.GlobalSystemProbeConfigBuilder()
+	cfg.Set("system_probe_config.adjusted", false, pkgconfigmodel.SourceAgentRuntime)
 
 	_, err = spconfig.New(sysprobeConfigName, "")
 	if err != nil {
@@ -865,6 +904,33 @@ func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.
 	secconfig.Probe.MapDentryResolutionEnabled = !opts.disableMapDentryResolution
 
 	return emconfig, secconfig, nil
+}
+
+// setupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
+func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile string) error {
+	cfg := pkgconfigsetup.GlobalConfigBuilder()
+
+	cfg.AddConfigPath(configDir)
+	if configFile != "" {
+		cfg.SetConfigFile(configFile)
+	}
+	// load the configuration
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
+	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
+		// special-case permission-denied with a clearer error message
+		if errors.Is(err, fs.ErrPermission) {
+			if runtime.GOOS == "windows" {
+				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
+			} else {
+				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
+			}
+		} else {
+			err = fmt.Errorf("unable to load Datadog config file: %w", err)
+		}
+		return err
+	}
+	return nil
 }
 
 type fakeMsgSender struct {
@@ -888,6 +954,8 @@ func (fs *fakeMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.Securit
 
 	fs.msgs[msgStruct.AgentContext.RuleID] = msg
 }
+
+func (fs *fakeMsgSender) SendTelemetry(statsd.ClientInterface) {}
 
 func (fs *fakeMsgSender) getMsg(ruleID eval.RuleID) *api.SecurityEventMessage {
 	fs.Lock()

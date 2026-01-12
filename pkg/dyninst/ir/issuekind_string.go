@@ -13,11 +13,12 @@ func _() {
 	_ = x[IssueKindUnsupportedFeature-3]
 	_ = x[IssueKindMalformedExecutable-4]
 	_ = x[IssueKindInvalidDWARF-5]
+	_ = x[IssueKindDisassemblyFailed-6]
 }
 
-const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARF"
+const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARFDisassemblyFailed"
 
-var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93}
+var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93, 110}
 
 func (i IssueKind) String() string {
 	i -= 1

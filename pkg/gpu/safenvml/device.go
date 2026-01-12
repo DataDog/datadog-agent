@@ -22,10 +22,14 @@ type SafeDevice interface {
 	GetArchitecture() (nvml.DeviceArchitecture, error)
 	// GetAttributes returns the attributes of the device
 	GetAttributes() (nvml.DeviceAttributes, error)
+	// GetBAR1MemoryInfo returns BAR1 memory information of the device
+	GetBAR1MemoryInfo() (nvml.BAR1Memory, error)
 	// GetClockInfo returns the current clock speed for the given clock type
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
 	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
+	// GetRunningProcessDetailList returns the list of running processes on the device
+	GetRunningProcessDetailList() (nvml.ProcessDetailList, error)
 	// GetCudaComputeCapability returns the CUDA compute capability of the device
 	GetCudaComputeCapability() (int, int, error)
 	// GetCurrentClocksThrottleReasons returns the current clock throttle reasons bitmask
@@ -51,6 +55,8 @@ type SafeDevice interface {
 	GetMemoryBusWidth() (uint32, error)
 	// GetMemoryInfo returns memory information of the device
 	GetMemoryInfo() (nvml.Memory, error)
+	// GetMemoryInfoV2 returns extended memory information of the device (includes reserved memory)
+	GetMemoryInfoV2() (nvml.Memory_v2, error)
 	// GetMigDeviceHandleByIndex returns the MIG device handle at the given index
 	GetMigDeviceHandleByIndex(index int) (SafeDevice, error)
 	// GetMigMode returns the MIG mode of the device
@@ -69,6 +75,8 @@ type SafeDevice interface {
 	GetPowerManagementLimit() (uint32, error)
 	// GetPowerUsage returns the power usage in milliwatts
 	GetPowerUsage() (uint32, error)
+	// GetProcessUtilization returns process utilization samples since the given timestamp
+	GetProcessUtilization(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, error)
 	// GetRemappedRows returns the remapped rows information
 	GetRemappedRows() (int, int, bool, bool, error)
 	// GetSamples returns samples for the specified counter type
@@ -81,20 +89,40 @@ type SafeDevice interface {
 	GetUUID() (string, error)
 	// GetUtilizationRates returns the utilization rates for the device
 	GetUtilizationRates() (nvml.Utilization, error)
-	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
-	IsMigDeviceHandle() (bool, error)
 	// GpmQueryDeviceSupport returns true if the device supports GPM
 	GpmQueryDeviceSupport() (nvml.GpmSupport, error)
 	// GpmSampleGet gets a sample for GPM
 	GpmSampleGet(sample nvml.GpmSample) error
+	// GpmMigSampleGet gets a sample for GPM for a MIG device
+	GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error
+	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
+	IsMigDeviceHandle() (bool, error)
+	// GetVirtualizationMode returns the virtualization mode of the device
+	GetVirtualizationMode() (nvml.GpuVirtualizationMode, error)
+	// GetSupportedEventTypes returns a bitmask of all supported device events
+	GetSupportedEventTypes() (uint64, error)
+	// RegisterEvents registers the device for events to be waited in the given set
+	RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error
+	// GetMemoryErrorCounter retrieves the requested memory error counter for the device.
+	GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error)
+}
+
+// DeviceEventData holds basic information about a device event
+type DeviceEventData struct {
+	DeviceUUID        string
+	EventType         uint64
+	EventData         uint64
+	GPUInstanceID     uint32
+	ComputeInstanceID uint32
 }
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
+	SMVersion    uint32
+	UUID         string
+	Name         string
+	CoreCount    int
+	Architecture nvml.DeviceArchitecture
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -133,6 +161,9 @@ type MIGDevice struct {
 
 	// Parent is the physical device that this MIG device belongs to
 	Parent *PhysicalDevice
+
+	// MIGInstanceID is the instance ID of the MIG device
+	MIGInstanceID int
 }
 
 var _ Device = &MIGDevice{}
@@ -159,11 +190,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
 	}
 
-	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
-	if err != nil {
-		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
+	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling physical device data: %w", err)
 	}
-	device.SMVersion = uint32(major*10 + minor)
 
 	migEnabled, _, err := safeDev.GetMigMode()
 	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
@@ -226,6 +255,13 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		// for MIG devices.
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
+		migChildDevice.Architecture = d.Architecture
+
+		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
+		if err != nil {
+			return fmt.Errorf("error getting MIG device GPU instance ID: %w", err)
+		}
+		migChildDevice.MIGInstanceID = gpuInstanceID
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
@@ -281,6 +317,23 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// fillPhysicalDeviceData fills the device info for a physical device using NVML APIs
+func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
+	arch, err := dev.GetArchitecture()
+	if err != nil {
+		return fmt.Errorf("error getting physical device architecture: %w", err)
+	}
+	d.Architecture = arch
+
+	major, minor, err := dev.GetCudaComputeCapability()
+	if err != nil {
+		return fmt.Errorf("error getting CUDA compute capability: %w", err)
+	}
+	d.SMVersion = uint32(major*10 + minor)
 
 	return nil
 }

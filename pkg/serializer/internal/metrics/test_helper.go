@@ -10,10 +10,11 @@ package metrics
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
@@ -75,4 +76,12 @@ func CreateSerieSource(series metrics.Series) metrics.SerieSource {
 		series: series,
 		index:  -1,
 	}
+}
+
+// GetPayloads returns all payloads from a pipeline set, without regard for their intended destination.
+func (ps PipelineSet) GetPayloads() (payloads transaction.BytesPayloads) {
+	for _, ctx := range ps {
+		payloads = append(payloads, ctx.payloads...)
+	}
+	return
 }

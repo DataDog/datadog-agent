@@ -16,15 +16,18 @@ LABEL baseimage.os "ubuntu ${BASE_IMAGE_UBUNTU_NAME}"
 LABEL baseimage.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.base.name "ubuntu:${BASE_IMAGE_UBUNTU_VERSION}"
 LABEL org.opencontainers.image.title "Datadog Cluster Agent"
+LABEL org.opencontainers.image.authors="Datadog <package@datadoghq.com>"
+LABEL org.opencontainers.image.source="https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.vendor="Datadog, Inc."
 
-ARG CIBUILD
+ARG CI
 # NOTE about APT mirrorlists:
 # It seems that this feature could use some improvement. If you just get mirrorlist
 # from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
-RUN if [ "$CIBUILD" = "true" ]; then \
+RUN if [ "$CI" = "true" ]; then \
     echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
     echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
     sed -i -e 's#http://archive.ubuntu.com\S*#mirror+file:/etc/apt/mirrorlist.main#g' \
@@ -84,11 +87,11 @@ RUN addgroup --system secret-manager \
 RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
     && addgroup --system secret-manager \
     && usermod -a -G secret-manager dd-agent \
-    && mkdir -p /var/log/datadog/ /conf.d \
+    && mkdir -p /var/log/datadog/ /conf.d /opt/datadog-agent/run \
     && touch /var/log/datadog/.placeholder \
     && touch /tmp/.placeholder \
-    && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ \
-    && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ \
+    && chown -R dd-agent:root /etc/datadog-agent/ /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
+    && chmod g+r,g+w,g+X -R /var/log/datadog/ /conf.d /tmp/ /opt/datadog-agent/run \
     && chmod g+r,g-w,g+X,o-w -R /etc/datadog-agent/
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported

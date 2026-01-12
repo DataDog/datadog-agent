@@ -9,10 +9,10 @@ package inventoryagentimpl
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	sysprobeConfigFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
+	"github.com/DataDog/datadog-agent/pkg/config/fetcher/tracers"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -82,13 +83,6 @@ type Payload struct {
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
 	return json.Marshal((*PayloadAlias)(p))
-}
-
-// SplitPayload implements marshaler.AbstractMarshaler#SplitPayload.
-//
-// In this case, the payload can't be split any further.
-func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
 }
 
 type inventoryagent struct {
@@ -141,7 +135,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	if ia.Enabled {
 		ia.initData()
 		// We want to be notified when the configuration is updated
-		deps.Config.OnUpdate(func(_ string, _, _ any, _ uint64) { ia.Refresh() })
+		deps.Config.OnUpdate(func(_ string, _ model.Source, _, _ any, _ uint64) { ia.Refresh() })
 	}
 
 	return provides{
@@ -187,6 +181,14 @@ func (ia *inventoryagent) initData() {
 	ia.data["agent_version"] = version.AgentVersion
 	ia.data["agent_startup_time_ms"] = pkgconfigsetup.StartTime.UnixMilli()
 	ia.data["flavor"] = flavor.GetFlavor()
+
+	infraMode := scrub(ia.conf.GetString("infrastructure_mode"))
+	// agent-configuration: This validation should be done by the Config once we have such mechanism
+	if !slices.Contains([]string{"full", "end_user_device", "basic"}, infraMode) {
+		ia.log.Warnf("invalid value for 'infrastructure_mode': '%s' (defaulting to 'full')", infraMode)
+		infraMode = "full"
+	}
+	ia.data["infrastructure_mode"] = infraMode
 }
 
 type configGetter interface {
@@ -242,12 +244,16 @@ func (ia *inventoryagent) fetchCoreAgentMetadata() {
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
+	ia.data["feature_remote_updates_enabled"] = ia.conf.GetBool("remote_updates")
 	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
 	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
 	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["fleet_policies_applied"] = ia.conf.GetStringSlice("fleet_layers")
+
+	// Synthetics
+	ia.data["feature_synthetics_collector_enabled"] = ia.conf.GetBool("synthetics.collector.enabled")
 
 	// ECS Fargate
 	ia.fetchECSFargateAgentMetadata()
@@ -312,14 +318,15 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Service monitoring / system-probe
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http_monitoring")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
 	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
-	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
-	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
-	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_redis_monitoring")
-	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
+	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.postgres.enabled")
+	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.redis.enabled")
+	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http2.enabled")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
 	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
@@ -353,6 +360,28 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["system_probe_root_namespace_enabled"] = sysProbeConf.GetBool("network_config.enable_root_netns")
 
 	ia.data["feature_dynamic_instrumentation_enabled"] = sysProbeConf.GetBool("dynamic_instrumentation.enabled")
+}
+
+func (ia *inventoryagent) fetchApplicationMonitoringMetadata() {
+	scrubber := scrubber.NewWithDefaults()
+	applicationMonitoringConfig, err := tracers.ApplicationMonitoringConfig(ia.conf)
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration: %s", err)
+	}
+	applicationMonitoringConfigFleet, err := tracers.ApplicationMonitoringConfigFleet(ia.conf)
+	if err != nil {
+		ia.log.Errorf("could not fetch application monitoring configuration fleet: %s", err)
+	}
+	scrubbedApplicationMonitoringConfig, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfig))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration: %s", err)
+	}
+	scrubbedApplicationMonitoringConfigFleet, err := scrubber.ScrubYaml([]byte(applicationMonitoringConfigFleet))
+	if err != nil {
+		ia.log.Errorf("could not scrub application monitoring configuration fleet: %s", err)
+	}
+	ia.data["application_monitoring_config"] = scrubbedApplicationMonitoringConfig
+	ia.data["application_monitoring_config_fleet"] = scrubbedApplicationMonitoringConfigFleet
 }
 
 // fetchECSFargateAgentMetadata fetches ECS Fargate agent metadata from the ECS metadata V2 service.
@@ -398,6 +427,8 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchSystemProbeMetadata()
 	// Fleet
 	ia.fetchFleetMetadata()
+	// Application Monitoring (tracers)
+	ia.fetchApplicationMonitoringMetadata()
 }
 
 func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
@@ -482,10 +513,6 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	maps.Copy(data, ia.data)
 
 	ia.getConfigs(data)
-
-	if !ia.conf.GetBool("inventories_diagnostics_enabled") {
-		delete(data, "diagnostics")
-	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

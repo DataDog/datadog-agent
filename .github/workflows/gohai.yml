@@ -21,11 +21,12 @@ jobs:
     strategy:
       matrix:
         # Use oldest and latest available ubuntu, macos and windows
+        # https://github.com/actions/runner-images#available-images
         os:
           [
             ubuntu-22.04,
             ubuntu-latest,
-            macos-13,
+            macos-14,
             macos-latest,
             windows-2022,
             windows-latest,

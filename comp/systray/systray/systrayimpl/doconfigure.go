@@ -7,10 +7,17 @@
 package systrayimpl
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
+	"time"
 
+	"golang.org/x/sys/windows/svc"
+
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
 func onConfigure(s *systrayImpl) {
@@ -23,10 +30,20 @@ func onConfigure(s *systrayImpl) {
 }
 
 func doConfigure(s *systrayImpl) error {
+	// Start the agent service if it's not running
+	onStart(s)
+
+	// If the agent service was not already running, wait for it to be running
+	ctx, cancel := context.WithTimeout(context.Background(), winutil.DefaultServiceCommandTimeout*time.Second)
+	defer cancel()
+
+	if err := winutil.WaitForState(ctx, common.ServiceName, svc.Running); err != nil {
+		return fmt.Errorf("agent service failed to start within timeout: %v", err)
+	}
 
 	guiPort := s.config.GetString("GUI_port")
 	if guiPort == "-1" {
-		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
+		return errors.New("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
 	// 'http://localhost' is preferred over 'http://127.0.0.1' due to Internet Explorer behavior.

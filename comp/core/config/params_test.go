@@ -50,7 +50,6 @@ func TestNewSecurityAgentParams(t *testing.T) {
 
 		require.Equal(t, true, configComponentParams.configLoadSecurityAgent, "configLoadSecurityAgent values not matching")
 		require.Equal(t, defaultpaths.ConfPath, configComponentParams.defaultConfPath, "defaultConfPath values not matching")
-		require.Equal(t, false, configComponentParams.configMissingOK, "configMissingOK values not matching")
 	}
 }
 

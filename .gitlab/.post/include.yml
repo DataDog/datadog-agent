@@ -1,0 +1,6 @@
+---
+# Define last jobs, which should run at the end of the pipeline.
+
+include:
+  - .gitlab/.post/cleanup.yml
+  - .gitlab/.post/notify.yml

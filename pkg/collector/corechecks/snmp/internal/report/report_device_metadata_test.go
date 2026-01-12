@@ -32,7 +32,7 @@ import (
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.TraceLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
@@ -772,6 +772,41 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 				},
 			},
 
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.51": { // Status
+				"1": valuestore.ResultValue{
+					Value: "1",
+				},
+				"2": valuestore.ResultValue{
+					Value: "2",
+				},
+				"3": valuestore.ResultValue{
+					Value: "3",
+				},
+			},
+
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.8": { // Life Size
+				"1": valuestore.ResultValue{
+					Value: "4608000",
+				},
+				"2": valuestore.ResultValue{
+					Value: "123456",
+				},
+				"3": valuestore.ResultValue{
+					Value: "654321",
+				},
+			},
+			"1.3.6.1.4.1.9.9.171.1.3.2.1.9": { // Life Time
+				"1": valuestore.ResultValue{
+					Value: "3600",
+				},
+				"2": valuestore.ResultValue{
+					Value: "7200",
+				},
+				"3": valuestore.ResultValue{
+					Value: "1800",
+				},
+			},
+
 			// Route Table (Current)
 			"1.3.6.1.2.1.4.24.7.1.7": { // Interface Index
 				"1.4.100.0.0.0.16.2.0.0.0.0": valuestore.ResultValue{
@@ -876,6 +911,24 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 							Name: "cipSecTunRemoteAddr",
 						},
 					},
+					"status": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.51",
+							Name: "cipSecTunStatus",
+						},
+					},
+					"life_size": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.8",
+							Name: "cipSecTunLifeSize",
+						},
+					},
+					"life_time": {
+						Symbol: profiledefinition.SymbolConfig{
+							OID:  "1.3.6.1.4.1.9.9.171.1.3.2.1.9",
+							Name: "cipSecTunLifeTime",
+						},
+					},
 				},
 			},
 			"ipforward_deprecated": {
@@ -960,32 +1013,53 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "interface_id": "1234:2",
             "local_outside_ip": "10.0.0.1",
             "remote_outside_ip": "20.0.0.1",
+            "status": "active",
             "protocol": "ipsec",
             "route_addresses": [
                 "100.0.0.0/16",
                 "100.1.0.0/16"
-            ]
+            ],
+            "options": {
+                "ipsec_options": {
+                    "life_size": 4608000,
+                    "life_time": 3600
+                }
+            }
         },
         {
             "device_id": "1234",
             "local_outside_ip": "30.0.0.1",
             "remote_outside_ip": "40.0.0.1",
+            "status": "destroy",
             "protocol": "ipsec",
             "route_addresses": [
                 "110.0.0.0/24",
                 "110.1.0.0/24"
-            ]
+            ],
+            "options": {
+                "ipsec_options": {
+                    "life_size": 123456,
+                    "life_time": 7200
+                }
+            }
         },
         {
             "device_id": "1234",
             "interface_id": "1234:6",
             "local_outside_ip": "50.0.0.1",
             "remote_outside_ip": "60.0.0.1",
+            "status": "unknown",
             "protocol": "ipsec",
             "route_addresses": [
                 "120.0.0.0/16",
                 "120.0.0.0/24"
-            ]
+            ],
+            "options": {
+                "ipsec_options": {
+                    "life_size": 654321,
+                    "life_time": 1800
+                }
+            }
         }
     ],
     "collect_timestamp":1415792726
@@ -1057,7 +1131,48 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	}
 }
 
-func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+func Test_buildLLDPRemoteKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		localPortNum string
+		lldpRemIndex string
+		expectedKey  string
+	}{
+		{
+			name:         "basic case",
+			localPortNum: "102",
+			lldpRemIndex: "2",
+			expectedKey:  "102.2",
+		},
+		{
+			name:         "different values",
+			localPortNum: "99",
+			lldpRemIndex: "5",
+			expectedKey:  "99.5",
+		},
+		{
+			name:         "single digit values",
+			localPortNum: "1",
+			lldpRemIndex: "1",
+			expectedKey:  "1.1",
+		},
+		{
+			name:         "large values",
+			localPortNum: "10000",
+			lldpRemIndex: "99999",
+			expectedKey:  "10000.99999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildLLDPRemoteKey(tt.localPortNum, tt.lldpRemIndex)
+			assert.Equal(t, tt.expectedKey, result)
+		})
+	}
+}
+
+func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 	indexes := []string{
 		// IPv4
 		"0.102.2.1.4.10.250.0.7",
@@ -1069,10 +1184,10 @@ func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
 		// Invalid
 		"0.102.2.1.4.10.250", // too short, ignored
 	}
-	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(indexes)
 	expectedResult := map[string]string{
-		"2":  "10.250.0.7",
-		"99": "10.250.0.8",
+		"102.2":  "10.250.0.7",
+		"102.99": "10.250.0.8",
 	}
 	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
 }

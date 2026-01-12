@@ -13,7 +13,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// team: windows-agent
+// team: windows-products
 
 // DDGUID represents a GUID
 // 16 bytes

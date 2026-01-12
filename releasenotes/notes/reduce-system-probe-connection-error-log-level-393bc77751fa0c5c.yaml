@@ -1,0 +1,8 @@
+fixes:
+  - |
+    The Agent no longer logs an error each time it fails to connect to
+    system-probe through ``\\.\pipe\dd_system_probe``. This log message
+    was added in Agent 7.63.0.
+    The error is still logged if it persists long enough,
+    see [#35790](https://github.com/DataDog/datadog-agent/pull/35790).
+    Each failed connection attempt still logs the error at debug level to aid troubleshooting.

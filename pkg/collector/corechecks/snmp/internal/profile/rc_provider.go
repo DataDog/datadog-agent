@@ -7,15 +7,18 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"maps"
-	"slices"
-	"sync"
-	"time"
 )
 
 var rcSingleton *UpdatableProvider
@@ -46,7 +49,7 @@ func buildAndSubscribeRCProvider(rcClient rcclient.Component) (*UpdatableProvide
 	// Load OOTB profiles from YAML
 	defaultProfiles := getYamlDefaultProfiles()
 	if defaultProfiles == nil {
-		return nil, fmt.Errorf("could not find OOTB profiles")
+		return nil, errors.New("could not find OOTB profiles")
 	}
 	userProfiles := make(ProfileConfigMap)
 
@@ -82,6 +85,22 @@ func unpackRawConfigs(update map[string]state.RawConfig) (ProfileConfigMap, map[
 			errors[k] = fmt.Errorf("multiple profiles for name: %q", def.Profile.Name)
 			continue
 		}
+
+		for i := range def.Profile.Metrics {
+			if def.Profile.Metrics[i].Symbol.ScaleFactorString != "" {
+				stringScaleFactor := def.Profile.Metrics[i].Symbol.ScaleFactorString
+				def.Profile.Metrics[i].Symbol.ScaleFactorString = ""
+
+				parsedScaleFactor, err := strconv.ParseFloat(stringScaleFactor, 64)
+				if err != nil {
+					_ = log.Warnf("could not parse scale factor %q as float64: %v", stringScaleFactor, err)
+					errors[k] = fmt.Errorf("could not parse scale factor %q as float64: %w", stringScaleFactor, err)
+					continue
+				}
+				def.Profile.Metrics[i].Symbol.ScaleFactor = parsedScaleFactor
+			}
+		}
+
 		profiles[def.Profile.Name] = ProfileConfig{
 			DefinitionFile: "",
 			Definition:     def.Profile,

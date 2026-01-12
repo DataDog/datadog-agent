@@ -57,7 +57,7 @@ func eBPFEventToBytes(b *testing.B, events []EbpfEvent, numOfEventsInBatch int) 
 }
 
 // setupBenchmark sets up the benchmark environment by creating a consumer, protocol, and configuration.
-func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEventsInBatch int, httpEvents []EbpfEvent, wg *sync.WaitGroup) (*events.Consumer[EbpfEvent], *protocol) {
+func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEventsInBatch int, httpEvents []EbpfEvent, wg *sync.WaitGroup) (events.Consumer[EbpfEvent], *protocol) {
 	require.NotEmpty(b, httpEvents, "httpEvents slice is empty")
 
 	program, err := events.NewEBPFProgram(c)
@@ -70,7 +70,7 @@ func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEv
 		telemetry:  httpTelemetry,
 		statkeeper: NewStatkeeper(c, httpTelemetry, NewIncompleteBuffer(c, httpTelemetry)),
 	}
-	consumer, err := events.NewConsumer("test", program.Manager, p.processHTTP)
+	consumer, err := events.NewBatchConsumer("test", program.Manager, p.processHTTP)
 	require.NoError(b, err)
 
 	// Using a wait group to ensure the goroutine finishes before the benchmark ends.
@@ -84,7 +84,7 @@ func setupBenchmark(b *testing.B, c *config.Config, i, totalEventsCount, numOfEv
 }
 
 // generateMockEvents generates mock events to be used in the benchmark.
-func generateMockEvents(b *testing.B, c *config.Config, consumer *events.Consumer[EbpfEvent], httpEvents []EbpfEvent, numOfEventsInBatch, totalEvents int) {
+func generateMockEvents(b *testing.B, c *config.Config, consumer *events.BatchConsumer[EbpfEvent], httpEvents []EbpfEvent, numOfEventsInBatch, totalEvents int) {
 	// TODO: Determine if testing the CPU flow is necessary.
 	mockBatch := events.Batch{
 		Len:        uint16(numOfEventsInBatch),

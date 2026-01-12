@@ -40,6 +40,7 @@ type testOpts struct {
 	securityProfileMaxImageTags                int
 	securityProfileDir                         string
 	securityProfileWatchDir                    bool
+	securityProfileNodeEvictionTimeout         time.Duration
 	enableAutoSuppression                      bool
 	autoSuppressionEventTypes                  []string
 	enableAnomalyDetection                     bool
@@ -57,7 +58,7 @@ type testOpts struct {
 	enableHostSBOM                             bool
 	preStartCallback                           func(test *testModule)
 	tagger                                     tags.Tagger
-	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+	ruleMatchHandler                           func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
 	networkIngressEnabled                      bool
 	networkRawPacketEnabled                    bool
@@ -76,6 +77,8 @@ type testOpts struct {
 	enableSelfTests                            bool
 	networkFlowMonitorEnabled                  bool
 	dnsPort                                    uint16
+	traceSystemdCgroups                        bool
+	capabilitiesMonitoringEnabled              bool
 }
 
 type dynamicTestOpts struct {

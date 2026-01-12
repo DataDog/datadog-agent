@@ -15,16 +15,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // teeConfig is a combination of two configs, both get written to but only baseline is read
 type teeConfig struct {
-	baseline model.Config
-	compare  model.Config
+	baseline model.BuildableConfig
+	compare  model.BuildableConfig
 }
 
 func getLocation(nbStack int) string {
@@ -34,8 +32,17 @@ func getLocation(nbStack int) string {
 }
 
 // NewTeeConfig constructs a new teeConfig
-func NewTeeConfig(baseline, compare model.Config) model.Config {
+func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig {
 	return &teeConfig{baseline: baseline, compare: compare}
+}
+
+// RevertFinishedBackToBuilder returns an interface that can build more on the
+// current config, instead of treating it as sealed
+// NOTE: Only used by OTel, no new uses please!
+func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
+	t.baseline.RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use within interface implementation
+	t.compare.RevertFinishedBackToBuilder()  //nolint:forbidigo // legitimate use within interface implementation
+	return t
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -78,8 +85,8 @@ func (t *teeConfig) UnsetForSource(key string, source model.Source) {
 
 // SetKnown adds a key to the set of known valid config keys
 func (t *teeConfig) SetKnown(key string) {
-	t.baseline.SetKnown(key)
-	t.compare.SetKnown(key)
+	t.baseline.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.SetKnown(key)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // IsKnown returns whether a key is known
@@ -149,6 +156,14 @@ func (t *teeConfig) IsConfigured(key string) bool {
 	base := t.baseline.IsConfigured(key)
 	compare := t.compare.IsConfigured(key)
 	t.compareResult(key, "IsConfigured", base, compare)
+	return base
+}
+
+// HasSection returns true if the section exists in the config
+func (t *teeConfig) HasSection(key string) bool {
+	base := t.baseline.HasSection(key)
+	compare := t.compare.HasSection(key)
+	t.compareResult(key, "HasSection", base, compare)
 	return base
 }
 
@@ -336,19 +351,14 @@ func (t *teeConfig) SetEnvPrefix(in string) {
 
 // BindEnv wraps Viper for concurrent access, and adds tracking of the configurable env vars
 func (t *teeConfig) BindEnv(key string, envvars ...string) {
-	t.baseline.BindEnv(key, envvars...)
-	t.compare.BindEnv(key, envvars...)
+	t.baseline.BindEnv(key, envvars...) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	t.compare.BindEnv(key, envvars...)  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 
 // SetEnvKeyReplacer wraps Viper for concurrent access
 func (t *teeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	t.baseline.SetEnvKeyReplacer(r)
 	t.compare.SetEnvKeyReplacer(r)
-}
-
-// UnmarshalKey wraps Viper for concurrent access
-func (t *teeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...func(*mapstructure.DecoderConfig)) error {
-	return t.baseline.UnmarshalKey(key, rawVal, opts...)
 }
 
 // ReadInConfig wraps Viper for concurrent access
@@ -487,6 +497,14 @@ func (t *teeConfig) ConfigFileUsed() string {
 	t.compareResult("", "ConfigFileUsed", base, compare)
 	return base
 
+}
+
+// GetSubfields returns the subfields from viper
+func (t *teeConfig) GetSubfields(key string) []string {
+	base := t.baseline.GetSubfields(key)
+	compare := t.compare.GetSubfields(key)
+	t.compareResult("", "GetSubfields", base, compare)
+	return base
 }
 
 // GetEnvVars implements the Config interface

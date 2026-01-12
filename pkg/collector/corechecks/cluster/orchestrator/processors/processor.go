@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	jsoniter "github.com/json-iterator/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -41,6 +42,7 @@ type ProcessorContext interface {
 	IsTerminatedResources() bool
 	GetCollectorTags() []string
 	GetAgentVersion() *model.AgentVersion
+	GetClock() clock.Clock
 }
 
 // BaseProcessorContext is the base context for all processors
@@ -55,6 +57,7 @@ type BaseProcessorContext struct {
 	CollectorTags       []string
 	TerminatedResources bool
 	AgentVersion        *model.AgentVersion
+	Clock               clock.Clock
 }
 
 // GetOrchestratorConfig returns the orchestrator config
@@ -105,6 +108,11 @@ func (c *BaseProcessorContext) IsTerminatedResources() bool {
 // GetAgentVersion returns the agent version
 func (c *BaseProcessorContext) GetAgentVersion() *model.AgentVersion {
 	return c.AgentVersion
+}
+
+// GetClock returns the clock
+func (c *BaseProcessorContext) GetClock() clock.Clock {
+	return c.Clock
 }
 
 // K8sProcessorContext holds k8s resource processing attributes
@@ -218,13 +226,18 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 	// This default allows detection of panic recoveries.
 	processed = -1
 
+	processResult = ProcessResult{
+		MetadataMessages: []model.MessageBody{},
+		ManifestMessages: []model.MessageBody{},
+	}
+
 	// Make sure to recover if a panic occurs.
 	defer RecoverOnPanic()
 
 	resourceList := p.h.ResourceList(ctx, list)
 	resourceMetadataModels := make([]interface{}, 0, len(resourceList))
 	resourceManifestModels := make([]interface{}, 0, len(resourceList))
-	now := time.Now()
+	now := ctx.GetClock().Now()
 
 	for _, resource := range resourceList {
 		if ctx.IsTerminatedResources() {
@@ -291,9 +304,8 @@ func (p *Processor) Process(ctx ProcessorContext, list interface{}) (processResu
 		})
 	}
 
-	processResult = ProcessResult{
-		MetadataMessages: ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels),
-	}
+	processResult.MetadataMessages = ChunkMetadata(ctx, p, resourceMetadataModels, resourceManifestModels)
+
 	if ctx.IsManifestProducer() {
 		processResult.ManifestMessages = ChunkManifest(ctx, p.h.BuildManifestMessageBody, resourceManifestModels)
 	}

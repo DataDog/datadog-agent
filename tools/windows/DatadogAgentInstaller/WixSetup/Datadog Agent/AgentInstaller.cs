@@ -97,6 +97,10 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes",
                 },
+                new Property("DD_INFRASTRUCTURE_MODE")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 // Custom WindowsBuild property since MSI caps theirs at 9600
                 new Property("DDAGENT_WINDOWSBUILD")
                 {
@@ -107,6 +111,10 @@ namespace WixSetup.Datadog_Agent
                     AttributesDefinition = "Secure=yes"
                 },
                 new Property("FLEET_INSTALL", "0")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_INSTALL_ONLY")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -125,7 +133,23 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                new Property("DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
                 new Property("DD_INSTALLER_REGISTRY_URL")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_REMOTE_UPDATES")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("DD_OTELCOLLECTOR_ENABLED")
+                {
+                    AttributesDefinition = "Secure=yes"
+                },
+                new Property("KEEP_INSTALLED_PACKAGES")
                 {
                     AttributesDefinition = "Secure=yes"
                 },
@@ -348,20 +372,6 @@ namespace WixSetup.Datadog_Agent
                     .FindAll("Feature")
                     .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                     .AddElement("MergeRef", "Id=ddnpminstall");
-                // Conditionally include the APM injection MSM while it is in active development to make it easier
-                // to build/ship without it.
-                if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_APMINJECT_MODULE")))
-                {
-                    document
-                        .FindAll("Directory")
-                        .First(x => x.HasAttribute("Id", value => value == "AGENT"))
-                        .AddElement("Merge",
-                            $"Id=ddapminstall; SourceFile={BinSource}\\ddapminstall.msm; DiskId=1; Language=1033");
-                    document
-                        .FindAll("Feature")
-                        .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
-                        .AddElement("MergeRef", "Id=ddapminstall");
-                }
                 document
                     .FindAll("Directory")
                     .First(x => x.HasAttribute("Id", value => value == "AGENT"))
@@ -571,7 +581,11 @@ namespace WixSetup.Datadog_Agent
                         Log = "Application",
                         EventMessageFile = $"[AGENT]{Path.GetFileName(_agentBinaries.TraceAgent)}",
                         AttributesDefinition = "SupportsErrors=yes; SupportsInformationals=yes; SupportsWarnings=yes; KeyPath=yes"
-                    }
+                    },
+                    new WixSharp.File(_agentBinaries.DatadogInterop)
+            );
+            var scriptsBinDir = new Dir(new Id("SCRIPTS"), "scripts",
+                 new Files($@"{InstallerSource}\bin\scripts\*")
             );
             var securityAgentService = GenerateDependentServiceInstaller(
                 new Id("ddagentsecurityservice"),
@@ -628,8 +642,15 @@ namespace WixSetup.Datadog_Agent
                         Account = "LocalSystem",
                         Vital = true
                     }
-                )
+                ),
+                scriptsBinDir
             );
+            // TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
+            if (_agentFlavor.FlavorName != Constants.FipsFlavor)
+            {
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.SecretGenericConnector));
+                targetBinFolder.AddFile(new WixSharp.File(_agentBinaries.DdCompilePolicy));
+            }
 
             return targetBinFolder;
         }

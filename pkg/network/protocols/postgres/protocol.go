@@ -52,7 +52,7 @@ const (
 type protocol struct {
 	cfg                   *config.Config
 	telemetry             *Telemetry
-	eventsConsumer        *events.Consumer[postgresebpf.EbpfEvent]
+	eventsConsumer        *events.BatchConsumer[postgresebpf.EbpfEvent]
 	mapCleaner            *ddebpf.MapCleaner[netebpf.ConnTuple, postgresebpf.EbpfTx]
 	statskeeper           *StatKeeper
 	kernelTelemetry       *kernelTelemetry // retrieves Postgres metrics from kernel
@@ -192,7 +192,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 
 // PreStart runs setup required before starting the protocol.
 func (p *protocol) PreStart() (err error) {
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStream,
 		p.mgr,
 		p.processPostgres,
@@ -268,6 +268,7 @@ func (p *protocol) GetStats() (*protocols.ProtocolStats, func()) {
 		}, func() {
 			for _, stat := range stats {
 				stat.Close()
+				requestStatPool.Put(stat)
 			}
 		}
 }

@@ -11,6 +11,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"unsafe"
@@ -20,9 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -38,6 +41,10 @@ import (
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -65,8 +72,8 @@ const (
 const PythonCheckLoaderName string = "python"
 
 func init() {
-	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (check.Loader, int, error) {
-		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger)
+	factory := func(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (check.Loader, int, error) {
+		loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, filter)
 		return loader, 20, err
 	}
 	loaders.RegisterLoader(factory)
@@ -96,8 +103,8 @@ type PythonCheckLoader struct {
 }
 
 // NewPythonCheckLoader creates an instance of the Python checks loader
-func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component) (*PythonCheckLoader, error) {
-	initializeCheckContext(senderManager, logReceiver, tagger)
+func NewPythonCheckLoader(senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filter workloadfilter.Component) (*PythonCheckLoader, error) {
+	collectoraggregator.InitializeCheckContext(senderManager, logReceiver, tagger, filter)
 	return &PythonCheckLoader{
 		logReceiver: logReceiver,
 	}, nil
@@ -118,7 +125,7 @@ func (*PythonCheckLoader) Name() string {
 
 // Load tries to import a Python module with the same name found in config.Name, searches for
 // subclasses of the AgentCheck class and returns the corresponding Check
-func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data) (check.Check, error) {
+func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, instanceIndex int) (check.Check, error) {
 	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
 		pythonOnce.Do(func() {
 			InitPython(common.GetPythonPaths()...)
@@ -126,7 +133,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if rtloader == nil {
-		return nil, fmt.Errorf("python is not initialized")
+		return nil, errors.New("python is not initialized")
 	}
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
@@ -158,28 +165,31 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	var name string
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
-	for _, name = range modules {
+	var loadErrors []string // store errors for each module
+	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
-		defer C._free(unsafe.Pointer(moduleName))
+		defer C.call_free(unsafe.Pointer(moduleName))
 		if res := C.get_class(rtloader, moduleName, &checkModule, &checkClass); res != 0 {
-			if strings.HasPrefix(name, fmt.Sprintf("%s.", wheelNamespace)) {
+			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
 			}
 			break
 		}
 
-		if err = getRtLoaderError(); err != nil {
+		if err := getRtLoaderError(); err != nil {
 			log.Debugf("Unable to load python module - %s: %v", name, err)
+			loadErrors = append(loadErrors, fmt.Sprintf("unable to load python module %s: %v", name, err))
 		} else {
 			log.Debugf("Unable to load python module - %s", name)
+			loadErrors = append(loadErrors, "unable to load python module "+name)
 		}
 	}
 
-	// all failed, return error for last failure
 	if checkModule == nil || checkClass == nil {
-		log.Debugf("PyLoader returning %s for %s", err, moduleName)
-		return nil, err
+		errMsg := strings.Join(loadErrors, ", ")
+		log.Debugf("Unable to load check %s: %s", moduleName, errMsg)
+		return nil, fmt.Errorf("unable to load check %s: %s", moduleName, errMsg)
 	}
 
 	wheelVersion := "unversioned"
@@ -188,7 +198,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 	// TrackedCStrings untracked by memory tracker currently
 	versionAttr := TrackedCString("__version__")
-	defer C._free(unsafe.Pointer(versionAttr))
+	defer C.call_free(unsafe.Pointer(versionAttr))
 	// get_attr_string allocation tracked by memory tracker
 	if res := C.get_attr_string(rtloader, checkModule, versionAttr, &version); res != 0 {
 		wheelVersion = C.GoString(version)
@@ -205,7 +215,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var goCheckFilePath string
 
 		fileAttr := TrackedCString("__file__")
-		defer C._free(unsafe.Pointer(fileAttr))
+		defer C.call_free(unsafe.Pointer(fileAttr))
 		// get_attr_string allocation tracked by memory tracker
 		if res := C.get_attr_string(rtloader, checkModule, fileAttr, &checkFilePath); res != 0 {
 			goCheckFilePath = C.GoString(checkFilePath)
@@ -222,7 +232,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		var haSupported C.bool
 
 		haSupportedAttr := TrackedCString("HA_SUPPORTED")
-		defer C._free(unsafe.Pointer(haSupportedAttr))
+		defer C.call_free(unsafe.Pointer(haSupportedAttr))
 		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
@@ -235,8 +245,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		return c, err
 	}
 
+	configSource := config.Source
+	if instanceIndex >= 0 {
+		configSource = configSource + "[" + strconv.Itoa(instanceIndex) + "]"
+	}
 	// The GIL should be unlocked at this point, `check.Configure` uses its own stickyLock and stickyLocks must not be nested
-	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, config.Source); err != nil {
+	if err := c.Configure(senderManager, configDigest, instance, config.InitConfig, configSource); err != nil {
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
@@ -249,6 +263,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	if v, ok := cl.logReceiver.Get(); ok {
+		log.Debugf("Registering integration in loader: %s", c.ID())
 		v.RegisterIntegration(string(c.id), config)
 	}
 
@@ -307,45 +322,14 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 	status := a7TagUnknown
 	metricValue := 0.0
 	if checkFilePath != "" {
-		// __file__ return the .pyc file path
-		if strings.HasSuffix(checkFilePath, ".pyc") {
-			checkFilePath = checkFilePath[:len(checkFilePath)-1]
-		}
-
-		if strings.TrimSpace(pkgconfigsetup.Datadog().GetString("python_version")) == "3" {
-			// the linter used by validatePython3 doesn't work when run from python3
-			status = a7TagPython3
-			metricValue = 1.0
-		} else {
-			// validatePython3 is CPU and memory hungry, make sure we only run one instance of it
-			// at once to avoid CPU and mem usage spikes
-			linterLock.Lock()
-			warnings, err := validatePython3(checkFilePath)
-			linterLock.Unlock()
-
-			if err != nil {
-				status = a7TagUnknown
-				log.Warnf("Failed to validate Python 3 linting for check '%s': '%s'", checkName, err)
-			} else if len(warnings) == 0 {
-				status = a7TagReady
-				metricValue = 1.0
-			} else {
-				status = a7TagNotReady
-				log.Warnf("The Python 3 linter returned warnings for check '%s'. For more details, check the output of the 'status' command or the status page of the Agent GUI).", checkName)
-				statsLock.Lock()
-				defer statsLock.Unlock()
-				for _, warning := range warnings {
-					log.Debug(warning)
-					py3Warnings[checkName] = append(py3Warnings[checkName], warning)
-				}
-			}
-		}
+		status = a7TagPython3
+		metricValue = 1.0
 	}
 
 	// add a serie to the aggregator to be sent on every flush
 	tags := []string{
-		fmt.Sprintf("status:%s", status),
-		fmt.Sprintf("check_name:%s", checkName),
+		"status:" + status,
+		"check_name:" + checkName,
 	}
 	tags = append(tags, agentVersionTags...)
 	aggregator.AddRecurrentSeries(&metrics.Serie{

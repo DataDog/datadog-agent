@@ -21,12 +21,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/microVMs/microvms"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/microVMs/microvms"
 	"golang.org/x/term"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -42,14 +42,20 @@ const (
 	sandboxSecondaryAz = "subnet-8ee8b1c6"
 	sandboxBackupAz    = "subnet-3f5db45b"
 
-	datadogAgentQAEnv = "aws/agent-qa"
-	sandboxEnv        = "aws/sandbox"
-	ec2TagsEnvVar     = "RESOURCE_TAGS"
+	agentSandboxPrimaryAz   = "subnet-0a15f3482cd3f9820"
+	agentSandboxSecondaryAz = "subnet-091570395d476e9ce"
+	agentSandboxBackupAz    = "subnet-003831c49a10df3dd"
+
+	datadogAgentQAEnv      = "aws/agent-qa"
+	sandboxEnv             = "aws/sandbox"
+	datadogAgentSandboxEnv = "aws/agent-sandbox"
+	ec2TagsEnvVar          = "RESOURCE_TAGS"
 )
 
 var availabilityZones = map[string][]string{
-	datadogAgentQAEnv: {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
-	sandboxEnv:        {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
+	datadogAgentQAEnv:      {agentQAPrimaryAZ, agentQASecondaryAZ, agentQABackupAZ},
+	sandboxEnv:             {sandboxPrimaryAz, sandboxSecondaryAz, sandboxBackupAz},
+	datadogAgentSandboxEnv: {agentSandboxPrimaryAz, agentSandboxSecondaryAz, agentSandboxBackupAz},
 }
 
 // EnvOpts are the options for the system-probe scenario
@@ -69,6 +75,7 @@ type EnvOpts struct {
 	RunAgent              bool
 	APIKey                string
 	AgentVersion          string
+	SetupGDB              bool
 }
 
 // TestEnv represents options for a particular test environment
@@ -105,7 +112,7 @@ func outputsToFile(output auto.OutputMap) error {
 		}
 		switch v := value.Value.(type) {
 		case string:
-			if _, err := f.WriteString(fmt.Sprintf("%s\n", v)); err != nil {
+			if _, err := f.WriteString(v + "\n"); err != nil {
 				return fmt.Errorf("failed to write string to file %q: %v", stackOutputs, err)
 			}
 		default:
@@ -174,7 +181,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 
 	apiKey := getEnv("DD_API_KEY", "")
 	if opts.RunAgent && apiKey == "" {
-		return nil, fmt.Errorf("No API Key for datadog-agent provided")
+		return nil, errors.New("No API Key for datadog-agent provided")
 	}
 
 	ciJob := getEnv("CI_JOB_ID", "")
@@ -220,6 +227,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:localWorkingDir":                auto.ConfigValue{Value: customAMILocalWorkingDir},
 		"microvm:remoteWorkingDir":               auto.ConfigValue{Value: customAMIRemoteWorkingDir},
+		"microvm:setupGDB":                       auto.ConfigValue{Value: strconv.FormatBool(opts.SetupGDB)},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
@@ -308,22 +316,22 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 						"source:pulumi",
 						"repository:datadog/datadog-agent",
 						"team:ebpf-platform",
-						fmt.Sprintf("vm.name:%s", pulumiError.vmName),
-						fmt.Sprintf("vm.arch:%s", pulumiError.arch),
-						fmt.Sprintf("vm.command:%s", pulumiError.vmCommand),
+						"vm.name:" + pulumiError.vmName,
+						"vm.arch:" + pulumiError.arch,
+						"vm.command:" + pulumiError.vmCommand,
 					},
 				}
 
 				if ciJob != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.job.id:%s", ciJob))
+					event.Tags = append(event.Tags, "ci.job.id:"+ciJob)
 				}
 
 				if ciPipeline != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.pipeline.id:%s", ciPipeline))
+					event.Tags = append(event.Tags, "ci.pipeline.id:"+ciPipeline)
 				}
 
 				if ciBranch != "" {
-					event.Tags = append(event.Tags, fmt.Sprintf("ci.branch:%s", ciBranch))
+					event.Tags = append(event.Tags, "ci.branch:"+ciBranch)
 				}
 
 				if err = metric.SubmitExecutionEvent(event); err != nil {

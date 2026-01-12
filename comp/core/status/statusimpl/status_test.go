@@ -7,6 +7,7 @@ package statusimpl
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -48,7 +49,7 @@ func (m mockProvider) Section() string {
 
 func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
-		return fmt.Errorf("JSON error")
+		return errors.New("JSON error")
 	}
 
 	maps.Copy(stats, m.data)
@@ -58,7 +59,7 @@ func (m mockProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("Text error")
+		return errors.New("Text error")
 	}
 
 	_, err := buffer.Write([]byte(m.text))
@@ -67,7 +68,7 @@ func (m mockProvider) Text(_ bool, buffer io.Writer) error {
 
 func (m mockProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("HTML error")
+		return errors.New("HTML error")
 	}
 
 	_, err := buffer.Write([]byte(m.html))
@@ -93,7 +94,7 @@ func (m mockHeaderProvider) Name() string {
 
 func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 	if m.returnError {
-		return fmt.Errorf("JSON error")
+		return errors.New("JSON error")
 	}
 
 	maps.Copy(stats, m.data)
@@ -103,7 +104,7 @@ func (m mockHeaderProvider) JSON(_ bool, stats map[string]interface{}) error {
 
 func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("Text error")
+		return errors.New("Text error")
 	}
 
 	_, err := buffer.Write([]byte(m.text))
@@ -112,7 +113,7 @@ func (m mockHeaderProvider) Text(_ bool, buffer io.Writer) error {
 
 func (m mockHeaderProvider) HTML(_ bool, buffer io.Writer) error {
 	if m.returnError {
-		return fmt.Errorf("HTML error")
+		return errors.New("HTML error")
 	}
 
 	_, err := buffer.Write([]byte(m.html))
@@ -150,7 +151,7 @@ func TestGetStatus(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -486,7 +487,7 @@ func TestGetStatusDoNotRenderHeaderIfNoProviders(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -552,7 +553,7 @@ func TestGetStatusWithErrors(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -647,7 +648,7 @@ Status render errors
 
 func TestGetStatusBySection(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -823,7 +824,7 @@ func TestGetStatusBySectionsWithErrors(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -967,7 +968,7 @@ func TestGetStatusByMultipleSections(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,
@@ -1095,7 +1096,7 @@ func TestFlareProvider(t *testing.T) {
 	}()
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(agentParams),
 	))
@@ -1108,7 +1109,7 @@ func TestFlareProvider(t *testing.T) {
 
 func TestGetStatusBySectionIncorrect(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		config.MockModule(),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Supply(
 			agentParams,

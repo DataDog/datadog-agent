@@ -24,9 +24,9 @@ type ContainerLifecyclePayload struct {
 
 func (p *ContainerLifecyclePayload) name() string {
 	if container := p.Event.GetContainer(); container != nil {
-		return fmt.Sprintf("container_id://%s", container.GetContainerID())
+		return "container_id://" + container.GetContainerID()
 	} else if pod := p.Event.GetPod(); pod != nil {
-		return fmt.Sprintf("kubernetes_pod_uid://%s", pod.GetPodUID())
+		return "kubernetes_pod_uid://" + pod.GetPodUID()
 	}
 	return ""
 }

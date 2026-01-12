@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: fleet windows-agent
+// team: fleet windows-products
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {

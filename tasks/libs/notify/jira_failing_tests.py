@@ -20,7 +20,7 @@ except ImportError:
 def get_jira():
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password)
+    jira = Jira(url="https://datadoghq.atlassian.net", username=username, password=password, cloud=True)
 
     return jira
 
@@ -69,8 +69,7 @@ def get_failing_tests_names() -> set[str]:
         ),
     )
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = CIVisibilityTestsApi(api_client)
         response = api_instance.aggregate_ci_app_test_events(body=body)
         result = response['data']['buckets']

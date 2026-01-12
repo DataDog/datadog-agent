@@ -59,7 +59,7 @@ int __attribute__((always_inline)) handle_get_ringbuf_usage(void *data) {
 #endif
 
 int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
-    u32 cmd = CTX_PARM3(ctx);
+    u32 cmd = CTX_PARM2(ctx);
     if (cmd != RPC_CMD) {
         return 0;
     }
@@ -67,8 +67,14 @@ int __attribute__((always_inline)) is_erpc_request(ctx_t *ctx) {
     return 1;
 }
 
+int __attribute__((always_inline)) handle_nop_event(ctx_t *ctx) {
+    struct nop_event_t nop_event = {};
+    send_event(ctx, EVENT_NOP, nop_event);
+    return 0;
+}
+
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
-    void *req = (void *)CTX_PARM4(ctx);
+    void *req = (void *)CTX_PARM3(ctx);
 
     u8 op = 0;
     int ret = bpf_probe_read(&op, sizeof(op), req);
@@ -102,6 +108,8 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_expire_inode_discarder(data);
     case BUMP_DISCARDERS_REVISION:
         return handle_bump_discarders_revision(data);
+    case NOP_EVENT_OP:
+        return handle_nop_event(ctx);
 #if USE_RING_BUFFER == 1
     case GET_RINGBUF_USAGE:
         return handle_get_ringbuf_usage(data);

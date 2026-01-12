@@ -53,5 +53,5 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
 
-	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID), nil
+	return c.buildReport(trivyReport, trivyReport.Metadata.ImageID)
 }

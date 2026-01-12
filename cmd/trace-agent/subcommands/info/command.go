@@ -7,7 +7,7 @@
 package info
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -18,13 +18,11 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // MakeCommand returns the start subcommand for the 'trace-agent' command.
@@ -46,10 +44,8 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		config.Module(),
 		fx.Supply(coreconfig.NewAgentParams(params.ConfPath, coreconfig.WithFleetPoliciesDirPath(params.FleetPoliciesDirPath))),
 		fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
-		fx.Supply(option.None[secrets.Component]()),
-		fx.Supply(secrets.NewEnabledParams()),
+		secretsnoopfx.Module(),
 		coreconfig.Module(),
-		secretsimpl.Module(),
 		nooptagger.Module(),
 		ipcfx.ModuleReadOnly(),
 		logfx.Module(),
@@ -59,7 +55,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 func agentInfo(config config.Component) error {
 	tracecfg := config.Object()
 	if tracecfg == nil {
-		return fmt.Errorf("Unable to successfully parse config")
+		return errors.New("Unable to successfully parse config")
 	}
 	if err := info.InitInfo(tracecfg); err != nil {
 		return err

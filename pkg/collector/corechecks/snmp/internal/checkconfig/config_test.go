@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -25,9 +26,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
+}
+
 func TestConfigurations(t *testing.T) {
+	setupHostname(t)
+
 	profile.SetConfdPathAndCleanProfiles()
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 
@@ -158,7 +168,7 @@ bulk_max_repetitions: 20
 	assert.Equal(t, "aes", config.PrivProtocol)
 	assert.Equal(t, "my-privKey", config.PrivKey)
 	assert.Equal(t, "my-contextName", config.ContextName)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.Equal(t, "default:1.2.3.4", config.DeviceID)
 	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4"}, config.DeviceIDTags)
@@ -268,6 +278,7 @@ bulk_max_repetitions: 20
 }
 
 func TestDiscoveryConfigurations(t *testing.T) {
+	setupHostname(t)
 	// language=yaml
 	rawInstanceConfig := []byte(`
 network_address: 127.0.0.0/24
@@ -297,6 +308,7 @@ workers: 30
 }
 
 func TestProfileNormalizeMetrics(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	// language=yaml
@@ -319,7 +331,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:172.26.0.2", "device_ip:172.26.0.2", "device_id:default:172.26.0.2", "agent_host:my-hostname"}, config.GetStaticTags())
 
 	profile, err := config.BuildProfile("")
 	require.NoError(t, err)
@@ -337,6 +349,7 @@ profiles:
 }
 
 func TestInlineProfileConfiguration(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 	aggregator.NewBufferedAggregator(nil, nil, nil, nooptagger.NewComponent(), "", 1*time.Hour)
 
@@ -371,7 +384,7 @@ profiles:
 	config, err := NewCheckConfig(rawInstanceConfig, rawInitConfig, nil)
 	require.NoError(t, err)
 
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 	assert.Equal(t, "123", config.CommunityString)
 	assert.True(t, config.ProfileProvider.HasProfile("f5-big-ip"))
 	assert.True(t, config.ProfileProvider.HasProfile("inline-profile"))
@@ -397,6 +410,7 @@ profiles:
 }
 
 func TestDefaultConfigurations(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	// language=yaml
@@ -700,6 +714,7 @@ network_address: 10.0.0.0/xx
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			setupHostname(t)
 			_, err := NewCheckConfig(tt.rawInstanceConfig, tt.rawInitConfig, nil)
 			for _, errStr := range tt.expectedErrors {
 				require.NotNil(t, err, "expected error %q", errStr)
@@ -776,6 +791,7 @@ retries: "5"
 }
 
 func TestExtraTags(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -784,7 +800,7 @@ community_string: abc
 `)
 	config, err := NewCheckConfig(rawInstanceConfig, []byte(``), nil)
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}, config.GetStaticTags())
+	assert.Equal(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname"}, config.GetStaticTags())
 
 	// language=yaml
 	rawInstanceConfigWithExtraTags := []byte(`
@@ -794,7 +810,7 @@ extra_tags: "extratag1:val1,extratag2:val2"
 `)
 	config, err = NewCheckConfig(rawInstanceConfigWithExtraTags, []byte(``), nil)
 	assert.Nil(t, err)
-	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
+	assert.ElementsMatch(t, []string{"device_namespace:default", "snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "agent_host:my-hostname", "extratag1:val1", "extratag2:val2"}, config.GetStaticTags())
 }
 
 func Test_snmpConfig_getDeviceIDTags(t *testing.T) {
@@ -1295,6 +1311,9 @@ interface_configs:
     tags:
       - "muted"
       - "test1:value1"
+  - match_field: "index"
+    match_value: "2"
+    disabled: true
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1309,6 +1328,11 @@ interface_configs:
 						"test1:value1",
 					},
 				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
+				},
 			},
 		},
 		{
@@ -1316,7 +1340,7 @@ interface_configs:
 			// language=yaml
 			rawInstanceConfig: []byte(`
 ip_address: 1.2.3.4
-interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]}]'
+interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"out_speed":10, "tags":["test2:value2", "aTag"]},{"match_field":"index","match_value":"2","disabled":true}]'
 `),
 			// language=yaml
 			rawInitConfig: []byte(``),
@@ -1330,6 +1354,11 @@ interface_configs: '[{"match_field":"name","match_value":"eth0","in_speed":25,"o
 						"test2:value2",
 						"aTag",
 					},
+				},
+				{
+					MatchField: "index",
+					MatchValue: "2",
+					Disabled:   true,
 				},
 			},
 		},
@@ -1518,6 +1547,9 @@ ip_address: 1.2.3.4
 }
 
 func TestCheckConfig_DiscoveryDigest(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetWithoutSource("hostname", "my-hostname")
 	baseCaseHash := DeviceDigest("a1d0f0237ee2fe8f")
 	tests := []struct {
 		name         string
@@ -1847,6 +1879,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 		{
@@ -1865,6 +1898,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 		{
@@ -1893,6 +1927,7 @@ func TestCheckConfig_GetStaticTags(t *testing.T) {
 				"device_namespace:default",
 				"snmp_device:1.2.3.4",
 				"device_ip:1.2.3.4",
+				"agent_host:my-hostname",
 			},
 		},
 	}
@@ -2130,7 +2165,7 @@ func (m *mockRCClient) Subscribe(product data.Product, fn func(update map[string
 		return
 	}
 	if m.subscribed {
-		m.err = fmt.Errorf("double subscription to ProductNDMDeviceProfilesCustom")
+		m.err = errors.New("double subscription to ProductNDMDeviceProfilesCustom")
 		return
 	}
 	m.subscribed = true

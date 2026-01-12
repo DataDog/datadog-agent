@@ -72,12 +72,6 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		}
 	}
 
-	cgroupFlags := containerutils.CGroupFlags(0)
-	if params.GetCGroupID() != "" {
-		_, flags := containerutils.FindContainerID(containerutils.CGroupID(params.GetCGroupID()))
-		cgroupFlags = containerutils.CGroupFlags(flags)
-	}
-
 	m.m.Lock()
 	defer m.m.Unlock()
 
@@ -88,7 +82,6 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 		m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
 		m.config.RuntimeSecurity.ActivityDumpRateLimiter,
 		now,
-		cgroupFlags,
 	)
 
 	newDump := dump.NewActivityDump(m.pathsReducer, params.GetDifferentiateArgs(), 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, loadConfig, func(ad *dump.ActivityDump) {
@@ -99,7 +92,7 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 			Arch:              utils.RuntimeArch(),
 
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			Name:              "activity-dump-" + utils.RandString(10),
 			ProtobufVersion:   profile.ProtobufVersion,
 			DifferentiateArgs: params.GetDifferentiateArgs(),
 			ContainerID:       containerutils.ContainerID(params.GetContainerID()),
@@ -143,6 +136,8 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			(params.GetContainerID() != "" && ad.Profile.Metadata.ContainerID == containerutils.ContainerID(params.GetContainerID())) ||
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
 			m.finalizeKernelEventCollection(ad, true)
+			// mark the cgroup to ignore from snapshot to prevent re-creation
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
@@ -150,8 +145,7 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			if !ad.Profile.IsEmpty() && ad.Profile.GetWorkloadSelector() != nil {
 				if err := m.persist(ad.Profile, m.configuredStorageRequests); err != nil {
 					seclog.Errorf("couldn't persist dump [%s]: %v", ad.GetSelectorStr(), err)
-				} else if m.config.RuntimeSecurity.SecurityProfileEnabled && ad.Profile.Metadata.CGroupContext.CGroupFlags.IsContainer() {
-					// TODO: remove the IsContainer check once we start handling profiles for non-containerized workloads
+				} else if m.config.RuntimeSecurity.SecurityProfileEnabled {
 					select {
 					case m.newProfiles <- ad.Profile:
 					default:
@@ -200,7 +194,7 @@ func (m *Manager) GenerateTranscoding(params *api.TranscodingRequestParams) (*ap
 		0,
 		m.config.RuntimeSecurity.ActivityDumpTracedEventTypes,
 		m.updateTracedPid,
-		m.defaultActivityDumpLoadConfig(time.Now(), containerutils.CGroupFlags(0)),
+		m.defaultActivityDumpLoadConfig(time.Now()),
 	)
 
 	// open and parse input file
@@ -296,7 +290,7 @@ func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*a
 	}
 
 	// write profile to encoded profile to disk
-	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s-*.profile", p.Metadata.Name))
+	f, err := os.CreateTemp("/tmp", p.Metadata.Name+"-*.profile")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create temporary file: %w", err)
 	}

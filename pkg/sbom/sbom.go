@@ -9,11 +9,11 @@ package sbom
 import (
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/cyclonedx_v1_4"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/sbom/types"
-
-	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 
 // Report defines the report interface
 type Report interface {
-	ToCycloneDX() (*cyclonedxgo.BOM, error)
+	ToCycloneDX() *cyclonedx_v1_4.Bom
 	ID() string
 }
 
@@ -37,13 +37,15 @@ func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 		Analyzers:        cfg.GetStringSlice("sbom.container_image.analyzers"),
 		UseMount:         cfg.GetBool("sbom.container_image.use_mount"),
 		OverlayFsScan:    cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
+		AdditionalDirs:   cfg.GetStringSlice("sbom.container_image.additional_directories"),
 	}
 }
 
 // ScanOptionsFromConfigForHosts loads the scanning options from the configuration
 func ScanOptionsFromConfigForHosts(cfg config.Component) ScanOptions {
 	return ScanOptions{
-		Analyzers: cfg.GetStringSlice("sbom.host.analyzers"),
+		Analyzers:      cfg.GetStringSlice("sbom.host.analyzers"),
+		AdditionalDirs: cfg.GetStringSlice("sbom.host.additional_directories"),
 	}
 }
 
@@ -61,4 +63,27 @@ type ScanResult struct {
 	Duration  time.Duration
 	ImgMeta   *workloadmeta.ContainerImageMetadata
 	RequestID string
+}
+
+// ConvertScanResultToSBOM converts an SBOM scan result to a workloadmeta SBOM.
+func (result *ScanResult) ConvertScanResultToSBOM() *workloadmeta.SBOM {
+	status := workloadmeta.Success
+	reportedError := ""
+	var report *cyclonedx_v1_4.Bom
+
+	if result.Error != nil {
+		log.Errorf("SBOM generation failed for image: %v", result.Error)
+		status = workloadmeta.Failed
+		reportedError = result.Error.Error()
+	} else {
+		report = result.Report.ToCycloneDX()
+	}
+
+	return &workloadmeta.SBOM{
+		CycloneDXBOM:       report,
+		GenerationTime:     result.CreatedAt,
+		GenerationDuration: result.Duration,
+		Status:             status,
+		Error:              reportedError,
+	}
 }

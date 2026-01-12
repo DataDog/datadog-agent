@@ -7,11 +7,8 @@ package util
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
-
-	"go.uber.org/fx"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,7 +18,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -31,13 +27,9 @@ func (p *testPayload) MarshalJSON() ([]byte, error) {
 	return []byte("{\"test\": true}"), nil
 }
 
-func (p *testPayload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
-}
-
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return &testPayload{} },
@@ -48,7 +40,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 
 func getEmptyInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
 	i := CreateInventoryPayload(
-		fxutil.Test[config.Component](t, config.MockModule(), fx.Replace(config.MockParams{Overrides: confOverrides})),
+		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
 		func() marshaler.JSONMarshaler { return nil },
@@ -117,14 +109,15 @@ func TestGetAsJSON(t *testing.T) {
 func TestFillFlare(t *testing.T) {
 	f := helpers.NewFlareBuilderMock(t, false)
 	i := getTestInventoryPayload(t, nil)
+	flareFiller := i.FlareProvider().FlareFiller.Callback
 
 	i.Enabled = false
-	i.fillFlare(f)
+	flareFiller(f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("inventory metadata is disabled", "metadata", "inventory", "test.json")
 
 	i.Enabled = true
-	i.fillFlare(f)
+	flareFiller(f)
 	f.AssertFileExists("metadata", "inventory", "test.json")
 	f.AssertFileContent("{\n    \"test\": true\n}", "metadata", "inventory", "test.json")
 }

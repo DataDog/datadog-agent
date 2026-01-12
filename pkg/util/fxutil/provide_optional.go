@@ -16,10 +16,3 @@ func ProvideOptional[T any]() fx.Option {
 		return option.New[T](actualType)
 	})
 }
-
-// ProvideNoneOptional provide a none optional for the type
-func ProvideNoneOptional[T any]() fx.Option {
-	return fx.Provide(func() option.Option[T] {
-		return option.None[T]()
-	})
-}

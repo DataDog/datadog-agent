@@ -4,31 +4,35 @@
 # to reuse them in further jobs that need them.
 
 .retrieve_linux_go_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_tools.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_tools.tar.xz
 
 .retrieve_linux_go_e2e_deps:
-  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache || exit 101
+  - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
   - rm -f modcache_e2e.tar.xz
+
+.retrieve_linux_pulumi_plugins:
+  - mkdir -p ~/.pulumi && tar xJf pulumi_plugins.tar.xz -C ~/.pulumi
+  - rm -f pulumi_plugins.tar.xz
 
 .cache:
   stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/deb_x64$CI_IMAGE_DEB_X64_SUFFIX:$CI_IMAGE_DEB_X64
-  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     KUBERNETES_CPU_REQUEST: 16
   rules:
-  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    variables:
-      POLICY: pull-push
-  - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-    variables:
-      POLICY: pull
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      variables:
+        POLICY: pull-push
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      variables:
+        POLICY: pull
   retry: 2
 
 # HACK: If you change the behavior of this job, change the `cache:key:prefix` value to invalidate the cache
@@ -43,7 +47,7 @@ go_deps:
     - if [ -f modcache.tar.xz  ]; then exit 0; fi
     - dda inv -- -e deps --verbose
     - dda inv -- -e install-tools
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -69,12 +73,7 @@ go_tools_deps:
   script:
     - if [ -f modcache_tools.tar.xz  ]; then exit 0; fi
     - dda inv -- -e install-tools
-    # Partial mitigation for #incident-30779. It will cache datadog-packages , but if the upstream version is updated without the key cache changing, the cache will not work until the key cache changes.
-    # Long term solution will be to provide the datadog-packages as a binary hosted internally
-    - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    - go env -w GOPRIVATE="github.com/DataDog/*"
-    - go install github.com/DataDog/datadog-packages/cmd/datadog-package@latest
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
+    - cd $GOPATH/pkg/mod/cache/ && tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_tools.tar.xz .
   artifacts:
     expire_in: 1 day
     paths:
@@ -89,15 +88,33 @@ go_tools_deps:
         - modcache_tools.tar.xz
 
 go_e2e_deps:
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   extends: .cache
+  before_script:
+    - dd-octo-sts version
+    - dd-octo-sts debug --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch
+    - export GITHUB_TOKEN=$(dd-octo-sts token --scope DataDog/datadog-agent --policy self.gitlab.deps-fetch)
   script:
-    - if [ -f modcache_e2e.tar.xz  ]; then exit 0; fi
-    - dda inv -- -e new-e2e-tests.deps
-    - cd $GOPATH/pkg/mod/cache/ && tar c -I "pxz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz .
+    - |
+      if [ ! -f modcache_e2e.tar.xz ]; then
+        dda inv -- -e new-e2e-tests.deps
+        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache/ .
+      fi
+    - |
+      if [ ! -f pulumi_plugins.tar.xz ]; then
+        # Pre-download Pulumi plugins used by e2e scenarios and components, should no longer be needed when we move test-infra-definitions to datadog-agent
+        pushd ./test/new-e2e
+        PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install
+        popd
+        tar c -I "xz -T${KUBERNETES_CPU_REQUEST}" -f $CI_PROJECT_DIR/pulumi_plugins.tar.xz -C ~/.pulumi plugins
+      fi
   artifacts:
     expire_in: 1 day
     paths:
       - $CI_PROJECT_DIR/modcache_e2e.tar.xz
+      - $CI_PROJECT_DIR/pulumi_plugins.tar.xz
   cache:
     - key:
         files:
@@ -106,14 +123,21 @@ go_e2e_deps:
         prefix: "go_e2e_deps_modcache"
       paths:
         - modcache_e2e.tar.xz
+    - key:
+        files:
+          - ./test/new-e2e/go.mod
+          - .gitlab/deps_fetch/deps_fetch.yml
+        prefix: "pulumi_plugins"
+      paths:
+        - pulumi_plugins.tar.xz
 
 fetch_openjdk:
   needs: []
-  tags: ["arch:amd64"]
+  tags: ["arch:amd64", "specific:true"]
   rules:
     - !reference [.manual]
   stage: deps_fetch
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux-glibc-2-17-x64$CI_IMAGE_LINUX_GLIBC_2_17_X64_SUFFIX:$CI_IMAGE_LINUX_GLIBC_2_17_X64
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   variables:
     JDK_FILENAME: OpenJDK11U-jre_x64_windows_hotspot_11.0.25_9.zip
     JDK_URL: https://github.com/adoptium/temurin11-binaries/releases/download/jdk-11.0.25%2B9

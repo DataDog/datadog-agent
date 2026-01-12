@@ -4,19 +4,22 @@ installer namespaced tasks
 
 import glob
 import hashlib
-from os import makedirs, path
+import sys
+from os import getenv, makedirs, path
 
 from invoke import task
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.build_tags import (
+    compute_build_tags_for_flavor,
+)
+from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 DIR_BIN = path.join(".", "bin", "installer")
 INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
-
-MAJOR_VERSION = '7'
 
 
 @task
@@ -32,30 +35,36 @@ def build(
     go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
+    fips_mode=False,
 ):
     """
     Build the installer.
     """
 
-    ldflags, gcflags, env = get_build_flags(
-        ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path
-    )
+    ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
 
-    build_include = (
-        get_default_build_tags(
-            build="installer",
-        )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    if sys.platform == 'win32':
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx)
+        build_rc(
+            ctx,
+            "cmd/installer/windows_resources/datadog-installer.rc",
+            vars=vars,
+            out="cmd/installer/rsrc.syso",
+        )
+
+    build_tags = compute_build_tags_for_flavor(
+        build="installer",
+        build_include=build_include,
+        build_exclude=build_exclude,
+        flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base,
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
 
     installer_bin = INSTALLER_BIN
     if output_bin:
         installer_bin = output_bin
 
-    if no_cgo:
+    if no_cgo and not fips_mode:
         env["CGO_ENABLED"] = "0"
     else:
         env["CGO_ENABLED"] = "1"
@@ -73,6 +82,7 @@ def build(
         ldflags=ldflags,
         build_tags=build_tags,
         bin_path=installer_bin,
+        check_deadcode=getenv("DEPLOY_AGENT") == "true",
         env=env,
     )
 

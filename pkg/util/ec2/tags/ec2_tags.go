@@ -10,6 +10,7 @@ package tags
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -20,7 +21,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	ec2internal "github.com/DataDog/datadog-agent/pkg/util/ec2/internal"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,6 +35,9 @@ var (
 	infoCacheKey = cache.BuildAgentKey("ec2", "GetInstanceInfo")
 
 	imdsTags = "/tags/instance"
+
+	// for testing purposes
+	fetchContainerInstanceARN = getContainerInstanceARN
 )
 
 func isTagExcluded(tag string) bool {
@@ -46,8 +52,8 @@ func isTagExcluded(tag string) bool {
 // GetInstanceInfo collects information about the EC2 instance as host tags. This mimic the tags set by the AWS
 // integration in Datadog backend allowing customer to collect those information without having to enable the crawler.
 func GetInstanceInfo(ctx context.Context) ([]string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+		return nil, errors.New("cloud provider is disabled by configuration")
 	}
 
 	if !pkgconfigsetup.Datadog().GetBool("collect_ec2_instance_info") {
@@ -72,7 +78,7 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 		if val, ok := info[infoName]; ok {
 			tags = append(tags, fmt.Sprintf("%s:%s", tagName, val))
 		} else {
-			tags = append(tags, fmt.Sprintf("%s:unavailable", tagName))
+			tags = append(tags, tagName+":unavailable")
 		}
 	}
 
@@ -81,6 +87,19 @@ func GetInstanceInfo(ctx context.Context) ([]string, error) {
 	getAndSet("accountId", "aws_account")
 	getAndSet("imageId", "image")
 	getAndSet("availabilityZone", "availability-zone")
+
+	// Add container instance ARN when running on ECS EC2
+	if env.IsFeaturePresent(env.ECSEC2) {
+		const ciaTagName = "container_instance_arn"
+		if !isTagExcluded(ciaTagName) {
+			arn, err := fetchContainerInstanceARN(ctx)
+			if err != nil || arn == "" {
+				log.Debugf("could not fetch container instance ARN: %v", err)
+			} else {
+				tags = append(tags, fmt.Sprintf("%s:%s", ciaTagName, arn))
+			}
+		}
+	}
 
 	// save tags to the cache in case we exceed quotas later
 	cache.Cache.Set(infoCacheKey, tags, cache.NoExpiration)
@@ -201,8 +220,8 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Iden
 var fetchTags = fetchEc2Tags
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
-		return nil, fmt.Errorf("cloud provider is disabled by configuration")
+	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
+		return nil, errors.New("cloud provider is disabled by configuration")
 	}
 
 	tags, err := fetchTags(ctx)

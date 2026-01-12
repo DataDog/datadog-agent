@@ -297,7 +297,7 @@ func (c *persistentCache) Clear() error {
 func (c *persistentCache) removeOldest() error {
 	key, ok := c.removeOldestKeyFromMemory()
 	if !ok {
-		return fmt.Errorf("in-memory cache is empty")
+		return errors.New("in-memory cache is empty")
 	}
 
 	evicted := 0
@@ -331,7 +331,7 @@ func (c *persistentCache) reduceSize(target int) error {
 		}
 		if prev == c.currentCachedObjectTotalSize {
 			// if c.currentCachedObjectTotalSize is not updated by removeOldest then an item is stored in the lrucache without being stored in the local storage
-			return fmt.Errorf("cache and db are out of sync")
+			return errors.New("cache and db are out of sync")
 		}
 	}
 	return nil
@@ -388,7 +388,7 @@ func (c *persistentCache) Set(key string, value []byte) error {
 func (c *persistentCache) Get(key string) ([]byte, error) {
 	ok := c.Contains(key)
 	if !ok {
-		return nil, fmt.Errorf("key not found")
+		return nil, errors.New("key not found")
 	}
 
 	res, err := c.db.Get(key)

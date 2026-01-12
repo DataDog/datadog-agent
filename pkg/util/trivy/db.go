@@ -22,10 +22,11 @@ const (
 	boltBucket = "boltdb"
 )
 
-// onDeleteCallback describes a callback function that is called before deleting an entry from a PersistentDB.
+// onDeleteCallback describes a callback function that is called before deleting an entry.
 type onDeleteCallback = func(key string, value []byte) error
 
-// BoltDB implements the PersistentDB interface. It holds a bolt.DB instance and the storage directory.
+// BoltDB implements a persistent key-value store. It holds a bolt.DB instance
+// and the storage directory.
 type BoltDB struct {
 	db        *bolt.DB
 	directory string

@@ -70,6 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 var kv = kernel.MustHostVersion()
@@ -163,7 +164,7 @@ func (s *USMSuite) TestDisableUSM() {
 	cfg.ServiceMonitoringEnabled = false
 	// Enabling all features, to ensure nothing is forcing USM enablement.
 	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -700,7 +701,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
@@ -2077,6 +2078,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
+				flake.Mark(t)
 				server := tracertestutil.NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
@@ -2301,7 +2303,9 @@ func testHTTPLikeSketches(t *testing.T, tr *tracer.Tracer, client *nethttp.Clien
 	var getRequestStats, postRequestsStats *http.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.HTTP
 		if isHTTP2 {
@@ -2441,7 +2445,9 @@ func testKafkaSketches(t *testing.T, tr *tracer.Tracer) {
 	var fetchRequestStats, produceTopic1RequestsStats, produceTopic2RequestsStats *kafka.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Kafka
 		if fetchRequestStats == nil || produceTopic1RequestsStats == nil || produceTopic2RequestsStats == nil {
@@ -2525,7 +2531,9 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 	var insertRequestStats, selectRequestsStats *pgutils.RequestStat
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Postgres
 		if insertRequestStats == nil || selectRequestsStats == nil {
@@ -2561,6 +2569,7 @@ func testPostgresSketches(t *testing.T, tr *tracer.Tracer) {
 }
 
 func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
+	skipIfKernelIsNotSupported(t, redis.MinimumKernelVersion)
 	serverAddress := net.JoinHostPort(localhost, redisPort)
 	require.NoError(t, redis.RunServer(t, localhost, redisPort, false))
 
@@ -2590,7 +2599,9 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 	var getRequestStats, setRequestStats *redis.RequestStats
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		conns, cleanup := getConnections(ct, tr)
-		defer cleanup()
+		// Calling cleanup will restore the requestStats to a pool, and can modify/empty it.
+		// hence, we call the cleanup only during the end of the test
+		t.Cleanup(cleanup)
 
 		requests := conns.USMData.Redis
 		if len(requests) == 0 {
@@ -2639,7 +2650,8 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableHTTP2Monitoring = kv >= usmhttp2.MinimumKernelVersion
 	cfg.EnableKafkaMonitoring = true
 	cfg.EnablePostgresMonitoring = true
-	cfg.EnableRedisMonitoring = true
+	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
+	cfg.RedisTrackResources = true
 
 	tr, err := tracer.NewTracer(cfg, nil, nil)
 	require.NoError(t, err)

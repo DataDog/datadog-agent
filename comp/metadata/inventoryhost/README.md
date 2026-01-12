@@ -55,6 +55,7 @@ The payload is a JSON dict with the following fields
     This is different for each cloud provider (for now, ony AWS is supported).
     - On AWS: the instance ID returned by querying the IMDSv2 endpoint. An empty string is returned if we can't reach
       IMDSv2 (even if IMDSv1 is available).
+  - `ccrid` - **string**: the Canonical Cloud Resource Identifier for the host provided by the cloud provider.
   - `hypervisor_guest_uuid` - **string**: the hypervisor guest UUID (Unix only, empty string on Windows or if we can't
     read the data). On `ec2` instances, this might start with "ec2". This was introduced in `7.41.0`/`6.41.0`.
   - `dmi_product_uuid` - **string**: the DMI product UUID (Unix only, empty string on Windows or if we can't read the
@@ -69,6 +70,7 @@ The payload is a JSON dict with the following fields
       or ZYPPER as package manager.
   - `rpm_global_repo_gpg_check_enabled` - **boolean**: reflects the value of `repo_gpgcheck` in the `[main]` repo file
     of hosts relying on YUM, DNF or ZYPPER as package manager
+  - `instance-type` - **string**: represents the type of instance for the host based on the cloud provider (instance type for AWS, machine type for GCP, VM size for Azure and instance shape for Oracle).
 
 ## Example Payload
 
@@ -107,7 +109,8 @@ Here an example of an inventory payload:
         "dmi_board_asset_tag": "i-abcedf",
         "dmi_board_vendor": "Amazon EC2",
         "linux_package_signing_enabled": true,
-        "rpm_global_repo_gpg_check_enabled": false
+        "rpm_global_repo_gpg_check_enabled": false,
+        "instance-type": "m5.large"
     },
     "hostname": "my-host",
     "timestamp": 1631281754507358895

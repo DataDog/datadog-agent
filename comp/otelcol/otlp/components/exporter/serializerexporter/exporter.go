@@ -12,24 +12,27 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
+
 	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configoptional"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
 )
 
 func newDefaultConfig() component.Config {
 	mcfg := MetricsConfig{
-		TagCardinality:       "low",
 		APMStatsReceiverAddr: "http://localhost:8126/v0.6/stats",
 		Tags:                 "",
 	}
@@ -40,7 +43,7 @@ func newDefaultConfig() component.Config {
 		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
 		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
 		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
-		QueueBatchConfig: exporterhelper.NewDefaultQueueConfig(),
+		QueueBatchConfig: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,
@@ -72,17 +75,19 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type Exporter struct {
-	tr              *metrics.Translator
-	s               serializer.MetricSerializer
-	hostGetter      SourceProviderFunc
-	extraTags       []string
-	enricher        tagenricher
-	apmReceiverAddr string
-	createConsumer  createConsumerFunc
-	params          exporter.Settings
-	hostmetadata    datadogconfig.HostMetadataConfig
-	reporter        *inframetadata.Reporter
-	gatewayUsage    otel.GatewayUsage
+	tr                metrics.Provider
+	s                 serializer.MetricSerializer
+	hostGetter        SourceProviderFunc
+	extraTags         []string
+	apmReceiverAddr   string
+	createConsumer    createConsumerFunc
+	params            exporter.Settings
+	hostmetadata      datadogconfig.HostMetadataConfig
+	reporter          *inframetadata.Reporter
+	gatewayUsage      otel.GatewayUsage
+	coatUsageMetric   telemetry.Gauge
+	coatGWUsageMetric telemetry.Gauge
+	ipath             ingestionPath
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -93,7 +98,7 @@ func translatorFromConfig(
 	hostGetter SourceProviderFunc,
 	statsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
-) (*metrics.Translator, error) {
+) (metrics.Provider, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -136,25 +141,23 @@ func translatorFromConfig(
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewTranslator(set, attributesTranslator, options...)
+	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
 func NewExporter(
 	s serializer.MetricSerializer,
 	cfg *ExporterConfig,
-	enricher tagenricher,
 	hostGetter SourceProviderFunc,
 	createConsumer createConsumerFunc,
-	tr *metrics.Translator,
+	tr metrics.Provider,
 	params exporter.Settings,
 	reporter *inframetadata.Reporter,
 	gatewayUsage otel.GatewayUsage,
+	coatUsageMetric telemetry.Gauge,
+	coatGWUsageMetric telemetry.Gauge,
+	ipath ingestionPath,
 ) (*Exporter, error) {
-	err := enricher.SetCardinality(cfg.Metrics.TagCardinality)
-	if err != nil {
-		return nil, err
-	}
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
 		extraTags = strings.Split(cfg.Metrics.Tags, ",")
@@ -162,25 +165,36 @@ func NewExporter(
 	params.Logger.Info("serializer exporter configuration", zap.Bool("host_metadata_enabled", cfg.HostMetadata.Enabled),
 		zap.Strings("extra_tags", extraTags),
 		zap.String("apm_receiver_url", cfg.Metrics.APMStatsReceiverAddr),
-		zap.String("tag_cardinality", cfg.Metrics.TagCardinality),
 		zap.String("histogram_mode", fmt.Sprintf("%v", cfg.Metrics.Metrics.HistConfig.Mode)))
 	return &Exporter{
-		tr:              tr,
-		s:               s,
-		hostGetter:      hostGetter,
-		enricher:        enricher,
-		apmReceiverAddr: cfg.Metrics.APMStatsReceiverAddr,
-		extraTags:       extraTags,
-		createConsumer:  createConsumer,
-		params:          params,
-		hostmetadata:    cfg.HostMetadata,
-		reporter:        reporter,
-		gatewayUsage:    gatewayUsage,
+		tr:                tr,
+		s:                 s,
+		hostGetter:        hostGetter,
+		apmReceiverAddr:   cfg.Metrics.APMStatsReceiverAddr,
+		extraTags:         extraTags,
+		createConsumer:    createConsumer,
+		params:            params,
+		hostmetadata:      cfg.HostMetadata,
+		reporter:          reporter,
+		gatewayUsage:      gatewayUsage,
+		coatUsageMetric:   coatUsageMetric,
+		coatGWUsageMetric: coatGWUsageMetric,
+		ipath:             ipath,
 	}, nil
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
+
+	// Track requests based on ingestion path
+	switch e.ipath {
+	case agentOTLPIngest:
+		OTLPIngestAgentMetricsRequests.Inc()
+		OTLPIngestAgentMetricsEvents.Add(float64(ld.MetricCount()))
+	case ddot:
+		OTLPIngestDDOTMetricsRequests.Inc()
+		OTLPIngestDDOTMetricsEvents.Add(float64(ld.MetricCount()))
+	}
 	if e.hostmetadata.Enabled {
 		// Consume resources for host metadata
 		for i := 0; i < ld.ResourceMetrics().Len(); i++ {
@@ -188,7 +202,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			e.consumeResource(e.reporter, res)
 		}
 	}
-	consumer := e.createConsumer(e.enricher, e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
+	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
@@ -198,9 +212,9 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname)
+	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
-	consumer.addGatewayUsage(hostname, e.gatewayUsage)
+	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
 		return fmt.Errorf("failed to flush metrics: %w", err)
 	}

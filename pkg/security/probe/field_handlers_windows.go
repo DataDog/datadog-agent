@@ -108,7 +108,10 @@ func (fh *FieldHandlers) ResolveUser(_ *model.Event, process *model.Process) str
 
 // ResolveContainerContext retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
-	return ev.ContainerContext, ev.ContainerContext != nil
+	if ev.ProcessContext == nil {
+		return nil, false
+	}
+	return &ev.ProcessContext.Process.ContainerContext, true
 }
 
 // ResolveContainerRuntime retrieves the container runtime managing the container

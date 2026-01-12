@@ -7,13 +7,14 @@ package autodiscoveryimpl
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,6 +49,9 @@ type configManager interface {
 
 	// getActiveConfigs returns the currently active configs
 	getActiveConfigs() map[string]integration.Config
+
+	// getActiveServices returns the currently active services
+	getActiveServices() map[string]listeners.Service
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -195,7 +199,7 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 	// Execute the steps outlined in the comment on reconcilingConfigManager:
 	//
-	//  1. update orctiveConfigs / activeServices
+	//  1. update activeConfigs / activeServices
 	cm.activeConfigs[digest] = config
 
 	var changes integration.ConfigChanges
@@ -208,14 +212,13 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 				matchingServices[svcID] = struct{}{}
 			}
 		}
-
 		//  3. update serviceResolutions, generating changes
 		for svcID := range matchingServices {
 			changes.Merge(cm.reconcileService(svcID))
 		}
 	} else {
 		// Secrets always need to be resolved (done in reconcileService if template)
-		decryptedConfig, err := decryptConfig(config, cm.secretResolver)
+		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
 			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
 		}
@@ -247,7 +250,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 	for _, config := range configs {
 		digest := config.Digest()
 		if _, found := cm.activeConfigs[digest]; !found {
-			log.Debug("Config %v is not tracked by autodiscovery", config.Name)
+			log.Debugf("Config %v is not tracked by autodiscovery", config.Name)
 			continue
 		}
 
@@ -255,6 +258,9 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		//
 		//  1. update activeConfigs / activeServices
 		delete(cm.activeConfigs, digest)
+
+		// Remove all resolved secrets for this config
+		cm.secretResolver.RemoveOrigin(digest)
 
 		var changes integration.ConfigChanges
 		if config.IsTemplate() {
@@ -274,7 +280,7 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 		} else {
 			// Secrets need to be resolved before being unscheduled as otherwise
 			// the computed hashes can be different from the ones computed at schedule time.
-			config, err := decryptConfig(config, cm.secretResolver)
+			config, err := decryptConfig(config, cm.secretResolver, digest)
 			if err != nil {
 				log.Errorf("Unable to resolve secrets for config '%s', check may not be unscheduled properly, err: %s", config.Name, err.Error())
 			}
@@ -301,8 +307,17 @@ func (cm *reconcilingConfigManager) getActiveConfigs() map[string]integration.Co
 	defer cm.m.Unlock()
 
 	res := make(map[string]integration.Config, len(cm.activeConfigs))
-	for k, v := range cm.activeConfigs {
-		res[k] = v
+	maps.Copy(res, cm.activeConfigs)
+	return res
+}
+
+func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Service {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	res := make(map[string]listeners.Service, len(cm.activeServices))
+	for k, v := range cm.activeServices {
+		res[k] = v.svc
 	}
 	return res
 }
@@ -342,6 +357,8 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// allow the service to filter those templates, unless we are removing
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
+		// Warning: this must be called with the configs stored in cm.activeConfigs
+		// which contain the compiled matchingProgram for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 
@@ -380,6 +397,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	digest := tpl.Digest()
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -387,7 +405,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		errorStats.setResolveWarning(tpl.Name, msg)
 		return tpl, false
 	}
-	resolvedConfig, err := decryptConfig(config, cm.secretResolver)
+	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {
 		msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", config.Name, svc.GetServiceID(), err)
 		errorStats.setResolveWarning(tpl.Name, msg)

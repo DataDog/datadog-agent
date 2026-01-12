@@ -1,0 +1,90 @@
+[
+    {
+        "uid": "regular-pod-uid-123",
+        "name": "regular-pod",
+        "namespace": "default",
+        "phase": "Running",
+        "containers": [
+            {
+                "id": "regular-container-id-123",
+                "name": "app-container",
+                "image": {
+                    "name": "nginx:latest"
+                }
+            }
+        ],
+        "annotations": {},
+        "labels": {
+            "app": "nginx",
+            "version": "v1.0"
+        }
+    },
+    {
+        "uid": "annotated-pod-uid-456",
+        "name": "annotated-pod",
+        "namespace": "kube-system",
+        "phase": "Running",
+        "containers": [
+            {
+                "id": "system-container-id-456",
+                "name": "system-container",
+                "image": {
+                    "name": "k8s.gcr.io/kube-proxy:v1.20.0"
+                }
+            }
+        ],
+        "annotations": {
+            "ad.datadoghq.com/exclude": "true"
+        },
+        "labels": {
+            "k8s-app": "kube-proxy",
+            "tier": "node"
+        }
+    },
+    {
+        "uid": "pause-pod-uid-789",
+        "name": "pause-pod-test",
+        "namespace": "kube-system",
+        "phase": "Running",
+        "containers": [
+            {
+                "id": "pause-container-id-789",
+                "name": "paused-container",
+                "image": {
+                    "name": "kubernetes/pause:3.2"
+                }
+            }
+        ],
+        "annotations": {},
+        "labels": {
+            "app": "pause-test"
+        }
+    },
+    {
+        "uid": "filtered-pod-uid-101",
+        "name": "filtered-container-pod",
+        "namespace": "production",
+        "phase": "Running",
+        "containers": [
+            {
+                "id": "main-app-id-101",
+                "name": "main-app",
+                "image": {
+                    "name": "myapp:latest"
+                }
+            },
+            {
+                "id": "istio-proxy-id-101",
+                "name": "istio-proxy",
+                "image": {
+                    "name": "istio/proxyv2:1.15.0"
+                }
+            }
+        ],
+        "annotations": {},
+        "labels": {
+            "app": "myapp",
+            "version": "v2.0"
+        }
+    }
+]

@@ -3,6 +3,15 @@ name: Assess Repository Permissions
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Which permissions to assess: "repo" or "agent-all"'
+        required: true
+        default: 'repo'
+        type: choice
+        options:
+          - repo
+          - agent-all
   schedule:
     - cron: '0 4 2 * *' # At 4 UTC every 2nd day of the month (out of business hours for rate limiting)
     - cron: '0 6 2 * *' # Later for the simple permission display
@@ -12,7 +21,7 @@ permissions: {}
 jobs:
   assess_repo_permission:
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 6 2 * * *'
+    if: (github.event.schedule == '0 6 2 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'repo'))
     strategy:
       matrix:
         value: ['datadog-agent', 'datadog-agent-buildimages', 'omnibus-ruby', 'agent-release-management']
@@ -35,7 +44,6 @@ jobs:
           features: legacy-tasks legacy-github
 
       - name: Assess Repository Permissions
-        if: github.event.schedule == '0 4 2 * * *'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
@@ -43,7 +51,7 @@ jobs:
 
   assess_agent_all_permission:
     runs-on: ubuntu-latest
-    if: github.event.schedule == '0 4 2 * * *'
+    if: github.event.schedule == '0 4 2 * *' || (github.event_name == 'workflow_dispatch' && github.event.inputs.mode == 'agent-all')
     environment:
       name: main
     steps:
@@ -62,7 +70,6 @@ jobs:
           features: legacy-tasks legacy-github
 
       - name: Assess agent-all Permissions
-        if: github.event.schedule == '0 4 2 * * *'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}

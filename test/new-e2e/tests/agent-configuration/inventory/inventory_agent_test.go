@@ -10,12 +10,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 type inventoryAgentSuite struct {
@@ -32,6 +33,8 @@ func (v *inventoryAgentSuite) TestInventoryDefaultConfig() {
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": false`)
+	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": false`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": false`)
@@ -44,13 +47,18 @@ process_config:
   process_collection:
     enabled: true
 compliance_config:
-  enabled: true`
+  enabled: true
+synthetics:
+  collector:
+    enabled: true`
 
 	systemProbeConfiguration := `runtime_security_config:
   enabled: true
 service_monitoring_config:
   enabled: true
 network_config:
+  enabled: true
+traceroute:
   enabled: true`
 
 	agentOptions := []agentparams.Option{
@@ -58,13 +66,15 @@ network_config:
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
 	}
 
-	v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentOptions...)))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(agentOptions...))))
 
 	inventory := v.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "inventory-agent"}))
 	assert.Contains(v.T(), inventory, `"feature_apm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_logs_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_process_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_networks_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_traceroute_enabled": true`)
+	assert.Contains(v.T(), inventory, `"feature_synthetics_collector_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cspm_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_cws_enabled": true`)
 	assert.Contains(v.T(), inventory, `"feature_usm_enabled": true`)

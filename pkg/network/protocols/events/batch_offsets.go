@@ -66,6 +66,9 @@ func (o *offsetManager) Get(cpu int, batch *Batch, syncing bool) (begin, end int
 	// usually this is the full batch size but it can be less
 	// in the context of a forced (partial) read
 	end = int(batch.Len)
+	if end == 0 {
+		return 0, 0
+	}
 
 	// if this is part of a forced read (that is, we're reading a batch before
 	// it's complete) we need to keep track of which entries we're reading

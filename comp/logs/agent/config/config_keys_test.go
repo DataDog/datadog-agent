@@ -9,23 +9,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func getLogsConfigKeys(t *testing.T) (config.Component, *LogsConfigKeys) {
-	mockConfig := fxutil.Test[config.Component](
-		t,
-		config.MockModule(),
-		fx.Replace(config.MockParams{Overrides: map[string]any{
-			"api_key": "1234",
-		}}),
-	)
-
+	mockConfig := config.NewMockWithOverrides(t, map[string]any{"api_key": "1234"})
 	return mockConfig, defaultLogsConfigKeys(mockConfig)
 }
 

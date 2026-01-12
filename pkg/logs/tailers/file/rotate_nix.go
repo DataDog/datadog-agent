@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,7 +22,7 @@ import (
 // - removed and recreated
 // - truncated
 func (t *Tailer) DidRotate() (bool, error) {
-	f, err := filesystem.OpenShared(t.fullpath)
+	f, err := t.fileOpener.OpenLogFile(t.fullpath)
 	if err != nil {
 		return false, fmt.Errorf("open %q: %w", t.fullpath, err)
 	}
@@ -40,14 +40,17 @@ func (t *Tailer) DidRotate() (bool, error) {
 	}
 
 	fileSize := fi1.Size()
+	t.detectAndRecordRotationSizeMismatches(fileSize, lastReadOffset)
 
 	recreated := !os.SameFile(fi1, fi2)
 	truncated := fileSize < lastReadOffset
 
 	if recreated {
 		log.Debugf("File rotation detected due to recreation, f1: %+v, f2: %+v", fi1, fi2)
+		metrics.TlmRotationsNix.Inc("new_file")
 	} else if truncated {
 		log.Debugf("File rotation detected due to size change, lastReadOffset=%d, fileSize=%d", lastReadOffset, fileSize)
+		metrics.TlmRotationsNix.Inc("truncated")
 	}
 
 	return recreated || truncated, nil

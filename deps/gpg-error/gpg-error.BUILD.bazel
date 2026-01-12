@@ -1,0 +1,298 @@
+load("@@//bazel/rules:preprocessor.bzl", "c_preprocessor")
+load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//packages:__subpackages__"],
+)
+
+VERSION = "1.47"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+        ":ship_source_offer",
+    ],
+    purl = purl_for_generic(
+        package = "gpg-error",
+        version = VERSION,
+        download_url = "https://www.gnupg.org/ftp/gcrypt/libgpg-error/libgpg-error-{version}.tar.bz2",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:LGPL-2.1"],
+    license_text = "COPYING.LIB",
+    visibility = ["//visibility:public"],
+)
+
+ship_source_offer(name = "ship_source_offer")
+
+genrule(
+    name = "code_to_errno_h",
+    srcs = ["src/mkerrnos.awk", "src/errnos.in"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkerrnos.awk) $(location src/errnos.in) > $@",
+    outs = ["code-to-errno.h"],
+)
+
+genrule(
+    name = "_mkerrcodes_h",
+    srcs = ["src/mkerrcodes1.awk", "src/errnos.in"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkerrcodes1.awk) $(location src/errnos.in) > $@",
+    outs = ["_mkerrcodes.h"],
+)
+
+c_preprocessor(
+    name = "mkerrcodes_tmp_h",
+    input = ":_mkerrcodes_h",
+    output = "_mkerrcodes.tmp.h",
+)
+
+genrule(
+    name = "mkerrcodes_h",
+    srcs = ["src/mkerrcodes.awk", ":mkerrcodes_tmp_h"],
+    tools = ["@gawk"],
+    cmd = "grep GPG_ERR_ $(location :mkerrcodes_tmp_h) | $(location @gawk) -f $(location src/mkerrcodes.awk) > $@",
+    outs = ["mkerrcodes.h"],
+)
+
+cc_binary(
+    name = "mkerrcodes",
+    srcs = ["src/mkerrcodes.c", ":mkerrcodes_h"],
+)
+
+genrule(
+    name = "code_from_errno_h",
+    srcs = ["src/mkerrcodes2.awk"],
+    outs = ["code-from-errno.h"],
+    tools = [
+        ":mkerrcodes",
+        "@gawk",
+    ],
+    cmd = "$(location mkerrcodes) | $(location @gawk) -f $(location src/mkerrcodes2.awk) > $@",
+)
+
+genrule(
+    name = "err_sources_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-sources.h.in",
+    ],
+    outs = ["err-sources-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(location src/err-sources.h.in) > $@",
+)
+
+genrule(
+    name = "err_codes_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-codes.h.in",
+    ],
+    outs = ["err-codes-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 $(location src/err-codes.h.in) > $@",
+)
+
+genrule(
+    name = "errnos_sym_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/errnos.in",
+    ],
+    outs = ["errnos-sym.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=2 -v nogettext=1 -v prefix=GPG_ERR_ -v pkg_namespace=errnos_ $(location src/errnos.in) > $@",
+)
+
+copy_file(
+    name = "copy_config_h",
+    src = select({
+        "@//:linux_x86_64": "config-linux-x86_64.h",
+        "@//:linux_arm64": "config-linux-aarch64.h",
+    }),
+    out = "src/config.h",
+)
+
+cc_library(
+    name = "config_h",
+    hdrs = [
+        ":copy_config_h",
+    ],
+)
+
+genrule(
+    name = "err-codes_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-codes.h.in",
+    ],
+    outs = ["err-codes.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=3 $(location src/err-codes.h.in) > $@",
+)
+
+genrule(
+    name = "err-sources_h",
+    srcs = [
+        "src/mkstrtable.awk",
+        "src/err-sources.h.in",
+    ],
+    outs = ["err-sources.h"],
+    tools = ["@gawk"],
+    cmd = "$(location @gawk) -f $(location src/mkstrtable.awk) -v textidx=3 $(location src/err-sources.h.in) > $@",
+)
+
+cc_binary(
+    name = "mkheader",
+    srcs = ["src/mkheader.c"],
+)
+
+cc_binary(
+    name = "gen-posix-lock-obj",
+    srcs = ["src/gen-posix-lock-obj.c", "src/posix-lock-obj.h"],
+    local_defines = ["HAVE_CONFIG_H"],
+    deps = [
+        ":config_h",
+    ],
+    includes = ["src"],
+)
+
+genrule(
+    name = "lock-obj-pub_native_h",
+    outs = ["lock-obj-pub.native.h"],
+    tools = [":gen-posix-lock-obj"],
+    cmd = "$(location :gen-posix-lock-obj) > $@",
+)
+
+# The mkheader tool will use the folder containing gpg-error.h.in as the source
+# folder contanining all the other includes, except for the lock object one which *must*
+# be found in the CWD.
+# config.h is given through the command line so it doesn't need to be moved somewhere special.
+# - triplet (see mkheader.c for the list of valid values)
+# - path to gpg-error.h.in template
+# - path to config.h
+# - the version in usual (ie. major.minor) format
+# - the version as hexadecimal number (0x{major}{minor}00)
+config_to_abi = {
+    "linux_x86_64": "x86_64-unknown-linux-gnu",
+    "linux_arm64": "arm-unknown-linux-gnueabi",
+}
+mkheader_cmds = {
+    arch: """cp $(location :lock-obj-pub_native_h) $$(pwd) && \
+            $(location :mkheader) {} $(location src/gpg-error.h.in) $(location :copy_config_h) \
+            1.47 0x012F00 > $@""".format(arch)
+    for arch in config_to_abi.keys()
+}
+
+genrule(
+    name = "gpg-error_h",
+    srcs = [
+        ":copy_config_h",
+        "src/err-codes.h.in",
+        "src/err-sources.h.in",
+        "src/errnos.in",
+        "src/gpg-error.h.in",
+        ":lock-obj-pub_native_h",
+    ],
+    tools = [":mkheader"],
+    outs = ["src/gpg-error.h"],
+    cmd = select({"@@//:%s" % config: mkheader_cmds[config] for config in config_to_abi.keys()}),
+)
+
+cc_library(
+    name = "libgpg-error",
+    srcs = [
+        "src/posix-lock.c",
+        "src/posix-lock-obj.h",
+        "src/posix-thread.c",
+        "src/spawn-posix.c",
+        "src/gpgrt-int.h",
+        "src/protos.h",
+        "src/init.c",
+        "src/init.h",
+        "src/version.c",
+        "src/lock.h",
+        "src/thread.h",
+        "src/estream.c",
+        "src/estream-printf.c",
+        "src/estream-printf.h",
+        "src/strsource.c",
+        "src/strerror.c",
+        "src/code-to-errno.c",
+        "src/code-from-errno.c",
+        "src/visibility.c",
+        "src/visibility.h",
+        "src/sysutils.c",
+        "src/stringutils.c",
+        "src/strlist.c",
+        "src/name-value.c",
+        "src/syscall-clamp.c",
+        "src/logging.c",
+        "src/b64dec.c",
+        "src/b64enc.c",
+        "src/argparse.c",
+        "src/gettext.h",
+        # Generated sources
+        ":code_to_errno_h",
+        ":code_from_errno_h",
+        ":err-codes_h",
+        ":err-sources_h",
+    ],
+    hdrs = [
+        ":gpg-error_h",
+    ],
+    local_defines = [
+        "GPG_ERR_ENABLE_GETTEXT_MACROS=1",
+        "GPGRT_ENABLE_ES_MACROS=1",
+        "GPGRT_ENABLE_LOG_MACROS=1",
+        "GPGRT_ENABLE_ARGPARSE_MACROS=1",
+        "HAVE_CONFIG_H",
+        "LOCALEDIR=NULL",
+    ],
+    copts = ["-O2"],
+    includes = ["src"],
+    visibility = ["//visibility:public"],
+    implementation_deps = [
+        ":config_h",
+    ],
+)
+
+cc_shared_library(
+    name = "gpg-error",
+    deps = [":libgpg-error"],
+    visibility = ["//visibility:public"],
+)
+
+so_symlink(
+    name = "lib_files",
+    src = ":gpg-error",
+    libname = "libgpg-error",
+    version = "0.34.0",
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [":gpg-error_h"],
+    prefix = "include",
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":hdr_files",
+        ":lib_files",
+    ],
+)

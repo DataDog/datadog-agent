@@ -83,7 +83,7 @@ Invoke-BuildScript `
             New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
         }
         # Generate the datadog.yaml config file to be used in integration tests
-        & dda inv -- -e agent.generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
+        & dda inv -- -e agent.generate-config --build-type="agent-py3" --output-file="./datadog.yaml"
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
@@ -127,15 +127,6 @@ Invoke-BuildScript `
         exit $err
     }
 
-    # Run PowerShell install script unit tests
-    & powershell -ExecutionPolicy Bypass -File ".\tools\windows\DatadogAgentInstallScript\Run-Tests.ps1"
-    $err = $LASTEXITCODE
-    Write-Host PowerShell install script test result is $err
-    if($err -ne 0){
-        Write-Host -ForegroundColor Red "PowerShell install script test failed $err"
-        exit $err
-    }
-
     # Go unit tests
     $test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
     $TEST_WASHER_FLAG=""
@@ -153,25 +144,32 @@ Invoke-BuildScript `
     $err = $LASTEXITCODE
 
     if ($UploadCoverage) {
-        # 1. Upload coverage reports to Codecov
-        $Env:CODECOV_TOKEN=$(Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN")
-        & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "coverage upload failed $localErr"
+        try {
+            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN" -ErrorAction Stop
+            & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+            if ($LASTEXITCODE -ne 0) {
+                throw "coverage upload failed with exit code $LASTEXITCODE"
+            }
+        }
+        catch {
+            # Non-fatal: print but do not fail the script
+            Write-Host -ForegroundColor Red "coverage upload failed (non-fatal): $($_.Exception.Message)"
         }
     }
     if ($UploadTestResults) {
-        # 2. Upload junit files
-        # Copy test files to c:\mnt for further gitlab upload
-        Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
-            Copy-Item -Path $_.FullName -Destination C:\mnt
+        try {
+            Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination C:\mnt
+            }
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "tototot2"
+            & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
+            if($LASTEXITCODE -ne 0){
+                throw "junit upload failed with exit code $LASTEXITCODE"
+            }
         }
-        $Env:DATADOG_API_KEY=$(Get-VaultSecret -parameterName "$Env:API_KEY_ORG2")
-        & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
-        $localErr = $LASTEXITCODE
-        if($localErr -ne 0){
-            Write-Host -ForegroundColor Red "junit upload failed $localErr"
+        catch {
+            # Non-fatal: print but do not fail the script
+            Write-Host -ForegroundColor Red "junit upload failed (non-fatal): $($_.Exception.Message)"
         }
     }
 

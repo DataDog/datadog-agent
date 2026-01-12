@@ -13,5 +13,5 @@ import (
 // Opts define module options
 type Opts struct {
 	EventSender events.EventSender
-	MsgSender   MsgSender
+	MsgSender   EventMsgSender
 }

@@ -111,6 +111,8 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	switch targetGVK.Kind {
 	case k8sutil.DeploymentKind:
 		return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+	case k8sutil.RolloutKind:
+		return u.syncRolloutKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
 	default:
 		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("automic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
 		return autoscaling.NoRequeue, nil
@@ -146,7 +148,7 @@ func (u *verticalController) syncDeploymentKind(
 	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
 
 	// Generate the patch request which adds the scaling hash annotation to the pod template
-	gvr := targetGVK.GroupVersion().WithResource(fmt.Sprintf("%ss", strings.ToLower(targetGVK.Kind)))
+	gvr := targetGVK.GroupVersion().WithResource(strings.ToLower(targetGVK.Kind) + "s")
 	patchTime := u.clock.Now()
 	patchData, err := json.Marshal(map[string]interface{}{
 		"spec": map[string]interface{}{
@@ -166,7 +168,7 @@ func (u *verticalController) syncDeploymentKind(
 	}
 
 	// Apply patch to trigger rollout
-	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
+	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
 		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
@@ -188,6 +190,23 @@ func (u *verticalController) syncDeploymentKind(
 	}, nil)
 	// Requeue regularly to check for rollout completion
 	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+}
+
+func (u *verticalController) syncRolloutKind(
+	ctx context.Context,
+	podAutoscaler *datadoghq.DatadogPodAutoscaler,
+	autoscalerInternal *model.PodAutoscalerInternal,
+	updateStrategy datadoghqcommon.DatadogPodAutoscalerUpdateStrategy,
+	target NamespacedPodOwner,
+	targetGVK schema.GroupVersionKind,
+	recommendationID string,
+	pods []*workloadmeta.KubernetesPod,
+	podsPerRecomendationID map[string]int32,
+	podsPerDirectOwner map[string]int32,
+) (autoscaling.ProcessResult, error) {
+	// Argo Rollouts use the same pod template structure as Deployments,
+	// so we can reuse the same rollout logic
+	return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
 }
 
 // getVerticalPatchingStrategy applied policies to determine effective patching strategy.

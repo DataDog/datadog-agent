@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func Test_getStandardTags(t *testing.T) {
@@ -204,6 +206,48 @@ func TestGetPrometheusIncludeAnnotations(t *testing.T) {
 			defer mockConfig.SetWithoutSource("prometheus_scrape.checks", "")
 
 			assert.EqualValues(t, tt.want, getPrometheusIncludeAnnotations())
+		})
+	}
+}
+
+func TestShouldSkipPodReadiness(t *testing.T) {
+	tests := []struct {
+		name                string
+		podAnnotations      map[string]string
+		shouldSkipReadiness bool
+	}{
+		{
+			name: "skip readiness based on annotation",
+			podAnnotations: map[string]string{
+				"ad.datadoghq.com/tolerate-unready": "true",
+				"other_annotation":                  "some_value",
+			},
+			shouldSkipReadiness: true,
+		},
+		{
+			name: "do not skip readiness without annotation",
+			podAnnotations: map[string]string{
+				"other_annotation": "some_value",
+			},
+			shouldSkipReadiness: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pod := workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   "test-pod-id",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "test-pod-name",
+					Namespace:   "default",
+					Annotations: test.podAnnotations,
+				},
+			}
+
+			assert.Equal(t, test.shouldSkipReadiness, shouldSkipPodReadiness(&pod))
 		})
 	}
 }

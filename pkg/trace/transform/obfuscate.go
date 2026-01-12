@@ -40,12 +40,31 @@ const (
 	TextNonParsable = "Non-parsable SQL query"
 )
 
-func obfuscateOTelDBAttributes(oq *obfuscate.ObfuscatedQuery, span *pb.Span) {
-	if _, ok := traceutil.GetMeta(span, string(semconv.DBStatementKey)); ok {
-		traceutil.SetMeta(span, string(semconv.DBStatementKey), oq.Query)
+func obfuscateOTelDBAttributes(o *obfuscate.Obfuscator, q, oq string, span *pb.Span) {
+	dbStatement, ok := traceutil.GetMeta(span, string(semconv.DBStatementKey))
+	if ok && dbStatement == q {
+		// dbStatement matches the query, we can reuse the ObfuscatedQuery
+		traceutil.SetMeta(span, string(semconv.DBStatementKey), oq)
+	} else if ok {
+		// dbStatement differs from the query, obfuscate separately
+		val := TextNonParsable
+		if obfuscated, err := o.ObfuscateSQLStringForDBMS(dbStatement, span.Meta[TagDBMS]); err == nil {
+			val = obfuscated.Query
+		}
+		traceutil.SetMeta(span, string(semconv.DBStatementKey), val)
 	}
-	if _, ok := traceutil.GetMeta(span, string(semconv126.DBQueryTextKey)); ok {
-		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), oq.Query)
+
+	dbQuery, ok := traceutil.GetMeta(span, string(semconv126.DBQueryTextKey))
+	if ok && dbQuery == q {
+		// dbQuery matches the query, we can reuse the ObfuscatedQuery
+		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), oq)
+	} else if ok {
+		val := TextNonParsable
+		// dbQuery differs from the query, obfuscate separately
+		if obfuscated, err := o.ObfuscateSQLStringForDBMS(dbQuery, span.Meta[TagDBMS]); err == nil {
+			val = obfuscated.Query
+		}
+		traceutil.SetMeta(span, string(semconv126.DBQueryTextKey), val)
 	}
 }
 
@@ -61,8 +80,10 @@ func ObfuscateSQLSpan(o *obfuscate.Obfuscator, span *pb.Span) (*obfuscate.Obfusc
 		traceutil.SetMeta(span, TagSQLQuery, TextNonParsable)
 		return nil, err
 	}
+	// Before assigning the obfuscated query on the resource, obfuscate OTel
+	// DB attributes, which should reuse the same obfuscation.
+	obfuscateOTelDBAttributes(o, span.Resource, oq.Query, span)
 	span.Resource = oq.Query
-	obfuscateOTelDBAttributes(oq, span)
 	if len(oq.Metadata.TablesCSV) > 0 {
 		traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
 	}

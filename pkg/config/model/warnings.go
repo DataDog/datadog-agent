@@ -7,6 +7,17 @@ package model
 
 // Warnings represent the warnings in the config
 type Warnings struct {
-	TraceMallocEnabledWithPy2 bool
-	Errors                    []error
+	Errors []error
+}
+
+// NewWarnings creates a new Warnings instance
+func NewWarnings(errors []error) *Warnings {
+	return &Warnings{
+		Errors: errors,
+	}
+}
+
+// Count returns the number of errors in the Warnings
+func (w *Warnings) Count() int {
+	return len(w.Errors)
 }

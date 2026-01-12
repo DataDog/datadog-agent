@@ -68,6 +68,7 @@ func (f *mockSenderFactory) NewHTTPSender(
 	_ *client.DestinationsContext,
 	_ string,
 	_ string,
+	_ string,
 	queueCount int,
 	workersPerQueue int,
 	minWorkerConcurrency int,

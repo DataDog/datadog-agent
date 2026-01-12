@@ -29,6 +29,23 @@ func GetInterfaceMetadata(namespace string, deviceNameToIPMap map[string]string,
 	return interfaceMetadata, combinedErrs
 }
 
+// GetInterfaceMetadataFromAnalytics processes analytics interface data to create interface metadata
+// This is used when SendInterfaceMetadata and CollectInterfaceMetrics are disabled but CollectAnalyticsInterfaceMetrics is enabled
+func GetInterfaceMetadataFromAnalytics(namespace string, deviceNameToIPMap map[string]string, analyticsIfaces []client.AnalyticsInterfaceMetrics) ([]devicemetadata.InterfaceMetadata, error) {
+	interfaceMetadata := make([]devicemetadata.InterfaceMetadata, 0, len(analyticsIfaces))
+	var combinedErrs error
+	for _, analyticsIface := range analyticsIfaces {
+		md, err := buildInterfaceMetadataFromAnalytics(namespace, deviceNameToIPMap, analyticsIface)
+		if err != nil {
+			combinedErrs = multierr.Append(combinedErrs, err)
+			continue
+		}
+		interfaceMetadata = append(interfaceMetadata, md)
+	}
+
+	return interfaceMetadata, combinedErrs
+}
+
 func buildInterfaceMetadata(namespace string, deviceNameToIPMap map[string]string, iface client.Interface) (devicemetadata.InterfaceMetadata, error) {
 	deviceIP, ok := deviceNameToIPMap[iface.DeviceName]
 	if !ok {
@@ -46,6 +63,23 @@ func buildInterfaceMetadata(namespace string, deviceNameToIPMap map[string]strin
 		MacAddress:  iface.MAC,
 		AdminStatus: adminStatus(iface.IfAdminStatus),
 		OperStatus:  operStatus(iface.IfOperStatus),
+	}, nil
+}
+
+func buildInterfaceMetadataFromAnalytics(namespace string, deviceNameToIPMap map[string]string, analyticsIface client.AnalyticsInterfaceMetrics) (devicemetadata.InterfaceMetadata, error) {
+	deviceIP, ok := deviceNameToIPMap[analyticsIface.Site]
+	if !ok {
+		return devicemetadata.InterfaceMetadata{}, fmt.Errorf("couldn't find matching device %q for interface %q", analyticsIface.Site, analyticsIface.Interface)
+	}
+
+	id := buildDeviceID(namespace, deviceIP)
+
+	return devicemetadata.InterfaceMetadata{
+		DeviceID:  id,
+		IDTags:    []string{"interface:" + analyticsIface.Interface},
+		RawID:     analyticsIface.Interface,
+		RawIDType: "versa_interface",
+		Name:      analyticsIface.Interface,
 	}, nil
 }
 

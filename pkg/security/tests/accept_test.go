@@ -51,16 +51,16 @@ func TestAcceptEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const MIX = 4000
+	const MIN = 4000
 	const MAX = 5000
 
 	t.Run("accept-af-inet-any-tcp-success-no-sockaddrin", func(t *testing.T) {
 		if ebpfLessEnabled {
 			t.Skip("Not available for ebpfLess")
 		}
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
@@ -70,14 +70,14 @@ func TestAcceptEvent(t *testing.T) {
 			assert.Equal(t, "127.0.0.1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)
-		})
+		}, "test_accept_af_inet")
 	})
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin", func(t *testing.T) {
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET", "0.0.0.0", "127.0.0.1", strconv.Itoa(port), "true")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
@@ -86,13 +86,13 @@ func TestAcceptEvent(t *testing.T) {
 			assert.Equal(t, "127.0.0.1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)
-		})
+		}, "test_accept_af_inet")
 	})
 
 	t.Run("accept-af-inet-any-tcp-success-sockaddrin-io-uring", func(t *testing.T) {
 		SkipIfNotAvailable(t)
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
 		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
 		if err != nil {
@@ -136,14 +136,14 @@ func TestAcceptEvent(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		defer unix.Close(client)
 
 		ch := make(chan iouring.Result, 1)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
+			errChan := make(chan error, 1)
 			go func() {
-				if err := unix.Connect(client, &connectAddr); err != nil {
-					t.Error(err)
-				}
+				errChan <- unix.Connect(client, &connectAddr)
 			}()
 
 			if _, err = iour.SubmitRequest(prepRequest, ch); err != nil {
@@ -163,7 +163,7 @@ func TestAcceptEvent(t *testing.T) {
 				return fmt.Errorf("failed to accept with io_uring: %d", ret)
 			}
 
-			return err
+			return <-errChan
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet")
 			assert.Equal(t, "accept", event.GetType(), "wrong event type")
@@ -171,7 +171,7 @@ func TestAcceptEvent(t *testing.T) {
 			assert.Equal(t, "127.0.0.1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)
-		})
+		}, "test_accept_af_inet")
 	})
 
 	t.Run("accept-af-inet6-any-tcp-success-no-sockaddrin", func(t *testing.T) {
@@ -183,9 +183,9 @@ func TestAcceptEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "false")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
@@ -195,7 +195,7 @@ func TestAcceptEvent(t *testing.T) {
 			assert.Equal(t, "::1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)
-		})
+		}, "test_accept_af_inet6")
 	})
 
 	t.Run("accept-af-inet6-any-tcp-success-sockaddrin", func(t *testing.T) {
@@ -203,9 +203,9 @@ func TestAcceptEvent(t *testing.T) {
 			t.Skip("IPv6 is not supported")
 		}
 
-		port := rand.IntN(MAX-MIX) + MIX
+		port := rand.IntN(MAX-MIN) + MIN
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "accept", "AF_INET6", "::", "::1", strconv.Itoa(port), "true")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_accept_af_inet6")
@@ -214,6 +214,6 @@ func TestAcceptEvent(t *testing.T) {
 			assert.Equal(t, "::1", event.Accept.Addr.IPNet.IP.String(), "wrong address")
 			assert.LessOrEqual(t, int64(0), event.Accept.Retval, "wrong retval")
 			test.validateAcceptSchema(t, event)
-		})
+		}, "test_accept_af_inet6")
 	})
 }

@@ -10,6 +10,7 @@ package cwsinstrumentation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -85,7 +86,7 @@ type MockV1PodsGetter struct {
 // Get looks up a pod based on user input
 func (mvpg *MockV1PodsGetter) Get(_ context.Context, _ string, _ metav1.GetOptions) (*corev1.Pod, error) {
 	if mvpg.shouldFail {
-		return nil, fmt.Errorf("mocked V1PodsGetter error")
+		return nil, errors.New("mocked V1PodsGetter error")
 	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -593,7 +594,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
+				Image:   commonRegistry + "/my-image:latest",
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -617,7 +618,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   fmt.Sprintf("%s/my-image:my-tag", commonRegistry),
+				Image:   commonRegistry + "/my-image:my-tag",
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -677,7 +678,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
+				Image:   commonRegistry + "/my-image:latest",
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -741,7 +742,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
+				Image:   commonRegistry + "/my-image:latest",
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
@@ -783,7 +784,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
-				Image:   fmt.Sprintf("%s/my-image:latest", commonRegistry),
+				Image:   commonRegistry + "/my-image:latest",
 				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{

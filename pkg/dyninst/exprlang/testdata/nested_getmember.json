@@ -1,0 +1,14 @@
+{
+  "type": "unsupported",
+  "operation": "getmember",
+  "argument": [
+    {
+      "Base": {
+        "Ref": "self"
+      },
+      "Member": "field1"
+    },
+    "name"
+  ],
+  "error": ""
+}

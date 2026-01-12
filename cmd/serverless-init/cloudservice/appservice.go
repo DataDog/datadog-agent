@@ -10,6 +10,9 @@ import (
 	"maps"
 	"os"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -28,6 +31,8 @@ const (
 
 	// AppServiceOrigin origin tag value
 	AppServiceOrigin = "appservice"
+
+	appServicePrefix = "azure.appservice"
 )
 
 // GetTags returns a map of Azure-related tags
@@ -47,21 +52,40 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+// GetDefaultLogsSource returns the default logs source if `DD_SOURCE` is not set
+func (a *AppService) GetDefaultLogsSource() string {
+	return AppServiceOrigin
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (a *AppService) GetOrigin() string {
 	return AppServiceOrigin
 }
 
-// GetPrefix returns the prefix that we're prefixing all
-// metrics with.
-func (a *AppService) GetPrefix() string {
-	return "azure.appservice"
+// GetSource returns the metrics source
+func (a *AppService) GetSource() metrics.MetricSource {
+	return metrics.MetricSourceAzureAppServiceEnhanced
 }
 
 // Init is empty for AppService
-func (a *AppService) Init() error {
+func (a *AppService) Init(_ interface{}) error {
 	return nil
+}
+
+// Shutdown emits the shutdown metric for AppService
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
+}
+
+// GetStartMetricName returns the metric name for container start (coldstart) events
+func (a *AppService) GetStartMetricName() string {
+	return appServicePrefix + ".enhanced.cold_start"
+}
+
+// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
+func (a *AppService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
+	return false
 }
 
 func isAppService() bool {

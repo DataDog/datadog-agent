@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+//go:build !serverless && cel
 
 package listeners
 
@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -163,11 +164,28 @@ func TestCreateContainerService(t *testing.T) {
 		Ready: false,
 	}
 
+	podWithTolerateUnreadyAnnotation := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithTolerateUnreadyAnnotation.Annotations["ad.datadoghq.com/tolerate-unready"] = "true"
+
+	podWithCheck := pod.DeepCopy().(*workloadmeta.KubernetesPod)
+	podWithCheck.Annotations["ad.datadoghq.com/foobar.checks"] = `{"redisdb": {"instances": [{"host": "%%host%%", "port": 6379}]}}`
+
 	// Define a container excluded by the "container_exclude" config setting
-	containerExcludeConfigSetting := []string{"image:gcr.io/excluded:.*"}
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", containerExcludeConfigSetting)
-	containerExcludedByConfigSetting := &workloadmeta.Container{
+
+	configYaml := `
+cel_workload_exclude:
+  - products:
+      - metrics
+      - logs
+    rules:
+      containers:
+        - container.name == 'metrics_logs_excluded_name_cel'
+        - container.name == 'some_other_excluded_name'
+container_exclude: image:gcr.io/excluded:.*
+`
+	configmock.NewFromYAML(t, configYaml)
+
+	containerExcludedByContainerExclude := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "excluded",
@@ -185,6 +203,9 @@ func TestCreateContainerService(t *testing.T) {
 		Runtime: workloadmeta.ContainerRuntimeDocker,
 	}
 
+	containerExcludedByCELWorkloadExclude := kubernetesContainer.DeepCopy().(*workloadmeta.Container)
+	containerExcludedByCELWorkloadExclude.EntityMeta.Name = "metrics_logs_excluded_name_cel"
+
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
 
 	tests := []struct {
@@ -198,17 +219,18 @@ func TestCreateContainerService(t *testing.T) {
 			container: basicContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: basicContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
 							"gcr.io/foobar",
 							"foobar",
 						},
-						hosts: map[string]string{},
-						ports: []ContainerPort{},
-						ready: true,
+						hosts:           map[string]string{},
+						ports:           []ContainerPort{},
+						ready:           true,
+						metricsExcluded: false,
+						logsExcluded:    false,
 					},
 				},
 			},
@@ -235,17 +257,18 @@ func TestCreateContainerService(t *testing.T) {
 			container: runningContainerWithFinishedAtTime,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: runningContainerWithFinishedAtTime,
 						adIdentifiers: []string{
 							"docker://foobarquux",
 							"gcr.io/foobar",
 							"foobar",
 						},
-						hosts: map[string]string{},
-						ports: []ContainerPort{},
-						ready: true,
+						hosts:           map[string]string{},
+						ports:           []ContainerPort{},
+						ready:           true,
+						metricsExcluded: false,
+						logsExcluded:    false,
 					},
 				},
 			},
@@ -255,8 +278,7 @@ func TestCreateContainerService(t *testing.T) {
 			container: multiplePortsContainer,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foobarquux": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: multiplePortsContainer,
 						adIdentifiers: []string{
 							"docker://foobarquux",
@@ -284,8 +306,7 @@ func TestCreateContainerService(t *testing.T) {
 			pod:       pod,
 			expectedServices: map[string]wlmListenerSvc{
 				"container://foo": {
-					service: &service{
-						tagger: taggerComponent,
+					service: &WorkloadService{
 						entity: kubernetesContainer,
 						adIdentifiers: []string{
 							"docker://foo",
@@ -294,7 +315,29 @@ func TestCreateContainerService(t *testing.T) {
 						},
 						hosts: map[string]string{"pod": pod.IP},
 						ports: []ContainerPort{},
-						ready: pod.Ready,
+						ready: false, // Pod not ready and no tolerate-unready annotation
+					},
+				},
+			},
+		},
+		{
+			name:      "pod with tolerate-unready annotation",
+			container: kubernetesContainer,
+			pod:       podWithTolerateUnreadyAnnotation,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &WorkloadService{
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts:           map[string]string{"pod": pod.IP},
+						ports:           []ContainerPort{},
+						ready:           true, // Because of the tolerate-unready annotation
+						metricsExcluded: false,
+						logsExcluded:    false,
 					},
 				},
 			},
@@ -307,8 +350,95 @@ func TestCreateContainerService(t *testing.T) {
 		},
 		{
 			name:             "excluded by config setting",
-			container:        containerExcludedByConfigSetting,
+			container:        containerExcludedByContainerExclude,
 			expectedServices: map[string]wlmListenerSvc{},
+		},
+		{
+			name:      "excluded metrics and logs by CEL workload exclude",
+			container: containerExcludedByCELWorkloadExclude,
+			pod:       pod,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &WorkloadService{
+						entity: containerExcludedByCELWorkloadExclude,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts:           map[string]string{"pod": pod.IP},
+						ports:           []ContainerPort{},
+						ready:           false,
+						metricsExcluded: true,
+						logsExcluded:    true,
+					},
+				},
+			},
+		},
+		{
+			name:      "pod check annotation added to check names",
+			container: kubernetesContainer,
+			pod:       podWithCheck,
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &WorkloadService{
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+						},
+						hosts:      map[string]string{"pod": podWithCheck.IP},
+						ports:      []ContainerPort{},
+						ready:      false,
+						checkNames: []string{"redisdb"},
+					},
+				},
+			},
+		},
+		{
+			name:      "pod check id accounted for in check names resolution",
+			container: kubernetesContainer,
+			pod: &workloadmeta.KubernetesPod{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesPod,
+					ID:   podID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/bar.checks":      `{"postgresql": {}}`,
+						"ad.datadoghq.com/foobar.check.id": `bar`,
+					},
+				},
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:    kubernetesContainer.ID,
+						Name:  kubernetesContainer.Name,
+						Image: kubernetesContainer.Image,
+					},
+				},
+				IP:    "127.0.0.1",
+				Ready: true,
+			},
+			expectedServices: map[string]wlmListenerSvc{
+				"container://foo": {
+					service: &WorkloadService{
+						entity: kubernetesContainer,
+						adIdentifiers: []string{
+							"docker://foo",
+							"gcr.io/foobar",
+							"foobar",
+							"bar",
+						},
+						hosts:      map[string]string{"pod": "127.0.0.1"},
+						ports:      []ContainerPort{},
+						ready:      true,
+						checkNames: []string{"postgresql"},
+					},
+				},
+			},
 		},
 	}
 
@@ -389,5 +519,11 @@ func newContainerListener(t *testing.T, tagger tagger.Component) (*ContainerList
 	wlm := newTestWorkloadmetaListener(t)
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	return &ContainerListener{workloadmetaListener: wlm, filterStore: filterStore, tagger: tagger}, wlm
+	return &ContainerListener{
+		workloadmetaListener: wlm,
+		globalFilter:         filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:        filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:           filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:               tagger,
+	}, wlm
 }

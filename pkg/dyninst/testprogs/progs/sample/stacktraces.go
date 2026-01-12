@@ -26,34 +26,6 @@ func stackC() string {
 }
 
 //nolint:all
-//go:noinline
-func callInlinedFuncChain() {
-	inlineMe1()
-}
-
-//nolint:all
-func inlineMe1() {
-	inlineMe2()
-}
-
-//nolint:all
-func inlineMe2() {
-	inlineMe3()
-}
-
-//nolint:all
-func inlineMe3() {
-	notInlined()
-}
-
-//nolint:all
-//go:noinline
-func notInlined() string {
-	return fmt.Sprintf("hello %d!", 42)
-}
-
-//nolint:all
-func executeStackAndInlining() {
+func executeStack() {
 	stackA()
-	callInlinedFuncChain()
 }

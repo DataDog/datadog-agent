@@ -35,8 +35,8 @@ func TestChoose(t *testing.T) {
 
 			chsr := chooser{
 				choice:       make(chan LogWhat, 1),
-				kubeletReady: func() (bool, time.Duration) { return 0 != ready&kubernetesReadyBit, 0 },
-				dockerReady:  func() (bool, time.Duration) { return 0 != ready&dockerReadyBit, 0 },
+				kubeletReady: func() (bool, time.Duration) { return ready&kubernetesReadyBit != 0, 0 },
+				dockerReady:  func() (bool, time.Duration) { return ready&dockerReadyBit != 0, 0 },
 			}
 			chsr.choose(false)
 
@@ -75,7 +75,7 @@ func TestChoose(t *testing.T) {
 		test([]env.Feature{env.Podman}, false, dockerReadyBit, LogContainers))
 
 	t.Run("docker not ready, only Podman enabled",
-		test([]env.Feature{env.Podman}, false, 0, LogUnknown))
+		test([]env.Feature{env.Podman}, false, 0, LogContainers))
 
 	// - if the kubernetes feature is available and no container features are
 	//   available, wait for the kubelet service to start, and return LogPods
@@ -85,6 +85,9 @@ func TestChoose(t *testing.T) {
 
 	t.Run("k8s not ready, only k8s enabled",
 		test([]env.Feature{env.Kubernetes}, false, 0, LogUnknown))
+
+	t.Run("k8s not ready, only Podman enabled",
+		test([]env.Feature{env.Podman, env.Kubernetes}, false, 0, LogUnknown))
 
 	// - if none of the features are available, LogNothing
 

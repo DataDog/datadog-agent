@@ -9,7 +9,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	iexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
@@ -19,8 +18,7 @@ const (
 	// InstallerPackage is the name of the Datadog Installer OCI package
 	InstallerPackage = "datadog-installer"
 	// AgentPackage is the name of the Datadog Agent OCI package
-	AgentPackage     = "datadog-agent"
-	installerBinPath = "bin/installer/installer"
+	AgentPackage = "datadog-agent"
 )
 
 // Install self-installs the installer package from the given URL.
@@ -37,7 +35,7 @@ func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
 
 // getLocalInstaller returns an installer executor from the current binary
 func getLocalInstaller(env *env.Env) (*iexec.InstallerExec, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := iexec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get executable path: %w", err)
 	}

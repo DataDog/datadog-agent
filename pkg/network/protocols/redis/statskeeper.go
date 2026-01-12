@@ -15,17 +15,19 @@ import (
 
 // StatsKeeper is a struct to hold the records for the redis protocol
 type StatsKeeper struct {
-	stats      map[Key]*RequestStats
-	statsMutex sync.RWMutex
-	maxEntries int
-	telemetry  *telemetry
+	stats          map[Key]*RequestStats
+	statsMutex     sync.RWMutex
+	maxEntries     int
+	telemetry      *telemetry
+	trackResources bool
 }
 
 // NewStatsKeeper creates a new Redis StatsKeeper
 func NewStatsKeeper(c *config.Config) *StatsKeeper {
 	statsKeeper := &StatsKeeper{
-		maxEntries: c.MaxRedisStatsBuffered,
-		telemetry:  newTelemetry(),
+		maxEntries:     c.MaxRedisStatsBuffered,
+		telemetry:      newTelemetry(),
+		trackResources: c.RedisTrackResources,
 	}
 
 	statsKeeper.resetNoLock()
@@ -48,9 +50,12 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 	}
 	key := Key{
 		Command:       event.CommandType(),
-		KeyName:       event.KeyName(),
 		ConnectionKey: event.ConnTuple(),
-		Truncated:     event.Tx.Truncated,
+	}
+
+	if s.trackResources {
+		key.KeyName = event.KeyName()
+		key.Truncated = event.Truncated
 	}
 
 	requestStats, ok := s.stats[key]
@@ -59,7 +64,7 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 			s.telemetry.dropped.Add(1)
 			return
 		}
-		requestStats = NewRequestStats()
+		requestStats = requestStatsPool.Get()
 		s.stats[key] = requestStats
 	}
 	count := 1 // We process one event at a time
@@ -68,8 +73,8 @@ func (s *StatsKeeper) Process(event *EventWrapper) {
 
 // GetAndResetAllStats returns all the records and resets the statskeeper
 func (s *StatsKeeper) GetAndResetAllStats() map[Key]*RequestStats {
-	s.statsMutex.RLock()
-	defer s.statsMutex.RUnlock()
+	s.statsMutex.Lock()
+	defer s.statsMutex.Unlock()
 
 	ret := s.stats
 	s.resetNoLock()

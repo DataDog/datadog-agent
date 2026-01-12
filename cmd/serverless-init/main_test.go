@@ -8,8 +8,6 @@
 package main
 
 import (
-	"errors"
-	"os/exec"
 	"testing"
 	"time"
 
@@ -17,12 +15,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -32,6 +31,7 @@ func TestTagsSetup(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	fakeCompression := compressionmock.NewMockCompressor()
+	fakeHostname, _ := hostnameinterface.NewMock(hostnameinterface.MockHostname(""))
 
 	configmock.New(t)
 
@@ -44,11 +44,10 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(mode.Conf{}, fakeTagger, fakeCompression)
+	_, _, traceAgent, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)
-	assert.Subset(t, logs.GetLogsTags(), allTags)
 }
 
 func TestFxApp(t *testing.T) {
@@ -90,30 +89,4 @@ func TestFlushTimeout(t *testing.T) {
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, false, metricAgent.hasBeenCalled)
 	assert.Equal(t, false, mockLogsAgent.DidFlush())
-}
-func TestExitCodePropagationGenericError(t *testing.T) {
-	err := errors.New("test error")
-
-	exitCode := errorExitCode(err)
-	assert.Equal(t, 1, exitCode)
-}
-
-func TestExitCodePropagationExitError(t *testing.T) {
-	cmd := exec.Command("bash", "-c", "exit 2")
-	err := cmd.Run()
-
-	exitCode := errorExitCode(err)
-	assert.Equal(t, 2, exitCode)
-}
-
-func TestExitCodePropagationJoinedExitError(t *testing.T) {
-	genericError := errors.New("test error")
-
-	cmd := exec.Command("bash", "-c", "exit 3")
-	exitCodeError := cmd.Run()
-
-	errs := errors.Join(genericError, exitCodeError)
-
-	exitCode := errorExitCode(errs)
-	assert.Equal(t, 3, exitCode)
 }

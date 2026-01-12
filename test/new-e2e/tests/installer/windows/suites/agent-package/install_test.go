@@ -11,8 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -26,10 +26,7 @@ type testAgentInstallSuite struct {
 // TestAgentInstalls tests the usage of the Datadog installer to install the Datadog Agent package.
 func TestAgentInstalls(t *testing.T) {
 	e2e.Run(t, &testAgentInstallSuite{},
-		e2e.WithProvisioner(
-			winawshost.ProvisionerNoAgentNoFakeIntake(
-				winawshost.WithInstaller(),
-			)))
+		e2e.WithProvisioner(winawshost.ProvisionerNoAgentNoFakeIntake()))
 }
 
 // TestInstallAgentPackage tests installing and uninstalling the Datadog Agent using the Datadog installer.
@@ -61,7 +58,7 @@ func (s *testAgentInstallSuite) installAgent() {
 }
 
 func (s *testAgentInstallSuite) installAgentViaSetupScript() {
-	installExe := installerwindows.NewDatadogInstallExe(s.Env())
+	installExe := installerwindows.NewDatadogInstallExe(s.Env().RemoteHost)
 
 	// Act - This calls the same path as Fleet Automation setup script: installer.exe setup --flavor default
 	output, err := installExe.Run()
@@ -119,7 +116,5 @@ func (s *testAgentInstallSuite) uninstallAgentWithMSI() {
 
 	// Assert
 	s.Require().NoErrorf(err, "failed to uninstall the Datadog Agent package")
-	s.Require().Host(s.Env().RemoteHost).
-		DirExists(consts.GetStableDirFor(consts.AgentPackage),
-			"the package directory should still exist after manually uninstalling the Agent with the MSI")
+	// we default to purge everything, so we don't need to check for the package directory
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,6 +37,7 @@ type ControllerContext struct {
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
+	RcClient                     *rcclient.Client
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -47,7 +49,10 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		return webhooks, nil
 	}
 
-	notifChan, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
+	// Subscribe twice to get separate notification channels for each controller
+	// This ensures both controllers receive leadership change notifications
+	notifChanSecret, isLeaderFunc := ctx.LeadershipStateSubscribeFunc()
+	notifChanWebhook, _ := ctx.LeadershipStateSubscribeFunc()
 
 	certConfig := secret.NewCertConfig(
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
@@ -61,7 +66,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.Client,
 		ctx.SecretInformers.Core().V1().Secrets(),
 		isLeaderFunc,
-		notifChan,
+		notifChanSecret,
 		secretConfig,
 	)
 
@@ -87,12 +92,13 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.ValidatingInformers.Admissionregistration(),
 		ctx.MutatingInformers.Admissionregistration(),
 		isLeaderFunc,
-		notifChan,
+		notifChanWebhook,
 		webhookConfig,
 		wmeta,
 		pa,
 		datadogConfig,
 		ctx.Demultiplexer,
+		ctx.RcClient,
 	)
 
 	go secretController.Run(ctx.StopCh)

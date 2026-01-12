@@ -7,7 +7,11 @@
 
 package kernel
 
-import "github.com/DataDog/datadog-agent/pkg/util/funcs"
+import (
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
+)
 
 // ProcFSRoot is the path to procfs
 var ProcFSRoot = funcs.MemoizeNoError(func() string {
@@ -17,4 +21,9 @@ var ProcFSRoot = funcs.MemoizeNoError(func() string {
 // SysFSRoot is the path to sysfs
 var SysFSRoot = funcs.MemoizeNoError(func() string {
 	return ""
+})
+
+// RootNSPID returns the current PID for non-linux platforms
+var RootNSPID = funcs.Memoize(func() (int, error) {
+	return os.Getpid(), nil
 })

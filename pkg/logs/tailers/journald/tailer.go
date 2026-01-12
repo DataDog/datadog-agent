@@ -36,7 +36,7 @@ const (
 
 // Tailer collects logs from a journal.
 type Tailer struct {
-	decoder    *decoder.Decoder
+	decoder    decoder.Decoder
 	source     *sources.LogSource
 	outputChan chan *message.Message
 	journal    Journal
@@ -201,7 +201,7 @@ func (t *Tailer) forwardMessages() {
 		close(t.done)
 	}()
 
-	for decodedMessage := range t.decoder.OutputChan {
+	for decodedMessage := range t.decoder.OutputChan() {
 		if len(decodedMessage.GetContent()) > 0 {
 			// Preserve the original message structure and ParsingExtra information (including IsTruncated)
 			// The decodedMessage already has the proper origin with tags set
@@ -309,7 +309,7 @@ func (t *Tailer) tail() {
 			select {
 			case <-t.stop:
 				return
-			case t.decoder.InputChan <- msg:
+			case t.decoder.InputChan() <- msg:
 			}
 		}
 	}
@@ -493,8 +493,8 @@ func (t *Tailer) Identifier() string {
 // Identifier returns the unique identifier of the current journald config
 func Identifier(config *config.LogsConfig) string {
 	id := "default"
-	if config.ConfigId != "" {
-		id = config.ConfigId
+	if config.ConfigID != "" {
+		id = config.ConfigID
 	} else if config.Path != "" {
 		id = config.Path
 	}

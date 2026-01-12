@@ -56,8 +56,7 @@ def send_metrics(series):
     from datadog_api_client.v2.api.metrics_api import MetricsApi
     from datadog_api_client.v2.model.metric_payload import MetricPayload
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
         response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
@@ -85,8 +84,7 @@ def send_event(title: str, text: str, tags: list[str] = None):
         tags=tags or [],
     )
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = EventsApi(api_client)
         try:
             response = api_instance.create_event(body=body)
@@ -110,8 +108,7 @@ def get_ci_pipeline_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = CIVisibilityPipelinesApi(api_client)
         response = api_instance.list_ci_app_pipeline_events(
             filter_query=query,
@@ -120,3 +117,45 @@ def get_ci_pipeline_events(query, days):
             page_limit=5,
         )
         return response
+
+
+def get_ci_test_events(query, days):
+    """
+    Fetch test events using Datadog CI Visibility API
+    Returns all results by handling pagination automatically
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
+
+    all_events = []
+    page_cursor = None
+
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
+        api = CIVisibilityTestsApi(api_client)
+
+        while True:
+            # We filter jobs of a single pipeline by its id and job name
+            kwargs = {
+                "filter_query": query,
+                "page_limit": 1000,
+                "filter_from": (datetime.now() - timedelta(days=days)),
+                "filter_to": datetime.now(),
+            }
+
+            if page_cursor:
+                kwargs["page_cursor"] = page_cursor
+
+            response = api.list_ci_app_test_events(**kwargs)
+            # Add events from this page to our collection
+            if hasattr(response, 'data') and response.data:
+                all_events.extend(response.data)
+
+            # Check if there are more pages
+            if hasattr(response, 'meta') and hasattr(response.meta, 'page') and hasattr(response.meta.page, 'after'):
+                page_cursor = response.meta.page.after
+                if not page_cursor:  # No more pages
+                    break
+            else:
+                break  # No pagination metadata, assume single page
+
+    return all_events

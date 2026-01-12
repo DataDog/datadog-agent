@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && !darwin
+//go:build kubeapiserver
 
 package webhook
 
@@ -27,6 +27,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -34,7 +35,7 @@ import (
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	datadogConfig := fxutil.Test[config.Component](t, core.MockBundle())
+	datadogConfig := config.NewMock(t)
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1
@@ -49,6 +50,7 @@ func TestNewController(t *testing.T) {
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 		nil,
 	)
 
@@ -66,6 +68,7 @@ func TestNewController(t *testing.T) {
 		wmeta,
 		nil,
 		datadogConfig,
+		nil,
 		nil,
 	)
 
@@ -133,12 +136,12 @@ func TestAutoInstrumentation(t *testing.T) {
 			wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				fx.Supply(config.Params{}),
 				fx.Provide(func() log.Component { return logmock.New(t) }),
-				config.MockModule(),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
 			// Create APM webhook.
-			apm, err := generateAutoInstrumentationWebhook(wmeta, mockConfig)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil)
 			assert.NoError(t, err)
 
 			// Create request.

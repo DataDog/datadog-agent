@@ -14,15 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 )
 
 //go:embed config-vm/cisco-nexus.yaml
@@ -34,9 +34,11 @@ type snmpVMSuite struct {
 
 func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provisioner {
 	allOpts := []awshost.ProvisionerOption{
-		awshost.WithDocker(),
-		awshost.WithAgentOptions(
-			agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+		awshost.WithRunOptions(
+			scenec2.WithDocker(),
+			scenec2.WithAgentOptions(
+				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
+			),
 		),
 	}
 	allOpts = append(allOpts, opts...)
@@ -54,20 +56,15 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	vm := v.Env().RemoteHost
 	fakeIntake := v.Env().FakeIntake
 
-	err := vm.CopyFolder("compose/data", "/tmp/data")
-	v.Require().NoError(err)
-
-	vm.CopyFile("compose-vm/snmpCompose.yaml", "/tmp/snmpCompose.yaml")
-
-	_, err = vm.Execute("docker-compose -f /tmp/snmpCompose.yaml up -d")
-	v.Require().NoError(err)
+	setupDevice(v.Require(), vm)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
@@ -76,6 +73,7 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 	secretClient := secretsutils.NewClient(v.T(), v.Env().RemoteHost, "/tmp/test-secret")
 	secretClient.SetSecret("api_key", apiKey1)
 
+	// language=yaml
 	agentConfig := `
 api_key: ENC[api_key]
 
@@ -86,15 +84,17 @@ secret_backend_arguments:
 
 	v.UpdateEnv(
 		snmpVMProvisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithAgentConfig(agentConfig),
-				secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
-				agentparams.WithSkipAPIKeyInConfig(),
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(
+					agentparams.WithAgentConfig(agentConfig),
+					secretsutils.WithUnixSetupScript("/tmp/test-secret/secret-resolver.py", false),
+					agentparams.WithSkipAPIKeyInConfig(),
+				),
 			),
 		),
 	)
 
-	err = fakeIntake.Client().FlushServerAndResetAggregators()
+	err := fakeIntake.Client().FlushServerAndResetAggregators()
 	v.Require().NoError(err)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
@@ -104,11 +104,12 @@ secret_backend_arguments:
 	}, 1*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
 
 	secretClient.SetSecret("api_key", apiKey2)
@@ -124,46 +125,11 @@ secret_backend_arguments:
 	}, 1*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetric(c, fakeIntake)
+		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		checkBasicMetadata(c, fakeIntake)
+		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
 	}, 6*time.Minute, 10*time.Second)
-}
-
-func checkBasicMetric(c *assert.CollectT, fakeIntake *components.FakeIntake) {
-	metrics, err := fakeIntake.Client().GetMetricNames()
-	assert.NoError(c, err)
-	assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "Metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
-}
-
-func checkBasicMetadata(c *assert.CollectT, fakeIntake *components.FakeIntake) {
-	ndmPayloads, err := fakeIntake.Client().GetNDMPayloads()
-	assert.NoError(c, err)
-	assert.Greater(c, len(ndmPayloads), 0)
-
-	ndmPayload := ndmPayloads[len(ndmPayloads)-1]
-	assert.Equal(c, "default", ndmPayload.Namespace)
-	assert.Equal(c, "snmp", ndmPayload.Integration)
-	assert.Greater(c, len(ndmPayload.Devices), 0)
-	assert.Greater(c, len(ndmPayload.Interfaces), 0)
-
-	ciscoDevice := ndmPayload.Devices[0]
-	assert.Equal(c, "default:127.0.0.1", ciscoDevice.ID)
-	assert.Contains(c, ciscoDevice.IDTags, "snmp_device:127.0.0.1")
-	assert.Contains(c, ciscoDevice.IDTags, "device_namespace:default")
-	assert.Contains(c, ciscoDevice.Tags, "snmp_profile:cisco-nexus")
-	assert.Contains(c, ciscoDevice.Tags, "device_vendor:cisco")
-	assert.Contains(c, ciscoDevice.Tags, "snmp_device:127.0.0.1")
-	assert.Contains(c, ciscoDevice.Tags, "device_namespace:default")
-	assert.Equal(c, "127.0.0.1", ciscoDevice.IPAddress)
-	assert.Equal(c, int32(1), ciscoDevice.Status)
-	assert.Equal(c, "Nexus-eu1.companyname.managed", ciscoDevice.Name)
-	assert.Equal(c, "oxen acted but acted kept", ciscoDevice.Description)
-	assert.Equal(c, "1.3.6.1.4.1.9.12.3.1.3.1.2", ciscoDevice.SysObjectID)
-	assert.Equal(c, "but kept Jaded their but kept quaintly driving their", ciscoDevice.Location)
-	assert.Equal(c, "cisco-nexus", ciscoDevice.Profile)
-	assert.Equal(c, "cisco", ciscoDevice.Vendor)
-	assert.Equal(c, "switch", ciscoDevice.DeviceType)
 }

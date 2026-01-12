@@ -12,9 +12,20 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
-// IsFargateInstance returns whether the Agent is running in Fargate.
-func IsFargateInstance() bool {
-	return env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate)
+// IsSidecar returns whether the Agent is running in a sidecar deployment mode.
+// This includes:
+// - ECS Fargate (always sidecar)
+// - EKS Fargate
+// - ECS Managed Instances in sidecar mode (explicitly configured via ecs_deployment_mode: sidecar)
+// These environments all share the characteristic that the agent runs as a sidecar container
+// and should not report a hostname (the task/pod is the unit of identity, not the host).
+func IsSidecar() bool {
+	if env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.EKSFargate) {
+		return true
+	}
+
+	// Check if we're in ECS sidecar mode (includes managed instances in sidecar)
+	return env.IsECSSidecarMode(pkgconfigsetup.Datadog())
 }
 
 // GetOrchestrator returns whether the Agent is running on ECS or EKS.
@@ -24,6 +35,9 @@ func GetOrchestrator() OrchestratorName {
 	}
 	if env.IsFeaturePresent(env.ECSFargate) {
 		return ECS
+	}
+	if env.IsFeaturePresent(env.ECSManagedInstances) {
+		return ECSManagedInstances
 	}
 	return Unknown
 }

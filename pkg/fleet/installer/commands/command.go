@@ -10,9 +10,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
-	"runtime"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -21,12 +22,22 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+const (
+	// AnnotationHumanReadableErrors is the annotation key for commands that should
+	// display errors in human-readable format instead of JSON.
+	//
+	// For example, `setup` is run by humans and its output should be human readable.
+	AnnotationHumanReadableErrors = "human-readable-errors"
 )
 
 type cmd struct {
@@ -120,10 +131,7 @@ type telemetryConfigFields struct {
 
 // telemetryConfig is a best effort to get the API key / site from `datadog.yaml`.
 func telemetryConfig() telemetryConfigFields {
-	configPath := "/etc/datadog-agent/datadog.yaml"
-	if runtime.GOOS == "windows" {
-		configPath = "C:\\ProgramData\\Datadog\\datadog.yaml"
-	}
+	configPath := filepath.Join(paths.AgentConfigDir, "datadog.yaml")
 	rawConfig, err := os.ReadFile(configPath)
 	if err != nil {
 		return telemetryConfigFields{}
@@ -216,6 +224,9 @@ func setupCommand() *cobra.Command {
 		Use:     "setup",
 		Hidden:  true,
 		GroupID: "installer",
+		Annotations: map[string]string{
+			AnnotationHumanReadableErrors: "true",
+		},
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			cmd := newCmd("setup")
 			defer func() { cmd.stop(err) }()
@@ -371,10 +382,10 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <version> <config1> <config2> ...",
+		Use:     "install-config-experiment <package> <operations>",
 		Short:   "Install a config experiment",
 		GroupID: "installer",
-		Args:    cobra.MinimumNArgs(3),
+		Args:    cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -382,15 +393,30 @@ func installConfigExperimentCommand() *cobra.Command {
 			}
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
-			i.span.SetTag("params.version", args[1])
 
-			// Start with the main config
-			configs := make([][]byte, len(args)-2)
-			for i, config := range args[2:] {
-				configs[i] = []byte(config)
+			// Parse operations from command-line argument
+			var operations config.Operations
+			err = json.Unmarshal([]byte(args[1]), &operations)
+			if err != nil {
+				return fmt.Errorf("could not decode operations: %w", err)
 			}
 
-			return i.InstallConfigExperiment(i.ctx, args[0], args[1], configs)
+			// Read decrypted secrets from stdin
+			// For backwards compatibility, accept empty stdin (no secrets)
+			var decryptedSecrets map[string]string
+			decoder := json.NewDecoder(os.Stdin)
+			err = decoder.Decode(&decryptedSecrets)
+			if err != nil && err != io.EOF {
+				return fmt.Errorf("could not decode secrets from stdin: %w", err)
+			}
+			// If stdin is empty or EOF, use empty map
+			if decryptedSecrets == nil {
+				decryptedSecrets = make(map[string]string)
+			}
+
+			i.span.SetTag("params.deployment_id", operations.DeploymentID)
+			i.span.SetTag("params.operations", operations.FileOperations)
+			return i.InstallConfigExperiment(i.ctx, args[0], operations, decryptedSecrets)
 		},
 	}
 	return cmd
@@ -490,18 +516,7 @@ func getState() (*repository.PackageStates, error) {
 		return nil, err
 	}
 	defer i.stop(err)
-	states, err := i.States(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	configStates, err := i.ConfigStates(i.ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &repository.PackageStates{
-		States:       states,
-		ConfigStates: configStates,
-	}, nil
+	return i.ConfigAndPackageStates(i.ctx)
 }
 
 func getStateCommand() *cobra.Command {

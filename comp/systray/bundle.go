@@ -7,4 +7,4 @@
 // Package systray implements the Datadog Agent Manager System Tray
 package systray
 
-// team: windows-agent
+// team: windows-products

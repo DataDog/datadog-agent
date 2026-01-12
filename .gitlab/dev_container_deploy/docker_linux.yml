@@ -118,17 +118,6 @@ dca_dev_branch:
   rules: !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
-  variables:
-    IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
-    IMG_DESTINATIONS: cluster-agent-dev:${CI_COMMIT_REF_SLUG}
-
-dca_dev_branch_multiarch:
-  extends: .docker_publish_job_definition
-  stage: dev_container_deploy
-  rules: !reference [.manual]
-  needs:
-    - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
   variables:
     IMG_REGISTRIES: dev
@@ -141,9 +130,10 @@ dca_dev_master:
   rules: !reference [.on_main]
   needs:
     - docker_build_cluster_agent_amd64
+    - docker_build_cluster_agent_arm64
   variables:
     IMG_REGISTRIES: dev
-    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
+    IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
     IMG_DESTINATIONS: cluster-agent-dev:master
 
 cws_instrumentation_dev_branch_multiarch:
@@ -213,7 +203,7 @@ dev_branch-full:
   variables:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-amd64,${SRC_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-full-arm64
-    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full
+    IMG_DESTINATIONS: agent-dev:${CI_COMMIT_REF_SLUG}-full,agent-dev:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA}-full
 
 dev_branch-ot-standalone:
   extends: .docker_publish_job_definition
@@ -227,3 +217,29 @@ dev_branch-ot-standalone:
     IMG_REGISTRIES: dev
     IMG_SOURCES: ${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_OTEL_AGENT}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
     IMG_DESTINATIONS: otel-agent-dev:${CI_COMMIT_REF_SLUG}-7
+
+dev_nightly-host-profiler-standalone:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.on_deploy_nightly_repo_branch]
+  needs:
+    - docker_build_host_profiler_standalone_amd64
+    - docker_build_host_profiler_standalone_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+    IMG_DESTINATIONS: ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHORT_SHA},ddot-ebpf-dev:nightly-${CI_COMMIT_REF_SLUG},ddot-ebpf-dev:nightly-latest
+
+dev_branch-host-profiler-standalone:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    - !reference [.manual]
+  needs:
+    - docker_build_host_profiler_standalone_amd64
+    - docker_build_host_profiler_standalone_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-amd64,${SRC_DDOT_EBPF}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-arm64
+    IMG_DESTINATIONS: ddot-ebpf-dev:${CI_COMMIT_REF_SLUG}

@@ -35,38 +35,39 @@ const (
 
 // Configuration for the Versa check
 type checkCfg struct {
-	// add versa specific fields
-	Name                            string   `yaml:"name"` // TODO: remove this field, only added it for testing
-	DirectorEndpoint                string   `yaml:"director_endpoint"`
-	DirectorPort                    int      `yaml:"director_port"`
-	AnalyticsEndpoint               string   `yaml:"analytics_endpoint"`
-	Username                        string   `yaml:"username"`
-	Password                        string   `yaml:"password"`
-	MaxAttempts                     int      `yaml:"max_attempts"`
-	MaxPages                        int      `yaml:"max_pages"`
-	MaxCount                        int      `yaml:"max_count"`
-	LookbackTimeWindowMinutes       int      `yaml:"lookback_time_window_minutes"`
-	UseHTTP                         bool     `yaml:"use_http"`
-	Insecure                        bool     `yaml:"insecure"`
-	CAFile                          string   `yaml:"ca_file"`
-	Namespace                       string   `yaml:"namespace"`
-	IncludedTenants                 []string `yaml:"included_tenants"`
-	ExcludedTenants                 []string `yaml:"excluded_tenants"`
-	SendDeviceMetadata              *bool    `yaml:"send_device_metadata"`
-	SendInterfaceMetadata           *bool    `yaml:"send_interface_metadata"`
-	MinCollectionInterval           int      `yaml:"min_collection_interval"`
-	CollectHardwareMetrics          *bool    `yaml:"collect_hardware_metrics"`
-	CollectInterfaceMetrics         *bool    `yaml:"collect_interface_metrics"`
-	CollectTunnelMetrics            *bool    `yaml:"collect_tunnel_metrics"`
-	CollectControlConnectionMetrics *bool    `yaml:"collect_control_connection_metrics"`
-	CollectOMPPeerMetrics           *bool    `yaml:"collect_omp_peer_metrics"`
-	CollectDeviceCountersMetrics    *bool    `yaml:"collect_device_counters_metrics"`
-	CollectBFDSessionStatus         *bool    `yaml:"collect_bfd_session_status"`
-	CollectHardwareStatus           *bool    `yaml:"collect_hardware_status"`
-	CollectCloudApplicationsMetrics *bool    `yaml:"collect_cloud_applications_metrics"`
-	CollectBGPNeighborStates        *bool    `yaml:"collect_bgp_neighbor_states"`
-	CollectSLAMetrics               *bool    `yaml:"collect_sla_metrics"`
-	CollectLinkMetrics              *bool    `yaml:"collect_link_metrics"`
+	DirectorEndpoint                      string   `yaml:"director_endpoint"`
+	DirectorPort                          int      `yaml:"director_port"`
+	AnalyticsEndpoint                     string   `yaml:"analytics_endpoint"`
+	Username                              string   `yaml:"username"`
+	Password                              string   `yaml:"password"`
+	AuthMethod                            string   `yaml:"auth_method"`
+	MaxAttempts                           int      `yaml:"max_attempts"`
+	MaxPages                              int      `yaml:"max_pages"`
+	MaxCount                              int      `yaml:"max_count"`
+	LookbackTimeWindowMinutes             int      `yaml:"lookback_time_window_minutes"`
+	UseHTTP                               bool     `yaml:"use_http"`
+	Insecure                              bool     `yaml:"insecure"`
+	CAFile                                string   `yaml:"ca_file"`
+	Namespace                             string   `yaml:"namespace"`
+	IncludedTenants                       []string `yaml:"included_tenants"`
+	ExcludedTenants                       []string `yaml:"excluded_tenants"`
+	SendDeviceMetadata                    *bool    `yaml:"send_device_metadata"`
+	SendInterfaceMetadata                 *bool    `yaml:"send_interface_metadata"`
+	MinCollectionInterval                 int      `yaml:"min_collection_interval"`
+	CollectHardwareMetrics                *bool    `yaml:"collect_hardware_metrics"`
+	CollectDirectorInterfaceMetrics       *bool    `yaml:"collect_director_interface_metrics"`
+	CollectTunnelMetrics                  *bool    `yaml:"collect_tunnel_metrics"`
+	CollectSLAMetrics                     *bool    `yaml:"collect_sla_metrics"`
+	CollectLinkMetrics                    *bool    `yaml:"collect_link_metrics"`
+	CollectApplicationsByApplianceMetrics *bool    `yaml:"collect_applications_by_appliance_metrics"`
+	CollectTopUserMetrics                 *bool    `yaml:"collect_top_user_metrics"`
+	CollectQoSMetrics                     *bool    `yaml:"collect_qos_metrics"`
+	CollectDIAMetrics                     *bool    `yaml:"collect_dia_metrics"`
+	CollectSiteMetrics                    *bool    `yaml:"collect_site_metrics"`
+	CollectInterfaceMetrics               *bool    `yaml:"collect_interface_metrics"`
+	SendInterfaceMetadataFromAnalytics    *bool    `yaml:"send_interface_metadata_from_analytics"`
+	ClientID                              string   `yaml:"client_id"`
+	ClientSecret                          string   `yaml:"client_secret"`
 }
 
 // VersaCheck contains the fields for the Versa check
@@ -79,14 +80,22 @@ type VersaCheck struct {
 
 // Run executes the check
 func (v *VersaCheck) Run() error {
-	log.Infof("Running Versa check for instance: %s", v.config.Name)
+	log.Infof("Running Versa check")
 
 	clientOptions, err := v.buildClientOptions()
 	if err != nil {
 		return err
 	}
 
-	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.Username, v.config.Password, v.config.UseHTTP, clientOptions...)
+	authConfig := client.AuthConfig{
+		Method:       v.config.AuthMethod,
+		Username:     v.config.Username,
+		Password:     v.config.Password,
+		ClientID:     v.config.ClientID,
+		ClientSecret: v.config.ClientSecret,
+	}
+
+	c, err := client.NewClient(v.config.DirectorEndpoint, v.config.DirectorPort, v.config.AnalyticsEndpoint, v.config.UseHTTP, authConfig, clientOptions...)
 	if err != nil {
 		return fmt.Errorf("error creating Versa client: %w", err)
 	}
@@ -114,8 +123,11 @@ func (v *VersaCheck) Run() error {
 	var interfaces []client.Interface
 
 	// Determine if we need appliances for device mapping
-	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics ||
-		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics
+	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectDirectorInterfaceMetrics ||
+		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectSiteMetrics ||
+		*v.config.CollectApplicationsByApplianceMetrics || *v.config.CollectTopUserMetrics ||
+		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
+		*v.config.CollectInterfaceMetrics
 
 	for _, org := range organizations {
 		log.Tracef("Processing organization: %s", org.Name)
@@ -133,8 +145,9 @@ func (v *VersaCheck) Run() error {
 			}
 		}
 
-		// Grab interfaces if we need interface metadata or interface metrics
-		if *v.config.SendInterfaceMetadata || *v.config.CollectInterfaceMetrics {
+		// Grab interfaces if we need interface metadata
+		// Note: collect_interface_metrics depends on this data, but requires explicit send_interface_metadata enablement
+		if *v.config.SendInterfaceMetadata {
 			orgInterfaces, err := c.GetInterfaces(org.Name)
 			if err != nil {
 				// not getting interfaces shouldn't stop the rest of the check
@@ -214,39 +227,47 @@ func (v *VersaCheck) Run() error {
 		v.metricsSender.SendDirectorStatus(directorStatus)
 	}
 
-	if *v.config.CollectInterfaceMetrics {
-		type deviceID struct {
-			ApplianceName string
-			TenantName    string
-		}
-		deviceWithInterfaceMap := make(map[string]deviceID)
-		for _, iface := range interfaces {
-			deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
-				ApplianceName: iface.DeviceName,
-				TenantName:    iface.TenantName,
+	if *v.config.CollectDirectorInterfaceMetrics {
+		// Validate that interface metadata collection is enabled since we depend on interface data
+		if !*v.config.SendInterfaceMetadata {
+			log.Errorf("collect_director_interface_metrics requires send_interface_metadata to be enabled. " +
+				"Director interface metrics collection depends on interface data from the GetInterfaces API call, " +
+				"which is only made when send_interface_metadata is enabled. Skipping director interface metrics collection.")
+		} else {
+
+			type deviceID struct {
+				ApplianceName string
+				TenantName    string
 			}
-		}
-
-		// Collect interface metrics for each device
-		interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
-
-		for _, id := range deviceWithInterfaceMap {
-			interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
-			if err != nil {
-				log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
-				continue
+			deviceWithInterfaceMap := make(map[string]deviceID)
+			for _, iface := range interfaces {
+				deviceWithInterfaceMap[iface.TenantName+":"+iface.DeviceName] = deviceID{
+					ApplianceName: iface.DeviceName,
+					TenantName:    iface.TenantName,
+				}
 			}
 
-			// Get device IP from the deviceNameToIDMap
-			if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
-				interfaceMetricsByDevice[deviceIP] = interfaceMetrics
-			} else {
-				log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
-			}
-		}
+			// Collect interface metrics for each device
+			interfaceMetricsByDevice := make(map[string][]client.InterfaceMetrics)
 
-		// Send interface metrics
-		v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+			for _, id := range deviceWithInterfaceMap {
+				interfaceMetrics, err := c.GetInterfaceMetrics(id.ApplianceName, id.TenantName)
+				if err != nil {
+					log.Errorf("error getting interface metrics for device %s in tenant %s: %v", id.ApplianceName, id.TenantName, err)
+					continue
+				}
+
+				// Get device IP from the deviceNameToIDMap
+				if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
+					interfaceMetricsByDevice[deviceIP] = interfaceMetrics
+				} else {
+					log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
+				}
+			}
+
+			// Send interface metrics
+			v.metricsSender.SendInterfaceMetrics(interfaceMetricsByDevice)
+		}
 	}
 
 	// Now collect organization-specific metrics that need deviceNameToIDMap
@@ -277,6 +298,95 @@ func (v *VersaCheck) Run() error {
 				v.metricsSender.SendLinkUsageMetrics(linkUsageMetrics, deviceNameToIDMap)
 			}
 		}
+
+		// Collect site metrics if enabled
+		if *v.config.CollectSiteMetrics {
+			siteMetrics, err := c.GetSiteMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting site metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendSiteMetrics(siteMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect applications by appliance metrics if enabled
+		if *v.config.CollectApplicationsByApplianceMetrics {
+			appsByApplianceMetrics, err := c.GetApplicationsByAppliance(org.Name)
+			if err != nil {
+				log.Errorf("error getting applications by appliance metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendApplicationsByApplianceMetrics(appsByApplianceMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect top user metrics if enabled
+		if *v.config.CollectTopUserMetrics {
+			topUserMetrics, err := c.GetTopUsers(org.Name)
+			if err != nil {
+				log.Errorf("error getting top user metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendTopUserMetrics(topUserMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect tunnel metrics if enabled
+		if *v.config.CollectTunnelMetrics {
+			tunnelMetrics, err := c.GetTunnelMetrics(org.Name)
+			if err != nil {
+				log.Warnf("error getting tunnel metrics for tenant %s from Versa client: %v", org.Name, err)
+				continue
+			}
+			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
+		}
+
+		// Collect QoS metrics if enabled
+		if *v.config.CollectQoSMetrics {
+			qosMetrics, err := c.GetPathQoSMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting QoS metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendPathQoSMetrics(qosMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect DIA metrics if enabled
+		if *v.config.CollectDIAMetrics {
+			diaMetrics, err := c.GetDIAMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting DIA metrics from organization %s: %v", org.Name, err)
+			} else {
+				v.metricsSender.SendDIAMetrics(diaMetrics, deviceNameToIDMap)
+			}
+		}
+
+		// Collect interface metrics if enabled (from analytics)
+		if *v.config.CollectInterfaceMetrics {
+			analyticsInterfaceMetrics, err := c.GetAnalyticsInterfaces(org.Name)
+			if err != nil {
+				log.Errorf("error getting analytics interface metrics from organization %s: %v", org.Name, err)
+				continue
+			}
+
+			if len(analyticsInterfaceMetrics) > 0 {
+				// Send metrics
+				v.metricsSender.SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics, deviceNameToIDMap)
+
+				// TODO: I'd really like to do something like this for larger customers where the director
+				// call is too large, but we need to find or agree on something to use for interface status
+				// today, nothing exists
+				// If explicitly configured to send interface metadata from analytics and we haven't
+				// already sent interface metadata, create and send it from analytics data
+				// if *v.config.SendInterfaceMetadataFromAnalytics && !(*v.config.SendInterfaceMetadata) && !(*v.config.CollectInterfaceMetrics) {
+				// 	orgInterfaceMetadata, err := payload.GetInterfaceMetadataFromAnalytics(v.config.Namespace, deviceNameToIDMap, analyticsInterfaceMetrics)
+				// 	if err != nil {
+				// 		log.Errorf("error creating interface metadata from analytics for organization %s: %v", org.Name, err)
+				// 	} else if len(orgInterfaceMetadata) > 0 {
+				// 		log.Tracef("sending interface metadata from analytics for organization %s: %+v", org.Name, orgInterfaceMetadata)
+				// 		v.metricsSender.SendMetadata(nil, orgInterfaceMetadata, nil)
+				// 	}
+				// }
+			}
+		}
 	}
 
 	// Commit
@@ -305,20 +415,20 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	// Set defaults before unmarshalling
 	instanceConfig.CollectHardwareMetrics = boolPointer(true)
-	instanceConfig.CollectInterfaceMetrics = boolPointer(true)
-	instanceConfig.CollectTunnelMetrics = boolPointer(true)
-	instanceConfig.CollectControlConnectionMetrics = boolPointer(true)
-	instanceConfig.CollectOMPPeerMetrics = boolPointer(true)
-	instanceConfig.CollectDeviceCountersMetrics = boolPointer(true)
 	instanceConfig.SendDeviceMetadata = boolPointer(true)
-	instanceConfig.SendInterfaceMetadata = boolPointer(true)
+	instanceConfig.SendInterfaceMetadata = boolPointer(false)
+	instanceConfig.CollectDirectorInterfaceMetrics = boolPointer(false)
 
-	instanceConfig.CollectBFDSessionStatus = boolPointer(false)
-	instanceConfig.CollectHardwareStatus = boolPointer(false)
-	instanceConfig.CollectCloudApplicationsMetrics = boolPointer(false)
-	instanceConfig.CollectBGPNeighborStates = boolPointer(false)
 	instanceConfig.CollectSLAMetrics = boolPointer(false)
+	instanceConfig.CollectTunnelMetrics = boolPointer(false)
 	instanceConfig.CollectLinkMetrics = boolPointer(false)
+	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
+	instanceConfig.CollectTopUserMetrics = boolPointer(false)
+	instanceConfig.CollectQoSMetrics = boolPointer(false)
+	instanceConfig.CollectDIAMetrics = boolPointer(false)
+	instanceConfig.CollectSiteMetrics = boolPointer(false)
+	instanceConfig.CollectInterfaceMetrics = boolPointer(false)
+	instanceConfig.SendInterfaceMetadataFromAnalytics = boolPointer(false)
 
 	err = yaml.Unmarshal(rawInstance, &instanceConfig)
 	if err != nil {
@@ -338,10 +448,6 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	if v.config.MinCollectionInterval != 0 {
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
-	}
-
-	if v.config.DirectorPort == 0 {
-		v.config.DirectorPort = defaultDirectorPort
 	}
 
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)

@@ -20,11 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-const (
-	// debuggerIntakeURLTemplate specifies the template for obtaining the intake URL along with the site.
-	debuggerIntakeURLTemplate = "https://debugger-intake.%s/api/v2/debugger"
-)
-
 // symDBProxyHandler returns an http.Handler proxying requests to the logs intake. If the logs intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
 func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
@@ -32,7 +27,7 @@ func (r *HTTPReceiver) symDBProxyHandler() http.Handler {
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
 	}
-	intake := fmt.Sprintf(debuggerIntakeURLTemplate, r.conf.Site)
+	intake := fmt.Sprintf(debuggerIntakeURLTemplate, r.conf.Site) // debuggerIntakeURLTemplate comes from debugger.go
 	if v := r.conf.SymDBProxy.DDURL; v != "" {
 		intake = v
 	} else if site := r.conf.Site; site != "" {

@@ -7,195 +7,91 @@
 package workloadfilterimpl
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	implbase "github.com/DataDog/datadog-agent/comp/core/workloadfilter/baseimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/catalog"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-// filter is the implementation of the filter component.
-type filter struct {
-	config    config.Component
-	log       log.Component
-	telemetry coretelemetry.Component
-	prgs      map[workloadfilter.ResourceType]map[int]program.FilterProgram
+// localFilterStore is the local implementation of the workloadfilter component.
+type localFilterStore struct {
+	*implbase.BaseFilterStore
 }
 
-// Requires defines the dependencies of the filter component.
+// Requires defines the dependencies of the local workloadfilter component.
 type Requires struct {
 	compdef.In
 
-	Lc        compdef.Lifecycle
 	Config    config.Component
-	Log       log.Component
+	Log       logcomp.Component
 	Telemetry coretelemetry.Component
 }
 
-// Provides contains the fields provided by the filter constructor.
+// Provides defines the fields provided by the local workloadfilter constructor.
 type Provides struct {
 	compdef.Out
 
-	Comp workloadfilter.Component
+	Comp          workloadfilter.Component
+	FlareProvider flaretypes.Provider
 }
 
-// NewComponent returns a new filter client
+// NewComponent returns a new local workloadfilter client
 func NewComponent(req Requires) (Provides, error) {
-	filterInstance, err := newFilter(req.Config, req.Log, req.Telemetry)
-	if err != nil {
-		return Provides{}, err
-	}
+	localFilter := newFilter(req.Config, req.Log, req.Telemetry)
 
 	return Provides{
-		Comp: filterInstance,
+		Comp:          localFilter,
+		FlareProvider: flaretypes.NewProvider(localFilter.FlareCallback),
 	}, nil
 }
 
-var _ workloadfilter.Component = (*filter)(nil)
+var _ workloadfilter.Component = (*localFilterStore)(nil)
 
-func (f *filter) registerProgram(resourceType workloadfilter.ResourceType, programType int, prg program.FilterProgram) {
-	if f.prgs[resourceType] == nil {
-		f.prgs[resourceType] = make(map[int]program.FilterProgram)
-	}
-	f.prgs[resourceType][programType] = prg
-}
+func newFilter(cfg config.Component, logger logcomp.Component, telemetry coretelemetry.Component) *localFilterStore {
+	baseFilter := implbase.NewBaseFilterStore(cfg, logger, telemetry)
 
-func (f *filter) getProgram(resourceType workloadfilter.ResourceType, programType int) program.FilterProgram {
-	if f.prgs == nil {
-		return nil
+	localFilter := &localFilterStore{
+		BaseFilterStore: baseFilter,
 	}
-	if programs, ok := f.prgs[resourceType]; ok {
-		return programs[programType]
-	}
-	return nil
-}
 
-func newFilter(config config.Component, logger log.Component, telemetry coretelemetry.Component) (workloadfilter.Component, error) {
-	filter := &filter{
-		config:    config,
-		log:       logger,
-		telemetry: telemetry,
-		prgs:      make(map[workloadfilter.ResourceType]map[int]program.FilterProgram),
-	}
+	// Register filter programs that can only be computed locally on the the core Agent.
 
 	// Container Filters
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics), catalog.LegacyContainerMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerLogs), catalog.LegacyContainerLogsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACInclude), catalog.LegacyContainerACIncludeProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerACExclude), catalog.LegacyContainerACExcludeProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerGlobal), catalog.LegacyContainerGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerSBOM), catalog.LegacyContainerSBOMProgram(config, logger))
-
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotations), catalog.ContainerADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsMetrics), catalog.ContainerADAnnotationsMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerADAnnotationsLogs), catalog.ContainerADAnnotationsLogsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ContainerType, int(workloadfilter.ContainerPaused), catalog.ContainerPausedProgram(config, logger))
+	localFilter.RegisterFactory(workloadfilter.ContainerCELMetrics, catalog.ContainerCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELLogs, catalog.ContainerCELLogsProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELSBOM, catalog.ContainerCELSBOMProgram)
+	localFilter.RegisterFactory(workloadfilter.ContainerCELGlobal, catalog.ContainerCELGlobalProgram)
 
 	// Service Filters
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceGlobal), catalog.LegacyServiceGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.LegacyServiceMetrics), catalog.LegacyServiceMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotations), catalog.ServiceADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.ServiceType, int(workloadfilter.ServiceADAnnotationsMetrics), catalog.ServiceADAnnotationsMetricsProgram(config, logger))
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELMetrics, catalog.ServiceCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeServiceCELGlobal, catalog.ServiceCELGlobalProgram)
 
 	// Endpoints Filters
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointGlobal), catalog.LegacyEndpointsGlobalProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.LegacyEndpointMetrics), catalog.LegacyEndpointsMetricsProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotations), catalog.EndpointsADAnnotationsProgram(config, logger))
-	filter.registerProgram(workloadfilter.EndpointType, int(workloadfilter.EndpointADAnnotationsMetrics), catalog.EndpointsADAnnotationsMetricsProgram(config, logger))
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELMetrics, catalog.EndpointCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.KubeEndpointCELGlobal, catalog.EndpointCELGlobalProgram)
 
-	// Image Filters
-	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.LegacyImage), catalog.LegacyImageProgram(config, logger))
-	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImagePaused), catalog.ImagePausedProgram(config, logger))
-	filter.registerProgram(workloadfilter.ImageType, int(workloadfilter.ImageSBOM), catalog.ImageSBOMProgram(config, logger))
+	// Pod Filters
+	localFilter.RegisterFactory(workloadfilter.PodCELMetrics, catalog.PodCELMetricsProgram)
+	localFilter.RegisterFactory(workloadfilter.PodCELGlobal, catalog.PodCELGlobalProgram)
 
-	// WIP: Pod Filters
+	// Process Filters
+	localFilter.RegisterFactory(workloadfilter.ProcessCELLogs, catalog.ProcessCELLogsProgram)
+	localFilter.RegisterFactory(workloadfilter.ProcessCELGlobal, catalog.ProcessCELGlobalProgram)
 
-	return filter, nil
+	return localFilter
 }
 
-// IsContainerExcluded checks if a container is excluded based on the provided filters.
-func (f *filter) IsContainerExcluded(container *workloadfilter.Container, containerFilters [][]workloadfilter.ContainerFilter) bool {
-	return evaluateResource(f, container, containerFilters) == workloadfilter.Excluded
-}
-
-// IsPodExcluded checks if a pod is excluded based on the provided filters.
-func (f *filter) IsPodExcluded(pod *workloadfilter.Pod, podFilters [][]workloadfilter.PodFilter) bool {
-	return evaluateResource(f, pod, podFilters) == workloadfilter.Excluded
-}
-
-func (f *filter) IsServiceExcluded(service *workloadfilter.Service, serviceFilters [][]workloadfilter.ServiceFilter) bool {
-	return evaluateResource(f, service, serviceFilters) == workloadfilter.Excluded
-}
-
-func (f *filter) IsEndpointExcluded(endpoint *workloadfilter.Endpoint, endpointFilters [][]workloadfilter.EndpointFilter) bool {
-	return evaluateResource(f, endpoint, endpointFilters) == workloadfilter.Excluded
-}
-
-func (f *filter) IsImageExcluded(image *workloadfilter.Image, imageFilters [][]workloadfilter.ImageFilter) bool {
-	return evaluateResource(f, image, imageFilters) == workloadfilter.Excluded
-}
-
-// evaluateResource checks if a resource is excluded based on the provided filters.
-func evaluateResource[T ~int](
-	f *filter,
-	resource workloadfilter.Filterable, // Filterable resource (e.g., Container, Pod)
-	filterSets [][]T, // Generic filter types
-) workloadfilter.Result {
-	for _, filterSet := range filterSets {
-		var setResult = workloadfilter.Unknown
-		for _, filter := range filterSet {
-
-			// 1. Retrieve the filtering program
-			prg := f.getProgram(resource.Type(), int(filter))
-			if prg == nil {
-				f.log.Warnf("No program found for filter %d on resource %s", filter, resource.Type())
-				continue
-			}
-
-			// 2. Evaluate the filtering program
-			res, prgErrs := prg.Evaluate(resource)
-			if prgErrs != nil {
-				f.log.Debug(prgErrs)
-			}
-
-			// 3. Process the results
-			if res == workloadfilter.Included {
-				f.log.Debugf("Resource %s is included by filter %d", resource.Type(), filter)
-				return res
-			}
-			if res == workloadfilter.Excluded {
-				setResult = workloadfilter.Excluded
-			}
-		}
-		// If the set of filters produces a Include/Exclude result,
-		// then return the set's results and don't execute subsequent sets.
-		if setResult != workloadfilter.Unknown {
-			return setResult
-		}
+// Evaluate serves the request to evaluate a program for a given entity.
+func (f *localFilterStore) Evaluate(programName string, entity workloadfilter.Filterable) (workloadfilter.Result, error) {
+	program := f.GetProgram(entity.Type(), programName)
+	if program == nil {
+		return workloadfilter.Unknown, fmt.Errorf("program %s not found", programName)
 	}
-	return workloadfilter.Unknown
-}
-
-// GetContainerFilterInitializationErrors returns initialization errors for a specific container filter
-func (f *filter) GetContainerFilterInitializationErrors(filters []workloadfilter.ContainerFilter) []error {
-	return getFilterErrors(f, workloadfilter.ContainerType, filters)
-}
-
-// getFilterErrors returns initialization errors for a specific filter
-func getFilterErrors[T ~int](
-	f *filter,
-	resourceType workloadfilter.ResourceType, // Filterable resource (e.g., Container, Pod)
-	filters []T, // Generic filter types
-) []error {
-	errs := []error{}
-	for _, filter := range filters {
-		prg := f.getProgram(resourceType, int(filter))
-		if prg == nil {
-			continue
-		}
-		errs = append(errs, prg.GetInitializationErrors()...)
-	}
-	return errs
+	return program.Evaluate(entity), nil
 }

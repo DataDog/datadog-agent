@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(AML) Fix revive linter
+// Package channel provides a channel-based log tailer implementation
 package channel
 
 import (
@@ -92,9 +92,6 @@ func buildMessage(logline *config.ChannelMessage, origin *message.Origin) *messa
 		status = message.StatusError
 	}
 
-	if logline.Lambda != nil {
-		return message.NewMessageFromLambda(logline.Content, origin, status, logline.Timestamp, logline.Lambda.ARN, logline.Lambda.RequestID, time.Now().UnixNano())
-	}
 	return message.NewMessage(logline.Content, origin, status, time.Now().UnixNano())
 }
 

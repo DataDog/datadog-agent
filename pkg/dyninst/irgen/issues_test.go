@@ -8,6 +8,7 @@
 package irgen_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,8 +25,9 @@ func TestMissingProbeIssue(t *testing.T) {
 	cfg := testprogs.MustGetCommonConfigs(t)[0]
 	bin := testprogs.MustGetBinary(t, testProg, cfg)
 	probes := testprogs.MustGetProbeDefinitions(t, testProg)
+	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 
-	obj, err := object.OpenElfFile(bin)
+	obj, err := object.OpenElfFileWithDwarf(bin)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, obj.Close()) }()
 	probes = probes[:len(probes):len(probes)] // so appends realloc

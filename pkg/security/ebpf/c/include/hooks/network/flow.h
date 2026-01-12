@@ -1,6 +1,5 @@
 #ifndef _HOOKS_NETWORK_FLOW_H_
 #define _HOOKS_NETWORK_FLOW_H_
-
 #include "constants/offsets/network.h"
 #include "constants/offsets/netns.h"
 #include "helpers/network/pid_resolver.h"
@@ -52,8 +51,8 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         } else {
             // this is an AF_INET6 flow
             bpf_probe_read(&key.addr, sizeof(u64) * 2, (void *)fl + get_flowi6_saddr_offset());
-            // TODO: fill l4_protocol, but wait for implementation on security_socket_bind to be ready first
-            // bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi6_proto_offset());
+            bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi6_proto_offset());
+
         }
     }
     if (flow_family == AF_INET) {
@@ -76,8 +75,7 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         } else {
             // This is an AF_INET flow
             bpf_probe_read(&key.addr, sizeof(u32), (void *)fl + get_flowi4_saddr_offset());
-            // TODO: fill l4_protocol, but wait for implementation on security_socket_bind to be ready first
-            // bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi4_proto_offset());
+            bpf_probe_read(&key.l4_protocol, 1, (void *)fl + get_flowi4_proto_offset());
         }
     }
 
@@ -150,8 +148,9 @@ int hook_security_sk_classify_flow(ctx_t *ctx) {
         bpf_map_update_elem(&flow_pid, &key, &value, BPF_ANY);
 
         #if defined(DEBUG_NETWORK_FLOW)
+        print_route(&key);
         print_route_entry(&value);
-        bpf_printk("|--> new flow registered !", value.pid, key.netns);
+        bpf_printk("|--> new flow registered ! %d, %lu", value.pid, key.netns);
         #endif
     }
     return 0;
@@ -202,8 +201,9 @@ int hook_nf_nat_packet(ctx_t *ctx) {
 __attribute__((always_inline)) void fill_pid_route_from_sflow(struct pid_route_t *route, struct namespaced_flow_t *ns_flow) {
     route->addr[0] = ns_flow->flow.saddr[0];
     route->addr[1] = ns_flow->flow.saddr[1];
-    route->port = ns_flow->flow.sport;
+    route->port = ns_flow->flow.tcp_udp.sport;
     route->netns = ns_flow->netns;
+    route->l4_protocol = ns_flow->flow.l4_protocol;
 }
 
 __attribute__((always_inline)) void flush_flow_pid_by_route(struct pid_route_t *route) {
@@ -237,8 +237,8 @@ int hook_nf_ct_delete(ctx_t *ctx) {
 
 #if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("nf_ct_delete");
-    bpf_printk(" - src p:%d a:%lu a:%lu", orig.flow.sport, orig.flow.saddr[0], orig.flow.saddr[1]);
-    bpf_printk(" - dst p:%d a:%lu a:%lu", orig.flow.dport, orig.flow.daddr[0], orig.flow.daddr[1]);
+    bpf_printk(" - src p:%d a:%lu a:%lu", orig.flow.tcp_udp.sport, orig.flow.saddr[0], orig.flow.saddr[1]);
+    bpf_printk(" - dst p:%d a:%lu a:%lu", orig.flow.tcp_udp.dport, orig.flow.daddr[0], orig.flow.daddr[1]);
 #endif
 
     // clean up entries in the conntrack map
@@ -287,6 +287,8 @@ __attribute__((always_inline)) int handle_sk_release(struct sock *sk) {
     if (route.netns == 0) {
         return 0;
     }
+    // extract protocol
+    route.l4_protocol = get_protocol_from_sock(sk);
 
     // extract port
     route.port = get_skc_num_from_sock_common((void *)sk);
@@ -565,6 +567,7 @@ __attribute__((always_inline)) int handle_inet_bind_ret(int ret) {
 
     // add netns information
     route.netns = get_netns_from_sock(sk);
+    route.l4_protocol = get_protocol_from_sock(sk);
     if (route.netns != 0) {
         bpf_map_update_elem(&netns_cache, &tid, &route.netns, BPF_ANY);
     }

@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -37,14 +36,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 
@@ -53,14 +51,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect", "--log-level", "info"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "info", cliParams.jmxLogLevel)
 				require.Equal(t, "info", coreParams.LogLevelFn(nil))
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 
@@ -69,14 +66,13 @@ func TestCollectCommand(t *testing.T) {
 			Commands(globalParams),
 			[]string{"jmx", "collect", "--flare", "--log-level", "info"},
 			runJmxCommandConsole,
-			func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			func(cliParams *cliParams, coreParams core.BundleParams) {
 				require.Equal(t, "collect", cliParams.command)
 				require.Equal(t, "debug", cliParams.jmxLogLevel)      // overrides --log-level
 				require.Equal(t, "debug", coreParams.LogLevelFn(nil)) // overrides --log-level
 				require.True(t, strings.HasPrefix(cliParams.logFile, defaultpaths.JMXFlareDirectory))
 				require.Equal(t, cliParams.logFile, coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
-				require.Equal(t, true, secretParams.Enabled)
 			})
 	})
 }

@@ -6,7 +6,7 @@
 package inventoryhostimpl
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,7 +99,7 @@ func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
 func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
 func memoryErrorMock() *memory.Info            { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
+func networkErrorMock() (*network.Info, error) { return nil, errors.New("err") }
 func platformErrorMock() *platform.Info        { return &platform.Info{} }
 
 func setupHostMetadataMock(t *testing.T) {
@@ -137,7 +137,7 @@ func getTestInventoryHost(t *testing.T) *invHost {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			hostnameimpl.MockModule(),
 		),
@@ -174,6 +174,7 @@ func TestGetPayload(t *testing.T) {
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
 		CloudProviderHostID:          "test_id_1234",
+		CanonicalCloudResourceID:     "test_ccrid",
 		OsVersion:                    "testOS",
 		HypervisorGuestUUID:          "hypervisorUUID",
 		DmiProductUUID:               "dmiUUID",
@@ -181,6 +182,7 @@ func TestGetPayload(t *testing.T) {
 		DmiBoardVendor:               "boardVendor",
 		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
+		InstanceType:                 "m5.medium",
 	}
 
 	ih := getTestInventoryHost(t)
@@ -201,9 +203,11 @@ func TestGetPayloadError(t *testing.T) {
 		CloudProviderAccountID:       "some_host_id",
 		CloudProviderSource:          "test_source",
 		CloudProviderHostID:          "test_id_1234",
+		CanonicalCloudResourceID:     "test_ccrid",
 		OsVersion:                    "testOS",
 		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
+		InstanceType:                 "m5.medium",
 	}
 	assert.Equal(t, expected, p.Metadata)
 }

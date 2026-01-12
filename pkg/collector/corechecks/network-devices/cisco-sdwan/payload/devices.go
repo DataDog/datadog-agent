@@ -19,7 +19,7 @@ import (
 var TimeNow = time.Now
 
 // DeviceUserTagResourcePrefix contains the REDAPL table to store device user tags
-const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device_user_tags"
+const DeviceUserTagResourcePrefix = "dd.internal.resource:ndm_device"
 
 // GetDevicesMetadata process devices API payloads to build metadata
 func GetDevicesMetadata(namespace string, devices []client.Device) []devicemetadata.DeviceMetadata {
@@ -43,7 +43,7 @@ func GetDevicesTags(namespace string, devices []client.Device) map[string][]stri
 func GetDevicesUptime(devices []client.Device) map[string]float64 {
 	uptimes := make(map[string]float64)
 	for _, device := range devices {
-		if device.UptimeDate != 0 {
+		if device.UptimeDate != 0 && device.Reachability == "reachable" {
 			uptimes[device.SystemIP] = computeUptime(device)
 		}
 	}

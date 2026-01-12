@@ -121,6 +121,65 @@ func TestRuntimeSettings(t *testing.T) {
 			},
 		},
 		{
+			"GetFullConfigWithoutDefaults",
+			func(t *testing.T, comp settings.Component) {
+				mockConfig := comp.(*settingsRegistry).config
+				mockConfig.Set("default_setting", "default_value", model.SourceDefault)
+				mockConfig.Set("custom_setting", "custom_value", model.SourceFile)
+
+				responseRecorder := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfigWithoutDefaults("")(responseRecorder, request)
+				resp := responseRecorder.Result()
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+
+				assert.Equal(t, 200, responseRecorder.Code)
+				assert.NotEqual(t, "", string(body))
+
+				// Ensure the default setting is not present in the response
+				assert.NotContains(t, string(body), "default_setting", "default config value should not be present")
+				// Ensure the custom setting is present in the response
+				assert.Contains(t, string(body), "custom_setting", "custom config value should be present")
+			},
+		},
+		{
+			"GetFullConfig vs GetFullConfigWithoutDefaults - Different Outputs",
+			func(t *testing.T, comp settings.Component) {
+				mockConfig := comp.(*settingsRegistry).config
+				mockConfig.Set("default_setting", "default_value", model.SourceDefault)
+				mockConfig.Set("custom_setting", "custom_value", model.SourceFile)
+
+				recorder1 := httptest.NewRecorder()
+				recorder2 := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfig("")(recorder1, request)
+				comp.GetFullConfigWithoutDefaults("")(recorder2, request)
+
+				resp1 := recorder1.Result()
+				defer resp1.Body.Close()
+				body1, _ := io.ReadAll(resp1.Body)
+
+				resp2 := recorder2.Result()
+				defer resp2.Body.Close()
+				body2, _ := io.ReadAll(resp2.Body)
+
+				assert.Equal(t, 200, recorder1.Code)
+				assert.Equal(t, 200, recorder2.Code)
+				assert.NotEqual(t, string(body1), string(body2))
+
+				// default_setting should be present in GetFullConfig, absent in GetFullConfigWithoutDefaults
+				assert.Contains(t, string(body1), "default_setting", "default config value should be present in full config")
+				assert.NotContains(t, string(body2), "default_setting", "default config value should not be present without defaults")
+
+				// custom_setting should be present in both
+				assert.Contains(t, string(body1), "custom_setting", "custom config value should be present in full config")
+				assert.Contains(t, string(body2), "custom_setting", "custom config value should be present without defaults")
+			},
+		},
+		{
 			"GetFullConfigBySource",
 			func(t *testing.T, comp settings.Component) {
 				responseRecorder := httptest.NewRecorder()
@@ -176,7 +235,7 @@ func TestRuntimeSettings(t *testing.T) {
 			func(t *testing.T, comp settings.Component) {
 				layerMaxSize := 1024 * 60
 				config := comp.(*settingsRegistry).config
-				config.Set("big_config_value", strings.Repeat("a", layerMaxSize), model.SourceEnvVar)
+				t.Setenv("big_config_value", strings.Repeat("a", layerMaxSize))
 				config.Set("big_config_value", strings.Repeat("b", layerMaxSize), model.SourceFile)
 				config.Set("big_config_value", strings.Repeat("c", layerMaxSize), model.SourceAgentRuntime)
 
@@ -252,7 +311,7 @@ func TestRuntimeSettings(t *testing.T) {
 				// simply compare strings.
 				expected := map[string]interface{}{}
 				actual := map[string]interface{}{}
-				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
+				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"infra-mode\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
 				err = json.Unmarshal(body, &actual)
 
 				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
@@ -279,7 +338,7 @@ func TestRuntimeSettings(t *testing.T) {
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
-				requestBody := fmt.Sprintf("value=%s", html.EscapeString("fancy"))
+				requestBody := "value=" + html.EscapeString("fancy")
 				request, err := http.NewRequest("POST", ts.URL+"/config/foo", bytes.NewBuffer([]byte(requestBody)))
 				require.NoError(t, err)
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")

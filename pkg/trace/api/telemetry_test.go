@@ -81,9 +81,6 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_apikey", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 		assert.Equal("key:test_value", req.Header.Get("X-Datadog-Container-Tags"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
@@ -94,7 +91,6 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 	})
 
 	cfg := getTestConfig(srv.URL)
-	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 	cfg.ContainerTags = func(_ string) ([]string, error) {
 		return []string{"key:test\nvalue"}, nil
 	}
@@ -223,9 +219,6 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_1", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(2)
 		return nil
@@ -237,9 +230,6 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_apikey_2", req.Header.Get("DD-API-KEY"))
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
-		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
-		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(3)
 		return nil
@@ -258,7 +248,6 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		Host:   additionalBackend.URL + "/",
 	}}
 	cfg.DefaultEnv = "test_env"
-	cfg.GlobalTags[functionARNKeyTag] = "test_ARN"
 
 	recv := newTestReceiverFromConfig(cfg)
 	recv.telemetryForwarder.start()

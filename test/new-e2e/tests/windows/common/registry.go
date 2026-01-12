@@ -7,9 +7,10 @@ package common
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // GetRegistryValue returns a registry value from a remote host
@@ -41,7 +42,7 @@ func DeleteRegistryKey(host *components.RemoteHost, path string) error {
 
 // SetRegistryDWORDValue sets, creating if necessary, a DWORD value at the specified path
 func SetRegistryDWORDValue(host *components.RemoteHost, path string, name string, value int) error {
-	return SetTypedRegistryValue(host, path, name, fmt.Sprintf("%d", value), "DWORD")
+	return SetTypedRegistryValue(host, path, name, strconv.Itoa(value), "DWORD")
 }
 
 // SetTypedRegistryValue sets, creating if necessary, the value at the specified path with the specified type
@@ -67,7 +68,7 @@ func SetRegistryMultiString(host *components.RemoteHost, path string, name strin
 
 // SetNewItemDWORDProperty sets a DWORD value at the specified path
 func SetNewItemDWORDProperty(host *components.RemoteHost, path string, name string, value int) error {
-	return SetNewItemProperty(host, path, name, fmt.Sprintf("%d", value), "DWORD")
+	return SetNewItemProperty(host, path, name, strconv.Itoa(value), "DWORD")
 }
 
 // SetNewItemProperty sets a new item property on the remote host

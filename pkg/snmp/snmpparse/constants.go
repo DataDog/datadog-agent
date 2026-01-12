@@ -39,6 +39,7 @@ var PrivOpts = NewOptions(OptPairs[gosnmp.SnmpV3PrivProtocol]{
 // VersionOpts maps string names to gosnmp versions
 var VersionOpts = NewOptions(OptPairs[gosnmp.SnmpVersion]{
 	{"1", gosnmp.Version1},
+	{"2", gosnmp.Version2c},
 	{"2c", gosnmp.Version2c},
 	{"3", gosnmp.Version3},
 })

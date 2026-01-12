@@ -14,9 +14,9 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
 
     // route DNS requests
     if (pkt->translated_ns_flow.flow.l4_protocol == IPPROTO_UDP) {
-        if (pkt->translated_ns_flow.flow.sport == dns_port) {
+        if (pkt->translated_ns_flow.flow.tcp_udp.sport == dns_port) {
             bpf_tail_call_compat(skb, &classifier_router, DNS_RESPONSE);
-        } else if (pkt->translated_ns_flow.flow.dport == dns_port && is_event_enabled(EVENT_DNS)) {
+        } else if (pkt->translated_ns_flow.flow.tcp_udp.dport == dns_port && is_event_enabled(EVENT_DNS)) {
                 bpf_tail_call_compat(skb, &classifier_router, DNS_REQUEST);
         }
     }

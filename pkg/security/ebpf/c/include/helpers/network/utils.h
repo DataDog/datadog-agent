@@ -3,9 +3,9 @@
 
 __attribute__((always_inline)) void flip(struct flow_t *flow) {
     u64 tmp = 0;
-    tmp = flow->sport;
-    flow->sport = flow->dport;
-    flow->dport = tmp;
+    tmp = flow->tcp_udp.sport;
+    flow->tcp_udp.sport = flow->tcp_udp.dport;
+    flow->tcp_udp.dport = tmp;
 
     tmp = flow->saddr[0];
     flow->saddr[0] = flow->daddr[0];

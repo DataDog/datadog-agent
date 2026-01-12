@@ -35,51 +35,42 @@ type MockJournal struct {
 	entries  []*sdjournal.JournalEntry
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) AddMatch(match string) error {
+func (m *MockJournal) AddMatch(_ string) error {
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) AddDisjunction() error {
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekTail() error {
 	m.seekTail++
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekHead() error {
 	m.seekHead++
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) Wait(timeout time.Duration) int {
+func (m *MockJournal) Wait(_ time.Duration) int {
 	time.Sleep(time.Millisecond)
 	return 0
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) SeekCursor(cursor string) error {
 	m.cursor = cursor
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (m *MockJournal) NextSkip(skip uint64) (uint64, error) {
+func (m *MockJournal) NextSkip(_ uint64) (uint64, error) {
 	return 0, nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Close() error {
 	return nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Next() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -87,7 +78,6 @@ func (m *MockJournal) Next() (uint64, error) {
 	return uint64(len(m.entries)), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) Previous() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -95,7 +85,6 @@ func (m *MockJournal) Previous() (uint64, error) {
 	return uint64(len(m.entries)), nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
@@ -110,7 +99,6 @@ func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
 	return m.entries[0], nil
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (m *MockJournal) GetCursor() (string, error) {
 	return "", nil
 }
@@ -613,17 +601,15 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 }
 
 func TestExpectedTagDuration(t *testing.T) {
-
 	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1"}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig.SetWithoutSource("tags", tags)
-	defer mockConfig.SetWithoutSource("tags", nil)
-
-	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	// We do not want to trigger the log, local tag provider cleanup routine. Setting it to 1h to make sure this
+	// test, even with the race detector enabled, don't hit that time limit.
+	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "1h")
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})

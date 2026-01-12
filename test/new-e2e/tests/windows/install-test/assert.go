@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	windows "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -157,6 +157,7 @@ func getExpectedBinFilesForAgentMajorVersion(majorVersion string) []string {
 	paths := []string{
 		// user binaries
 		`bin\agent.exe`,
+		`bin\secret-generic-connector.exe`,
 		`bin\agent\ddtray.exe`,
 		`bin\agent\trace-agent.exe`,
 		`bin\agent\process-agent.exe`,

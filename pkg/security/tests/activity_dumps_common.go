@@ -9,7 +9,6 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +22,7 @@ import (
 const (
 	dedicatedADNodeForTestsEnv         = "DEDICATED_ACTIVITY_DUMP_NODE"
 	testActivityDumpRateLimiter        = 200
-	testActivityDumpTracedCgroupsCount = 3
+	testActivityDumpTracedCgroupsCount = 5
 )
 
 var (
@@ -35,7 +34,7 @@ func validateActivityDumpOutputs(t *testing.T, test *testModule, expectedFormats
 	securityProfileValidator func(sp *profile.Profile) bool) {
 	perExtOK := make(map[string]bool)
 	for _, format := range expectedFormats {
-		ext := fmt.Sprintf(".%s", format)
+		ext := "." + format
 		perExtOK[ext] = false
 	}
 

@@ -5,8 +5,9 @@ Components can register a status provider. When the status command is executed, 
 ## Status Providers
 
 There are two types of status providers:
-- Header Providers: these providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, or metadata.
-- Regular Providers: these providers are rendered after all the header providers.
+
+- **Header Providers:** these providers are displayed at the top of the status output. This section is reserved for the most important information about the agent, such as agent version, hostname, host info, or metadata.
+- **Regular Providers:** these providers are rendered after all the header providers.
 
 Each provider has the freedom to configure how they want to display their information for the three types of status output: JSON, Text, and HTML.
 This flexibility allows you to tailor the output to best suit your component's needs.

@@ -54,7 +54,7 @@ package util
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"path/filepath"
 	"sync"
 	"time"
@@ -133,7 +133,26 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 
 // FlareProvider returns a flare providers to add the current inventory payload to each flares.
 func (i *InventoryPayload) FlareProvider() flaretypes.Provider {
-	return flaretypes.NewProvider(i.fillFlare)
+	// We return a anonymous function here instead of a method from `InventoryPayload` so calling reflect on
+	// the pointer to function show the true caller instead of this generic helper. The flare provider uses reflect
+	// to detect the name of each provider to produce helpful logs. Using a method from InventoryPayload create the
+	// same name for all provider while a anonymous function is unique.
+	//
+	// for example the flare logs  this will show:
+	//   'comp/metadata/inventoryagent/inventoryagentimpl.newInventoryAgentProvider.(*InventoryPayload).FlareProvider.func2'
+	// instead of:
+	//   'comp/metadata/internal/util.(*InventoryPayload).fillFlare-fm'
+	return flaretypes.NewProvider(
+		func(fb flaretypes.FlareBuilder) error {
+			path := filepath.Join("metadata", "inventory", i.FlareFileName)
+			if !i.Enabled {
+				fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
+				return nil
+			}
+
+			fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
+			return nil
+		})
 }
 
 // MetadataProvider returns a metadata 'runner.Provider' for the current inventory payload (taking into account if
@@ -208,23 +227,11 @@ func (i *InventoryPayload) RefreshTriggered() bool {
 // GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 func (i *InventoryPayload) GetAsJSON() ([]byte, error) {
 	if !i.Enabled {
-		return nil, fmt.Errorf("inventory metadata is disabled")
+		return nil, errors.New("inventory metadata is disabled")
 	}
 
 	i.m.Lock()
 	defer i.m.Unlock()
 
 	return json.MarshalIndent(i.getPayload(), "", "    ")
-}
-
-// fillFlare add the inventory payload to flares.
-func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
-	path := filepath.Join("metadata", "inventory", i.FlareFileName)
-	if !i.Enabled {
-		fb.AddFile(path, []byte("inventory metadata is disabled")) //nolint:errcheck
-		return nil
-	}
-
-	fb.AddFileFromFunc(path, i.GetAsJSON) //nolint:errcheck
-	return nil
 }

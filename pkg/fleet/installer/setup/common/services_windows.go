@@ -8,16 +8,30 @@
 package common
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"context"
+
+	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
 )
 
 // restartServices restarts the services that need to be restarted after a package upgrade or
 // an install script re-run; because the configuration may have changed.
-func (s *Setup) restartServices(pkgs []packageWithVersion) error {
+func (s *Setup) restartServices(ctx context.Context, pkgs []packageWithVersion) error {
 	for _, pkg := range pkgs {
 		switch pkg.name {
 		case DatadogAgentPackage:
-			if err := winutil.RestartService("datadogagent"); err != nil {
+			if err := windowssvc.NewWinServiceManager().RestartAgentServices(ctx); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Setup) stopServices(ctx context.Context, pkgs []packageWithVersion) error {
+	for _, pkg := range pkgs {
+		switch pkg.name {
+		case DatadogAgentPackage:
+			if err := windowssvc.NewWinServiceManager().StopAllAgentServices(ctx); err != nil {
 				return err
 			}
 		}

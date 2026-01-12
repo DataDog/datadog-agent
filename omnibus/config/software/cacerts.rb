@@ -29,9 +29,9 @@ name "cacerts"
 # cacerts bundle changes.
 # This allows us to always use up-to-date cacerts, without breaking all builds
 # when they change.
-default_version "2025-07-15"
+default_version "2025-12-02"
 source url: "https://curl.se/ca/cacert-#{version}.pem",
-       sha256: "7430e90ee0cdca2d0f02b1ece46fbf255d5d0408111f009638e3b892d6ca089c",
+       sha256: "f1407d974c5ed87d544bd931a278232e13925177e239fca370619aba63c757b4",
        target_filename: "cacert.pem"
 
 relative_path "cacerts-#{version}"
@@ -47,9 +47,11 @@ build do
   else
     mkdir "#{install_dir}/embedded/ssl/certs"
     copy "#{project_dir}/cacert.pem", "#{install_dir}/embedded/ssl/certs/cacert.pem"
-
-    link "#{install_dir}/embedded/ssl/certs/cacert.pem", "#{install_dir}/embedded/ssl/cert.pem"
-
-    block { File.chmod(0644, "#{install_dir}/embedded/ssl/certs/cacert.pem") }
+    block 'set certificate permissions and relative symlink within embedded SSL configuration' do
+      Dir.chdir "#{install_dir}/embedded/ssl" do
+        File.chmod 0644, 'certs/cacert.pem'
+        File.symlink 'certs/cacert.pem', 'cert.pem'
+      end
+    end
   end
 end

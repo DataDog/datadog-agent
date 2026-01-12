@@ -80,7 +80,8 @@ function attachEditor(addTo, data) {
     lineWrapping: true,
     lineNumbers: true,
     value: data,
-    mode:  "yaml"
+    mode:  "yaml",
+    viewportMargin: Infinity,
   });
   // Map tabs to spaces (yaml doesn't allow tab characters)
   codeMirror.setOption("extraKeys", {
@@ -216,7 +217,7 @@ function changeLogView() {
     if (data.substring(0, 4) == "<br>") data = data.substring(4, data.length);
     data = trimData(data);
 
-    $(".log_data").html(data);
+    $(".log_data").html(DOMPurify.sanitize(data));
   });
 }
 
@@ -239,10 +240,16 @@ function trimData(data) {
     data = data.substring(0, i-1);
 
     // Add a way to load more
-    data += "<br><a href='javascript:void(0)' onclick='loadMore()' class='load_more'> Load more </a>";
+    data += "<br><a href='javascript:void(0)' class='load_more'> Load more </a>";
   }
   return data;
 }
+
+// Delegate click handler for "Load more" link (works after DOMPurify sanitization)
+$(document).on('click', '.load_more', function (e) {
+  e.preventDefault();
+  loadMore();
+});
 
 // Handler for loading more lines of the currently displayed log file
 function loadMore() {

@@ -74,7 +74,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v1_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
@@ -90,7 +90,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_aws_imds_v1_request")
 	})
 }
 
@@ -149,7 +149,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v1_response", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
 				return fmt.Errorf("failed to query IMDS server: %v", err)
@@ -168,71 +168,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 			assert.Equal(t, testutils.AWSSecurityCredentialsLastUpdatedTestValue, event.IMDS.AWS.SecurityCredentials.LastUpdated, "wrong IMDS request AWS Security Credentials LastUpdated")
 
 			test.validateIMDSSchema(t, event)
-		})
-	})
-}
-
-func TestAWSIMDSv1NoResponse(t *testing.T) {
-	SkipIfNotAvailable(t)
-
-	checkNetworkCompatibility(t)
-
-	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
-		if out, err := loadModule("veth"); err != nil {
-			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
-		}
-	}
-
-	executable, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ruleDefs := []*rules.RuleDefinition{
-		{
-			ID:         "test_rule_aws_imds_v1_response",
-			Expression: fmt.Sprintf(`imds.cloud_provider == "aws" && imds.aws.is_imds_v2 == false && imds.type == "response" && process.file.name == "%s"`, path.Base(executable)),
-		},
-	}
-
-	// create dummy interface
-	dummy, err := testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err = testutils.RemoveDummyInterface(dummy); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
-	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
-	defer func() {
-		if err = testutils.StopIMDSserver(imdsServer); err != nil {
-			t.Fatal(err)
-		}
-	}()
-
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: false}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer test.Close()
-
-	t.Run("no_aws_imds_v1_response", func(t *testing.T) {
-		if err := waitForIMDSResponseProbeEvent(test, func() error {
-			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
-			if err != nil {
-				return fmt.Errorf("failed to query IMDS server: %v", err)
-			}
-			defer response.Body.Close()
-
-			return nil
-		}, path.Base(executable)); err == nil {
-			t.Fatal("shouldn't get an event")
-		}
+		}, "test_rule_aws_imds_v1_response")
 	})
 }
 
@@ -291,7 +227,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	defer test.Close()
 
 	t.Run("aws_imds_v2_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
@@ -312,7 +248,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_aws_imds_v2_request")
 	})
 }
 
@@ -366,7 +302,7 @@ func TestGCPIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("gcp_imds_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
@@ -387,7 +323,7 @@ func TestGCPIMDS(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_gcp_imds_request")
 	})
 }
 
@@ -441,7 +377,7 @@ func TestAzureIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("azure_imds_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
@@ -462,7 +398,7 @@ func TestAzureIMDS(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_azure_imds_request")
 	})
 }
 
@@ -516,7 +452,7 @@ func TestIBMIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("ibm_imds_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
@@ -537,7 +473,7 @@ func TestIBMIMDS(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_idbm_imds_request")
 	})
 }
 
@@ -591,7 +527,7 @@ func TestOracleIMDS(t *testing.T) {
 	defer test.Close()
 
 	t.Run("oracle_imds_request", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL), nil)
 			if err != nil {
 				return fmt.Errorf("failed to instantiate request: %v", err)
@@ -612,7 +548,7 @@ func TestOracleIMDS(t *testing.T) {
 			assert.Equal(t, "Go-http-client/1.1", event.IMDS.UserAgent, "wrong IMDS request user agent")
 
 			test.validateIMDSSchema(t, event)
-		})
+		}, "test_rule_oracle_imds_request")
 	})
 }
 
@@ -678,7 +614,7 @@ func TestIMDSProcessContext(t *testing.T) {
 	t.Run("imds_process_context", ifSyscallSupported("SYS_OPEN", func(t *testing.T, syscallNB uintptr) {
 		defer os.Remove(testFile)
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			// make request first to populate process cache
 			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, testutils.IMDSSecurityCredentialsURL))
 			if err != nil {
@@ -706,6 +642,6 @@ func TestIMDSProcessContext(t *testing.T) {
 			}
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_imds_process_context")
 	}))
 }

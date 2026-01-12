@@ -21,13 +21,14 @@ import (
 
 // Stats represents the node counts in an activity dump
 type Stats struct {
-	ProcessNodes int64
-	FileNodes    int64
-	DNSNodes     int64
-	SocketNodes  int64
-	IMDSNodes    int64
-	SyscallNodes int64
-	FlowNodes    int64
+	ProcessNodes    int64
+	FileNodes       int64
+	DNSNodes        int64
+	SocketNodes     int64
+	IMDSNodes       int64
+	SyscallNodes    int64
+	FlowNodes       int64
+	CapabilityNodes int64
 
 	counts map[model.EventType]*statsPerEventType
 }
@@ -76,12 +77,13 @@ func (stats *Stats) ApproximateSize() int64 {
 	total += stats.IMDSNodes * int64(unsafe.Sizeof(IMDSNode{}))
 	total += stats.SyscallNodes * int64(unsafe.Sizeof(SyscallNode{}))
 	total += stats.FlowNodes * int64(unsafe.Sizeof(FlowNode{}))
+	total += stats.CapabilityNodes * int64(unsafe.Sizeof(CapabilityNode{}))
 	return total
 }
 
 // SendStats sends metrics to Datadog
 func (stats *Stats) SendStats(client statsd.ClientInterface, treeType string) error {
-	treeTypeTag := fmt.Sprintf("tree_type:%s", treeType)
+	treeTypeTag := "tree_type:" + treeType
 
 	for evtType, count := range stats.counts {
 		evtTypeTag := fmt.Sprintf("event_type:%s", evtType)

@@ -1,0 +1,7 @@
+features:
+  - |
+    The infraattributes processor included in DDOT pipelines can now determine
+    a missing `container.id` attribute based on (in order of priority):
+    1. `process.pid`;
+    2. `datadog.container.cgroup_inode` (inode number of the container's cgroup);
+    3. `k8s.pod.uid`, `k8s.container.name`, and optionally `datadog.container.is_init`.

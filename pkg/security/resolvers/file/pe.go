@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"debug/pe"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"os"
 	"strings"
 
@@ -38,7 +38,7 @@ func determinePEArchitectureFromHeader(file *os.File, data []byte) (model.ABI, m
 	}
 
 	if !bytes.Equal(signature[0:4], []byte{0x50, 0x45, 0x00, 0x00}) {
-		return model.UnknownABI, model.UnknownArch, fmt.Errorf("invalid PE signature")
+		return model.UnknownABI, model.UnknownArch, errors.New("invalid PE signature")
 	}
 
 	magic := binary.LittleEndian.Uint16(signature[4:])
@@ -95,7 +95,7 @@ func readDLLName(file *os.File, nameOffset uint32) (string, error) {
 		}
 	}
 	if end == 0 {
-		return "", fmt.Errorf("invalid DLL name")
+		return "", errors.New("invalid DLL name")
 	}
 
 	return strings.ToLower(string(nameData[:end])), nil

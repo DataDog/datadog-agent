@@ -99,6 +99,7 @@ func TestHttpDestinationFactory(t *testing.T) {
 				mockConfig,
 				"test-component",
 				"application/json",
+				"",
 				1,
 				10,
 			)

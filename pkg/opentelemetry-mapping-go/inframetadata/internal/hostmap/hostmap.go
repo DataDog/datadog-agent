@@ -152,6 +152,15 @@ func ec2Hostname(m pcommon.Map) (string, bool, error) {
 	return strField(m, string(conventions.HostNameKey))
 }
 
+// getCCRID gets Canonical Cloud Resource ID from a resource attribute map.
+// It returns:
+// - The CCRID if available
+// - Whether CCRID was found
+// - Any errors found retrieving the ID
+func getCCRID(m pcommon.Map) (string, bool, error) {
+	return strField(m, "datadog.ccrid")
+}
+
 // Set a hardcoded host metadata payload.
 func (m *HostMap) Set(md payload.HostMetadata) error {
 	m.mu.Lock()
@@ -222,6 +231,15 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		md.Tags.OTel = tags
 	}
 
+	// Host Aliases
+	hostAliases := getHostAliases(res.Attributes())
+	old := md.Meta.HostAliases
+	changed = changed || !equalSlices[[]string](old, hostAliases)
+	md.Meta.HostAliases = hostAliases
+
+	// If a tag was present in a previous resource but is not present
+	// in the current one, it will be removed from the host metadata payload.
+
 	// InstanceID field
 	if iid, ok, err2 := instanceID(res.Attributes()); err2 != nil {
 		err = errors.Join(err, err2)
@@ -238,6 +256,16 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 		old := md.Meta.EC2Hostname
 		changed = changed || old != ec2Host
 		md.Meta.EC2Hostname = ec2Host
+	}
+
+	//Get CCRID (Canonical Cloud Resource ID: AWS=ARN, Azure=Resource ID, GCP=CAI, OCI=OCID)
+	if ccrid, ok, err2 := getCCRID(res.Attributes()); err2 != nil {
+		err = errors.Join(err, err2)
+	} else if ok {
+		if ccrid != md.Meta.CanonicalCloudResourceID {
+			md.Meta.CanonicalCloudResourceID = ccrid
+			changed = true
+		}
 	}
 
 	// Gohai - Platform
@@ -304,7 +332,7 @@ func (m *HostMap) Update(host string, res pcommon.Resource) (changed bool, md pa
 	}
 
 	m.hosts[host] = md
-	changed = changed && found
+	changed = changed || !found
 	return
 }
 

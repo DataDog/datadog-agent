@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -21,13 +22,18 @@ import (
 	"go.uber.org/fx/fxtest"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsqueriermock "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 )
@@ -46,23 +52,26 @@ var testOptions = fx.Options(
 	forwarderimpl.MockModule(),
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
-	core.MockBundle(),
 	eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 	eventplatformreceiverimpl.Module(),
 	rdnsqueriermock.MockModule(),
 	logscompression.MockModule(),
+	telemetryimpl.MockModule(),
+	hostnameimpl.MockModule(),
 )
 
-func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface) (*fxtest.App, *npCollectorImpl) {
+func newTestNpCollector(t testing.TB, agentConfigs map[string]any, statsdClient statsd.ClientInterface, tr traceroute.Component) (*fxtest.App, *npCollectorImpl) {
 	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Replace(config.MockParams{Overrides: agentConfigs}),
+		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, agentConfigs) }),
 		fx.Populate(&component),
 		fx.Provide(func() statsd.ClientInterface {
 			return statsdClient
 		}),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() traceroute.Component { return tr }),
 	))
 	npCollector := component.(*npCollectorImpl)
 
@@ -71,29 +80,30 @@ func newTestNpCollector(t fxtest.TB, agentConfigs map[string]any, statsdClient s
 	return app, npCollector
 }
 
-func createConns(numberOfConns int) []*model.Connection {
-	var conns []*model.Connection
+func createConns(numberOfConns int) []npmodel.NetworkPathConnection {
+	var conns []npmodel.NetworkPathConnection
 	for i := 0; i < numberOfConns; i++ {
-		conns = append(conns, &model.Connection{
-			Laddr:     &model.Addr{Ip: fmt.Sprintf("10.0.0.%d", i), Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: fmt.Sprintf("10.0.1.%d", i), Port: int32(80)},
+		conns = append(conns, npmodel.NetworkPathConnection{
+			Source:    netip.MustParseAddrPort(fmt.Sprintf("10.0.0.%d:30000", i)),
+			Dest:      netip.MustParseAddrPort(fmt.Sprintf("10.0.1.%d:80", i)),
 			Direction: model.ConnectionDirection_outgoing,
 		})
 	}
+
 	return conns
 }
 
-func createBenchmarkConns(numberOfConns int, tcpPercent int) []*model.Connection {
+func createBenchmarkConns(numberOfConns int, tcpPercent int) []npmodel.NetworkPathConnection {
 	port := rand.Intn(65535-1) + 1
 	connType := model.ConnectionType_udp
 	if rand.Intn(100) < tcpPercent {
 		connType = model.ConnectionType_tcp
 	}
-	var conns []*model.Connection
+	var conns []npmodel.NetworkPathConnection
 	for i := 0; i < numberOfConns; i++ {
-		conns = append(conns, &model.Connection{
-			Laddr:     &model.Addr{Ip: fmt.Sprintf("127.0.0.%d", i), Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: randomPublicIP(), Port: int32(port)},
+		conns = append(conns, npmodel.NetworkPathConnection{
+			Source:    netip.MustParseAddrPort(fmt.Sprintf("127.0.0.%d:30000", i)),
+			Dest:      netip.MustParseAddrPort(fmt.Sprintf("%s:%d", randomPublicIP(), int32(port))),
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      connType,
 		})

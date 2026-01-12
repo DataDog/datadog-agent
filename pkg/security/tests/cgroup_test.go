@@ -9,20 +9,19 @@
 package tests
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"slices"
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -100,11 +99,11 @@ func TestCGroup(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_id",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id =~ "*/cg1"`, // "/cpu/cg1" or "/cg1"
+			Expression: `open.file.path == "{{.Root}}/test-open" && process.cgroup.id =~ "*/cg1"`,
 		},
 		{
 			ID:         "test_cgroup_systemd",
-			Expression: `open.file.path == "{{.Root}}/test-open2" && cgroup.id == "/system.slice/cws-test.service"`, // && cgroup.manager == "systemd"
+			Expression: `open.file.path == "{{.Root}}/test-open2" && process.cgroup.id == "/system.slice/cws-test.service"`,
 		},
 	}
 	test, err := newTestModule(t, nil, ruleDefs)
@@ -113,7 +112,7 @@ func TestCGroup(t *testing.T) {
 	}
 	defer test.Close()
 
-	testCGroup, err := newCGroup("cg1", "cpu")
+	testCGroup, err := newCGroup("cg1", "systemd")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +138,7 @@ func TestCGroup(t *testing.T) {
 	}
 
 	t.Run("cgroup-id", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			fd, _, errno := syscall.Syscall6(syscall.SYS_OPENAT, 0, uintptr(testFilePtr), syscall.O_CREAT, 0711, 0, 0)
 			if errno != 0 {
 				return error(errno)
@@ -149,14 +148,12 @@ func TestCGroup(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_id")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldEqual(t, event, "container.id", "")
-			assertFieldEqual(t, event, "container.runtime", "")
-			assert.Equal(t, containerutils.CGroupFlags(0), event.CGroupContext.CGroupFlags)
-			assertFieldIsOneOf(t, event, "cgroup.id", "/cpu/cg1")
-			assertFieldIsOneOf(t, event, "cgroup.version", []int{1, 2})
+			assertFieldEqual(t, event, "process.container.id", "")
+			assertFieldIsOneOf(t, event, "process.cgroup.id", []string{"/cg1", "/systemd/cg1"})
+			assertFieldIsOneOf(t, event, "process.cgroup.version", []int{1, 2})
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_id")
 	})
 
 	t.Run("systemd", func(t *testing.T) {
@@ -166,10 +163,10 @@ func TestCGroup(t *testing.T) {
 			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
 		})
 
-		test.WaitSignal(t, func() error {
-			serviceUnit := fmt.Sprintf(`[Service]
+		test.WaitSignalFromRule(t, func() error {
+			serviceUnit := `[Service]
 Type=oneshot
-ExecStart=/usr/bin/touch %s`, testFile2)
+ExecStart=/usr/bin/touch ` + testFile2
 			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
 				return err
 			}
@@ -192,50 +189,10 @@ ExecStart=/usr/bin/touch %s`, testFile2)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_systemd")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldEqual(t, event, "cgroup.manager", "systemd")
-			assertFieldNotEqual(t, event, "cgroup.id", "")
+			assertFieldNotEqual(t, event, "process.cgroup.id", "")
 
 			test.validateOpenSchema(t, event)
-		})
-	})
-
-	t.Run("podman", func(t *testing.T) {
-		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
-			// TODO(lebauce): On the systems, systemd service creation doesn't trigger a cprocs write
-			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel() || kv.IsOpenSUSELeapKernel()
-		})
-
-		test.WaitSignal(t, func() error {
-			serviceUnit := fmt.Sprintf(`[Service]
-Type=oneshot
-ExecStart=/usr/bin/touch %s`, testFile2)
-			if err := os.WriteFile("/etc/systemd/system/cws-test.service", []byte(serviceUnit), 0700); err != nil {
-				return err
-			}
-			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-				return err
-			}
-			if err := exec.Command("systemctl", "start", "cws-test").Run(); err != nil {
-				return err
-			}
-			if err := exec.Command("systemctl", "stop", "cws-test").Run(); err != nil {
-				return err
-			}
-			if err := os.Remove("/etc/systemd/system/cws-test.service"); err != nil {
-				return err
-			}
-			if err := exec.Command("systemctl", "daemon-reload").Run(); err != nil {
-				return err
-			}
-			return nil
-		}, func(event *model.Event, rule *rules.Rule) {
-			assertTriggeredRule(t, rule, "test_cgroup_systemd")
-			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldEqual(t, event, "cgroup.manager", "systemd")
-			assertFieldNotEqual(t, event, "cgroup.id", "")
-
-			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_systemd")
 	})
 }
 
@@ -281,7 +238,7 @@ func TestCGroupSnapshot(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_snapshot",
-			Expression: `open.file.path == "{{.Root}}/test-open" && cgroup.id != ""`,
+			Expression: `open.file.path == "{{.Root}}/test-open" && process.cgroup.id != ""`,
 		},
 	}
 
@@ -290,6 +247,11 @@ func TestCGroupSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	testFile, _, err := test.Path("test-open")
 	if err != nil {
@@ -306,21 +268,10 @@ func TestCGroupSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	p, ok := test.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok {
-		t.Skip("not supported")
-	}
-
 	var cmd *exec.Cmd
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		cmd = exec.Command(syscallTester, "open", testFile)
-		pipe, err := cmd.StdinPipe()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer pipe.Close()
-
-		if err := cmd.Start(); err != nil {
+		if err := cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
 
@@ -377,20 +328,24 @@ func TestCGroupSnapshot(t *testing.T) {
 		if newEntry != nil {
 			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
 		}
-	})
-
-	if cmd != nil {
-		cmd.Process.Kill()
-	}
+	}, "test_cgroup_snapshot")
 }
 
 func TestCGroupVariables(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_cgroup_set_variable",
-			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open"`,
+			Expression: `process.cgroup.id != "" && open.file.path == "{{.Root}}/test-open"`,
 			Actions: []*rules.ActionDefinition{
 				{
 					Set: &rules.SetDefinition{
@@ -403,7 +358,7 @@ func TestCGroupVariables(t *testing.T) {
 		},
 		{
 			ID:         "test_cgroup_check_variable",
-			Expression: `cgroup.id != "" && open.file.path == "{{.Root}}/test-open2" && ${cgroup.foo} == 1`,
+			Expression: `process.cgroup.id != "" && open.file.path == "{{.Root}}/test-open2" && ${cgroup.foo} == 1`,
 		},
 	}
 
@@ -425,33 +380,146 @@ func TestCGroupVariables(t *testing.T) {
 
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
 	if err != nil {
-		t.Skip("Skipping created time in containers tests: Docker not available")
-		return
+		t.Fatalf("failed to start docker wrapper: %v", err)
 	}
-	defer dockerWrapper.stop()
 
 	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_set_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile)
-			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_set_variable")
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile2}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_cgroup_check_variable")
 			assertFieldEqual(t, event, "open.file.path", testFile2)
-			assertFieldNotEmpty(t, event, "cgroup.id", "cgroup id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_cgroup_check_variable")
+	})
+}
+
+func TestCGroupVariablesReleased(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
 	})
 
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_set_variable",
+			Expression: `process.cgroup.id != "" && open.file.path == "/tmp/test-open"`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Scope: "cgroup",
+						Value: 999,
+						Name:  "bar",
+					},
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to create docker wrapper: %v", err)
+	}
+	_, err = dockerWrapper.start()
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	test.WaitSignalFromRule(t, func() error {
+		return dockerWrapper.Command("touch", []string{"/tmp/test-open"}, nil).Run()
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_cgroup_set_variable")
+		assertFieldEqual(t, event, "open.file.path", "/tmp/test-open")
+		assertFieldNotEmpty(t, event, "process.cgroup.id", "cgroup id shouldn't be empty")
+
+		variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
+		assert.NotNil(t, variables)
+		assert.Contains(t, variables, event.ProcessContext.Process.CGroup.Hash())
+		variable, ok := variables[event.ProcessContext.Process.CGroup.Hash()]
+		assert.True(t, ok)
+		value, ok := variable.GetValue()
+		assert.True(t, ok)
+		assert.Equal(t, 999, value.(int))
+	}, "test_cgroup_set_variable")
+
+	_, err = dockerWrapper.stop()
+	if err != nil {
+		t.Fatalf("failed to stop docker wrapper: %v", err)
+	}
+
+	time.Sleep(500 * time.Millisecond) // wait just a bit of time for the cgroup to be released
+
+	variables := test.ruleEngine.GetRuleSet().GetScopedVariables(rules.ScopeCGroup, "bar")
+	assert.NotNil(t, variables)
+	assert.Len(t, variables, 0)
+}
+
+func TestCGroupWriteEvent(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_cgroup_write_rule",
+			Expression: `cgroup_write.file.path != ""`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+	if err != nil {
+		t.Fatalf("failed to start docker wrapper: %v", err)
+	}
+
+	testFile, _, err := test.Path("test-cgroup-write")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dockerWrapper.Run(t, "cgroup-write-event", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+		test.WaitSignalFromRule(t, func() error {
+			cmd := cmdFunc("touch", []string{testFile}, nil)
+			return cmd.Run()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_cgroup_write_rule")
+			validateProcessContext(t, event)
+		}, "test_cgroup_write_rule")
+	})
 }

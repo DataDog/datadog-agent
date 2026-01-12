@@ -10,13 +10,14 @@ package listeners
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws"
-	"github.com/DataDog/datadog-agent/pkg/databasemonitoring/rds"
 	"github.com/golang/mock/gomock"
+	"github.com/mitchellh/mapstructure"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +25,7 @@ import (
 func TestDBMRdsListener(t *testing.T) {
 	testCases := []struct {
 		name                  string
-		config                rds.Config
+		config                map[string]interface{}
 		numDiscoveryIntervals int
 		rdsClientConfigurer   mockRdsClientConfigurer
 		expectedServices      []*DBMRdsService
@@ -32,17 +33,26 @@ func TestDBMRdsListener(t *testing.T) {
 	}{
 		{
 			name: "GetRdsInstancesFromTags context deadline exceeded produces no services",
-			config: rds.Config{
-				DiscoveryInterval: 1,
-				QueryTimeout:      1,
-				Region:            "us-east-1",
-				Tags:              []string{defaultADTag},
-				DbmTag:            defaultDbmTag,
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"queryTimeout":      1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetRdsInstancesFromTags(contextWithTimeout(1*time.Second), []string{defaultADTag}, defaultDbmTag).DoAndReturn(
-					func(ctx context.Context, _ []string, _ string) ([]aws.Instance, error) {
+				k.EXPECT().GetRdsInstancesFromTags(
+					contextWithTimeout(1*time.Second),
+					aws.Config{
+						DiscoveryInterval: 1,
+						QueryTimeout:      1,
+						Region:            "us-east-1",
+						Tags:              []string{defaultADTag},
+						DbmTag:            defaultDbmTag,
+					}).DoAndReturn(
+					func(ctx context.Context, _ aws.Config) ([]aws.Instance, error) {
+						fmt.Println("called get rds instances from tags")
 						<-ctx.Done()
 						return nil, ctx.Err()
 					}).AnyTimes()
@@ -52,30 +62,40 @@ func TestDBMRdsListener(t *testing.T) {
 		},
 		{
 			name: "GetRdsInstancesFromTags error produces no services",
-			config: rds.Config{
-				DiscoveryInterval: 1,
-				Region:            "us-east-1",
-				Tags:              []string{defaultADTag},
-				DbmTag:            defaultDbmTag,
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 0,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}, defaultDbmTag).Return(nil, errors.New("big bad error")).AnyTimes()
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), aws.Config{
+					DiscoveryInterval: 1,
+					Region:            "us-east-1",
+					Tags:              []string{defaultADTag},
+					DbmTag:            defaultDbmTag,
+				}).Return(nil, errors.New("big bad error")).AnyTimes()
 			},
 			expectedServices:    []*DBMRdsService{},
 			expectedDelServices: []*DBMRdsService{},
 		},
 		{
 			name: "single endpoint discovered and created",
-			config: rds.Config{
-				DiscoveryInterval: 1,
-				Region:            "us-east-1",
-				Tags:              []string{defaultADTag},
-				DbmTag:            defaultDbmTag,
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}, defaultDbmTag).Return(
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), aws.Config{
+					DiscoveryInterval: 1,
+					Region:            "us-east-1",
+					Tags:              []string{defaultADTag},
+					DbmTag:            defaultDbmTag,
+				}).Return(
 					[]aws.Instance{
 						{
 							ID:         "my-instance-1",
@@ -107,15 +127,20 @@ func TestDBMRdsListener(t *testing.T) {
 		},
 		{
 			name: "multiple instances discovered and created",
-			config: rds.Config{
-				DiscoveryInterval: 1,
-				Region:            "us-east-1",
-				Tags:              []string{defaultADTag},
-				DbmTag:            defaultDbmTag,
+			config: map[string]interface{}{
+				"discoveryInterval": 1,
+				"region":            "us-east-1",
+				"tags":              []string{defaultADTag},
+				"dbmTag":            defaultDbmTag,
 			},
 			numDiscoveryIntervals: 1,
 			rdsClientConfigurer: func(k *aws.MockRdsClient) {
-				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), []string{defaultADTag}, defaultDbmTag).Return(
+				k.EXPECT().GetRdsInstancesFromTags(gomock.Any(), aws.Config{
+					DiscoveryInterval: 1,
+					Region:            "us-east-1",
+					Tags:              []string{defaultADTag},
+					DbmTag:            defaultDbmTag,
+				}).Return(
 					[]aws.Instance{
 						{
 							ID:         "my-instance-1",
@@ -179,7 +204,10 @@ func TestDBMRdsListener(t *testing.T) {
 			mockAWSClient := aws.NewMockRdsClient(ctrl)
 			tc.rdsClientConfigurer(mockAWSClient)
 			ticks := make(chan time.Time, 1)
-			l := newDBMRdsListener(tc.config, mockAWSClient, ticks)
+			var newRdsConfig aws.Config
+			err := mapstructure.Decode(tc.config, &newRdsConfig)
+			assert.NoError(t, err)
+			l := newDBMRdsListener(newRdsConfig, mockAWSClient, ticks)
 			l.Listen(newSvc, delSvc)
 			// execute loop
 			for i := 0; i < tc.numDiscoveryIntervals; i++ {

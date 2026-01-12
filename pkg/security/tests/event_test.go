@@ -107,12 +107,19 @@ func TestEventRaleLimiters(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_unique_id",
-			Expression: `open.file.path == "{{.Root}}/test-unique-id"`,
-			Every: &rules.HumanReadableDuration{
-				Duration: 5 * time.Second,
-			},
-			RateLimiterToken: []string{"process.file.name"},
-		},
+			Expression: `open.file.path == "{{.Root}}/test-unique-id" && process.file.name not in ${test_unique_id_services}`,
+			Actions: []*rules.ActionDefinition{
+				{
+					Set: &rules.SetDefinition{
+						Name:  "test_unique_id_services",
+						Field: "process.file.name",
+						TTL: &rules.HumanReadableDuration{
+							Duration: 5 * time.Second,
+						},
+						Append: true,
+					},
+				},
+			}},
 		{
 			ID:         "test_std",
 			Expression: `open.file.path == "{{.Root}}/test-std"`,
@@ -266,15 +273,15 @@ func TestEventIteratorRegister(t *testing.T) {
 	}
 
 	t.Run("std", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "span-exec", "123", "456", "/usr/bin/touch", testFile)
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_1")
-		})
+		}, "test_register_1")
 	})
 
 	t.Run("pid1", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			f, err := os.Create(testFile2)
 			if err != nil {
 				return err
@@ -282,7 +289,7 @@ func TestEventIteratorRegister(t *testing.T) {
 			return f.Close()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_register_2")
-		})
+		}, "test_register_2")
 	})
 }
 
@@ -370,10 +377,7 @@ func TestEventProductTags(t *testing.T) {
 }
 
 func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTestOpts) {
-	var truncatedParents string
-	for i := 0; i < model.MaxPathDepth; i++ {
-		truncatedParents += "a/"
-	}
+	truncatedParents := strings.Repeat("a/", model.MaxPathDepth)
 
 	rule := &rules.RuleDefinition{
 		ID: "path_test",
@@ -413,7 +417,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 		t.Fatal(err)
 	}
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		f, err := os.OpenFile(truncatedParentsFile, os.O_CREATE, 0755)
 		if err != nil {
 			return err
@@ -433,7 +437,7 @@ func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTest
 			assert.Equal(t, "a", splittedFilepath[len(splittedFilepath)-1], "invalid path resolution at the right edge")
 			assert.Equal(t, model.MaxPathDepth, len(splittedFilepath), "invalid path depth")
 		}
-	})
+	}, "path_test")
 }
 
 func cleanupABottomUp(path string) {

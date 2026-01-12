@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix potential deadlock when querying sub-processes configuration. When other processes are in a failed state, the
+    Agent HTTPS timeout would not be taken into account, causing it to wait forever. This would block the creation of the status
+    page and cause missing information in flares.

@@ -68,13 +68,13 @@ func (e *OSOnlyFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error
 }
 
 // GetFieldMetadata get the type of the field
-func (e *OSOnlyFilterEvent) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+func (e *OSOnlyFilterEvent) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	switch field {
 	case "os":
-		return "*", reflect.String, "string", nil
+		return "*", reflect.String, "string", false, nil
 	}
 
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: field}
 }
 
 // GetType returns the type for this event
@@ -89,6 +89,11 @@ func (e *OSOnlyFilterEvent) GetTags() []string {
 
 // ValidateField returns whether the value use against the field is valid
 func (m *OSOnlyFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
+	return nil
+}
+
+// ValidateRule returns whether the rule is valid
+func (m *OSOnlyFilterModel) ValidateRule(_ *eval.Rule) error {
 	return nil
 }
 

@@ -9,6 +9,7 @@ package fxutil
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"slices"
 	"testing"
@@ -124,6 +125,38 @@ func TestRun(t *testing.T, f func() error) {
 	defer func() { fxAppTestOverride = nil }()
 	require.NoError(t, f())
 	require.True(t, fxFakeAppRan, "fxutil.Run wasn't called")
+}
+
+// TestRunWithApp is a helper for testing code that uses fxutil.Run
+//
+// It uses the same logic as fxutil.Run to start a fx App, but returns the App
+// after starting in order to test that the App can stop gracefully.
+func TestRunWithApp(opts ...fx.Option) (*fx.App, error) {
+	if fxAppTestOverride != nil {
+		return nil, fxAppTestOverride(func() {}, opts)
+	}
+
+	opts = append(opts, FxAgentBase())
+	// Temporarily increase timeout for all fxutil.Run calls until we can better characterize our
+	// start time requirements. Prepend to opts so individual calls can override the timeout.
+	opts = append(
+		[]fx.Option{TemporaryAppTimeouts()},
+		opts...,
+	)
+	app := fx.New(opts...)
+
+	if err := app.Err(); err != nil {
+		return app, err
+	}
+
+	startCtx, cancel := context.WithTimeout(context.Background(), app.StartTimeout())
+	defer cancel()
+
+	if err := app.Start(startCtx); err != nil {
+		return app, errors.Join(UnwrapIfErrArgumentsFailed(err), stopApp(app))
+	}
+
+	return app, nil
 }
 
 // TestOneShotSubcommand is a helper for testing commands implemented with fxutil.OneShot.

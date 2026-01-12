@@ -10,13 +10,12 @@ package clihelpers
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"runtime"
 
-	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
@@ -53,6 +52,21 @@ type EvalRuleParams struct {
 
 func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs EvalRuleParams) (EvalReport, error) {
 	var report EvalReport
+
+	// we need to initialize the model early on to handle legacy field when setting field values in dataFromJSON
+	var m eval.Model
+	var eventCtor func() eval.Event
+	if evalArgs.UseWindowsModel {
+		wmodel := &winmodel.Model{}
+		wmodel.SetLegacyFields(winmodel.SECLLegacyFields)
+		m = wmodel
+		eventCtor = newFakeWindowsEvent
+	} else {
+		lmodel := &model.Model{}
+		lmodel.SetLegacyFields(model.SECLLegacyFields)
+		m = lmodel
+		eventCtor = newFakeEvent
+	}
 
 	event, variables, err := dataFromJSON(decoder)
 	if err != nil {
@@ -98,13 +112,7 @@ func evalRule(provider rules.PolicyProvider, decoder *json.Decoder, evalArgs Eva
 
 	loader := rules.NewPolicyLoader(provider)
 
-	var ruleSet *rules.RuleSet
-	if evalArgs.UseWindowsModel {
-		ruleSet = rules.NewRuleSet(&winmodel.Model{}, newFakeWindowsEvent, ruleOpts, evalOpts)
-	} else {
-		ruleSet = rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
-	}
-
+	ruleSet := rules.NewRuleSet(m, eventCtor, ruleOpts, evalOpts)
 	if _, err := ruleSet.LoadPolicies(loader, loaderOpts); err.ErrorOrNil() != nil {
 		return report, err
 	}
@@ -172,17 +180,15 @@ func EvalRule(evalArgs EvalRuleParams) error {
 }
 
 func eventFromTestData(testData TestData) (eval.Event, error) {
-
-	kind := secconfig.ParseEvalEventType(testData.Type)
-	if kind == model.UnknownEventType {
-		return nil, errors.New("unknown event type")
+	kind, err := model.ParseEvalEventType(testData.Type)
+	if err != nil {
+		return nil, err
 	}
 
 	event := &model.Event{
 		BaseEvent: model.BaseEvent{
-			Type:             uint32(kind),
-			FieldHandlers:    &model.FakeFieldHandlers{},
-			ContainerContext: &model.ContainerContext{},
+			Type:          uint32(kind),
+			FieldHandlers: &model.FakeFieldHandlers{},
 		},
 	}
 	event.Init()
@@ -221,9 +227,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 	variables := make(map[string]eval.SECLVariable)
 
 	// copy the embedded variables
-	for k, v := range model.SECLVariables {
-		variables[k] = v
-	}
+	maps.Copy(variables, model.SECLVariables)
 
 	varOpts := eval.VariableOpts{
 		TTL: 10000000,
@@ -234,7 +238,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 		switch v := v.(type) {
 		case string:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context) (string, bool) {
+				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
 					return v, true
 				}, nil)
 			} else {
@@ -248,7 +252,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 					values[i] = value.(string)
 				}
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context) ([]string, bool) {
+					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool) {
 						return values, true
 					}, nil)
 				} else {
@@ -265,7 +269,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				}
 
 				if rules.IsScopeVariable(k) {
-					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context) ([]int, bool) {
+					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool) {
 						return values, true
 					}, nil)
 				} else {
@@ -280,7 +284,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				return nil, fmt.Errorf("failed to convert %s to int: %w", v, err)
 			}
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context) (int, bool) {
+				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool) {
 					return int(value), true
 				}, nil)
 			} else {
@@ -288,7 +292,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			}
 		case bool:
 			if rules.IsScopeVariable(k) {
-				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context) (bool, bool) {
+				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool) {
 					return v, true
 				}, nil)
 			} else {

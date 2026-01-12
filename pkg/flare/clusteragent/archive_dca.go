@@ -16,6 +16,8 @@ import (
 	"net/url"
 	"path/filepath"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -81,22 +83,27 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	flarecommon.GetLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb, client)   //nolint:errcheck
-	flarecommon.GetExpVar(fb)                //nolint:errcheck
-	getMetadataMap(fb)                       //nolint:errcheck
+	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
+	flarecommon.GetExpVar(fb)              //nolint:errcheck
+	getMetadataMap(fb)                     //nolint:errcheck
+	if err := getClusterChecksMetadata(fb, client); err != nil {
+		log.Debugf("Could not collect cluster checks metadata for flare: %v", err)
+	}
 	getClusterAgentClusterChecks(fb, client) //nolint:errcheck
 
-	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                    //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                   //nolint:errcheck
-	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                            //nolint:errcheck
-	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                             //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                        //nolint:errcheck
-	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                             //nolint:errcheck
-	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                       //nolint:errcheck
-	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) }) //nolint:errcheck
-	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                               //nolint:errcheck
-	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                            //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })      //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                          //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                         //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                                  //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                                   //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                              //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                                   //nolint:errcheck
+	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                             //nolint:errcheck
+	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) })       //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                                     //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                                  //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })            //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
 	getPerformanceProfileDCA(fb, pdata)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
@@ -118,7 +125,7 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
-		metaList.Errors = fmt.Sprintf("Can't create client to query the API Server: %s", err.Error())
+		metaList.Errors = "Can't create client to query the API Server: " + err.Error()
 	} else {
 		// Grab the metadata map for all nodes.
 		metaList, err = apiserver.GetMetadataMapBundleOnAllNodes(cl)
@@ -138,6 +145,27 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 	}
 
 	return fb.AddFile("cluster-agent-metadatamapper.log", []byte(str))
+}
+
+// getClusterChecksMetadata collects cluster checks metadata from cluster agent
+func getClusterChecksMetadata(fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {
+	targetURL := url.URL{
+		Scheme: "https",
+		Host:   fmt.Sprintf("localhost:%v", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")),
+		Path:   "/metadata/cluster-checks",
+	}
+
+	r, err := client.Get(targetURL.String(), ipchttp.WithCloseConnection)
+	if err != nil {
+		if len(r) > 0 {
+			// If cluster checks metadata return an error, create a file indicating this
+			return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "cluster checks metadata unavailable: %s"}`, string(r))))
+		}
+		// If completely failed to query, create error file
+		return fb.AddFile("cluster-checks-metadata.json", []byte(fmt.Sprintf(`{"error": "failed to query cluster checks metadata endpoint: %s"}`, err.Error())))
+	}
+
+	return fb.AddFile("cluster-checks-metadata.json", r)
 }
 
 func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPClient) error {

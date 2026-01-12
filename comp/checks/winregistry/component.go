@@ -8,7 +8,7 @@
 // Package winregistry implements the Windows Registry check
 package winregistry
 
-// team: windows-agent
+// team: windows-products
 
 // Component is the component type.
 type Component interface {

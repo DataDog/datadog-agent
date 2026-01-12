@@ -37,32 +37,38 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -71,6 +77,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -97,6 +104,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	checkConfig               string
 	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
@@ -159,11 +167,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
 				core.Bundle(),
+				hostnameimpl.Module(),
+				secretsfx.Module(),
 
 				// workloadmeta setup
 				wmcatalog.GetCatalog(),
@@ -174,7 +183,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
-				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithNoopForwarder())),
+				defaultforwarder.NoopModule(),
 				inventorychecksimpl.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
@@ -201,13 +210,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(option.None[integrations.Component]()),
 
 				getPlatformModules(),
-				jmxloggerimpl.Module(jmxloggerimpl.NewDisabledParams()),
+				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
+				remotetraceroute.Module(),
 			)
 		},
 	}
 
+	cmd.Flags().StringVarP(&cliParams.checkConfig, "check-config", "C", "", "path to a check configuration file")
 	cmd.Flags().BoolVarP(&cliParams.checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	cmd.Flags().IntVarP(&cliParams.checkTimes, "check-times", "t", 1, "number of times to run the check")
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
@@ -223,7 +234,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
-
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -247,6 +257,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
+	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
@@ -258,6 +269,7 @@ func run(
 	telemetry telemetry.Component,
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
+	traceroute traceroute.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -279,28 +291,34 @@ func run(
 		_ = cliParams.cmd.Help()
 		return nil
 	}
+
+	// Check if the check is allowed in infrastructure basic mode
+	if !pkgcollector.IsCheckAllowed(cliParams.checkName, pkgconfigsetup.Datadog()) {
+		return fmt.Errorf("check '%s' is not allowed in infrastructure basic mode", cliParams.checkName)
+	}
+
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
+
+	if config.GetBool("shared_library_check.enabled") {
+		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, tagger, config, telemetry, nil, nil)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
-	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger)
+	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-	cancelTimeout()
+	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
 	if err != nil {
 		return err
 	}
@@ -448,7 +466,7 @@ func run(
 				}
 			}
 		}
-		return fmt.Errorf("no valid check found")
+		return errors.New("no valid check found")
 	}
 
 	if len(cs) > 1 {
@@ -605,11 +623,6 @@ func run(
 		color.Yellow("This check type has %d instances. If you're looking for a different check instance, try filtering on a specific one using the --instance-filter flag or set --discovery-min-instances to a higher value", len(cs))
 	}
 
-	warnings := config.Warnings()
-	if warnings != nil && warnings.TraceMallocEnabledWithPy2 {
-		return errors.New("tracemalloc is enabled but unavailable with python version 2")
-	}
-
 	if cliParams.saveFlare {
 		writeCheckToFile(cliParams.checkName, &checkFileOutput)
 	}
@@ -623,7 +636,7 @@ func run(
 }
 
 func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
-	s := stats.NewStats(c)
+	s := stats.NewStats(c, healthplatformmock.Mock(nil))
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {
@@ -688,7 +701,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryFrames != "" {
 		profileMemoryFrames, err := strconv.Atoi(cliParams.profileMemoryFrames)
 		if err != nil {
-			return fmt.Errorf("--m-frames must be an integer")
+			return errors.New("--m-frames must be an integer")
 		}
 		initConfig["profile_memory_frames"] = profileMemoryFrames
 	}
@@ -696,7 +709,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryGC != "" {
 		profileMemoryGC, err := strconv.Atoi(cliParams.profileMemoryGC)
 		if err != nil {
-			return fmt.Errorf("--m-gc must be an integer")
+			return errors.New("--m-gc must be an integer")
 		}
 
 		initConfig["profile_memory_gc"] = profileMemoryGC
@@ -705,11 +718,11 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryCombine != "" {
 		profileMemoryCombine, err := strconv.Atoi(cliParams.profileMemoryCombine)
 		if err != nil {
-			return fmt.Errorf("--m-combine must be an integer")
+			return errors.New("--m-combine must be an integer")
 		}
 
 		if profileMemoryCombine != 0 && cliParams.profileMemorySort == "traceback" {
-			return fmt.Errorf("--m-combine cannot be sorted (--m-sort) by traceback")
+			return errors.New("--m-combine cannot be sorted (--m-sort) by traceback")
 		}
 
 		initConfig["profile_memory_combine"] = profileMemoryCombine
@@ -717,7 +730,7 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 
 	if cliParams.profileMemorySort != "" {
 		if cliParams.profileMemorySort != "lineno" && cliParams.profileMemorySort != "filename" && cliParams.profileMemorySort != "traceback" {
-			return fmt.Errorf("--m-sort must one of: lineno | filename | traceback")
+			return errors.New("--m-sort must one of: lineno | filename | traceback")
 		}
 		initConfig["profile_memory_sort"] = cliParams.profileMemorySort
 	}
@@ -725,14 +738,14 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryLimit != "" {
 		profileMemoryLimit, err := strconv.Atoi(cliParams.profileMemoryLimit)
 		if err != nil {
-			return fmt.Errorf("--m-limit must be an integer")
+			return errors.New("--m-limit must be an integer")
 		}
 		initConfig["profile_memory_limit"] = profileMemoryLimit
 	}
 
 	if cliParams.profileMemoryDiff != "" {
 		if cliParams.profileMemoryDiff != "absolute" && cliParams.profileMemoryDiff != "positive" {
-			return fmt.Errorf("--m-diff must one of: absolute | positive")
+			return errors.New("--m-diff must one of: absolute | positive")
 		}
 		initConfig["profile_memory_diff"] = cliParams.profileMemoryDiff
 	}
@@ -748,12 +761,33 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	if cliParams.profileMemoryVerbose != "" {
 		profileMemoryVerbose, err := strconv.Atoi(cliParams.profileMemoryVerbose)
 		if err != nil {
-			return fmt.Errorf("--m-verbose must be an integer")
+			return errors.New("--m-verbose must be an integer")
 		}
 		initConfig["profile_memory_verbose"] = profileMemoryVerbose
 	}
 
 	return nil
+}
+
+func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]integration.Config, error) {
+	// get configs from auto discovery
+	if cliParams.checkConfig == "" {
+		waitCtx, cancelTimeout := context.WithTimeout(
+			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+
+		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+		defer cancelTimeout()
+
+		return allConfigs, err
+	}
+
+	// get config from custom config file
+	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.checkConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fail to load custom config: %v", err)
+	}
+
+	return []integration.Config{customConf}, nil
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the

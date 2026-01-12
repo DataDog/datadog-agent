@@ -31,8 +31,7 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 		fxutil.Test[dependencies](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
-			config.MockModule(),
-			fx.Replace(config.MockParams{Overrides: confOverrides}),
+			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
@@ -82,7 +81,5 @@ func TestConfigRefresh(t *testing.T) {
 
 	assert.False(t, io.RefreshTriggered())
 	cfg.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
-	assert.Eventually(t, func() bool {
-		return assert.True(t, io.RefreshTriggered())
-	}, 5*time.Second, 200*time.Millisecond)
+	assert.True(t, io.RefreshTriggered())
 }

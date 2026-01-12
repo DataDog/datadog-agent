@@ -28,7 +28,7 @@ instances:
 
     ## @param protocol - string - optional - default: UDP
     ## Protocol used to monitor an endpoint via Network Path.
-    ## Available protocols: UDP, TCP
+    ## Available protocols: UDP, TCP, ICMP
     #
     # protocol: <PROTOCOL>
 
@@ -58,6 +58,23 @@ instances:
     ## Destination service name.
     #
     # destination_service: <DESTINATION_SERVICE>
+
+    ## @param tcp_method - string - optional - default: syn
+    ## Traceroute method used to monitor an endpoint via Network Path
+    ## Available methods: syn, sack, prefer_sack, syn_socket (syn_socket only works on Windows OSes)
+    ## Note: Windows client versions only support syn_socket
+    #
+    # tcp_method: <METHOD>
+
+    ## @param traceroute_queries - integer - optional - default: 3
+    ## Number of traceroutes to send for each check run.
+    #
+    # traceroute_queries: 3
+
+    ## @param e2e_queries - integer - optional - default: 50
+    ## Number of end-to-end probes to send for each check run.
+    #
+    # e2e_queries: 50
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.

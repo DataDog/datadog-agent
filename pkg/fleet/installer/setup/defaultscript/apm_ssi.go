@@ -13,11 +13,11 @@ import (
 
 // SetupAPMSSIScript sets up the APM SSI installation script.
 func SetupAPMSSIScript(s *common.Setup) error {
+	// Shouldn't write any config here, this will be handled by the outer scripts
+	s.NoConfig = true
+
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
-
-	// Installer management
-	setConfigInstallerRegistries(s)
 
 	// Install packages
 	installAPMPackages(s)

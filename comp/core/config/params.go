@@ -32,10 +32,6 @@ type Params struct {
 	// SecurityAgentConfigFilePaths or from ConfFilePath.
 	configLoadSecurityAgent bool
 
-	// configMissingOK determines whether it is a fatal error if the config
-	// file does not exist.
-	configMissingOK bool
-
 	// ignoreErrors determines whether it is OK if the config is not valid
 	// If an error occurs, Component.warnings.Warning contains the error.
 	ignoreErrors bool
@@ -78,7 +74,6 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
 	}
 	params.configLoadSecurityAgent = true
-	params.configMissingOK = false
 	return params
 }
 
@@ -94,13 +89,6 @@ func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Para
 func WithConfigName(name string) func(*Params) {
 	return func(b *Params) {
 		b.configName = name
-	}
-}
-
-// WithConfigMissingOK returns an option which sets configMissingOK
-func WithConfigMissingOK(v bool) func(*Params) {
-	return func(b *Params) {
-		b.configMissingOK = v
 	}
 }
 
@@ -152,12 +140,4 @@ func WithCLIOverride(setting string, value interface{}) func(*Params) {
 	return func(b *Params) {
 		b.cliOverride[setting] = value
 	}
-}
-
-// These functions are used in unit tests.
-
-// ConfigMissingOK determines whether it is a fatal error if the config
-// file does not exist.
-func (p Params) ConfigMissingOK() bool {
-	return p.configMissingOK
 }

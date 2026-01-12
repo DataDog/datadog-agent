@@ -11,6 +11,7 @@ package crio
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -63,6 +64,10 @@ type Client interface {
 	// GetCRIOImageLayers returns paths to `diff` directories for each layer of the specified image,
 	// using imgMeta to identify the image and resolve its layers.
 	GetCRIOImageLayers(imgMeta *workloadmeta.ContainerImageMetadata) ([]string, error)
+
+	// ListImages retrieves all images available in the CRI-O runtime.
+	// Accepts a context for request management and returns a slice of image metadata.
+	ListImages(ctx context.Context) ([]*v1.Image, error)
 }
 
 // clientImpl is a client to interact with the CRI-API.
@@ -221,7 +226,7 @@ func (c *clientImpl) connect() error {
 
 	// Ensure connection is ready
 	if conn.GetState() != connectivity.Ready {
-		return fmt.Errorf("connection not in READY state")
+		return errors.New("connection not in READY state")
 	}
 
 	return nil
@@ -260,6 +265,15 @@ func (c *clientImpl) buildDigestToIDMap(imgMeta *workloadmeta.ContainerImageMeta
 	}
 
 	return digestToIDMap, nil
+}
+
+// ListImages retrieves all images available in the CRI-O runtime.
+func (c *clientImpl) ListImages(ctx context.Context) ([]*v1.Image, error) {
+	imageListResponse, err := c.imageClient.ListImages(ctx, &v1.ListImagesRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list images: %w", err)
+	}
+	return imageListResponse.GetImages(), nil
 }
 
 // layerInfo represents each entry in layers.json

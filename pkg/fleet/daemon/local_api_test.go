@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
@@ -57,8 +58,8 @@ func (m *testDaemon) PromoteExperiment(ctx context.Context, pkg string) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) StartConfigExperiment(ctx context.Context, url string, hash string) error {
-	args := m.Called(ctx, url, hash)
+func (m *testDaemon) StartConfigExperiment(ctx context.Context, pkg string, operations config.Operations, encryptedSecrets map[string]string) error {
+	args := m.Called(ctx, pkg, operations, encryptedSecrets)
 	return args.Error(0)
 }
 

@@ -41,7 +41,7 @@ func (ec *EventCollector) CollectEvent(rs *RuleSet, ctx *eval.Context, event eva
 			continue
 		}
 
-		fieldEventType, _, _, err := event.GetFieldMetadata(field)
+		fieldEventType, _, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
 			rs.logger.Errorf("failed to get event type for field %s: %v", field, err)
 		}

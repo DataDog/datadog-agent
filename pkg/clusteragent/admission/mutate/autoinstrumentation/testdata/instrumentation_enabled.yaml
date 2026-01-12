@@ -1,0 +1,4 @@
+---
+apm_config:
+  instrumentation:
+    enabled: true

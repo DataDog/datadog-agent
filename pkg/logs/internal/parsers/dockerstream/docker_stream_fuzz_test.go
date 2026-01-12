@@ -40,23 +40,23 @@ func FuzzParseDockerStream(f *testing.F) {
 	// Valid messages with headers
 	for _, ts := range timestamps {
 		// stdout messages
-		msg := fmt.Sprintf("%s valid log message", ts)
+		msg := ts + " valid log message"
 		f.Add(append(createHeader(1, uint32(len(msg))), []byte(msg)...))
 
 		// stderr messages
-		msg = fmt.Sprintf("%s error log message", ts)
+		msg = ts + " error log message"
 		f.Add(append(createHeader(2, uint32(len(msg))), []byte(msg)...))
 
 		// Empty content after timestamp
-		msg = fmt.Sprintf("%s ", ts)
+		msg = ts + " "
 		f.Add(append(createHeader(1, uint32(len(msg))), []byte(msg)...))
 	}
 
 	// TTY messages (no header) with valid timestamps
 	for _, ts := range timestamps {
-		f.Add([]byte(fmt.Sprintf("%s tty message without header", ts)))
-		f.Add([]byte(ts))                     // Just timestamp
-		f.Add([]byte(fmt.Sprintf("%s ", ts))) // Timestamp with space
+		f.Add([]byte(ts + " tty message without header"))
+		f.Add([]byte(ts))       // Just timestamp
+		f.Add([]byte(ts + " ")) // Timestamp with space
 	}
 
 	// Large messages that trigger partial handling
@@ -151,5 +151,35 @@ func FuzzRemovePartialDockerMetadata(f *testing.F) {
 			t.Errorf("removePartialDockerMetadata returned non-empty result for empty input")
 		}
 
+	})
+}
+
+// FuzzParseDockerStreamUntailored tests the docker stream parser with
+// completely arbitrary input data, without attempting to construct valid Docker
+// headers or timestamps. This complements the FuzzParseDockerStream test which
+// uses carefully crafted inputs.
+//
+// The purpose is to ensure the parser never panics regardless of input, testing
+// its robustness against malformed, corrupted, or completely random data that
+// might be encountered.
+func FuzzParseDockerStreamUntailored(f *testing.F) {
+	f.Add([]byte("\x01\x00\x00\x00\x00\x00\x00\x102018-06-14T18:27:03.246999277Z log message"))
+	f.Add([]byte(""))
+	f.Add([]byte(" "))
+	f.Add([]byte("a b c"))
+	f.Add([]byte("\x00\x01\x02\x03"))
+	f.Add([]byte("\xFF\xFE\xFD\xFC"))
+
+	parser := New("test-container")
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		msg := message.NewMessage(data, nil, "", 0)
+
+		// The only invariant: parser must not panic and must return a valid result
+		result, _ := parser.Parse(msg)
+
+		if result == nil {
+			t.Fatal("Parse returned nil")
+		}
 	})
 }

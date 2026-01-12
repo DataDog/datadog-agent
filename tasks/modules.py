@@ -352,6 +352,9 @@ def add_all_replace(ctx: Context):
     After months of pain and manually editing our 150+ go.mod in this repo we have come to this.
     """
 
+    # Avoid circular import
+    from tasks.go import check_go_mod_replaces
+
     # First we find all go.mod in comp and pkg
     gomods = [
         mods for mods in get_default_modules().values() if mods.path.split(os.sep)[0] not in ["tools", "internal"]
@@ -363,3 +366,36 @@ def add_all_replace(ctx: Context):
     for mod in gomods:
         if mod.should_replace_internal_modules:
             update_go_mod(mod_to_replace, mod.path)
+
+    # Add extra replaces
+    check_go_mod_replaces(ctx, fix=True)
+
+
+@task
+def check_all_replace(ctx: Context):
+    """
+    Check if all replace rules are properly added to go.mod files.
+
+    This task runs modules.add-all-replace and fails if any files are modified,
+    indicating that some replace rules were missing and need to be added.
+    """
+    from invoke.exceptions import Exit
+
+    from tasks.libs.common.color import Color, color_message
+
+    # Run the add-all-replace command
+    add_all_replace(ctx)
+
+    # Check if any go.mod files were modified
+    result = ctx.run("git diff --exit-code **/go.mod", warn=True)
+
+    if result.exited is None or result.exited > 0:
+        # Files were modified, which means replace rules were missing
+        ctx.run("git diff --name-only **/go.mod", hide=False)
+        raise Exit(
+            code=1,
+            message=color_message(
+                "ERROR: Some go.mod files are missing replace rules. Please commit the changes from 'dda inv modules.add-all-replace' and try again. ",
+                Color.RED,
+            ),
+        )
