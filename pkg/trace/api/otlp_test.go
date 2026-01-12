@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
@@ -1413,8 +1414,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -1427,7 +1428,7 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindConsumer:    "consumer",
 			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, traceutil.OTelSpanKindName(in))
+			assert.Equal(t, out, traceutilotel.OTelSpanKindName(in))
 		}
 	})
 

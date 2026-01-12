@@ -28,11 +28,6 @@ var (
 	SignalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
 )
 
-const (
-	// TagStatusCode is the tag key for http status code.
-	TagStatusCode = "http.status_code"
-)
-
 // DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
 const DefaultOTLPServiceName = "otlpresourcenoservicename"
 

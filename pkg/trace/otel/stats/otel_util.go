@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -17,6 +18,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	oteltraceutil "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 )
 
 // chunkKey is used to group TraceChunks
@@ -36,7 +38,7 @@ func OTLPTracesToConcentratorInputs(
 	conf *config.AgentConfig,
 	containerTagKeys []string,
 	peerTagKeys []string,
-) []Input {
+) []stats.Input {
 	return OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, containerTagKeys, peerTagKeys, nil)
 }
 
@@ -51,10 +53,10 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	containerTagKeys []string,
 	peerTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
-) []Input {
-	spanByID, resByID, scopeByID := traceutil.IndexOTelSpans(traces)
+) []stats.Input {
+	spanByID, resByID, scopeByID := oteltraceutil.IndexOTelSpans(traces)
 	topLevelByKind := conf.HasFeature("enable_otlp_compute_top_level_by_span_kind")
-	topLevelSpans := traceutil.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
+	topLevelSpans := oteltraceutil.GetTopLevelOTelSpans(spanByID, resByID, topLevelByKind)
 	ignoreResNames := make(map[string]struct{})
 	for _, resName := range conf.Ignore["resource"] {
 		ignoreResNames[resName] = struct{}{}
@@ -65,9 +67,9 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		otelres := resByID[spanID]
 		var resourceName string
 		if transform.OperationAndResourceNameV2Enabled(conf) {
-			resourceName = traceutil.GetOTelResourceV2(otelspan, otelres)
+			resourceName = oteltraceutil.GetOTelResourceV2(otelspan, otelres)
 		} else {
-			resourceName = traceutil.GetOTelResourceV1(otelspan, otelres)
+			resourceName = oteltraceutil.GetOTelResourceV1(otelspan, otelres)
 		}
 		if _, exists := ignoreResNames[resourceName]; exists {
 			continue
@@ -79,7 +81,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		cid := transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		var ctags []string
 		if cid != "" {
-			ctags = traceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
+			ctags = oteltraceutil.GetOTelContainerTags(otelres.Attributes(), containerTagKeys)
 			if conf.ContainerTags != nil {
 				tags, err := conf.ContainerTags(cid)
 				if err != nil {
@@ -98,7 +100,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			}
 		}
 		ckey := chunkKey{
-			traceIDUInt64: traceutil.OTelTraceIDToUint64(otelspan.TraceID()),
+			traceIDUInt64: oteltraceutil.OTelTraceIDToUint64(otelspan.TraceID()),
 			env:           env,
 			version:       version,
 			hostname:      hostname,
@@ -117,7 +119,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		chunk.Spans = append(chunk.Spans, ddSpan)
 	}
 
-	inputs := make([]Input, 0, len(chunks))
+	inputs := make([]stats.Input, 0, len(chunks))
 	for ckey, chunk := range chunks {
 		pt := traceutil.ProcessedTrace{
 			TraceChunk:     chunk,
@@ -126,7 +128,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 			AppVersion:     ckey.version,
 			TracerHostname: ckey.hostname,
 		}
-		inputs = append(inputs, Input{
+		inputs = append(inputs, stats.Input{
 			Traces:        []traceutil.ProcessedTrace{pt},
 			ContainerID:   ckey.cid,
 			ContainerTags: containerTagsByID[ckey.cid],
