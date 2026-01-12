@@ -370,8 +370,8 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	return containerID, err
 }
 
-// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *remoteTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+// accumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *remoteTagger) accumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -450,7 +450,7 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 // and they always use the local tagger.
 // This function can only add the global tags.
 func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.OriginInfo) {
-	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
+	if err := t.accumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
 }
