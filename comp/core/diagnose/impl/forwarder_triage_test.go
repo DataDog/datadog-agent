@@ -52,7 +52,6 @@ func TestTopEndpointsDiagnosis_MetadataShapeAndOrdering(t *testing.T) {
 		t.Fatalf("expected 3 entries, got %d: %#v", len(got), got)
 	}
 
-	// Ordered by descending count: series_v2 (10), intake (7), metadata_v1 (2)
 	if got[0].Endpoint != "series_v2" || got[0].Count != 10 {
 		t.Fatalf("unexpected first entry: %#v", got[0])
 	}
@@ -71,7 +70,7 @@ func TestForwarderTriageSuite_Verbose_UnhealthyAndDetailsWarning(t *testing.T) {
 
 	var calls int64
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		n := atomic.AddInt64(&calls, 1)
 
 		payload := map[string]any{
@@ -142,7 +141,6 @@ func TestForwarderTriageSuite_Verbose_UnhealthyAndDetailsWarning(t *testing.T) {
 		t.Fatalf("unexpected details diagnosis: %#v", diags[2])
 	}
 
-	// Validate health metadata contains expected deltas.
 	rawErrs := diags[1].Metadata["errors_by_type_delta"]
 	var errs map[string]int
 	if err := json.Unmarshal([]byte(rawErrs), &errs); err != nil {
@@ -152,7 +150,6 @@ func TestForwarderTriageSuite_Verbose_UnhealthyAndDetailsWarning(t *testing.T) {
 		t.Fatalf("expected ConnectionErrors delta 10, got %d (%v)", errs["ConnectionErrors"], errs)
 	}
 
-	// Validate details top endpoints metadata is not empty and has shape.
 	rawTop := diags[2].Metadata["top_requeued_by_endpoint"]
 	type endpointCount struct {
 		Endpoint string `json:"endpoint"`
@@ -168,7 +165,7 @@ func TestForwarderTriageSuite_Verbose_UnhealthyAndDetailsWarning(t *testing.T) {
 }
 
 func TestFetchForwarder_ParsesNestedForwarderKey(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		payload := map[string]any{
 			"forwarder": map[string]any{
 				"APIKeyStatus": map[string]string{"k": "API Key valid"},
@@ -193,8 +190,7 @@ func TestFetchForwarder_ParsesNestedForwarderKey(t *testing.T) {
 }
 
 func TestFetchForwarder_FallbackRootObject(t *testing.T) {
-	// Root object looks like the forwarder payload directly (no "forwarder" key).
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		payload := map[string]any{
 			"APIKeyStatus": map[string]string{"k": "API Key valid"},
 			"Transactions": map[string]any{

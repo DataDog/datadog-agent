@@ -56,7 +56,7 @@ func ForwarderTriageSuite(cfg diagnose.Config) []diagnose.Diagnosis {
 			Name:        "Forwarder expvar reachable",
 			Category:    "forwarder",
 			Description: "Fetch /debug/vars and parse forwarder expvar",
-			Diagnosis:   fmt.Sprintf("Unable to fetch forwarder expvar from %s", url),
+			Diagnosis:   "Unable to fetch forwarder expvar from " + url,
 			RawError:    err.Error(),
 			Remediation: "Check expvar_port / DD_EXPVAR_PORT, local firewall, and that the Agent is running with expvar enabled.",
 		}}
@@ -75,7 +75,7 @@ func ForwarderTriageSuite(cfg diagnose.Config) []diagnose.Diagnosis {
 			Name:        "Forwarder expvar stable",
 			Category:    "forwarder",
 			Description: "Fetch /debug/vars twice and compute deltas",
-			Diagnosis:   fmt.Sprintf("First fetch succeeded but second fetch failed from %s", url),
+			Diagnosis:   "First fetch succeeded but second fetch failed from " + url,
 			RawError:    err.Error(),
 			Remediation: "If this is intermittent, suspect local resource pressure or network rules affecting the expvar port.",
 		}}
@@ -117,7 +117,6 @@ func expvarURL() string {
 func fetchForwarder(url string) (forwarderSnapshot, error) {
 	client := &http.Client{Timeout: 3 * time.Second}
 
-	// As of Go 1.22, the expvar handler requires GET for /debug/vars.
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return forwarderSnapshot{}, err
@@ -284,7 +283,6 @@ func forwarderHealthDiagnosis(d forwarderDelta, window time.Duration) diagnose.D
 		}
 	}
 
-	// dominance: pick the error class that grew most, deterministically
 	dominantKey := ""
 	dominantVal := 0
 	errKeys := make([]string, 0, len(d.ErrorsByType))
@@ -299,7 +297,6 @@ func forwarderHealthDiagnosis(d forwarderDelta, window time.Duration) diagnose.D
 		}
 	}
 
-	// Fail fast on data loss
 	if d.Dropped > 0 || sumMap(d.DroppedByEndpoint) > 0 {
 		return diagnose.Diagnosis{
 			Status:      diagnose.DiagnosisFail,
