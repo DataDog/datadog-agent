@@ -48,7 +48,7 @@ message Tag {
 }
 
 message Log {
-  uint64 timestamp = 1;
+  sint64 timestamp = 1;
   oneof content {
     StructuredLog structured = 2;
     string raw = 3;
