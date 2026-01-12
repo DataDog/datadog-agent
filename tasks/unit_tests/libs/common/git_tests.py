@@ -293,10 +293,24 @@ class TestGetLastTag(unittest.TestCase):
 class TestGetAncestorBaseBranch(unittest.TestCase):
     """Tests for get_ancestor_base_branch function."""
 
+    @patch.dict('os.environ', {'COMPARE_TO_BRANCH': 'main'})
+    def test_uses_compare_to_branch_when_set(self):
+        """Test that COMPARE_TO_BRANCH is used directly when set."""
+        result = get_ancestor_base_branch('feature/my-branch')
+
+        self.assertEqual(result, 'main')
+
+    @patch.dict('os.environ', {'COMPARE_TO_BRANCH': '7.54.x'})
+    def test_uses_compare_to_branch_release(self):
+        """Test that COMPARE_TO_BRANCH works for release branches."""
+        result = get_ancestor_base_branch('feature/backport-fix')
+
+        self.assertEqual(result, '7.54.x')
+
     @patch('tasks.libs.ciproviders.github_api.GithubAPI')
-    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/my-branch'})
-    def test_pr_targeting_main(self, mock_github_api):
-        """Test that PRs targeting main return 'main' as base branch."""
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/my-branch'}, clear=True)
+    def test_falls_back_to_github_api_when_no_compare_to_branch(self, mock_github_api):
+        """Test that GitHub API is used when COMPARE_TO_BRANCH is not set."""
         mock_pr = MagicMock()
         mock_pr.base.ref = 'main'
         mock_pr.number = 12345
@@ -311,9 +325,9 @@ class TestGetAncestorBaseBranch(unittest.TestCase):
         mock_github_instance.get_pr_for_branch.assert_called_once_with('feature/my-branch')
 
     @patch('tasks.libs.ciproviders.github_api.GithubAPI')
-    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/release-fix'})
-    def test_pr_targeting_release_branch(self, mock_github_api):
-        """Test that PRs targeting release branches return the release branch."""
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/release-fix'}, clear=True)
+    def test_pr_targeting_release_branch_via_api(self, mock_github_api):
+        """Test that PRs targeting release branches return the release branch via API."""
         mock_pr = MagicMock()
         mock_pr.base.ref = '7.54.x'
         mock_pr.number = 54321
@@ -329,7 +343,7 @@ class TestGetAncestorBaseBranch(unittest.TestCase):
 
     @patch('tasks.libs.common.git.get_default_branch')
     @patch('tasks.libs.ciproviders.github_api.GithubAPI')
-    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/no-pr'})
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/no-pr'}, clear=True)
     def test_no_pr_found_falls_back_to_default(self, mock_github_api, mock_get_default_branch):
         """Test that when no PR is found, we fall back to default branch."""
         mock_github_instance = MagicMock()
@@ -343,7 +357,7 @@ class TestGetAncestorBaseBranch(unittest.TestCase):
         mock_get_default_branch.assert_called_once()
 
     @patch('tasks.libs.ciproviders.github_api.GithubAPI')
-    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/multi-pr'})
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/multi-pr'}, clear=True)
     def test_multiple_prs_uses_first(self, mock_github_api):
         """Test that when multiple PRs exist, we use the first one's base."""
         mock_pr1 = MagicMock()
@@ -364,7 +378,7 @@ class TestGetAncestorBaseBranch(unittest.TestCase):
 
     @patch('tasks.libs.common.git.get_default_branch')
     @patch('tasks.libs.ciproviders.github_api.GithubAPI')
-    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/api-error'})
+    @patch.dict('os.environ', {'CI_COMMIT_REF_NAME': 'feature/api-error'}, clear=True)
     def test_github_api_error_falls_back_to_default(self, mock_github_api, mock_get_default_branch):
         """Test that GitHub API errors fall back to default branch."""
         mock_github_api.side_effect = Exception("GitHub API unavailable")

@@ -236,21 +236,28 @@ def get_ancestor_base_branch(branch_name: str | None = None) -> str:
     Get the base branch to use for ancestor calculation.
 
     This function tries to determine the correct base branch by:
-    1. Looking up the PR's target branch via GitHub API
-    2. Falling back to get_default_branch() if no PR is found
+    1. Using COMPARE_TO_BRANCH environment variable if set (preferred in CI)
+    2. Falling back to GitHub API to look up the PR's target branch
+    3. Falling back to get_default_branch() if neither works
 
     This is particularly important for PRs targeting release branches
     (e.g., 7.54.x) where we need to find the ancestor from the release
     branch, not main.
 
     Args:
-        branch_name: The branch name to look up. If None, uses CI_COMMIT_REF_NAME
-                     or falls back to the current branch.
+        branch_name: The branch name to look up via GitHub API. If None, uses
+                     CI_COMMIT_REF_NAME or falls back to the current branch.
 
     Returns:
         The base branch name to use for ancestor calculation.
     """
-    # Import here to avoid circular imports
+    # First, check if COMPARE_TO_BRANCH is set (used in GitLab CI)
+    compare_to_branch = os.environ.get("COMPARE_TO_BRANCH")
+    if compare_to_branch:
+        print(f"Using COMPARE_TO_BRANCH environment variable: {compare_to_branch}")
+        return compare_to_branch
+
+    # Fall back to GitHub API to find the PR's target branch
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     if branch_name is None:
