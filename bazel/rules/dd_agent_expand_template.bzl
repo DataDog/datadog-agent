@@ -13,25 +13,25 @@ DEFAULT_PRODUCT_DIR = "/opt/datadog-agent"
 
 def _dd_agent_expand_template_impl(ctx):
     # Set up a fallback default.
+    subs = {}
+
     # TODO: should this be different for windows? Or should we have different variables for windows?
-    flag_vars = {}
-    flag_vars["output_config_dir"] = DEFAULT_OUTPUT_CONFIG_DIR
+    subs["{output_config_dir}"] = DEFAULT_OUTPUT_CONFIG_DIR
     if ctx.attr._output_config_dir:
         if BuildSettingInfo in ctx.attr._output_config_dir:
             output_config_dir = ctx.attr._output_config_dir[BuildSettingInfo].value.rstrip("/")
-            flag_vars["output_config_dir"] = output_config_dir
-    flag_vars["install_dir"] = DEFAULT_PRODUCT_DIR
+            subs["{output_config_dir}"] = output_config_dir
+    subs["{install_dir}"] = DEFAULT_PRODUCT_DIR
     if ctx.attr._install_dir:
         if BuildSettingInfo in ctx.attr._install_dir:
             install_dir = ctx.attr._install_dir[BuildSettingInfo].value
-            flag_vars["install_dir"] = install_dir
+            subs["{install_dir}"] = install_dir
 
     # TODO: decide if we should default etc to the output base or relative to install_dir.
     # There are use cases for either. For now, we are relative to the output base.
     # Note that the choice of /etc/datadog-agent seems odd, in that /etc is usually /etc,
     # but this matches what is done in the current product packaging.
-    flag_vars["etc_dir"] = flag_vars["output_config_dir"] + "/etc/datadog-agent"
-    subs = {"{%s}" % key: value for key, value in flag_vars.items()}
+    subs["{etc_dir}"] = subs["{output_config_dir}"] + "/etc/datadog-agent"
 
     # Now add local substitutions.
     # For extra oomph, we apply the flag substitutions first. That allows us to
@@ -39,7 +39,9 @@ def _dd_agent_expand_template_impl(ctx):
     # substitution   "<% install_dir %>": "{install_dir}".
     # That is an affordance during migration.
     for key, value in ctx.attr.substitutions.items():
-        subs[key] = value.format(**flag_vars)
+        for flag, flag_value in subs.items():
+            value = value.replace(flag, flag_value)
+        subs[key] = value
 
     # let's add a little flavor. We don't need this today but it will be
     # needed if we expand things like the file name of an artifact and we want

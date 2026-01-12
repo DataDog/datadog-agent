@@ -105,7 +105,10 @@ def _dd_expand_flags_in_vars_test(name):
         dd_agent_expand_template,
         name = name + "_flags_in_vars_test",
         template = "ignored",
-        substitutions = {"@CAP_INSTALL_DIR@": "{install_dir}"},
+        substitutions = {
+            "@CAP_INSTALL_DIR@": "{install_dir}",
+            "@X@": "{x}",
+        },
         out = "flags_in_vars_test.out",
     )
     analysis_test(
@@ -124,3 +127,7 @@ def _flags_in_vars_test_impl(env, target):
     install_dir_actual = env.ctx.attr._install_dir_actual[BuildSettingInfo].value
     biz_val = subject.actual.actions[0].substitutions.get("@CAP_INSTALL_DIR@")
     env.expect.that_str(biz_val).equals(install_dir_actual)
+
+    # Since there is no flag for "x", @X@ should pass through unchanged
+    value = subject.actual.actions[0].substitutions.get("@X@")
+    env.expect.that_str(value).equals("{x}")
