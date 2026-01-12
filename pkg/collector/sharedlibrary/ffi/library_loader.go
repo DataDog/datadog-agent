@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -84,8 +85,8 @@ type SharedLibraryLoader struct {
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
-	if err := secretsimpl.CheckRights(path); err != nil {
-		return nil, fmt.Errorf("Failed to load shared library at %s: %s", path, err)
+	if err := checkOwnerAndPermissions(path); err != nil {
+		return nil, err
 	}
 
 	cPath := C.CString(path)
@@ -96,7 +97,7 @@ func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
 	cLib := C.load_shared_library(cPath, &cErr)
 	if cErr != nil {
 		defer C.free(unsafe.Pointer(cErr))
-		return nil, fmt.Errorf("Failed to load shared library at %s: %s", path, C.GoString(cErr))
+		return nil, errors.New(C.GoString(cErr))
 	}
 
 	return (*Library)(&cLib), nil
@@ -175,4 +176,21 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
 	}
+}
+
+func checkOwnerAndPermissions(path string) error {
+	p, err := filesystem.NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := p.CheckOwner(path); err != nil {
+		return err
+	}
+
+	if err := secretsimpl.CheckRights(path); err != nil {
+		return err
+	}
+
+	return nil
 }

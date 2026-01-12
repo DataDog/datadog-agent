@@ -8,6 +8,8 @@
 package sharedlibrarycheck
 
 import (
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -50,7 +52,7 @@ func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integrati
 	// open the library and get pointers to its symbols through the library loader
 	lib, err := sl.loader.Open(libPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to load shared library at %s: %s", libPath, err)
 	}
 
 	// Create the check

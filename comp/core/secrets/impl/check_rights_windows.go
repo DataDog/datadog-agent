@@ -184,7 +184,7 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 	return sid, err
 }
 
-// CheckRights checks that others don't have any rights and that group doesn't have write permission
+// CheckRights checks that others don't have any rights and that group doesn't have write/exec permission
 func CheckRights(path string) error {
-	return checkRights(path, true)
+	return checkRights(path, false)
 }

@@ -7,6 +7,7 @@
 package filesystem
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/hectane/go-acl"
@@ -67,4 +68,25 @@ func (p *Permission) RestrictAccessToUser(path string) error {
 // RemoveAccessToOtherUsers on Windows this function calls RestrictAccessToUser
 func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return p.RestrictAccessToUser(path)
+}
+
+// CheckOwner verifies that the file/directory is owned by either 'Administrator', system or dd user
+func (p *Permission) CheckOwner(path string) error {
+	var ownerSid *windows.SID
+	err := winutil.GetNamedSecurityInfo(path,
+		windows.SE_FILE_OBJECT,
+		windows.OWNER_SECURITY_INFORMATION,
+		&ownerSid,
+		nil, nil, nil, nil)
+
+	if err != nil {
+		return err
+	}
+
+	if !windows.EqualSid(ownerSid, p.administratorSid) &&
+		!windows.EqualSid(ownerSid, p.systemSid) &&
+		!windows.EqualSid(ownerSid, p.ddUserSid) {
+		return errors.New("file owner is neither `Administrator`, system or dd user")
+	}
+	return nil
 }
