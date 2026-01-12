@@ -76,7 +76,7 @@ var (
 	TlmDestinationHTTPRespByStatusAndURL = telemetry.NewCounter("logs", "destination_http_resp", []string{"status_code", "url"}, "Count of http responses by status code and destination url")
 
 	// TlmAutoMultilineAggregatorFlush Count of each line flushed from the auto multiline aggregator.
-	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type"}, "Count of each line flushed from the auto multiline aggregator")
+	TlmAutoMultilineAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_aggregator_flush", []string{"truncated", "line_type", "mode"}, "Count of each line flushed from the auto multiline aggregator")
 
 	// TlmAutoMultilineJSONAggregatorFlush Count of each line flushed from the auto multiline JSON aggregator.
 	TlmAutoMultilineJSONAggregatorFlush = telemetry.NewCounter("logs", "auto_multi_line_json_aggregator_flush", []string{"is_valid"}, "Count of each line flushed from the auto multiline JSON aggregator")
