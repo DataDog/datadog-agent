@@ -8,6 +8,7 @@
 package packages
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -67,13 +68,13 @@ func TestAgentDirectories(t *testing.T) {
 	// Check that essential directories are included
 	for _, dir := range agentDirectories {
 		if dir.Path == "/var/log/datadog" {
-			assert.Equal(t, os.FileMode(0750), dir.Mode)
-			assert.Equal(t, "dd-agent", dir.Owner)
-			assert.Equal(t, "dd-agent", dir.Group)
+			assert.Equal(t, os.FileMode(0750), dir.Mode, fmt.Sprintf("directory %s should have mode 0750", dir.Path))
+			assert.Equal(t, "dd-agent", dir.Owner, fmt.Sprintf("directory %s should have owner dd-agent", dir.Path))
+			assert.Equal(t, "dd-agent", dir.Group, fmt.Sprintf("directory %s should have group dd-agent", dir.Path))
 		} else {
-			assert.Equal(t, os.FileMode(0755), dir.Mode)
-			assert.Equal(t, "dd-agent", dir.Owner)
-			assert.Equal(t, "dd-agent", dir.Group)
+			assert.Equal(t, os.FileMode(0755), dir.Mode, fmt.Sprintf("directory %s should have mode 0755", dir.Path))
+			assert.Equal(t, "dd-agent", dir.Owner, fmt.Sprintf("directory %s should have owner dd-agent", dir.Path))
+			assert.Equal(t, "dd-agent", dir.Group, fmt.Sprintf("directory %s should have group dd-agent", dir.Path))
 		}
 	}
 }
@@ -86,16 +87,16 @@ func TestAgentPermissions(t *testing.T) {
 	// Verify root-owned security files have correct permissions
 	for _, perm := range agentConfigPermissions {
 		switch perm.Path {
-		case "system-probe.yaml", "security-agent.yaml", "system-probe.yaml.example", "security-agent.yaml.example":
-			assert.Equal(t, "dd-agent", perm.Owner)
-			assert.Equal(t, "dd-agent", perm.Group)
-			assert.Equal(t, false, perm.Recursive)
-			assert.Equal(t, os.FileMode(0440), perm.Mode)
+		case "system-probe.yaml", "security-agent.yaml", "system-probe.yaml.example", "security-agent.yaml.example", "managed", ".":
+			assert.Equal(t, "dd-agent", perm.Owner, fmt.Sprintf("file %s should have owner dd-agent", perm.Path))
+			assert.Equal(t, "dd-agent", perm.Group, fmt.Sprintf("file %s should have group dd-agent", perm.Path))
+			assert.Equal(t, false, perm.Recursive, fmt.Sprintf("file %s should not be recursive", perm.Path))
+			assert.Equal(t, os.FileMode(0440), perm.Mode, fmt.Sprintf("file %s should have mode 0440", perm.Path))
 		default:
-			assert.Equal(t, "root", perm.Owner)
-			assert.Equal(t, "root", perm.Group)
-			assert.Equal(t, true, perm.Recursive)
-			assert.Equal(t, os.FileMode(0640), perm.Mode)
+			assert.Equal(t, "root", perm.Owner, fmt.Sprintf("file %s should have owner root", perm.Path))
+			assert.Equal(t, "root", perm.Group, fmt.Sprintf("file %s should have group root", perm.Path))
+			assert.Equal(t, true, perm.Recursive, fmt.Sprintf("file %s should be recursive", perm.Path))
+			assert.Equal(t, os.FileMode(0640), perm.Mode, fmt.Sprintf("file %s should have mode 0640", perm.Path))
 		}
 	}
 }
