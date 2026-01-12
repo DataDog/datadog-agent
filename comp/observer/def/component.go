@@ -148,6 +148,14 @@ type AnomalyProcessor interface {
 	Flush() []ReportOutput
 }
 
+// MarkerReceiver is an optional interface for processors that accept discrete event markers.
+// Events like container OOMs, restarts, and lifecycle transitions are routed here
+// instead of being processed as logs (no metric derivation).
+type MarkerReceiver interface {
+	// AddMarker adds a discrete event marker for correlation context.
+	AddMarker(marker Marker)
+}
+
 // Reporter receives reports and displays or delivers them.
 type Reporter interface {
 	// Name returns the reporter name for debugging.
