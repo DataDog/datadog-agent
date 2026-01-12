@@ -14,11 +14,13 @@ common --verbose_failures
 
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
+common:linux --remote_local_fallback_strategy=sandboxed
 
 # macOS config ---------------------------------------------------------------------------------------------------------
 common:macos --features=-macos_default_link_flags # https://github.com/bazelbuild/bazel/issues/23312
 common:macos --macos_minimum_os=11.0 # Keep in sync with https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
 common:macos --strategy=sandboxed
+common:macos --remote_local_fallback_strategy=sandboxed
 
 # Windows config -------------------------------------------------------------------------------------------------------
 common:windows --strategy=standalone # Valid values are: [dynamic_worker, standalone, dynamic, remote, worker, local]
@@ -32,9 +34,11 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 # Remote cache config --------------------------------------------------------------------------------------------------
 # datadog-agent virtually isolates caching instance from its parent (which is remote-caching).
 # If entry isn't found in datadog-agent, it will be searched in remote-caching.
-common:cache --remote_cache=grpc://bazel-buildbarn-frontend.ddbuild.io:443
+# Fallback doesn't work for --remote_cache, therefore, setting --remote_executor and --strategy to sandboxed
+# to use cache capabilities in combination with sandboxing.
+common:cache --remote_executor=grpc://bazel-buildbarn-frontend.ddbuild.io:443
 common:cache --remote_instance_name=remote-caching/datadog-agent
-common:cache --remote_local_fallback  # best-effort on transient connection errors (no such host)
+common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
 
