@@ -343,7 +343,7 @@ def build_functional_tests(
 
     arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, static=static, arch=arch)
-    common_ancestor = get_common_ancestor(ctx, "HEAD")
+    common_ancestor = get_common_ancestor(ctx, "HEAD", try_fetch=False)
     print(f"Using git ref {common_ancestor} as common ancestor between HEAD and main branch")
     ldflags += f"-X {REPO_PATH}/{srcpath}.GitAncestorOnMain={common_ancestor} "
 
