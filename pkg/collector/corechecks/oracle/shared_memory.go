@@ -57,8 +57,8 @@ func (c *Check) SharedMemory() error {
 		memoryTag := strings.ReplaceAll(r.Memory, " ", "_")
 		memoryTag = strings.ToLower(memoryTag)
 		memoryTag = strings.ReplaceAll(memoryTag, "_size", "")
-		tags = append(tags, fmt.Sprintf("memory:%s", memoryTag))
-		sendMetric(c, gauge, fmt.Sprintf("%s.shared_memory.size", common.IntegrationName), r.Size, tags)
+		tags = append(tags, "memory:"+memoryTag)
+		sendMetric(c, gauge, common.IntegrationName+".shared_memory.size", r.Size, tags)
 	}
 	sender.Commit()
 	return nil

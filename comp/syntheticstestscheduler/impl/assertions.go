@@ -6,8 +6,6 @@
 package syntheticstestschedulerimpl
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/common"
 )
 
@@ -33,7 +31,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 	case common.AssertionTypePacketJitter:
 		actual = stats.Jitter
 	case common.AssertionTypeLatency:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Latency.Avg
 		case common.AssertionSubTypeMin:
@@ -46,14 +44,11 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 				Type:     assertion.Type,
 				Property: assertion.Property,
 				Expected: assertion.Target,
-				Failure: common.APIFailure{
-					Code:    invalidTest,
-					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
-				},
+				Valid:    false,
 			}
 		}
 	case common.AssertionTypeNetworkHops:
-		switch assertion.Property {
+		switch *assertion.Property {
 		case common.AssertionSubTypeAverage:
 			actual = stats.Hops.Avg
 		case common.AssertionSubTypeMin:
@@ -66,10 +61,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 				Type:     assertion.Type,
 				Property: assertion.Property,
 				Expected: assertion.Target,
-				Failure: common.APIFailure{
-					Code:    invalidTest,
-					Message: fmt.Sprintf("unsupported field: %s.%s", assertion.Type, assertion.Property),
-				},
+				Valid:    false,
 			}
 		}
 	default:
@@ -78,10 +70,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 			Type:     assertion.Type,
 			Property: assertion.Property,
 			Expected: assertion.Target,
-			Failure: common.APIFailure{
-				Code:    invalidTest,
-				Message: fmt.Sprintf("unsupported field: %s", assertion.Type),
-			},
+			Valid:    false,
 		}
 	}
 
@@ -93,10 +82,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 		Actual:   actual,
 	}
 	if err := assertionResult.Compare(); err != nil {
-		assertionResult.Failure = common.APIFailure{
-			Code:    incorrectAssertion,
-			Message: err.Error(),
-		}
+		assertionResult.Valid = false
 		return assertionResult
 	}
 	return assertionResult

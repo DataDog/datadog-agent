@@ -50,6 +50,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmMetricsGet",
 		"nvmlGpmQueryDeviceSupport",
 		"nvmlGpmSampleGet",
+		"nvmlGpmMigSampleGet",
 		"nvmlEventSetCreate",
 		"nvmlEventSetFree",
 		"nvmlEventSetWait_v1",
@@ -86,6 +87,8 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetVirtualizationMode"),
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
+		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetRunningProcessDetailList"),
 	}
 }
 
@@ -315,12 +318,12 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 
 	lib := nvmlNewFunc(nvml.WithLibraryPath(libpath))
 	if lib == nil {
-		return fmt.Errorf("failed to create NVML library")
+		return errors.New("failed to create NVML library")
 	}
 
 	ret := lib.Init()
 	if ret != nvml.SUCCESS && ret != nvml.ERROR_ALREADY_INITIALIZED {
-		return fmt.Errorf("error initializing NVML library: %s", nvml.ErrorString(ret))
+		return NewNvmlAPIErrorOrNil("Init", ret)
 	}
 
 	// Populate and verify critical capabilities
@@ -336,9 +339,12 @@ func (s *safeNvml) ensureInitWithOpts(nvmlNewFunc func(opts ...nvml.LibraryOptio
 	return nil
 }
 
+// nvmlNewFunc is the function to create a new NVML library instance. It can be overridden for testing purposes.
+var nvmlNewFunc = nvml.New
+
 // ensureInit initializes the NVML library with the default options.
 func (s *safeNvml) ensureInit() error {
-	return s.ensureInitWithOpts(nvml.New)
+	return s.ensureInitWithOpts(nvmlNewFunc)
 }
 
 var singleton safeNvml

@@ -8,7 +8,7 @@
 package docker
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"testing"
 
@@ -244,10 +244,10 @@ func TestParseDiskQuantity(t *testing.T) {
 		{"521kb", 521000, nil},
 		{"0 MB", 0, nil},
 		// Unknown unit
-		{"10 AB", 0, fmt.Errorf("parsing error: unknown unit AB")},
+		{"10 AB", 0, errors.New("parsing error: unknown unit AB")},
 		// Parsing error
-		{"10", 0, fmt.Errorf("parsing error: invalid format")},
-		{"MB 10", 0, fmt.Errorf("parsing error: invalid format")},
+		{"10", 0, errors.New("parsing error: invalid format")},
+		{"MB 10", 0, errors.New("parsing error: invalid format")},
 	} {
 		t.Logf("test case %d", nb)
 		val, err := parseDiskQuantity(tc.text)

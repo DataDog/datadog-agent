@@ -26,6 +26,17 @@ func TestEventTypesHaveValidCategories(t *testing.T) {
 		}
 	}
 
+	// Iterate through all event types between FirstWindowsEventType and LastWindowsEventType
+	for eventType := FirstWindowsEventType; eventType <= LastWindowsEventType; eventType++ {
+		// Get the category for this event type
+		category := GetEventTypeCategory(eventType.String())
+
+		// Check if the category is unknown (invalid)
+		if category == UnknownCategory {
+			eventTypesWithoutCategory = append(eventTypesWithoutCategory, eventType)
+		}
+	}
+
 	// If there are event types without valid categories, fail the test with the list
 	if len(eventTypesWithoutCategory) > 0 {
 		t.Errorf("The following event types do not have a valid category defined:\n")

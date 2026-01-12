@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
+//go:build windows
 
-// Package processcollector implements the remote process collector for
-// Workloadmeta.
+// Package processcollector implements the remote process collector for Workloadmeta on Windows.
+// This collector is not used on non-Windows platforms.
 package processcollector
 
 import (
@@ -256,9 +256,8 @@ func TestCollection(t *testing.T) {
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component {
 					return config.NewMockWithOverrides(t, map[string]interface{}{
-						"language_detection.enabled":                true,
-						"process_config.run_in_core_agent.enabled":  false,
-						"process_config.process_collection.use_wlm": false,
+						"language_detection.enabled":               true,
+						"process_config.run_in_core_agent.enabled": false,
 					})
 				}),
 				workloadmetafxmock.MockModule(workloadmeta.Params{AgentType: workloadmeta.Remote}),

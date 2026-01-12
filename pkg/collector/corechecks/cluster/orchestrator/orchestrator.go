@@ -211,6 +211,15 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 
 // Run runs the orchestrator check
 func (o *OrchestratorCheck) Run() error {
+	if ok, err := o.IsLeader(); !ok {
+		// Disable terminated resource bundle if not leader so we don't buffer terminated resources by informer DeleteFunc
+		o.collectorBundle.GetTerminatedResourceBundle().Disable()
+		return err
+	}
+
+	// Enable terminated resource bundle to start buffering terminated resources
+	o.collectorBundle.EnableTerminatedResourceBundle()
+
 	// Initialize collectors
 	o.collectorBundle.Initialize()
 
@@ -218,28 +227,6 @@ func (o *OrchestratorCheck) Run() error {
 	sender, err := o.GetSender()
 	if err != nil {
 		return err
-	}
-
-	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
-	// we also do a safety check for dedicated runners to avoid trying the leader election
-	if !o.isCLCRunner || !o.instance.LeaderSkip {
-		// Only run if Leader Election is enabled.
-		if !pkgconfigsetup.Datadog().GetBool("leader_election") {
-			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
-		}
-
-		leader, errLeader := cluster.RunLeaderElection()
-		if errLeader != nil {
-			if errLeader == apiserver.ErrNotLeader {
-				log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
-				return nil
-			}
-
-			_ = o.Warn("Leader Election error. Not running the Orchestrator check.")
-			return err
-		}
-
-		log.Tracef("Current leader: %q, running the Orchestrator check", leader)
 	}
 
 	// Run all collectors.
@@ -252,9 +239,9 @@ func (o *OrchestratorCheck) Run() error {
 func (o *OrchestratorCheck) Cancel() {
 	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
 	close(o.stopCh)
-	// send all terminated resources
+	// flush and disable terminated resource bundle
 	if o.collectorBundle != nil {
-		o.collectorBundle.GetTerminatedResourceBundle().Stop()
+		o.collectorBundle.GetTerminatedResourceBundle().Disable()
 	}
 }
 
@@ -307,4 +294,31 @@ func getTags(initConfig, config integration.Data) ([]string, error) {
 	}
 
 	return tags, nil
+}
+
+// IsLeader checks if the orchestrator check is running on the leader node
+func (o *OrchestratorCheck) IsLeader() (bool, error) {
+	// If the check is configured as a cluster check, the cluster check worker needs to skip the leader election section.
+	// we also do a safety check for dedicated runners to avoid trying the leader election
+	if o.isCLCRunner && o.instance.LeaderSkip {
+		return true, nil
+	}
+
+	// Only run if Leader Election is enabled.
+	if !pkgconfigsetup.Datadog().GetBool("leader_election") {
+		return false, log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
+	}
+
+	leader, err := cluster.RunLeaderElection()
+	if err != nil {
+		if err == apiserver.ErrNotLeader {
+			log.Debugf("Not leader (leader is %q). Skipping the Orchestrator check", leader)
+			return false, nil
+		}
+		log.Warn("Leader Election error. Not running the Orchestrator check.")
+		return false, err
+	}
+
+	log.Tracef("Current leader: %q, running the Orchestrator check", leader)
+	return true, nil
 }

@@ -15,9 +15,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 
 	windowssvc "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/windows"
+	windowsuser "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/user/windows"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -199,9 +200,15 @@ func ensureDDOTService() error {
 				return errU
 			}
 		}
+		// Ensure service runs under the same account as the core Agent
+		if err := configureDDOTServiceCredentials(s); err != nil {
+			return err
+		}
+		// Best-effort: align service DACL to allow the core Agent user to control OTEL service
+		configureDDOTServicePermissions(s)
 		return nil
 	}
-	// TODO(WINA-1619): Change service user to ddagentuser
+
 	s, err = m.CreateService(otelServiceName, bin, mgr.Config{
 		DisplayName:      "Datadog Distribution of OpenTelemetry Collector",
 		Description:      "Datadog OpenTelemetry Collector",
@@ -212,7 +219,124 @@ func ensureDDOTService() error {
 		return err
 	}
 	defer s.Close()
+	// Align credentials to ddagentuser (or equivalent) like other Agent services
+	if err := configureDDOTServiceCredentials(s); err != nil {
+		return err
+	}
+	// Best-effort: align service DACL to allow the core Agent user to control OTEL service
+	configureDDOTServicePermissions(s)
 	return nil
+}
+
+// configureDDOTServiceCredentials updates the service credentials to match the core Agent service user.
+// For LocalSystem/LocalService/NetworkService the password is empty string.
+// For other accounts, the password is retrieved from LSA; if absent, a NULL password is used.
+func configureDDOTServiceCredentials(s *mgr.Service) error {
+	coreUser, err := winutil.GetServiceUser(coreAgentService)
+	if err != nil || coreUser == "" {
+		return fmt.Errorf("DDOT: could not determine core Agent service user: %w", err)
+	}
+
+	noChange := uint32(windows.SERVICE_NO_CHANGE)
+	acctPtr := windows.StringToUTF16Ptr(coreUser)
+	var pwdPtr *uint16
+
+	// Prefer SID-based detection for well-known accounts (locale-independent).
+	// If we cannot resolve the SID, fail installation as the environment is not in a stable state.
+	sid, errSID := winutil.GetServiceUserSID(coreAgentService)
+	if errSID != nil {
+		return fmt.Errorf("DDOT: could not resolve SID for service user %q: %w", coreUser, errSID)
+	}
+	if windowsuser.IsSupportedWellKnownAccount(sid) {
+		pwdPtr = windows.StringToUTF16Ptr("")
+	} else {
+		// Retrieve password from LSA; if not present, use NULL (covers gMSA and accounts without password)
+		pass, errLSA := windowsuser.GetAgentUserPasswordFromLSA()
+		if errLSA != nil && !errors.Is(errLSA, windowsuser.ErrPrivateDataNotFound) {
+			return fmt.Errorf("failed to read agent user password from LSA: %w", errLSA)
+		}
+		if pass != "" {
+			pwdPtr = windows.StringToUTF16Ptr(pass)
+		} else {
+			pwdPtr = nil
+		}
+	}
+
+	if err := windows.ChangeServiceConfig(s.Handle, noChange, noChange, noChange, nil, nil, nil, nil, acctPtr, pwdPtr, nil); err != nil {
+		log.Warnf("DDOT: failed to set credentials for %q to %q: %v", otelServiceName, coreUser, err)
+		return nil
+	}
+	return nil
+}
+
+// configureDDOTServicePermissions sets the DDOT service DACL to match MSI semantics used
+// for other Agent services:
+// - Grants the core Agent service user (dd-agent) SERVICE_START | SERVICE_STOP | GENERIC_READ.
+// - Retains full control for LocalSystem (SY) and Builtin Administrators (BA).
+// - Removes permissive access for Everyone by not including a WD ACE.
+// Notes:
+//   - We apply the DACL via SDDL in one call (replace-style). This mirrors MSI intent without
+//     requiring a read/modify/write of the existing ACL.
+//   - We do NOT mark the DACL as protected (no D:P), so inheritance is not forcibly blocked.
+//   - This alignment is implemented here (Go) because the DDOT service is delivered via OCI,
+//     outside the MSI service tables where other services receive their ACLs.
+func configureDDOTServicePermissions(s *mgr.Service) {
+	// Resolve the core Agent service account SID (locale-independent). This SID is used
+	// to grant the dd-agent user explicit start/stop/read access on the DDOT service.
+	sid, err := winutil.GetServiceUserSID(coreAgentService)
+	if err != nil || sid == nil {
+		log.Warnf("DDOT: could not resolve SID for core Agent user to set service DACL: %v", err)
+		return
+	}
+	sidStr := sid.String()
+	if sidStr == "" {
+		log.Warnf("DDOT: could not stringify SID for core Agent user")
+		return
+	}
+
+	// If the core Agent runs as LocalSystem, SY already has full control on services.
+	// No additional ACEs are required; leave the service DACL unchanged.
+	lsSid, err2 := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	if err2 == nil && windows.EqualSid(sid, lsSid) {
+		return
+	}
+
+	// MSI parity SDDL:
+	// - (A;;GA;;;SY)   LocalSystem full control
+	// - (A;;GA;;;BA)   Builtin Administrators full control
+	// - (A;;0x80000030;;;<dd-agent SID>) dd-agent: START|STOP|GENERIC_READ
+	//   0x80000030 = SERVICE_START (0x10) | SERVICE_STOP (0x20) | GENERIC_READ (0x80000000)
+	//   We intentionally omit Everyone (WD).
+	sddl := fmt.Sprintf(
+		`D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x80000030;;;%s)`,
+		sidStr,
+	)
+
+	// Convert SDDL, extract the DACL and apply it to the service using SetNamedSecurityInfo.
+	// Any failure logs a warning and returns; permissions alignment is best-effort and
+	// should not block installation or service availability.
+	sd, err := windows.SecurityDescriptorFromString(sddl)
+	if err != nil || sd == nil {
+		log.Warnf("DDOT: failed to convert SDDL for service DACL: %v", err)
+		return
+	}
+	dacl, _, err := sd.DACL()
+	if err != nil {
+		log.Warnf("DDOT: failed to retrieve DACL from security descriptor: %v", err)
+		return
+	}
+	if err := windows.SetNamedSecurityInfo(
+		s.Name,
+		windows.SE_SERVICE,
+		windows.DACL_SECURITY_INFORMATION,
+		nil, // owner unchanged
+		nil, // group unchanged
+		dacl,
+		nil, // SACL unchanged
+	); err != nil {
+		log.Warnf("DDOT: failed to set service DACL for %q: %v", s.Name, err)
+		return
+	}
 }
 
 // stopServiceIfExists stops the service if it exists

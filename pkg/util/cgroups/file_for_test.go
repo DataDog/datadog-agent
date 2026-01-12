@@ -24,7 +24,7 @@ func containerCgroupKubePod(systemd bool) string {
 	if systemd {
 		return fmt.Sprintf("kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-podb3922967_14e1_4867_9388_461bac94b37e.slice/crio-%s.scope", cID)
 	}
-	return fmt.Sprintf("kubepods/kubepods-besteffort/kubepods-besteffort-podb3922967_14e1_4867_9388_461bac94b37e/%s", cID)
+	return "kubepods/kubepods-besteffort/kubepods-besteffort-podb3922967_14e1_4867_9388_461bac94b37e/" + cID
 }
 
 type memoryFile struct {

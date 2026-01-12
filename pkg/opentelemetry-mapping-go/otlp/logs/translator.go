@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -95,7 +96,7 @@ func (t *Translator) hostFromAttributes(ctx context.Context, attrs pcommon.Map) 
 // MapLogsAndRouteRUMEvents from OTLP format to Datadog format if shouldForwardOTLPRUMToDDRUM is true.
 func (t *Translator) MapLogsAndRouteRUMEvents(ctx context.Context, ld plog.Logs, hostFromAttributesHandler attributes.HostFromAttributesHandler, shouldForwardOTLPRUMToDDRUM bool, rumIntakeURL string) ([]datadogV2.HTTPLogItem, error) {
 	if t.httpClient == nil {
-		return nil, fmt.Errorf("httpClient is nil")
+		return nil, errors.New("httpClient is nil")
 	}
 
 	rsl := ld.ResourceLogs()

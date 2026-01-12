@@ -13,7 +13,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
@@ -22,7 +21,9 @@ import (
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -65,6 +66,8 @@ func (a *logAgent) SetupPipeline(
 	fileValidatePodContainer := a.config.GetBool("logs_config.validate_pod_container_id")
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,
@@ -73,7 +76,9 @@ func (a *logAgent) SetupPipeline(
 		fileWildcardSelectionMode,
 		a.flarecontroller,
 		a.tagger,
-		fingerprintConfig))
+		fileOpener,
+		fingerprinter,
+	))
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.destinationsCtx = destinationsCtx
 	a.pipelineProvider = pipelineProvider
@@ -86,10 +91,6 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	config, err := config.BuildServerlessEndpoints(coreConfig, intakeTrackType, config.DefaultIntakeProtocol)
 	if err != nil {
 		return nil, err
-	}
-	if env.IsLambda() {
-		// in AWS Lambda, we never want the batch strategy to flush with a tick
-		config.BatchWait = 365 * 24 * time.Hour
 	}
 	return config, nil
 }

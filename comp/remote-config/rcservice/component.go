@@ -29,4 +29,6 @@ type Component interface {
 	ConfigGetState() (*pbgo.GetStateConfigResponse, error)
 	// ConfigResetState resets the remote configuration state, clearing the local store and reinitializing the uptane client
 	ConfigResetState() (*pbgo.ResetStateConfigResponse, error)
+	// CreateConfigSubscription creates a new config subscription for a client
+	CreateConfigSubscription(stream pbgo.AgentSecure_CreateConfigSubscriptionServer) error
 }

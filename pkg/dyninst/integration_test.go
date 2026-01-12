@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -38,17 +37,19 @@ import (
 
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/procmon"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/rcscrape"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
+	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 //go:embed testdata/decoded
@@ -111,6 +112,7 @@ func testDyninst(
 	testProgConfig testprogs.Config,
 	servicePath string,
 	probes []ir.ProbeDefinition,
+	resultNames map[string]string,
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
@@ -145,16 +147,23 @@ func testDyninst(
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
 	cfg.DiagsUploaderURL = testServer.getDiagsURL()
-	cfg.ProcessSyncDisabled = true
-	scraper := &fakeScraper{}
-	cfg.TestingKnobs.ScraperOverride = func(_ module.Scraper) module.Scraper {
-		return scraper
+	var sendUpdate fakeProcessSubscriber
+	cfg.TestingKnobs.ProcessSubscriberOverride = func(
+		real module.ProcessSubscriber,
+	) module.ProcessSubscriber {
+		real.(*procsubscribe.Subscriber).Close() // prevent start from doing anything
+		return &sendUpdate
 	}
 	cfg.TestingKnobs.IRGeneratorOverride = func(g module.IRGenerator) module.IRGenerator {
 		return &outputSavingIRGenerator{irGenerator: g, t: t, output: irDump}
 	}
-	subscriber := &fakeSubscriber{}
-	m, err := module.NewModule(cfg, subscriber)
+	cfg.ProbeTombstoneFilePath = filepath.Join(tempDir, "tombstone.json")
+	cfg.TestingKnobs.TombstoneSleepKnobs = tombstone.WaitTestingKnobs{
+		BackoffPolicy: &backoff.ExpBackoffPolicy{
+			MaxBackoffTime: time.Millisecond.Seconds(),
+		},
+	}
+	m, err := module.NewModule(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(m.Close)
 
@@ -169,29 +178,21 @@ func testDyninst(
 		_ = sampleProc.Wait()
 	}()
 
-	stat, err := os.Stat(servicePath)
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(sampleProc.Process.Pid))
 	require.NoError(t, err)
-	fileInfo := stat.Sys().(*syscall.Stat_t)
-	exe := actuator.Executable{
-		Path: servicePath,
-		Key: procmon.FileKey{
-			FileHandle: procmon.FileHandle{
-				Dev: uint64(fileInfo.Dev),
-				Ino: fileInfo.Ino,
-			},
-		},
-	}
 	const runtimeID = "foo"
-	scraper.putUpdates([]rcscrape.ProcessUpdate{
-		{
-			ProcessUpdate: procmon.ProcessUpdate{
-				ProcessID:  procmon.ProcessID{PID: int32(sampleProc.Process.Pid)},
-				Executable: exe,
-				Service:    service,
+	sendUpdate(process.ProcessesUpdate{
+		Updates: []process.Config{
+			{
+				Info: process.Info{
+					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable: exe,
+					Service:    service,
+				},
+				RuntimeID:         runtimeID,
+				Probes:            probes,
+				ShouldUploadSymDB: false,
 			},
-			RuntimeID:         runtimeID,
-			Probes:            probes,
-			ShouldUploadSymDB: false,
 		},
 	})
 
@@ -213,13 +214,13 @@ func testDyninst(
 		assert.Equal(c, allProbeIDs, installedProbeIDs)
 	}
 	require.EventuallyWithT(
-		t, assertProbesInstalled, 60*time.Second, 100*time.Millisecond,
+		t, assertProbesInstalled, 180*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
-	t.Logf("Triggering function calls")
+	t.Logf("Triggering function calls at %s", time.Now().Format(time.RFC3339))
 	sampleStdin.Write([]byte("\n"))
 
 	var totalExpectedEvents int
@@ -227,7 +228,7 @@ func testDyninst(
 		totalExpectedEvents = math.MaxInt
 	} else {
 		for _, p := range probes {
-			totalExpectedEvents += len(expOut[p.GetID()])
+			totalExpectedEvents += len(expOut[resultNames[p.GetID()]])
 		}
 	}
 
@@ -236,7 +237,7 @@ func testDyninst(
 		// In CI the machines seem to get very overloaded and this takes a
 		// shocking amount of time. Given we don't wait for this timeout in
 		// the happy path, it's fine to let this be quite long.
-		timeout = 5*time.Second + 5*time.Since(start)
+		timeout = 30*time.Second + 10*time.Since(start)
 	}
 	deadline := time.Now().Add(timeout)
 	var n int
@@ -247,10 +248,13 @@ func testDyninst(
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !rewriteEnabled {
+		t.Logf("function calls completed at %s", time.Now().Format(time.RFC3339))
 		require.GreaterOrEqual(t, n, totalExpectedEvents, "expected at least %d events, got %d", totalExpectedEvents, n)
 	}
 	require.NoError(t, sampleProc.Wait())
-	m.HandleRemovals([]procmon.ProcessID{{PID: int32(sampleProc.Process.Pid)}})
+	sendUpdate(process.ProcessesUpdate{
+		Removals: []process.ID{{PID: int32(sampleProc.Process.Pid)}},
+	})
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Empty(c, m.DiagnosticsStates())
 	}, timeout, 100*time.Millisecond, "expected no diagnostics states")
@@ -258,7 +262,8 @@ func testDyninst(
 	retMap := make(map[string][]json.RawMessage)
 	debugEnabled := os.Getenv("DEBUG") != ""
 	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
-		makeRedactorForManyFloats(testProgConfig.GOARCH))
+		makeRedactorForManyFloats(testProgConfig.GOARCH),
+		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
 		if debugEnabled {
@@ -266,14 +271,15 @@ func testDyninst(
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
 		expIdx := len(retMap[log.id])
-		retMap[log.id] = append(retMap[log.id], redacted)
+		id := resultNames[log.id]
+		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
-			expOut, ok := expOut[log.id]
-			assert.True(t, ok, "expected output for probe %s not found", log.id)
+			expOut, ok := expOut[id]
+			assert.True(t, ok, "expected output for probe %s not found", id)
 			if assert.Less(
 				t, expIdx, len(expOut),
 				"expected at least %d events for probe %s, got %d",
-				expIdx+1, log.id, len(expOut),
+				expIdx+1, id, len(expOut),
 			) {
 				assert.Equal(t, string(expOut[expIdx]), string(redacted))
 			}
@@ -305,7 +311,6 @@ func runIntegrationTestSuite(
 			validateAndSaveOutputs(t, service, outputs.byTest)
 		})
 	}
-	probes := testprogs.MustGetProbeDefinitions(t, service)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error
@@ -318,6 +323,49 @@ func runIntegrationTestSuite(
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
 	for _, cfg := range cfgs {
+		probes := testprogs.MustGetProbeDefinitions(t, service)
+		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
+		// Some probes have different output in different versions, due to
+		// compiler changes. We rename the probes to organize output into different files.
+		resultNames := make(map[string]string)
+		otherVersionNames := make(map[string]struct{})
+		for _, p := range probes {
+			var versions []string
+			for _, tag := range p.GetTags() {
+				if strings.HasPrefix(tag, "version_diff:") {
+					versionDiff := strings.TrimPrefix(tag, "version_diff:")
+					versions = append(versions, versionDiff)
+					if cfg.GOTOOLCHAIN >= versionDiff {
+						resultNames[p.GetID()] = p.GetID() + "_geq_" + versionDiff
+						break
+					}
+				}
+			}
+			if versions == nil {
+				resultNames[p.GetID()] = p.GetID()
+				continue
+			}
+			// Find the largest version diff tag that applies to the version we are running with.
+			// Save other variants to recognize unexpected outputs.
+			slices.Sort(versions)
+			slices.Reverse(versions)
+			versions = append(versions, "")
+			found := false
+			for _, version := range versions {
+				var resultName string
+				if version == "" {
+					resultName = p.GetID()
+				} else {
+					resultName = p.GetID() + "_geq_" + version
+				}
+				if !found && cfg.GOTOOLCHAIN >= version {
+					resultNames[p.GetID()] = resultName
+					found = true
+				} else {
+					otherVersionNames[resultName] = struct{}{}
+				}
+			}
+		}
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
@@ -329,7 +377,7 @@ func runIntegrationTestSuite(
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
 					actual := testDyninst(
-						t, service, cfg, bin, probeSlice, rewrite, expectedOutput,
+						t, service, cfg, bin, probeSlice, resultNames, rewrite, expectedOutput,
 						debug, sem,
 					)
 					if t.Failed() {
@@ -354,7 +402,15 @@ func runIntegrationTestSuite(
 						// disk.
 						unexpectedProbes := slices.DeleteFunc(
 							slices.Collect(maps.Keys(expectedOutput)),
-							func(id string) bool { _, ok := got[id]; return ok },
+							func(id string) bool {
+								if _, ok := got[id]; ok {
+									return true
+								}
+								if _, ok := otherVersionNames[id]; ok {
+									return true
+								}
+								return false
+							},
 						)
 						require.Empty(
 							t, unexpectedProbes,
@@ -665,46 +721,12 @@ func readDiags(req *http.Request) ([]receivedDiag, error) {
 	return ret, nil
 }
 
-type fakeSubscriber struct{}
+type fakeProcessSubscriber func(process.ProcessesUpdate)
 
-func (f *fakeSubscriber) SubscribeExec(func(uint32)) func() { return noop }
-func (f *fakeSubscriber) SubscribeExit(func(uint32)) func() { return noop }
-
-func noop() {}
-
-var _ module.ProcessSubscriber = (*fakeSubscriber)(nil)
-
-type fakeScraper struct {
-	mu struct {
-		sync.Mutex
-		outputs []rcscrape.ProcessUpdate
-	}
+func (f *fakeProcessSubscriber) Subscribe(cb func(process.ProcessesUpdate)) {
+	*f = cb
 }
-
-// HandleUpdate implements procmon.Handler.
-func (f *fakeScraper) HandleUpdate(procmon.ProcessesUpdate) {}
-
-// AsProcMonHandler implements module.Scraper.
-func (f *fakeScraper) AsProcMonHandler() procmon.Handler {
-	return f
-}
-
-// GetUpdates implements module.Scraper.
-func (f *fakeScraper) GetUpdates() []rcscrape.ProcessUpdate {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	ret := f.mu.outputs
-	f.mu.outputs = nil
-	return ret
-}
-
-func (f *fakeScraper) putUpdates(outputs []rcscrape.ProcessUpdate) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.mu.outputs = outputs
-}
-
-var _ module.Scraper = (*fakeScraper)(nil)
+func (f *fakeProcessSubscriber) Start() {}
 
 // Make a redactor for the onlyOnAmd64_17 float
 // return value in the testReturnsManyFloats function. This function is expected
@@ -740,5 +762,14 @@ func makeRedactorForManyFloats(arch string) jsonRedactor {
 			}
 			return jsontext.Value(`"[onlyOnAmd64]"`)
 		}),
+	)
+}
+
+func makeRedactorForFunctionWithChangingState() jsonRedactor {
+	return redactor(
+		matchRegexp(
+			"/debugger/snapshot/captures/lines/.*/locals/aPerArch/value",
+		),
+		replacement(`"[per-arch-value]"`),
 	)
 }

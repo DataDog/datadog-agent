@@ -6,6 +6,7 @@ import "datadog/model/v1/model.proto";
 import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
 import "datadog/workloadmeta/workloadmeta.proto";
+import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
 import "google/protobuf/empty.proto";
 
@@ -43,6 +44,8 @@ service AgentSecure {
 
     rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse);
 
+    rpc CreateConfigSubscription(stream datadog.config.ConfigSubscriptionRequest) returns (stream datadog.config.ConfigSubscriptionResponse);
+
     rpc ResetConfigState(google.protobuf.Empty) returns (datadog.config.ResetStateConfigResponse);
 
     // Subscribes to added, removed, or changed entities in the Workloadmeta and
@@ -63,4 +66,7 @@ service AgentSecure {
 
     // Streams config events to the remote agent.
     rpc StreamConfigEvents(datadog.model.v1.ConfigStreamRequest) returns (stream datadog.model.v1.ConfigEvent);
+
+    // Evaluates a workloadfilter rule on behalf of remote agents.
+    rpc WorkloadFilterEvaluate(datadog.workloadfilter.WorkloadFilterEvaluateRequest) returns (datadog.workloadfilter.WorkloadFilterEvaluateResponse); 
 }

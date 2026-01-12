@@ -171,6 +171,12 @@ type Config struct {
 	// MaxProcessesTracked is the maximum number of processes whose information is stored in the network module
 	MaxProcessesTracked int
 
+	// EnableContainerStore enables reading resolv.conf out of container filesystems. Requires EnableProcessEventMonitoring.
+	EnableContainerStore bool
+
+	// MaxContainersTracked is the maximum number of containers whose resolv.conf information is stored in the network module
+	MaxContainersTracked int
+
 	// EnableRootNetNs disables using the network namespace of the root process (1)
 	// for things like creating netlink sockets for conntrack updates, etc.
 	EnableRootNetNs bool
@@ -203,6 +209,13 @@ type Config struct {
 
 	// EnableCertCollection enables the collection of TLS certificates via userspace probing
 	EnableCertCollection bool
+
+	// CertCollectionMapCleanerInterval is the interval between eBPF map cleaning for TLS cert collection
+	CertCollectionMapCleanerInterval time.Duration
+
+	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
+	// Not supported on Windows
+	DirectSend bool
 }
 
 // New creates a config for the network tracer
@@ -273,6 +286,9 @@ func New() *Config {
 		EnableProcessEventMonitoring: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "enabled")),
 		MaxProcessesTracked:          cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "max_processes_tracked")),
 
+		EnableContainerStore: cfg.GetBool(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "enabled")),
+		MaxContainersTracked: cfg.GetInt(sysconfig.FullKeyPath(evNS, "network_process", "container_store", "max_containers_tracked")),
+
 		EnableRootNetNs: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_root_netns")),
 
 		EnableNPMConnectionRollup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_connection_rollup")),
@@ -282,7 +298,10 @@ func New() *Config {
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 
-		EnableCertCollection: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		EnableCertCollection:             cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cert_collection")),
+		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
+
+		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
 	}
 
 	if !c.CollectTCPv4Conns {

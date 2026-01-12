@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -97,12 +98,7 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 			var resolver ImageResolver
 			if tc.hasRemoteData {
 				mockClient := newMockRCClient("image_resolver_multi_repo.json")
-				resolver = newRemoteConfigImageResolverWithRetryConfig(
-					mockClient,
-					2,
-					1*time.Millisecond,
-					config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
-				)
+				resolver = newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 			} else {
 				resolver = newNoOpImageResolver()
 			}
@@ -118,12 +114,7 @@ func TestInjectorWithRemoteConfigImageResolver(t *testing.T) {
 
 func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 	mockClient := newMockRCClient("image_resolver_multi_repo.json")
-	resolver := newRemoteConfigImageResolverWithRetryConfig(
-		mockClient,
-		2,
-		1*time.Millisecond,
-		config.NewMock(t).GetStringMap("admission_controller.auto_instrumentation.default_dd_registries"),
-	)
+	resolver := newRcImageResolver(imageresolver.NewConfig(config.NewMock(t), mockClient))
 
 	assert.Eventually(t, func() bool {
 		_, ok := resolver.Resolve("gcr.io/datadoghq", "apm-inject", "0")
@@ -134,5 +125,5 @@ func TestInjectorWithRemoteConfigImageResolverAfterInit(t *testing.T) {
 		injectorWithImageTag("0", resolver),
 	)
 
-	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:inject456", i.image)
+	assert.Equal(t, "gcr.io/datadoghq/apm-inject@sha256:9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba", i.image)
 }

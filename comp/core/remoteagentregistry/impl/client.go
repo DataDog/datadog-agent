@@ -84,6 +84,11 @@ func (ra *remoteAgentRegistry) newRemoteAgentClient(registration *remoteagentreg
 	return client, nil
 }
 
+// close closes the remote agent client and its connection
+func (rac *remoteAgentClient) close() error {
+	return rac.conn.Close()
+}
+
 // validateSessionID extracts and validates the session_id from gRPC response metadata
 func (rac *remoteAgentClient) validateSessionID(responseMetadata metadata.MD) error {
 	sessionIDs := responseMetadata.Get("session_id")
@@ -201,9 +206,5 @@ func callAgentsForService[PbType any, StructuredType any](
 }
 
 func sanitizeString(in string) string {
-	out := []string{}
-	for _, s := range strings.Split(in, " ") {
-		out = append(out, strings.ToLower(s))
-	}
-	return strings.Join(out, "-")
+	return strings.ReplaceAll(strings.ToLower(in), " ", "-")
 }

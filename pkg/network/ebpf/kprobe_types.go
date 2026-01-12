@@ -13,6 +13,8 @@ package ebpf
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"
+#include "./c/protocols/tls/tls-certs-types.h"
+
 */
 import "C"
 
@@ -33,6 +35,11 @@ type ProtocolStackWrapper C.protocol_stack_wrapper_t
 type TLSTags C.tls_info_t
 type TLSTagsWrapper C.tls_info_wrapper_t
 type NetTimeMs C.time_ms_t
+type CertItem C.cert_item_t
+type CertSerial C.cert_serial_t
+type CertDomain C.cert_domain_t
+type CertValidity C.cert_validity_t
+type SSLHandshakeState C.ssl_handshake_state_t
 
 // udp_recv_sock_t have *sock and *msghdr struct members, we make them opaque here
 type _Ctype_struct_sock uint64

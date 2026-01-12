@@ -26,6 +26,4 @@ type Component interface {
 	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 	// to be sent on the next flush.
 	AddAgentStartupTelemetry(agentVersion string)
-
-	sender.DiagnoseSenderManager
 }

@@ -52,7 +52,7 @@ func TestSnapshotMemoryMappedFiles(t *testing.T) {
 	assert.Equal(t, gopsutilFiles, ownImplemFiles)
 }
 
-func TestExtractPathFromSmapsLine(t *testing.T) {
+func TestExtractPathFromMapsLine(t *testing.T) {
 	entries := []struct {
 		name string
 		line string
@@ -78,24 +78,8 @@ func TestExtractPathFromSmapsLine(t *testing.T) {
 			ok:   true,
 		},
 		{
-			name: "field",
-			line: "KernelPageSize:        4 kB",
-			path: "",
-			ok:   false,
-		},
-		{
-			name: "vmflags",
-			line: "VmFlags: rd wr mr mw me ac",
-			path: "",
-			ok:   false,
-		},
-		// this one is not found today in actual smaps but
-		// if for some reason a new flags is added then the
-		// number of spaces matches the number of spaces in
-		// a file line, so it's best to test it
-		{
-			name: "vmflags future",
-			line: "VmFlags: rd wr mr mw me ac abc",
+			name: "anonymous",
+			line: "7398749de000-739874a00000 rw-p 00000000 00:00 0",
 			path: "",
 			ok:   false,
 		},
@@ -103,11 +87,11 @@ func TestExtractPathFromSmapsLine(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
-			path, ok := extractPathFromSmapsLine([]byte(entry.line))
+			path, ok := extractPathFromMapsLine([]byte(entry.line))
 			if ok != entry.ok {
 				t.Errorf("expected ok=%t, got %t", entry.ok, ok)
 			}
-			if path != entry.path {
+			if string(path) != entry.path {
 				t.Errorf("expected %s, got %s", entry.path, path)
 			}
 		})

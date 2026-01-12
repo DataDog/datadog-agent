@@ -108,10 +108,12 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 			}
 		}
 		meta := d.extractServiceMetadata(proc)
-		if meta != nil && log.ShouldLog(log.TraceLvl) {
-			log.Tracef("detected service metadata: %v", meta)
+		if meta != nil {
+			if log.ShouldLog(log.TraceLvl) {
+				log.Tracef("detected service metadata: %v", meta)
+			}
+			serviceByPID[proc.Pid] = meta
 		}
-		serviceByPID[proc.Pid] = meta
 	}
 
 	d.serviceByPID = serviceByPID
@@ -147,9 +149,7 @@ func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *serviceMetadata {
 	cmd := process.Cmdline
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return &serviceMetadata{
-			cmdline: cmd,
-		}
+		return nil
 	}
 
 	// check if all args are packed into the first argument
@@ -159,7 +159,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	cmdOrig := cmd
 	envs, cmd := extractEnvsFromCommand(cmd)
 	if len(envs) > 0 { // evaluate and skip the envs
-		svc, ok := chooseServiceNameFromEnvs(envs)
+		svc, ok := ChooseServiceNameFromEnvs(envs)
 		if ok {
 			return &serviceMetadata{
 				cmdline:        cmdOrig,
@@ -169,9 +169,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	}
 
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
-		return &serviceMetadata{
-			cmdline: cmdOrig,
-		}
+		return nil
 	}
 	exe := cmd[0]
 
@@ -186,9 +184,11 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 
 	if contextFn, ok := binsWithContext[exe]; ok {
 		tag := contextFn(d, process, cmd[1:])
-		return &serviceMetadata{
-			cmdline:        cmdOrig,
-			serviceContext: "process_context:" + tag,
+		if tag != "" {
+			return &serviceMetadata{
+				cmdline:        cmdOrig,
+				serviceContext: "process_context:" + tag,
+			}
 		}
 	}
 
@@ -197,10 +197,13 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 		exe = exe[:i]
 	}
 
-	return &serviceMetadata{
-		cmdline:        cmdOrig,
-		serviceContext: "process_context:" + exe,
+	if exe != "" {
+		return &serviceMetadata{
+			cmdline:        cmdOrig,
+			serviceContext: "process_context:" + exe,
+		}
 	}
+	return nil
 }
 
 // GetWindowsServiceTags returns the process_context associated with a process by scraping the SCM.
@@ -216,7 +219,9 @@ func (d *ServiceExtractor) getWindowsServiceTags(pid int32) ([]string, error) {
 
 	serviceTags := make([]string, 0, len(entry.ServiceName))
 	for _, serviceName := range entry.ServiceName {
-		serviceTags = append(serviceTags, "process_context:"+serviceName)
+		if serviceName != "" {
+			serviceTags = append(serviceTags, "process_context:"+serviceName)
+		}
 	}
 	return serviceTags, nil
 }
@@ -253,18 +258,20 @@ func extractEnvsFromCommand(cmd []string) ([]string, []string) {
 	return cmd[:pos], cmd[pos:]
 }
 
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// ChooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+func ChooseServiceNameFromEnvs(envs []string) (string, bool) {
 	for _, env := range envs {
 		if strings.HasPrefix(env, "DD_SERVICE=") {
-			return strings.TrimPrefix(env, "DD_SERVICE="), true
+			svc := strings.TrimPrefix(env, "DD_SERVICE=")
+			return svc, len(svc) > 0
 		}
 		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
 			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
 			for _, p := range parts {
 				if strings.HasPrefix(p, "service:") {
-					return strings.TrimPrefix(p, "service:"), true
+					svc := strings.TrimPrefix(p, "service:")
+					return svc, len(svc) > 0
 				}
 			}
 		}

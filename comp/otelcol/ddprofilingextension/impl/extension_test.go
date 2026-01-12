@@ -41,7 +41,7 @@ func (c testComponent) SetOTelAttributeTranslator(attrstrans *otlpattributes.Tra
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler otlpattributes.HostFromAttributesHandler) otlpsource.Source {
+func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler otlpattributes.HostFromAttributesHandler) (otlpsource.Source, error) {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 

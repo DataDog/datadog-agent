@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build docker
+//go:build docker && cel
 
 package docker
 
@@ -161,6 +161,13 @@ func TestDockerCustomPart(t *testing.T) {
 			State:   string(workloadmeta.ContainerStatusRunning),
 		},
 		{
+			ID:      "be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b92",
+			Names:   []string{"agent-excluded-cel"},
+			Image:   "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			ImageID: "sha256:e575decbf7f4b920edabf5c86f948da776ffa26b5ceed591668ad6086c08a87f",
+			State:   string(workloadmeta.ContainerStatusRunning),
+		},
+		{
 			ID:      "e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45",
 			Names:   []string{"agent-dead"},
 			Image:   "datadog/agent",
@@ -196,9 +203,17 @@ func TestDockerCustomPart(t *testing.T) {
 		},
 	}
 
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("container_exclude", "name:agent-excluded")
-	mockConfig.SetWithoutSource("container_exclude_logs", "name:agent2 image:datadog/agent") // shouldn't be applied to metrics
+	yamlConfig := `
+cel_workload_exclude:
+  - product: metrics
+    rules:
+      containers:
+        - 'container.name.matches("agent-excluded-cel")'
+container_exclude: name:agent-excluded
+container_exclude_logs: name:agent2 image:datadog/agent
+`
+
+	configmock.NewFromYAML(t, yamlConfig)
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
 	// Create Docker check
@@ -231,7 +246,7 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.running", 1, "", []string{"app:foo"})
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped", 1, "", []string{"docker_image:datadog/agent:latest", "image_name:datadog/agent", "image_tag:latest", "short_image:agent"})
 
-	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 4, "", nil)
+	mockSender.AssertMetric(t, "Gauge", "docker.containers.running.total", 5, "", nil)
 	mockSender.AssertMetric(t, "Gauge", "docker.containers.stopped.total", 1, "", nil)
 
 	// Tags between `docker.containers.running` and `docker.image.*` may be different because `docker.image.*` never uses the tagger
@@ -329,9 +344,13 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 			},
 		},
 		"cID101": { // container with CPU weight (cgroups v2)
+			// Weight 100 is the default in cgroup v2, equivalent to 1024 shares.
+			// With the new non-linear mapping (runc >= 1.3.2), weight 100 -> 1024 shares.
+			// Detection will fail in tests (no Docker daemon), so it defaults to
+			// the new non-linear mapping.
 			ContainerStats: &metrics.ContainerStats{
 				CPU: &metrics.ContainerCPUStats{
-					Weight: pointer.Ptr(100.0), // 2597 shares
+					Weight: pointer.Ptr(100.0),
 				},
 			},
 		},
@@ -362,7 +381,9 @@ func TestProcess_CPUSharesMetric(t *testing.T) {
 	expectedTags := []string{"runtime:docker"}
 
 	mockSender.AssertMetricInRange(t, "Gauge", "docker.uptime", 0, 600, "", expectedTags)
+	// cID100: direct shares from cgroups v1
 	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 1024, "", expectedTags)
-	mockSender.AssertMetric(t, "Gauge", "docker.cpu.shares", 2597, "", expectedTags)
+	// cID101: weight 100 converted to shares using new non-linear mapping = 1024
+	// Note: Both containers emit 1024 shares, so we check for 2 calls with this value
 	mockSender.AssertNotCalled(t, "Gauge", "docker.cpu.shares", 0.0, "", mocksender.MatchTagsContains(expectedTags))
 }

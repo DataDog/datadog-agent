@@ -10,6 +10,7 @@ package custommetrics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/pflag"
@@ -47,7 +48,7 @@ const (
 func RunServer(ctx context.Context, apiCl *as.APIClient, datadogCl option.Option[datadogclient.Component]) error {
 	defer clearServerResources()
 	if apiCl == nil {
-		return fmt.Errorf("unable to run server with nil APIClient")
+		return errors.New("unable to run server with nil APIClient")
 	}
 
 	cmd = &DatadogMetricsAdapter{}
@@ -99,7 +100,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 		if dc, ok := datadogCl.Get(); ok {
 			return externalmetrics.NewDatadogMetricProvider(ctx, apiCl, dc)
 		}
-		return nil, fmt.Errorf("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
+		return nil, errors.New("unable to create DatadogMetricProvider as DatadogClient failed with uninitialized datadog client")
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()

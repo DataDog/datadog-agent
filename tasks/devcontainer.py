@@ -14,15 +14,15 @@ from pathlib import Path
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
-from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
+from tasks.build_tags import build_tags, compute_build_tags_for_flavor
+from tasks.commands.docker import DockerCLI
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.utils import is_installed
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
-DEVCONTAINER_NAME = "datadog_agent_devcontainer"
+DEVCONTAINER_NAME = "datadog-agent-devcontainer"
 DEVCONTAINER_IMAGE = "registry.ddbuild.io/ci/datadog-agent-devenv:1-arm64"
 
 
@@ -41,6 +41,7 @@ def setup(
     skaffoldProfile=None,
     flavor=AgentFlavor.base.name,
     image='',
+    claude_code=False,
 ):
     """
     Generate or Modify devcontainer settings file for this project.
@@ -51,13 +52,9 @@ def setup(
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
 
-    build_include = (
-        get_default_build_tags(build=target, flavor=flavor, platform='linux')
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","))
+    use_tags = compute_build_tags_for_flavor(
+        build=target, flavor=flavor, build_include=build_include, build_exclude=build_exclude, platform='linux'
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
     use_tags.append("test")  # always include the test tag for autocompletion in vscode
 
     if not os.path.exists(DEVCONTAINER_DIR):
@@ -71,7 +68,7 @@ def setup(
 
     local_build_tags = ",".join(use_tags)
 
-    devcontainer["name"] = "Datadog-Agent-DevEnv"
+    devcontainer["name"] = "Datadog Agent Development Container"
     if image:
         devcontainer["image"] = image
         if devcontainer.get("build"):
@@ -88,15 +85,15 @@ def setup(
         "--security-opt",
         "seccomp=unconfined",
         "-w",
-        "/workspaces/datadog-agent",
+        "/workspaces/${localWorkspaceFolderBasename}",
         "--name",
-        "datadog_agent_devcontainer",
+        "datadog-agent-devcontainer",
     ]
     devcontainer["features"] = {}
     devcontainer["remoteUser"] = "datadog"
     devcontainer["mounts"] = [
-        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind,consistency=cached",
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,consistency=cached",
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+        "source=${localEnv:HOME}/.ssh,target=/home/datadog/.ssh,type=bind",
     ]
     devcontainer["customizations"] = {
         "vscode": {
@@ -122,10 +119,10 @@ def setup(
         }
     }
 
-    # onCreateCommond runs the install-tools and deps tasks only when the devcontainer is created and not each time
+    # onCreateCommand runs the install-tools and deps tasks only when the devcontainer is created and not each time
     # the container is started
     devcontainer["onCreateCommand"] = (
-        f"git config --global --add safe.directory {AGENT_REPOSITORY_PATH} && dda inv -- -e install-tools && dda inv -- -e deps"
+        "git config --global --add safe.directory /workspaces/${localWorkspaceFolderBasename} && dda inv -- -e install-tools && dda inv -- -e deps"
     )
 
     devcontainer["containerEnv"] = {
@@ -133,6 +130,7 @@ def setup(
     }
 
     configure_skaffold(devcontainer, SkaffoldProfile(skaffoldProfile))
+    configure_claude_code(devcontainer, claude_code)
 
     # Add per user configuration
     user_config_path = Path.home() / ".devcontainer" / "agent_overrides.json"
@@ -148,6 +146,19 @@ def setup(
 
     with open(fullpath, "w") as sf:
         json.dump(devcontainer, sf, indent=4, sort_keys=False, separators=(',', ': '))
+
+
+def configure_claude_code(devcontainer: dict, claude_code: bool):
+    if claude_code:
+        # create folder .devcontainer/claude-data/.claude if not exists
+        claude_data_path = Path.home() / ".devcontainer" / "claude-data"
+        Path(claude_data_path).mkdir(parents=True, exist_ok=True)
+        devcontainer["mounts"].append(
+            "source=${localWorkspaceFolder}/.devcontainer/claude-data/,target=/home/datadog/.claude,type=bind"
+        )
+
+        devcontainer["features"]["ghcr.io/devcontainers/features/node:1"] = {}
+        devcontainer["features"]["ghcr.io/anthropics/devcontainer-features/claude-code:1.0"] = {}
 
 
 def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
@@ -180,6 +191,9 @@ def configure_skaffold(devcontainer: dict, profile: SkaffoldProfile):
                 "cloudcode.updateAdcOnLogin": False,
                 "cloudcode.useGcloudAuthSkaffold": False,
                 "cloudcode.yaml.validate": False,
+                # TODO: for now we need to keep it else the cloudrun plugin is broken
+                # "geminicodeassist.enable": False,
+                "geminicodeassist.enableTelemetry": False,
             }
             devcontainer["customizations"]["vscode"]["settings"].update(additional_settings)
 

@@ -1,0 +1,46 @@
+# Test that processes are only discovered once (watermark prevents re-scanning).
+# Scan twice - second scan should not rediscover the same process.
+- !initialize
+  current_time: 0
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+- !advance-time {to: 200}
+- !scan {}
+- !advance-time {to: 300}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+new: [1001]
+state:
+  current_time: 200
+  last_scan: 200
+  process_delays: [100]
+  live: [1001]
+  processes_in_procfs: [1001]
+---
+command: !advance-time {to: 300}
+---
+command: !scan {}
+state:
+  current_time: 300
+  last_scan: 300
+  live: [1001]
+  processes_in_procfs: [1001]

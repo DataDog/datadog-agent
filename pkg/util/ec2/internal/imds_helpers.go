@@ -7,10 +7,12 @@ package ec2internal
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -51,8 +53,8 @@ func GetMetadataItemWithMaxLength(ctx context.Context, endpoint string, allowedI
 
 // GetMetadataItem returns the metadata item at the given endpoint
 func GetMetadataItem(ctx context.Context, endpoint string, allowedIMDSVersions Ec2IMDSVersionConfig, updateMetadataSource bool) (string, error) {
-	if !pkgconfigsetup.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
 	return DoHTTPRequest(ctx, MetadataURL+endpoint, allowedIMDSVersions, updateMetadataSource)

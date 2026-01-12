@@ -17,6 +17,17 @@ const (
 	maxHTTPFrag = 512 // matches hard limit currently imposed in NPM driver
 )
 
+// disableProtocolIfUnsupported disables a protocol monitoring feature if the kernel doesn't support it
+func disableProtocolIfUnsupported(cfg model.Config, configKey string, isSupported bool, protocolName string) {
+	if cfg.GetBool(configKey) && !isSupported {
+		if flavor.GetFlavor() == flavor.SystemProbe {
+			// Only log in system-probe, as we cannot reliably know this in the agent
+			log.Warnf("disabling %s monitoring as it is not supported for this kernel version", protocolName)
+		}
+		cfg.Set(configKey, false, model.SourceAgentRuntime)
+	}
+}
+
 func adjustUSM(cfg model.Config) {
 	if cfg.GetBool(smNS("enabled")) {
 		applyDefault(cfg, spNS("enable_runtime_compiler"), true)
@@ -62,17 +73,17 @@ func adjustUSM(cfg model.Config) {
 	deprecateBool(cfg, smNS("enable_http2_monitoring"), smNS("http2", "enabled"))
 	deprecateInt(cfg, smNS("http2_dynamic_table_map_cleaner_interval_seconds"), smNS("http2", "dynamic_table_map_cleaner_interval_seconds"))
 
+	// Redis configuration migration
+	deprecateBool(cfg, smNS("enable_redis_monitoring"), smNS("redis", "enabled"))
+
+	// Disable protocols if kernel version is not supported
+	disableProtocolIfUnsupported(cfg, smNS("redis", "enabled"), RedisMonitoringSupported(), "Redis")
+	disableProtocolIfUnsupported(cfg, smNS("http2", "enabled"), HTTP2MonitoringSupported(), "HTTP2")
 	// Similar to the checkin in adjustNPM(). The process event data stream and USM have the same
 	// minimum kernel version requirement, but USM's check for that is done
 	// later.  This check here prevents the EventMonitorModule from getting
 	// enabled on unsupported kernels by load() in config.go.
-	if cfg.GetBool(smNS("enable_event_stream")) && !ProcessEventDataStreamSupported() {
-		if flavor.GetFlavor() == flavor.SystemProbe {
-			// Only log in system-probe, as we cannot reliably know this in the agent
-			log.Warn("disabling USM event stream as it is not supported for this kernel version")
-		}
-		cfg.Set(smNS("enable_event_stream"), false, model.SourceAgentRuntime)
-	}
+	disableProtocolIfUnsupported(cfg, smNS("enable_event_stream"), ProcessEventDataStreamSupported(), "USM event stream")
 
 	validateInt(cfg, smNS("http", "notification_threshold"), cfg.GetInt(smNS("http", "max_tracked_connections"))/2, func(v int) error {
 		limit := cfg.GetInt(smNS("http", "max_tracked_connections"))

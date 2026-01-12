@@ -8,6 +8,7 @@
 package legacy
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,7 +115,7 @@ func ImportDockerConf(src, dst string, overwrite bool, converter *ConfigConverte
 				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 	// Create necessary destination dir

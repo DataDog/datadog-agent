@@ -5,7 +5,6 @@ Common utilities for building Cluster Agent variants
 import os
 import shutil
 
-from tasks.build_tags import filter_incompatible_tags, get_build_tags
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
 
@@ -28,10 +27,6 @@ def build_common(
     Build Cluster Agent
     """
 
-    build_include = build_tags if build_include is None else filter_incompatible_tags(build_include.split(","))
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    build_tags = get_build_tags(build_include, build_exclude)
-
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False)
 
@@ -46,6 +41,7 @@ def build_common(
         build_tags=build_tags,
         bin_path=os.path.join(bin_path, bin_name(f"datadog-cluster-agent{bin_suffix}")),
         env=env,
+        check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=cover,
     )
 

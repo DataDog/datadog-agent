@@ -32,7 +32,7 @@ import (
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.TraceLvl, "[%LEVEL] %FuncShort: %Msg")
+	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.TraceLvl)
 	assert.Nil(t, err)
 	log.SetupLogger(l, "debug")
 
@@ -1131,7 +1131,48 @@ func TestComputeInterfaceStatus(t *testing.T) {
 	}
 }
 
-func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
+func Test_buildLLDPRemoteKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		localPortNum string
+		lldpRemIndex string
+		expectedKey  string
+	}{
+		{
+			name:         "basic case",
+			localPortNum: "102",
+			lldpRemIndex: "2",
+			expectedKey:  "102.2",
+		},
+		{
+			name:         "different values",
+			localPortNum: "99",
+			lldpRemIndex: "5",
+			expectedKey:  "99.5",
+		},
+		{
+			name:         "single digit values",
+			localPortNum: "1",
+			lldpRemIndex: "1",
+			expectedKey:  "1.1",
+		},
+		{
+			name:         "large values",
+			localPortNum: "10000",
+			lldpRemIndex: "99999",
+			expectedKey:  "10000.99999",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := buildLLDPRemoteKey(tt.localPortNum, tt.lldpRemIndex)
+			assert.Equal(t, tt.expectedKey, result)
+		})
+	}
+}
+
+func Test_getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(t *testing.T) {
 	indexes := []string{
 		// IPv4
 		"0.102.2.1.4.10.250.0.7",
@@ -1143,10 +1184,10 @@ func Test_getRemManIPAddrByLLDPRemIndex(t *testing.T) {
 		// Invalid
 		"0.102.2.1.4.10.250", // too short, ignored
 	}
-	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndex(indexes)
+	remManIPAddrByLLDPRemIndex := getRemManIPAddrByLLDPRemIndexAndLLDPRemLocalPortNum(indexes)
 	expectedResult := map[string]string{
-		"2":  "10.250.0.7",
-		"99": "10.250.0.8",
+		"102.2":  "10.250.0.7",
+		"102.99": "10.250.0.8",
 	}
 	assert.Equal(t, expectedResult, remManIPAddrByLLDPRemIndex)
 }

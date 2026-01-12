@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
@@ -60,11 +61,45 @@ func (a *Agent) Truncate(s *pb.Span) {
 	}
 }
 
+// TruncateV1 checks that the span resource, meta and metrics are within the max length
+// and modifies them if they are not
+func (a *Agent) TruncateV1(s *idx.InternalSpan) {
+	r, ok := a.TruncateResource(s.Resource())
+	if !ok {
+		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
+		s.SetResource(r)
+	}
+
+	s.MapStringAttributes(func(k, v string) (string, string, bool) {
+		modified := false
+		newK := k
+		newV := v
+
+		// Do not truncate structured meta tags.
+		if isStructuredMetaKey(k) {
+			return newK, newV, false
+		}
+
+		if len(k) > MaxMetaKeyLen {
+			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
+			newK = normalize.TruncateUTF8(k, MaxMetaKeyLen) + "..."
+			modified = true
+		}
+
+		if len(v) > MaxMetaValLen {
+			newV = normalize.TruncateUTF8(v, MaxMetaValLen) + "..."
+			modified = true
+		}
+
+		return newK, newV, modified
+	})
+}
+
 const (
 	// MaxMetaKeyLen the maximum length of metadata key
 	MaxMetaKeyLen = 200
 	// MaxMetaValLen the maximum length of metadata value
-	MaxMetaValLen = 25000
+	MaxMetaValLen = 25_000
 	// MaxMetricsKeyLen the maximum length of a metric name key
 	MaxMetricsKeyLen = MaxMetaKeyLen
 )

@@ -11,15 +11,22 @@ import (
 
 // OTLP configuration paths.
 const (
-	OTLPSection               = "otlp_config"
-	OTLPTracePort             = OTLPSection + ".traces.internal_port"
-	OTLPTracesEnabled         = OTLPSection + ".traces.enabled"
-	OTLPLogsEnabled           = OTLPSection + ".logs.enabled"
+	OTLPSection                = "otlp_config"
+	OTLPTracePort              = OTLPSection + ".traces.internal_port"
+	OTLPTracesEnabled          = OTLPSection + ".traces.enabled"
+	OTLPTracesInfraAttrEnabled = OTLPSection + ".traces.infra_attributes.enabled"
+
+	OTLPLogs        = OTLPSection + ".logs"
+	OTLPLogsEnabled = OTLPLogs + ".enabled"
+
 	OTLPReceiverSubSectionKey = "receiver"
 	OTLPReceiverSection       = OTLPSection + "." + OTLPReceiverSubSectionKey
-	OTLPMetrics               = OTLPSection + ".metrics"
-	OTLPMetricsEnabled        = OTLPMetrics + ".enabled"
-	OTLPDebug                 = OTLPSection + "." + "debug"
+
+	OTLPMetrics        = OTLPSection + ".metrics"
+	OTLPMetricsEnabled = OTLPMetrics + ".enabled"
+	OTLPMetricsBatch   = OTLPMetrics + ".batch"
+
+	OTLPDebug = OTLPSection + "." + "debug"
 )
 
 // OTLP related configuration.
@@ -33,6 +40,9 @@ func OTLP(config pkgconfigmodel.Setup) {
 
 	// Logs
 	config.BindEnvAndSetDefault("otlp_config.logs.enabled", false)
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.min_size", 8192)
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.max_size", 0)
+	config.BindEnvAndSetDefault("otlp_config.logs.batch.flush_timeout", "200ms")
 
 	// Traces settings
 	config.BindEnvAndSetDefault("otlp_config.traces.enabled", true)
@@ -76,6 +86,11 @@ func OTLP(config pkgconfigmodel.Setup) {
 	config.BindEnv("otlp_config.metrics.sums.cumulative_monotonic_mode")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.sums.initial_cumulative_monotonic_value") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
 	config.BindEnv("otlp_config.metrics.summaries.mode")                          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // TODO OTLP team: add default value
+	config.BindEnvAndSetDefault("otlp_config.metrics.batch.min_size", 8192)
+	config.BindEnvAndSetDefault("otlp_config.metrics.batch.max_size", 0)
+	config.BindEnvAndSetDefault("otlp_config.metrics.batch.flush_timeout", "200ms")
+
+	config.BindEnvAndSetDefault("otlp_config.traces.infra_attributes.enabled", true)
 
 	// Debug settings
 	config.BindEnv("otlp_config.debug.verbosity") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

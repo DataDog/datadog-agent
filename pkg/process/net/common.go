@@ -63,30 +63,3 @@ func GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermBy
 
 	return results, nil
 }
-
-// GetNetworkID fetches the network_id (vpc_id) from system-probe
-func GetNetworkID(client *http.Client) (string, error) {
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/network_id")
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Accept", "text/plain")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("network ID request failed: url: %s, status code: %d", req.URL, resp.StatusCode)
-	}
-
-	body, err := sysprobeclient.ReadAllResponseBody(resp)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	return string(body), nil
-}

@@ -45,17 +45,8 @@ func (api *API) AddEventSource(channel string, source string) error {
 	if err != nil {
 		return err
 	}
-	log.mu.Lock()
-	defer log.mu.Unlock()
 
-	_, exists := log.sources[source]
-	if !exists {
-		var s eventSource
-		s.name = source
-		s.logName = channel
-		log.sources[source] = &s
-	}
-
+	_ = log.addNewEventSource(channel, source)
 	return nil
 }
 
@@ -66,9 +57,7 @@ func (api *API) RemoveEventSource(channel string, name string) error {
 	if err != nil {
 		return err
 	}
-	log.mu.Lock()
-	defer log.mu.Unlock()
-	delete(log.sources, name)
+	log.deleteEventSource(name)
 	return nil
 }
 
@@ -78,8 +67,7 @@ func (api *API) GenerateEvents(sourceName string, numEvents uint) error {
 	// find the log the source is registered to
 	var eventLog *eventLog
 	for _, log := range api.eventLogs {
-		_, ok := log.sources[sourceName]
-		if ok {
+		if log.hasEventSource(sourceName) {
 			eventLog = log
 			break
 		}

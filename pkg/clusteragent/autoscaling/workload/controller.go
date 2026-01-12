@@ -9,10 +9,11 @@ package workload
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -134,7 +135,7 @@ func NewController(
 
 // PreStart is called before the controller starts
 func (c *Controller) PreStart(ctx context.Context) {
-	startLocalTelemetry(ctx, c.localSender, []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
+	autoscaling.StartLocalTelemetry(ctx, c.localSender, "workload", []string{"kube_cluster_id:" + c.clusterID, "crd_api_version:" + podAutoscalerGVR.Version})
 }
 
 // Process implements the Processor interface (so required to be public)
@@ -162,13 +163,13 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 	}
 
 	switch {
-	case errors.IsNotFound(err):
+	case k8serrors.IsNotFound(err):
 		// We ignore not found here as we may need to create a DatadogPodAutoscaler later
 		podAutoscaler = nil
 	case err != nil:
 		return autoscaling.Requeue, fmt.Errorf("Unable to retrieve DatadogPodAutoscaler: %w", err)
 	case podAutoscalerCachedObj == nil:
-		return autoscaling.Requeue, fmt.Errorf("Could not parse empty DatadogPodAutoscaler from local cache")
+		return autoscaling.Requeue, errors.New("Could not parse empty DatadogPodAutoscaler from local cache")
 	}
 
 	// No error path, check what to do with this event
@@ -243,7 +244,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			log.Infof("Remote owned PodAutoscaler with Deleted flag, deleting object: %s", key)
 			err := c.deletePodAutoscaler(ns, name)
 			// In case of not found, it means the object is gone but informer cache is not updated yet, we can safely delete it from our store
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && k8serrors.IsNotFound(err) {
 				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
 				return autoscaling.NoRequeue, nil
@@ -489,7 +490,7 @@ func (c *Controller) validateAutoscaler(podAutoscalerInternal model.PodAutoscale
 	clusterAgentNs := common.GetMyNamespace()
 
 	if podAutoscalerInternal.Namespace() == clusterAgentNs && podAutoscalerInternal.Spec().TargetRef.Name == resourceName {
-		return fmt.Errorf("Autoscaling target cannot be set to the cluster agent")
+		return errors.New("Autoscaling target cannot be set to the cluster agent")
 	}
 	if err := validateAutoscalerObjectives(podAutoscalerInternal.Spec()); err != nil {
 		return err
@@ -501,7 +502,7 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 	if spec.Fallback != nil && len(spec.Fallback.Horizontal.Objectives) > 0 {
 		for _, objective := range spec.Fallback.Horizontal.Objectives {
 			if objective.Type == datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType {
-				return fmt.Errorf("Autoscaler fallback cannot be based on custom query objective")
+				return errors.New("Autoscaler fallback cannot be based on custom query objective")
 			}
 		}
 	}
@@ -509,8 +510,8 @@ func validateAutoscalerObjectives(spec *datadoghq.DatadogPodAutoscalerSpec) erro
 	for _, objective := range spec.Objectives {
 		switch objective.Type {
 		case datadoghqcommon.DatadogPodAutoscalerCustomQueryObjectiveType:
-			if objective.CustomQueryObjective == nil {
-				return fmt.Errorf("Autoscaler objective type is custom query but customQueryObjective is nil")
+			if objective.CustomQuery == nil {
+				return errors.New("Autoscaler objective type is custom query but customQueryObjective is nil")
 			}
 		case datadoghqcommon.DatadogPodAutoscalerPodResourceObjectiveType:
 			if objective.PodResource == nil {
@@ -569,7 +570,7 @@ func unsetTelemetry(key, _ string) {
 
 func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model.PodAutoscalerInternal) (*datadoghqcommon.DatadogPodAutoscalerValueSource, *datadoghqcommon.DatadogPodAutoscalerValueSource) {
 	// Set default vertical scaling source
-	activeVerticalSource := (*datadoghqcommon.DatadogPodAutoscalerValueSource)(nil)
+	var activeVerticalSource *datadoghqcommon.DatadogPodAutoscalerValueSource
 	if podAutoscalerInternal.MainScalingValues().Vertical != nil {
 		activeVerticalSource = pointer.Ptr(podAutoscalerInternal.MainScalingValues().Vertical.Source)
 	}
@@ -614,7 +615,7 @@ func getActiveScalingSources(currentTime time.Time, podAutoscalerInternal *model
 
 	// When creating a new pod autoscaler internal from a Kubernetes CR, we update the ScalingValues directly from the status
 	// If we do not have any new generated recommendations, we want to keep the previous scaling values so we return nil
-	return nil, nil
+	return nil, activeVerticalSource
 }
 
 func isTimestampStale(currentTime, receivedTime time.Time, staleTimestampThreshold time.Duration) bool {

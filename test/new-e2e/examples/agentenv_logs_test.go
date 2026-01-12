@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
+	ec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -30,10 +31,11 @@ var customLogsConfig string
 func TestVMLogsExampleSuite(t *testing.T) {
 	e2e.Run(t, &vmLogsExampleSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithIntegration("custom_logs.d", customLogsConfig),
-				agentparams.WithLogs(),
-			),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithIntegration("custom_logs.d", customLogsConfig),
+					agentparams.WithLogs(),
+				)),
 		),
 	))
 }

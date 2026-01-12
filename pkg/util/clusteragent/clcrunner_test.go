@@ -68,7 +68,7 @@ func (d *dummyCLCRunner) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	if token != fmt.Sprintf("Bearer %s", d.token) {
+	if token != "Bearer "+d.token {
 		log.Errorf("wrong token %s", token)
 		w.WriteHeader(http.StatusForbidden)
 		return

@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -78,7 +79,7 @@ func NewReverseDNS(cfg *config.Config, _ telemetry.Component) (ReverseDNS, error
 
 		filter, _ := p.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.SocketDNSFilter, UID: probeUID})
 		if filter == nil {
-			return nil, fmt.Errorf("error retrieving socket filter")
+			return nil, errors.New("error retrieving socket filter")
 		}
 
 		if err = packetSrc.SetEbpf(filter); err != nil {

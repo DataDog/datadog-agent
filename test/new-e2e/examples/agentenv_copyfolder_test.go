@@ -10,12 +10,13 @@ import (
 	"path"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type agentSuiteEx6 struct {
@@ -33,7 +34,9 @@ func (v *agentSuiteEx6) TestCopy() {
 
 	file, err := os.ReadFile(path.Join(testFolder, "hosts"))
 	require.NoError(v.T(), err)
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithAgentOptions(agentparams.WithFile("/etc/hosts", string(file), true))))
+	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(awshost.WithRunOptions(
+		ec2.WithAgentOptions(agentparams.WithFile("/etc/hosts", string(file), true)),
+	)))
 
 	v.Env().RemoteHost.CopyFolder(path.Join(testFolder), "test")
 	v.Env().RemoteHost.CopyFile(path.Join(testFolder, "file-0"), "copied-file")

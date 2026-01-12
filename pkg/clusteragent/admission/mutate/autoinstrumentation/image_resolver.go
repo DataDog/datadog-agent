@@ -15,17 +15,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/opencontainers/go-digest"
+
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-// RemoteConfigClient defines the interface we need for remote config operations
-type RemoteConfigClient interface {
-	GetConfigs(product string) map[string]state.RawConfig
-	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
-}
 
 // ImageResolver resolves container image references from tag-based to digest-based.
 type ImageResolver interface {
@@ -54,35 +50,27 @@ func (r *noOpImageResolver) Resolve(registry string, repository string, tag stri
 // remoteConfigImageResolver resolves image references using remote configuration data.
 // It maintains a cache of image mappings received from the remote config service.
 type remoteConfigImageResolver struct {
-	rcClient RemoteConfigClient
+	rcClient imageresolver.RemoteConfigClient
 
 	mu                  sync.RWMutex
 	imageMappings       map[string]map[string]ImageInfo // repository name -> tag -> resolved image
-	datadoghqRegistries map[string]any
+	datadoghqRegistries map[string]struct{}
 
 	// Retry configuration for initial cache loading
 	maxRetries int
 	retryDelay time.Duration
 }
 
-// newRemoteConfigImageResolver creates a new remoteConfigImageResolver.
-// Assumes rcClient is non-nil.
-func newRemoteConfigImageResolver(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
-	return newRemoteConfigImageResolverWithRetryConfig(rcClient, 5, 1*time.Second, datadoghqRegistries)
-}
-
-// newRemoteConfigImageResolverWithRetryConfig creates a resolver with configurable retry behavior.
-// Useful for testing with faster retry settings.
-func newRemoteConfigImageResolverWithRetryConfig(rcClient RemoteConfigClient, maxRetries int, retryDelay time.Duration, datadoghqRegistries map[string]any) ImageResolver {
+func newRcImageResolver(cfg imageresolver.Config) ImageResolver {
 	resolver := &remoteConfigImageResolver{
-		rcClient:            rcClient,
+		rcClient:            cfg.RCClient,
 		imageMappings:       make(map[string]map[string]ImageInfo),
-		maxRetries:          maxRetries,
-		retryDelay:          retryDelay,
-		datadoghqRegistries: datadoghqRegistries,
+		maxRetries:          cfg.MaxInitRetries,
+		retryDelay:          cfg.InitRetryDelay,
+		datadoghqRegistries: cfg.DDRegistries,
 	}
 
-	rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
+	resolver.rcClient.Subscribe(state.ProductGradualRollout, resolver.processUpdate)
 	log.Debugf("Subscribed to %s", state.ProductGradualRollout)
 
 	go func() {
@@ -160,9 +148,15 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	return resolvedImage, true
 }
 
-func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]any) bool {
+func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]struct{}) bool {
 	_, exists := datadoghqRegistries[registry]
 	return exists
+}
+
+// isValidDigest validates that a digest string follows the OCI image specification format
+func isValidDigest(digestStr string) bool {
+	_, err := digest.Parse(digestStr)
+	return err == nil
 }
 
 // updateCache processes configuration data and updates the image mappings cache.
@@ -187,8 +181,8 @@ func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]Rep
 			continue
 		}
 
-		if repo.RepositoryName == "" || repo.RepositoryURL == "" {
-			errors[configKey] = fmt.Errorf("missing repository_name or repository_url in config %s", configKey)
+		if repo.RepositoryName == "" {
+			errors[configKey] = fmt.Errorf("missing repository_name in config %s", configKey)
 			continue
 		}
 		validConfigs[configKey] = repo
@@ -204,6 +198,11 @@ func (r *remoteConfigImageResolver) updateCacheFromParsedConfigs(validConfigs ma
 		for _, imageInfo := range repo.Images {
 			if imageInfo.Tag == "" || imageInfo.Digest == "" {
 				log.Warnf("Skipping invalid image entry (missing tag or digest) in %s", repo.RepositoryName)
+				continue
+			}
+
+			if !isValidDigest(imageInfo.Digest) {
+				log.Warnf("Skipping invalid image entry (invalid digest format: %s) in %s", imageInfo.Digest, repo.RepositoryName)
 				continue
 			}
 
@@ -254,38 +253,39 @@ type ImageInfo struct {
 
 // RepositoryConfig represents a repository configuration from remote config.
 type RepositoryConfig struct {
-	RepositoryURL  string      `json:"repository_url"`
 	RepositoryName string      `json:"repository_name"`
 	Images         []ImageInfo `json:"images"`
 }
 
 // ResolvedImage represents a fully resolved image with digest and metadata.
 type ResolvedImage struct {
-	FullImageRef string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	FullImageRef     string // e.g., "gcr.io/datadoghq/dd-lib-python-init@sha256:abc123..."
+	CanonicalVersion string // e.g., "3.1.0"
 }
 
 func newResolvedImage(registry string, repositoryName string, imageInfo ImageInfo) *ResolvedImage {
 	return &ResolvedImage{
-		FullImageRef: registry + "/" + repositoryName + "@" + imageInfo.Digest,
+		FullImageRef:     registry + "/" + repositoryName + "@" + imageInfo.Digest,
+		CanonicalVersion: imageInfo.CanonicalVersion,
 	}
 }
 
 // NewImageResolver creates the appropriate ImageResolver based on whether
 // a remote config client is available.
-func NewImageResolver(rcClient RemoteConfigClient, cfg config.Component) ImageResolver {
-
-	if rcClient == nil || reflect.ValueOf(rcClient).IsNil() {
+func NewImageResolver(cfg imageresolver.Config) ImageResolver {
+	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return newNoOpImageResolver()
 	}
 
-	datadogRegistriesSet := cfg.GetStringMap("admission_controller.auto_instrumentation.default_dd_registries")
-
-	return newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient, datadogRegistriesSet)
+	return newRcImageResolver(cfg)
 }
 
-func newRemoteConfigImageResolverWithDefaultDatadoghqRegistries(rcClient RemoteConfigClient, datadoghqRegistries map[string]any) ImageResolver {
-	resolver := newRemoteConfigImageResolver(rcClient, datadoghqRegistries)
-	resolver.(*remoteConfigImageResolver).datadoghqRegistries = datadoghqRegistries
-	return resolver
+// DEV: Delete this in favor of the imageresolver package one after the refactor is complete
+func newDatadoghqRegistries(datadogRegistriesList []string) map[string]struct{} {
+	datadoghqRegistries := make(map[string]struct{})
+	for _, registry := range datadogRegistriesList {
+		datadoghqRegistries[registry] = struct{}{}
+	}
+	return datadoghqRegistries
 }

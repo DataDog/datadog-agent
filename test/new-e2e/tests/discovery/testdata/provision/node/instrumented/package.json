@@ -9,6 +9,6 @@
   },
   "author": "",
   "dependencies": {
-    "dd-trace": "^5.21.0"
+    "dd-trace": "^5.73.0"
   }
 }

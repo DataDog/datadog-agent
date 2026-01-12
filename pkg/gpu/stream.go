@@ -30,16 +30,17 @@ const noSmVersion uint32 = 0
 // StreamHandler is responsible for receiving events from a single CUDA stream and generating
 // kernel spans and memory allocations from them.
 type StreamHandler struct {
-	metadata           streamMetadata
-	kernelLaunches     []*enrichedKernelLaunch
-	memAllocEvents     *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
-	pendingKernelSpans chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
-	pendingMemorySpans chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
-	ended              bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx             *systemContext
-	config             config.StreamConfig
-	telemetry          *streamTelemetry // shared telemetry objects for stream-specific telemetry
-	lastEventKtimeNs   uint64           // The kernel-time timestamp of the last event processed by this handler
+	metadata            streamMetadata
+	kernelLaunchesMutex sync.RWMutex
+	kernelLaunches      []*enrichedKernelLaunch
+	memAllocEvents      *lru.LRU[uint64, gpuebpf.CudaMemEvent] // holds the memory allocations for the stream, will evict the oldest allocation if the cache is full
+	pendingKernelSpans  chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
+	pendingMemorySpans  chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
+	ended               bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
+	sysCtx              *systemContext
+	config              config.StreamConfig
+	telemetry           *streamTelemetry // shared telemetry objects for stream-specific telemetry
+	lastEventKtimeNs    uint64           // The kernel-time timestamp of the last event processed by this handler
 }
 
 // streamMetadata contains metadata about a CUDA stream
@@ -173,7 +174,11 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 		return nil, errFatbinParsingDisabled
 	}
 
-	if e.kernel != nil || (e.err != nil && !errors.Is(e.err, cuda.ErrKernelNotProcessedYet)) {
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if e.kernel != nil || (e.err != nil && e.err != cuda.ErrKernelNotProcessedYet) {
 		return e.kernel, e.err
 	}
 
@@ -212,13 +217,17 @@ func (sh *StreamHandler) handleKernelLaunch(event *gpuebpf.CudaKernelLaunch) {
 
 	// Trigger the background kernel data loading, we don't care about the result here
 	_, err := enrichedLaunch.getKernelData()
-	if err != nil && !errors.Is(err, cuda.ErrKernelNotProcessedYet) && !errors.Is(err, errFatbinParsingDisabled) { // Only log the error if it's not the retryable error
-		if logLimitProbe.ShouldLog() {
-			log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
-		}
+	// Use direct comparison instead of errors.Is() for performance in the hot path.
+	// Both cuda.ErrKernelNotProcessedYet and errFatbinParsingDisabled are sentinel errors
+	// that are never wrapped, so direct comparison is safe and faster.
+	// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+	if err != nil && err != cuda.ErrKernelNotProcessedYet && err != errFatbinParsingDisabled && logLimitProbe.ShouldLog() { // Only log the error if it's not the retryable error
+		log.Warnf("Error attaching kernel data for PID %d: %v", sh.metadata.pid, err)
 	}
 
+	sh.kernelLaunchesMutex.Lock()
 	sh.kernelLaunches = append(sh.kernelLaunches, enrichedLaunch)
+	sh.kernelLaunchesMutex.Unlock()
 
 	// If we've reached the kernel launch limit, trigger a sync. This stops us from just collecting
 	// kernel launches and not generating any spans if for some reason we are missing sync events.
@@ -284,6 +293,8 @@ func (sh *StreamHandler) markSynchronization(ts uint64) {
 		trySendSpan(sh, sh.pendingMemorySpans, alloc, memPools.memorySpanPool)
 	}
 
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
 	remainingLaunches := []*enrichedKernelLaunch{}
 	for _, launch := range sh.kernelLaunches {
 		if launch.Header.Ktime_ns >= ts {
@@ -318,6 +329,9 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage = make(map[memAllocType]uint64)
 	}
 
+	sh.kernelLaunchesMutex.RLock()
+	defer sh.kernelLaunchesMutex.RUnlock()
+
 	for _, launch := range sh.kernelLaunches {
 		// Skip launches that happened after the max time we are interested in
 		// For example, do not include launches that happened after the synchronization event
@@ -333,10 +347,13 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 		span.avgMemoryUsage[sharedMemAlloc] += uint64(launch.Shared_mem_size)
 
 		kernel, err := launch.getKernelData()
-		if err != nil {
-			if !errors.Is(err, errFatbinParsingDisabled) && logLimitProbe.ShouldLog() {
-				log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
-			}
+		if err != nil && err != errFatbinParsingDisabled && err != cuda.ErrKernelNotProcessedYet && logLimitProbe.ShouldLog() {
+			// Use direct comparison instead of errors.Is() for performance in the hot path.
+			// errFatbinParsingDisabled is a sentinel error that is never wrapped,
+			// so direct comparison is safe and faster.
+			// See TestGetKernelDataReturnsUnwrappedErrors for tests ensuring errors are not wrapped.
+
+			log.Warnf("Error getting kernel data for PID %d: %v", sh.metadata.pid, err)
 		} else if kernel != nil {
 			span.avgMemoryUsage[constantMemAlloc] += uint64(kernel.ConstantMem)
 			span.avgMemoryUsage[sharedMemAlloc] += uint64(kernel.SharedMem)
@@ -347,6 +364,7 @@ func (sh *StreamHandler) getCurrentKernelSpan(maxTime uint64) *kernelSpan {
 	}
 
 	if span.numKernels == 0 {
+		memPools.kernelSpanPool.Put(span)
 		return nil
 	}
 
@@ -432,6 +450,10 @@ func (sh *StreamHandler) getCurrentData(now uint64) *streamSpans {
 	}
 
 	for alloc := range sh.memAllocEvents.ValuesIter() {
+		if alloc.Header.Ktime_ns >= now {
+			continue
+		}
+
 		span := memPools.memorySpanPool.Get()
 		span.startKtime = alloc.Header.Ktime_ns
 		span.endKtime = 0
@@ -471,8 +493,54 @@ func (sh *StreamHandler) markEnd() error {
 	return nil
 }
 
+// releasePoolResources releases all pool-allocated objects held by this handler
+// without emitting any spans or data. This is used during cleanup of inactive
+// streams where we don't want to generate metrics from stale data.
+func (sh *StreamHandler) releasePoolResources() {
+	sh.kernelLaunchesMutex.Lock()
+	defer sh.kernelLaunchesMutex.Unlock()
+
+	for _, launch := range sh.kernelLaunches {
+		memPools.enrichedKernelLaunchPool.Put(launch)
+	}
+	sh.kernelLaunches = nil
+
+	// Drain and release pending spans from channels.
+	// Limit iterations to channel capacities to avoid blocking if concurrent writes happen.
+	maxIterations := cap(sh.pendingKernelSpans) + cap(sh.pendingMemorySpans)
+	for i := 0; i < maxIterations; i++ {
+		select {
+		case span := <-sh.pendingKernelSpans:
+			memPools.kernelSpanPool.Put(span)
+		case span := <-sh.pendingMemorySpans:
+			memPools.memorySpanPool.Put(span)
+		default:
+			return
+		}
+	}
+}
+
 func (sh *StreamHandler) isInactive(now int64, maxInactivity time.Duration) bool {
 	// If the stream has no events, it's considered active, we don't want to
 	// delete a stream that has just been created
 	return sh.lastEventKtimeNs > 0 && now-int64(sh.lastEventKtimeNs) > maxInactivity.Nanoseconds()
+}
+
+// String returns a human-readable representation of the StreamHandler. Used for better debugging in tests
+func (sh *StreamHandler) String() string {
+	sh.kernelLaunchesMutex.RLock()
+	kernelLaunchCount := len(sh.kernelLaunches)
+	sh.kernelLaunchesMutex.RUnlock()
+
+	return fmt.Sprintf("StreamHandler{pid=%d, streamID=%d, gpu=%s, container=%s, ended=%t, kernelLaunches=%d, pendingKernelSpans=%d, pendingMemorySpans=%d, memAllocEvents=%d}",
+		sh.metadata.pid,
+		sh.metadata.streamID,
+		sh.metadata.gpuUUID,
+		sh.metadata.containerID,
+		sh.ended,
+		kernelLaunchCount,
+		len(sh.pendingKernelSpans),
+		len(sh.pendingMemorySpans),
+		sh.memAllocEvents.Len(),
+	)
 }

@@ -8,16 +8,18 @@ receivers:
   prometheus:
     config:
       scrape_configs:
-      - job_name: 'otelcol'
-        scrape_interval: 10s
-        static_configs:
-          - targets: ['0.0.0.0:8888']
+        - job_name: 'otelcol'
+          scrape_interval: 10s
+          static_configs:
+            - targets: ['0.0.0.0:8888']
 exporters:
   datadog:
+    sending_queue:
+      batch:
     traces:
       span_name_as_resource_name: true
       endpoint: "http://127.0.0.1:9091"
-    hostname: "smp-regression"    
+    hostname: "smp-regression"
     api:
       key: "123456789"
       site: 127.0.0.1:9091
@@ -26,10 +28,9 @@ exporters:
       endpoint: http://127.0.0.1:9091
     logs:
       endpoint: http://127.0.0.1:9091
-      
+
 
 processors:
-  batch:
   cumulativetodelta:
     include:
       metric_types:
@@ -42,22 +43,22 @@ connectors:
       compute_stats_by_span_kind: true
       compute_top_level_by_span_kind: true
       peer_tags_aggregation: true
-  
+
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog/connector]
     traces/send:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch, cumulativetodelta]
+      processors: [cumulativetodelta]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]

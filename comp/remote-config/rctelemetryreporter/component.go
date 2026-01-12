@@ -14,4 +14,17 @@ type Component interface {
 	IncTimeout()
 	// IncRateLimit increments the DdRcTelemetryReporter BypassRateLimitCounter counter.
 	IncRateLimit()
+
+	// IncConfigSubscriptionsConnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsConnectedCounter counter.
+	IncConfigSubscriptionsConnectedCounter()
+	// IncConfigSubscriptionsDisconnectedCounter increments the
+	// DdRcTelemetryReporter ConfigSubscriptionsDisconnectedCounter counter.
+	IncConfigSubscriptionsDisconnectedCounter()
+	// SetConfigSubscriptionsActive sets the DdRcTelemetryReporter
+	// ConfigSubscriptionsActive gauge to the given value.
+	SetConfigSubscriptionsActive(value int)
+	// SetConfigSubscriptionClientsTracked sets the DdRcTelemetryReporter
+	// ConfigSubscriptionClientsTracked gauge to the given value.
+	SetConfigSubscriptionClientsTracked(value int)
 }

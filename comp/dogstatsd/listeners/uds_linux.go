@@ -7,7 +7,6 @@ package listeners
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 	"syscall"
 	"time"
@@ -63,7 +62,7 @@ func processUDSOrigin(ancillary []byte, wmeta option.Option[workloadmeta.Compone
 		return 0, packets.NoOrigin, err
 	}
 	if len(messages) == 0 {
-		return 0, packets.NoOrigin, fmt.Errorf("ancillary data empty")
+		return 0, packets.NoOrigin, errors.New("ancillary data empty")
 	}
 	cred, err := unix.ParseUnixCredentials(&messages[0])
 	if err != nil {
@@ -71,7 +70,7 @@ func processUDSOrigin(ancillary []byte, wmeta option.Option[workloadmeta.Compone
 	}
 
 	if cred.Pid == 0 {
-		return 0, packets.NoOrigin, fmt.Errorf("matched PID for the process is 0, it belongs " +
+		return 0, packets.NoOrigin, errors.New("matched PID for the process is 0, it belongs " +
 			"probably to another namespace. Is the agent in host PID mode?")
 	}
 

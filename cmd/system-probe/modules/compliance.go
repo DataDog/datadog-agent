@@ -16,6 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	// import the full compliance code in the system-probe (including the rego evaluator)
+	// this allows us to reserve the package size while we work on pluging things out
+	_ "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"

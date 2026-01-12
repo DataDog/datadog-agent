@@ -19,6 +19,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
@@ -114,6 +115,24 @@ func TestStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 }
 
 func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
+	// Set a fake procfs to avoid system interactions
+	pid1, pid2 := uint32(1), uint32(2)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid1,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+		},
+		{
+			Pid:     pid2,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+		},
+	}, kernel.WithRealUptime(), kernel.WithRealStat())
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	ctx := getTestSystemContext(t)
 	cfg := config.New()
@@ -121,7 +140,6 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
 
 	// Create two streams
-	pid1, pid2 := uint32(1), uint32(2)
 	streamID1, streamID2 := uint64(1), uint64(2)
 
 	header1 := &gpuebpf.CudaEventHeader{
@@ -194,6 +212,83 @@ func TestStreamCollectionCleanRemovesInactiveStreams(t *testing.T) {
 	}
 	_, ok = handlers.streams.Load(streamKey2)
 	require.True(t, ok)
+}
+
+func TestStreamCollectionCleanReleasesPoolItems(t *testing.T) {
+	// This test verifies that when a stream is cleaned due to inactivity,
+	// the enrichedKernelLaunch pool items are properly released back to the pool.
+	pid := uint32(1)
+	fakeProcFS := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{
+			Pid:     pid,
+			Cmdline: "test-process",
+			Command: "test-process",
+			Exe:     "/usr/bin/test-process",
+		},
+	}, kernel.WithRealUptime(), kernel.WithRealStat())
+	kernel.WithFakeProcFS(t, fakeProcFS)
+
+	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
+
+	telemetryMock := testutil.GetTelemetryMock(t)
+	withTelemetryEnabledPools(t, telemetryMock)
+
+	ctx := getTestSystemContext(t)
+	cfg := config.New()
+	cfg.StreamConfig.Timeout = 1 * time.Second
+	handlers := newStreamCollection(ctx, telemetryMock, cfg)
+
+	streamID := uint64(1)
+	header := &gpuebpf.CudaEventHeader{
+		Pid_tgid:  uint64(pid)<<32 + uint64(pid),
+		Stream_id: streamID,
+	}
+
+	stream, err := handlers.getStream(header)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	// Add kernel launches WITHOUT syncing them
+	ktimeLaunch := uint64(1000)
+	numLaunches := 5
+	for i := 0; i < numLaunches; i++ {
+		launch := &gpuebpf.CudaKernelLaunch{
+			Header: gpuebpf.CudaEventHeader{
+				Type:      uint32(gpuebpf.CudaEventTypeKernelLaunch),
+				Pid_tgid:  header.Pid_tgid,
+				Ktime_ns:  ktimeLaunch,
+				Stream_id: streamID,
+			},
+			Kernel_addr:     42,
+			Grid_size:       gpuebpf.Dim3{X: 10, Y: 10, Z: 10},
+			Block_size:      gpuebpf.Dim3{X: 2, Y: 2, Z: 1},
+			Shared_mem_size: 100,
+		}
+		stream.handleKernelLaunch(launch)
+		ktimeLaunch++
+	}
+
+	// Verify that we have active items in the pool
+	stats := getPoolStats(t, telemetryMock, "enrichedKernelLaunch")
+	require.Equal(t, numLaunches, stats.active, "should have %d active items before cleanup", numLaunches)
+	require.Equal(t, numLaunches, stats.get)
+	require.Equal(t, 0, stats.put)
+
+	// Clean at a time when the stream should be inactive (no sync was done)
+	endTime := ktimeLaunch + uint64(cfg.StreamConfig.Timeout.Nanoseconds()+1)
+	require.True(t, stream.isInactive(int64(endTime), cfg.StreamConfig.Timeout))
+	handlers.clean(int64(endTime))
+
+	// Verify stream was removed
+	streamKey := streamKey{pid: pid, stream: streamID}
+	_, ok := handlers.streams.Load(streamKey)
+	require.False(t, ok, "stream should have been removed")
+
+	// Verify that all pool items were released
+	stats = getPoolStats(t, telemetryMock, "enrichedKernelLaunch")
+	require.Equal(t, 0, stats.active, "all enrichedKernelLaunch items should be released after cleanup")
+	require.Equal(t, numLaunches, stats.get)
+	require.Equal(t, numLaunches, stats.put, "put count should match get count after cleanup")
 }
 
 func TestGetExistingStreamNoAllocs(t *testing.T) {

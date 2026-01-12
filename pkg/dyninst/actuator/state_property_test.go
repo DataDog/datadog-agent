@@ -10,8 +10,8 @@ package actuator
 import (
 	"bytes"
 	"cmp"
-	"encoding/json"
 	"fmt"
+	"maps"
 	"math/rand"
 	"os"
 	"slices"
@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
 
@@ -93,7 +94,7 @@ func runStateMachinePropertyTest(t *testing.T, seed int64) []byte {
 	rng := rand.New(rand.NewSource(seed))
 
 	pts := &propertyTestState{
-		sm:               newState(),
+		sm:               newState(CircuitBreakerConfig{}),
 		processIDCounter: 1000,
 		rng:              rng,
 	}
@@ -229,8 +230,8 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 							Language: "go",
 						},
 						Template: "test log message",
-						Segments: []json.RawMessage{
-							json.RawMessage(`"test log message"`),
+						Segments: rcjson.SegmentList{
+							rcjson.StringSegment("test log message"),
 						},
 					},
 				}
@@ -238,9 +239,11 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			}
 
 			updates = append(updates, ProcessUpdate{
-				ProcessID: processID,
-				Executable: Executable{
-					Path: fmt.Sprintf("/usr/bin/app_%d", pts.processIDCounter),
+				Info: procinfo.Info{
+					ProcessID: processID,
+					Executable: Executable{
+						Path: fmt.Sprintf("/usr/bin/app_%d", pts.processIDCounter),
+					},
 				},
 				Probes: probes,
 			})
@@ -275,9 +278,11 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 				}
 
 				updates = append(updates, ProcessUpdate{
-					ProcessID:  processID.ProcessID,
-					Executable: existingProcess.executable,
-					Probes:     probes,
+					Info: procinfo.Info{
+						ProcessID:  processID,
+						Executable: existingProcess.executable,
+					},
+					Probes: probes,
 				})
 			}
 
@@ -286,7 +291,7 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 			existingProcesses := pts.existingProcesses()
 			if len(existingProcesses) > 0 {
 				toRemove := existingProcesses[pts.rng.Intn(len(existingProcesses))]
-				removals = append(removals, toRemove.ProcessID)
+				removals = append(removals, toRemove)
 			}
 		}
 	}
@@ -297,18 +302,15 @@ func (pts *propertyTestState) generateProcessUpdate() event {
 	}
 }
 
-func (pts *propertyTestState) existingProcesses() []processKey {
-	existingProcesses := make([]processKey, 0, len(pts.sm.processes))
-	for key := range pts.sm.processes {
-		existingProcesses = append(existingProcesses, key)
-	}
-	slices.SortFunc(existingProcesses, func(a, b processKey) int {
-		return cmp.Or(
-			cmp.Compare(a.tenantID, b.tenantID),
-			cmp.Compare(a.PID, b.PID),
-		)
+func (pts *propertyTestState) existingProcesses() []ProcessID {
+	existing := slices.AppendSeq(
+		make([]ProcessID, 0, len(pts.sm.processes)),
+		maps.Keys(pts.sm.processes),
+	)
+	slices.SortFunc(existing, func(a, b ProcessID) int {
+		return cmp.Compare(a.PID, b.PID)
 	})
-	return existingProcesses
+	return existing
 }
 
 func (pts *propertyTestState) completeRandomEffect() event {
@@ -336,11 +338,9 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					programID: eff.programID,
 				},
 			}
-		} else {
-			return eventProgramLoadingFailed{
-				programID: eff.programID,
-				err:       fmt.Errorf("mock loading failure"),
-			}
+		}
+		return eventProgramLoadingFailed{
+			programID: eff.programID,
 		}
 
 	case effectAttachToProcess:
@@ -353,12 +353,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					processID: eff.processID,
 				},
 			}
-		} else {
-			return eventProgramAttachingFailed{
-				programID: eff.programID,
-				processID: eff.processID,
-				err:       fmt.Errorf("mock attaching failure"),
-			}
+		}
+		return eventProgramAttachingFailed{
+			programID: eff.programID,
+			processID: eff.processID,
 		}
 
 	case effectDetachFromProcess:

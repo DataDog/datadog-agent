@@ -70,6 +70,7 @@ var sp = &pb.StatsPayload{
 func testAPMStatsMetric(t *testing.T) pmetric.Metrics {
 	attributesTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
 	require.NoError(t, err)
+	//nolint:staticcheck // Using deprecated NewTranslator to access StatsToMetrics for test
 	tr, err := metrics.NewTranslator(componenttest.NewNopTelemetrySettings(), attributesTranslator)
 	require.NoError(t, err)
 	m, err := tr.StatsToMetrics(sp)

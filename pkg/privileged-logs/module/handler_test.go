@@ -24,7 +24,7 @@ func TestLogFileAccess(t *testing.T) {
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 
-	l, err := log.LoggerFromWriterWithMinLevelAndFormat(w, log.InfoLvl, "%Msg\n")
+	l, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(w, log.InfoLvl)
 	require.NoError(t, err)
 	log.SetupLogger(l, "info")
 

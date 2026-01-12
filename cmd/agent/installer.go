@@ -12,13 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands"
-	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
 )
 
 func init() {
 	registerAgent([]string{"datadog-installer", "installer"}, func() *cobra.Command {
-		installerSubcommands := subcommands.InstallerSubcommands()
-		installerSubcommands = append(installerSubcommands, subcommands.WithDatadogAgent(daemon.Commands))
-		return command.MakeCommand(installerSubcommands)
+		return command.MakeCommand(subcommands.InstallerSubcommands())
 	})
 }

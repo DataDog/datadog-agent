@@ -20,6 +20,8 @@ type JSONAggregator struct {
 	currentSize     int
 	tagCompleteJSON bool
 	maxContentSize  int
+	inBuf           *bytes.Buffer
+	outBuf          *bytes.Buffer
 }
 
 // NewJSONAggregator creates a new JSONAggregator.
@@ -29,6 +31,8 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 		messageBuf:      make([]*message.Message, 0),
 		tagCompleteJSON: tagCompleteJSON,
 		maxContentSize:  maxContentSize,
+		inBuf:           &bytes.Buffer{},
+		outBuf:          &bytes.Buffer{},
 	}
 }
 
@@ -36,6 +40,14 @@ func NewJSONAggregator(tagCompleteJSON bool, maxContentSize int) *JSONAggregator
 // If the message is an incomplete JSON message, it will be added to the buffer and processed later.
 // If the message is not a JSON message, it will be returned as is, and any buffered messages will be flushed (unmodified).
 func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
+	content := msg.GetContent()
+
+	// If buffer is empty and content is likely complete single-line JSON,
+	// validate and return without parsing
+	if len(r.messageBuf) == 0 && json.Valid(content) {
+		return []*message.Message{msg}
+	}
+
 	r.messageBuf = append(r.messageBuf, msg)
 	r.currentSize += msg.RawDataLen
 
@@ -44,17 +56,25 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		return r.Flush()
 	}
 
-	switch r.decoder.Write(msg.GetContent()) {
+	switch r.decoder.Write(content) {
 	case Incomplete:
 		break
 	case Complete:
 		r.decoder.Reset()
-		outBuf := &bytes.Buffer{}
-		inBuf := &bytes.Buffer{}
-		for _, m := range r.messageBuf {
-			inBuf.Write(m.GetContent())
+
+		// If only one message, no need to compact
+		if len(r.messageBuf) == 1 {
+			r.messageBuf = r.messageBuf[:0]
+			r.currentSize = 0
+			return []*message.Message{msg}
 		}
-		err := json.Compact(outBuf, inBuf.Bytes())
+
+		r.outBuf.Reset()
+		r.inBuf.Reset()
+		for _, m := range r.messageBuf {
+			r.inBuf.Write(m.GetContent())
+		}
+		err := json.Compact(r.outBuf, r.inBuf.Bytes())
 		if err != nil {
 			return r.Flush()
 		}
@@ -66,7 +86,7 @@ func (r *JSONAggregator) Process(msg *message.Message) []*message.Message {
 		}
 
 		r.messageBuf = r.messageBuf[:0]
-		msg.SetContent(outBuf.Bytes())
+		msg.SetContent(r.outBuf.Bytes())
 		msg.RawDataLen = r.currentSize
 		r.currentSize = 0
 

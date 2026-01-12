@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -70,11 +71,18 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 
 // Sample a trace and returns true if trace was sampled (should be kept)
 func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
-
 	if !e.enabled.Load() {
 		return false
 	}
 	return e.handleTrace(now, env, t)
+}
+
+// SampleV1 samples a trace and returns true if trace was sampled (should be kept)
+func (e *RareSampler) SampleV1(now time.Time, chunk *idx.InternalTraceChunk, env string) bool {
+	if !e.enabled.Load() {
+		return false
+	}
+	return e.handleTraceV1(now, env, chunk)
 }
 
 // SetEnabled marks the sampler as enabled or disabled
@@ -97,6 +105,16 @@ func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.Trace
 	}
 }
 
+func (e *RareSampler) handlePriorityTraceV1(now time.Time, env string, t *idx.InternalTraceChunk, ttl time.Duration) {
+	expire := now.Add(ttl)
+	for _, s := range t.Spans {
+		if !traceutil.HasTopLevelMetricsV1(s) && !traceutil.IsMeasuredMetricsV1(s) {
+			continue
+		}
+		e.addSpanV1(expire, env, s)
+	}
+}
+
 func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) bool {
 	var sampled bool
 	for _, s := range t.Spans {
@@ -114,11 +132,35 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 	return sampled
 }
 
+func (e *RareSampler) handleTraceV1(now time.Time, env string, t *idx.InternalTraceChunk) bool {
+	var sampled bool
+	for _, s := range t.Spans {
+		if !traceutil.HasTopLevelMetricsV1(s) && !traceutil.IsMeasuredMetricsV1(s) {
+			continue
+		}
+		if sampled = e.sampleSpanV1(now, env, s); sampled {
+			break
+		}
+	}
+
+	if sampled {
+		e.handlePriorityTraceV1(now, env, t, e.ttl)
+	}
+	return sampled
+}
+
 // addSpan adds a span to the seenSpans with an expire time.
 func (e *RareSampler) addSpan(expire time.Time, env string, s *pb.Span) {
 	shardSig := ServiceSignature{env, s.Service}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
+}
+
+// addSpan adds a span to the seenSpans with an expire time.
+func (e *RareSampler) addSpanV1(expire time.Time, env string, s *idx.InternalSpan) {
+	shardSig := ServiceSignature{env, s.Service()}.Hash()
+	ss := e.loadSeenSpans(shardSig)
+	ss.addV1(expire, s)
 }
 
 // sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
@@ -135,6 +177,27 @@ func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 			ss.add(now.Add(e.ttl), s)
 			e.hits.Inc()
 			traceutil.SetMetric(s, rareKey, 1)
+		} else {
+			e.misses.Inc()
+		}
+	}
+	return sampled
+}
+
+// sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
+// it's added to the seenSpans set.
+func (e *RareSampler) sampleSpanV1(now time.Time, env string, s *idx.InternalSpan) bool {
+	var sampled bool
+	shardSig := ServiceSignature{env, s.Service()}.Hash()
+	ss := e.loadSeenSpans(shardSig)
+	sig := ss.signV1(s)
+	expire, ok := ss.getExpire(sig)
+	if now.After(expire) || !ok {
+		sampled = e.limiter.Allow()
+		if sampled {
+			ss.addV1(now.Add(e.ttl), s)
+			e.hits.Inc()
+			s.SetFloat64Attribute(rareKey, 1)
 		} else {
 			e.misses.Inc()
 		}
@@ -197,6 +260,24 @@ func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
 	ss.mu.Unlock()
 }
 
+func (ss *seenSpans) addV1(expire time.Time, s *idx.InternalSpan) {
+	sig := ss.signV1(s)
+	storedExpire, ok := ss.getExpire(sig)
+	if ok && expire.Sub(storedExpire) < ttlRenewalPeriod {
+		return
+	}
+	// slow path
+	ss.mu.Lock()
+	ss.expires[sig] = expire
+
+	// if cardinality limit reached, shrink
+	size := len(ss.expires)
+	if size > ss.cardinality {
+		ss.shrink()
+	}
+	ss.mu.Unlock()
+}
+
 // shrink limits the cardinality of signatures considered and the memory usage.
 // This ensure that a service with high cardinality of resources does not consume
 // all sampling tokens. The cardinality limit matches a backend limit.
@@ -220,6 +301,14 @@ func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
 
 func (ss *seenSpans) sign(s *pb.Span) spanHash {
 	h := computeSpanHash(s, "", true)
+	if ss.shrunk {
+		h = h % spanHash(ss.cardinality)
+	}
+	return h
+}
+
+func (ss *seenSpans) signV1(s *idx.InternalSpan) spanHash {
+	h := computeSpanHashV1(s, "", true)
 	if ss.shrunk {
 		h = h % spanHash(ss.cardinality)
 	}

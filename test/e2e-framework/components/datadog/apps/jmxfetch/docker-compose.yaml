@@ -1,0 +1,20 @@
+---
+version: "3.9"
+
+services:
+
+  jmx-test-app:
+    image: ghcr.io/datadog/apps-jmx-test-app:{APPS_VERSION}
+    container_name: jmx-test-app
+    environment:
+      HOST_NAME: "jmx-test-app"
+    depends_on:
+      - agent
+
+  agent:
+    environment:
+      DD_DOGSTATSD_ORIGIN_DETECTION: "true"
+      DD_DOGSTATSD_TAG_CARDINALITY: "high"
+      DD_DOGSTATSD_SOCKET: "/var/run/datadog/dsd.socket"
+      DD_DOGSTATSD_ORIGIN_DETECTION_CLIENT: "true"
+      DD_DOGSTATSD_NON_LOCAL_TRAFFIC: "true"

@@ -12,8 +12,9 @@ exporters:
     hostname: "otelcol-docker"
     api:
       key: ${env:DD_API_KEY}
+    sending_queue:
+      batch:
 processors:
-  batch:
 connectors:
   # Use datadog connector to compute stats for pre-sampled traces
   datadog/connector:
@@ -25,17 +26,17 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog/connector]
     traces/send:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch]
+      processors: []
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: []
       exporters: [datadog]

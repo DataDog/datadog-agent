@@ -84,6 +84,7 @@ const (
 	ndmEndpoint                  = "/api/v2/ndm"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
 	netpathEndpoint              = "/api/v2/netpath"
+	ncmEndpoint                  = "/api/v2/ndmconfig"
 	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
@@ -144,6 +145,7 @@ type Client struct {
 	ndmAggregator                  aggregator.NDMAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
+	ncmAggregator                  aggregator.NCMAggregator
 	hostAggregator                 aggregator.HostAggregator
 }
 
@@ -175,6 +177,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmAggregator:                  aggregator.NewNDMAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
+		ncmAggregator:                  aggregator.NewNCMAggregator(),
 		hostAggregator:                 aggregator.NewHostAggregator(),
 	}
 	for _, opt := range opts {
@@ -334,6 +337,14 @@ func (c *Client) getNetpathEvents() error {
 	return c.netpathAggregator.UnmarshallPayloads(payloads)
 }
 
+func (c *Client) getNCMEvents() error {
+	payloads, err := c.getFakePayloads(ncmEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ncmAggregator.UnmarshallPayloads(payloads)
+}
+
 func (c *Client) getHostInfos() error {
 	payloads, err := c.getFakePayloads(intakeEndpoint)
 	if err != nil {
@@ -411,7 +422,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	body, err := c.get("fakeintake/payloads?endpoint=" + endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +437,7 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/health")
 	if err != nil {
 		return err
 	}
@@ -439,7 +450,7 @@ func (c *Client) GetServerHealth() error {
 
 // ConfigureOverride sets a response override on the fakeintake server
 func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
-	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+	route := c.fakeIntakeURL + "/fakeintake/configure/override"
 
 	buf := new(bytes.Buffer)
 	err := json.NewEncoder(buf).Encode(override)
@@ -461,7 +472,7 @@ func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
 
 // GetLastAPIKey returns the last apiKey sent with a payload to the intake
 func (c *Client) GetLastAPIKey() (string, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/debug/lastAPIKey", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/debug/lastAPIKey")
 	if err != nil {
 		return "", err
 	}
@@ -664,7 +675,7 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
+	resp, err := http.Get(c.fakeIntakeURL + "/fakeintake/flushPayloads")
 	if err != nil {
 		return err
 	}
@@ -1071,6 +1082,19 @@ func (c *Client) GetLatestNetpathEvents() ([]*aggregator.Netpath, error) {
 		}
 	}
 	return netpaths, nil
+}
+
+// GetNCMPayloads fetches fakeintake on `/api/v2/ndmconfig` endpoint and returns all received NCM payloads
+func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
+	err := c.getNCMEvents()
+	if err != nil {
+		return nil, err
+	}
+	var ncmPayloads []*aggregator.NCMPayload
+	for _, name := range c.ncmAggregator.GetNames() {
+		ncmPayloads = append(ncmPayloads, c.ncmAggregator.GetPayloadsByName(name)...)
+	}
+	return ncmPayloads, nil
 }
 
 // GetLatestHostInfos returns the latest host information received by the fake intake

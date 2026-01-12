@@ -12,11 +12,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 
+	installerexec "github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/ssi"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
@@ -57,6 +57,7 @@ var functions = template.FuncMap{
 
 type statusResponse struct {
 	Version            string                       `json:"version"`
+	SecretsPubKey      string                       `json:"secrets_pub_key"`
 	Packages           *repository.PackageStates    `json:"packages"`
 	ApmInjectionStatus ssi.APMInstrumentationStatus `json:"apm_injection_status"`
 	RemoteConfigState  []*remoteConfigPackageState  `json:"remote_config_state"`
@@ -92,6 +93,7 @@ func status(debug bool, jsonOutput bool) error {
 			fmt.Fprint(os.Stderr, err.Error())
 		}
 		status.RemoteConfigState = remoteConfigStatus.PackageStates
+		status.SecretsPubKey = remoteConfigStatus.SecretsPubKey
 	}
 
 	if !jsonOutput {
@@ -114,6 +116,7 @@ func status(debug bool, jsonOutput bool) error {
 // the protos in the installer binary is too heavy.
 type remoteConfigState struct {
 	PackageStates []*remoteConfigPackageState `json:"remote_config_state"`
+	SecretsPubKey string                      `json:"secrets_pub_key"`
 }
 
 type remoteConfigPackageState struct {
@@ -139,16 +142,13 @@ type errorWithCode struct {
 func getRCStatus() (remoteConfigState, error) {
 	var response remoteConfigState
 
-	// The simplest thing here is to call ourselves with the daemon command
-	ourselves, err := os.Executable()
+	installerBinary, err := installerexec.GetExecutable()
 	if err != nil {
 		return response, fmt.Errorf("error getting executable path: %w", err)
 	}
-	installerBinary := filepath.Join(ourselves, "../../bin/agent/agent")
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
 	cmd := exec.Command(installerBinary, "daemon", "rc-status")
-	cmd.Env = append(os.Environ(), "DD_BUNDLED_AGENT=installer")
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	err = cmd.Run()

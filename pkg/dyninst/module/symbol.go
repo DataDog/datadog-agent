@@ -8,6 +8,7 @@
 package module
 
 import (
+	"errors"
 	"fmt"
 	"io"
 
@@ -50,7 +51,7 @@ func newSymbolicator(executable actuator.Executable) (_ symbol.Symbolicator, c i
 	c = symbolTable
 	symbolicator := symbol.NewGoSymbolicator(&symbolTable.GoSymbolTable)
 	if symbolicator == nil {
-		return nil, nil, fmt.Errorf("error creating go symbolicator")
+		return nil, nil, errors.New("error creating go symbolicator")
 	}
 
 	// TODO: make this configurable

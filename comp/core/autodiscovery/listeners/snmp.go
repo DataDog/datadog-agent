@@ -27,9 +27,7 @@ import (
 
 const cacheKeyPrefix = "snmp"
 
-var (
-	autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
-)
+var autodiscoveryStatusBySubnetVar = expvar.NewMap("snmpAutodiscovery")
 
 // AutodiscoveryStatus represents the status of the autodiscovery of a subnet we want to expose in the snmp status
 type AutodiscoveryStatus struct {
@@ -408,6 +406,11 @@ func (l *SNMPListener) checkDevices() {
 	discoveryTicker := time.NewTicker(time.Duration(l.config.DiscoveryInterval) * time.Second)
 	defer discoveryTicker.Stop()
 	for {
+		// Reset the device deduper counters at the start of each discovery interval
+		if l.deviceDeduper != nil {
+			l.deviceDeduper.ResetCounters()
+		}
+
 		for _, subnet := range subnets {
 			autodiscoveryStatusBySubnetVar.Set(GetSubnetVarKey(subnet.config.Network, subnet.index), &expvar.String{})
 		}
@@ -643,11 +646,11 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 	case "version":
 		return s.config.Version, nil
 	case "timeout":
-		return fmt.Sprintf("%d", s.config.Timeout), nil
+		return strconv.Itoa(s.config.Timeout), nil
 	case "retries":
-		return fmt.Sprintf("%d", s.config.Retries), nil
+		return strconv.Itoa(s.config.Retries), nil
 	case "oid_batch_size":
-		return fmt.Sprintf("%d", s.config.OidBatchSize), nil
+		return strconv.Itoa(s.config.OidBatchSize), nil
 	case "community":
 		return s.config.Community, nil
 	case "user":
@@ -681,7 +684,7 @@ func (s *SNMPService) GetExtraConfig(key string) (string, error) {
 	case "tags":
 		return convertToCommaSepTags(s.config.Tags), nil
 	case "min_collection_interval":
-		return fmt.Sprintf("%d", s.config.MinCollectionInterval), nil
+		return strconv.FormatUint(uint64(s.config.MinCollectionInterval), 10), nil
 	case "interface_configs":
 		ifConfigs := s.config.InterfaceConfigs[s.deviceIP]
 		if len(ifConfigs) == 0 {

@@ -15,22 +15,24 @@ import (
 // ProductSupportMap defines which rule types each product supports
 var ProductSupportMap = map[workloadfilter.Product]map[workloadfilter.ResourceType]struct{}{
 	workloadfilter.ProductMetrics: {
-		workloadfilter.ContainerType: {},
-		workloadfilter.PodType:       {},
-		workloadfilter.ServiceType:   {},
-		workloadfilter.EndpointType:  {},
+		workloadfilter.ContainerType:    {},
+		workloadfilter.PodType:          {},
+		workloadfilter.KubeServiceType:  {},
+		workloadfilter.KubeEndpointType: {},
 	},
 	workloadfilter.ProductLogs: {
 		workloadfilter.ContainerType: {},
+		workloadfilter.ProcessType:   {},
 	},
 	workloadfilter.ProductSBOM: {
 		workloadfilter.ContainerType: {},
 	},
 	workloadfilter.ProductGlobal: {
-		workloadfilter.ContainerType: {},
-		workloadfilter.PodType:       {},
-		workloadfilter.ServiceType:   {},
-		workloadfilter.EndpointType:  {},
+		workloadfilter.ContainerType:    {},
+		workloadfilter.PodType:          {},
+		workloadfilter.KubeServiceType:  {},
+		workloadfilter.KubeEndpointType: {},
+		workloadfilter.ProcessType:      {},
 	},
 }
 

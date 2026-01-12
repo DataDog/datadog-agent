@@ -3,16 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build test
-
-// Package mock provides a mock for the diagnose component
+// Package mock provides a mock for the workloadfilter component
 package mock
 
 import (
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
-// Mock implements mock-specific methods for the filter component.
+// Mock implements mock-specific methods for the workloadfilter component.
 type Mock interface {
-	filter.Component
+	workloadfilter.Component
 }

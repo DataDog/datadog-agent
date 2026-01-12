@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix duplicated logs in Azure App Services after application restart.

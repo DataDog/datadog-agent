@@ -76,6 +76,9 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameSockCommonStructSKCNum:          14,
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
+		OffsetNameRtnlLinkOpsKind:                 16,
+		OffsetNameMntNamespaceNs:                  8,
+		OffsetNameNsCommonInum:                    16,
 	}
 }
 
@@ -125,6 +128,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
+		OffsetNameMountMntNs:                  getMountMntNsOffset,
 	}
 }
 
@@ -310,6 +314,8 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsCOSKernel():
 		return 20
+	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() > 250:
+		return 8
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_4, kernel.Kernel5_5) && kv.Code.Patch() > 250:
 		return 8
 	case kv.IsAmazonLinuxKernel() && kv.IsInRangeCloseOpen(kernel.Kernel5_10, kernel.Kernel5_11) && kv.Code.Patch() > 200:
@@ -1015,5 +1021,14 @@ func getFlowiProtoOffset(kv *kernel.Version) uint64 {
 		return 14
 	default:
 		return 18
+	}
+}
+
+func getMountMntNsOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuse12Kernel():
+		return 232
+	default:
+		return 224
 	}
 }

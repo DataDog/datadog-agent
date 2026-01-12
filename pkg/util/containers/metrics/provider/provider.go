@@ -14,6 +14,8 @@ import (
 	"sync"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -23,12 +25,14 @@ type Runtime string
 
 // Known container runtimes
 const (
-	RuntimeNameDocker     Runtime = "docker"
-	RuntimeNameContainerd Runtime = "containerd"
-	RuntimeNameCRIO       Runtime = "cri-o"
-	RuntimeNameGarden     Runtime = "garden"
-	RuntimeNamePodman     Runtime = "podman"
-	RuntimeNameECSFargate Runtime = "ecsfargate"
+	RuntimeNameDocker              Runtime = "docker"
+	RuntimeNameContainerd          Runtime = "containerd"
+	RuntimeNameCRIO                Runtime = "cri-o"
+	RuntimeNameGarden              Runtime = "garden"
+	RuntimeNamePodman              Runtime = "podman"
+	RuntimeNameECSFargate          Runtime = "ecsfargate"
+	RuntimeNameECSManagedInstances Runtime = "ecsmanagedinstances"
+	RuntimeNameCRINonstandard      Runtime = "cri-nonstandard"
 )
 
 var (
@@ -56,6 +60,8 @@ var (
 		RuntimeNameGarden,
 		RuntimeNamePodman,
 		RuntimeNameECSFargate,
+		RuntimeNameECSManagedInstances,
+		RuntimeNameCRINonstandard,
 	}
 
 	// AllWindowsRuntimes lists all runtimes available on Windows
@@ -64,7 +70,12 @@ var (
 		RuntimeNameDocker,
 		RuntimeNameContainerd,
 		RuntimeNameECSFargate,
+		RuntimeNameECSManagedInstances,
+		RuntimeNameCRINonstandard,
 	}
+
+	// nonstandardMetadata is used as a map key in GetCollector() when the NonstandardCRIRuntime feature is present
+	nonstandardMetadata = NewRuntimeMetadata(string(RuntimeNameCRINonstandard), "")
 )
 
 // RuntimeFlavor is a typed string for supported container runtime flavors
@@ -143,6 +154,17 @@ func (mp *GenericProvider) GetCollector(r RuntimeMetadata) Collector {
 	// we can't return mp.collectors[runtime] directly because it will return a typed nil
 	if runtime, found := mp.collectors[r]; found {
 		return runtime
+	}
+
+	// if the nonstandard runtime feature is present that means
+	// the user supplied a runtime socket that does not map to any of our known
+	// runtimes: containerd, cri-o
+	if env.IsFeaturePresent(env.NonstandardCRIRuntime) {
+		log.Debugf("Overriding collector runtime from %s to %s", r.String(), nonstandardMetadata.String())
+
+		if runtime, found := mp.collectors[nonstandardMetadata]; found {
+			return runtime
+		}
 	}
 
 	return nil

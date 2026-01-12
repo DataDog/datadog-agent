@@ -47,7 +47,7 @@ type Telemetry struct {
 
 // NewTelemetry returns a new Telemetry.
 func NewTelemetry(protocol string) *Telemetry {
-	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
+	metricGroup := libtelemetry.NewMetricGroup("usm." + protocol)
 	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
 
 	return &Telemetry{

@@ -6,11 +6,10 @@ Provides functions to interact with the API and also helpers to manipulate and r
 from __future__ import annotations
 
 import glob
+import html
 import json
 import os
-import platform
 import re
-import subprocess
 import sys
 from copy import deepcopy
 from dataclasses import dataclass
@@ -26,13 +25,19 @@ import yaml
 from gitlab.v4.objects import Project, ProjectCommit, ProjectPipeline
 from invoke import Context
 from invoke.exceptions import Exit
+from requests.adapters import HTTPAdapter
 
 from tasks.libs.common.auth import datadog_infra_token
 from tasks.libs.common.color import Color, color_message
+from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_common_ancestor, get_current_branch, get_default_branch
 from tasks.libs.common.utils import retry_function, running_in_ci
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, SingleGitlabLintFailure
 from tasks.libs.types.types import JobDependency
+
+# Patch python-gitlab to retry 409 errors because the "fix" (https://github.com/python-gitlab/python-gitlab/pull/2326)
+# checks `result.reason` but GitLab sends `Conflict` (HTTP standard) while `Resource lock` is in the response... body!
+gitlab.const.RETRYABLE_TRANSIENT_ERROR_CODES.append(409)
 
 BASE_URL = "https://gitlab.ddbuild.io"
 CONFIG_SPECIAL_OBJECTS = {
@@ -45,25 +50,27 @@ CONFIG_SPECIAL_OBJECTS = {
 
 
 def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
-    # TODO(celian): Restore short lived token generation
-    if running_in_ci():
-        # Get the token from fetch_secrets
-        token_cmd = ctx.run(
-            f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
-        )
-        if not token_cmd.ok:
-            raise RuntimeError(
-                f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+    if not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
+        if running_in_ci():
+            # Get the token from fetch_secrets
+            token_cmd = ctx.run(
+                f"{os.environ['CI_PROJECT_DIR']}/tools/ci/fetch_secret.sh gitlab-token write_api", hide=True
             )
+            if not token_cmd.ok:
+                raise RuntimeError(
+                    f'Failed to retrieve Gitlab token, request failed with code {token_cmd.return_code}:\n{token_cmd.stderr}'
+                )
 
-        return token_cmd.stdout.strip()
-    elif 'GITLAB_TOKEN' in os.environ:
-        return os.environ['GITLAB_TOKEN']
+            return token_cmd.stdout.strip()
+        elif 'GITLAB_TOKEN' in os.environ:
+            return os.environ['GITLAB_TOKEN']
 
     infra_token = datadog_infra_token(ctx, audience="sdm")
     url = f"https://bti-ci-api.us1.ddbuild.io/internal/ci/gitlab/token?owner=DataDog&repository={repo}"
 
-    res = requests.get(url, headers={'Authorization': infra_token}, timeout=10)
+    session = requests.Session()
+    session.mount('https://', HTTPAdapter(max_retries=2))
+    res = session.get(url, headers={'Authorization': infra_token}, timeout=30)
 
     if not res.ok:
         raise RuntimeError(f'Failed to retrieve Gitlab token, request failed with code {res.status_code}:\n{res.text}')
@@ -76,24 +83,6 @@ def get_gitlab_token(ctx, repo='datadog-agent', verbose=False) -> str:
     token = token_info['token']
 
     return token
-
-
-def get_gitlab_bot_token():
-    if "GITLAB_BOT_TOKEN" not in os.environ:
-        print("GITLAB_BOT_TOKEN not found in env. Trying keychain...")
-        if platform.system() == "Darwin":
-            try:
-                output = subprocess.check_output(
-                    ['security', 'find-generic-password', '-a', os.environ["USER"], '-s', 'GITLAB_BOT_TOKEN', '-w']
-                )
-                if output:
-                    return output.strip()
-            except subprocess.CalledProcessError:
-                print("GITLAB_BOT_TOKEN not found in keychain...")
-                pass
-        print("Please make sure that the GITLAB_BOT_TOKEN is set or that the GITLAB_BOT_TOKEN keychain entry is set.")
-        raise Exit(code=1)
-    return os.environ["GITLAB_BOT_TOKEN"]
 
 
 def get_gitlab_api(token=None, repo='datadog-agent') -> gitlab.Gitlab:
@@ -278,12 +267,9 @@ class GitlabCIDiff:
                 return [f'### {title}']
 
         def str_end_section(wrap: bool) -> list[str]:
-            if cli:
-                return []
-            elif wrap:
+            if wrap and not cli:
                 return ['</details>']
-            else:
-                return []
+            return []
 
         def str_job(title, color):
             # Gitlab configuration special objects (variables...)
@@ -291,14 +277,12 @@ class GitlabCIDiff:
 
             if cli:
                 return f'* {color_message(title, getattr(Color, color))}{" (configuration)" if is_special else ""}'
-            else:
-                return f'- **{title}**{" (configuration)" if is_special else ""}'
+            return f'- **{title}**{" (configuration)" if is_special else ""}'
 
         def str_rename(job_before, job_after):
             if cli:
                 return f'* {color_message(job_before, Color.GREY)} -> {color_message(job_after, Color.BLUE)}'
-            else:
-                return f'- {job_before} -> **{job_after}**'
+            return f'- {job_before} -> **{job_after}**'
 
         def str_add_job(name: str, content: str) -> list[str]:
             # Gitlab configuration special objects (variables...)
@@ -308,10 +292,9 @@ class GitlabCIDiff:
                 content = [color_message(line, Color.GREY) for line in content.splitlines()]
 
                 return [str_job(name, 'GREEN'), '', *content, '']
-            else:
-                header = f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>'
+            header = f'<summary><b>{html.escape(name)}</b>{" (configuration)" if is_special else ""}</summary>'
 
-                return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
+            return ['<details>', header, '', '```yaml', *content.splitlines(), '```', '', '</details>']
 
         def str_modified_job(name: str, diff: list[str]) -> list[str]:
             # Gitlab configuration special objects (variables...)
@@ -328,24 +311,22 @@ class GitlabCIDiff:
                         res.append(line)
 
                 return res
-            else:
-                # Wrap diff in markdown code block and in details html tags
-                return [
-                    '<details>',
-                    f'<summary><b>{name}</b>{" (configuration)" if is_special else ""}</summary>',
-                    '',
-                    '```diff',
-                    *diff,
-                    '```',
-                    '',
-                    '</details>',
-                ]
+            # Wrap diff in markdown code block and in details html tags
+            return [
+                '<details>',
+                f'<summary><b>{html.escape(name)}</b>{" (configuration)" if is_special else ""}</summary>',
+                '',
+                '```diff',
+                *diff,
+                '```',
+                '',
+                '</details>',
+            ]
 
         def str_color(text: str, color: str) -> str:
             if cli:
                 return color_message(text, getattr(Color, color))
-            else:
-                return text
+            return text
 
         def str_summary() -> str:
             if cli:
@@ -356,12 +337,11 @@ class GitlabCIDiff:
                 res += f' | {len(self.renamed)} {str_color("renamed", "BLUE")}'
 
                 return res
-            else:
-                res = '| Removed | Modified | Added | Renamed |\n'
-                res += '| ------- | -------- | ----- | ------- |\n'
-                res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
+            res = '| Removed | Modified | Added | Renamed |\n'
+            res += '| ------- | -------- | ----- | ------- |\n'
+            res += f'| {" | ".join(str(len(changes)) for changes in [self.removed, self.modified, self.added, self.renamed])} |'
 
-                return res
+            return res
 
         def str_note() -> list[str]:
             if not job_url or cli:
@@ -1047,7 +1027,7 @@ def read_content(ctx, file_path, git_ref: str | None = None):
         if file_path.startswith('http'):
             import requests
 
-            response = requests.get(file_path)
+            response = requests.get(file_path, timeout=10)
             response.raise_for_status()
             content = response.text
         elif not git_ref:
@@ -1066,9 +1046,9 @@ def read_content(ctx, file_path, git_ref: str | None = None):
 
 def get_preset_contexts(required_tests):
     possible_tests = ["all", "main", "release", "mq", "conductor"]
-    required_tests = required_tests.casefold().split(",")
-    if set(required_tests) | set(possible_tests) != set(possible_tests):
-        raise Exit(f"Invalid test required: {required_tests} must contain only values from {possible_tests}", 1)
+    required_test_list = required_tests.casefold().split(",")
+    if set(required_test_list) | set(possible_tests) != set(possible_tests):
+        raise Exit(f"Invalid test required: {required_test_list} must contain only values from {possible_tests}", 1)
     main_contexts = [
         ("BUCKET_BRANCH", ["nightly"]),  # ["dev", "nightly", "beta", "stable", "oldnightly"]
         ("CI_COMMIT_BRANCH", ["main"]),  # ["main", "mq-working-branch-main", "7.42.x", "any/name"]
@@ -1126,7 +1106,7 @@ def get_preset_contexts(required_tests):
         ("RUN_E2E_TESTS", ["off"]),
     ]
     all_contexts = []
-    for test in required_tests:
+    for test in required_test_list:
         if test in ["all", "main"]:
             generate_contexts(main_contexts, [], all_contexts)
         if test in ["all", "release"]:
@@ -1167,12 +1147,11 @@ def load_context(context):
                 1,
             )
         return [list(y["variables"].items())]
-    else:
-        try:
-            j = json.loads(context)
-            return [list(j.items())]
-        except json.JSONDecodeError as e:
-            raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
+    try:
+        j = json.loads(context)
+        return [list(j.items())]
+    except json.JSONDecodeError as e:
+        raise Exit(f"Invalid context: {context}, must be a valid json, or a path to a yaml file", 1) from e
 
 
 def retrieve_all_paths(yaml):
@@ -1225,17 +1204,16 @@ def gitlab_configuration_is_modified(ctx):
                     for above_line in reversed(content[:start]):
                         current = leading_space.match(above_line)
                         if current[1] < item[1]:
-                            if any(keyword in above_line for keyword in ["needs:", "dependencies:"]):
+                            if any(keyword in above_line for keyword in ["needs:", "dependencies:", "rules:"]):
                                 print(f"> Found a gitlab configuration change on line: {content[start]}")
                                 return True
-                            else:
-                                break
+                            break
         if (
             in_config
             and line.startswith("+")
             and (
                 (len(line) > 1 and line[1].isalpha())
-                or any(keyword in line for keyword in ["needs:", "dependencies:", "!reference"])
+                or any(keyword in line for keyword in ["needs:", "dependencies:", "rules:", "!reference"])
             )
         ):
             print(f"> Found a gitlab configuration change on line: {line}")
@@ -1259,13 +1237,16 @@ def compute_gitlab_ci_config_diff(ctx, before: str | None = None, after: str | N
 
     # The before commit is the LCA commit between before and after
     before = before or get_default_branch()
+    current_branch = get_current_branch(ctx)
     before = get_common_ancestor(ctx, before, after or "HEAD")
 
     print(f'Getting after changes config ({color_message(after_name, Color.BOLD)})')
     after_config = get_all_gitlab_ci_configurations(ctx, git_ref=after)
 
-    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)})')
+    print(f'Getting before changes config ({color_message(before_name, Color.BOLD)}), {before}')
+    ctx.run(f"git checkout {before}")
     before_config = get_all_gitlab_ci_configurations(ctx, git_ref=before)
+    ctx.run(f"git checkout {current_branch}")
 
     diff = MultiGitlabCIDiff.from_contents(before_config, after_config)
 
@@ -1294,40 +1275,6 @@ def full_config_get_all_stages(full_config: dict) -> set[str]:
         all_stages.update(config.get("stages", []))
 
     return all_stages
-
-
-def update_test_infra_def(file_path, image_tag, is_dev_image=False, prefix_comment=""):
-    """
-    Updates TEST_INFRA_DEFINITIONS_BUILDIMAGES in `.gitlab/common/test_infra_version.yml` file
-    """
-    test_infra_def = {}
-    with open(file_path) as test_infra_version_file:
-        try:
-            test_infra_def = yaml.safe_load(test_infra_version_file)
-            test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"] = image_tag
-            if is_dev_image:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = "-dev"
-            else:
-                test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX"] = ""
-        except yaml.YAMLError as e:
-            raise Exit(f"Error while loading {file_path}: {e}") from e
-    with open(file_path, "w") as test_infra_version_file:
-        test_infra_version_file.write(prefix_comment + ('\n\n' if prefix_comment else ''))
-        # Add explicit_start=True to keep the document start marker ---
-        # See "Document Start" in https://www.yaml.info/learn/document.html for more details
-        yaml.dump(test_infra_def, test_infra_version_file, explicit_start=True)
-
-
-def get_test_infra_def_version():
-    """
-    Get TEST_INFRA_DEFINITIONS_BUILDIMAGES from `.gitlab/common/test_infra_version.yml` file
-    """
-    try:
-        version_file = Path.cwd() / ".gitlab" / "common" / "test_infra_version.yml"
-        test_infra_def = yaml.safe_load(version_file.read_text(encoding="utf-8"))
-        return test_infra_def["variables"]["TEST_INFRA_DEFINITIONS_BUILDIMAGES"]
-    except Exception:
-        return "main"
 
 
 def get_buildimages_version():

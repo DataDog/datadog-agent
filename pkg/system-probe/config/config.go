@@ -68,7 +68,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	}
 	// load the configuration
 	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadCustom(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -187,6 +187,15 @@ func load() (*types.Config, error) {
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
 		}
+	}
+
+	// Enable discovery by default if system-probe has any modules enabled,
+	// unless the user has explicitly configured the discovery.enabled config
+	// key.
+	if len(c.EnabledModules) > 0 &&
+		!c.ModuleIsEnabled(DiscoveryModule) &&
+		applyDefault(cfg, discoveryNS("enabled"), true) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
 	}
 
 	c.Enabled = len(c.EnabledModules) > 0

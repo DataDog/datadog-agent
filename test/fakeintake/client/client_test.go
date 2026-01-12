@@ -7,6 +7,7 @@ package client
 
 import (
 	_ "embed"
+	"strconv"
 	"time"
 
 	"encoding/base64"
@@ -83,7 +84,7 @@ func TestClient(t *testing.T) {
 					Data: []byte(r.URL.Path),
 				},
 				{
-					Data: []byte(fmt.Sprintf("%d", len(routes))),
+					Data: []byte(strconv.Itoa(len(routes))),
 				},
 				{
 					Data: []byte(routes[0]),

@@ -9,6 +9,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -83,12 +84,12 @@ func ConstructRumPayloadFromOTLP(attr pcommon.Map) map[string]any {
 func parseIDs(payload map[string]any) (pcommon.TraceID, pcommon.SpanID, error) {
 	ddMetadata, ok := payload["_dd"].(map[string]any)
 	if !ok {
-		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), fmt.Errorf("failed to find _dd metadata in payload")
+		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), errors.New("failed to find _dd metadata in payload")
 	}
 
 	traceIDString, ok := ddMetadata["trace_id"].(string)
 	if !ok {
-		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), fmt.Errorf("failed to retrieve traceID from payload")
+		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), errors.New("failed to retrieve traceID from payload")
 	}
 	traceID, err := strconv.ParseUint(traceIDString, 10, 64)
 	if err != nil {
@@ -97,7 +98,7 @@ func parseIDs(payload map[string]any) (pcommon.TraceID, pcommon.SpanID, error) {
 
 	spanIDString, ok := ddMetadata["span_id"].(string)
 	if !ok {
-		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), fmt.Errorf("failed to retrieve spanID from payload")
+		return pcommon.NewTraceIDEmpty(), pcommon.NewSpanIDEmpty(), errors.New("failed to retrieve spanID from payload")
 	}
 	spanID, err := strconv.ParseUint(spanIDString, 10, 64)
 	if err != nil {

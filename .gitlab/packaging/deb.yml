@@ -3,6 +3,7 @@ include:
   - .gitlab/packaging/common.yml
 
 .package_deb_common:
+  extends: .bazel:defs:cache:omnibus-transition
   stage: packaging
   script:
     - !reference [.cache_omnibus_ruby_deps, setup]
@@ -21,8 +22,6 @@ include:
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/agent-deb.txt"
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 .package_deb_x86:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -78,29 +77,36 @@ agent_deb-arm64-a7-fips:
     OMNIBUS_EXTRA_ARGS: "--flavor fips"
     DD_PROJECT: "agent"
 
-ddot_deb-x64:
-  extends: [.package_deb_common, .package_deb_x86]
+.ddot_deb_common:
+  extends: .package_deb_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  needs: ["datadog-otel-agent-x64"]
   variables:
     DD_PROJECT: "ddot"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
     DD_DISABLE_VPA: true
 
+ddot_deb-x64:
+  extends: [.ddot_deb_common, .package_deb_x86]
+  needs: ["datadog-otel-agent-x64"]
+
 ddot_deb-arm64:
-  extends: [.package_deb_common, .package_deb_arm64]
-  rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+  extends: [.ddot_deb_common, .package_deb_arm64]
   needs: ["datadog-otel-agent-arm64"]
+
+ddot_deb-x64-fips:
+  extends: [.ddot_deb_common, .package_deb_x86]
+  needs: ["datadog-otel-agent-x64-fips"]
   variables:
-    DD_PROJECT: "ddot"
-    PACKAGE_REQUIRED_FILES_LIST: "test/required_files/ddot.txt"
-    # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_DISABLE_VPA: true
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
+
+ddot_deb-arm64-fips:
+  extends: [.ddot_deb_common, .package_deb_arm64]
+  needs: ["datadog-otel-agent-arm64-fips"]
+  variables:
+    OMNIBUS_EXTRA_ARGS: "--flavor fips"
 
 installer_deb-amd64:
   extends: [.package_deb_common, .package_deb_x86]
@@ -125,6 +131,7 @@ installer_deb-arm64:
     PACKAGE_REQUIRED_FILES_LIST: ""
 
 .package_iot_deb_common:
+  extends: .bazel:defs:cache:omnibus-transition
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -147,8 +154,6 @@ installer_deb-arm64:
     OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/iot-agent-deb.txt"
     DD_PROJECT: iot-agent
-  cache:
-    - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_deb-x64:
   extends: [.package_iot_deb_common, .package_deb_x86]

@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -140,6 +141,29 @@ func TestProbabilisticSampler(t *testing.T) {
 			TraceID: 555,
 			Meta:    map[string]string{"_dd.p.tid": hex.EncodeToString(tid[:8])},
 		})
+		assert.False(t, sampled)
+	})
+	t.Run("keep-dd-128-v1", func(t *testing.T) {
+		tid := []byte{9, 10, 11, 12, 13, 14, 15, 16}
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 70,
+		}
+		sampler := NewProbabilisticSampler(conf)
+		sampled := sampler.SampleV1(tid, idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{}))
+		assert.True(t, sampled)
+	})
+	t.Run("drop-dd-128-v1", func(t *testing.T) {
+		tid := make([]byte, 16)
+		binary.BigEndian.PutUint64(tid[:8], 555)
+		conf := &config.AgentConfig{
+			ProbabilisticSamplerEnabled:            true,
+			ProbabilisticSamplerHashSeed:           0,
+			ProbabilisticSamplerSamplingPercentage: 68,
+		}
+		sampler := NewProbabilisticSampler(conf)
+		sampled := sampler.SampleV1(tid, idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{}))
 		assert.False(t, sampled)
 	})
 }

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 import re
 from collections.abc import Iterable
 from datetime import datetime, timedelta
-from functools import lru_cache
 
 import requests
 from invoke import Context
@@ -489,10 +487,6 @@ class GithubAPI:
         """
         return self._github.search_issues(query)
 
-    def is_organization_member(self, user):
-        organization = self._repository.organization
-        return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
-
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
         base_tree = self._repository.get_git_tree(tree['base_tree'])
@@ -517,20 +511,22 @@ class GithubAPI:
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
-            - Personal access token through GITHUB_TOKEN environment variable
-            - Short lived token generated locally
-            - A fake login user/password to reach public repositories
-            - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
-              variables (can also use GITHUB_INSTALLATION_ID to save a request).
-              This is required for Gitlab CI.
+            - Locally:
+              - Short lived token generated locally
+            - On CI:
+              - GITHUB_TOKEN environment variable
+              - A fake login user/password to reach public repositories
+              - An app token through the GITHUB_APP_ID & GITHUB_KEY_B64 environment
+                variables (can also use GITHUB_INSTALLATION_ID to save a request).
+                This is required for Gitlab CI.
         """
         from tasks.libs.common.utils import running_in_ci
 
+        if not running_in_ci():
+            return Auth.Token(generate_local_github_token(Context()))
         if "GITHUB_TOKEN" in os.environ:
             return Auth.Token(os.environ["GITHUB_TOKEN"])
-        elif not running_in_ci():
-            return Auth.Token(generate_local_github_token(Context()))
-        elif public_repo:
+        if public_repo:
             return Auth.Login("user", "password")
 
         if "GITHUB_APP_ID" not in os.environ or "GITHUB_KEY_B64" not in os.environ:
@@ -673,34 +669,12 @@ class GithubAPI:
         data = self.graphql(query)
         return [member["login"] for member in data["data"]["organization"]["team"]["members"]["nodes"]]
 
-
-def get_github_teams(users):
-    for user in users:
-        yield from query_teams(user.login)
-
-
-@lru_cache
-def query_teams(login):
-    query = get_user_query(login)
-    headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
-    response = requests.post("https://api.github.com/graphql", headers=headers, data=query, timeout=10)
-    data = response.json()
-    teams = []
-    try:
-        if data["data"]["user"]["organization"] and data["data"]["user"]["organization"]["teams"]:
-            for team in data["data"]["user"]["organization"]["teams"]["nodes"]:
-                teams.append(team["slug"])
-    except KeyError:
-        print(f"Error for user {login}: {data}")
-        raise
-    return teams
-
-
-def get_user_query(login):
-    variables = {"login": login, "org": "datadog"}
-    query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
-    string_var = f'"variables": {json.dumps(variables)}'
-    return query + string_var
+    def get_fork_name(self, owner):
+        forks = self._repository.get_forks()
+        for fork in forks:
+            if fork.owner.login == owner:
+                return fork.name
+        return None
 
 
 def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
@@ -792,9 +766,11 @@ def generate_local_github_token(ctx):
     try:
         token = ctx.run('ddtool auth github token', hide=True).stdout.strip()
 
-        assert (
-            token.startswith('gh') and ' ' not in token
-        ), "`ddtool auth github token` returned an invalid token, it might be due to ddtool outdated. Please run `brew update && brew upgrade ddtool`."
+        assert token.startswith('gh') and ' ' not in token, (
+            "`ddtool auth github token` returned an invalid token, "
+            "it might be due to ddtool outdated. "
+            "Please run `brew update && brew upgrade ddtool`."
+        )
 
         return token
     except AssertionError:

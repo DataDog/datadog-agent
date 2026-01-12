@@ -40,7 +40,7 @@ type dotnetLibraryExecCmd struct {
 }
 
 func (d *DotnetLibraryExec) newDotnetLibraryExecCmd(ctx context.Context, command string, args ...string) *dotnetLibraryExecCmd {
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("dotnetLibraryExec.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "dotnetLibraryExec."+command)
 	span.SetTag("args", args)
 	cmd := exec.CommandContext(ctx, d.execBinPath, append([]string{command}, args...)...)
 	cmd.Stdout = os.Stdout

@@ -12,8 +12,8 @@ package probe
 
 import (
 	"encoding/base64"
+
 	coretags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
@@ -51,10 +51,10 @@ func (e FailedDNSEvent) ToJSON() ([]byte, error) {
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for an abnormal event
-func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
+func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, scrubber *utils.Scrubber, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
-			Event: serializers.NewEventSerializer(event, nil),
+			Event: serializers.NewEventSerializer(event, nil, scrubber),
 			Error: err.Error(),
 		}
 		evt.FillCustomEventCommonFields(acc)
@@ -104,10 +104,10 @@ func (e EBPFLessHelloMsgEvent) ToJSON() ([]byte, error) {
 }
 
 // NewEBPFLessHelloMsgEvent returns a eBPFLess hello custom event
-func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.HelloMsg, scrubber *procutil.DataScrubber, tagger tags.Tagger) (*rules.Rule, *events.CustomEvent) {
+func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.HelloMsg, scrubber *utils.Scrubber, tagger tags.Tagger) (*rules.Rule, *events.CustomEvent) {
 	args := msg.EntrypointArgs
 	if scrubber != nil {
-		args, _ = scrubber.ScrubCommand(msg.EntrypointArgs)
+		args = scrubber.ScrubCommand(msg.EntrypointArgs)
 	}
 
 	evt := EBPFLessHelloMsgEvent{

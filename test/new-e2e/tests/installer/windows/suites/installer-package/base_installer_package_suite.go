@@ -33,7 +33,7 @@ func (s *baseInstallerPackageSuite) freshInstall() {
 	// Assert
 	s.requireInstalled()
 	// the service cannot start because of the missing API key
-	s.requireNotRunning()
+	s.requireRunning()
 }
 
 func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
@@ -44,9 +44,12 @@ func (s *baseInstallerPackageSuite) startServiceWithConfigFile() {
 	s.Require().NoError(common.StartService(s.Env().RemoteHost, consts.ServiceName))
 
 	// Assert
-	s.Require().Host(s.Env().RemoteHost).
-		HasAService(consts.ServiceName).
-		WithStatus("Running")
+	s.requireRunning()
+}
+
+func (s *baseInstallerPackageSuite) requireRunning() {
+	s.Require().NoError(s.WaitForInstallerService("Running"))
+	s.Require().Host(s.Env().RemoteHost).HasARunningDatadogInstallerService()
 }
 
 func (s *baseInstallerPackageSuite) requireNotRunning() {

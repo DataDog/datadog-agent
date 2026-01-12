@@ -111,8 +111,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[map[foo: 1, bar: 2], map[foo: 1, bar: 2]]"
   }
 ]

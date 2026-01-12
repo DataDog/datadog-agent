@@ -188,30 +188,39 @@ def _get_team_labels():
 def assign_team_label(_, pr_id=-1):
     """
     Assigns the github team label name if teams can
-    be deduced from the changed files
+    be deduced from the changed files.
+    Removes the team/triage label if it exists.
     """
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-
-    labels = gh.get_pr_labels(pr_id)
-
-    # Skip if necessary
-    if 'qa/done' in labels or 'qa/no-code-change' in labels:
-        print('Qa done or no code change, skipping')
-        return
-
-    if any(label.startswith('team/') for label in labels):
-        print('This PR already has a team label, skipping')
-        return
-
-    # Find team
+    # Fetch the team first, and early return if no team is found
     teams = _get_teams(gh.get_pr_files(pr_id))
     if teams == []:
         print('No team found')
         return
 
+    # Check for 'team/' labels
+    labels = gh.get_pr_labels(pr_id)
+    has_team = False
+    for label in labels:
+        if label.startswith('team/'):
+            if label != 'team/triage':
+                has_team = True
+            else:
+                _remove_pr_label(gh, pr_id, 'team/triage')
+
+    if has_team:
+        return
     _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _remove_pr_label(gh, pr_id, label):
+    """
+    Remove a label from a pull request
+    """
+    pr = gh.get_pr(pr_id)
+    pr.remove_from_labels(label)
 
 
 def _assign_pr_team_labels(gh, pr_id, teams):
@@ -309,6 +318,7 @@ def pr_commenter(
     body: str = '',
     body_file: str = '',
     pr_id: int = 0,
+    pr=None,
     verbose: bool = True,
     delete: bool = False,
     force_delete: bool = False,
@@ -320,6 +330,7 @@ def pr_commenter(
     The title is used to identify the comment to update.
 
     - pr_id: If None, will use $CI_COMMIT_BRANCH to identify which PR to comment on.
+    - pr: Pass an existing PR object to avoid an additional GitHub API call.
     - delete: If True and the body is empty, will delete the comment.
     - force_delete: Won't throw error if the comment to delete is not found.
     - echo: Print comment content to stdout.
@@ -336,6 +347,9 @@ def pr_commenter(
         with open(body_file) as f:
             body = f.read()
 
+    if force_delete:
+        delete = True
+
     if not body and not delete:
         return
 
@@ -343,16 +357,18 @@ def pr_commenter(
 
     github = GithubAPI()
 
-    if pr_id == 0:
-        branch = os.environ["CI_COMMIT_BRANCH"]
-        prs = list(github.get_pr_for_branch(branch))
-        if len(prs) == 0 and not fail_on_pr_missing:
-            print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
-            return
-        assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
-        pr = prs[0]
-    else:
-        pr = github.get_pr(pr_id)
+    # Use provided PR object if available, otherwise fetch from API
+    if pr is None:
+        if pr_id == 0:
+            branch = os.environ["CI_COMMIT_BRANCH"]
+            prs = list(github.get_pr_for_branch(branch))
+            if len(prs) == 0 and not fail_on_pr_missing:
+                print(f'{color_message("Warning", Color.ORANGE)}: No PR found for branch {branch}, skipping PR comment')
+                return
+            assert len(prs) == 1, f"Expected 1 PR for branch {branch}, found {len(prs)} PRs"
+            pr = prs[0]
+        else:
+            pr = github.get_pr(pr_id)
 
     # Created / updated / deleted comment
     action = ''

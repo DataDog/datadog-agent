@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
 	"github.com/gosnmp/gosnmp"
 )
 

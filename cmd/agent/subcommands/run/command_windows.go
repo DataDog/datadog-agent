@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog"
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl"
+	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
 	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -78,6 +80,7 @@ import (
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -143,6 +146,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			agenttelemetryComponent agenttelemetry.Component,
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
+			snmpScanManager snmpscanmanager.Component,
+			traceroute traceroute.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -166,6 +171,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				agenttelemetryComponent,
 				hostname,
 				ipc,
+				snmpScanManager,
+				traceroute,
 			)
 			if err != nil {
 				return err
@@ -245,6 +252,7 @@ func getPlatformModules() fx.Option {
 		comptraceconfig.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
+		notableeventsfx.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

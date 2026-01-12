@@ -8,6 +8,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -56,7 +57,7 @@ func ImportConfig(oldConfigDir string, newConfigDir string, force bool) error {
 	cfg := pkgconfigsetup.GlobalConfigBuilder()
 
 	cfg.AddConfigPath(newConfigDir)
-	_, err = pkgconfigsetup.LoadWithSecret(cfg, secretsnoop.NewComponent().Comp, nil)
+	err = pkgconfigsetup.LoadDatadog(cfg, secretsnoop.NewComponent().Comp, nil)
 	if err != nil {
 		return fmt.Errorf("unable to load Datadog config file: %s", err)
 	}
@@ -230,7 +231,7 @@ func copyFile(src, dst string, overwrite bool, transformations []TransformationF
 				return fmt.Errorf("unable to create a backup copy of the destination file: %v", err)
 			}
 		} else {
-			return fmt.Errorf("destination file already exists, run the command again with --force or -f to overwrite it")
+			return errors.New("destination file already exists, run the command again with --force or -f to overwrite it")
 		}
 	}
 

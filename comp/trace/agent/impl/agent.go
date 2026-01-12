@@ -78,7 +78,7 @@ func (c component) SetOTelAttributeTranslator(attrstrans *attributes.Translator)
 	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
-func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
+func (c component) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header, hostFromAttributesHandler attributes.HostFromAttributesHandler) (source.Source, error) {
 	return c.Agent.OTLPReceiver.ReceiveResourceSpans(ctx, rspans, httpHeader, hostFromAttributesHandler)
 }
 
@@ -113,7 +113,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
-		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
+		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, errors.New(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
 		return c, nil

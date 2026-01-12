@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/bits"
 	"net/netip"
+	"strconv"
 	"unsafe"
 
 	"golang.org/x/sys/cpu"
@@ -188,7 +189,7 @@ func (m *_MIB_TCP6TABLE_OWNER_MODULE) getRows() []_MIB_TCP6ROW_OWNER_MODULE {
 func ipport6(addr [16]byte, scope uint32, port uint16) netip.AddrPort {
 	ip := netip.AddrFrom16(addr).Unmap()
 	if scope != 0 {
-		ip = ip.WithZone(fmt.Sprint(scope))
+		ip = ip.WithZone(strconv.Itoa(int(scope)))
 	}
 	return netip.AddrPortFrom(ip, port)
 }

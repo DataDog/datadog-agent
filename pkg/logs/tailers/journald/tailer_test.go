@@ -601,17 +601,15 @@ func TestTailerCompareUnstructuredAndStructured(t *testing.T) {
 }
 
 func TestExpectedTagDuration(t *testing.T) {
-
 	mockConfig := configmock.New(t)
 
 	tags := []string{"tag1:value1"}
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	mockConfig.SetWithoutSource("tags", tags)
-	defer mockConfig.SetWithoutSource("tags", nil)
-
-	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "5s")
-	defer mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "0")
+	// We do not want to trigger the log, local tag provider cleanup routine. Setting it to 1h to make sure this
+	// test, even with the race detector enabled, don't hit that time limit.
+	mockConfig.SetWithoutSource("logs_config.expected_tags_duration", "1h")
 
 	mockJournal := &MockJournal{m: &sync.Mutex{}}
 	source := sources.NewLogSource("", &config.LogsConfig{})

@@ -22,9 +22,9 @@ type fakeProvider struct {
 
 func (p *fakeProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	pInfo := &rules.PolicyInfo{
-		Name:   "default.policy",
-		Source: "fake",
-		Type:   "fake",
+		Name:         "default.policy",
+		Source:       "fake",
+		InternalType: "fake",
 	}
 
 	var (

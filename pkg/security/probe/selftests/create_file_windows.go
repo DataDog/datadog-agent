@@ -26,7 +26,7 @@ type WindowsCreateFileSelfTest struct {
 
 // GetRuleDefinition returns the rule
 func (o *WindowsCreateFileSelfTest) GetRuleDefinition() *rules.RuleDefinition {
-	o.ruleID = fmt.Sprintf("%s_windows_create_file", ruleIDPrefix)
+	o.ruleID = ruleIDPrefix + "_windows_create_file"
 
 	basename := filepath.Base(o.filename)
 	devicePath := o.filename

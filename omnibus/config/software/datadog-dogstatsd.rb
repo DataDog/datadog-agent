@@ -8,7 +8,10 @@ name 'datadog-dogstatsd'
 
 skip_transitive_dependency_licensing true
 
-source path: '..'
+source path: '..',
+       options: {
+         exclude: ["**/.cache/**/*"],
+       }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
 build do
@@ -18,7 +21,7 @@ build do
   gopath = Pathname.new(project_dir) + '../../../..'
   env = {
     'GOPATH' => gopath.to_path,
-    'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
+    'PATH' => ["#{gopath.to_path}/bin", ENV['PATH']].join(File::PATH_SEPARATOR),
   }
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?

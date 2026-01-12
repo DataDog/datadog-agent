@@ -44,7 +44,7 @@ type Tracer struct {
 // NewTracer creates a [Tracer]
 func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
 	if cfg.EnableCORE {
-		probe, err := loadTCPQueueLengthCOREProbe(cfg)
+		probe, err := loadTCPQueueLengthCOREProbe()
 		if err != nil {
 			if !cfg.AllowRuntimeCompiledFallback {
 				return nil, fmt.Errorf("error loading CO-RE tcp-queue-length probe: %s. set system_probe_config.allow_runtime_compiled_fallback to true to allow fallback to runtime compilation", err)
@@ -150,7 +150,7 @@ func (t *Tracer) GetAndFlush() model.TCPQueueLengthStats {
 	return result
 }
 
-func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
+func loadTCPQueueLengthCOREProbe() (*Tracer, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("error detecting kernel version: %s", err)
@@ -159,13 +159,8 @@ func loadTCPQueueLengthCOREProbe(cfg *ebpf.Config) (*Tracer, error) {
 		return nil, fmt.Errorf("detected kernel version %s, but tcp-queue-length probe requires a kernel version of at least 4.8.0", kv)
 	}
 
-	filename := "tcp-queue-length.o"
-	if cfg.BPFDebug {
-		filename = "tcp-queue-length-debug.o"
-	}
-
 	var probe *Tracer
-	err = ebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ebpf.LoadCOREAsset("tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startTCPQueueLengthProbe(buf, opts)
 		return err
 	})

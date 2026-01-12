@@ -18,6 +18,8 @@ func defaultCollectors() []Collector {
 	return []Collector{
 		// desktopAppCollector aggregates MSI and Registry collectors
 		&desktopAppCollector{},
+		// msStoreAppsCollector collects Windows Store apps
+		&msStoreAppsCollector{},
 	}
 }
 

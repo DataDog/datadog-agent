@@ -62,8 +62,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "10"
   }
 ]

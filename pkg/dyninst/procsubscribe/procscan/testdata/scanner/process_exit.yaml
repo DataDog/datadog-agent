@@ -1,0 +1,48 @@
+# Test that exited processes are detected.
+# Discover a process, then remove it, next scan should report it as removed.
+- !initialize
+  current_time: 0
+  process_delays: [100]
+- !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+- !advance-time {to: 200}
+- !scan {}
+- !remove-process {pid: 1001}
+- !advance-time {to: 300}
+- !scan {}
+---
+command: !initialize
+  current_time: 0
+  process_delays: [100]
+---
+command: !create-process
+  pid: 1001
+  start_time: 50
+  tracer_metadata:
+    language: "go"
+    service: "my-service"
+---
+command: !advance-time {to: 200}
+---
+command: !scan {}
+new: [1001]
+state:
+  current_time: 200
+  last_scan: 200
+  process_delays: [100]
+  live: [1001]
+  processes_in_procfs: [1001]
+---
+command: !remove-process {pid: 1001}
+---
+command: !advance-time {to: 300}
+---
+command: !scan {}
+removed: [1001]
+state:
+  current_time: 300
+  last_scan: 300

@@ -1,0 +1,16 @@
+# dd-compile-policy - BUILD file simply to make the files public.
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_package_metadata = [":license"],
+    default_visibility = ["//visibility:public"],
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:Apache-2"],
+    license_text = "LICENSE",
+    visibility = ["//visibility:public"],
+)
+
+exports_files(glob(["**"]))

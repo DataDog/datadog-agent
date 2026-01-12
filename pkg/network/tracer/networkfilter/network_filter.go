@@ -7,6 +7,7 @@
 package networkfilter
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"strconv"
@@ -148,7 +149,7 @@ func parsePortFilter(pf string) (uint64, uint64, ConnTypeFilter, error) {
 	if err != nil {
 		return 0, 0, connTypeFilter, fmt.Errorf("failed to parse ports: %s", err)
 	} else if lowerPort == 0 || upperPort == 0 {
-		return 0, 0, connTypeFilter, fmt.Errorf("invalid port 0")
+		return 0, 0, connTypeFilter, errors.New("invalid port 0")
 	} else if lowerPort > upperPort {
 		return 0, 0, connTypeFilter, fmt.Errorf("invalid port range %d-%d", lowerPort, upperPort)
 	}

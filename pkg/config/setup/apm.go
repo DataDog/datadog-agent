@@ -8,7 +8,7 @@ package setup
 import (
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"runtime"
 	"strconv"
 	"strings"
@@ -18,10 +18,11 @@ import (
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
-const Traces DataType = "traces"
+const Traces string = "traces"
 
 func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.socket_activation.enabled", false, "DD_APM_SOCKET_ACTIVATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.socket_activation.handle_tcp_probe", false, "DD_APM_SOCKET_ACTIVATION_HANDLE_TCP_PROBE")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.enabled", true, "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.keep_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", []string{}, "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")
@@ -48,24 +49,18 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.memcached.keep_command", false, "DD_APM_OBFUSCATION_MEMCACHED_KEEP_COMMAND")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.enabled", true, "DD_APM_OBFUSCATION_CACHE_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.obfuscation.cache.max_size", 5000000, "DD_APM_OBFUSCATION_CACHE_MAX_SIZE")
-	config.SetKnown("apm_config.filter_tags.require")             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.filter_tags.reject")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.filter_tags_regex.require")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.filter_tags_regex.reject")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.extra_sample_rate")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.dd_agent_bin")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.trace_writer.connection_limit")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.trace_writer.queue_size")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.service_writer.connection_limit") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.service_writer.queue_size")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.stats_writer.connection_limit")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.stats_writer.queue_size")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.analyzed_rate_by_service")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.bucket_size_seconds")             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.watchdog_check_delay")            //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.sync_flushing")                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.features")                        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("apm_config.max_catalog_entries")             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.extra_sample_rate", 0.0)
+	config.BindEnvAndSetDefault("apm_config.dd_agent_bin", "")
+	config.BindEnvAndSetDefault("apm_config.trace_writer.connection_limit", 0)
+	config.BindEnvAndSetDefault("apm_config.trace_writer.queue_size", 0)
+	config.BindEnvAndSetDefault("apm_config.stats_writer.connection_limit", 0)
+	config.BindEnvAndSetDefault("apm_config.stats_writer.queue_size", 0)
+	config.BindEnvAndSetDefault("apm_config.analyzed_rate_by_service", map[string]float64{})
+	config.BindEnvAndSetDefault("apm_config.bucket_size_seconds", 10)
+	config.BindEnvAndSetDefault("apm_config.watchdog_check_delay", 0)
+	config.BindEnvAndSetDefault("apm_config.sync_flushing", false, "DD_APM_SYNC_FLUSHING")
+	config.BindEnvAndSetDefault("apm_config.features", []string{}, "DD_APM_FEATURES")
+	config.BindEnvAndSetDefault("apm_config.max_catalog_entries", 0)
 
 	bindVectorOptions(config, Traces)
 
@@ -85,6 +80,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", true, "DD_APM_PEER_TAGS_AGGREGATION")                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
 		var mappings []string
@@ -109,12 +105,6 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return mappings
 	})
-	// Note(stanistan): The flag "DD_APM_INSTRUMENTATION_VERSION"
-	//                  will remain undocumented for the duration of the beta.
-	//                  We intend to only switch back to v1 if beta customers have issues
-	//                  to troubleshoot. v1 will be dropped (and possibly the flag)
-	//                  in 7.58 or 7.59 (this is going out in 7.57).
-	config.BindEnvAndSetDefault("apm_config.instrumentation.version", "v2", "DD_APM_INSTRUMENTATION_VERSION")
 	// Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
@@ -165,11 +155,10 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", defaultReceiverSocket, "DD_APM_RECEIVER_SOCKET")
 	config.BindEnv("apm_config.windows_pipe_name", "DD_APM_WINDOWS_PIPE_NAME")                                                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.sync_flushing", "DD_APM_SYNC_FLUSHING")                                                         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.filter_tags.require", "DD_APM_FILTER_TAGS_REQUIRE")                                             //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.filter_tags.reject", "DD_APM_FILTER_TAGS_REJECT")                                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.filter_tags_regex.reject", "DD_APM_FILTER_TAGS_REGEX_REJECT")                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("apm_config.filter_tags_regex.require", "DD_APM_FILTER_TAGS_REGEX_REQUIRE")                                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.filter_tags.reject", []string{}, "DD_APM_FILTER_TAGS_REJECT")                      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.reject", []string{}, "DD_APM_FILTER_TAGS_REGEX_REJECT")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.filter_tags_regex.require", []string{}, "DD_APM_FILTER_TAGS_REGEX_REQUIRE")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.internal_profiling.enabled", "DD_APM_INTERNAL_PROFILING_ENABLED")                               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.debugger_dd_url", "DD_APM_DEBUGGER_DD_URL")                                                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("apm_config.debugger_api_key", "DD_APM_DEBUGGER_API_KEY")                                                   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -191,7 +180,10 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.obfuscation.credit_cards.keep_values", []string{}, "DD_APM_OBFUSCATION_CREDIT_CARDS_KEEP_VALUES")
 	config.BindEnvAndSetDefault("apm_config.sql_obfuscation_mode", "", "DD_APM_SQL_OBFUSCATION_MODE")
 	config.BindEnvAndSetDefault("apm_config.debug.port", 5012, "DD_APM_DEBUG_PORT")
-	config.BindEnv("apm_config.features", "DD_APM_FEATURES") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
+	config.BindEnvAndSetDefault("apm_config.enable_v1_trace_endpoint", false, "DD_APM_ENABLE_V1_TRACE_ENDPOINT")
+	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
+	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
 	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
 		// Either commas or spaces can be used as separators.
 		// Comma takes precedence as it was the only supported separator in the past.
@@ -246,6 +238,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		}
 		return out
 	})
+	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 }
 
 func parseKVList(key string) func(string) []string {
@@ -278,11 +271,11 @@ func splitCSVString(s string, sep rune) ([]string, error) {
 func parseNameAndRate(token string) (string, float64, error) {
 	parts := strings.Split(token, "=")
 	if len(parts) != 2 {
-		return "", 0, fmt.Errorf("Bad format")
+		return "", 0, errors.New("Bad format")
 	}
 	rate, err := strconv.ParseFloat(parts[1], 64)
 	if err != nil {
-		return "", 0, fmt.Errorf("Unabled to parse rate")
+		return "", 0, errors.New("Unabled to parse rate")
 	}
 	return parts[0], rate, nil
 }

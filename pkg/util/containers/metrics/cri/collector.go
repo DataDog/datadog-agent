@@ -58,7 +58,8 @@ func newCRICollector(cache *provider.Cache) (provider.CollectorMetadata, error) 
 	return provider.CollectorMetadata{
 		ID: collectorID,
 		Collectors: provider.CollectorCatalog{
-			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""): provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRIO), ""):           provider.MakeCached(collectorID, cache, collectors),
+			provider.NewRuntimeMetadata(string(provider.RuntimeNameCRINonstandard), ""): provider.MakeCached(collectorID, cache, collectors),
 		},
 	}, nil
 }

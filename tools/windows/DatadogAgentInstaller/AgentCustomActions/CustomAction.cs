@@ -60,12 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult UpdateInstallSource(Session session)
-        {
-            return Datadog.CustomActions.UpdateInstallSourceCustomAction.UpdateInstallSource(session);
-        }
-
-        [CustomAction]
         public static ActionResult ReportFailure(Session session)
         {
             return Datadog.CustomActions.Telemetry.ReportFailure(session);
@@ -225,6 +219,12 @@ namespace Datadog.AgentCustomActions
         public static ActionResult RollbackOciPackages(Session session)
         {
             return Datadog.CustomActions.InstallOciPackages.RollbackActions(session);
+        }
+
+        [CustomAction]
+        public static ActionResult PurgeOciPackages(Session session)
+        {
+            return Datadog.CustomActions.InstallOciPackages.PurgePackages(session);
         }
     }
 }

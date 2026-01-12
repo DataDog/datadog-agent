@@ -18,9 +18,11 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	"github.com/google/uuid"
 )
 
 // ScopeType represents the type of scope in the SymDB schema
@@ -78,6 +80,9 @@ type Symbol struct {
 type LanguageSpecifics struct {
 	AvailableLineRanges []LineRange `json:"available_line_ranges,omitempty"`
 	GoQualifiedName     string      `json:"go_qualified_name,omitempty"`
+	// AgentVersion is the version of the agent that is uploading this scope to
+	// SymDB. Only filled in for root scopes.
+	AgentVersion string `json:"agent_version,omitempty"`
 }
 
 // LineRange represents a range of source lines, inclusive of both ends.
@@ -113,14 +118,33 @@ func NewSymDBUploader(
 	}
 }
 
-// Upload uploads a batch of packages to SymDB.
-func (s *SymDBUploader) Upload(ctx context.Context, packages []Scope) error {
+// UploadInfo contains metadata about a batch of packages to be uploaded to
+// SymDB.
+type UploadInfo struct {
+	// UploadID identifies which logical upload this batch is part of: if packages
+	// are split into multiple batches because of size limits, they will all share
+	// the same uploadID.
+	UploadID uuid.UUID
+	// BatchNum is the number of the batch relative to the other batches in this
+	// upload. First batch has number 1.
+	BatchNum int
+	// Final is set if this is the final (or the only) batch of packages for
+	// this upload.
+	Final bool
+}
+
+// UploadBatch uploads a batch the symbols for a batch of packages to SymDB (via
+// the trace-agent).
+func (s *SymDBUploader) UploadBatch(ctx context.Context, info UploadInfo, packages []Scope) error {
 	// Wrap the data in an envelope expected by the debugger backend.
 	var buf bytes.Buffer
 	buf.WriteString(`{
 "service": "` + s.service + `",
 "version": "` + s.version + `",
 "language": "go",
+"upload_id": "` + info.UploadID.String() + `",
+"batch_num": ` + strconv.Itoa(info.BatchNum) + `,
+"final": ` + strconv.FormatBool(info.Final) + `,
 "scopes": `)
 
 	jsonBytes, err := json.Marshal(packages)
@@ -174,7 +198,10 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 	meta := []byte(`{
 "ddsource": "dd_debugger",
 "service": "` + s.service + `",
-"runtimeId": "` + s.runtimeID + `"
+"runtimeId": "` + s.runtimeID + `",
+"debugger": {
+	"type": "symdb"
+}
 }`)
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
@@ -225,8 +252,11 @@ func cleanString(s string) string {
 	return strings.ReplaceAll(s, " ", "")
 }
 
-// ConvertPackageToScope converts a symdb.Package to a Scope
-func ConvertPackageToScope(pkg symdb.Package) Scope {
+// ConvertPackageToScope converts a symdb.Package to a Scope.
+//
+// agentVersion, if not empty, is reported in the uploaded scope as
+// language-specific data.
+func ConvertPackageToScope(pkg symdb.Package, agentVersion string) Scope {
 	scope := Scope{
 		ScopeType: ScopeTypePackage,
 		Name:      pkg.Name,
@@ -234,14 +264,19 @@ func ConvertPackageToScope(pkg symdb.Package) Scope {
 		EndLine:   0,
 		Scopes:    make([]Scope, 0, len(pkg.Functions)+len(pkg.Types)),
 	}
+	if agentVersion != "" {
+		scope.LanguageSpecifics = &LanguageSpecifics{
+			AgentVersion: agentVersion,
+		}
+	}
 
-	// Add functions as method scopes
+	// Add functions as method scopes.
 	for _, fn := range pkg.Functions {
 		fnScope := convertFunctionToScope(fn, false)
 		scope.Scopes = append(scope.Scopes, fnScope)
 	}
 
-	// Add types as struct scopes
+	// Add types as struct scopes.
 	for _, typ := range pkg.Types {
 		typeScope := convertTypeToScope(*typ)
 		scope.Scopes = append(scope.Scopes, typeScope)

@@ -13,12 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	winawshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host/windows"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -110,7 +107,6 @@ func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageWithAltDir() {
 // This is a regression test for WINA-1469, where the Agent account password and
 // password from the LSA did not match after rollback to a version before LSA support was added.
 func (s *testAgentUpgradeSuite) TestUpgradeAgentPackageAfterRollback() {
-	flake.Mark(s.T())
 	// Arrange
 	s.setAgentConfig()
 	s.installPreviousAgentVersion()
@@ -575,6 +571,7 @@ func (s *testAgentUpgradeSuite) TestUpgradeWithLocalSystemUser() {
 
 // TestDowngradeWithMissingInstallSource tests that a downgrade will succeed even if the original install source is missing
 func (s *testAgentUpgradeSuite) TestDowngradeWithMissingInstallSource() {
+	s.T().Skip("Skipping test due to removal of update install source custom action")
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
@@ -658,15 +655,7 @@ func (s *testAgentUpgradeSuite) setAgentConfigWithAltDir(path string) {
 	s.Env().RemoteHost.MkdirAll(path)
 	configPath := path + `\datadog.yaml`
 	// Ensure the API key is set for telemetry
-	apiKey := os.Getenv("DD_API_KEY")
-	if apiKey == "" {
-		var err error
-		apiKey, err = runner.GetProfile().SecretStore().Get(parameters.APIKey)
-		if apiKey == "" || err != nil {
-			apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
-		}
-	}
-
+	apiKey := installer.GetAPIKey()
 	s.Env().RemoteHost.WriteFile(configPath, []byte(`
 api_key: `+apiKey+`
 site: datadoghq.com
@@ -701,7 +690,7 @@ func (s *testAgentUpgradeSuite) waitForInstallerVersionWithBackoff(version strin
 	}, b)
 }
 
-// assertDaemonStaysRunning asserts that the daemon service PID is the same before and after the function is called.
+// assertDaemonStaysRunning asserts that the daemon service PID and start time are the same before and after the function is called.
 //
 // For example, used to verify that "stop-experiment" does not reinstall stable when it is already installed.
 func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
@@ -716,11 +705,18 @@ func (s *testAgentUpgradeSuite) assertDaemonStaysRunning(f func()) {
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
 
+	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
+	s.Require().NoError(err)
+
 	f()
 
 	newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 	s.Require().NoError(err)
-	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted")
+	s.Require().Equal(originalPID, newPID, "daemon should not have been restarted (PID changed)")
+
+	newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
+	s.Require().NoError(err)
+	s.Require().Equal(originalStartTime, newStartTime, "daemon should not have been restarted (start time changed, PID reused)")
 }
 
 type testAgentUpgradeFromGASuite struct {

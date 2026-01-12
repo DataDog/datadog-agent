@@ -13,7 +13,7 @@ deploy_mutable_cws_instrumentation_tags-rc:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_rc]
   needs:
-    - job: deploy_containers-cws-instrumentation-rc-versioned
+    - job: deploy_containers-cws-instrumentation
       artifacts: false
   variables:
     IMG_NEW_TAGS: rc
@@ -22,7 +22,7 @@ deploy_mutable_cws_instrumentation_tags-latest:
   extends: .deploy_mutable_cws_instrumentation_tags-base
   rules: !reference [.on_deploy_manual_final]
   needs:
-    - job: deploy_containers-cws-instrumentation-final-versioned
+    - job: deploy_containers-cws-instrumentation
       artifacts: false
   variables:
     IMG_NEW_TAGS: latest

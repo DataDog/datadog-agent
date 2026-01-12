@@ -1,9 +1,0 @@
-bazel:run-buildifier-test:
-  extends: [ .bazel:defs, .lint ]
-  script:
-    - bazel run //bazel/buildifier:test
-  after_script:
-    - >-
-      if [ $CI_JOB_STATUS = failed ]; then
-        echo >&2 "💡 bazel run //bazel/buildifier"
-      fi

@@ -132,6 +132,7 @@ def diff(
     base_pipeline: str | None = None,
     target_ref: str | None = None,
     target_pipeline: str | None = None,
+    sort_by_size: bool = True,
 ):
     """
     Diff the content of the given package.
@@ -153,7 +154,7 @@ def diff(
     target_extract_dir = os.path.join(tmpdir, "target")
     download(ctx, target_pipeline_id, binary, _type, flavor, arch, tmpdir, extract_dir=target_extract_dir)
 
-    _diff(base_extract_dir, target_extract_dir)
+    _diff(base_extract_dir, target_extract_dir, sort_by_size=sort_by_size)
 
 
 @task(

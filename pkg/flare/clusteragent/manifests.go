@@ -13,9 +13,11 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -140,7 +142,7 @@ func getDeployedHelmConfigmap(cl *apiserver.APIClient, name string, namespace st
 		return nil, err
 	}
 	if len(configmapList.Items) != 1 {
-		return nil, log.Errorf("%s configmaps found, but expected 1", fmt.Sprint(len(configmapList.Items)))
+		return nil, log.Errorf("%s configmaps found, but expected 1", strconv.Itoa(len(configmapList.Items)))
 	}
 	return &configmapList.Items[0], nil
 }
@@ -158,7 +160,7 @@ func getDeployedHelmSecret(cl *apiserver.APIClient, name string, namespace strin
 		return nil, err
 	}
 	if len(secretList.Items) != 1 {
-		return nil, log.Errorf("%s secrets found, but expected 1", fmt.Sprint(len(secretList.Items)))
+		return nil, log.Errorf("%s secrets found, but expected 1", strconv.Itoa(len(secretList.Items)))
 	}
 	return &secretList.Items[0], nil
 }
@@ -177,7 +179,7 @@ func decodeRelease(data string) ([]byte, error) {
 	// gzip magic header is not found
 	if len(b) < 4 {
 		// Avoid panic if b[0:3] cannot be accessed
-		return nil, log.Errorf("The byte array is too short (expected at least 4 characters, got %s instead): it cannot contain a Helm release", fmt.Sprint(len(b)))
+		return nil, log.Errorf("The byte array is too short (expected at least 4 characters, got %s instead): it cannot contain a Helm release", strconv.Itoa(len(b)))
 	}
 	if bytes.Equal(b[0:3], magicGzip) {
 		r, err := gzip.NewReader(bytes.NewReader(b))
@@ -258,7 +260,7 @@ func getHelmValues() ([]byte, error) {
 			return helmUserValues, nil
 		}
 	}
-	return nil, fmt.Errorf("Unable to collect Helm values from secrets/configmaps")
+	return nil, errors.New("Unable to collect Helm values from secrets/configmaps")
 }
 
 // getDatadogAgentManifest retrieves the user-defined manifest for the Datadog Agent resource (managed by the Operator)

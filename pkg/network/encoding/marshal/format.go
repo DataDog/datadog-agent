@@ -49,8 +49,7 @@ func mergeDynamicTags(dynamicTags ...map[string]struct{}) (out map[string]struct
 }
 
 // FormatConnection converts a ConnectionStats into an model.Connection
-func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx,
-	usmEncoders []usmEncoder, dnsFormatter *dnsFormatter, ipc ipCache, tagsSet *network.TagsSet) {
+func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionStats, routes map[network.Via]RouteIdx, usmEncoders []USMEncoder, dnsFormatter *dnsFormatter, ipc ipCache, resolvConfFormatter *resolvConfFormatter, tagsSet *network.TagsSet, sysProbePid uint32) {
 
 	builder.SetPid(int32(conn.Pid))
 
@@ -123,6 +122,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		staticTags |= encoderStaticTags
 		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)
 	}
+	if conn.HasCertInfo() {
+		certInfo := conn.CertInfo.Value()
+		dynamicTags = mergeDynamicTags(dynamicTags, certInfo.GetDynamicTags())
+	}
 
 	conn.StaticTags |= staticTags
 	tags, tagChecksum := formatTags(conn, tagsSet, dynamicTags)
@@ -130,6 +133,10 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 		builder.AddTags(t)
 	}
 	builder.SetTagsChecksum(tagChecksum)
+
+	resolvConfFormatter.FormatResolvConfIdx(&conn, builder)
+
+	builder.SetSystemProbeConn(sysProbePid == conn.Pid)
 }
 
 // FormatCompilationTelemetry converts telemetry from its internal representation to a protobuf message

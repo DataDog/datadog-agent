@@ -92,7 +92,7 @@ func (m *Manager) DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDum
 			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 			Arch:              utils.RuntimeArch(),
 
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+			Name:              "activity-dump-" + utils.RandString(10),
 			ProtobufVersion:   profile.ProtobufVersion,
 			DifferentiateArgs: params.GetDifferentiateArgs(),
 			ContainerID:       containerutils.ContainerID(params.GetContainerID()),
@@ -136,6 +136,8 @@ func (m *Manager) StopActivityDump(params *api.ActivityDumpStopParams) (*api.Act
 			(params.GetContainerID() != "" && ad.Profile.Metadata.ContainerID == containerutils.ContainerID(params.GetContainerID())) ||
 			(params.GetCGroupID() != "" && ad.Profile.Metadata.CGroupContext.CGroupID == containerutils.CGroupID(params.GetCGroupID())) {
 			m.finalizeKernelEventCollection(ad, true)
+			// mark the cgroup to ignore from snapshot to prevent re-creation
+			m.ignoreFromSnapshot[ad.Profile.Metadata.CGroupContext.CGroupFile.Inode] = true
 			seclog.Infof("tracing stopped for [%s]", ad.GetSelectorStr())
 			toDelete = i
 
@@ -288,7 +290,7 @@ func (m *Manager) SaveSecurityProfile(params *api.SecurityProfileSaveParams) (*a
 	}
 
 	// write profile to encoded profile to disk
-	f, err := os.CreateTemp("/tmp", fmt.Sprintf("%s-*.profile", p.Metadata.Name))
+	f, err := os.CreateTemp("/tmp", p.Metadata.Name+"-*.profile")
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create temporary file: %w", err)
 	}
