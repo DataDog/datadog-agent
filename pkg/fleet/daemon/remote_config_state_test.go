@@ -165,8 +165,8 @@ func TestCatalogGetPackage(t *testing.T) {
 			{
 				Name:     "dd-trace-py",
 				Version:  "1.0.0",
-				Arch:     "",     // Empty arch means any
-				Platform: "",     // Empty platform means any
+				Arch:     "", // Empty arch means any
+				Platform: "", // Empty platform means any
 				URL:      "https://example.com/dd-trace-py.tar",
 			},
 			{
@@ -339,7 +339,7 @@ func TestHandleInstallerConfigUpdate(t *testing.T) {
 
 	t.Run("invalid JSON", func(t *testing.T) {
 		callback := &callbackMock{}
-		handler := handleInstallerConfigUpdate(func(configs map[string]installerConfig) error {
+		handler := handleInstallerConfigUpdate(func(_ map[string]installerConfig) error {
 			t.Fatal("should not be called")
 			return nil
 		})
@@ -528,7 +528,7 @@ func TestHandleInstallerConfigUpdate(t *testing.T) {
 	t.Run("handler returns error", func(t *testing.T) {
 		callback := &callbackMock{}
 		testErr := assert.AnError
-		handler := handleInstallerConfigUpdate(func(configs map[string]installerConfig) error {
+		handler := handleInstallerConfigUpdate(func(_ map[string]installerConfig) error {
 			return testErr
 		})
 
