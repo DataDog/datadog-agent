@@ -236,7 +236,7 @@ type LogProcessingRule struct {
 
 // ObfuscationConfig represents the configuration for obfuscation
 type ObfuscationConfig struct {
-	CreditCard CreditCardObfuscationConfig `yaml:"credit_card,omitempty"`
+	CreditCards CreditCardObfuscationConfig `yaml:"credit_cards,omitempty"`
 }
 
 // CreditCardObfuscationConfig represents the configuration for credit card obfuscation
