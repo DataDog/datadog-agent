@@ -64,9 +64,13 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         }
         map_value.len = len;
 
+        bpf_printk("[KERN] i=%d name=%s ino=%lu", i, map_value.name, key.ino);
+        bpf_printk("[KERN] i=%d mid=%u p_id=%u", i, key.mount_id, key.path_id);
+
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             next_key.ino = 0;
             next_key.mount_id = 0;
+            bpf_printk("[KERN] i=%d ROOT detected, setting parent=0", i);
         }
 
         map_value.parent = next_key;
@@ -77,6 +81,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
         if (next_key.ino == 0) {
             // mark the path resolution as complete which will stop the tail calls
             input->key.ino = 0;
+            bpf_printk("[KERN] done at i=%d", i);
             return i + 1;
         }
     }
@@ -267,6 +272,8 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 
     state->iteration++;
 
+    bpf_printk("[ERPC] start ino=%lu mid=%u p_id=%u", state->key.ino, state->key.mount_id, state->key.path_id);
+
 #ifndef USE_FENTRY
 #pragma unroll
 #endif
@@ -274,6 +281,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL) {
+            bpf_printk("[ERPC] MISS i=%d ino=%lu", i, iteration_key.ino);
             resolution_err = DR_ERPC_CACHE_MISS;
             goto exit;
         }
@@ -310,12 +318,16 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
             goto exit;
         }
 
+        bpf_printk("[ERPC] i=%d name=%s", i, map_value->name);
+        bpf_printk("[ERPC] i=%d cur_ino=%lu parent_ino=%lu", i, iteration_key.ino, map_value->parent.ino);
+
         state->cursor += map_value->len;
 
         state->key.ino = map_value->parent.ino;
         state->key.path_id = map_value->parent.path_id;
         state->key.mount_id = map_value->parent.mount_id;
         if (state->key.ino == 0) {
+            bpf_printk("[ERPC] done at i=%d", i);
             goto exit;
         }
     }

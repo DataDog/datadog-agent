@@ -187,12 +187,18 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
     update_path_id(&syscall->mount.root_key, 0, 0);
 
+    bpf_printk("[MOUNT] root_key: ino=%lu mid=%u p_id=%u", 
+        syscall->mount.root_key.ino, syscall->mount.root_key.mount_id, syscall->mount.root_key.path_id);
+
     if(!detached) {
         // populate the mountpoint dentry key
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.parent_mount_id_unique = get_mount_mount_id_unique(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
         update_path_id(&syscall->mount.mountpoint_key, 0, 0);
+
+        bpf_printk("[MOUNT] mountpoint_key: ino=%lu mid=%u p_id=%u", 
+            syscall->mount.mountpoint_key.ino, syscall->mount.mountpoint_key.mount_id, syscall->mount.mountpoint_key.path_id);
     }
 
     // populate the device of the new mount
