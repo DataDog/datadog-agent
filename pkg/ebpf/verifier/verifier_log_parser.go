@@ -43,7 +43,7 @@ func newVerifierLogParser(progSourceMap map[int]*SourceLine) *verifierLogParser 
 // in the verifierLogParser struct.
 func (vlp *verifierLogParser) parseVerifierLog(log string) (*ComplexityInfo, error) {
 	// Read all the verifier log, parse the assembly instructions and count how many times we've seen them
-	for _, line := range strings.Split(log, "\n") {
+	for line := range strings.SplitSeq(log, "\n") {
 		if err := vlp.parseLine(line); err != nil {
 			return nil, err
 		}
@@ -259,7 +259,7 @@ func parseRegisterScalarValue(regInfoGroups []string) string {
 	maxValue := int64(0)
 	hasRange := false
 
-	for _, kv := range strings.Split(regInfoGroups[5], ",") {
+	for kv := range strings.SplitSeq(regInfoGroups[5], ",") {
 		kvParts := strings.Split(kv, "=")
 		if strings.Contains(kvParts[0], "min") {
 			// Ignore errors here, mostly due to sizes (can't parse UINT_MAX in INT64) and for now we don't care
