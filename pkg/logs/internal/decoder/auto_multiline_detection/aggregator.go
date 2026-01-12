@@ -111,22 +111,6 @@ func (b *bucket) flush() *message.Message {
 	return msg
 }
 
-func (b *bucket) setShouldTruncate(val bool) {
-	b.shouldTruncate = val
-}
-
-func (b *bucket) setNeedsTruncation(val bool) {
-	b.needsTruncation = val
-}
-
-func (b *bucket) getBufferLen() int {
-	return b.buffer.Len()
-}
-
-func (b *bucket) incrementLineCount() {
-	b.lineCount++
-}
-
 // combiningAggregator aggregates multiline logs with a given label.
 type combiningAggregator struct {
 	outputFn           func(m *message.Message)
@@ -165,7 +149,7 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label) {
 	// If `noAggregate` - flush the bucket immediately and then flush the next message.
 	if label == noAggregate {
 		a.Flush()
-		a.bucket.setShouldTruncate(false) // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
+		a.bucket.shouldTruncate = false // noAggregate messages should never be truncated at the beginning (Could break JSON formatted messages)
 		a.bucket.add(msg)
 		a.Flush()
 		return
@@ -195,12 +179,12 @@ func (a *combiningAggregator) Process(msg *message.Message, label Label) {
 	// following a smaller than max-size start group label, and will result in the reset (flush) of the entire bucket.
 	// This reset will intentionally break multi-line detection and aggregation for logs larger than the limit, because
 	// doing so is safer than assuming we will correctly get a new startGroup for subsequent single line logs.
-	if msg.RawDataLen+a.bucket.getBufferLen() >= a.maxContentSize {
-		a.bucket.setNeedsTruncation(true)
-		a.bucket.incrementLineCount() // Account for the current (not yet processed) message being part of the same log
+	if msg.RawDataLen+a.bucket.buffer.Len() >= a.maxContentSize {
+		a.bucket.needsTruncation = true
+		a.bucket.lineCount++ // Account for the current (not yet processed) message being part of the same log
 		a.Flush()
 
-		a.bucket.incrementLineCount() // Account for the previous (now flushed) message being part of the same log
+		a.bucket.lineCount++ // Account for the previous (now flushed) message being part of the same log
 		a.bucket.add(msg)
 		a.Flush()
 		return
