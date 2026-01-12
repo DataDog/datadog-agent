@@ -11,6 +11,7 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -50,13 +51,15 @@ func TestCloudRunJobsSpanModifier_AdoptsFirstTraceID(t *testing.T) {
 	// Create user root span with different TraceID
 	userSpan := InitSpan("user-service", "user.operation", "user-resource", "web", time.Now().UnixNano(), map[string]string{})
 	userSpan.ParentID = 0
-	userTraceID := userSpan.TraceID
+
+	// Verify trace IDs are different before modification
+	assert.False(t, traceutil.SameTraceID(jobSpan, userSpan), "Test setup: job and user spans should have different TraceIDs")
 
 	// Modify the user span
 	modifier.ModifySpan(nil, userSpan)
 
 	// Verify: job span adopts user's TraceID
-	assert.Equal(t, userTraceID, jobSpan.TraceID, "Job span should adopt user's TraceID")
+	assert.True(t, traceutil.SameTraceID(jobSpan, userSpan), "Job span should adopt user's TraceID")
 	assert.NotEqual(t, originalJobTraceID, jobSpan.TraceID, "Job span TraceID should change")
 	assert.Equal(t, jobSpan.SpanID, userSpan.ParentID, "User span should be reparented under job span")
 }
@@ -69,22 +72,23 @@ func TestCloudRunJobsSpanModifier_MultipleTraces(t *testing.T) {
 	// Create first trace's root span
 	firstSpan := InitSpan("service-a", "operation-a", "resource-a", "web", time.Now().UnixNano(), map[string]string{})
 	firstSpan.ParentID = 0
-	firstTraceID := firstSpan.TraceID
 
 	// Create second trace's root span (different TraceID)
 	secondSpan := InitSpan("service-b", "operation-b", "resource-b", "web", time.Now().UnixNano(), map[string]string{})
 	secondSpan.ParentID = 0
-	secondTraceID := secondSpan.TraceID
 
-	// Ensure they have different TraceIDs
-	assert.NotEqual(t, firstTraceID, secondTraceID, "Test setup: traces should have different IDs")
+	// Ensure they all have different TraceIDs
+	assert.False(t, traceutil.SameTraceID(firstSpan, secondSpan), "Test setup: first and second spans should have different TraceIDs")
+	assert.False(t, traceutil.SameTraceID(jobSpan, firstSpan), "Test setup: job and first spans should have different TraceIDs")
+	assert.False(t, traceutil.SameTraceID(jobSpan, secondSpan), "Test setup: job and second spans should have different TraceIDs")
 
 	// Modify both spans
 	modifier.ModifySpan(nil, firstSpan)
 	modifier.ModifySpan(nil, secondSpan)
 
 	// Verify: first trace adopted, second trace ignored
-	assert.Equal(t, firstTraceID, jobSpan.TraceID, "Job span should adopt first trace's ID")
+	assert.True(t, traceutil.SameTraceID(jobSpan, firstSpan), "Job span should adopt first trace's ID")
+	assert.False(t, traceutil.SameTraceID(jobSpan, secondSpan), "Job span should NOT adopt second trace's ID")
 	assert.Equal(t, jobSpan.SpanID, firstSpan.ParentID, "First span should be reparented")
 	assert.Equal(t, uint64(0), secondSpan.ParentID, "Second span should NOT be reparented (different trace)")
 }
@@ -124,12 +128,9 @@ func TestCloudRunJobsSpanModifier_ConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// Verify: only one TraceID was adopted, and all matching spans were reparented
-	adoptedTraceID := jobSpan.TraceID
-	assert.NotEqual(t, uint64(0), adoptedTraceID, "Job span should have adopted a TraceID")
-
 	reparentedCount := 0
 	for _, span := range spans {
-		if span.TraceID == adoptedTraceID {
+		if traceutil.SameTraceID(jobSpan, span) {
 			assert.Equal(t, jobSpan.SpanID, span.ParentID, "Span with adopted TraceID should be reparented")
 			reparentedCount++
 		} else {
@@ -144,20 +145,66 @@ func TestCloudRunJobsSpanModifier_ChildBeforeRoot(t *testing.T) {
 	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
 	modifier := NewCloudRunJobsSpanModifier(jobSpan)
 
-	// Create child and root spans
+	// Create root span first (to get its TraceID and SpanID)
 	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
 	rootSpan.ParentID = 0
 
+	// Create child span with SAME TraceID as root (realistic scenario)
 	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
+	traceutil.CopyTraceID(childSpan, rootSpan) // Same trace
 	childSpan.ParentID = rootSpan.SpanID
 
+	// Verify trace IDs are different before modification
+	assert.False(t, traceutil.SameTraceID(jobSpan, rootSpan), "Test setup: job and root spans should have different TraceIDs")
+
 	// Modify in REVERSE order: child arrives before root
+	// With new behavior: child's TraceID is adopted, then root (with same TraceID) is reparented
 	modifier.ModifySpan(nil, childSpan)
 	modifier.ModifySpan(nil, rootSpan)
 
 	// Verify: child not modified (has ParentID != 0), root reparented
 	assert.Equal(t, rootSpan.SpanID, childSpan.ParentID, "Child span should still point to root span")
 	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should have adopted the trace ID")
+}
+
+func TestCloudRunJobsSpanModifier_TracePropagation(t *testing.T) {
+	// Test trace propagation scenario: all spans have non-zero ParentIDs
+	// This happens when trace context is propagated into the Cloud Run Job
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	originalJobTraceID := jobSpan.TraceID
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// Simulate propagated trace - all spans have ParentID != 0
+	// (they're children of spans from the calling service)
+	propagatedTraceID := uint64(0xABCD1234ABCD1234)
+	externalParentID := uint64(0x9999888877776666)
+
+	span1 := InitSpan("user-service", "operation-1", "resource-1", "web", time.Now().UnixNano(), map[string]string{})
+	span1.TraceID = propagatedTraceID
+	span1.ParentID = externalParentID // Non-zero - child of external span
+
+	span2 := InitSpan("user-service", "operation-2", "resource-2", "web", time.Now().UnixNano(), map[string]string{})
+	span2.TraceID = propagatedTraceID
+	span2.ParentID = span1.SpanID // Child of span1
+
+	// Verify trace IDs are different before modification
+	assert.False(t, traceutil.SameTraceID(jobSpan, span1), "Test setup: job and propagated spans should have different TraceIDs")
+
+	// Modify spans
+	modifier.ModifySpan(nil, span1)
+	modifier.ModifySpan(nil, span2)
+
+	// Verify: TraceID is adopted from first span
+	assert.True(t, traceutil.SameTraceID(jobSpan, span1), "Job span should adopt propagated TraceID")
+	assert.NotEqual(t, originalJobTraceID, jobSpan.TraceID, "Job span TraceID should have changed")
+
+	// Verify: No spans are reparented (none have ParentID == 0)
+	assert.Equal(t, externalParentID, span1.ParentID, "Span1 should keep its original parent")
+	assert.Equal(t, span1.SpanID, span2.ParentID, "Span2 should keep its original parent")
+
+	// Note: In this scenario, the job span is "floating" (unparented) within the trace.
+	// This is the expected trade-off for supporting trace propagation.
 }
 
 func TestCloudRunJobsSpanModifier_JobSpanNeverModified(t *testing.T) {
@@ -179,37 +226,6 @@ func TestCloudRunJobsSpanModifier_JobSpanNeverModified(t *testing.T) {
 	assert.Equal(t, originalTraceID, jobSpan.TraceID, "Job span's TraceID should not change when processing itself")
 }
 
-func TestCloudRunJobsSpanModifier_TraceIDAdoptionOnlyFromRootSpans(t *testing.T) {
-	// Create job span
-	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
-	originalJobTraceID := jobSpan.TraceID
-
-	modifier := NewCloudRunJobsSpanModifier(jobSpan)
-
-	// Create a child span (ParentID != 0) that arrives FIRST
-	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
-	childSpan.ParentID = 12345 // Non-zero parent
-	childTraceID := childSpan.TraceID
-
-	// Modify child span first
-	modifier.ModifySpan(nil, childSpan)
-
-	// Verify: job span should NOT adopt child's TraceID (child is not a root)
-	assert.Equal(t, originalJobTraceID, jobSpan.TraceID, "Job span should not adopt TraceID from child spans")
-
-	// Now create a root span
-	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
-	rootSpan.ParentID = 0
-	rootTraceID := rootSpan.TraceID
-
-	// Modify root span
-	modifier.ModifySpan(nil, rootSpan)
-
-	// Verify: job span NOW adopts root's TraceID
-	assert.Equal(t, rootTraceID, jobSpan.TraceID, "Job span should adopt TraceID from root spans")
-	assert.NotEqual(t, childTraceID, jobSpan.TraceID, "Job span should not have adopted child's TraceID")
-}
-
 func TestCloudRunJobsSpanModifier_128BitTraceID(t *testing.T) {
 	// Create job span
 	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
@@ -222,12 +238,14 @@ func TestCloudRunJobsSpanModifier_128BitTraceID(t *testing.T) {
 		"_dd.p.tid": "6958127700000000", // High 64 bits of trace ID (hex-encoded)
 	}
 
+	// Verify trace IDs are different before modification
+	assert.False(t, traceutil.SameTraceID(jobSpan, rootSpan), "Test setup: job and root spans should have different TraceIDs")
+
 	// Modify the root span
 	modifier.ModifySpan(nil, rootSpan)
 
 	// Verify: job span adopted both low and high 64 bits
-	assert.Equal(t, rootSpan.TraceID, jobSpan.TraceID, "Job span should adopt low 64 bits (TraceID)")
-	assert.Equal(t, "6958127700000000", jobSpan.Meta["_dd.p.tid"], "Job span should adopt high 64 bits (_dd.p.tid)")
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should adopt full 128-bit TraceID")
 	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
 }
 
@@ -241,11 +259,13 @@ func TestCloudRunJobsSpanModifier_128BitTraceID_NoHighBits(t *testing.T) {
 	rootSpan.ParentID = 0
 	// No _dd.p.tid tag
 
+	// Verify trace IDs are different before modification
+	assert.False(t, traceutil.SameTraceID(jobSpan, rootSpan), "Test setup: job and root spans should have different TraceIDs")
+
 	// Modify the root span
 	modifier.ModifySpan(nil, rootSpan)
 
-	// Verify: job span adopted low 64 bits, no high bits set
-	assert.Equal(t, rootSpan.TraceID, jobSpan.TraceID, "Job span should adopt low 64 bits (TraceID)")
-	assert.NotContains(t, jobSpan.Meta, "_dd.p.tid", "Job span should not have _dd.p.tid when user span doesn't have it")
+	// Verify: job span adopted the 64-bit trace ID
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should adopt TraceID")
 	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
 }

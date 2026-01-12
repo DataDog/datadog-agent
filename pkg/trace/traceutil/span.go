@@ -227,3 +227,18 @@ func CopyTraceID(dst, src *pb.Span) {
 		SetMeta(dst, metaTraceIDHigh, tidHigh)
 	}
 }
+
+// SameTraceID returns true if both spans have the same full trace ID.
+// This compares both the low 64 bits (TraceID field) and the high 64 bits
+// (_dd.p.tid meta tag) to properly handle 128-bit trace IDs.
+func SameTraceID(a, b *pb.Span) bool {
+	if a.TraceID != b.TraceID {
+		return false
+	}
+	aHigh, aHasHigh := GetMeta(a, metaTraceIDHigh)
+	bHigh, bHasHigh := GetMeta(b, metaTraceIDHigh)
+	if aHasHigh != bHasHigh {
+		return false
+	}
+	return aHigh == bHigh
+}

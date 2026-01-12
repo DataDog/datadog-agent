@@ -324,3 +324,70 @@ func TestCopyTraceID(t *testing.T) {
 		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"], "High 64 bits should be overwritten")
 	})
 }
+
+func TestSameTraceID(t *testing.T) {
+	t.Run("Same 64-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 12345}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Different 64-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 99999}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("Same 128-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Same low bits, different high bits", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "1111111111111111"},
+		}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("One has high bits, other doesn't", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+		}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("Neither has high bits", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 12345}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Other meta fields don't affect comparison", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000", "other": "a"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000", "other": "b"},
+		}
+		assert.True(t, SameTraceID(a, b))
+	})
+}
