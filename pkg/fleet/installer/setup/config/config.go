@@ -241,6 +241,7 @@ type ObfuscationConfig struct {
 
 // CreditCardObfuscationConfig represents the configuration for credit card obfuscation
 type CreditCardObfuscationConfig struct {
+	Enabled    *bool    `yaml:"enabled,omitempty"`
 	KeepValues []string `yaml:"keep_values,omitempty"`
 }
 
