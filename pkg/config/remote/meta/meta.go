@@ -76,9 +76,8 @@ func RootsConfig(site string, configRootOverride string) EmbeddedRoot {
 		return NewEmbeddedRoot(stagingRootConfig)
 	} else if strings.HasSuffix(site, "ddog-gov.com") {
 		return NewEmbeddedRoot(govRootConfig)
-	} else {
-		return NewEmbeddedRoot(prodRootConfig)
 	}
+	return NewEmbeddedRoot(prodRootConfig)
 }
 
 // Root returns the last root the EmbeddedRoots
