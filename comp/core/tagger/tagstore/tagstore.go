@@ -263,16 +263,17 @@ func (s *TagStore) LookupHashed(entityID types.EntityID, cardinality types.TagCa
 // This function is needed only for performance reasons. It functions like
 // LookupHashed, but accepts a string instead of an EntityID. This reduces the
 // allocations that occur when an EntityID is passed as a parameter.
-func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) tagset.HashedTags {
+// Returns ErrNotFound if the entity is not present in the store.
+func (s *TagStore) LookupHashedWithEntityStr(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	s.RLock()
 	defer s.RUnlock()
 
 	storedTags, present := s.store.Get(entityID)
 	if !present {
-		return tagset.HashedTags{}
+		return tagset.HashedTags{}, ErrNotFound
 	}
 
-	return storedTags.getHashedTags(cardinality)
+	return storedTags.getHashedTags(cardinality), nil
 }
 
 // Lookup gets tags from the store and returns them concatenated in a string slice.

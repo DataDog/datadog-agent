@@ -8,20 +8,8 @@
 //nolint:revive // TODO(PLINT) Fix revive linter
 package wlan
 
-import (
-	"errors"
-)
+import "errors"
 
-// getWiFiInfo is a package-level function variable for testability
-// Tests can reassign this to mock WiFi data retrieval
-var getWiFiInfo func() (wifiInfo, error)
-
-// GetWiFiInfo retrieves WiFi information (not supported on this platform)
-func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
-	// Check for test override
-	if getWiFiInfo != nil {
-		return getWiFiInfo()
-	}
-
+func GetWiFiInfo() (wifiInfo, error) {
 	return wifiInfo{}, errors.New("wifi info only supported on macOS and Windows")
 }

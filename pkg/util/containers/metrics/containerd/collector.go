@@ -145,7 +145,7 @@ func (c *containerdCollector) GetPIDs(containerNS, containerID string, _ time.Du
 		return nil, err
 	}
 
-	pids := make([]int, len(processes))
+	pids := make([]int, 0, len(processes))
 	for _, process := range processes {
 		pids = append(pids, int(process.Pid))
 	}
