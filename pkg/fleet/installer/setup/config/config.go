@@ -89,6 +89,7 @@ type DatadogConfig struct {
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
+	Obfuscation          ObfuscationConfig          `yaml:"obfuscation,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check

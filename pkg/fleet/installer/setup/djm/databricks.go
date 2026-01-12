@@ -154,6 +154,10 @@ func SetupDatabricks(s *common.Setup) error {
 		Default: tracerConfigDatabricks,
 	}
 
+	s.Config.DatadogYAML.Obfuscation = config.ObfuscationConfig{CreditCard: config.CreditCardObfuscationConfig{
+		KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime"},
+	}}
+
 	setupCommonHostTags(s)
 	installMethod := "manual"
 	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
