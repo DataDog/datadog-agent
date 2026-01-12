@@ -200,6 +200,18 @@ probes:
           ref: "x"
         dsl: "x"
     captureSnapshot: true
+  - id: testAtomicAdd
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testAtomicAdd
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
   - id: testSingleString
     type: LOG_PROBE
     tags:
@@ -1393,11 +1405,15 @@ probes:
       - "foo:bar"
     where:
       methodName: main.testStructWithMap
-    template: "{s}"
+    template: "{s} {@duration}"
     segments:
       - json:
           ref: "s"
         dsl: "s"
+      - str: " "
+      - json:
+          ref: "@duration"
+        dsl: "@duration"
     captureSnapshot: true
   - id: testArrayOfMaps
     type: LOG_PROBE

@@ -33,10 +33,6 @@ func (n *noopTagger) GenerateContainerIDFromOriginInfo(origindetection.OriginInf
 	return "", nil
 }
 
-func (n *noopTagger) AccumulateTagsFor(types.EntityID, types.TagCardinality, tagset.TagsAccumulator) error {
-	return nil
-}
-
 func (n *noopTagger) Standard(types.EntityID) ([]string, error) {
 	return nil, nil
 }

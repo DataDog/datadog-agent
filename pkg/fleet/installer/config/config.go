@@ -7,13 +7,16 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	patch "gopkg.in/evanphx/json-patch.v4"
@@ -38,6 +41,11 @@ const (
 	FileOperationMove FileOperationType = "move"
 )
 
+var (
+	// secRegex matches SEC[...] placeholders in config patches
+	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
+)
+
 // Directories is the directories of the config.
 type Directories struct {
 	StablePath     string
@@ -54,6 +62,34 @@ type State struct {
 type Operations struct {
 	DeploymentID   string          `json:"deployment_id"`
 	FileOperations []FileOperation `json:"file_operations"`
+}
+
+// ReplaceSecrets replaces SEC[key] placeholders with decrypted values in the operations.
+func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) error {
+	for key, decryptedValue := range decryptedSecrets {
+		// Build the full key: SEC[key]
+		fullKey := fmt.Sprintf("SEC[%s]", key)
+
+		// Replace in all file operations
+		for i := range operations.FileOperations {
+			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
+				operations.FileOperations[i].Patch = bytes.ReplaceAll(
+					operations.FileOperations[i].Patch,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
+		}
+	}
+
+	// Verify all secrets have been replaced
+	for _, operation := range operations.FileOperations {
+		if secRegex.Match(operation.Patch) {
+			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
+		}
+	}
+
+	return nil
 }
 
 // Apply applies the operations to the root.
@@ -109,7 +145,7 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root, rootPath strin
 		if err != nil {
 			return err
 		}
-		previousJSONBytes, err := json.Marshal(previous)
+		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
 			return err
 		}
@@ -316,8 +352,8 @@ var (
 	allowedConfigFiles = []configFileSpec{
 		{pattern: "/datadog.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/otel-config.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
-		{pattern: "/security-agent.yaml", owner: "root", group: "root", mode: 0640},
-		{pattern: "/system-probe.yaml", owner: "root", group: "root", mode: 0640},
+		{pattern: "/security-agent.yaml", owner: "root", group: "dd-agent", mode: 0640},
+		{pattern: "/system-probe.yaml", owner: "root", group: "dd-agent", mode: 0640},
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
@@ -452,7 +488,7 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
 	}
-	stableDatadogJSONBytes, err := json.Marshal(stableDatadogJSON)
+	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
 	if err != nil {
 		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
 	}
@@ -481,4 +517,34 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	}
 
 	return op, nil
+}
+
+// convertYAML2UnmarshalToJSONMarshallable converts a YAML unmarshalable to a JSON marshallable:
+// yaml.v2 unmarshals nested maps to map[any]any, but json.Marshal expects map[string]any and
+// fails for map[any]any. This function converts the map[any]any to map[string]any.
+func convertYAML2UnmarshalToJSONMarshallable(i any) any {
+	switch x := i.(type) {
+	case map[any]any:
+		m := map[string]any{}
+		for k, v := range x {
+			if strKey, ok := k.(string); ok {
+				m[strKey] = convertYAML2UnmarshalToJSONMarshallable(v)
+			}
+			// Skip non-string keys as they cannot be represented in JSON
+		}
+		return m
+	case map[string]any:
+		m := map[string]any{}
+		for k, v := range x {
+			m[k] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	case []any:
+		m := make([]any, len(x))
+		for i, v := range x {
+			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
+		}
+		return m
+	}
+	return i
 }
