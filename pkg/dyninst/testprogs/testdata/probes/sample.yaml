@@ -2330,5 +2330,3 @@ probes:
     segments:
       - str: "testInlinedFuncFromOtherPackage"
     captureSnapshot: true
-    tags:
-    - "issue:InvalidDWARF"

@@ -974,6 +974,27 @@ Probes:
       probeTemplate:
         TemplateString: testInlinedBCB
         Segments: [testInlinedBCB]
+    - id: testInlinedFuncFromOtherPackage
+      version: 0
+      type: LOG_PROBE
+      where:
+        methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+      template: testInlinedFuncFromOtherPackage
+      segments: [testInlinedFuncFromOtherPackage]
+      captureSnapshot: true
+      subprogram: {subprogram: 163}
+      events:
+        - Kind: Entry
+          Type: 1543 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
+          InjectionPoints:
+            - PC: "0xcd3c41"
+              Frameless: true
+            - PC: "0xcd67ab"
+              Frameless: false
+          Condition: null
+      probeTemplate:
+        TemplateString: testInlinedFuncFromOtherPackage
+        Segments: [testInlinedFuncFromOtherPackage]
     - id: testInlinedPrint
       version: 0
       type: LOG_PROBE
@@ -7789,6 +7810,15 @@ Subprograms:
             - Range: 0xcd5eac..0xcd5fe5
               Pieces: [{Size: 40, Op: {CfaOffset: -128}}]
           Role: Parameter
+    - ID: 163
+      Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+      OutOfLinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0xcd67ab..0xcd67b2]
+          RootRanges: [0xcd6660..0xcd67ee]
+        - Ranges: [0xcd3c41..0xcd3c49]
+          RootRanges: [0xcd3c40..0xcd3c4a]
+      Variables: []
 Types:
     - __kind: PointerType
       ID: 137
@@ -11046,6 +11076,9 @@ Types:
       GoRuntimeType: 1.043872e+06
       GoKind: 22
       Pointee: 810 BaseType vendor/golang.org/x/net/idna.runeError
+    - __kind: EventRootType
+      ID: 1543
+      Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
     - __kind: EventRootType
       ID: 1505
       Name: Probe[main.stackC]
@@ -25878,20 +25911,8 @@ Types:
       ByteSize: 4
       GoRuntimeType: 990432
       GoKind: 5
-MaxTypeID: 1542
-Issues:
-    - probe_definition:
-        id: testInlinedFuncFromOtherPackage
-        version: 0
-        type: LOG_PROBE
-        where:
-            methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
-        tags: ['issue:InvalidDWARF']
-        capture: {maxReferenceDepth: 1}
-        template: testInlinedFuncFromOtherPackage
-        segments: [testInlinedFuncFromOtherPackage]
-        captureSnapshot: true
-      issue: {Kind: 5, Message: ErrUnknownPC}
+MaxTypeID: 1543
+Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x18013a0", TypesOffset: 296}
 CommonTypes:
     G: 22 StructureType runtime.g
