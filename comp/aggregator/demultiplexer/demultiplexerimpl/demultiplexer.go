@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -46,6 +47,7 @@ type dependencies struct {
 	Compressor             compression.Component
 	Tagger                 tagger.Component
 	Hostname               hostnameinterface.Component
+	Observer               observer.Component `optional:"true"`
 
 	Params Params
 }
@@ -85,6 +87,8 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.Tagger,
 		hostnameDetected,
 	)
+	// Wire observer via setter to avoid changing the constructor signature (for POC)
+	agentDemultiplexer.SetObserver(deps.Observer)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}
