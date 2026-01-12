@@ -384,7 +384,8 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	if resp.StatusCode == http.StatusBadRequest ||
 		resp.StatusCode == http.StatusUnauthorized ||
 		resp.StatusCode == http.StatusForbidden ||
-		resp.StatusCode == http.StatusRequestEntityTooLarge {
+		resp.StatusCode == http.StatusRequestEntityTooLarge ||
+		resp.StatusCode == http.StatusUnprocessableEntity {
 		// the logs-agent is likely to be misconfigured,
 		// the URL or the API key may be wrong.
 		tlmDropped.Inc()
