@@ -71,8 +71,8 @@ func HostInfoFromAttributes(attrs pcommon.Map) (hostInfo *HostInfo) {
 	}
 
 	attrs.Range(func(k string, v pcommon.Value) bool {
-		if strings.HasPrefix(k, ec2TagPrefix) {
-			tag := fmt.Sprintf("%s:%s", strings.TrimPrefix(k, ec2TagPrefix), v.Str())
+		if after, ok := strings.CutPrefix(k, ec2TagPrefix); ok {
+			tag := fmt.Sprintf("%s:%s", after, v.Str())
 			hostInfo.EC2Tags = append(hostInfo.EC2Tags, tag)
 		}
 		return true

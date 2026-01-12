@@ -347,8 +347,8 @@ func (s serverVendor) String() string {
 // The function returns the property value if found and a bool (true if found, false otherwise)
 func extractJavaPropertyFromArgs(args []string, name string) (string, bool) {
 	for _, a := range args {
-		if strings.HasPrefix(a, name) {
-			return strings.TrimPrefix(a, name), true
+		if after, ok := strings.CutPrefix(a, name); ok {
+			return after, true
 		}
 	}
 	return "", false

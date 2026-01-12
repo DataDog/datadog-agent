@@ -61,6 +61,9 @@ func getComponents(
 ) {
 	var errs []error
 
+	serializerexporter.InitTelemetry(telemetry)
+	logsagentexporter.InitTelemetry(telemetry)
+
 	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
 	if err != nil {
 		errs = append(errs, err)
