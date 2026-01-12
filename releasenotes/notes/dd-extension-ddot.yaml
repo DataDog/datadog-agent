@@ -8,6 +8,6 @@
 ---
 upgrade:
   - |
-    DDOT now submits Fleet Automation metadata through the upstream datadogextension, which is now enabled by default.
-    Users who have configured `otelcollector.converter.features` may need to add the `datadog` feature in order to enable Fleet Automation, since DDOT Fleet Automation metadata is no longer submitted through the ddflareextension,
+    DDOT now submits Fleet Automation metadata through the upstream datadogextension, which is enabled by default.
+    If you configured `otelcollector.converter.features`, you may need to add the `datadog` feature to enable Fleet Automation, as DDOT Fleet Automation metadata is no longer submitted through the `ddflareextension`.
 
