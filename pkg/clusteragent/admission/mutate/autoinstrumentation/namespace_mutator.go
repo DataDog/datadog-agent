@@ -15,9 +15,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -280,42 +278,6 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	return mutators
 }
 
-func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
-	libs := []libInfo{}
-
-	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
-		// Check for a custom library image.
-		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
-		if found {
-			libs = append(libs, l.libInfo("", customImage))
-		}
-
-		// Check for a custom library version.
-		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
-		if found {
-			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
-		}
-
-		// Check all containers in the pod for container specific Local SDK Injection.
-		for _, container := range pod.Spec.Containers {
-			// Check for custom library image.
-			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
-			if found {
-				libs = append(libs, l.libInfo(container.Name, customImage))
-			}
-
-			// Check for custom library version.
-			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
-			if found {
-				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
-			}
-		}
-	}
-
-	return libs
-}
-
 func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
@@ -373,58 +335,6 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 		log.Debugf("This ownerKind:%s is not yet supported by the process language auto-detection feature", ownerKind)
 		return nil
 	}
-}
-
-// The config for the security products has three states: <unset> | true | false.
-// This is because the products themselves have treat these cases differently:
-// * <unset> - product disactivated but can be activated remotely
-// * true - product activated, not overridable remotely
-// * false - product disactivated, not overridable remotely
-func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
-	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
-	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
-
-	var mutators []containerMutator
-	if asmEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
-	}
-
-	if iastEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
-	}
-
-	if asmScaEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
-	}
-
-	return mutators
-}
-
-// The config for profiling has four states: <unset> | "auto" | "true" | "false".
-// * <unset> - profiling not activated, but can be activated remotely
-// * "true" - profiling activated unconditionally, not overridable remotely
-// * "false" - profiling deactivated, not overridable remotely
-// * "auto" - profiling activates per-process heuristically, not overridable remotely
-func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
-
-	var mutators []containerMutator
-	if profilingEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
-	}
-
-	return mutators
-}
-
-func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
-	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
-	ns, err := wmeta.GetKubernetesMetadata(id)
-	if err != nil {
-		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
-	}
-
-	return ns.EntityMeta.Labels, nil
 }
 
 type libInfoLanguageDetection struct {
@@ -558,16 +468,6 @@ func (e extractedPodLibInfo) useLanguageDetectionLibs() (extractedPodLibInfo, bo
 	}
 
 	return e, false
-}
-
-func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
-	for _, container := range pod.Spec.InitContainers {
-		if container.Name == initContainerName {
-			return true
-		}
-	}
-
-	return false
 }
 
 // getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists

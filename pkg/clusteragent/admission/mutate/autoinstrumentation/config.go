@@ -432,3 +432,44 @@ func parseInitSecurityContext(datadogConfig config.Component) (*corev1.SecurityC
 
 	return nil, nil
 }
+
+// The config for ASM/IAST/SCA has three states: <unset> | true | false.
+// * <unset> - product disactivated but can be activated remotely
+// * true - product activated, not overridable remotely
+// * false - product disactivated, not overridable remotely
+func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
+	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
+	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
+	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
+
+	var mutators []containerMutator
+	if asmEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
+	}
+
+	if iastEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
+	}
+
+	if asmScaEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
+	}
+
+	return mutators
+}
+
+// The config for profiling has four states: <unset> | "auto" | "true" | "false".
+// * <unset> - profiling not activated, but can be activated remotely
+// * "true" - profiling activated unconditionally, not overridable remotely
+// * "false" - profiling deactivated, not overridable remotely
+// * "auto" - profiling activates per-process heuristically, not overridable remotely
+func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
+	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
+
+	var mutators []containerMutator
+	if profilingEnabled != nil {
+		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
+	}
+
+	return mutators
+}

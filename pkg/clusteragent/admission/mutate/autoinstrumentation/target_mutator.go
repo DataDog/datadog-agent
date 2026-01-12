@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -492,4 +493,60 @@ func getAllLatestDefaultLibraries(containerRegistry string) []libInfo {
 	}
 
 	return libsToInject
+}
+
+func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
+	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
+	ns, err := wmeta.GetKubernetesMetadata(id)
+	if err != nil {
+		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
+	}
+
+	return ns.EntityMeta.Labels, nil
+}
+
+func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
+	for _, container := range pod.Spec.InitContainers {
+		if container.Name == initContainerName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
+	libs := []libInfo{}
+
+	// Check all supported languages for potential Local SDK Injection.
+	for _, l := range supportedLanguages {
+		// Check for a custom library image.
+		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfo("", customImage))
+		}
+
+		// Check for a custom library version.
+		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
+		if found {
+			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
+		}
+
+		// Check all containers in the pod for container specific Local SDK Injection.
+		for _, container := range pod.Spec.Containers {
+			// Check for custom library image.
+			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfo(container.Name, customImage))
+			}
+
+			// Check for custom library version.
+			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
+			if found {
+				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
+			}
+		}
+	}
+
+	return libs
 }
