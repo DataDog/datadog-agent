@@ -5,7 +5,7 @@ param (
 )
 
 $retryCount = 0
-$maxRetries = 10
+$maxRetries = 4
 
 # To catch the error message from aws cli
 $ErrorActionPreference = "Continue"
