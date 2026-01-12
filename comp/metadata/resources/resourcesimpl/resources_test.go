@@ -21,7 +21,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -46,7 +45,6 @@ func TestConfDisabled(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -70,7 +68,6 @@ func TestConfInterval(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -103,7 +100,6 @@ func TestCollect(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -128,7 +124,6 @@ func TestCollectError(t *testing.T) {
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
-			hostnameimpl.MockModule(),
 		),
 	)
 

@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
@@ -36,7 +35,6 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -123,7 +121,6 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					resourcesimpl.MockModule(),
 					fx.Replace(resources.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
-					hostnameimpl.MockModule(),
 				),
 			)
 
@@ -148,7 +145,6 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 		resourcesimpl.MockModule(),
 		fx.Replace(resources.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
-		hostnameimpl.MockModule(),
 	))
 	h := ret.Comp.(*host)
 
@@ -167,7 +163,6 @@ func TestFlareProvider(t *testing.T) {
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
@@ -187,7 +182,6 @@ func TestStatusHeaderProvider(t *testing.T) {
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
-			hostnameimpl.MockModule(),
 		),
 	)
 
