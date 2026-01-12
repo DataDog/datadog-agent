@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add a new `forwarder-triage` diagnose suite that reads the forwarder expvar (`/debug/vars`) twice and reports
+    API key validation status, forwarder health (errors/retries/requeues/drops), and the most impacted endpoints.
