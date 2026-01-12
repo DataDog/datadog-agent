@@ -14,6 +14,8 @@ variables:
   TRIGGER_UNITS:
     description: A comma-separated list of units to run, or `all` to run all units
     value: $[[ inputs.units ]]
+  # Reduce configuration size by allowing for direct referencing of common conditions
+  IS_UNIT_SELECTION: $CI_PIPELINE_SOURCE =~ /^(pipeline|schedule|trigger|web)$/
 
 stages:
 - unit-generate
@@ -29,4 +31,7 @@ validate-units:
   - .image:build:linux
   stage: .pre
   script:
+  - echo "DDCI_REQUEST_ID is $DDCI_REQUEST_ID"
+  - echo "GIT_BASE_BRANCH is $GIT_BASE_BRANCH"
+  - curl https://cimetadataserver.us1.ddbuild.io/internal/ddci/metadata/$DDCI_REQUEST_ID
   - dda check ci units

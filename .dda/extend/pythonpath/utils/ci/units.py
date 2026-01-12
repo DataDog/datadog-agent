@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import re
+import tomllib
+from functools import cached_property
 from itertools import batched
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from msgspec import Struct, to_builtins
+import msgspec
 
 from utils.ci.config.model.unit import CIUnit
 from utils.ci.config.model.unit.gitlab import DynamicGitLabPipeline, GitLabUnitProviderConfig, StaticGitLabPipeline
+
+if TYPE_CHECKING:
+    from dda.utils.fs import Path
 
 # The maximum number of paths per rule in GitLab CI
 MAX_PATHS_PER_RULE = 50
@@ -21,15 +27,30 @@ STABLE_BRANCH_PATTERNS = (
 )
 
 
-class RegisteredCIUnit(Struct):
-    id: str
-    """The unique identifier of the unit"""
+class RegisteredCIUnit:
+    def __init__(self, config_dir: Path) -> None:
+        self.__config_dir = config_dir
 
-    config: CIUnit
-    """The configuration of the unit that is used to generate the registry file"""
+    @property
+    def config_dir(self) -> Path:
+        return self.__config_dir
 
-    config_file: str
-    """The path to the config file relative to the repository root that defines the unit"""
+    @cached_property
+    def config_file(self) -> Path:
+        return self.config_dir / "config.toml"
+
+    @property
+    def id(self) -> str:
+        return self.config_dir.name
+
+    @cached_property
+    def config(self) -> CIUnit:
+        data = tomllib.loads(self.config_file.read_text(encoding="utf-8"))
+        return msgspec.convert(data, CIUnit)
+
+    @cached_property
+    def provider_name(self) -> str:
+        return msgspec.inspect.type_info(type(self.config.provider)).tag
 
 
 def unit_registration(unit: RegisteredCIUnit) -> str:
@@ -48,7 +69,7 @@ def unit_registration(unit: RegisteredCIUnit) -> str:
 
 def _gitlab_static_unit_registration(unit: RegisteredCIUnit) -> str:
     data = {
-        f"unit:{unit.id}": {
+        _unit_id_as_job_name(unit.id): {
             "extends": [".job:unit:base", ".job:unit:static:trigger"],
             "variables": {
                 "UNIT_ID": unit.id,
@@ -62,7 +83,7 @@ def _gitlab_static_unit_registration(unit: RegisteredCIUnit) -> str:
 
 
 def _gitlab_dynamic_unit_registration(unit: RegisteredCIUnit) -> str:
-    trigger_job_name = f"unit:{unit.id}"
+    trigger_job_name = _unit_id_as_job_name(unit.id)
     generate_job_name = f"{trigger_job_name}:generate"
     data = {
         generate_job_name: {
@@ -96,22 +117,20 @@ def _gitlab_generate_rules(unit: RegisteredCIUnit) -> list[dict[str, Any]]:
         key=lambda s: (-s.count("**"), -s.count("*"), s.casefold()),
     )
     if unit.config.trigger.watch_config and unit.config_file not in patterns:
-        patterns.append(unit.config_file)
+        patterns.append(unit.config_file.as_posix())
 
     # Allow manual triggering via explicit unit ID or `all`
     if unit.config.trigger.allow_manual:
-        allowed_sources = {"pipeline", "schedule", "trigger", "web"}
-        sources_condition = rf"$CI_PIPELINE_SOURCE =~ /^({'|'.join(sorted(allowed_sources))})$/"
         rules.extend(
             (
-                {"if": f"{sources_condition} && $TRIGGER_UNITS =~ /^all$|\b{unit.id}\b/"},
+                {"if": rf"$IS_UNIT_SELECTION && $TRIGGER_UNITS =~ /^all$|\b{re.escape(unit.id)}\b/"},
                 # Skip if units were selectable and the unit was not included
-                {"if": sources_condition, "when": "never"},
+                {"if": "$IS_UNIT_SELECTION", "when": "never"},
             )
         )
 
     # Add the unit-defined rules before change detection to allow for more control
-    rules.extend(to_builtins(rule) for rule in unit.config.provider.rules)
+    rules.extend(msgspec.to_builtins(rule) for rule in unit.config.provider.rules)
 
     # Add the change detection rules if there are any patterns to watch
     if patterns:
@@ -137,6 +156,11 @@ def _gitlab_generate_rules(unit: RegisteredCIUnit) -> list[dict[str, Any]]:
         rules.extend({"changes": {"compare_to": GIT_BASE_BRANCH, "paths": paths}} for paths in path_batches)
 
     return rules
+
+
+def _unit_id_as_job_name(unit_id: str) -> str:
+    # Support hierarchies via dot separators
+    return f"unit:{unit_id.replace(".", ":")}"
 
 
 def _generate_yaml(data: dict) -> str:
