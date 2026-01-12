@@ -23,6 +23,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	libraryinjection "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/library_injection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -105,58 +106,89 @@ func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
 }
 
 // apmInjectionMutator returns a mutator that injects the APM injector and language-specific libraries.
-// This is the core injection logic that will be replaced by providers in the future.
 func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		// Compute resource requirements (may skip injection if insufficient)
-		requirements, decision := initContainerResourceRequirements(pod, m.config.defaultResourceRequirements)
-		if decision.skipInjection {
-			if pod.Annotations == nil {
-				pod.Annotations = make(map[string]string)
+		// Convert libInfo to LibraryConfig here because library_injection cannot
+		// import autoinstrumentation (circular dependency).
+		libs := make([]libraryinjection.LibraryConfig, len(config.libs))
+		for i, lib := range config.libs {
+			libs[i] = libraryinjection.LibraryConfig{
+				Language:      string(lib.lang),
+				ResolvedImage: m.resolveLibraryImage(lib),
+				ContainerName: lib.ctrName,
 			}
-			SetAnnotation(pod, AnnotationInjectionError, decision.message)
-			return nil
 		}
 
-		securityContext := m.resolveInitSecurityContext(pod.Namespace)
-		initContainerMutators := containerMutators{containerResourceRequirements{requirements}}
-		if securityContext != nil {
-			initContainerMutators = append(initContainerMutators, containerSecurityContext{securityContext})
-		}
-
-		// Inject the APM injector
-		injector := m.newInjector(pod, time.Now(), libRequirementOptions{
-			containerFilter:       m.config.containerFilter,
-			initContainerMutators: initContainerMutators,
+		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			DefaultResourceRequirements: m.config.defaultResourceRequirements,
+			InitSecurityContext:         m.config.initSecurityContext,
+			ContainerFilter:             m.config.containerFilter,
+			Wmeta:                       m.wmeta,
+			Debug:                       m.isDebugEnabled(pod),
+			AutoDetected:                autoDetected,
+			InjectionType:               injectionType,
+			Injector: libraryinjection.InjectorConfig{
+				ResolvedImage: m.resolveInjectorImage(pod),
+			},
+			Libraries: libs,
 		})
-		if err := injector.podMutator().mutatePod(pod); err != nil {
-			metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
-			log.Errorf("Cannot inject library injector into pod %s: %s", mutatecommon.PodString(pod), err)
-			return err
-		}
-
-		// Inject language-specific libraries
-		var lastError error
-		for _, lib := range config.libs {
-			injected := false
-			langStr := string(lib.lang)
-			defer func() {
-				metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
-			}()
-
-			if err := lib.podMutator(libRequirementOptions{
-				containerFilter:       m.config.containerFilter,
-				initContainerMutators: initContainerMutators,
-			}, m.imageResolver).mutatePod(pod); err != nil {
-				metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-				lastError = err
-				continue
-			}
-
-			injected = true
-		}
-		return lastError
 	})
+}
+
+// isDebugEnabled checks if debug mode is enabled via pod annotation.
+func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
+	if debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug); found {
+		if debug, err := strconv.ParseBool(debugEnabled); err == nil {
+			return debug
+		}
+	}
+	return false
+}
+
+// resolveInjectorImage determines the injector image to use based on configuration and pod annotations.
+func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.ResolvedImage {
+	// Check for the injector image being set via annotation (highest priority)
+	if injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage); found {
+		return libraryinjection.ResolvedImage{Image: injectorImage}
+	}
+
+	// Check for the injector version set via annotation
+	injectorTag := m.config.Instrumentation.InjectorImageTag
+	if injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion); found {
+		injectorTag = injectorVersion
+	}
+
+	// Try to resolve via imageResolver (remote config)
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(m.config.containerRegistry, "apm-inject", injectorTag); ok {
+			log.Debugf("Resolved injector image for %s/apm-inject:%s: %s", m.config.containerRegistry, injectorTag, resolved.FullImageRef)
+			return libraryinjection.ResolvedImage{
+				Image:            resolved.FullImageRef,
+				CanonicalVersion: resolved.CanonicalVersion,
+			}
+		}
+	}
+
+	// Fall back to tag-based image
+	return libraryinjection.ResolvedImage{
+		Image: fmt.Sprintf("%s/apm-inject:%s", m.config.containerRegistry, injectorTag),
+	}
+}
+
+// resolveLibraryImage resolves the library image using the imageResolver if available.
+// Falls back to the pre-formatted image if resolution fails.
+func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.ResolvedImage {
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(lib.registry, lib.repository, lib.tag); ok {
+			log.Debugf("Resolved library image for %s/%s:%s: %s", lib.registry, lib.repository, lib.tag, resolved.FullImageRef)
+			return libraryinjection.ResolvedImage{
+				Image:            resolved.FullImageRef,
+				CanonicalVersion: resolved.CanonicalVersion,
+			}
+		}
+	}
+	// Fall back to pre-formatted image
+	return libraryinjection.ResolvedImage{Image: lib.image}
 }
 
 // libConfigFromAnnotationsMutator returns a mutator that reads library configuration
