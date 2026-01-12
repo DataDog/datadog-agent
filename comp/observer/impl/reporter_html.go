@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -504,9 +505,13 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             }
         }
 
-        async function fetchSeries(name, agg) {
+        async function fetchSeries(name, agg, tags) {
             try {
-                const resp = await fetch('/api/series?namespace=demo&name=' + encodeURIComponent(name) + '&agg=' + agg);
+                let url = '/api/series?namespace=demo&name=' + encodeURIComponent(name) + '&agg=' + agg;
+                if (tags && tags.length > 0) {
+                    url += '&tags=' + encodeURIComponent(tags.join(','));
+                }
+                const resp = await fetch(url);
                 if (!resp.ok) return null;
                 return await resp.json();
             } catch (e) {
@@ -656,7 +661,7 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             for (const item of seriesList) {
                 for (const agg of analysisAggregations) {
                     const chartKey = item.name + ':' + agg;
-                    const series = await fetchSeries(item.name, agg);
+                    const series = await fetchSeries(item.name, agg, item.tags);
 
                     // Create/update small chart for ALL metrics
                     const smallChartId = 'all-chart-' + chartKey.replace(/[^a-z0-9]/gi, '-');
@@ -783,6 +788,12 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
+	// Parse tags from query string
+	var tags []string
+	if tagsParam := req.URL.Query().Get("tags"); tagsParam != "" {
+		tags = strings.Split(tagsParam, ",")
+	}
+
 	r.mu.RLock()
 	storage := r.storage
 	r.mu.RUnlock()
@@ -792,7 +803,7 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	series := storage.GetSeries(namespace, name, nil, agg)
+	series := storage.GetSeries(namespace, name, tags, agg)
 	if series == nil {
 		http.Error(w, "series not found", http.StatusNotFound)
 		return
