@@ -707,13 +707,15 @@ func (suite *BaseSuite[Env]) AssertAPMTrace(args *TestAPMTraceArgs) {
 					"Expected %d spans for service %s, got %d", *args.Expect.SpanCount, args.Filter.ServiceName, len(matchingSpans))
 			}
 
-			// Check tags on first matching span
+			// Check tags on TracerPayload (where container tags are enriched)
 			if expectedTags != nil {
-				spanTags := make([]string, 0, len(matchingSpans[0].Meta))
-				for k, v := range matchingSpans[0].Meta {
-					spanTags = append(spanTags, k+":"+v)
+				traceTags := make([]string, 0)
+				for _, payload := range latestTrace.TracerPayloads {
+					for k, v := range payload.Tags {
+						traceTags = append(traceTags, k+":"+v)
+					}
 				}
-				err := assertTags(spanTags, expectedTags, []*regexp.Regexp{}, false)
+				err := assertTags(traceTags, expectedTags, []*regexp.Regexp{}, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyTraceQuery)
 			}
 

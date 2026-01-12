@@ -627,11 +627,17 @@ func (suite *ecsAPMSuite) testTrace(taskName string) {
 		var err error
 		// Iterate starting from the most recent traces
 		for _, trace := range traces {
-			tags := lo.MapToSlice(trace.Tags, func(k string, v string) string {
-				return k + ":" + v
-			})
-			// Assert origin detection is working properly
-			err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, false)
+			// Container tags are in TracerPayload.Tags, not AgentPayload.Tags
+			for _, tracerPayload := range trace.TracerPayloads {
+				tags := lo.MapToSlice(tracerPayload.Tags, func(k string, v string) string {
+					return k + ":" + v
+				})
+				// Assert origin detection is working properly
+				err = assertTags(tags, compiledPatterns, []*regexp.Regexp{}, false)
+				if err == nil {
+					break
+				}
+			}
 			if err == nil {
 				break
 			}
