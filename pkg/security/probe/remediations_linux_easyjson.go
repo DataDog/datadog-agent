@@ -92,13 +92,13 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			} else {
 				out.Date = string(in.String())
 			}
-		case "process_context":
+		case "process":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				(out.Process).UnmarshalEasyJSON(in)
 			}
-		case "container_context":
+		case "container":
 			if in.IsNull() {
 				in.Skip()
 			} else {
@@ -190,12 +190,12 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.String(string(in.Date))
 	}
 	if true {
-		const prefix string = ",\"process_context\":"
+		const prefix string = ",\"process\":"
 		out.RawString(prefix)
 		(in.Process).MarshalEasyJSON(out)
 	}
 	if true {
-		const prefix string = ",\"container_context\":"
+		const prefix string = ",\"container\":"
 		out.RawString(prefix)
 		(in.Container).MarshalEasyJSON(out)
 	}
