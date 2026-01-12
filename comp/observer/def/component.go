@@ -10,7 +10,6 @@
 // passed to data pipelines without adding significant overhead.
 package observer
 
-
 // team: agent-metric-pipelines
 
 // Component is the central observer that receives data via handles.
@@ -170,8 +169,20 @@ type ActiveCorrelation struct {
 	Title       string          // display title, e.g. "Correlated: Kernel network bottleneck"
 	Signals     []string        // contributing signal sources
 	Anomalies   []AnomalyOutput // the actual anomalies that triggered this correlation
+	Markers     []Marker        // discrete event markers relevant to this correlation
 	FirstSeen   int64           // when pattern first matched (unix seconds, from data)
 	LastUpdated int64           // most recent contributing signal (unix seconds, from data)
+}
+
+// Marker represents a discrete event used as correlation evidence or annotation.
+// Unlike anomalies (which are detected from time series analysis), markers are
+// explicit events such as container OOMs, restarts, or lifecycle transitions.
+// They are not analyzed with CUSUM but serve as context for understanding correlations.
+type Marker struct {
+	Source    string   // event source, e.g., "container.oom", "container.restart"
+	Timestamp int64    // when the event occurred (unix seconds)
+	Tags      []string // event tags for filtering/grouping
+	Message   string   // optional human-readable description
 }
 
 // RawAnomalyState provides read access to raw anomalies before correlation processing.

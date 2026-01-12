@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -232,6 +233,24 @@ func initAgentDemultiplexer(log log.Component,
 	return demux
 }
 
+// eventLogView is a minimal observer.LogView implementation for forwarding aggregator events into the observer.
+// It is immediately copied by the observer handle, so it must not be retained.
+type eventLogView struct {
+	content  []byte
+	status   string
+	tags     []string
+	hostname string
+	ts       int64
+}
+
+func (v *eventLogView) GetContent() []byte  { return v.content }
+func (v *eventLogView) GetStatus() string   { return v.status }
+func (v *eventLogView) GetTags() []string   { return v.tags }
+func (v *eventLogView) GetHostname() string { return v.hostname }
+
+// GetTimestamp is an optional method recognized by the observer handle to set event time.
+func (v *eventLogView) GetTimestamp() int64 { return v.ts }
+
 // Options returns options used during the demux initialization.
 func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
@@ -261,6 +280,35 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 			}
 		}
 	}
+}
+
+// SetObserver wires an observer component into the demultiplexer.
+// This should be called after construction to enable mirroring of check metrics
+// and events to the observer for local analysis/correlation.
+func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
+	if obs == nil {
+		return
+	}
+	// Metrics: mirror raw check samples into the observer via the CheckSampler hook.
+	d.aggregator.SetObserverHandle(obs.GetHandle("check-metrics"))
+
+	// Events: forward lifecycle events as best-effort log observations (used as markers/correlation evidence).
+	eventsHandle := obs.GetHandle("check-events")
+	d.aggregator.SetObserverEventSink(func(e event.Event) {
+		// Copy tags to avoid mutating the underlying slice that is also stored in agg.events.
+		tags := make([]string, len(e.Tags), len(e.Tags)+2)
+		copy(tags, e.Tags)
+		// Marker tags used downstream for correlation/annotation (kept local to observer only).
+		tags = append(tags, "observer_signal:event", fmt.Sprintf("observer_ts:%d", e.Ts))
+
+		eventsHandle.ObserveLog(&eventLogView{
+			content:  []byte(e.String()),
+			status:   string(e.AlertType),
+			tags:     tags,
+			hostname: e.Host,
+			ts:       e.Ts,
+		})
+	})
 }
 
 // run runs all demultiplexer parts

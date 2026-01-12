@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -272,6 +273,14 @@ type BufferedAggregator struct {
 	globalTags                  func(types.TagCardinality) ([]string, error) // This function gets global tags from the tagger when host tags are not available
 	tagger                      tagger.Component
 	flushAndSerializeInParallel FlushAndSerializeInParallel
+
+	// observerHandle is an optional handle used to mirror check metric samples into the observer.
+	// It is set by the demultiplexer at startup and then copied into newly created CheckSamplers.
+	observerHandle observer.Handle
+	// observerEventSink is an optional callback invoked for every event received by the aggregator.
+	// It is intended for best-effort local observability (e.g., forwarding container lifecycle
+	// events into the observer for correlation) without changing the canonical event pipeline.
+	observerEventSink func(event.Event)
 
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
@@ -541,6 +550,23 @@ func (agg *BufferedAggregator) addEvent(e event.Event) {
 	e.Tags = tb.Get()
 
 	agg.events = append(agg.events, &e)
+
+	// Best-effort: also forward events to an optional local sink (e.g., observer).
+	if agg.observerEventSink != nil {
+		agg.observerEventSink(e)
+	}
+}
+
+// SetObserverEventSink registers a best-effort callback invoked for each event received by the aggregator.
+// Passing nil disables forwarding.
+func (agg *BufferedAggregator) SetObserverEventSink(sink func(event.Event)) {
+	agg.observerEventSink = sink
+}
+
+// SetObserverHandle sets the observer handle for mirroring check metrics.
+// The handle will be passed to newly created CheckSamplers.
+func (agg *BufferedAggregator) SetObserverHandle(h observer.Handle) {
+	agg.observerHandle = h
 }
 
 // GetSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
@@ -1014,7 +1040,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		log.Debugf("Sampler with ID '%s' has already been registered, will use existing sampler", id)
 		return
 	}
-	agg.checkSamplers[id] = newCheckSampler(
+	cs := newCheckSampler(
 		pkgconfigsetup.Datadog().GetInt("check_sampler_bucket_commits_count_expiry"),
 		pkgconfigsetup.Datadog().GetBool("check_sampler_expire_metrics"),
 		pkgconfigsetup.Datadog().GetBool("check_sampler_context_metrics"),
@@ -1024,4 +1050,9 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		id,
 		agg.tagger,
 	)
+	// Wire observer handle if configured (set via SetObserverHandle on the aggregator)
+	if agg.observerHandle != nil {
+		cs.SetObserverHandle(agg.observerHandle)
+	}
+	agg.checkSamplers[id] = cs
 }
