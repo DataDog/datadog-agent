@@ -264,8 +264,8 @@ single_machine_performance-regression_detector-merge_base_check:
           sys.exit(1)
 
       experiments = data.get('experiments', {})
-      failed = False
-      decision_record = []
+      failed_gates = []
+      passed_gates = []
 
       for exp_name, exp_data in experiments.items():
           if exp_name.startswith('quality_gate_'):
@@ -280,26 +280,36 @@ single_machine_performance-regression_detector-merge_base_check:
                   num_failed = len(failed_replicates)
                   num_passed = num_total - num_failed
                   if failed_replicates:
-                      decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Failed {num_failed} which is > 0. Gate **FAILED**."
+                      failed_gates.append(
+                          f"{exp_name}, bounds check {check_name}: {num_passed}/{num_total} replicas passed. Gate failed."
                       )
-                      failed = True
                   else:
-                      decision_record.append(
-                          f"- **{exp_name}**, bounds check **{check_name}**: {num_passed}/{num_total} replicas passed. Gate passed."
+                      passed_gates.append(
+                          f"{exp_name}, bounds check {check_name}: {num_passed}/{num_total} replicas passed. Gate passed."
                       )
+
+      total_gates = len(failed_gates) + len(passed_gates)
+      num_failed_gates = len(failed_gates)
 
       with open('outputs/decision_record.md', 'w') as f:
-          # Extra newline since this is appended to another report
-          f.write('\n\n## CI Pass/Fail Decision\n\n')
-          if failed:
-              f.write('❌ **Failed.** Some Quality Gates were violated.\n\n')
-              f.write('\n'.join(decision_record))
+          f.write('# CI Pass/Fail Decision\n\n')
+          if failed_gates:
+              f.write(f'❌ Failed. {num_failed_gates}/{total_gates} Quality Gates failed.\n\n')
+              for gate in failed_gates:
+                  f.write(f'- {gate}\n')
+              if passed_gates:
+                  f.write('\n<details>\n<summary>Passing Quality Gates</summary>\n\n')
+                  for gate in passed_gates:
+                      f.write(f'- {gate}\n')
+                  f.write('\n</details>\n')
           else:
-              f.write('✅ **Passed.** All Quality Gates passed.\n\n')
-              f.write('\n'.join(decision_record))
+              f.write(f'✅ {total_gates}/{total_gates} Quality Gates passed.\n\n')
+              f.write('<details>\n<summary>Quality Gate Details</summary>\n\n')
+              for gate in passed_gates:
+                  f.write(f'- {gate}\n')
+              f.write('\n</details>\n')
 
-      if failed:
+      if failed_gates:
           print("Quality gate failed, see decision record")
           sys.exit(1)
       else:
@@ -385,8 +395,8 @@ single-machine-performance-regression_detector-pr-comment:
     # to escape double quotes to distinguish literal quotes in the report from
     # the double quotes that delimit the value of the "message" field in the
     # payload.
-    # Appends the Decision Record to final report
-    - cat outputs/report.md outputs/decision_record.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
+    # Prepends the Decision Record to final report
+    - cat outputs/decision_record.md outputs/report.md | sed -z 's/\n/\\n/g' | sed -z 's/"/\\"/g' > report_as_json_string.txt
     - cat report_as_json_string.txt
     # Transforming the Markdown report to a valid JSON string is easy to foul
     # up, so to make debugging easier, we store the payload in a variable to
