@@ -61,9 +61,9 @@ func RootsDirector(site string, directorRootOverride string) EmbeddedRoot {
 		return NewEmbeddedRoot(stagingRootDirector)
 	} else if strings.HasSuffix(site, "ddog-gov.com") {
 		return NewEmbeddedRoot(govRootDirector)
-	} else {
-		return NewEmbeddedRoot(prodRootDirector)
 	}
+	return NewEmbeddedRoot(prodRootDirector)
+
 }
 
 // RootsConfig returns all the roots of the director repo
