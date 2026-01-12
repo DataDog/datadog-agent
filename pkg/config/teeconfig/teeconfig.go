@@ -36,6 +36,9 @@ func NewTeeConfig(baseline, compare model.BuildableConfig) model.BuildableConfig
 	return &teeConfig{baseline: baseline, compare: compare}
 }
 
+// GetLibType return "tee"
+func (t *teeConfig) GetLibType() string { return "tee" }
+
 // RevertFinishedBackToBuilder returns an interface that can build more on the
 // current config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!

@@ -176,6 +176,13 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbe = cfg
 }
 
+func init() {
+	osinit()
+
+	// init default for code that access the config before it initialized
+	InitConfigObjects("", "")
+}
+
 // Variables to initialize at start time
 var (
 	// StartTime is the agent startup time
@@ -263,17 +270,55 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func init() {
-	osinit()
+type configLibBackend struct {
+	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
+}
 
-	datadog = create.NewConfig("datadog")
-	systemProbe = create.NewConfig("system-probe")
+func resolveConfigLibType(cliPath string, defaultDir string) string {
+	configPath := ""
+	for _, path := range []string{cliPath, defaultDir} {
+		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+			path = filepath.Join(path, "datadog.yaml")
+		}
+
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+		}
+	}
+
+	if configPath == "" {
+		return ""
+	}
+
+	yamlFile, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+
+	conf := configLibBackend{}
+	err = yaml.Unmarshal(yamlFile, &conf)
+	if err != nil {
+		return ""
+	}
+	return conf.ConfNodeTreeModel
+}
+
+// InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
+// but from the main.
+func InitConfigObjects(cliPath string, defaultDir string) {
+	// We first load the configuration to see which config library should be used.
+	configLib := resolveConfigLibType(cliPath, defaultDir)
+
+	datadog = create.NewConfig("datadog", configLib)
+	systemProbe = create.NewConfig("system-probe", configLib)
 
 	// Configuration defaults
 	initConfig()
 
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
+
+	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
