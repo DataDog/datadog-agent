@@ -743,6 +743,7 @@ impl LazyDataStore {
         let mut new_file_containers: HashMap<PathBuf, HashSet<String>> = HashMap::with_capacity(new_files.len());
         let mut new_qos: HashSet<String> = HashSet::with_capacity(4);
         let mut new_namespaces: HashSet<String> = HashSet::with_capacity(16);
+        let mut new_metrics: HashSet<String> = HashSet::with_capacity(192);
         let mut container_timestamps: HashMap<String, (i64, i64)> = HashMap::with_capacity(new_files.len() * 4);
         let mut sidecars_read = 0usize;
 
@@ -753,6 +754,13 @@ impl LazyDataStore {
                 Ok(s) => s,
                 Err(_) => continue,
             };
+
+            // Also discover metrics from this new file (cheap: reads only first row group)
+            if let Ok(metrics) = get_metrics_from_schema(parquet_path) {
+                for metric in metrics {
+                    new_metrics.insert(metric.name);
+                }
+            }
 
             // Parse file timestamp for container time bounds
             let file_ts_ms = parquet_path
@@ -850,6 +858,18 @@ impl LazyDataStore {
                 if !index.namespaces.contains(&ns) {
                     index.namespaces.push(ns);
                 }
+            }
+
+            // Merge metrics (add newly discovered metrics)
+            let old_metrics_count = index.metrics.len();
+            let existing_metrics: HashSet<String> = index.metrics.iter().map(|m| m.name.clone()).collect();
+            for metric_name in new_metrics {
+                if !existing_metrics.contains(&metric_name) {
+                    index.metrics.push(MetricInfo { name: metric_name });
+                }
+            }
+            if index.metrics.len() > old_metrics_count {
+                index.metrics.sort_by(|a, b| a.name.cmp(&b.name));
             }
 
             // Update data_range
