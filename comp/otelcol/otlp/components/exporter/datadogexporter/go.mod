@@ -16,7 +16,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.73.0-rc.11
-	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.11
+	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/serializer v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.11
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.11
@@ -101,6 +101,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagset v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.64.0-rc.3 // indirect

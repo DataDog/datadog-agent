@@ -51,6 +51,8 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
@@ -87,7 +89,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.11 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.73.0-rc.11 // indirect
