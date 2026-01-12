@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/ec2"
+	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -126,28 +126,28 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	awsRegion := params.AWSRegion
 
 	if provider == "" {
-		// Try to detect if we're running on AWS
 		ctx := context.Background()
-		if ec2.IsRunningOn(ctx) {
+		if creds.IsRunningOnAWS(ctx) {
 			provider = cloudauth.ProviderAWS
 			log.Infof("Auto-detected AWS as cloud provider for '%s'", apiKeyConfigKey)
 
 			// Auto-detect AWS region if not specified
 			if awsRegion == "" {
-				region, err := ec2.GetRegion(ctx)
+				region, err := creds.GetAWSRegion(ctx)
 				if err != nil {
 					log.Warnf("Failed to auto-detect AWS region for '%s': %v. Will use default region.", apiKeyConfigKey, err)
-				} else {
+				} else if region != "" {
 					awsRegion = region
 					log.Infof("Auto-detected AWS region '%s' for '%s'", awsRegion, apiKeyConfigKey)
 				}
 			}
 		} else {
-			log.Errorf("Could not auto-detect cloud provider for '%s'. Please specify 'provider' in the config. Currently only 'aws' is supported.", apiKeyConfigKey)
+			log.Errorf("Could not auto-detect cloud provider for '%s'. Currently only 'aws' is supported.", apiKeyConfigKey)
 			return
 		}
 	}
 
+	// Create the appropriate provider
 	var tokenProvider common.Provider
 	switch provider {
 	case cloudauth.ProviderAWS:
@@ -161,7 +161,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 
 	authConfig := &common.AuthConfig{
 		OrgUUID:      params.OrgUUID,
-		Provider:     provider, // Use the detected/resolved provider
+		Provider:     provider,
 		ProviderAuth: tokenProvider,
 	}
 
@@ -193,7 +193,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	log.Infof("Delegated authentication is enabled for '%s', fetching initial API key...", apiKeyConfigKey)
 
 	// Fetch the initial API key synchronously
-	apiKey, _, err := d.refreshAndGetAPIKey(instance, context.Background(), false)
+	apiKey, _, err := d.refreshAndGetAPIKey(context.Background(), instance, false)
 	if err != nil {
 		log.Errorf("Failed to get initial delegated API key for '%s': %v", apiKeyConfigKey, err)
 		// Track the initial failure for exponential backoff
@@ -212,7 +212,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
-func (d *delegatedAuthComponent) refreshAndGetAPIKey(instance *authInstance, _ context.Context, forceRefresh bool) (*string, bool, error) {
+func (d *delegatedAuthComponent) refreshAndGetAPIKey(_ context.Context, instance *authInstance, forceRefresh bool) (*string, bool, error) {
 	// If not forcing refresh, check if we already have a cached key
 	if !forceRefresh {
 		d.mu.RLock()
@@ -294,7 +294,7 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 				return
 			case <-ticker.C:
 				// Time to refresh
-				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance, instance.refreshCtx, true)
+				lCreds, updated, lErr := d.refreshAndGetAPIKey(instance.refreshCtx, instance, true)
 
 				d.mu.Lock()
 				if lErr != nil {

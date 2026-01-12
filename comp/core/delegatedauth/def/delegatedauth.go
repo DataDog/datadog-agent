@@ -31,15 +31,14 @@ type ConfigParams struct {
 	RefreshInterval int
 
 	// Provider specifies the cloud provider to use for authentication.
-	// This field is for internal/testing use only. In normal operation, the cloud provider
-	// is auto-detected from the environment. Currently supported: AWS (via EC2 metadata service).
-	// Leave empty for auto-detection.
+	// Optional. Currently supported: "aws" (AWS via EC2 metadata service).
+	// If empty, the component will auto-detect the cloud provider from the environment.
+	// For testing, this can be explicitly set to bypass auto-detection.
 	Provider string
 
 	// AWSRegion is the AWS region to use for AWS provider authentication.
-	// This field is for internal/testing use only. In normal operation, the region
-	// is auto-detected from the EC2 metadata service. If auto-detection fails, the default
-	// region (us-east-1) will be used. Leave empty for auto-detection.
+	// Optional. If not specified, the component will auto-detect it from the EC2 metadata service.
+	// For testing, this can be explicitly set to bypass auto-detection.
 	AWSRegion string
 
 	// APIKeyConfigKey specifies the configuration key where the fetched API key should be written.

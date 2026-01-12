@@ -8,6 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.73.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.5
 	github.com/stretchr/testify v1.11.1
 )
@@ -35,7 +36,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.73.0-rc.5 // indirect

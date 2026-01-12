@@ -2391,7 +2391,8 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadog reads config files and initializes config with decrypted secrets and delegated auth
+// LoadDatadog reads config files and initializes config with decrypted secrets and delegated auth.
+// Cloud provider detection for delegated auth happens automatically in the delegatedauth component.
 func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, additionalEnvVars []string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
@@ -2418,6 +2419,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	}
 
 	// Configure delegated auth after secrets are resolved but before other components initialize
+	// Cloud provider detection happens automatically within the delegatedauth component
 	if err := configureDelegatedAuth(config, delegatedAuthComp); err != nil {
 		return err
 	}
@@ -2664,11 +2666,12 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 // before other components are initialized.
 // Both global and logs-specific delegated auth can be enabled independently.
 // Delegated auth is automatically enabled when org_uuid is specified.
+// Cloud provider detection happens automatically within the delegatedauth component.
 func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
 	configured := false
 
 	// Configure global delegated auth (writes to api_key)
-	// Cloud provider and region are auto-detected
+	// Cloud provider and region are auto-detected by the delegatedauth component
 	// Enabled automatically when org_uuid is specified
 	orgUUID := config.GetString("delegated_auth.org_uuid")
 	if orgUUID != "" {
@@ -2683,7 +2686,7 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 	}
 
 	// Configure logs-specific delegated auth (writes to logs_config.api_key)
-	// Cloud provider and region are auto-detected
+	// Cloud provider and region are auto-detected by the delegatedauth component
 	// Enabled automatically when org_uuid is specified
 	logsOrgUUID := config.GetString("logs_config.delegated_auth.org_uuid")
 	if logsOrgUUID != "" {
