@@ -23,7 +23,53 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource) (*cache.Reflector, *reflectorStore) {
+// metadataFilter filters out KubernetesMetadata entities that don't have any of
+// the configured labels or annotations. This is used to reduce memory
+// consumption when collecting kubernetes metadata objects only to support the
+// for the labels/annotations as tags options.
+// With the current implementation this doesn't delete entities from the store
+// if they had the labels or annotations specified but then those
+// labels/annotations were deleted.
+type metadataFilter struct {
+	labels      map[string]struct{}
+	annotations map[string]struct{}
+}
+
+func newMetadataFilter(labels, annotations map[string]struct{}) *metadataFilter {
+	return &metadataFilter{
+		labels:      labels,
+		annotations: annotations,
+	}
+}
+
+// filteredOut returns true when the entity doesn't have any of the configured
+// labels or annotations.
+func (f *metadataFilter) filteredOut(entity workloadmeta.Entity) bool {
+	kubernetesMetadata, ok := entity.(*workloadmeta.KubernetesMetadata)
+	if !ok || kubernetesMetadata == nil {
+		return true
+	}
+
+	if len(f.labels) == 0 && len(f.annotations) == 0 {
+		return false
+	}
+
+	for label := range kubernetesMetadata.Labels {
+		if _, ok := f.labels[label]; ok {
+			return false
+		}
+	}
+
+	for key := range kubernetesMetadata.Annotations {
+		if _, ok := f.annotations[key]; ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, config config.Reader, metadataclient metadata.Interface, gvr schema.GroupVersionResource, filter reflectorStoreFilter) (*cache.Reflector, *reflectorStore) {
 	metadataListerWatcher := &cache.ListWatch{
 		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 			return metadataclient.Resource(gvr).List(ctx, options)
@@ -44,7 +90,7 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, c
 		wlmetaStore: wlmetaStore,
 		seen:        make(map[string]workloadmeta.EntityID),
 		parser:      parser,
-		filter:      nil,
+		filter:      filter,
 	}
 	metadataReflector := cache.NewNamedReflector(
 		componentName,

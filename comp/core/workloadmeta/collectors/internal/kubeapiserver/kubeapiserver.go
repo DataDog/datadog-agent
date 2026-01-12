@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -25,6 +24,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -169,6 +169,73 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 	return []string{"namespaces"}
 }
 
+func gvrToGroupResource(gvr schema.GroupVersionResource) string {
+	if gvr.Group == "" {
+		return gvr.Resource
+	}
+	return gvr.Resource + "." + gvr.Group
+}
+
+// getMetadataFilter returns a filter for the given GVR if it should be
+// filtered. Returns nil when everything should be collected.
+//
+// Filtering is applied only when the resource is collected for the
+// labels/annotations as tags feature. Resources collected for other reasons
+// (nodes, namespaces for APM, explicit config) are not filtered.
+func getMetadataFilter(cfg config.Reader, gvr schema.GroupVersionResource) reflectorStoreFilter {
+	groupResource := gvrToGroupResource(gvr)
+
+	// Nodes are always collected for other features, so don't filter.
+	if groupResource == "nodes" {
+		return nil
+	}
+
+	// Namespaces collected for APM instrumentation, so don't filter.
+	if groupResource == "namespaces" && cfg.GetBool("apm_config.instrumentation.enabled") {
+		return nil
+	}
+
+	// If it's explicitly enabled, don't filter.
+	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		for _, gvrConfig := range cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources") {
+			if strings.HasSuffix(gvrConfig, gvr.Resource) {
+				if gvr.Group == "" || strings.HasPrefix(gvrConfig, gvr.Group) {
+					return nil
+				}
+			}
+		}
+	}
+
+	metadataAsTags := configutils.GetMetadataAsTags(cfg)
+
+	labelKeys := make(map[string]struct{})
+	annotationKeys := make(map[string]struct{})
+
+	// Get configured labels for this resource
+	if labelsAsTags, ok := metadataAsTags.GetResourcesLabelsAsTags()[groupResource]; ok {
+		for labelName := range labelsAsTags {
+			// If there's a wildcard, don't filter. Optimize later if needed.
+			if strings.Contains(labelName, "*") {
+				return nil
+			}
+			labelKeys[labelName] = struct{}{}
+		}
+	}
+
+	// Get configured annotations for this resource
+	if annotationsAsTags, ok := metadataAsTags.GetResourcesAnnotationsAsTags()[groupResource]; ok {
+		for annotationName := range annotationsAsTags {
+			// If there's a wildcard, don't filter. Optimize later if needed.
+			if strings.Contains(annotationName, "*") {
+				return nil
+			}
+			annotationKeys[annotationName] = struct{}{}
+		}
+	}
+
+	return newMetadataFilter(labelKeys, annotationKeys)
+}
+
 type collector struct {
 	id      string
 	catalog workloadmeta.AgentType
@@ -212,7 +279,8 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
 		for _, gvr := range gvrs {
-			reflector, store := newMetadataStore(ctx, wlmetaStore, c.config, metadataclient, gvr)
+			filter := getMetadataFilter(c.config, gvr)
+			reflector, store := newMetadataStore(ctx, wlmetaStore, c.config, metadataclient, gvr, filter)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
 		}

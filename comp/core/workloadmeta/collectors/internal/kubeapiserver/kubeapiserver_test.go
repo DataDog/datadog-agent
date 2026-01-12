@@ -567,3 +567,88 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 		})
 	}
 }
+
+func Test_getMetadataFilter(t *testing.T) {
+	tests := []struct {
+		name           string
+		cfg            map[string]interface{}
+		gvr            schema.GroupVersionResource
+		expectedFilter *metadataFilter
+	}{
+		{
+			name: "nodes are never filtered",
+			cfg: map[string]interface{}{
+				"kubernetes_node_labels_as_tags": `{"environment": "env"}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "", Version: "v1", Resource: "nodes"},
+			expectedFilter: nil,
+		},
+		{
+			name: "namespaces with APM enabled are not filtered",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":  true,
+				"kubernetes_resources_labels_as_tags": `{"namespaces": {"team": "team"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"},
+			expectedFilter: nil,
+		},
+		{
+			name: "namespaces without APM enabled are filtered",
+			cfg: map[string]interface{}{
+				"apm_config.instrumentation.enabled":  false,
+				"kubernetes_resources_labels_as_tags": `{"namespaces": {"team": "team"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"},
+			expectedFilter: &metadataFilter{labels: map[string]struct{}{"team": {}}, annotations: map[string]struct{}{}},
+		},
+		{
+			name: "resource in explicit config is not filtered",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "apps/statefulsets",
+				"kubernetes_resources_labels_as_tags":              `{"statefulsets.apps": {"environment": "env"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			expectedFilter: nil,
+		},
+		{
+			name: "resource with wildcard label is not filtered",
+			cfg: map[string]interface{}{
+				"kubernetes_resources_labels_as_tags": `{"statefulsets.apps": {"*": "label_%%label%%"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			expectedFilter: nil,
+		},
+		{
+			name: "resource with wildcard annotation is not filtered",
+			cfg: map[string]interface{}{
+				"kubernetes_resources_annotations_as_tags": `{"statefulsets.apps": {"*": "annotation_%%annotation%%"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			expectedFilter: nil,
+		},
+		{
+			name: "resource with both labels and annotations as tags is filtered",
+			cfg: map[string]interface{}{
+				"kubernetes_resources_labels_as_tags":      `{"daemonsets.apps": {"environment": "env"}}`,
+				"kubernetes_resources_annotations_as_tags": `{"daemonsets.apps": {"owner": "owner"}}`,
+			},
+			gvr:            schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "daemonsets"},
+			expectedFilter: &metadataFilter{labels: map[string]struct{}{"environment": {}}, annotations: map[string]struct{}{"owner": {}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, test.cfg)
+			filter := getMetadataFilter(cfg, test.gvr)
+
+			if test.expectedFilter == nil {
+				assert.Nil(t, filter)
+				return
+			}
+
+			assert.Equal(t, test.expectedFilter, filter)
+		})
+	}
+}
