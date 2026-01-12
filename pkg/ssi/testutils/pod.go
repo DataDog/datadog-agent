@@ -205,6 +205,15 @@ func (v *PodValidator) RequireMissingEnvs(t *testing.T, missing []string, expect
 	}
 }
 
+// RequireUnmutatedContainers ensures that the specified containers have no Datadog-related environment variables.
+func (v *PodValidator) RequireUnmutatedContainers(t *testing.T, containerNames []string) {
+	for _, name := range containerNames {
+		validator, found := v.containers[name]
+		require.True(t, found, "invalid test setup, expected container %s does not exist in the pod", name)
+		validator.RequireUnmutated(t)
+	}
+}
+
 // RequireInjectorVersion is a high level function to ensure the injector version found for the pod matches expected.
 func (v *PodValidator) RequireInjectorVersion(t *testing.T, expected string) {
 	require.Equal(t, expected, v.injectorVersion, "the injector version does not match the expected")
