@@ -67,7 +67,7 @@ func TestZeroThresholds(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.False(t, check.flareGenerated)
+	assert.False(t, check.flareAttempted)
 }
 
 // TestMemThreshold tests that the flare is generated when memory threshold is exceeded
@@ -82,7 +82,7 @@ func TestMemThreshold(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }
 
 // TestCPUThreshold tests that the flare is generated when CPU threshold is exceeded
@@ -94,7 +94,7 @@ func TestCPUThreshold(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }
 
 // TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
@@ -111,7 +111,7 @@ func TestBelowThresholds(t *testing.T) {
 
 	err := check.Run()
 	require.NoError(t, err)
-	assert.False(t, check.flareGenerated)
+	assert.False(t, check.flareAttempted)
 }
 
 // TestGenerateFlareLocal tests that the flare is generated correctly when ticket ID and user email are not provided
@@ -120,7 +120,7 @@ func TestGenerateFlareLocal(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }
 
 // TestGenerateFlareTicket tests that the flare is generated correctly when ticket ID and user email are provided
@@ -133,7 +133,7 @@ func TestGenerateFlareTicket(t *testing.T) {
 
 	err := check.generateFlare()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }
 
 // TestTerminateAgentOnThresholdConfig tests that the terminate_agent_on_threshold config is parsed correctly
@@ -154,7 +154,7 @@ func TestTerminateAgentOnThresholdConfig(t *testing.T) {
 	// and that the check would attempt termination in a non-test environment.
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }
 
 // TestTerminateAgentOnThresholdDisabled tests that termination does not occur when disabled
@@ -171,5 +171,5 @@ func TestTerminateAgentOnThresholdDisabled(t *testing.T) {
 	// Verify flare is still generated
 	err := check.Run()
 	require.NoError(t, err)
-	assert.True(t, check.flareGenerated)
+	assert.True(t, check.flareAttempted)
 }

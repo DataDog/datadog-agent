@@ -52,7 +52,7 @@ type Config struct {
 type Check struct {
 	core.CheckBase
 	instance        *Config
-	flareGenerated  bool
+	flareAttempted  bool
 	flareComponent  flare.Component
 	agentConfig     config.Component
 	lastCPUTimes    *cpu.TimesStat
@@ -130,8 +130,8 @@ func (m *Check) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
 
 // Run executes the agent profiling check, generating a flare with profiles if thresholds are exceeded
 func (m *Check) Run() error {
-	// Don't run again if the flare has already been generated
-	if m.flareGenerated {
+	// Don't run again if flare generation has already been attempted
+	if m.flareAttempted {
 		return nil
 	}
 
@@ -225,9 +225,16 @@ func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
 	if m.flareComponent == nil {
 		log.Info("Skipping flare generation: flare component not available")
-		m.flareGenerated = true
+		m.flareAttempted = true
 		return nil
 	}
+
+	// Mark flare as attempted regardless of success/failure to prevent retry loops
+	// This ensures that even if flare creation or sending fails, we won't retry indefinitely
+	defer func() {
+		m.flareAttempted = true
+		log.Info("Flare generation attempt complete. No more flares will be generated until the Agent is restarted.")
+	}()
 
 	// Prepare flare arguments
 	flareArgs := types.FlareArgs{
@@ -255,10 +262,6 @@ func (m *Check) generateFlare() error {
 	} else {
 		log.Infof("Flare generated locally at %q", flarePath)
 	}
-
-	// Mark flare as generated to stop future runs
-	m.flareGenerated = true
-	log.Info("Flare generation complete. No more flares will be generated until the Agent is restarted.")
 
 	// Terminate agent if configured to do so
 	if m.instance.TerminateAgentOnThreshold {
