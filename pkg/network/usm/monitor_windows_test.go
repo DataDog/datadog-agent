@@ -169,7 +169,7 @@ func TestHTTPStats(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		found := verifyHTTPStats(t, monitor,
 			// Endpoint 1: GET /test with 204 status
-			func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+			func(_ *testing.T, key http.Key, reqStats *http.RequestStats) bool {
 				if key.Method != http.MethodGet {
 					return false
 				}
@@ -184,7 +184,7 @@ func TestHTTPStats(t *testing.T) {
 				return stat != nil && stat.Count >= 1
 			},
 			// Endpoint 2: GET /api/health with 200 status
-			func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+			func(_ *testing.T, key http.Key, reqStats *http.RequestStats) bool {
 				if key.Method != http.MethodGet {
 					return false
 				}
