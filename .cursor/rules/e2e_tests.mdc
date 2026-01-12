@@ -6,27 +6,15 @@ globs: test/new-e2e/**/*
 
 # E2E Test Development Guidelines
 
-## Overview
+This rule provides troubleshooting tips and code patterns not covered in the main documentation. For prerequisites, setup, and basic usage, see `docs/public/how-to/test/e2e.md`.
 
-E2E tests are located in `test/new-e2e/` and use a framework integrated in `test/e2e-framework/` to provision cloud resources and run tests.
+## AWS Account Configuration
 
-## Running E2E Tests
+**CRITICAL**: E2E tests require specific AWS accounts:
+- **Local execution**: Use `agent-sandbox` AWS account
+- **CI execution**: Uses `agent-qa` AWS account
 
-### Basic Command
-
-```bash
-dda inv -- -e new-e2e-tests.run --targets ./tests/<package>
-```
-
-### Key Options
-
-- `--targets`: Path relative to `test/new-e2e` to target specific test packages
-- `--run`: Go test `-run` flag to run specific tests
-- `E2E_DEV_MODE=true`: Prevents infrastructure from being destroyed after tests (useful for debugging)
-
-### AWS Account Configuration
-
-**CRITICAL**: E2E tests must run in the `agent-sandbox` AWS account. This is configured in `~/.test_infra_config.yaml`:
+Configure `~/.test_infra_config.yaml`:
 
 ```yaml
 configParams:
@@ -37,9 +25,8 @@ configParams:
     apiKey: "00000000000000000000000000000000"
 ```
 
-The default environment is `agent-sandbox`. If you're running in a different AWS account, EC2 instances won't have the correct IAM permissions to pull images from ECR.
-
-**Common Error**: If you see `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`, verify your AWS account configuration in `~/.test_infra_config.yaml`.
+**Common Error**: `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`
+**Solution**: Verify AWS account configuration. Ensure you're authenticated with `aws-vault login sso-agent-sandbox-account-admin`.
 
 ### Kubernetes Tests with ECR Authentication
 
@@ -54,61 +41,32 @@ E2E_DEV_MODE=true dda inv -- -e new-e2e-tests.run \
   --run TestGPUK8sSuiteUbuntu2204
 ```
 
-Note: The `-c ddagent:imagePullPassword` flags are for the Kubernetes agent to pull images, not for the EC2 instance. The EC2 instance uses its IAM role, which requires the correct AWS account setup.
+Note: The `-c ddagent:imagePull*` flags are for the Kubernetes agent to pull images, not for the EC2 instance. The EC2 instance uses its IAM role.
 
-## Test Structure
+## Provisioners and Environments
 
-### Suite Pattern
+Provisioners are in `test/e2e-framework/testing/provisioners/`:
 
-Tests follow the testify suite pattern:
-
-```go
-type mySuite struct {
-    e2e.BaseSuite[environments.Kubernetes]
-}
-
-func TestMySuite(t *testing.T) {
-    suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(myProvisioner)}
-    if *devMode {
-        suiteParams = append(suiteParams, e2e.WithDevMode())
-    }
-    e2e.Run(t, &mySuite{}, suiteParams...)
-}
-
-func (v *mySuite) TestExecute() {
-    vm := v.Env().RemoteHost
-    out, err := vm.Execute("whoami")
-    v.Require().NoError(err)
-    v.Require().NotEmpty(out)
-}
-```
-
-### Provisioners
-
-Provisioners create and manage cloud resources. They are located in `test/e2e-framework/testing/provisioners/`.
-
-**Available provisioners by cloud provider:**
-- **AWS**: `aws/host`, `aws/docker`, `aws/ecs`, `aws/kubernetes/eks`, `aws/kubernetes/kindvm`
-- **Azure**: `azure/host/linux`, `azure/host/windows`, `azure/kubernetes/aks`
-- **GCP**: `gcp/host/linux`, `gcp/kubernetes/gke`
-- **Local**: `local/host/podman`, `local/kubernetes/kind`
+| Provider | Paths |
+|----------|-------|
+| AWS | `aws/host`, `aws/docker`, `aws/ecs`, `aws/kubernetes/eks`, `aws/kubernetes/kindvm` |
+| Azure | `azure/host/linux`, `azure/host/windows`, `azure/kubernetes/aks` |
+| GCP | `gcp/host/linux`, `gcp/kubernetes/gke` |
+| Local | `local/host/podman`, `local/kubernetes/kind` |
 
 **Key concepts:**
-- **Typed Provisioners**: Provisioners typed with the environment they provision. Use `component.Export()` to match Environment fields with Pulumi resources.
-- **Untyped Provisioners**: More flexible provisioners. The environment needs to be annotated with the `import` tag to match resource keys.
+- **Typed Provisioners**: Use `component.Export()` to match Environment fields with Pulumi resources.
+- **Untyped Provisioners**: Environment needs `import` tag to match resource keys.
 
-### Environments
-
-Environments are defined in `test/e2e-framework/testing/environments/`:
-
-- `environments.Host`: Single VM with agent installed (fields: `RemoteHost`, `FakeIntake`, `Agent`, `Updater`)
-- `environments.Kubernetes`: Kubernetes cluster with agent deployed via Helm (fields: `KubernetesCluster`, `FakeIntake`, `Agent`)
+**Environments** (`test/e2e-framework/testing/environments/`):
+- `environments.Host`: fields `RemoteHost`, `FakeIntake`, `Agent`, `Updater`
+- `environments.Kubernetes`: fields `KubernetesCluster`, `FakeIntake`, `Agent`
 - `environments.DockerHost`: VM with Docker and agent in containers
 - `environments.ECS`: ECS cluster environment
 
 ## Common Patterns
 
-### Installing Docker
+### Installing Docker with ECR Support
 
 ```go
 installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
@@ -117,8 +75,6 @@ dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(ins
 
 ### Pulling Docker Images
 
-Use this in host environments to pull Docker images.
-
 ```go
 func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images []string, dependsOn ...pulumi.Resource) ([]pulumi.Resource, error) {
     var cmds []pulumi.Resource
@@ -126,9 +82,7 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
         pullCmd := makeRetryCommand(fmt.Sprintf("docker pull %s", image), dockerPullMaxRetries)
         cmd, err := vm.OS.Runner().Command(
             e.CommonNamer().ResourceName("docker-pull", strconv.Itoa(i)),
-            &command.Args{
-                Create: pulumi.Sprintf("/bin/bash -c \"%s\"", pullCmd),
-            },
+            &command.Args{Create: pulumi.Sprintf("/bin/bash -c \"%s\"", pullCmd)},
             utils.PulumiDependsOn(dependsOn...),
         )
         if err != nil {
@@ -140,99 +94,58 @@ func downloadDockerImages(e *aws.Environment, vm *componentsremote.Host, images 
 }
 ```
 
-### ECR Authentication Issues
-
-When EC2 instances need to pull images from ECR:
-
-1. **Verify AWS Account**: Ensure `~/.test_infra_config.yaml` is configured for `agent-sandbox` account
-2. **Install ECR credentials helper**: `ec2.InstallECRCredentialsHelper()`
-3. **Install Docker**: `docker.NewManager()` configures Docker to use the credentials helper
-
-**Common Issue**: EC2 instance IAM roles may not have cross-account ECR permissions. The root cause is usually:
-- Running in the wrong AWS account (should be `agent-sandbox`)
-- Missing or incorrect `~/.test_infra_config.yaml` configuration
-- EC2 instance role doesn't have necessary ECR permissions (infrastructure issue)
-
-**Error**: `User: arn:aws:sts::... is not authorized to perform: ecr:BatchGetImage`
-**Solution**: Verify your AWS account configuration. The default is `agent-sandbox` and should be set in `~/.test_infra_config.yaml`. Ensure you're authenticated with the correct account using `aws-vault login sso-agent-sandbox-account-admin`.
-
-## Debugging
-
-### Dev Mode
-
-Always use `E2E_DEV_MODE=true` when developing to keep infrastructure alive:
-
-```bash
-E2E_DEV_MODE=true dda inv -- -e new-e2e-tests.run --targets ./tests/gpu --run TestGPUK8sSuiteUbuntu2204
-```
-
-### Test Output
-
-Test output is stored in `~/e2e-output/<TestName>_<timestamp>/` and includes:
-- Pulumi logs
-- Agent logs
-- Agent flares (on test failure)
-- Test artifacts
-
 ### Diagnose Function
-
-Some provisioners have diagnose functions that can help debug failures:
 
 ```go
 provisioner.SetDiagnoseFunc(awskubernetes.KindDiagnoseFunc)
 ```
 
-### Pulumi lock issues
+## Troubleshooting
 
-If provisioning fails with a message like:
+### ECR Authentication Issues
 
-```
-error: the stack is currently locked by 1 lock(s). Either wait for the other process(es) to end or delete the lock file with `pulumi cancel`.
-```
+When EC2 instances fail to pull images from ECR:
+1. Verify `~/.test_infra_config.yaml` is configured for `agent-sandbox`
+2. Install ECR credentials helper: `ec2.InstallECRCredentialsHelper()`
+3. Install Docker: `docker.NewManager()` configures Docker to use the credentials helper
 
-Run the cleanup task to remove local Pulumi locks:
+Root causes:
+- Running in wrong AWS account (should be `agent-sandbox` for local)
+- EC2 instance role missing ECR permissions
+
+### Pulumi Lock Issues
+
+If you see: `error: the stack is currently locked by 1 lock(s)...`
 
 ```bash
+# Remove local Pulumi locks
 dda inv new-e2e-tests.clean
-```
 
-If the issue persists, also clean local stack state (this removes local Pulumi stacks; it won't destroy cloud resources unless you omit the skip flag inside the task):
-
-```bash
+# Also clean local stack state
 dda inv new-e2e-tests.clean -s
-```
 
-Optionally clear local test output:
-
-```bash
+# Clear local test output
 dda inv new-e2e-tests.clean --output
 ```
 
-Note: Cleanup is supported for local Pulumi state only. If you see "Cleanup supported for local state only", run:
-
+If cleanup says "Cleanup supported for local state only":
 ```bash
 pulumi login --local
 ```
 
+### Test Output Location
+
+Output stored in `~/e2e-output/<TestName>_<timestamp>/`:
+- Pulumi logs
+- Agent logs
+- Agent flares (on failure)
+- Test artifacts
+
 ## Key Files
 
-Framework:
-- `test/e2e-framework/testing/e2e/suite.go`: Core e2e BaseSuite and Run function
-- `test/e2e-framework/testing/environments/`: Environment definitions (Host, Kubernetes, DockerHost, ECS)
-- `test/e2e-framework/testing/provisioners/`: Provisioner implementations by cloud provider
-- `test/e2e-framework/components/`: Pulumi component definitions (datadog agent, kubernetes, remote hosts)
+- `test/e2e-framework/testing/e2e/suite.go`: Core BaseSuite and Run function
+- `test/e2e-framework/testing/environments/`: Environment definitions
+- `test/e2e-framework/testing/provisioners/`: Provisioner implementations
+- `test/e2e-framework/components/`: Pulumi component definitions
 - `test/e2e-framework/scenarios/`: Pre-built scenario configurations
-- `test/e2e-framework/resources/`: Cloud-specific resource definitions (aws, azure, gcp)
-
-Tests:
-- `test/new-e2e/tests/`: Test packages
-- `test/new-e2e/examples/`: Example test implementations
-
-## Best Practices
-
-1. **Always use dev mode during development** to avoid destroying infrastructure
-2. **Pre-pull images** when possible to avoid authentication issues during provisioning
-3. **Use dependencies** (`utils.PulumiDependsOn`) to ensure correct resource creation order
-4. **Handle flaky tests** using `flake.MarkOnLog()` when appropriate
-5. **Store test output** using `tee` to review logs later
-6. **Clean up stacks** when done testing to avoid resource costs
+- `test/e2e-framework/resources/`: Cloud-specific resource definitions
