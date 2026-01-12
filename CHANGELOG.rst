@@ -2,6 +2,31 @@
 Release Notes
 =============
 
+.. _Release Notes_7.74.1:
+
+7.74.1
+======
+
+.. _Release Notes_7.74.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-01-12
+
+- Please refer to the `7.74.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7741>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.74.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix fatal concurrent map access errors that might occur when system-probe evaluates SSH monitoring security rules.
+
+- Fix a bug that crashes the Agent when remotely changing the system-probe configuration from Fleet Automation.
+
+
 .. _Release Notes_7.74.0:
 
 7.74.0
