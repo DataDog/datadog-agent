@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -20,11 +22,18 @@ type ParquetReplayConfig struct {
 	Loop       bool    // whether to loop the replay after reaching the end
 }
 
+// counterState tracks the previous value for a counter metric series.
+type counterState struct {
+	prevValue float64
+	hasPrev   bool
+}
+
 // ParquetReplayGenerator replays metrics from FGM parquet files.
 type ParquetReplayGenerator struct {
-	handle observer.Handle
-	reader *ParquetReader
-	config ParquetReplayConfig
+	handle       observer.Handle
+	reader       *ParquetReader
+	config       ParquetReplayConfig
+	counterState map[string]*counterState // keyed by series key (name + sorted tags)
 }
 
 // NewParquetReplayGenerator creates a new parquet replay generator.
@@ -47,9 +56,10 @@ func NewParquetReplayGenerator(handle observer.Handle, config ParquetReplayConfi
 		1.0/config.TimeScale, config.TimeScale)
 
 	return &ParquetReplayGenerator{
-		handle: handle,
-		reader: reader,
-		config: config,
+		handle:       handle,
+		reader:       reader,
+		config:       config,
+		counterState: make(map[string]*counterState),
 	}, nil
 }
 
@@ -76,6 +86,8 @@ func (g *ParquetReplayGenerator) Run(ctx context.Context) {
 
 		fmt.Println("[parquet-replay] Looping replay...")
 		g.reader.Reset()
+		// Clear counter state for fresh de-accumulation on loop
+		g.counterState = make(map[string]*counterState)
 	}
 }
 
@@ -124,12 +136,12 @@ func (g *ParquetReplayGenerator) replayOnce(ctx context.Context) error {
 			}
 		}
 
-		// Send the metric
-		sample := &fgmMetricSample{
-			metric: metric,
+		// Process and send the metric (de-accumulate counters)
+		sample := g.processMetric(metric)
+		if sample != nil {
+			g.handle.ObserveMetric(sample)
+			count++
 		}
-		g.handle.ObserveMetric(sample)
-		count++
 
 		// Print progress every second
 		if time.Since(lastProgressTime) > time.Second {
@@ -145,9 +157,82 @@ func (g *ParquetReplayGenerator) replayOnce(ctx context.Context) error {
 	return nil
 }
 
+// processMetric handles de-accumulation for counter metrics.
+// For counters: returns delta (current - previous), nil for first observation.
+// For gauges/unknown: returns the metric unchanged.
+func (g *ParquetReplayGenerator) processMetric(metric *FGMMetric) *fgmMetricSample {
+	// Get current value
+	var currentValue float64
+	if metric.ValueFloat != nil {
+		currentValue = *metric.ValueFloat
+	} else if metric.ValueInt != nil {
+		currentValue = float64(*metric.ValueInt)
+	}
+
+	// For non-counters, pass through unchanged
+	if metric.MetricKind != MetricKindCounter {
+		return &fgmMetricSample{
+			metric: metric,
+		}
+	}
+
+	// For counters, compute delta
+	key := g.seriesKey(metric)
+	state, exists := g.counterState[key]
+	if !exists {
+		state = &counterState{}
+		g.counterState[key] = state
+	}
+
+	if !state.hasPrev {
+		// First observation: store value, skip emitting (no delta available)
+		state.prevValue = currentValue
+		state.hasPrev = true
+		return nil
+	}
+
+	// Compute delta
+	delta := currentValue - state.prevValue
+	state.prevValue = currentValue
+
+	// Handle counter resets (negative delta)
+	if delta < 0 {
+		// Counter reset detected - use current value as the delta
+		// (assuming it reset to 0 and accumulated to currentValue)
+		delta = currentValue
+	}
+
+	return &fgmMetricSample{
+		metric:        metric,
+		overrideValue: &delta,
+	}
+}
+
+// seriesKey generates a unique key for a metric series (name + sorted tags).
+func (g *ParquetReplayGenerator) seriesKey(metric *FGMMetric) string {
+	// Get sorted tag keys
+	keys := make([]string, 0, len(metric.Tags))
+	for k := range metric.Tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Build key string
+	var sb strings.Builder
+	sb.WriteString(metric.MetricName)
+	for _, k := range keys {
+		sb.WriteByte('|')
+		sb.WriteString(k)
+		sb.WriteByte(':')
+		sb.WriteString(metric.Tags[k])
+	}
+	return sb.String()
+}
+
 // fgmMetricSample implements observer.MetricView for FGM metrics.
 type fgmMetricSample struct {
-	metric *FGMMetric
+	metric        *FGMMetric
+	overrideValue *float64 // used for counter deltas
 }
 
 func (s *fgmMetricSample) GetName() string {
@@ -155,6 +240,10 @@ func (s *fgmMetricSample) GetName() string {
 }
 
 func (s *fgmMetricSample) GetValue() float64 {
+	// Use override value if set (for counter deltas)
+	if s.overrideValue != nil {
+		return *s.overrideValue
+	}
 	if s.metric.ValueFloat != nil {
 		return *s.metric.ValueFloat
 	}

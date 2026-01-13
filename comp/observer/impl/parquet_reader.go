@@ -19,11 +19,21 @@ import (
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 )
 
+// MetricKind represents the type of metric (gauge, counter, etc.)
+type MetricKind string
+
+const (
+	MetricKindGauge   MetricKind = "gauge"
+	MetricKindCounter MetricKind = "counter"
+	MetricKindUnknown MetricKind = ""
+)
+
 // FGMMetric represents a single metric from the FGM parquet file.
 type FGMMetric struct {
 	RunID      string
 	Time       int64 // milliseconds
 	MetricName string
+	MetricKind MetricKind
 	ValueInt   *uint64
 	ValueFloat *float64
 	Tags       map[string]string
@@ -170,6 +180,7 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 	runIDIdx := findColumnIndex(schema, "run_id")
 	timeIdx := findColumnIndex(schema, "time")
 	metricNameIdx := findColumnIndex(schema, "metric_name")
+	metricKindIdx := findColumnIndex(schema, "metric_kind")
 	valueIntIdx := findColumnIndex(schema, "value_int")
 	valueFloatIdx := findColumnIndex(schema, "value_float")
 
@@ -186,6 +197,7 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 	runIDs := getStringColumn(table, runIDIdx)
 	times := getTimestampColumn(table, timeIdx)
 	metricNames := getStringColumn(table, metricNameIdx)
+	metricKinds := getStringColumn(table, metricKindIdx)
 	valueInts := getUInt64Column(table, valueIntIdx)
 	valueFloats := getFloat64Column(table, valueFloatIdx)
 
@@ -211,6 +223,7 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 			RunID:      getAt(runIDs, i),
 			Time:       times[i],
 			MetricName: getAt(metricNames, i),
+			MetricKind: parseMetricKind(getAt(metricKinds, i)),
 			ValueInt:   getUInt64PtrAt(valueInts, i),
 			ValueFloat: getFloat64PtrAt(valueFloats, i),
 			Tags:       tags,
@@ -370,6 +383,18 @@ func getFloat64Column(table arrow.Table, colIdx int) []float64 {
 	}
 
 	return result
+}
+
+// parseMetricKind converts a string to MetricKind.
+func parseMetricKind(s string) MetricKind {
+	switch strings.ToLower(s) {
+	case "gauge":
+		return MetricKindGauge
+	case "counter", "monotonic_count", "count":
+		return MetricKindCounter
+	default:
+		return MetricKindUnknown
+	}
 }
 
 // Helper functions to safely get values from slices
