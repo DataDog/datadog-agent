@@ -98,7 +98,9 @@ def generate(ctx, pre_commit=False):
                 cli_extras = CLI_EXTRAS[pkg]
             if pkg in CLI_EXTRAS_GRPC:
                 cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
-            ctx.run(f"protoc -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}")
+            ctx.run(
+                f"protoc -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
+            )
 
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]
