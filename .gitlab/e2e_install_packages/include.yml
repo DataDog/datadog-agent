@@ -4,6 +4,7 @@
 include:
   - .gitlab/e2e_install_packages/common.yml
   - .gitlab/e2e_install_packages/debian.yml
+  - .gitlab/e2e_install_packages/docker.yml
   - .gitlab/e2e_install_packages/ubuntu.yml
   - .gitlab/e2e_install_packages/amazonlinux.yml
   - .gitlab/e2e_install_packages/centos.yml
