@@ -8,13 +8,29 @@ package observerimpl
 import (
 	"context"
 	"encoding/json"
+	"log"
+	"math"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
+
+// parseInt64 parses a string to int64.
+func parseInt64(s string) (int64, error) {
+	return strconv.ParseInt(s, 10, 64)
+}
+
+// sanitizeFloat replaces Inf and NaN with 0 for JSON compatibility.
+func sanitizeFloat(v float64) float64 {
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0
+	}
+	return v
+}
 
 const maxReportBuffer = 100
 
@@ -97,6 +113,7 @@ func (r *HTMLReporter) Start(addr string) error {
 	mux.HandleFunc("/api/reports", r.handleAPIReports)
 	mux.HandleFunc("/api/series", r.handleAPISeries)
 	mux.HandleFunc("/api/series/list", r.handleAPISeriesList)
+	mux.HandleFunc("/api/series/batch", r.handleAPISeriesBatch)
 	mux.HandleFunc("/api/correlations", r.handleAPICorrelations)
 	mux.HandleFunc("/api/raw-anomalies", r.handleAPIRawAnomalies)
 
@@ -370,6 +387,11 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         let correlationData = []; // list of correlations for timeline
         let rawAnomalyData = []; // raw anomalies from all analyzers
 
+        // Track last timestamp per chart for incremental fetching
+        const lastTimestamps = {};  // chartKey -> last timestamp received
+        // Store accumulated data per chart (timestamps and values)
+        const chartData = {};  // chartKey -> { timestamps: [], values: [], labels: [] }
+
         // Analyzer colors for distinguishing different detection algorithms
         const analyzerColors = {
             'cusum_detector': { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444' },  // red
@@ -505,11 +527,15 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             }
         }
 
-        async function fetchSeries(name, agg, tags) {
+        async function fetchSeries(name, agg, tags, since) {
             try {
                 let url = '/api/series?namespace=demo&name=' + encodeURIComponent(name) + '&agg=' + agg;
                 if (tags && tags.length > 0) {
                     url += '&tags=' + encodeURIComponent(tags.join(','));
+                }
+                // Add since parameter for incremental fetching
+                if (since && since > 0) {
+                    url += '&since=' + since;
                 }
                 const resp = await fetch(url);
                 if (!resp.ok) return null;
@@ -647,7 +673,6 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         }
 
         async function updateCharts() {
-            const seriesList = await fetchSeriesList();
             const anomalousSources = new Set(Object.keys(anomalyRanges));
 
             // If no anomalies, show placeholder in anomaly section
@@ -658,56 +683,94 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
                 }
             }
 
-            for (const item of seriesList) {
-                for (const agg of analysisAggregations) {
-                    const chartKey = item.name + ':' + agg;
-                    const series = await fetchSeries(item.name, agg, item.tags);
+            // Fetch all series data in a single batch request
+            let batchData;
+            try {
+                const resp = await fetch('/api/series/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        namespace: 'demo',
+                        since: lastTimestamps
+                    })
+                });
+                batchData = await resp.json();
+            } catch (e) {
+                console.error('Failed to fetch batch series:', e);
+                return;
+            }
 
-                    // Create/update small chart for ALL metrics
-                    const smallChartId = 'all-chart-' + chartKey.replace(/[^a-z0-9]/gi, '-');
-                    if (!allCharts[chartKey]) {
-                        allCharts[chartKey] = createChart(chartKey, smallChartId, '#all-charts', true);
+            let totalNewPoints = 0;
+            const updatedKeys = new Set();
+
+            // Process all series from batch response
+            for (const [chartKey, series] of Object.entries(batchData.series || {})) {
+                // Initialize accumulated data if needed
+                if (!chartData[chartKey]) {
+                    chartData[chartKey] = { timestamps: [], values: [], labels: [] };
+                }
+
+                // Append new points to accumulated data
+                if (series.points && series.points.length > 0) {
+                    updatedKeys.add(chartKey);
+                    totalNewPoints += series.points.length;
+
+                    for (const p of series.points) {
+                        chartData[chartKey].timestamps.push(p.timestamp);
+                        chartData[chartKey].values.push(p.value);
+                        chartData[chartKey].labels.push(new Date(p.timestamp * 1000).toLocaleTimeString());
                     }
-                    if (series && series.points) {
-                        const chart = allCharts[chartKey];
-                        const timestamps = series.points.map(p => p.timestamp);
-                        chart.data.labels = series.points.map(p => {
-                            const d = new Date(p.timestamp * 1000);
-                            return d.toLocaleTimeString();
-                        });
-                        chart.data.datasets[0].data = series.points.map(p => p.value);
-                        chart.timestamps = timestamps;
+
+                    // Update last timestamp for next incremental fetch
+                    const lastPoint = series.points[series.points.length - 1];
+                    lastTimestamps[chartKey] = lastPoint.timestamp;
+                }
+            }
+
+            // Update charts for all known series
+            for (const chartKey of Object.keys(chartData)) {
+                const data = chartData[chartKey];
+                const hasNewPoints = updatedKeys.has(chartKey);
+
+                // Create/update small chart for ALL metrics
+                const smallChartId = 'all-chart-' + chartKey.replace(/[^a-z0-9]/gi, '-');
+                if (!allCharts[chartKey]) {
+                    allCharts[chartKey] = createChart(chartKey, smallChartId, '#all-charts', true);
+                }
+
+                // Only update chart if we have data and either new points or it's the first render
+                if (data.timestamps.length > 0 && (hasNewPoints || allCharts[chartKey].data.datasets[0].data.length === 0)) {
+                    const chart = allCharts[chartKey];
+                    chart.data.labels = data.labels;
+                    chart.data.datasets[0].data = data.values;
+                    chart.timestamps = data.timestamps;
+
+                    const ranges = anomalyRanges[chartKey] || [];
+                    chart.options.plugins.annotation.annotations = buildAnnotations(data.timestamps, ranges);
+                    chart.update('none');
+                }
+
+                // Create/update large chart only for ANOMALOUS metrics
+                if (anomalousSources.has(chartKey)) {
+                    const largeChartId = 'anomaly-chart-' + chartKey.replace(/[^a-z0-9]/gi, '-');
+                    if (!anomalyCharts[chartKey]) {
+                        anomalyCharts[chartKey] = createChart(chartKey, largeChartId, '#anomaly-charts', false);
+                    }
+
+                    if (data.timestamps.length > 0 && (hasNewPoints || anomalyCharts[chartKey].data.datasets[0].data.length === 0)) {
+                        const chart = anomalyCharts[chartKey];
+                        chart.data.labels = data.labels;
+                        chart.data.datasets[0].data = data.values;
+                        chart.timestamps = data.timestamps;
 
                         const ranges = anomalyRanges[chartKey] || [];
-                        chart.options.plugins.annotation.annotations = buildAnnotations(timestamps, ranges);
+                        chart.options.plugins.annotation.annotations = buildAnnotations(data.timestamps, ranges);
                         chart.update('none');
-                    }
-
-                    // Create/update large chart only for ANOMALOUS metrics
-                    if (anomalousSources.has(chartKey)) {
-                        const largeChartId = 'anomaly-chart-' + chartKey.replace(/[^a-z0-9]/gi, '-');
-                        if (!anomalyCharts[chartKey]) {
-                            anomalyCharts[chartKey] = createChart(chartKey, largeChartId, '#anomaly-charts', false);
-                        }
-                        if (series && series.points) {
-                            const chart = anomalyCharts[chartKey];
-                            const timestamps = series.points.map(p => p.timestamp);
-                            chart.data.labels = series.points.map(p => {
-                                const d = new Date(p.timestamp * 1000);
-                                return d.toLocaleTimeString();
-                            });
-                            chart.data.datasets[0].data = series.points.map(p => p.value);
-                            chart.timestamps = timestamps;
-
-                            const ranges = anomalyRanges[chartKey] || [];
-                            chart.options.plugins.annotation.annotations = buildAnnotations(timestamps, ranges);
-                            chart.update('none');
-                        }
                     }
                 }
             }
 
-            document.getElementById('status').textContent = 'Last update: ' + new Date().toLocaleTimeString();
+            document.getElementById('status').textContent = 'Last update: ' + new Date().toLocaleTimeString() + ' (' + totalNewPoints + ' new points)';
         }
 
         function escapeHtml(text) {
@@ -742,6 +805,7 @@ func (r *HTMLReporter) handleAPIReports(w http.ResponseWriter, req *http.Request
 	w.WriteHeader(http.StatusOK)
 
 	if err := json.NewEncoder(w).Encode(reports); err != nil {
+		log.Printf("[500] /api/reports: failed to encode: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -778,6 +842,8 @@ func parseAggregate(s string) Aggregate {
 }
 
 // handleAPISeries returns JSON series data.
+// Supports incremental fetching via ?since=<timestamp> parameter.
+// When since is provided, only returns points with timestamp > since.
 func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request) {
 	name := req.URL.Query().Get("name")
 	namespace := req.URL.Query().Get("namespace")
@@ -786,6 +852,17 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 	if name == "" || namespace == "" {
 		http.Error(w, "missing required parameters: name and namespace", http.StatusBadRequest)
 		return
+	}
+
+	// Parse 'since' parameter for delta updates (unix timestamp in seconds)
+	var since int64
+	if sinceParam := req.URL.Query().Get("since"); sinceParam != "" {
+		var err error
+		since, err = parseInt64(sinceParam)
+		if err != nil {
+			http.Error(w, "invalid since parameter: must be unix timestamp", http.StatusBadRequest)
+			return
+		}
 	}
 
 	// Parse tags from query string
@@ -803,7 +880,7 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	series := storage.GetSeries(namespace, name, tags, agg)
+	series := storage.GetSeriesSince(namespace, name, tags, agg, since)
 	if series == nil {
 		http.Error(w, "series not found", http.StatusNotFound)
 		return
@@ -818,17 +895,20 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 	for i, p := range series.Points {
 		resp.Points[i] = pointOutput{
 			Timestamp: p.Timestamp,
-			Value:     p.Value,
+			Value:     sanitizeFloat(p.Value),
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	// Encode to buffer first so we can return proper error if encoding fails
+	data, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("[500] /api/series: failed to marshal: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 // escapeHTML escapes special HTML characters.
@@ -892,9 +972,106 @@ func (r *HTMLReporter) handleAPISeriesList(w http.ResponseWriter, req *http.Requ
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(items); err != nil {
+		log.Printf("[500] /api/series/list: failed to encode: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+// batchSeriesRequest is the request body for batch series fetching.
+type batchSeriesRequest struct {
+	Namespace string           `json:"namespace"`
+	Since     map[string]int64 `json:"since"` // chartKey -> last timestamp
+}
+
+// batchSeriesResponse contains all series data in one response.
+type batchSeriesResponse struct {
+	Series map[string]seriesResponse `json:"series"` // chartKey -> series data
+}
+
+// handleAPISeriesBatch returns all series data in a single request.
+// Accepts POST with JSON body containing namespace and since timestamps per series.
+// Returns only new points for each series (points with timestamp > since[key]).
+func (r *HTMLReporter) handleAPISeriesBatch(w http.ResponseWriter, req *http.Request) {
+	// Parse request - support both GET (simple) and POST (with since data)
+	namespace := "demo"
+	since := make(map[string]int64)
+
+	if req.Method == "POST" {
+		var body batchSeriesRequest
+		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if body.Namespace != "" {
+			namespace = body.Namespace
+		}
+		since = body.Since
+	} else {
+		// GET request - just use query param for namespace
+		if ns := req.URL.Query().Get("namespace"); ns != "" {
+			namespace = ns
+		}
+	}
+
+	r.mu.RLock()
+	storage := r.storage
+	r.mu.RUnlock()
+
+	if storage == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"series":{}}`))
+		return
+	}
+
+	// Get all series for both aggregations
+	aggregations := []Aggregate{AggregateAverage, AggregateCount}
+	aggNames := []string{"avg", "count"}
+
+	resp := batchSeriesResponse{
+		Series: make(map[string]seriesResponse),
+	}
+
+	for aggIdx, agg := range aggregations {
+		allSeries := storage.AllSeries(namespace, agg)
+		aggName := aggNames[aggIdx]
+
+		for _, s := range allSeries {
+			chartKey := s.Name + ":" + aggName
+			sinceTs := since[chartKey] // 0 if not present = get all
+
+			// Get points since last timestamp
+			series := storage.GetSeriesSince(namespace, s.Name, s.Tags, agg, sinceTs)
+			if series == nil || len(series.Points) == 0 {
+				continue
+			}
+
+			points := make([]pointOutput, len(series.Points))
+			for i, p := range series.Points {
+				points[i] = pointOutput{
+					Timestamp: p.Timestamp,
+					Value:     sanitizeFloat(p.Value),
+				}
+			}
+
+			resp.Series[chartKey] = seriesResponse{
+				Namespace: series.Namespace,
+				Name:      series.Name,
+				Tags:      series.Tags,
+				Points:    points,
+			}
+		}
+	}
+
+	data, err := json.Marshal(resp)
+	if err != nil {
+		log.Printf("[500] /api/series/batch: failed to marshal: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 // correlationOutput is the JSON structure for correlation responses.
@@ -970,6 +1147,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(correlations); err != nil {
+		log.Printf("[500] /api/correlations: failed to encode: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1003,6 +1181,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(anomalies); err != nil {
+		log.Printf("[500] /api/raw-anomalies: failed to encode: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

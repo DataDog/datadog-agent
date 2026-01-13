@@ -156,6 +156,40 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 	return &series
 }
 
+// GetSeriesSince returns points with timestamp > since (for delta updates).
+// If since is 0, returns all points.
+func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string, agg Aggregate, since int64) *observer.Series {
+	key := seriesKey(namespace, name, tags)
+	stats := s.series[key]
+	if stats == nil {
+		return nil
+	}
+
+	// If since is 0, return all points
+	if since == 0 {
+		series := stats.toSeries(agg)
+		return &series
+	}
+
+	// Filter points to only those after 'since'
+	var points []observer.Point
+	for _, p := range stats.Points {
+		if p.Timestamp > since {
+			points = append(points, observer.Point{
+				Timestamp: p.Timestamp,
+				Value:     p.aggregate(agg),
+			})
+		}
+	}
+
+	return &observer.Series{
+		Namespace: stats.Namespace,
+		Name:      stats.Name,
+		Tags:      stats.Tags,
+		Points:    points,
+	}
+}
+
 // AllSeries returns all series in a namespace using the specified aggregation.
 func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observer.Series {
 	var result []observer.Series
