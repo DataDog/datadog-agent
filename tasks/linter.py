@@ -176,8 +176,8 @@ def python(ctx, show_versions=False):
 
     if running_in_ci():
         # We want to the CI to fail if there are any issues, lint everything in CI
-        ctx.run("ruff format --check --diff .")
-        ctx.run("ruff check --diff .")
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check .")
     else:
         # Otherwise we just need to format the files
         ctx.run("ruff format .")
