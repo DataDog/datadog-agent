@@ -157,7 +157,7 @@ func SetupDatabricks(s *common.Setup) error {
 	// Disable credit card obfuscation for Databricks to avoid issues with job and run ids
 	s.Config.DatadogYAML.APMConfig.ObfuscationConfig = &config.ObfuscationConfig{
 		CreditCards: config.CreditCardObfuscationConfig{
-			KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime"},
+			KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime", "config.spark_databricks_job_parentRunId"},
 		},
 	}
 
