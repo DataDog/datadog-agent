@@ -11,10 +11,13 @@ import (
 	"fmt"
 	"io"
 	nethttp "net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -22,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	"github.com/stretchr/testify/require"
-
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -71,54 +72,78 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 // It receives the request key and stats, and should return true if this endpoint matches the expected criteria.
 type HTTPEndpointValidator func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool
 
+// makeHTTPEndpointValidator creates a validator function for a specific HTTP endpoint.
+// It checks for GET requests matching the path suffix, port, status code, and expected count.
+// Optional additionalChecks can be provided for extra validations (e.g., IIS tags).
+func makeHTTPEndpointValidator(pathSuffix string, expectedStatus uint16, serverPort int, expectedCount int, additionalChecks func(*testing.T, *http.RequestStat) bool) HTTPEndpointValidator {
+	return func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
+		// Check method
+		if key.Method != http.MethodGet {
+			return false
+		}
+		// Check path
+		if !strings.HasSuffix(key.Path.Content.Get(), pathSuffix) {
+			return false
+		}
+		// Check port (either source or destination should match server port)
+		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+			return false
+		}
+
+		// Check status code and count
+		stat := reqStats.Data[expectedStatus]
+		if stat == nil || stat.Count != expectedCount {
+			return false
+		}
+
+		// Run any additional checks
+		if additionalChecks != nil {
+			return additionalChecks(t, stat)
+		}
+		return true
+	}
+}
+
 // verifyHTTPStats iterates through HTTP stats and checks which of the expected endpoints are found.
 // Each validator in expectedEndpoints determines if an endpoint is "relevant" (matches the criteria) and passes validation.
-// Returns a map where keys are the indices of expectedEndpoints and values indicate if that endpoint was found.
-// This allows testing for multiple different endpoints in a single call.
-func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints ...HTTPEndpointValidator) map[int]bool {
+// endpointsFound is a slice where each index corresponds to an endpoint, and the value indicates if found.
+// This function is called repeatedly in require.Eventually to handle in-flight kernel requests.
+func verifyHTTPStats(t *testing.T, monitor Monitor, endpointsFound []bool, expectedEndpoints ...HTTPEndpointValidator) {
 	t.Helper()
 
+	// Get fresh stats from monitor
 	allStats := monitor.GetHTTPStats()
-	require.NotNil(t, allStats)
+	if allStats == nil {
+		return
+	}
 
 	statsObj, ok := allStats[protocols.HTTP]
 	if !ok {
-		return make(map[int]bool)
+		return
 	}
 
 	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
-	require.True(t, ok, "expected map[http.Key]*http.RequestStats, got %T", statsObj)
+	if !ok {
+		t.Logf("unexpected type for HTTP stats: %T", statsObj)
+		return
+	}
 
-	// Track which expected endpoints were found
-	found := make(map[int]bool)
-
-	// Iterate through all captured HTTP stats
+	// Iterate through all HTTP stats and check validators
 	for key, reqStats := range stats {
-		t.Logf("Found: %v %s [%d:%d]", key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
-
 		// Check against each expected endpoint validator
 		for i, validator := range expectedEndpoints {
-			if !found[i] && validator(t, key, reqStats) {
-				found[i] = true
-				t.Logf("Matched expected endpoint #%d", i)
+			// Only check validators that haven't been satisfied yet
+			if !endpointsFound[i] && validator(t, key, reqStats) {
+				t.Logf("Found expected endpoint %d: %v %s [%d:%d]", i, key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
+				endpointsFound[i] = true
 			}
 		}
 	}
-
-	return found
 }
 
 // allEndpointsFound is a helper that checks if all expected endpoints were found.
-func allEndpointsFound(found map[int]bool, expectedCount int) bool {
-	if len(found) != expectedCount {
-		return false
-	}
-	for i := 0; i < expectedCount; i++ {
-		if !found[i] {
-			return false
-		}
-	}
-	return true
+func allEndpointsFound(found []bool) bool {
+	return !slices.Contains(found, false)
 }
 
 // verifyIISDynamicTags validates that IIS-specific dynamic tags are present in the request stats.
@@ -166,40 +191,14 @@ func TestHTTPStats(t *testing.T) {
 	srvDoneFn()
 
 	// Verify both endpoints were captured by the monitor
+	// Track which endpoints have been found across iterations to handle in-flight kernel requests
+	endpointsFound := make([]bool, 2)
 	require.Eventuallyf(t, func() bool {
-		found := verifyHTTPStats(t, monitor,
-			// Endpoint 1: GET /test with 204 status
-			func(_ *testing.T, key http.Key, reqStats *http.RequestStats) bool {
-				if key.Method != http.MethodGet {
-					return false
-				}
-				if !strings.HasSuffix(key.Path.Content.Get(), "/test") {
-					return false
-				}
-				if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-					return false
-				}
-
-				stat := reqStats.Data[204]
-				return stat != nil && stat.Count >= 1
-			},
-			// Endpoint 2: GET /api/health with 200 status
-			func(_ *testing.T, key http.Key, reqStats *http.RequestStats) bool {
-				if key.Method != http.MethodGet {
-					return false
-				}
-				if !strings.HasSuffix(key.Path.Content.Get(), "/api/health") {
-					return false
-				}
-				if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-					return false
-				}
-
-				stat := reqStats.Data[200]
-				return stat != nil && stat.Count >= 1
-			},
+		verifyHTTPStats(t, monitor, endpointsFound,
+			makeHTTPEndpointValidator("/test", 204, serverPort, 1, nil),
+			makeHTTPEndpointValidator("/api/health", 200, serverPort, 1, nil),
 		)
-		return allEndpointsFound(found, 2)
+		return allEndpointsFound(endpointsFound)
 	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
@@ -254,29 +253,16 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	t.Logf("Response body length: %d bytes", len(body))
 
 	// Verify the monitor captured the HTTP traffic
+	// Track which endpoints have been found across iterations to handle in-flight kernel requests
+	endpointsFound := make([]bool, 1)
 	require.Eventuallyf(t, func() bool {
-		found := verifyHTTPStats(t, monitor, func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
-			// Check if this is the endpoint we care about
-			if key.Method != http.MethodGet {
-				return false
-			}
-			if !strings.HasSuffix(key.Path.Content.Get(), testPath) {
-				return false
-			}
-			if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-				return false
-			}
-
-			// Check if we have the expected status with at least one request
-			stat := reqStats.Data[uint16(expectedStatus)]
-			if stat == nil || stat.Count < 1 {
-				return false
-			}
-
-			// Verify IIS-specific dynamic tags
-			verifyIISDynamicTags(t, stat, expectedTags)
-			return true
-		})
-		return allEndpointsFound(found, 1)
+		verifyHTTPStats(t, monitor, endpointsFound,
+			makeHTTPEndpointValidator(testPath, uint16(expectedStatus), serverPort, 1, func(t *testing.T, stat *http.RequestStat) bool {
+				// Verify IIS-specific dynamic tags
+				verifyIISDynamicTags(t, stat, expectedTags)
+				return true
+			}),
+		)
+		return allEndpointsFound(endpointsFound)
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }

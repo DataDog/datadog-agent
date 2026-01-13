@@ -141,7 +141,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, utils.NewUSMEmptyConfig()) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, NewUSMEmptyConfig()) {
 				t.Skip("GoTLS not supported for this setup")
 			}
 			testDecoding(t, tt.isTLS)
@@ -759,7 +759,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 }
 
 func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
-	cfg := utils.NewUSMEmptyConfig()
+	cfg := NewUSMEmptyConfig()
 	cfg.EnablePostgresMonitoring = true
 	cfg.MaxTrackedConnections = 1000
 	cfg.EnableGoTLSSupport = enableTLS
