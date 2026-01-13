@@ -8,8 +8,10 @@
 package nvidia
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -104,6 +106,14 @@ func getSizeMultiplier(unit string) float64 {
 	}
 }
 
+// validPath verifies if the path is absolute and doesn't contain special characters
+func validPath(path string) bool {
+	if strings.ContainsAny(path, "\x00~!#$&*?;|(){}[]<>`'\"\n\r\\") {
+		return false
+	}
+	return filepath.IsAbs(path)
+}
+
 // Parses the output of tegrastats
 func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	sender, err := c.GetSender()
@@ -123,14 +133,22 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
+	if !validPath(c.tegraStatsPath) {
+		return fmt.Errorf("Not a valid path: %s", c.tegraStatsPath)
+	}
+
 	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval)
+	defer cancel()
+
 	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2 * tegraStatsInterval).Seconds()))
 	var cmd *exec.Cmd
 	if c.useSudo {
 		// -n, non-interactive mode, no prompts are used
-		cmd = exec.Command("sudo", "-n", "sh", "-c", cmdStr)
+		cmd = exec.CommandContext(ctx, "sudo", "-n", cmdStr)
 	} else {
-		cmd = exec.Command("sh", "-c", cmdStr)
+		cmd = exec.CommandContext(ctx, cmdStr)
 	}
 
 	tegrastatsOutput, err := cmd.Output()
