@@ -456,10 +456,10 @@ func TestProcessDetailListArchitectureSupport(t *testing.T) {
 			baseColl, ok := collector.(*baseCollector)
 			require.True(t, ok)
 
-			hasProcessDetailApiCall := slices.ContainsFunc(baseColl.supportedAPIs, func(api apiCallInfo) bool {
+			hasProcessDetailAPICall := slices.ContainsFunc(baseColl.supportedAPIs, func(api apiCallInfo) bool {
 				return api.Name == "process_detail_list"
 			})
-			require.Equal(t, tt.supported, hasProcessDetailApiCall)
+			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
 }
