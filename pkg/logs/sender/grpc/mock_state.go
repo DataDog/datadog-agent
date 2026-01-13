@@ -26,9 +26,10 @@ const nanoToMillis = 1000000
 // MessageTranslator handles translation of message.Message to message.StatefulMessage
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
-	clusterManager  *clustering.ClusterManager
-	tagManager      *tags.TagManager
-	evictionManager *clustering.EvictionManager
+	clusterManager         *clustering.ClusterManager
+	patternEvictionManager *clustering.EvictionManager
+	tagManager             *tags.TagManager
+	tagEvictionManager     *tags.TagEvictionManager
 
 	pipelineName string
 }
@@ -37,10 +38,11 @@ type MessageTranslator struct {
 // If clusterManager is nil, a new one will be created
 func NewMessageTranslator(pipelineName string) *MessageTranslator {
 	mt := &MessageTranslator{
-		clusterManager:  clustering.NewClusterManager(),
-		tagManager:      tags.NewTagManager(),
-		evictionManager: clustering.NewEvictionManager(),
-		pipelineName:    pipelineName,
+		clusterManager:         clustering.NewClusterManager(),
+		patternEvictionManager: clustering.NewEvictionManager(),
+		tagManager:             tags.NewTagManager(),
+		tagEvictionManager:     tags.NewTagEvictionManager(),
+		pipelineName:           pipelineName,
 	}
 	tlmPipelineStateSize.Set(0, pipelineName)
 	return mt
@@ -109,10 +111,18 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Process tokenized log through cluster manager to get/create pattern
 	pattern, changeType, patternCount, estimatedBytes := mt.clusterManager.Add(tokenList)
 
-	// Check if eviction is needed using high watermark threshold
-	countOverLimit, bytesOverLimit := mt.evictionManager.ShouldEvict(patternCount, estimatedBytes)
+	// Check if pattern eviction is needed using high watermark threshold
+	countOverLimit, bytesOverLimit := mt.patternEvictionManager.ShouldEvict(patternCount, estimatedBytes)
 	if countOverLimit || bytesOverLimit {
-		mt.evictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+		mt.patternEvictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+	}
+
+	// Check if tag dictionary eviction is needed using high watermark threshold
+	tagCount := mt.tagManager.Count()
+	tagMemoryBytes := mt.tagManager.EstimatedMemoryBytes()
+	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
+	if tagCountOverLimit || tagBytesOverLimit {
+		mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit)
 	}
 
 	// Extract wildcard values from the pattern
@@ -257,7 +267,6 @@ func (mt *MessageTranslator) sendDictEntryDefine(outputChan chan *message.Statef
 }
 
 // sendRawLog creates and sends a raw log datum
-// todo: AGNTLOG-414: Will be used for first log without a pattern
 func (mt *MessageTranslator) sendRawLog(outputChan chan *message.StatefulMessage, msg *message.Message, contentStr string, ts time.Time, tagSet *statefulpb.TagSet) {
 	logDatum := buildRawLog(contentStr, ts, tagSet)
 

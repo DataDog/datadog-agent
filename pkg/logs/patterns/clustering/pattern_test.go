@@ -60,14 +60,14 @@ func TestSize(t *testing.T) {
 	tl.Add(token.NewToken(token.TokenWord, "Test", token.PotentialWildcard))
 
 	pattern := newPattern(tl, 12345)
-	assert.Equal(t, 1, pattern.size())
+	assert.Equal(t, 1.0, pattern.GetFrequency())
 
 	// Simulate adding more logs (what cluster does)
 	pattern.LogCount++
-	assert.Equal(t, 2, pattern.size())
+	assert.Equal(t, 2.0, pattern.GetFrequency())
 
 	pattern.LogCount++
-	assert.Equal(t, 3, pattern.size())
+	assert.Equal(t, 3.0, pattern.GetFrequency())
 }
 
 func TestGetPatternString_NoWildcards(t *testing.T) {

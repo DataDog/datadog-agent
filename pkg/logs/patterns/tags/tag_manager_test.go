@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,7 +74,7 @@ func TestTagManager_EncodeTagStrings_InvalidFormats(t *testing.T) {
 
 	encoded, newEntries := tm.EncodeTagStrings([]string{
 		"valid:tag",
-		"", // empty string should be skipped
+		"",         // empty string should be skipped
 		":novalue", // colon should not be used as a delimiter for key-only tags, skip it
 	})
 
@@ -156,4 +157,99 @@ func TestTagManager_Concurrency(t *testing.T) {
 
 	// Should only have 6 unique strings (3 keys + 3 values)
 	assert.Equal(t, 6, tm.Count())
+}
+
+func TestTagManager_EvictLowestScoringStrings(t *testing.T) {
+	tm := NewTagManager()
+
+	// Add some tag entries
+	tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform"})
+
+	// Add more entries with varied usage
+	for i := 0; i < 5; i++ {
+		tm.EncodeTagStrings([]string{"env:production"}) // Increases usage count
+	}
+
+	initialCount := tm.Count()
+	require.Equal(t, 6, initialCount, "should have 6 entries (3 keys + 3 values)")
+
+	// Evict 2 entries (the least used ones)
+	evictedIDs := tm.EvictLowestScoringStrings(2, 1.0)
+
+	assert.Len(t, evictedIDs, 2)
+	assert.Equal(t, 4, tm.Count(), "should have 4 entries remaining")
+
+	// The most used entries (env, production) should still exist
+	_, exists := tm.GetStringID("env")
+	assert.True(t, exists, "frequently used 'env' should not be evicted")
+	_, exists = tm.GetStringID("production")
+	assert.True(t, exists, "frequently used 'production' should not be evicted")
+}
+
+func TestTagManager_EvictToMemoryTarget(t *testing.T) {
+	tm := NewTagManager()
+
+	// Add entries
+	tm.EncodeTagStrings([]string{"env:production", "service:api", "team:platform", "region:us-east-1"})
+
+	initialMemory := tm.EstimatedMemoryBytes()
+	require.Greater(t, initialMemory, int64(0))
+
+	// Evict entries until we free at least 50 bytes
+	targetBytes := int64(50)
+	evictedIDs := tm.EvictToMemoryTarget(targetBytes, 1.0)
+
+	assert.NotEmpty(t, evictedIDs)
+
+	finalMemory := tm.EstimatedMemoryBytes()
+	assert.Less(t, finalMemory, initialMemory, "memory usage should decrease")
+}
+
+func TestTagManager_EstimatedMemoryBytes(t *testing.T) {
+	tm := NewTagManager()
+
+	// Empty manager should have 0 bytes
+	assert.Equal(t, int64(0), tm.EstimatedMemoryBytes())
+
+	// Add some entries
+	tm.EncodeTagStrings([]string{"env:production"})
+
+	memory := tm.EstimatedMemoryBytes()
+	assert.Greater(t, memory, int64(0), "should have positive memory usage")
+
+	// Add more entries
+	tm.EncodeTagStrings([]string{"service:api"})
+
+	newMemory := tm.EstimatedMemoryBytes()
+	assert.Greater(t, newMemory, memory, "memory should increase with more entries")
+}
+
+func TestTagManager_EvictZero(t *testing.T) {
+	tm := NewTagManager()
+
+	tm.EncodeTagStrings([]string{"env:production"})
+
+	// Evicting 0 or negative should do nothing
+	evictedIDs := tm.EvictLowestScoringStrings(0, 1.0)
+	assert.Nil(t, evictedIDs)
+	assert.Equal(t, 2, tm.Count())
+
+	evictedIDs = tm.EvictToMemoryTarget(0, 1.0)
+	assert.Nil(t, evictedIDs)
+	assert.Equal(t, 2, tm.Count())
+}
+
+func TestTagEntry_EstimatedBytes(t *testing.T) {
+	entry := &tagEntry{
+		id:           1,
+		str:          "test",
+		usageCount:   10,
+		createdAt:    time.Now(),
+		lastAccessAt: time.Now(),
+	}
+
+	bytes := entry.EstimatedBytes()
+	// string header (16) + len("test") (4) + uint64 (8) + int64 (8) + 2*time.Time (48)
+	expectedMin := int64(16 + 4 + 8 + 8 + 48)
+	assert.GreaterOrEqual(t, bytes, expectedMin)
 }

@@ -46,9 +46,19 @@ func newPattern(tokenList *token.TokenList, patternID uint64) *Pattern {
 	}
 }
 
-// size returns the number of logs in this pattern.
-func (p *Pattern) size() int {
-	return p.LogCount
+// GetFrequency returns the usage frequency for eviction scoring
+func (p *Pattern) GetFrequency() float64 {
+	return float64(p.LogCount)
+}
+
+// GetCreatedAt returns when this pattern was created
+func (p *Pattern) GetCreatedAt() time.Time {
+	return p.CreatedAt
+}
+
+// GetLastAccessAt returns when this pattern was last accessed
+func (p *Pattern) GetLastAccessAt() time.Time {
+	return p.LastAccessAt
 }
 
 // EstimatedBytes returns an approximate memory footprint (in bytes) of this pattern.
