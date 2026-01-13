@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processor",
+    srcs = ["json.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/processor",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "processor_test",
+    srcs = ["json_test.go"],
+    embed = [":processor"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

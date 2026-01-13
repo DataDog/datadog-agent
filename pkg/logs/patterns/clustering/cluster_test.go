@@ -145,16 +145,16 @@ func TestCluster_MultiplePatterns_SpecialCharVariation(t *testing.T) {
 	assert.Len(t, cluster.Patterns, 2, "Expected 2 patterns due to special character variation")
 
 	// Verify pattern sizes
-	pattern1Size := cluster.Patterns[0].size()
-	pattern2Size := cluster.Patterns[1].size()
+	pattern1Size := int(cluster.Patterns[0].GetFrequency())
+	pattern2Size := int(cluster.Patterns[1].GetFrequency())
 
 	// One pattern should have 2 token lists, the other should have 1
 	validSizes := (pattern1Size == 2 && pattern2Size == 1) || (pattern1Size == 1 && pattern2Size == 2)
 	assert.True(t, validSizes, "Expected pattern sizes [2, 1], got [%d, %d]", pattern1Size, pattern2Size)
 
 	t.Logf("✅ Multi-pattern cluster created: %d patterns", len(cluster.Patterns))
-	t.Logf("   Pattern 1: %d token lists", cluster.Patterns[0].size())
-	t.Logf("   Pattern 2: %d token lists", cluster.Patterns[1].size())
+	t.Logf("   Pattern 1: %d token lists", int(cluster.Patterns[0].GetFrequency()))
+	t.Logf("   Pattern 2: %d token lists", int(cluster.Patterns[1].GetFrequency()))
 }
 
 func TestCluster_FindMatchingPattern(t *testing.T) {
