@@ -3,15 +3,19 @@ receivers:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
-        - api_key: key1
-          app_key: app1
-        - api_key: 123
-          app_key: 456
+      - api_key: key1
+        app_key: app1
+      - api_key: 123
+        app_key: 456
 service:
   pipelines:
     profiles:
       processors: []
-      receivers: [hostprofiler]
-      exporters: [otlphttp]
+      receivers:
+      - hostprofiler
+      exporters:
+      - otlphttp
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

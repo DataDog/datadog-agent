@@ -6,4 +6,6 @@ service:
     profiles:
       processors: []
       receivers: []
-      exporters: [logging, debug]
+      exporters:
+      - logging
+      - debug

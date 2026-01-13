@@ -4,7 +4,11 @@ service:
   pipelines:
     profiles:
       processors: []
-      receivers: [otlp]
-      exporters: [otlphttp]
+      receivers:
+      - otlp
+      exporters:
+      - otlphttp
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

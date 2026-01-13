@@ -145,7 +145,7 @@ func newTestConfig(t *testing.T) config.Component {
 func TestCheckProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
 	cm := loadTestData(t, "adds_default_when_no_infraattributes.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -171,7 +171,7 @@ func TestCheckProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
 func TestCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
 	cm := loadTestData(t, "ensures_infraattributes_config.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -191,7 +191,7 @@ func TestCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
 func TestCheckProcessorsRemovesResourcedetection(t *testing.T) {
 	cm := loadTestData(t, "removes_resourcedetection.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -215,7 +215,7 @@ func TestCheckProcessorsRemovesResourcedetection(t *testing.T) {
 func TestCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
 	cm := loadTestData(t, "removes_resourcedetection_custom_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -240,7 +240,7 @@ func TestCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
 func TestCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
 	cm := loadTestData(t, "handles_infraattributes_custom_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -265,7 +265,7 @@ func TestCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
 func TestCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
 	cm := loadTestData(t, "adds_hostprofiler_when_missing.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -285,7 +285,7 @@ func TestCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
 func TestCheckReceiversPreservesOtlpProtocols(t *testing.T) {
 	cm := loadTestData(t, "preserves_otlp_protocols.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -300,7 +300,7 @@ func TestCheckReceiversPreservesOtlpProtocols(t *testing.T) {
 func TestCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
 	cm := loadTestData(t, "creates_default_hostprofiler.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -315,7 +315,7 @@ func TestCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
 func TestCheckReceiversSymbolUploaderDisabled(t *testing.T) {
 	cm := loadTestData(t, "symbol_uploader_disabled.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -330,7 +330,7 @@ func TestCheckReceiversSymbolUploaderDisabled(t *testing.T) {
 func TestCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
 	cm := loadTestData(t, "symbol_uploader_with_string_keys.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -349,7 +349,7 @@ func TestCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
 func TestCheckReceiversConvertsNonStringApiKey(t *testing.T) {
 	cm := loadTestData(t, "converts_non_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -365,7 +365,7 @@ func TestCheckReceiversConvertsNonStringApiKey(t *testing.T) {
 func TestCheckReceiversConvertsNonStringAppKey(t *testing.T) {
 	cm := loadTestData(t, "converts_non_string_app_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -381,7 +381,7 @@ func TestCheckReceiversConvertsNonStringAppKey(t *testing.T) {
 func TestCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
 	cm := loadTestData(t, "adds_hostprofiler_to_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -402,7 +402,7 @@ func TestCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
 func TestCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
 	cm := loadTestData(t, "multiple_symbol_endpoints.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -422,10 +422,59 @@ func TestCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
 	require.Equal(t, "456", endpoint2["app_key"])
 }
 
+func TestCheckReceiversNonStringReceiverName(t *testing.T) {
+	// Test that non-string receiver names in pipeline are rejected
+	cm := loadTestData(t, "non_string_receiver_name_in_pipeline.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{}
+	err := converter.Convert(context.Background(), conf)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "receiver name must be a string")
+}
+
+func TestCheckReceiversMultipleHostprofilers(t *testing.T) {
+	// Test that multiple hostprofiler receivers in pipeline are all processed
+	cm := loadTestData(t, "multiple_hostprofiler_receivers.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{}
+	err := converter.Convert(context.Background(), conf)
+	require.NoError(t, err)
+
+	result := conf.ToStringMap()
+
+	// Check first hostprofiler - keys should be converted to strings
+	endpoints1, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
+	require.True(t, ok)
+	require.Len(t, endpoints1, 1)
+	ep1 := endpoints1[0].(confMap)
+	require.Equal(t, "11111", ep1["api_key"])
+	require.Equal(t, "22222", ep1["app_key"])
+
+	// Check second hostprofiler/custom - keys should be converted to strings
+	endpoints2, ok := Get[[]any](result, "receivers::hostprofiler/custom::symbol_uploader::symbol_endpoints")
+	require.True(t, ok)
+	require.Len(t, endpoints2, 1)
+	ep2 := endpoints2[0].(confMap)
+	require.Equal(t, "33333", ep2["api_key"])
+	require.Equal(t, "string-app", ep2["app_key"])
+}
+
+func TestCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
+	// Test that symbol_endpoints with wrong type (string not list) returns error
+	cm := loadTestData(t, "symbol_endpoints_exists_but_wrong_type.yaml")
+	conf := confmap.NewFromStringMap(cm)
+	converter := &converterWithAgent{}
+	err := converter.Convert(context.Background(), conf)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "symbol_endpoints should be a list")
+}
+
 func TestCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
 	cm := loadTestData(t, "ensures_headers.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -439,7 +488,7 @@ func TestCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
 func TestCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
 	cm := loadTestData(t, "otlphttp_with_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -454,7 +503,7 @@ func TestCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
 func TestCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
 	cm := loadTestData(t, "otlphttp_converts_non_string_api_key.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -469,7 +518,7 @@ func TestCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
 func TestCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 	cm := loadTestData(t, "multiple_otlphttp_exporters.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -493,7 +542,7 @@ func TestCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 func TestCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
 	cm := loadTestData(t, "ignores_non_otlphttp.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -510,7 +559,7 @@ func TestCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
 func TestCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
 	cm := loadTestData(t, "errors_when_no_otlphttp.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no otlphttp exporter configured")
@@ -524,7 +573,7 @@ func TestProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 	// Test that even if allow_hostname_override is explicitly set to false, we override it to true
 	cm := loadTestData(t, "overrides_allow_hostname_override_to_true.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -545,7 +594,7 @@ func TestProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
 	// Edge case: both infraattributes and infraattributes/custom in pipeline
 	cm := loadTestData(t, "both_default_and_custom_infraattributes.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -565,7 +614,7 @@ func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 	// Multiple resourcedetection processors with different names - all should be removed
 	cm := loadTestData(t, "multiple_resourcedetection_processors.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -594,90 +643,20 @@ func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 }
 
 func TestReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
-	// Edge case: symbol_uploader enabled but endpoints list is empty
+	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
 	cm := loadTestData(t, "symbol_uploader_enabled_with_empty_endpoints.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Should preserve empty endpoints list
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Empty(t, endpoints)
-}
-
-func TestReceiversSymbolUploaderWithMixedEndpointTypes(t *testing.T) {
-	// Edge case: Some endpoints have string keys, some have numeric keys
-	cm := loadTestData(t, "symbol_uploader_with_mixed_endpoint_types.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Len(t, endpoints, 3)
-
-	// First endpoint - mixed types
-	ep1 := endpoints[0].(confMap)
-	require.Equal(t, "string-key", ep1["api_key"])
-	require.Equal(t, "12345", ep1["app_key"])
-
-	// Second endpoint - mixed types
-	ep2 := endpoints[1].(confMap)
-	require.Equal(t, "67890", ep2["api_key"])
-	require.Equal(t, "string-app", ep2["app_key"])
-
-	// Third endpoint - missing keys get filled from config
-	ep3 := endpoints[2].(confMap)
-	require.Equal(t, "http://example.com", ep3["url"])
-	// The converter fills in api_key and app_key from config defaults
-	_, hasApiKey := ep3["api_key"]
-	require.True(t, hasApiKey) // Now filled from config
-	_, hasAppKey := ep3["app_key"]
-	require.True(t, hasAppKey) // Now filled from config
-}
-
-func TestExportersMultipleOtlpHttpWithMixedKeys(t *testing.T) {
-	// Multiple otlphttp exporters with various key types
-	cm := loadTestData(t, "multiple_otlphttp_with_mixed_keys.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Prod: should convert numeric key
-	prodApiKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
-	require.True(t, ok)
-	require.Equal(t, "12345", prodApiKey)
-
-	// Prod: custom header should be preserved
-	customHeader, ok := Get[string](result, "exporters::otlphttp/prod::headers::custom")
-	require.True(t, ok)
-	require.Equal(t, "header", customHeader)
-
-	// Staging: headers should be created
-	_, ok = Get[confMap](result, "exporters::otlphttp/staging::headers")
-	require.True(t, ok)
-
-	// Dev: string key should be preserved
-	devApiKey, ok := Get[string](result, "exporters::otlphttp/dev::headers::dd-api-key")
-	require.True(t, ok)
-	require.Equal(t, "already-string", devApiKey)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "symbol_endpoints cannot be empty")
 }
 
 func TestEmptyPipeline(t *testing.T) {
 	// Edge case: Empty everything in pipeline
 	cm := loadTestData(t, "empty_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error - no otlphttp exporter
@@ -685,22 +664,11 @@ func TestEmptyPipeline(t *testing.T) {
 	require.Contains(t, err.Error(), "no otlphttp exporter configured")
 }
 
-func TestMissingServiceSection(t *testing.T) {
-	// Edge case: No service section at all
-	cm := loadTestData(t, "missing_service_section.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should not fail because there are is an otlphttp component configured: we can infer profiles' exporter pipeline
-	require.NoError(t, err)
-}
-
 func TestNonStringProcessorNameInPipeline(t *testing.T) {
 	// Edge case: Non-string value in processors list (should be handled gracefully)
 	cm := loadTestData(t, "non_string_processor_name_in_pipeline.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error on the first non-string processor (123)
@@ -708,43 +676,12 @@ func TestNonStringProcessorNameInPipeline(t *testing.T) {
 	require.Contains(t, err.Error(), "processor name must be a string")
 }
 
-func TestReceiverConfigIsNotMap(t *testing.T) {
-	// Tricky: hostprofiler receiver exists but config is not a map
-	cm := loadTestData(t, "receiver_config_is_not_map.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should return an error with proper type checking
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "hostprofiler config should be a map")
-}
-
-func TestSymbolEndpointsExistsButWrongType(t *testing.T) {
-	// Tricky: symbol_uploader.enabled=true but endpoints is a string, not a list
-	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := loadTestData(t, "symbol_endpoints_exists_but_wrong_type.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-
-	// Ensure[[]any] replaces the string with an empty list - no error
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// The invalid string should have been replaced with an empty list
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Empty(t, endpoints)
-}
-
 func TestHeadersExistButWrongType(t *testing.T) {
 	// Tricky: exporter headers exist but are a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
 	cm := loadTestData(t, "headers_exist_but_wrong_type.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Ensure[confMap] replaces the string with an empty map - no error
@@ -768,7 +705,7 @@ func TestEmptyStringProcessorName(t *testing.T) {
 	// Tricky: processor name is an empty string
 	cm := loadTestData(t, "empty_string_processor_name.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -782,11 +719,11 @@ func TestEmptyStringProcessorName(t *testing.T) {
 }
 
 func TestProcessorNameSimilarButNotExactMatch(t *testing.T) {
-	// TODO: Should use proper OTEL type/id parsing (e.g., strings.HasPrefix with "/" check)
+	// Tests that similar names don't match - uses proper OTEL type/id parsing
 	// In OTEL specs, components must use type/id format (e.g., infraattributes/custom)
 	cm := loadTestData(t, "processor_name_similar_but_not_exact_match.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 	require.NoError(t, err)
 
@@ -795,24 +732,26 @@ func TestProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
 
-	// Current behavior: myresourcedetection gets removed (contains "resourcedetection")
-	// TODO: This is wrong - should only match "resourcedetection" or "resourcedetection/*"
-	require.NotContains(t, processorNames, "myresourcedetection")
+	// Correct behavior: myresourcedetection stays (not "resourcedetection" or "resourcedetection/*")
+	require.Contains(t, processorNames, "myresourcedetection")
 
-	// Current behavior: infraattributes_custom is treated as infraattributes type (contains "infraattributes")
-	// TODO: This is wrong - should only match "infraattributes" or "infraattributes/*"
+	// Correct behavior: infraattributes_custom stays unchanged (not "infraattributes" or "infraattributes/*")
 	require.Contains(t, processorNames, "infraattributes_custom")
 
-	// Verify it was incorrectly treated as infraattributes (allow_hostname_override was added)
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes_custom::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
+	// Verify it was NOT treated as infraattributes (allow_hostname_override NOT added)
+	_, ok = Get[bool](result, "processors::infraattributes_custom::allow_hostname_override")
+	require.False(t, ok)
 
 	// batch should remain
 	require.Contains(t, processorNames, "batch")
 
-	// Since converter thinks it found infraattributes, default is NOT added
-	require.NotContains(t, processorNames, "infraattributes/default")
+	// Since no valid infraattributes found, default SHOULD be added
+	require.Contains(t, processorNames, "infraattributes/default")
+
+	// Verify infraattributes/default was configured correctly
+	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/default::allow_hostname_override")
+	require.True(t, ok)
+	require.Equal(t, true, allowHostnameOverride)
 }
 
 func TestGlobalProcessorsSectionIsNotMap(t *testing.T) {
@@ -820,7 +759,7 @@ func TestGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Ensure silently replaces wrong-typed values with correct empty types
 	cm := loadTestData(t, "global_processors_section_is_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Ensure[confMap] replaces the string with an empty map - no error
@@ -939,7 +878,7 @@ func TestConverterErrorPropagationFromEnsure(t *testing.T) {
 	// This tests the full integration path
 	cm := loadTestData(t, "error_pipelines_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error because service::pipelines is not a map
@@ -951,29 +890,12 @@ func TestConverterErrorPropagationFromProcessors(t *testing.T) {
 	// Test that converter propagates errors when an intermediate element in processors path is not a map
 	cm := loadTestData(t, "error_processor_config_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error when trying to set infraattributes::allow_hostname_override
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "infraattributes")
-}
-
-func TestConverterErrorPropagationFromReceivers(t *testing.T) {
-	// Test that Ensure replaces final elements with wrong types (expected behavior)
-	cm := loadTestData(t, "error_receiver_endpoints_wrong_type.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
-	err := converter.Convert(context.Background(), conf)
-
-	// This won't error because Ensure replaces the final element
-	require.NoError(t, err)
-
-	// Verify that the string was replaced with an empty array
-	result := conf.ToStringMap()
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Empty(t, endpoints)
 }
 
 func TestConverterErrorPropagationFromReceiversDeepPath(t *testing.T) {
@@ -997,7 +919,7 @@ func TestConverterErrorPropagationFromExporters(t *testing.T) {
 	// Test that converter propagates errors when an intermediate element in exporters path is not a map
 	cm := loadTestData(t, "error_exporter_config_not_map.yaml")
 	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{config: newTestConfig(t)}
+	converter := &converterWithAgent{}
 	err := converter.Convert(context.Background(), conf)
 
 	// Should error when trying to ensure otlphttp::headers

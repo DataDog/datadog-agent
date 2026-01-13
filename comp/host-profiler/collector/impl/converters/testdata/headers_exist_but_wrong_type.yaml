@@ -1,9 +1,11 @@
 exporters:
   otlphttp:
-    headers: not-a-map
+    headers:
+      dd-api-key: test-api-key
 service:
   pipelines:
     profiles:
       processors: []
       receivers: []
-      exporters: [otlphttp]
+      exporters:
+      - otlphttp

@@ -1,13 +1,9 @@
-receivers:
-  hostprofiler:
-    symbol_uploader:
-      enabled: true
-      symbol_endpoints: []
 service:
   pipelines:
     profiles:
       processors: []
       receivers:
+      - 123
       - hostprofiler
       exporters:
       - otlphttp

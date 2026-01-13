@@ -1,8 +1,13 @@
 service:
   pipelines:
     profiles:
-      processors: ["", batch]
+      processors:
+      - ''
+      - batch
       receivers: []
-      exporters: [otlphttp]
+      exporters:
+      - otlphttp
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

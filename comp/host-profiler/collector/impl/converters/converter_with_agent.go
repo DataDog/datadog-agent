@@ -10,20 +10,25 @@ package converters
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
 
-type converterWithAgent struct {
-	config config.Component
-}
+// converterWithAgent ensures sane configuration that satisfies the following conditions:
+//   - At least one infraattributes processor declared and used with `allow_hostname_override: true`
+//   - If no infraattributes processor used, declare & use a minimal infraattributes processor
+//   - No resourcedetection configured nor declared
+//   - At least one otlphttpexporter with dd-api-key declared & used
+//   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
+//   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
+type converterWithAgent struct{}
 
-func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component) confmap.Converter {
-	return &converterWithAgent{config}
+func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
+	return &converterWithAgent{}
 }
 
 // Convert implements the confmap.Converter interface for converterWithAgent.
@@ -34,26 +39,17 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	if err != nil {
 		return err
 	}
-	processorNames, err := Ensure[[]any](profilesPipeline, "processors")
-	if err != nil {
-		return err
-	}
-	receiverNames, err := Ensure[[]any](profilesPipeline, "receivers")
-	if err != nil {
-		return err
-	}
-	exporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
-	if err != nil {
-		return err
-	}
+	// no need to check for errors here as we directly depend on profilesPipeline that had to be valid for this code
+	// path to be executed
+	processorNames, _ := Ensure[[]any](profilesPipeline, "processors")
+	receiverNames, _ := Ensure[[]any](profilesPipeline, "receivers")
+	exporterNames, _ := Ensure[[]any](profilesPipeline, "exporters")
 
-	// If there's no otlphttpexporter configured, check if an exporter is configured but not in pipeline, add it
-	// We can't infer necessary configurations as it needs URLs, so if nothing is found, notify user
-	newExporterNames, err := c.fixExportersPipeline(confStringMap, exporterNames)
-	if err != nil {
+	// If there's no otlphttpexporter configured. We can't infer necessary configurations as it needs URLs and API keys
+	// so if nothing is found, notify user
+	if err := c.fixExportersPipeline(confStringMap, exporterNames); err != nil {
 		return err
 	}
-	profilesPipeline["exporters"] = newExporterNames
 
 	// Determines what components we need to check and ensures at least one infraattributes is configured
 	// Deletes any resourcedetection configured in the profiles pipeline
@@ -63,7 +59,8 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	}
 	profilesPipeline["processors"] = newProcessorNames
 
-	// Ensures at least one hostprofiler is configured using a minimal default configuration
+	// Ensures at least one hostprofiler is used & configured
+	// If not, create a minimal component with symbol uploading disabled
 	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
 	if err != nil {
 		return err
@@ -75,14 +72,7 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
 		return err
 	}
-	if err := c.ensureGlobalReceivers(confStringMap); err != nil {
-		return err
-	}
 
-	// Go through every exporter and ensure every configured otlphttpexporter has a datadog API key
-	if err := c.ensureGlobalExporters(confStringMap); err != nil {
-		return err
-	}
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
@@ -94,93 +84,51 @@ func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) error {
 	}
 
 	for name := range processors {
-		if strings.Contains(name, "resourcedetection") {
+		if isComponentType(name, "resourcedetection") {
 			delete(processors, name)
 		}
 	}
 	return nil
 }
 
-func (c *converterWithAgent) ensureHostProfilerConfig(hostProfiler confMap) error {
-	// Normalize symbol uploader endpoint keys if enabled
-	if isEnabled, ok := Get[bool](hostProfiler, "symbol_uploader::enabled"); ok && isEnabled {
-		endpoints, err := Ensure[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
-		if err != nil {
-			return err
-		}
-		for _, endpoint := range endpoints {
-			if endpointMap, ok := endpoint.(confMap); ok {
-				c.ensureStringKey(endpointMap, "api_key")
-				c.ensureStringKey(endpointMap, "app_key")
-			}
-		}
+func ensureKeyStringValue(config confMap, key string) bool {
+	val, ok := config[key]
+
+	if !ok {
+		return false
 	}
-	return nil
+
+	if _, isString := val.(string); !isString {
+		log.Debugf("converting %s value to string", key)
+		config[key] = fmt.Sprintf("%v", val)
+	}
+
+	return true
 }
 
-func (c *converterWithAgent) ensureGlobalReceivers(conf confMap) error {
-	receivers, err := Ensure[confMap](conf, "receivers")
-	if err != nil {
-		return err
-	}
+func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []any) error {
+	// for each otlphttpexporter used, check if necessary api key is present
+	hasOtlpHttp := false
+	for _, nameAny := range exporterNames {
+		if name, ok := nameAny.(string); ok && isComponentType(name, "otlphttp") {
+			hasOtlpHttp = true
 
-	for receiver, config := range receivers {
-		if strings.Contains(receiver, "hostprofiler") {
-			hostProfilerConfig, ok := config.(confMap)
-			if !ok {
-				return fmt.Errorf("hostprofiler config should be a map")
-			}
-
-			if err := c.ensureHostProfilerConfig(hostProfilerConfig); err != nil {
+			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
+			if err != nil {
 				return err
 			}
+
+			if !ensureKeyStringValue(headers, "dd-api-key") {
+				return fmt.Errorf("%s exporter should contain a datadog API key", name)
+			}
 		}
 	}
+
+	if !hasOtlpHttp {
+		return errors.New("no otlphttp exporter configured in profiles pipeline")
+	}
+
 	return nil
-}
-
-func (c *converterWithAgent) ensureGlobalExporters(conf confMap) error {
-	exporters, err := Ensure[confMap](conf, "exporters")
-	if err != nil {
-		return err
-	}
-
-	// Normalize headers for all otlphttp exporters
-	for exporter := range exporters {
-		if !strings.Contains(exporter, "otlphttp") {
-			continue
-		}
-
-		headers, err := Ensure[confMap](exporters, exporter+"::headers")
-		if err != nil {
-			return err
-		}
-		c.ensureStringKey(headers, "dd-api-key")
-	}
-	return nil
-}
-
-func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []any) ([]any, error) {
-	// Ensure at least one otlphttp exporter exists
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && strings.Contains(name, "otlphttp") {
-			return exporterNames, nil
-		}
-	}
-
-	// Check if one is configured, add it if so
-	exporters, err := Ensure[confMap](conf, "exporters")
-	if err != nil {
-		return exporterNames, err
-	}
-	for exporter := range exporters {
-		if strings.Contains(exporter, "otlphttp") {
-			return append(exporterNames, exporter), nil
-		}
-	}
-
-	return exporterNames, fmt.Errorf("no otlphttp exporter configured in profiles pipeline")
-
 }
 
 func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames []any) ([]any, error) {
@@ -199,14 +147,14 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		}
 
 		// Remove resourcedetection from pipeline and global config
-		if strings.Contains(name, "resourcedetection") {
+		if isComponentType(name, "resourcedetection") {
 			delete(processors, name)
 			toDelete[name] = true
 			continue
 		}
 
 		// Track if we have infraattributes
-		if strings.Contains(name, "infraattributes") {
+		if isComponentType(name, "infraattributes") {
 			// Make sure allow_hostname_override is true
 			if err := Set(processors, name+"::allow_hostname_override", true); err != nil {
 				return nil, err
@@ -220,6 +168,7 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		if err := Set(processors, "infraattributes/default::allow_hostname_override", true); err != nil {
 			return nil, err
 		}
+		log.Warn("Added minimal infraattributes processor to user configuration")
 		processorNames = append(processorNames, "infraattributes/default")
 	}
 
@@ -239,12 +188,19 @@ func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []
 	for _, nameAny := range receiverNames {
 		name, ok := nameAny.(string)
 		if !ok {
-			return nil, fmt.Errorf("processor name must be a string, got %T", nameAny)
+			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
 		}
 
-		if strings.Contains(name, "hostprofiler") {
-			hasHostProfiler = true
-			break
+		if !isComponentType(name, "hostprofiler") {
+			continue
+		}
+
+		hasHostProfiler = true
+
+		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
+			if err := c.checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -257,25 +213,32 @@ func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []
 		return nil, err
 	}
 
+	log.Warn("Added minimal hostprofiler receiver to user configuration")
 	return append(receiverNames, "hostprofiler"), nil
 }
 
-// ensureStringKey ensures a key exists in the map and is a string.
-// If missing, it's left for agent config to fill in.
-// If present but not a string, converts it to a string.
-func (c *converterWithAgent) ensureStringKey(m confMap, key string) {
-	var (
-		stringKeyToDatadogAgentKey = map[string]string{
-			"api_key":    "api_key",
-			"app_key":    "app_key",
-			"dd-api-key": "api_key",
+func (c *converterWithAgent) checkHostProfilerReceiverConfig(hostProfiler confMap) error {
+	if isEnabled, ok := Get[bool](hostProfiler, "symbol_uploader::enabled"); !ok || !isEnabled {
+		return nil
+	}
+
+	endpoints, ok := Get[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
+
+	if !ok {
+		return errors.New("hostprofiler's symbol_endpoints should be a list")
+	}
+
+	if len(endpoints) == 0 {
+		return errors.New("hostprofiler's symbol_endpoints cannot be empty when symbol_uploader is enabled")
+	}
+
+	for _, epAny := range endpoints {
+		// Skip non-map endpoints - validation happens at unmarshal time, not here.
+		// Converter's job is transformation, not validation.
+		if ep, ok := epAny.(confMap); ok {
+			ensureKeyStringValue(ep, "api_key")
+			ensureKeyStringValue(ep, "app_key")
 		}
-	)
-	if _, exists := m[key]; !exists {
-		m[key] = c.config.GetString(stringKeyToDatadogAgentKey[key])
-		return
 	}
-	if _, isString := m[key].(string); !isString {
-		m[key] = fmt.Sprintf("%v", m[key])
-	}
+	return nil
 }

@@ -7,4 +7,6 @@ service:
       receivers: [hostprofiler]
       exporters: [otlphttp]
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

@@ -1,10 +1,14 @@
 service:
   pipelines:
     profiles:
-      processors: [infraattributes]
+      processors:
+      - infraattributes
       receivers: []
-      exporters: [otlphttp]
+      exporters:
+      - otlphttp
 processors:
   infraattributes: not-a-map
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

@@ -10,10 +10,11 @@ package converters
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -23,25 +24,31 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 }
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
-	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithAgent(settings, c)
-	}
-
-	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
+func NewFactoryWithAgent() confmap.ConverterFactory {
+	return confmap.NewConverterFactory(newConverterWithAgent)
 }
 
 type confMap = map[string]any
+
+// isComponentType checks if a component name matches a specific type.
+// OTEL components follow the naming convention: "type" or "type/id"
+// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+func isComponentType(name, componentType string) bool {
+	return name == componentType || strings.HasPrefix(name, componentType+"/")
+}
 
 // Get retrieves a value of type T from the confMap at the given path.
 // Path segments are separated by "::".
 // Returns the value and true if found and of correct type, zero value and false otherwise.
 // Does not modify the map.
+// Get only logs errors because they are recoverable (ie. Ensure)
 func Get[T any](c confMap, path string) (T, bool) {
 	var zero T
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
 	if len(pathSlice) == 0 {
+		// should never happen
+		log.Debugf("No element to get given")
 		return zero, false
 	}
 
@@ -49,11 +56,13 @@ func Get[T any](c confMap, path string) (T, bool) {
 	for _, key := range pathSlice[:len(pathSlice)-1] {
 		childConfMap, exists := currentMap[key]
 		if !exists {
+			log.Debugf("Non existent %s intermediate map in %s", key, path)
 			return zero, false
 		}
 
 		childMap, isMap := childConfMap.(confMap)
 		if !isMap {
+			log.Debugf("Intermediate node %s in %s is not a map", key, path)
 			return zero, false
 		}
 
@@ -62,6 +71,7 @@ func Get[T any](c confMap, path string) (T, bool) {
 
 	obj, exists := currentMap[target]
 	if !exists {
+		log.Debugf("leaf element in %s doesn't exist", path)
 		return zero, false
 	}
 
@@ -78,7 +88,8 @@ func Ensure[T any](c confMap, path string) (T, error) {
 		return val, nil
 	}
 	var zero T
-	// Special handling for map types - create an empty map instead of nil
+	// Special handling for map types
+	// create an empty map instead of nil
 	switch any(zero).(type) {
 	case map[string]any:
 		zero = any(make(map[string]any)).(T)
@@ -97,7 +108,7 @@ func Set[T any](c confMap, path string, value T) error {
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
 	if len(pathSlice) == 0 {
-		return fmt.Errorf("empty path")
+		return errors.New("empty path")
 	}
 
 	target := pathSlice[len(pathSlice)-1]
@@ -119,10 +130,6 @@ func Set[T any](c confMap, path string, value T) error {
 	currentMap[target] = value
 	return nil
 }
-
-// ============================================================================
-// converterWithoutAgent
-// ============================================================================
 
 type converterWithoutAgent struct{}
 

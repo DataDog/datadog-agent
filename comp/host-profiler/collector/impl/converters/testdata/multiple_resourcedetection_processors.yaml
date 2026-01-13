@@ -6,8 +6,15 @@ processors:
 service:
   pipelines:
     profiles:
-      processors: [resourcedetection, resourcedetection/system, batch, resourcedetection/cloud]
+      processors:
+      - resourcedetection
+      - resourcedetection/system
+      - batch
+      - resourcedetection/cloud
       receivers: []
-      exporters: [otlphttp]
+      exporters:
+      - otlphttp
 exporters:
-  otlphttp: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
