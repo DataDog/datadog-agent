@@ -34,8 +34,10 @@ The system answers questions like:
 │  │  │          └─────────────────┼───────────────────┘                 │  │ │
 │  │  │                            ▼                                      │  │ │
 │  │  │                    /data volume (hostPath)                        │  │ │
-│  │  │                    ├── index.json                                 │  │ │
-│  │  │                    └── dt=YYYY-MM-DD/identifier=pod-xyz/*.parquet │  │ │
+│  │  │                    ├── session.json                               │  │ │
+│  │  │                    └── dt=YYYY-MM-DD/identifier=pod-xyz/          │  │ │
+│  │  │                        ├── metrics-*.parquet                      │  │ │
+│  │  │                        └── metrics-*.containers (sidecar)         │  │ │
 │  │  └──────────────────────────────────────────────────────────────────┘  │ │
 │  │                                                                         │ │
 │  │  ┌─────────────────────┐                                                │ │
@@ -134,33 +136,51 @@ on high-cardinality fields like `l_container_id` for efficient point lookups.
 Each rotated file is immediately readable (Parquet footer written on close),
 enabling real-time analysis without waiting for collector shutdown.
 
-### Stage 4: Index Maintenance
+### Stage 4: Container Sidecar Files
 
-The collector maintains a lightweight `index.json` that enables instant viewer
-startup:
+Each parquet file gets a companion `.containers` sidecar file that enables
+fast container discovery without decompressing parquet data:
 
-```json
-{
-  "schema_version": 3,
-  "containers": {
-    "abc123def456": {
-      "pod_name": "coredns-5dd5756b68-xyz",
-      "container_name": "coredns",
-      "namespace": "kube-system",
-      "qos_class": "Burstable",
-      "first_seen": "2025-12-28T10:00:00Z",
-      "last_seen": "2025-12-30T16:05:00Z"
-    }
-  },
-  "data_range": {
-    "earliest": "2025-12-22T00:00:00Z",
-    "latest": "2025-12-30T16:05:00Z"
-  }
+**File naming:**
+- Parquet: `metrics-20260112T215249Z.parquet`
+- Sidecar: `metrics-20260112T215249Z.containers`
+
+**Format:** Binary (bincode-serialized) for 10-100x faster serialization than JSON
+
+**Structure:**
+```rust
+struct ContainerSidecar {
+    version: u8,  // Current: v2
+    containers: Vec<SidecarContainer>,
+}
+
+struct SidecarContainer {
+    container_id: String,
+    pod_name: Option<String>,
+    container_name: Option<String>,
+    namespace: Option<String>,
+    pod_uid: Option<String>,
+    qos_class: String,  // "Guaranteed" | "Burstable" | "BestEffort"
+    labels: Option<HashMap<String, String>>,
 }
 ```
 
-The index is updated only when containers appear or disappear (typically
-minutes to hours between writes), keeping overhead minimal.
+**Session manifest:** A `session.json` file at `/data/` root provides run metadata:
+```json
+{
+  "run_id": "abc123",
+  "identifier": "fine-grained-monitor-xyz",
+  "start_time": "2026-01-12T21:52:49Z",
+  "node_name": "worker-1",
+  "cluster_name": "prod-us-east",
+  "sampling_interval_ms": 1000,
+  "rotation_seconds": 90
+}
+```
+
+**Performance benefit:** Viewer startup reads tiny sidecar files (~2-5KB each)
+instead of scanning parquet row groups (700-800ms per file). This enables
+sub-second container discovery across thousands of files.
 
 ### Stage 5: File Consolidation (Optional)
 
