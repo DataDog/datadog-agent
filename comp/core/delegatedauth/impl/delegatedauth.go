@@ -160,9 +160,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	}
 
 	authConfig := &common.AuthConfig{
-		OrgUUID:      params.OrgUUID,
-		Provider:     provider,
-		ProviderAuth: tokenProvider,
+		OrgUUID: params.OrgUUID,
 	}
 
 	// Create a context for the background refresh goroutine
@@ -340,11 +338,11 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 
 // authenticate uses the configured provider to get creds
 func (d *delegatedAuthComponent) authenticate(instance *authInstance) (*string, error) {
-	creds, err := instance.authConfig.ProviderAuth.GetAPIKey(d.config, instance.authConfig)
+	key, err := instance.provider.GetAPIKey(d.config, instance.authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to authenticate: %w", err)
 	}
-	return creds, nil
+	return key, nil
 }
 
 // updateConfigWithAPIKey updates the config with the new API key

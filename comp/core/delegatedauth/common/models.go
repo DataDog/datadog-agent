@@ -12,9 +12,7 @@ import (
 
 // AuthConfig provides cloud provider based authentication configuration.
 type AuthConfig struct {
-	OrgUUID      string
-	Provider     string
-	ProviderAuth Provider
+	OrgUUID string
 }
 
 // Provider is an interface for getting a delegated token utilizing different methods.
