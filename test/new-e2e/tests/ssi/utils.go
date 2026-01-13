@@ -53,8 +53,8 @@ func FindTracesForService(t *testing.T, intake *fakeintake.Client, serviceName s
 			if !ok {
 				continue
 			}
-			tags := strings.Split(extracted, ",")
-			for _, tag := range tags {
+			tags := strings.SplitSeq(extracted, ",")
+			for tag := range tags {
 				if tag == serviceNameTag {
 					filtered = append(filtered, trace)
 				}

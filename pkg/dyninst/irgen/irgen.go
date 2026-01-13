@@ -25,7 +25,6 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -3861,7 +3860,9 @@ func disassembleAmd64Function(
 	return returnLocations, ir.Issue{}
 }
 
-// disassembleAmd64Function implemented disassembleFunction for arm64.
+const Arm64InstructionByteLength = 4
+
+// disassembleArm64Function implements disassembleFunction for arm64.
 func disassembleArm64Function(
 	addr uint64,
 	injectionPC uint64,
@@ -3881,18 +3882,17 @@ func disassembleArm64Function(
 	for offset := 0; offset < len(body); {
 		instBytes := body[offset : offset+4]
 		instruction, err := arm64asm.Decode(instBytes)
-		// All-zero instruction fails to parse, but is used as padding and valid.
-		if err != nil && binary.LittleEndian.Uint32(instBytes) != 0 {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindDisassemblyFailed,
-				Message: fmt.Sprintf(
-					"failed to decode arm64 instruction: at offset %d of %#x %#x: %v",
-					offset, addr+uint64(offset), body[offset:min(offset+4, len(body))], err,
-				),
-			}
-		}
 		if offset == int(injectionPC)-int(addr) {
 			validInjectionPC = true
+		}
+		if err != nil {
+			// Skip instructions we can't decode. The arm64asm package doesn't
+			// support all instructions (e.g. arm LSE atomics)
+			// Since we only care about the epilouge, unknown instructions
+			// or padding are skipped. Every instruction is exactly 4 bytes
+			// so we can do this safely, unlike x86.
+			offset += Arm64InstructionByteLength
+			continue
 		}
 		if instruction.Op == arm64asm.RET {
 			retPC := addr + uint64(offset)
