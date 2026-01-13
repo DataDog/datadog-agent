@@ -42,20 +42,21 @@ type Win32SystemEnclosure struct {
 func collect() (*SystemInfo, error) {
 	// Initialize WMI client
 	wmiClient := &wmi.Client{}
-	SWbemServicesClient, err := wmi.InitializeSWbemServices(wmiClient)
+	swbemServices, err := wmi.InitializeSWbemServices(wmiClient)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if err := SWbemServicesClient.Close(); err != nil {
+		if err := swbemServices.Close(); err != nil {
 			log.Errorf("error closing SWbemServicesClient: %v", err)
 		}
 	}()
+	wmiClient.SWbemServicesClient = swbemServices
 
 	// Query Win32_ComputerSystem for manufacturer and model
 	var systemInfo SystemInfo
 	var cs []Win32ComputerSystem
-	if err := wmiClient.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
+	if err := wmiClient.SWbemServicesClient.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
 		systemInfo.Manufacturer = cs[0].Manufacturer
 		systemInfo.ModelNumber = cs[0].Model
 		systemInfo.ModelName = cs[0].SystemFamily
@@ -63,12 +64,12 @@ func collect() (*SystemInfo, error) {
 	}
 
 	var bios []Win32BIOS
-	if err := wmiClient.Query("SELECT SerialNumber FROM Win32_BIOS", &bios); err == nil && len(bios) > 0 {
+	if err := wmiClient.SWbemServicesClient.Query("SELECT SerialNumber FROM Win32_BIOS", &bios); err == nil && len(bios) > 0 {
 		systemInfo.SerialNumber = bios[0].SerialNumber
 	}
 
 	var enclosure []Win32SystemEnclosure
-	if err := wmiClient.Query("SELECT ChassisTypes FROM Win32_SystemEnclosure", &enclosure); err == nil && len(enclosure) > 0 {
+	if err := wmiClient.SWbemServicesClient.Query("SELECT ChassisTypes FROM Win32_SystemEnclosure", &enclosure); err == nil && len(enclosure) > 0 {
 		if len(enclosure[0].ChassisTypes) > 0 {
 			chassisType := enclosure[0].ChassisTypes[0]
 			systemInfo.ChassisType = getChassisTypeName(chassisType, cs[0].Model, cs[0].Manufacturer)
