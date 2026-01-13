@@ -801,12 +801,12 @@ core,github.com/containernetworking/cni/pkg/utils,Apache-2.0,Copyright 2019 CNI 
 core,github.com/containernetworking/cni/pkg/version,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/containernetworking/plugins/pkg/ns,Apache-2.0,Copyright 2019 CNI authors
 core,github.com/coreos/go-semver/semver,Apache-2.0,"Copyright 2017 CoreOS, Inc"
-core,github.com/coreos/go-systemd/sdjournal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/activation,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/daemon,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/dbus,Apache-2.0,"Copyright 2017 CoreOS, Inc"
+core,github.com/coreos/go-systemd/v22/internal/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/coreos/go-systemd/v22/journal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
-core,github.com/coreos/pkg/dlopen,Apache-2.0,"Copyright 2017 CoreOS, Inc"
+core,github.com/coreos/go-systemd/v22/sdjournal,Apache-2.0,"Copyright 2017 CoreOS, Inc"
 core,github.com/cri-o/ocicni/pkg/ocicni,Apache-2.0,"Copyright 2016 Red Hat, Inc"
 core,github.com/cyphar/filepath-securejoin,BSD-3-Clause,copyright header describing its
 core,github.com/cyphar/filepath-securejoin/internal/consts,BSD-3-Clause,copyright header describing its
