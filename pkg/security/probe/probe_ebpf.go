@@ -1421,7 +1421,7 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		} else {
 			request.requestType = tcDeviceUpdateRequestType
 		}
-
+		
 		p.pushNewTCClassifierRequest(request)
 	case model.DNSEventType:
 		if read, err = event.NetworkContext.UnmarshalBinary(data[offset:]); err != nil {
