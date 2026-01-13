@@ -421,7 +421,7 @@ var defaultProfiles = `
   - name: cluster-agent
     metric:
       exclude:
-        zero_metric: true
+        zero_metric: false
       metrics:
         - name: admission_webhooks.image_resolution_attempts
           aggregate_tags:
