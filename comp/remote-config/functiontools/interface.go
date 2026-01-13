@@ -56,22 +56,32 @@ var registry = map[string]FunctionTool{
 			return tailFile(parameters["file_path"], parameters["n_lines"])
 		},
 	},
-	"apply_k8s_resource": {
-		description: "Apply a Kubernetes resource to the cluster.",
+	"enable_ssi": {
+		description: "Enable Single Step Instrumentation (SSI) for a given application in the cluster.",
 		properties: map[string]Property{
-			"resource_path": {Type: "string", Description: "The full path of the resource to apply."},
+			"namespace":       {Type: "string", Description: "The namespace of the application to enable SSI for."},
+			"deployment_name": {Type: "string", Description: "The name of the deployment to enable SSI for."},
+			"tracer_versions": {Type: "string", Description: "The language and version of the tracers to enable for the application, separated by a colon. For example: `python:3,java:1`."},
 		},
 		handler: func(parameters map[string]string) (any, error) {
-			return applyK8sResource(parameters["resource_path"])
+			return enableSsi(parameters["namespace"], parameters["deployment_name"], parameters["tracer_versions"])
 		},
 	},
-	"delete_k8s_resource": {
-		description: "Delete a Kubernetes resource from the cluster.",
+	"list_pods": {
+		description: "List all Kubernetes pods across all namespaces, grouped by namespace.",
+		properties:  map[string]Property{},
+		handler: func(parameters map[string]string) (any, error) {
+			return listPods()
+		},
+	},
+	"delete_pod": {
+		description: "Delete a Kubernetes pod by name and namespace.",
 		properties: map[string]Property{
-			"resource_path": {Type: "string", Description: "The full path of the resource to delete."},
+			"namespace": {Type: "string", Description: "The namespace of the pod to delete."},
+			"pod_name":  {Type: "string", Description: "The name of the pod to delete."},
 		},
 		handler: func(parameters map[string]string) (any, error) {
-			return deleteK8sResource(parameters["resource_path"])
+			return deletePod(parameters["namespace"], parameters["pod_name"])
 		},
 	},
 }
@@ -153,7 +163,7 @@ func (functionToolCall FunctionToolCall) Send() error {
 	}
 
 	resp, err := http.Post(
-		"http://127.0.0.1:8123/functiontool",
+		"http://host.minikube.internal:8123/functiontool",
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
