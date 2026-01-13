@@ -19,6 +19,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -117,7 +118,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 
 // isDebugEnabled checks if debug mode is enabled via pod annotation.
 func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
-	if debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug); found {
+	if debugEnabled, found := annotation.Get(pod, annotation.EnableDebug); found {
 		if debug, err := strconv.ParseBool(debugEnabled); err == nil {
 			return debug
 		}
@@ -128,13 +129,13 @@ func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
 // resolveInjectorImage determines the injector image to use based on configuration and pod annotations.
 func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.ResolvedImage {
 	// Check for the injector image being set via annotation (highest priority)
-	if injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage); found {
+	if injectorImage, found := annotation.Get(pod, annotation.InjectorImage); found {
 		return libraryinjection.ResolvedImage{Image: injectorImage}
 	}
 
 	// Check for the injector version set via annotation
 	injectorTag := m.config.Instrumentation.InjectorImageTag
-	if injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion); found {
+	if injectorVersion, found := annotation.Get(pod, annotation.InjectorVersion); found {
 		injectorTag = injectorVersion
 	}
 

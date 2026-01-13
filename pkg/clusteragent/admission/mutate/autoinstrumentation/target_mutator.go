@@ -21,6 +21,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -243,7 +244,7 @@ func (m *TargetMutator) addTargetJSONInfo(pod *corev1.Pod, target *targetInterna
 	}), true)
 
 	// Add the annotations to the pod.
-	SetAnnotation(pod, AnnotationAppliedTarget, target.json)
+	annotation.Set(pod, annotation.AppliedTarget, target.json)
 }
 
 // ShouldMutatePod determines if a pod would be mutated by the target mutator. It is used by other webhook mutators as
@@ -352,7 +353,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	injectAllAnnotation := strings.ToLower(AnnotationLibraryVersion.Format("all"))
+	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
 		return &annotationResult{
 			shouldContinue: false,
@@ -521,13 +522,13 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 	// Check all supported languages for potential Local SDK Injection.
 	for _, l := range supportedLanguages {
 		// Check for a custom library image.
-		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
+		customImage, found := annotation.Get(pod, annotation.LibraryImage.Format(string(l)))
 		if found {
 			libs = append(libs, l.libInfo("", customImage))
 		}
 
 		// Check for a custom library version.
-		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
+		libVersion, found := annotation.Get(pod, annotation.LibraryVersion.Format(string(l)))
 		if found {
 			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
 		}
@@ -535,13 +536,13 @@ func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo
 		// Check all containers in the pod for container specific Local SDK Injection.
 		for _, container := range pod.Spec.Containers {
 			// Check for custom library image.
-			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
+			customImage, found := annotation.Get(pod, annotation.LibraryContainerImage.Format(container.Name, string(l)))
 			if found {
 				libs = append(libs, l.libInfo(container.Name, customImage))
 			}
 
 			// Check for custom library version.
-			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
+			libVersion, found := annotation.Get(pod, annotation.LibraryContainerVersion.Format(container.Name, string(l)))
 			if found {
 				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
 			}

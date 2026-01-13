@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -36,7 +37,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Handle injector result
 	switch injectorResult.status {
 	case mutationStatusSkipped:
-		setAnnotation(pod, annotationInjectionError, injectorResult.err.Error())
+		annotation.Set(pod, annotation.InjectionError, injectorResult.err.Error())
 		return nil
 	case mutationStatusError:
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
@@ -46,7 +47,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 	// Set injector canonical version annotation if available
 	if cfg.Injector.CanonicalVersion != "" {
-		setAnnotation(pod, annotationInjectorCanonicalVersion, cfg.Injector.CanonicalVersion)
+		annotation.Set(pod, annotation.InjectorCanonicalVersion, cfg.Injector.CanonicalVersion)
 	}
 
 	// Inject APM environment variables to application containers
@@ -64,8 +65,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 		metrics.LibInjectionAttempts.Inc(lib.Language, strconv.FormatBool(injected), strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 
 		if libResult.status == mutationStatusInjected && lib.CanonicalVersion != "" {
-			annotationKey := annotationLibraryCanonicalVersionPrefix + lib.Language + annotationLibraryCanonicalVersionSuffix
-			setAnnotation(pod, annotationKey, lib.CanonicalVersion)
+			annotation.Set(pod, annotation.LibraryCanonicalVersion.Format(lib.Language), lib.CanonicalVersion)
 		}
 
 		if libResult.status == mutationStatusError {
