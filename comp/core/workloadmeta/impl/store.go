@@ -43,6 +43,15 @@ type subscriber struct {
 
 // start starts the workload metadata store.
 func (w *workloadmeta) start(ctx context.Context) {
+	// If there are no collectors, mark as starting immediately so that
+	// IsInitialized() will return true after the first pull. This prevents
+	// components like autodiscovery from waiting indefinitely.
+	if len(w.candidates) == 0 {
+		w.collectorMut.Lock()
+		w.collectorsInitialized = wmdef.CollectorsStarting
+		w.collectorMut.Unlock()
+	}
+
 	go func() {
 		health := health.RegisterLiveness("workloadmeta-store")
 		for {
@@ -626,7 +635,6 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff.MaxElapsedTime = 0 // Don't stop trying
 
 	if len(w.candidates) == 0 {
-		// TODO: this should actually probably just be an error?
 		return nil
 	}
 
