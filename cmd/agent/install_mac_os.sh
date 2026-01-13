@@ -559,7 +559,7 @@ $sudo_cmd hdiutil detach "/Volumes/datadog_agent" >/dev/null 2>&1 || true
 printf "${BLUE}\n    - Mounting the DMG installer...\n${NC}"
 $sudo_cmd hdiutil attach "$dmg_file" -mountpoint "/Volumes/datadog_agent" >/dev/null
 if [ "$systemdaemon_install" != false ] && [ -f "$systemwide_servicefile_name" ]; then
-    printf "${BLUE}\n    - Stopping syste-mwide Datadog Agent daemon ...\n${NC}"
+    printf "${BLUE}\n    - Stopping system-wide Datadog Agent daemon ...\n${NC}"
     # we use "|| true" because if the service is not started/loaded, the commands fail
     $sudo_cmd launchctl stop $service_name || true
     if $sudo_cmd launchctl print system/$service_name 2>/dev/null >/dev/null; then
