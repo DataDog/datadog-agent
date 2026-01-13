@@ -35,8 +35,11 @@ import (
 
 // CheckName is the name of the agentprofiling check
 const (
-	CheckName = "agentprofiling"
-	MB        = 1024 * 1024
+	CheckName               = "agentprofiling"
+	MB                      = 1024 * 1024
+	defaultMaxFlareAttempts = 3                // Default maximum number of flare attempts
+	minRetryBackoff         = 1 * time.Minute  // Minimum backoff between retries
+	maxRetryBackoff         = 15 * time.Minute // Maximum backoff between retries
 )
 
 // Config is the configuration for the agentprofiling check
@@ -51,13 +54,15 @@ type Config struct {
 // Check is the check that generates a flare with profiles when the core agent's memory or CPU usage exceeds a certain threshold
 type Check struct {
 	core.CheckBase
-	instance        *Config
-	flareAttempted  bool
-	flareComponent  flare.Component
-	agentConfig     config.Component
-	lastCPUTimes    *cpu.TimesStat
-	lastCheckTime   time.Time
-	memoryThreshold uint // Parsed memory threshold in bytes
+	instance          *Config
+	flareAttempted    bool
+	flareAttemptCount int       // Number of flare attempts made
+	lastFlareAttempt  time.Time // Time of last flare attempt
+	flareComponent    flare.Component
+	agentConfig       config.Component
+	lastCPUTimes      *cpu.TimesStat
+	lastCheckTime     time.Time
+	memoryThreshold   uint // Parsed memory threshold in bytes
 }
 
 // Factory creates a new instance of the agentprofiling check
@@ -130,7 +135,7 @@ func (m *Check) calculateCPUPercentage(currentTimes *cpu.TimesStat) float64 {
 
 // Run executes the agent profiling check, generating a flare with profiles if thresholds are exceeded
 func (m *Check) Run() error {
-	// Don't run again if flare generation has already been attempted
+	// Don't run again if we've exhausted all retry attempts
 	if m.flareAttempted {
 		return nil
 	}
@@ -186,10 +191,36 @@ func (m *Check) Run() error {
 		return nil
 	}
 
-	// If either memory or CPU exceeds threshold, generate flare
-	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Generating flare.", processMemoryMB, currentCPU)
+	// If either memory or CPU exceeds threshold, attempt to generate flare
+	attemptNumber := m.flareAttemptCount + 1
+	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Attempting flare generation (attempt %d/%d).", processMemoryMB, currentCPU, attemptNumber, defaultMaxFlareAttempts)
+
+	// Check if we need to wait before retrying (exponential backoff)
+	if m.flareAttemptCount > 0 {
+		backoffDuration := m.calculateBackoff(m.flareAttemptCount)
+		timeSinceLastAttempt := time.Since(m.lastFlareAttempt)
+
+		if timeSinceLastAttempt < backoffDuration {
+			remainingWait := backoffDuration - timeSinceLastAttempt
+			log.Debugf("Waiting %v before retry (backoff: %v, attempt %d/%d)", remainingWait, backoffDuration, attemptNumber, defaultMaxFlareAttempts)
+			return nil // Skip this run, will retry on next check interval
+		}
+	}
+
+	// Increment attempt count and record attempt time before attempting
+	m.flareAttemptCount++
+	m.lastFlareAttempt = time.Now()
+
 	if err := m.generateFlare(); err != nil {
-		return fmt.Errorf("Failed to generate flare: %w", err)
+		// Check if we've exhausted retries
+		if m.flareAttemptCount >= defaultMaxFlareAttempts {
+			m.flareAttempted = true
+			log.Warnf("Flare generation failed after %d attempts. No more flares will be generated until the Agent is restarted. Last error: %v", defaultMaxFlareAttempts, err)
+			return nil // Don't return error to avoid check failure spam
+		}
+
+		log.Warnf("Flare generation attempt %d/%d failed: %v. Will retry with backoff.", m.flareAttemptCount, defaultMaxFlareAttempts, err)
+		return nil // Don't return error to avoid check failure spam
 	}
 
 	return nil
@@ -220,6 +251,23 @@ func (m *Check) terminateAgent() {
 	log.Flush()
 }
 
+// calculateBackoff calculates the exponential backoff duration based on attempt number
+func (m *Check) calculateBackoff(attempt int) time.Duration {
+	// Exponential backoff: 1min, 5min, 15min for attempts 1, 2, 3
+	backoffDurations := []time.Duration{
+		minRetryBackoff, // 1 minute for attempt 1
+		5 * time.Minute, // 5 minutes for attempt 2
+		maxRetryBackoff, // 15 minutes for attempt 3+
+	}
+
+	backoffIndex := attempt - 1
+	if backoffIndex >= len(backoffDurations) {
+		backoffIndex = len(backoffDurations) - 1
+	}
+
+	return backoffDurations[backoffIndex]
+}
+
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
 func (m *Check) generateFlare() error {
 	// Skip flare generation if flareComponent is not available
@@ -228,13 +276,6 @@ func (m *Check) generateFlare() error {
 		m.flareAttempted = true
 		return nil
 	}
-
-	// Mark flare as attempted regardless of success/failure to prevent retry loops
-	// This ensures that even if flare creation or sending fails, we won't retry indefinitely
-	defer func() {
-		m.flareAttempted = true
-		log.Info("Flare generation attempt complete. No more flares will be generated until the Agent is restarted.")
-	}()
 
 	// Prepare flare arguments
 	flareArgs := types.FlareArgs{
@@ -258,10 +299,14 @@ func (m *Check) generateFlare() error {
 			// Include the user-friendly response message in the error
 			return fmt.Errorf("Failed to send flare: %s (%w)", response, err)
 		}
-		log.Infof("Flare sent with case ID %q", m.instance.TicketID)
+		log.Infof("Flare sent successfully with case ID %q (attempt %d/%d)", m.instance.TicketID, m.flareAttemptCount, defaultMaxFlareAttempts)
 	} else {
-		log.Infof("Flare generated locally at %q", flarePath)
+		log.Infof("Flare generated locally at %q (attempt %d/%d)", flarePath, m.flareAttemptCount, defaultMaxFlareAttempts)
 	}
+
+	// Success! Mark as attempted to prevent further attempts
+	m.flareAttempted = true
+	log.Info("Flare generation successful. No more flares will be generated until the Agent is restarted.")
 
 	// Terminate agent if configured to do so
 	if m.instance.TerminateAgentOnThreshold {
