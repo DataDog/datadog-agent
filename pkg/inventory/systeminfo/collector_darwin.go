@@ -5,14 +5,14 @@
 
 //go:build darwin
 
-package hardware
+package systeminfo
 
 /*
 #cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Foundation -framework IOKit
 
 #include <stdlib.h>
-#include "hosthardware_darwin.h"
+#include "systeminfo_darwin.h"
 */
 import "C"
 import (
@@ -20,20 +20,20 @@ import (
 	"unsafe"
 )
 
-func collect() (*SystemHardwareInfo, error) {
+func collect() (*SystemInfo, error) {
 	cInfo := C.getDeviceInfo()
 	defer C.free(unsafe.Pointer(cInfo.modelIdentifier))
 	defer C.free(unsafe.Pointer(cInfo.modelNumber))
 	defer C.free(unsafe.Pointer(cInfo.productName))
 	defer C.free(unsafe.Pointer(cInfo.serialNumber))
 
-	return &SystemHardwareInfo{
+	return &SystemInfo{
 		Manufacturer: "Apple Inc.",
-		Name:         C.GoString(cInfo.productName),
-		Identifier:   C.GoString(cInfo.modelIdentifier),
 		ModelNumber:  C.GoString(cInfo.modelNumber),
 		SerialNumber: C.GoString(cInfo.serialNumber),
+		ModelName:    C.GoString(cInfo.productName),
 		ChassisType:  getChassisType(C.GoString(cInfo.productName), C.GoString(cInfo.modelIdentifier)),
+		Identifier:   C.GoString(cInfo.modelIdentifier),
 	}, nil
 }
 

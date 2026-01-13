@@ -1,13 +1,13 @@
-#ifndef HOSTHARDWARE_DARWIN_H
-#define HOSTHARDWARE_DARWIN_H
+#ifndef SYSTEMINFO_DARWIN_H
+#define SYSTEMINFO_DARWIN_H
 
 #include <stdbool.h>
 
 typedef struct {
-    char *modelIdentifier;
     char *modelNumber;
-    char *productName;
     char *serialNumber;
+    char *productName;
+    char *modelIdentifier;
 } DeviceInfo;
 
 DeviceInfo getDeviceInfo(void);

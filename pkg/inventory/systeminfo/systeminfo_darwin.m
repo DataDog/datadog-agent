@@ -1,6 +1,6 @@
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
-#import "hosthardware_darwin.h"
+#import "systeminfo_darwin.h"
 #import <stdlib.h>
 #import <string.h>
 
