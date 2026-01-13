@@ -18,7 +18,7 @@ bazel_dep(name = "rules_license", version = "1.0.0")
 # We are temporarily using a development fork which is ahead of the release.
 archive_override(
     module_name = "rules_license",
-    # sha256 = TBD,
+    integrity = "sha256-2EMxXHd6ApakDCLlGJtXbplE9vSzd/5Djr9tHiHnlOs=",
     strip_prefix = "supply-chain-dd_test/rules_license",
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
