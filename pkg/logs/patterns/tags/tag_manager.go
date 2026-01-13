@@ -11,48 +11,66 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TagManager manages a dictionary of unique tag strings (keys and values) to dictionary IDs.
 // It provides thread-safe operations for retrieving/creating IDs and building Tag proto messages
 // that reference those IDs.
 type TagManager struct {
-	stringToID map[string]uint64
-	nextID     atomic.Uint64
-	mu         sync.RWMutex // prevent other log pipelines from accessing the dictionary concurrently
+	stringToEntry map[string]*tagEntry
+	idToEntry     map[uint64]*tagEntry
+	nextID        atomic.Uint64
+	mu            sync.RWMutex
 }
 
 // NewTagManager creates a new TagManager instance
 func NewTagManager() *TagManager {
 	tm := &TagManager{
-		stringToID: make(map[string]uint64),
+		stringToEntry: make(map[string]*tagEntry),
+		idToEntry:     make(map[uint64]*tagEntry),
 	}
 	return tm
 }
 
 // AddString adds a string to the dictionary and returns its dictionary ID
-// If the string already exists, returns the existing ID
+// If the string already exists, updates its access metadata and returns the existing ID
 // Returns the dictionary ID and a boolean indicating if it was newly added
 func (tm *TagManager) AddString(s string) (dictID uint64, isNew bool) {
 	tm.mu.RLock()
-	if id, exists := tm.stringToID[s]; exists {
+	if entry, exists := tm.stringToEntry[s]; exists {
 		tm.mu.RUnlock()
-		return id, false
+		// Update access metadata with write lock
+		tm.mu.Lock()
+		entry.usageCount++
+		entry.lastAccessAt = time.Now()
+		tm.mu.Unlock()
+		return entry.id, false
 	}
 	tm.mu.RUnlock()
 
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
 	// Double-check locking in case another goroutine added it between locks
-	if id, exists := tm.stringToID[s]; exists {
-		return id, false
+	if entry, exists := tm.stringToEntry[s]; exists {
+		entry.usageCount++
+		entry.lastAccessAt = time.Now()
+		return entry.id, false
 	}
-	// Assign new ID (IDs start at 1)
+
 	id := tm.nextID.Add(1)
-	tm.stringToID[s] = id
+	entry := &tagEntry{
+		id:           id,
+		str:          s,
+		usageCount:   1,
+		createdAt:    time.Now(),
+		lastAccessAt: time.Now(),
+	}
+	tm.stringToEntry[s] = entry
+	tm.idToEntry[id] = entry
 	return id, true
 }
 
@@ -119,8 +137,11 @@ func (tm *TagManager) EncodeTagStrings(tagStrings []string) (tag []*statefulpb.T
 func (tm *TagManager) GetStringID(s string) (uint64, bool) {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
-	id, exists := tm.stringToID[s]
-	return id, exists
+	entry, exists := tm.stringToEntry[s]
+	if !exists {
+		return 0, false
+	}
+	return entry.id, true
 }
 
 // Get returns the dictionary ID for a tag string, if it exists
@@ -134,7 +155,7 @@ func (tm *TagManager) Get(tag string) (uint64, bool) {
 func (tm *TagManager) Count() int {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
-	return len(tm.stringToID)
+	return len(tm.stringToEntry)
 }
 
 // dictIndexValue converts a dictionary ID to a DynamicValue proto message
