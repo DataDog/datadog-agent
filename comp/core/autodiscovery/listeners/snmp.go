@@ -103,11 +103,15 @@ func NewSNMPListener(ServiceListernerDeps) (ServiceListener, error) {
 	if err != nil {
 		return nil, err
 	}
+	var deduper devicededuper.DeviceDeduper
+	if snmpConfig.Deduplicate {
+		deduper = devicededuper.NewDeviceDeduper(snmpConfig)
+	}
 	return &SNMPListener{
 		services:      map[string]*SNMPService{},
 		stop:          make(chan bool),
 		config:        snmpConfig,
-		deviceDeduper: devicededuper.NewDeviceDeduper(snmpConfig),
+		deviceDeduper: deduper,
 	}, nil
 }
 
@@ -197,8 +201,10 @@ func (l *SNMPListener) checkDevice(job snmpJob) {
 	for authIndex, authentication := range job.subnet.config.Authentications {
 		deviceFound = l.checkDeviceReachable(authentication, job.subnet.config.Port, deviceIP)
 
-		l.deviceDeduper.MarkIPAsProcessed(deviceIP)
-		l.registerDedupedDevices()
+		if l.deviceDeduper != nil {
+			l.deviceDeduper.MarkIPAsProcessed(deviceIP)
+			l.registerDedupedDevices()
+		}
 
 		if !deviceFound {
 			continue
@@ -505,7 +511,7 @@ func (l *SNMPListener) createService(
 		Failures:   deviceFailures,
 	}
 
-	if deviceInfo == (devicededuper.DeviceInfo{}) {
+	if l.deviceDeduper == nil || deviceInfo == (devicededuper.DeviceInfo{}) {
 		l.registerService(pendingDevice)
 		return
 	}
@@ -514,7 +520,7 @@ func (l *SNMPListener) createService(
 }
 
 func (l *SNMPListener) registerDedupedDevices() {
-	if !l.config.Deduplicate {
+	if l.deviceDeduper == nil || !l.config.Deduplicate {
 		return
 	}
 	for _, pendingSvc := range l.deviceDeduper.GetDedupedDevices() {
