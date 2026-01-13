@@ -21,6 +21,9 @@ def ask_reviews(_, pr_id):
     if 'backport' in pr.title.casefold():
         print("This is a backport PR, we don't need to ask for reviews.")
         return
+    if any(label.name == 'no-review' for label in pr.get_labels()):
+        print("This PR has the no-review label, we don't need to ask for reviews.")
+        return
     actor, team = get_events_info(pr)
     if team:  # This is a review request event, only a single team is concerned
         reviewers = [f"@datadog/{team}"]
