@@ -34,10 +34,6 @@ var (
 	iphlpapi                   = windows.NewLazyDLL("iphlpapi.dll")
 	getIfEntry2                = iphlpapi.NewProc("GetIfEntry2")
 	convertInterfaceGuidToLuid = iphlpapi.NewProc("ConvertInterfaceGuidToLuid")
-
-	// getWiFiInfo is a package-level function variable for testability
-	// Tests can reassign this to mock WiFi data retrieval
-	getWiFiInfo func() (wifiInfo, error)
 )
 
 // https://learn.microsoft.com/en-us/windows/win32/api/wlanapi/ne-wlanapi-wlan_interface_state-r1
@@ -506,13 +502,7 @@ func getFirstConnectedWlanInfo() (*wifiInfo, error) {
 	return nil, nil
 }
 
-// GetWiFiInfo retrieves WiFi information on Windows
-func (c *WLANCheck) GetWiFiInfo() (wifiInfo, error) {
-	// Check for test override
-	if getWiFiInfo != nil {
-		return getWiFiInfo()
-	}
-
+func GetWiFiInfo() (wifiInfo, error) {
 	wi, err := getFirstConnectedWlanInfo()
 	if err != nil {
 		return wifiInfo{}, err

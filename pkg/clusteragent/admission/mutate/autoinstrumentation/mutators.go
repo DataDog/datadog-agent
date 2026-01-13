@@ -53,14 +53,16 @@ func (f podMutatorFunc) mutatePod(pod *corev1.Pod) error {
 	return f(pod)
 }
 
-// mutatePodContainers applies a containerMutator to all of
-// the containers of a pod (init and not).
-func mutatePodContainers(pod *corev1.Pod, mutator containerMutator) error {
-	for idx, c := range pod.Spec.InitContainers {
-		if err := mutator.mutateContainer(&c); err != nil {
-			return err
+// mutatePodContainers applies a containerMutator to containers of a pod.
+// If includeInitContainers is true, it also applies to init containers.
+func mutatePodContainers(pod *corev1.Pod, mutator containerMutator, includeInitContainers bool) error {
+	if includeInitContainers {
+		for idx, c := range pod.Spec.InitContainers {
+			if err := mutator.mutateContainer(&c); err != nil {
+				return err
+			}
+			pod.Spec.InitContainers[idx] = c
 		}
-		pod.Spec.InitContainers[idx] = c
 	}
 
 	for idx, c := range pod.Spec.Containers {
