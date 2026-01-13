@@ -6,7 +6,6 @@ import (
 	"context"
 	"sync"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
@@ -118,51 +117,33 @@ func TestGaugeDataRace(t *testing.T) {
 
 type mockMeter struct {
 	metric_noop.Meter
-	cond   *sync.Cond
-	before bool
-	after  bool
+	beenThere bool
+	client    *metricsClient
+	tester    *testing.T
 }
 
 func (meter *mockMeter) Float64ObservableGauge(string, ...metricapi.Float64ObservableGaugeOption) (metricapi.Float64ObservableGauge, error) {
-	meter.cond.L.Lock()
-	defer meter.cond.L.Unlock()
-	meter.before = true
-	meter.cond.Wait() // synctest bubble guarantees no spurious wake-ups
-	meter.after = true
+	isClientLockable := meter.client.mutex.TryLock()
+	if isClientLockable {
+		meter.client.mutex.Unlock()
+	}
+	assert.True(meter.tester, isClientLockable)
+	meter.beenThere = true
 	return nil, nil
 }
 
 func TestGaugeDeadlock(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		mutex := sync.Mutex{}
-		mock := mockMeter{cond: sync.NewCond(&mutex)}
-		_, metricClient, _ := setupMetricClient(t)
-		metricClient.(*metricsClient).meter = &mock
+	_, metricClient, _ := setupMetricClient(t)
+	mock := mockMeter{
+		beenThere: false,
+		client:    metricClient.(*metricsClient),
+		tester:    t,
+	}
+	metricClient.(*metricsClient).meter = &mock
 
-		go func() {
-			err := metricClient.Gauge("toto", 1, []string{"otlp:true"}, 1)
-			assert.NoError(t, err)
-		}()
-
-		synctest.Wait() // wait for the other goroutine to be durably blocked in cond.Wait
-
-		mutex.Lock()
-		assert.Equal(t, true, mock.before)
-		mutex.Unlock()
-
-		isMetricClientAvailable := metricClient.(*metricsClient).mutex.TryLock()
-		if isMetricClientAvailable {
-			metricClient.(*metricsClient).mutex.Unlock()
-		}
-		// Here is what we're really testing:
-		// did the metricClient properly release its mutex before calling meter's method ?
-		assert.Equal(t, true, isMetricClientAvailable)
-
-		mutex.Lock()
-		assert.Equal(t, false, mock.after)
-		mock.cond.Signal()
-		mutex.Unlock()
-	})
+	err := metricClient.Gauge("toto", 1, []string{"otlp:true"}, 1)
+	assert.NoError(t, err)
+	assert.True(t, mock.beenThere)
 }
 
 func TestCount(t *testing.T) {
