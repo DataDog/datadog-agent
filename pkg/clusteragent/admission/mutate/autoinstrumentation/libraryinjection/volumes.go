@@ -13,12 +13,12 @@ import (
 
 // Volume and mount path constants shared across injection providers.
 const (
-	// instrumentationVolumeName is the name of the main volume used for APM instrumentation.
+	// InstrumentationVolumeName is the name of the main volume used for APM instrumentation.
 	// This volume contains both the APM injector and language-specific library files.
-	instrumentationVolumeName = "datadog-auto-instrumentation"
+	InstrumentationVolumeName = "datadog-auto-instrumentation"
 
-	// etcVolumeName is the name of the volume for /etc/ld.so.preload.
-	etcVolumeName = "datadog-auto-instrumentation-etc"
+	// EtcVolumeName is the name of the volume for /etc/ld.so.preload.
+	EtcVolumeName = "datadog-auto-instrumentation-etc"
 
 	// libraryMountPath is the mount path for the library files in application containers.
 	libraryMountPath = "/datadog-lib"
@@ -50,8 +50,8 @@ var supportedLanguages = []string{
 	"php",
 }
 
-// isLanguageSupported checks if a language is supported for injection.
-func isLanguageSupported(lang string) bool {
+// IsLanguageSupported checks if a language is supported for injection.
+func IsLanguageSupported(lang string) bool {
 	for _, l := range supportedLanguages {
 		if l == lang {
 			return true

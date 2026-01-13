@@ -17,36 +17,36 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
-// mutationStatus represents the outcome of a mutation operation.
-type mutationStatus string
+// MutationStatus represents the outcome of a mutation operation.
+type MutationStatus string
 
 const (
-	// mutationStatusInjected indicates the injection was successful.
-	mutationStatusInjected mutationStatus = "injected"
-	// mutationStatusSkipped indicates the injection was skipped (e.g., insufficient resources).
-	mutationStatusSkipped mutationStatus = "skipped"
-	// mutationStatusError indicates an error occurred during injection.
-	mutationStatusError mutationStatus = "error"
+	// MutationStatusInjected indicates the injection was successful.
+	MutationStatusInjected MutationStatus = "injected"
+	// MutationStatusSkipped indicates the injection was skipped (e.g., insufficient resources).
+	MutationStatusSkipped MutationStatus = "skipped"
+	// MutationStatusError indicates an error occurred during injection.
+	MutationStatusError MutationStatus = "error"
 )
 
-// mutationContext contains data to pass between injection calls.
-// This allows injectInjector to compute values that injectLibrary can reuse.
-type mutationContext struct {
-	// resourceRequirements are the computed resource requirements for init containers.
-	resourceRequirements corev1.ResourceRequirements
-	// initSecurityContext is the security context to apply to init containers.
+// MutationContext contains data to pass between injection calls.
+// This allows InjectInjector to compute values that InjectLibrary can reuse.
+type MutationContext struct {
+	// ResourceRequirements are the computed resource requirements for init containers.
+	ResourceRequirements corev1.ResourceRequirements
+	// InitSecurityContext is the security context to apply to init containers.
 	// This is computed once based on namespace labels and reused for all injections.
-	initSecurityContext *corev1.SecurityContext
+	InitSecurityContext *corev1.SecurityContext
 }
 
-// mutationResult contains the result of a mutation operation.
-type mutationResult struct {
-	// status indicates the outcome of the mutation.
-	status mutationStatus
-	// err contains the error that occurred during mutation (for mutationStatusError or mutationStatusSkipped).
-	err error
-	// context contains data to pass to subsequent injection calls.
-	context mutationContext
+// MutationResult contains the result of a mutation operation.
+type MutationResult struct {
+	// Status indicates the outcome of the mutation.
+	Status MutationStatus
+	// Err contains the error that occurred during mutation (for MutationStatusError or MutationStatusSkipped).
+	Err error
+	// Context contains data to pass to subsequent injection calls.
+	Context MutationContext
 }
 
 // ResolvedImage contains an image reference and its canonical version.
@@ -72,9 +72,9 @@ type LibraryConfig struct {
 	ResolvedImage
 	// ContainerName is the target container name (empty means all containers).
 	ContainerName string
-	// Context contains data from a previous injectInjector call.
+	// Context contains data from a previous InjectInjector call.
 	// This is used to pass computed values like resource requirements and security context.
-	Context mutationContext
+	Context MutationContext
 }
 
 // LibraryInjectionConfig contains all configuration needed to perform APM library injection.
@@ -112,20 +112,20 @@ type LibraryInjectionConfig struct {
 	InjectionType string
 }
 
-// libraryInjectionProvider defines the strategy for injecting APM libraries into pods.
+// LibraryInjectionProvider defines the strategy for injecting APM libraries into pods.
 // Providers mutate the pod directly and return a status indicating the result.
 //
 // Different implementations can use different mechanisms:
-// - initContainerProvider: Uses init containers with EmptyDir volumes
+// - InitContainerProvider: Uses init containers with EmptyDir volumes
 // - (future) CSI provider: Uses a CSI driver to mount library files
-type libraryInjectionProvider interface {
-	// injectInjector mutates the pod to add the APM injector component.
+type LibraryInjectionProvider interface {
+	// InjectInjector mutates the pod to add the APM injector component.
 	// The injector is responsible for the LD_PRELOAD mechanism that enables auto-instrumentation.
 	// It adds volumes, volume mounts, and optionally init containers to the pod.
-	injectInjector(pod *corev1.Pod, cfg InjectorConfig) mutationResult
+	InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult
 
-	// injectLibrary mutates the pod to add a language-specific tracing library.
+	// InjectLibrary mutates the pod to add a language-specific tracing library.
 	// It adds volumes, volume mounts, and optionally init containers for the library.
-	// Returns mutationStatusError if the language is not supported.
-	injectLibrary(pod *corev1.Pod, cfg LibraryConfig) mutationResult
+	// Returns MutationStatusError if the language is not supported.
+	InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult
 }

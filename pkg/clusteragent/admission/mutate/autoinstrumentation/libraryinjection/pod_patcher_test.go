@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package libraryinjection
+package libraryinjection_test
 
 import (
 	"testing"
@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
 
 func TestPodPatcher_AddVolume(t *testing.T) {
@@ -52,7 +54,7 @@ func TestPodPatcher_AddVolume(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
 				Spec:       corev1.PodSpec{Volumes: tt.existingVolumes},
 			}
-			patcher := newPodPatcher(pod, nil)
+			patcher := libraryinjection.NewPodPatcher(pod, nil)
 			patcher.AddVolume(tt.volumeToAdd)
 
 			assert.Equal(t, len(tt.expectedVolumes), len(pod.Spec.Volumes))
@@ -80,7 +82,7 @@ func TestPodPatcher_AddVolumeMount_WithFilter(t *testing.T) {
 		return c.Name != "istio-proxy"
 	}
 
-	patcher := newPodPatcher(pod, filter)
+	patcher := libraryinjection.NewPodPatcher(pod, filter)
 	mount := corev1.VolumeMount{Name: "test-vol", MountPath: "/test"}
 	patcher.AddVolumeMount(mount)
 
@@ -110,7 +112,7 @@ func TestPodPatcher_AddVolumeMount_Replaces(t *testing.T) {
 		},
 	}
 
-	patcher := newPodPatcher(pod, nil)
+	patcher := libraryinjection.NewPodPatcher(pod, nil)
 	// Add mount with same name and path but different ReadOnly
 	mount := corev1.VolumeMount{Name: "vol1", MountPath: "/path1", ReadOnly: true}
 	patcher.AddVolumeMount(mount)
@@ -135,7 +137,7 @@ func TestPodPatcher_AddEnvVar_DoesNotOverwrite(t *testing.T) {
 		},
 	}
 
-	patcher := newPodPatcher(pod, nil)
+	patcher := libraryinjection.NewPodPatcher(pod, nil)
 	patcher.AddEnvVar(corev1.EnvVar{Name: "EXISTING", Value: "new"})
 
 	// Should NOT overwrite
@@ -158,7 +160,7 @@ func TestPodPatcher_AddEnvVar_Prepends(t *testing.T) {
 		},
 	}
 
-	patcher := newPodPatcher(pod, nil)
+	patcher := libraryinjection.NewPodPatcher(pod, nil)
 	patcher.AddEnvVar(corev1.EnvVar{Name: "NEW", Value: "new-val"})
 
 	// New env var should be prepended
@@ -217,7 +219,7 @@ func TestPodPatcher_AddEnvVarWithJoin(t *testing.T) {
 				},
 			}
 
-			patcher := newPodPatcher(pod, nil)
+			patcher := libraryinjection.NewPodPatcher(pod, nil)
 			patcher.AddEnvVarWithJoin(tt.envName, tt.envValue, tt.separator)
 
 			assert.Len(t, pod.Spec.Containers[0].Env, 1)
@@ -265,7 +267,7 @@ func TestPodPatcher_AddInitContainer(t *testing.T) {
 				Spec:       corev1.PodSpec{InitContainers: tt.existingInits},
 			}
 
-			patcher := newPodPatcher(pod, nil)
+			patcher := libraryinjection.NewPodPatcher(pod, nil)
 			patcher.AddInitContainer(tt.initToAdd)
 
 			assert.Len(t, pod.Spec.InitContainers, len(tt.expectedNames))

@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -20,21 +19,13 @@ import (
 )
 
 const (
-	// injectorInitContainerName is the name of the APM injector init container.
-	injectorInitContainerName = "datadog-init-apm-inject"
-	// libraryInitContainerNameTemplate is the template for library init container names.
-	libraryInitContainerNameTemplate = "datadog-lib-%s-init"
+	// InjectorInitContainerName is the name of the APM injector init container.
+	InjectorInitContainerName = "datadog-init-apm-inject"
+	// LibraryInitContainerNameTemplate is the template for library init container names.
+	LibraryInitContainerNameTemplate = "datadog-lib-%s-init"
 )
 
 var (
-	// minimumCPULimit is the minimum CPU limit required for init containers.
-	// Below this, copying + library initialization would take too long.
-	minimumCPULimit = resource.MustParse("0.05") // 0.05 core
-
-	// minimumMemoryLimit is the minimum memory limit required for init containers.
-	// This is the recommended minimum by Alpine.
-	minimumMemoryLimit = resource.MustParse("100Mi") // 100 MB
-
 	// defaultRestrictedSecurityContext is the security context used for init containers
 	// in namespaces with the "restricted" Pod Security Standard.
 	// https://datadoghq.atlassian.net/browse/INPLAT-492
@@ -50,56 +41,58 @@ var (
 	}
 )
 
-// initContainerProvider implements libraryInjectionProvider using init containers
+// InitContainerProvider implements LibraryInjectionProvider using init containers
 // and EmptyDir volumes. This is the traditional injection method where init containers
 // copy library files from images into a shared EmptyDir volume.
-type initContainerProvider struct {
+type InitContainerProvider struct {
 	cfg LibraryInjectionConfig
 }
 
-// newInitContainerProvider creates a new initContainerProvider.
-func newInitContainerProvider(cfg LibraryInjectionConfig) *initContainerProvider {
-	return &initContainerProvider{
+// NewInitContainerProvider creates a new InitContainerProvider.
+func NewInitContainerProvider(cfg LibraryInjectionConfig) *InitContainerProvider {
+	return &InitContainerProvider{
 		cfg: cfg,
 	}
 }
 
-// injectInjector mutates the pod to add the APM injector using init containers.
-func (p *initContainerProvider) injectInjector(pod *corev1.Pod, cfg InjectorConfig) mutationResult {
+// InjectInjector mutates the pod to add the APM injector using init containers.
+func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) MutationResult {
 	// First, validate that the pod has sufficient resources
-	requirements, shouldSkip, message := p.computeResourceRequirements(pod)
-	if shouldSkip {
-		return mutationResult{
-			status: mutationStatusSkipped,
-			err:    errors.New(message),
+	result := ComputeResourceRequirements(pod, p.cfg.DefaultResourceRequirements)
+	if result.ShouldSkip {
+		return MutationResult{
+			Status: MutationStatusSkipped,
+			Err:    errors.New(result.Message),
 		}
 	}
-	patcher := newPodPatcher(pod, p.cfg.ContainerFilter)
+	requirements := result.Requirements
+
+	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// Main volume for library files (EmptyDir)
-	sourceVolume := newEmptyDirVolume(instrumentationVolumeName)
+	sourceVolume := newEmptyDirVolume(InstrumentationVolumeName)
 	patcher.AddVolume(sourceVolume)
 
 	// Volume for /etc/ld.so.preload
-	etcVolume := newEmptyDirVolume(etcVolumeName)
+	etcVolume := newEmptyDirVolume(EtcVolumeName)
 	patcher.AddVolume(etcVolume)
 
 	// Volume mount for the injector files
 	injectorMount := corev1.VolumeMount{
-		Name:      instrumentationVolumeName,
+		Name:      InstrumentationVolumeName,
 		MountPath: "/datadog-inject",
 		SubPath:   injectPackageDir,
 	}
 
 	// Volume mount for /etc directory in init container
 	etcMountInitContainer := corev1.VolumeMount{
-		Name:      etcVolumeName,
+		Name:      EtcVolumeName,
 		MountPath: "/datadog-etc",
 	}
 
 	// Volume mount for /etc/ld.so.preload in app containers
 	etcMountAppContainer := corev1.VolumeMount{
-		Name:      etcVolumeName,
+		Name:      EtcVolumeName,
 		MountPath: "/etc/ld.so.preload",
 		SubPath:   "ld.so.preload",
 		ReadOnly:  true,
@@ -108,17 +101,17 @@ func (p *initContainerProvider) injectInjector(pod *corev1.Pod, cfg InjectorConf
 	// Add volume mounts to app containers
 	patcher.AddVolumeMount(etcMountAppContainer)
 	patcher.AddVolumeMount(corev1.VolumeMount{
-		Name:      instrumentationVolumeName,
+		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		SubPath:   injectPackageDir,
 	})
 
 	// Timestamp file path for tracking init container completion
-	tsFilePath := injectorMount.MountPath + "/c-init-time." + injectorInitContainerName
+	tsFilePath := injectorMount.MountPath + "/c-init-time." + InjectorInitContainerName
 
 	// Init container that copies injector files
 	initContainer := corev1.Container{
-		Name:    injectorInitContainerName,
+		Name:    InjectorInitContainerName,
 		Image:   cfg.Image,
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
@@ -143,46 +136,46 @@ func (p *initContainerProvider) injectInjector(pod *corev1.Pod, cfg InjectorConf
 
 	patcher.AddInitContainer(initContainer)
 
-	return mutationResult{
-		status: mutationStatusInjected,
-		context: mutationContext{
-			resourceRequirements: requirements,
-			initSecurityContext:  resolvedSecurityContext,
+	return MutationResult{
+		Status: MutationStatusInjected,
+		Context: MutationContext{
+			ResourceRequirements: requirements,
+			InitSecurityContext:  resolvedSecurityContext,
 		},
 	}
 }
 
-// injectLibrary mutates the pod to add a language-specific tracing library using init containers.
-func (p *initContainerProvider) injectLibrary(pod *corev1.Pod, cfg LibraryConfig) mutationResult {
-	if !isLanguageSupported(cfg.Language) {
-		return mutationResult{
-			status: mutationStatusError,
-			err:    fmt.Errorf("language %s is not supported", cfg.Language),
+// InjectLibrary mutates the pod to add a language-specific tracing library using init containers.
+func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
+	if !IsLanguageSupported(cfg.Language) {
+		return MutationResult{
+			Status: MutationStatusError,
+			Err:    fmt.Errorf("language %s is not supported", cfg.Language),
 		}
 	}
 
-	patcher := newPodPatcher(pod, p.cfg.ContainerFilter)
+	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// Main volume (should already exist from injector, but we add it for completeness)
-	sourceVolume := newEmptyDirVolume(instrumentationVolumeName)
+	sourceVolume := newEmptyDirVolume(InstrumentationVolumeName)
 	patcher.AddVolume(sourceVolume)
 
 	// Volume mount for the library files in the init container
 	initContainerMount := corev1.VolumeMount{
-		Name:      instrumentationVolumeName,
+		Name:      InstrumentationVolumeName,
 		MountPath: libraryMountPath,
 		SubPath:   libraryPackagesDir + "/" + cfg.Language,
 	}
 
 	// Volume mount for injector (to write timestamp)
 	injectorMount := corev1.VolumeMount{
-		Name:      instrumentationVolumeName,
+		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(injectPackageDir),
 		SubPath:   injectPackageDir,
 	}
 
 	// Init container name
-	containerName := fmt.Sprintf(libraryInitContainerNameTemplate, cfg.Language)
+	containerName := fmt.Sprintf(LibraryInitContainerNameTemplate, cfg.Language)
 
 	// Timestamp file path
 	tsFilePath := injectorMount.MountPath + "/c-init-time." + containerName
@@ -203,159 +196,29 @@ func (p *initContainerProvider) injectLibrary(pod *corev1.Pod, cfg LibraryConfig
 			initContainerMount,
 			injectorMount,
 		},
-		Resources: cfg.Context.resourceRequirements,
+		Resources: cfg.Context.ResourceRequirements,
 	}
 
-	// Apply security context from the mutation context (resolved during injectInjector)
-	initContainer.SecurityContext = cfg.Context.initSecurityContext
+	// Apply security context from the mutation context (resolved during InjectInjector)
+	initContainer.SecurityContext = cfg.Context.InitSecurityContext
 
 	patcher.AddInitContainer(initContainer)
 
 	// Volume mount for application containers
 	patcher.AddVolumeMount(corev1.VolumeMount{
-		Name:      instrumentationVolumeName,
+		Name:      InstrumentationVolumeName,
 		MountPath: asAbsPath(libraryPackagesDir),
 		SubPath:   libraryPackagesDir,
 	})
 
-	return mutationResult{
-		status: mutationStatusInjected,
+	return MutationResult{
+		Status: MutationStatusInjected,
 	}
-}
-
-// computeResourceRequirements computes the resource requirements for init containers.
-// It returns the requirements, whether injection should be skipped, and an optional message.
-func (p *initContainerProvider) computeResourceRequirements(pod *corev1.Pod) (corev1.ResourceRequirements, bool, string) {
-	requirements := corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-
-	podRequirements := podSumResourceRequirements(pod)
-	insufficientResourcesMessage := "The overall pod's containers limit is too low"
-	shouldSkip := false
-
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
-		// If a resource quantity was set in config, use it
-		if q, ok := p.cfg.DefaultResourceRequirements[k]; ok {
-			requirements.Limits[k] = q
-			requirements.Requests[k] = q
-		} else {
-			// Otherwise, try to use as much of the resource as we can without impacting pod scheduling
-			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				// Check if the pod has sufficient resources
-				switch k {
-				case corev1.ResourceMemory:
-					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						shouldSkip = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
-					}
-				case corev1.ResourceCPU:
-					if minimumCPULimit.Cmp(maxPodLim) == 1 {
-						shouldSkip = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
-					}
-				default:
-					// We don't support other resources
-				}
-				requirements.Limits[k] = maxPodLim
-			}
-			if maxPodReq, ok := podRequirements.Requests[k]; ok {
-				requirements.Requests[k] = maxPodReq
-			}
-		}
-	}
-
-	if shouldSkip {
-		return requirements, true, insufficientResourcesMessage
-	}
-	return requirements, false, ""
-}
-
-// podSumResourceRequirements computes the sum of cpu/memory necessary for the whole pod.
-// This is computed as max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-// for both limit and request.
-// See: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers
-func podSumResourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
-	requirements := corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
-		// Take max(initContainer resource)
-		maxInitContainerLimit := resource.Quantity{}
-		maxInitContainerRequest := resource.Quantity{}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if initContainerIsSidecar(c) {
-				// Sidecar containers run alongside main containers, so skip here
-				continue
-			}
-			if limit, ok := c.Resources.Limits[k]; ok {
-				if limit.Cmp(maxInitContainerLimit) == 1 {
-					maxInitContainerLimit = limit
-				}
-			}
-			if request, ok := c.Resources.Requests[k]; ok {
-				if request.Cmp(maxInitContainerRequest) == 1 {
-					maxInitContainerRequest = request
-				}
-			}
-		}
-
-		// Take sum(container resources) + sum(sidecar containers)
-		limitSum := resource.Quantity{}
-		reqSum := resource.Quantity{}
-		for i := range pod.Spec.Containers {
-			c := &pod.Spec.Containers[i]
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if !initContainerIsSidecar(c) {
-				continue
-			}
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-
-		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-		if limitSum.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = limitSum
-		}
-		if reqSum.Cmp(maxInitContainerRequest) == 1 {
-			maxInitContainerRequest = reqSum
-		}
-
-		// Ensure that the limit is greater or equal to the request
-		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = maxInitContainerRequest
-		}
-
-		if maxInitContainerLimit.CmpInt64(0) == 1 {
-			requirements.Limits[k] = maxInitContainerLimit
-		}
-		if maxInitContainerRequest.CmpInt64(0) == 1 {
-			requirements.Requests[k] = maxInitContainerRequest
-		}
-	}
-
-	return requirements
 }
 
 // resolveInitSecurityContext determines the appropriate security context for init containers
 // based on namespace labels and global configuration.
-func (p *initContainerProvider) resolveInitSecurityContext(nsName string) *corev1.SecurityContext {
+func (p *InitContainerProvider) resolveInitSecurityContext(nsName string) *corev1.SecurityContext {
 	// Use the configured security context if provided
 	if p.cfg.InitSecurityContext != nil {
 		return p.cfg.InitSecurityContext
@@ -381,10 +244,5 @@ func (p *initContainerProvider) resolveInitSecurityContext(nsName string) *corev
 	return nil
 }
 
-// initContainerIsSidecar returns true if the init container is a sidecar container.
-func initContainerIsSidecar(container *corev1.Container) bool {
-	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
-}
-
-// Verify that initContainerProvider implements libraryInjectionProvider.
-var _ libraryInjectionProvider = (*initContainerProvider)(nil)
+// Verify that InitContainerProvider implements LibraryInjectionProvider.
+var _ LibraryInjectionProvider = (*InitContainerProvider)(nil)

@@ -13,16 +13,17 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
-// podPatcher provides helper functions for mutating pods.
+// PodPatcher provides helper functions for mutating pods.
 // It encapsulates common operations like adding volumes, volume mounts, and init containers.
-type podPatcher struct {
+type PodPatcher struct {
 	pod    *corev1.Pod
 	filter func(*corev1.Container) bool
 }
 
-// newPodPatcher creates a new podPatcher for the given pod.
-func newPodPatcher(pod *corev1.Pod, filter func(*corev1.Container) bool) *podPatcher {
-	return &podPatcher{
+// NewPodPatcher creates a new PodPatcher for the given pod.
+// The optional filter function can be used to exclude certain containers from mutations.
+func NewPodPatcher(pod *corev1.Pod, filter func(*corev1.Container) bool) *PodPatcher {
+	return &PodPatcher{
 		pod:    pod,
 		filter: filter,
 	}
@@ -30,32 +31,32 @@ func newPodPatcher(pod *corev1.Pod, filter func(*corev1.Container) bool) *podPat
 
 // AddVolume adds a volume to the pod. If a volume with the same name exists, it replaces it.
 // It also marks the volume as safe to evict for the cluster autoscaler.
-func (m *podPatcher) AddVolume(vol corev1.Volume) {
-	for i, existing := range m.pod.Spec.Volumes {
+func (p *PodPatcher) AddVolume(vol corev1.Volume) {
+	for i, existing := range p.pod.Spec.Volumes {
 		if existing.Name == vol.Name {
-			m.pod.Spec.Volumes[i] = vol
-			mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(m.pod, vol.Name)
+			p.pod.Spec.Volumes[i] = vol
+			mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(p.pod, vol.Name)
 			return
 		}
 	}
-	m.pod.Spec.Volumes = append(m.pod.Spec.Volumes, vol)
-	mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(m.pod, vol.Name)
+	p.pod.Spec.Volumes = append(p.pod.Spec.Volumes, vol)
+	mutatecommon.MarkVolumeAsSafeToEvictForAutoscaler(p.pod, vol.Name)
 }
 
 // AddVolumeMount adds a volume mount to all application containers (filtered by ContainerFilter).
 // If a mount with the same name and path exists, it replaces it.
-func (m *podPatcher) AddVolumeMount(mount corev1.VolumeMount) {
-	for i := range m.pod.Spec.Containers {
-		ctr := &m.pod.Spec.Containers[i]
-		if m.filter != nil && !m.filter(ctr) {
+func (p *PodPatcher) AddVolumeMount(mount corev1.VolumeMount) {
+	for i := range p.pod.Spec.Containers {
+		ctr := &p.pod.Spec.Containers[i]
+		if p.filter != nil && !p.filter(ctr) {
 			continue
 		}
-		m.addVolumeMountToContainer(ctr, mount)
+		p.addVolumeMountToContainer(ctr, mount)
 	}
 }
 
 // addVolumeMountToContainer adds a volume mount to a specific container.
-func (m *podPatcher) addVolumeMountToContainer(ctr *corev1.Container, mount corev1.VolumeMount) {
+func (p *PodPatcher) addVolumeMountToContainer(ctr *corev1.Container, mount corev1.VolumeMount) {
 	for j, existing := range ctr.VolumeMounts {
 		if existing.Name == mount.Name && existing.MountPath == mount.MountPath {
 			ctr.VolumeMounts[j] = mount
@@ -69,43 +70,43 @@ func (m *podPatcher) addVolumeMountToContainer(ctr *corev1.Container, mount core
 // AddInitContainer adds an init container to the pod.
 // If an init container with the same name exists, it replaces it.
 // The init container is prepended to run before other init containers.
-func (m *podPatcher) AddInitContainer(initCtr corev1.Container) {
-	for i, existing := range m.pod.Spec.InitContainers {
+func (p *PodPatcher) AddInitContainer(initCtr corev1.Container) {
+	for i, existing := range p.pod.Spec.InitContainers {
 		if existing.Name == initCtr.Name {
-			m.pod.Spec.InitContainers[i] = initCtr
+			p.pod.Spec.InitContainers[i] = initCtr
 			return
 		}
 	}
 	// Prepend init containers
-	m.pod.Spec.InitContainers = append([]corev1.Container{initCtr}, m.pod.Spec.InitContainers...)
+	p.pod.Spec.InitContainers = append([]corev1.Container{initCtr}, p.pod.Spec.InitContainers...)
 }
 
 // AddEnvVar adds an environment variable to all application containers (filtered by ContainerFilter).
 // If the env var already exists, it is not overwritten.
-func (m *podPatcher) AddEnvVar(env corev1.EnvVar) {
-	for i := range m.pod.Spec.Containers {
-		ctr := &m.pod.Spec.Containers[i]
-		if m.filter != nil && !m.filter(ctr) {
+func (p *PodPatcher) AddEnvVar(env corev1.EnvVar) {
+	for i := range p.pod.Spec.Containers {
+		ctr := &p.pod.Spec.Containers[i]
+		if p.filter != nil && !p.filter(ctr) {
 			continue
 		}
-		m.addEnvVarToContainer(ctr, env)
+		p.addEnvVarToContainer(ctr, env)
 	}
 }
 
 // AddEnvVarWithJoin adds an environment variable to all application containers (filtered by ContainerFilter).
 // If the env var already exists, the new value is appended using the specified separator.
-func (m *podPatcher) AddEnvVarWithJoin(name, value, separator string) {
-	for i := range m.pod.Spec.Containers {
-		ctr := &m.pod.Spec.Containers[i]
-		if m.filter != nil && !m.filter(ctr) {
+func (p *PodPatcher) AddEnvVarWithJoin(name, value, separator string) {
+	for i := range p.pod.Spec.Containers {
+		ctr := &p.pod.Spec.Containers[i]
+		if p.filter != nil && !p.filter(ctr) {
 			continue
 		}
-		m.addEnvVarWithJoinToContainer(ctr, name, value, separator)
+		p.addEnvVarWithJoinToContainer(ctr, name, value, separator)
 	}
 }
 
 // addEnvVarToContainer adds an env var to a specific container if it doesn't already exist.
-func (m *podPatcher) addEnvVarToContainer(ctr *corev1.Container, env corev1.EnvVar) {
+func (p *PodPatcher) addEnvVarToContainer(ctr *corev1.Container, env corev1.EnvVar) {
 	for _, existing := range ctr.Env {
 		if existing.Name == env.Name {
 			return // Already exists, don't overwrite
@@ -116,7 +117,7 @@ func (m *podPatcher) addEnvVarToContainer(ctr *corev1.Container, env corev1.EnvV
 }
 
 // addEnvVarWithJoinToContainer adds an env var to a container, joining with existing value if present.
-func (m *podPatcher) addEnvVarWithJoinToContainer(ctr *corev1.Container, name, value, separator string) {
+func (p *PodPatcher) addEnvVarWithJoinToContainer(ctr *corev1.Container, name, value, separator string) {
 	for i, existing := range ctr.Env {
 		if existing.Name == name {
 			// Append to existing value

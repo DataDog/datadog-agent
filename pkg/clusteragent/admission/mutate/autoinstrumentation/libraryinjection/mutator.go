@@ -29,20 +29,20 @@ import (
 // Returns an error if the injection fails.
 func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	// Create the provider
-	provider := newInitContainerProvider(cfg)
+	provider := NewInitContainerProvider(cfg)
 
 	// Inject the APM injector
-	injectorResult := provider.injectInjector(pod, cfg.Injector)
+	injectorResult := provider.InjectInjector(pod, cfg.Injector)
 
 	// Handle injector result
-	switch injectorResult.status {
-	case mutationStatusSkipped:
-		annotation.Set(pod, annotation.InjectionError, injectorResult.err.Error())
+	switch injectorResult.Status {
+	case MutationStatusSkipped:
+		annotation.Set(pod, annotation.InjectionError, injectorResult.Err.Error())
 		return nil
-	case mutationStatusError:
+	case MutationStatusError:
 		metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-		log.Errorf("Cannot inject library injector into pod %s: %v", mutatecommon.PodString(pod), injectorResult.err)
-		return fmt.Errorf("injector injection failed: %w", injectorResult.err)
+		log.Errorf("Cannot inject library injector into pod %s: %v", mutatecommon.PodString(pod), injectorResult.Err)
+		return fmt.Errorf("injector injection failed: %w", injectorResult.Err)
 	}
 
 	// Set injector canonical version annotation if available
@@ -57,20 +57,20 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	var lastError error
 	for _, lib := range cfg.Libraries {
 		// Copy the context from the injector result
-		lib.Context = injectorResult.context
+		lib.Context = injectorResult.Context
 
-		libResult := provider.injectLibrary(pod, lib)
-		injected := libResult.status == mutationStatusInjected
+		libResult := provider.InjectLibrary(pod, lib)
+		injected := libResult.Status == MutationStatusInjected
 
 		metrics.LibInjectionAttempts.Inc(lib.Language, strconv.FormatBool(injected), strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 
-		if libResult.status == mutationStatusInjected && lib.CanonicalVersion != "" {
+		if libResult.Status == MutationStatusInjected && lib.CanonicalVersion != "" {
 			annotation.Set(pod, annotation.LibraryCanonicalVersion.Format(lib.Language), lib.CanonicalVersion)
 		}
 
-		if libResult.status == mutationStatusError {
+		if libResult.Status == MutationStatusError {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
-			lastError = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.err)
+			lastError = fmt.Errorf("library injection failed for %s: %w", lib.Language, libResult.Err)
 		}
 	}
 
@@ -79,7 +79,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 
 // injectAPMEnvVars injects APM environment variables (LD_PRELOAD, etc.) into application containers.
 func injectAPMEnvVars(pod *corev1.Pod, cfg LibraryInjectionConfig) {
-	patcher := newPodPatcher(pod, cfg.ContainerFilter)
+	patcher := NewPodPatcher(pod, cfg.ContainerFilter)
 
 	patcher.AddEnvVarWithJoin("LD_PRELOAD", asAbsPath(injectorFilePath("launcher.preload.so")), ":")
 	patcher.AddEnvVar(corev1.EnvVar{Name: "DD_INJECT_SENDER_TYPE", Value: "k8s"})
