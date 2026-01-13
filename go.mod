@@ -251,7 +251,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/gocomply/scap v0.1.3
 	github.com/godbus/dbus/v5 v5.2.0
-	github.com/godror/godror v0.49.6
+	github.com/godror/godror v0.50.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8
 	// github.com/golang/mock is unmaintained and archived, v1.6.0 is the last released version
