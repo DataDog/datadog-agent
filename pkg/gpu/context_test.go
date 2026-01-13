@@ -22,16 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
-func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *systemContext {
-	opts := []systemContextOption{
-		withProcRoot(kernel.ProcFSRoot()),
-		withWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
-		withTelemetry(testutil.GetTelemetryMock(tb)),
+func getTestSystemContext(tb testing.TB, extraOpts ...SystemContextOption) *SystemContext {
+	opts := []SystemContextOption{
+		WithProcRoot(kernel.ProcFSRoot()),
+		WithWorkloadMeta(testutil.GetWorkloadMetaMock(tb)),
+		WithTelemetry(testutil.GetTelemetryMock(tb)),
 	}
 
 	opts = append(opts, extraOpts...) // Allow overriding the default options
 
-	sysCtx, err := getSystemContext(opts...)
+	sysCtx, err := GetSystemContext(opts...)
 	require.NoError(tb, err)
 	require.NotNil(tb, sysCtx)
 	return sysCtx
@@ -40,7 +40,7 @@ func getTestSystemContext(tb testing.TB, extraOpts ...systemContextOption) *syst
 func TestFilterDevicesForContainer(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx := getTestSystemContext(t, withWorkloadMeta(wmetaMock))
+	sysCtx := getTestSystemContext(t, WithWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -181,7 +181,7 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 	// MIG makes the device selection more complex, so we disable it for these tests
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	wmetaMock := testutil.GetWorkloadMetaMock(t)
-	sysCtx := getTestSystemContext(t, withProcRoot(procFs), withWorkloadMeta(wmetaMock))
+	sysCtx := getTestSystemContext(t, WithProcRoot(procFs), WithWorkloadMeta(wmetaMock))
 
 	// Create a container with a single GPU and add it to the store
 	containerID := "abcdef"
@@ -270,11 +270,11 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			}
 
 			for i, idx := range c.configuredDeviceIdx {
-				sysCtx.setDeviceSelection(c.pid, c.pid+i, idx)
+				sysCtx.SetDeviceSelection(c.pid, c.pid+i, idx)
 			}
 
 			for i, idx := range c.expectedDeviceIdx {
-				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
+				activeDevice, err := sysCtx.GetCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
 				allDevices, err := sysCtx.deviceCache.All()
 				require.NoError(t, err)

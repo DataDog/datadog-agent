@@ -28,8 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// systemContext holds certain attributes about the system that are used by the GPU probe.
-type systemContext struct {
+// SystemContext holds certain attributes about the system that are used by the GPU probe.
+type SystemContext struct {
 	// timeResolver allows to resolve kernel-time timestamps
 	timeResolver *ktime.Resolver
 
@@ -69,7 +69,7 @@ type systemContext struct {
 	deviceCacheRefreshInterval time.Duration
 }
 
-type systemContextOptions struct {
+type SystemContextOptions struct {
 	procRoot             string
 	wmeta                workloadmeta.Component
 	tm                   telemetry.Component
@@ -77,40 +77,43 @@ type systemContextOptions struct {
 	config               *config.Config
 }
 
-type systemContextOption func(*systemContextOptions)
+type SystemContextOption func(*SystemContextOptions)
 
-func withProcRoot(procRoot string) systemContextOption {
-	return func(opts *systemContextOptions) {
+// WithProcRoot sets the procfs root directory for the system context
+func WithProcRoot(procRoot string) SystemContextOption {
+	return func(opts *SystemContextOptions) {
 		opts.procRoot = procRoot
 	}
 }
 
-func withWorkloadMeta(wmeta workloadmeta.Component) systemContextOption {
-	return func(opts *systemContextOptions) {
+// WithWorkloadMeta sets the workloadmeta component for the system context
+func WithWorkloadMeta(wmeta workloadmeta.Component) SystemContextOption {
+	return func(opts *SystemContextOptions) {
 		opts.wmeta = wmeta
 	}
 }
 
-func withTelemetry(tm telemetry.Component) systemContextOption {
-	return func(opts *systemContextOptions) {
+// WithTelemetry sets the telemetry component for the system context
+func WithTelemetry(tm telemetry.Component) SystemContextOption {
+	return func(opts *SystemContextOptions) {
 		opts.tm = tm
 	}
 }
 
-func withFatbinParsingEnabled(enabled bool) systemContextOption {
-	return func(opts *systemContextOptions) {
+func withFatbinParsingEnabled(enabled bool) SystemContextOption {
+	return func(opts *SystemContextOptions) {
 		opts.fatbinParsingEnabled = enabled
 	}
 }
 
-func withConfig(config *config.Config) systemContextOption {
-	return func(opts *systemContextOptions) {
+func withConfig(config *config.Config) SystemContextOption {
+	return func(opts *SystemContextOptions) {
 		opts.config = config
 	}
 }
 
-func newSystemContextOptions(optList ...systemContextOption) *systemContextOptions {
-	opts := &systemContextOptions{
+func newSystemContextOptions(optList ...SystemContextOption) *SystemContextOptions {
+	opts := &SystemContextOptions{
 		fatbinParsingEnabled: false,
 		config:               config.New(),
 	}
@@ -120,10 +123,11 @@ func newSystemContextOptions(optList ...systemContextOption) *systemContextOptio
 	return opts
 }
 
-func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
+// GetSystemContext creates a new SystemContext with the given options
+func GetSystemContext(optList ...SystemContextOption) (*SystemContext, error) {
 	opts := newSystemContextOptions(optList...)
 
-	ctx := &systemContext{
+	ctx := &SystemContext{
 		procRoot:                     opts.procRoot,
 		selectedDeviceByPIDAndTID:    make(map[int]map[int]int32),
 		visibleDevicesCache:          make(map[int][]ddnvml.Device),
@@ -151,7 +155,7 @@ func getSystemContext(optList ...systemContextOption) (*systemContext, error) {
 }
 
 // removeProcess removes any data associated with a process from the system context.
-func (ctx *systemContext) removeProcess(pid int) {
+func (ctx *SystemContext) removeProcess(pid int) {
 	delete(ctx.selectedDeviceByPIDAndTID, pid)
 	delete(ctx.visibleDevicesCache, pid)
 	delete(ctx.cudaVisibleDevicesPerProcess, pid)
@@ -165,7 +169,7 @@ func (ctx *systemContext) removeProcess(pid int) {
 // container. If the ID is not empty, we check the assignment of GPU resources
 // to the container and return only the devices that are available to the
 // container.
-func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, containerID string) ([]ddnvml.Device, error) {
+func (ctx *SystemContext) filterDevicesForContainer(devices []ddnvml.Device, containerID string) ([]ddnvml.Device, error) {
 	if containerID == "" {
 		// If the process is not running in a container, we assume all devices are available.
 		return devices, nil
@@ -222,13 +226,13 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v: %w", containerID, container.ResolvedAllocatedResources, err)
 }
 
-// getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
+// GetCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
 // last selection (via cudaSetDevice) this thread made and the visible devices for the process.
 // This function caches the visible devices for the process in the visibleDevicesCache map, so it only
 // does the expensive operations of looking into the process state and filtering devices one time for each process
 // containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
 // might be expensive, we pass a function that can be called to retrieve it only when needed
-func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
+func (ctx *SystemContext) GetCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {
 		err := ctx.periodicDeviceCacheRefresh()
@@ -294,8 +298,8 @@ func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerI
 	return visibleDevices[selectedDeviceIndex], nil
 }
 
-// setDeviceSelection sets the selected device index for a given process and thread.
-func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32) {
+// SetDeviceSelection sets the selected device index for a given process and thread.
+func (ctx *SystemContext) SetDeviceSelection(pid int, tid int, deviceIndex int32) {
 	if _, ok := ctx.selectedDeviceByPIDAndTID[pid]; !ok {
 		ctx.selectedDeviceByPIDAndTID[pid] = make(map[int]int32)
 	}
@@ -303,14 +307,14 @@ func (ctx *systemContext) setDeviceSelection(pid int, tid int, deviceIndex int32
 	ctx.selectedDeviceByPIDAndTID[pid][tid] = deviceIndex
 }
 
-func (ctx *systemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string) {
+func (ctx *SystemContext) setUpdatedVisibleDevicesEnvVar(pid int, envVar string) {
 	ctx.cudaVisibleDevicesPerProcess[pid] = envVar
 
 	// Invalidate the visible devices cache to force a re-scan of the devices
 	delete(ctx.visibleDevicesCache, pid)
 }
 
-func (ctx *systemContext) periodicDeviceCacheRefresh() error {
+func (ctx *SystemContext) periodicDeviceCacheRefresh() error {
 	now := time.Now()
 	if now.Sub(ctx.lastDeviceCacheRefreshTime) < ctx.deviceCacheRefreshInterval {
 		return nil

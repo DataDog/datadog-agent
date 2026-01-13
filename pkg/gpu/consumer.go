@@ -59,7 +59,7 @@ type cudaEventConsumerTelemetry struct {
 
 type cudaEventConsumerDependencies struct {
 	// sysCtx is the system context
-	sysCtx *systemContext
+	sysCtx *SystemContext
 	// cfg is the configuration
 	cfg *config.Config
 	// telemetry is the telemetry component
@@ -323,7 +323,7 @@ func getPidTidFromHeader(header *gpuebpf.CudaEventHeader) (uint32, uint32) {
 
 func (c *cudaEventConsumer) handleSetDevice(csde *gpuebpf.CudaSetDeviceEvent) {
 	pid, tid := getPidTidFromHeader(&csde.Header)
-	c.deps.sysCtx.setDeviceSelection(int(pid), int(tid), csde.Device)
+	c.deps.sysCtx.SetDeviceSelection(int(pid), int(tid), csde.Device)
 }
 
 func (c *cudaEventConsumer) handleVisibleDevicesSet(vds *gpuebpf.CudaVisibleDevicesSetEvent) {

@@ -47,10 +47,10 @@ func TestPytorchBatchedKernels(t *testing.T) {
 	cfg := config.New()
 	telemetryMock := testutil.GetTelemetryMock(t)
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
-	ctx, err := getSystemContext(
-		withProcRoot(kernel.ProcFSRoot()),
-		withWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
-		withTelemetry(telemetryMock),
+	ctx, err := GetSystemContext(
+		WithProcRoot(kernel.ProcFSRoot()),
+		WithWorkloadMeta(testutil.GetWorkloadMetaMock(t)),
+		WithTelemetry(telemetryMock),
 	)
 	require.NoError(t, err)
 
