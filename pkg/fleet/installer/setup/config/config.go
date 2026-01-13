@@ -234,7 +234,7 @@ type LogProcessingRule struct {
 	Pattern string `yaml:"pattern" json:"pattern"`
 }
 type DatadogAPMConfig struct {
-	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation_config,omitempty"`
+	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation,omitempty"`
 }
 
 // ObfuscationConfig represents the configuration for obfuscation
