@@ -21,15 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 
-	proto "github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 )
 
-const transactionsSerializerVersion = 2
+const transactionsSerializerVersion = 3
 
-// Use an non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
-const squareChar = "\xfe"
+// Use a valid UTF-8 character as a separator (Unicode Private Use Area character U+E000).
+// This should neither appear in an HTTP header value nor in a URL.
+const squareChar = "\uE000"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
+
+// Old placeholder used in version 2 (invalid UTF-8, kept for backwards compatibility during deserialization)
+const squareCharV2 = "\xfe"
+const placeHolderPrefixV2 = squareCharV2 + "API_KEY" + squareCharV2
 
 var tlmV1TransactionsDeserialized = telemetry.NewCounterWithOpts("transactions", "v1deserialized", []string{}, "", telemetry.Options{DefaultMetric: true})
 
@@ -230,7 +235,8 @@ func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string, protoVersion int
 		s.placeholderMutex.RUnlock()
 	}
 
-	if strings.Contains(newStr, placeHolderPrefix) {
+	// Check for unreplaced placeholders (both current and legacy v2 format)
+	if strings.Contains(newStr, placeHolderPrefix) || strings.Contains(newStr, placeHolderPrefixV2) {
 		return "", errors.New("cannot restore the transaction as an API Key is missing")
 	}
 	return newStr, nil
