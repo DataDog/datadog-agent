@@ -74,6 +74,8 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.77.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
@@ -627,6 +629,8 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton => ../../../../pkg/logs/patterns/automaton
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../../../pkg/logs/patterns/clustering
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../../../pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../../../pkg/logs/patterns/eviction
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../../pkg/logs/patterns/processor
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../../../pkg/logs/patterns/tags
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../../pkg/logs/patterns/token
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
