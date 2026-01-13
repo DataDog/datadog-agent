@@ -14,14 +14,14 @@ Usage:
     ./scenario.py status [run_id]         # Show pod status (latest if omitted)
     ./scenario.py stop <run_id>           # Stop and clean up scenario
     ./scenario.py logs [run_id]           # Show scenario pod logs
-    ./scenario.py export [run_id]         # Export as self-contained HTML
+    ./scenario.py export [run_id]         # Export as parquet and HTML files
 
 Examples:
     ./scenario.py run sigpipe-crash       # Deploy the SIGPIPE crash scenario
     ./scenario.py status                  # Check status of latest run
     ./scenario.py logs -c victim-app      # Show logs from victim-app container
     ./scenario.py stop a1b2c3d4           # Stop scenario run a1b2c3d4
-    ./scenario.py export                  # Export latest run for offline viewing
+    ./scenario.py export                  # Export latest run as .parquet and .html
 """
 
 import argparse
@@ -43,11 +43,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from lib.k8s_backend import (
     Mode,
-    detect_environment,
-    create_backend,
-    run_cmd,
     VMBackend,
+    create_backend,
+    detect_environment,
+    run_cmd,
 )
+
 import dev as q_branch_dev
 
 # Project root is where this script lives
@@ -653,7 +654,7 @@ def cmd_logs(run_id: str | None, container: str | None):
 
 
 def cmd_export(run_id: str | None, output: str | None):
-    """Export scenario data as a self-contained HTML file with embedded parquet."""
+    """Export scenario data as both raw parquet file and HTML viewer with embedded parquet."""
     kube_context = get_kube_context()
 
     # Use latest run if not specified
@@ -713,7 +714,7 @@ def cmd_export(run_id: str | None, output: str | None):
 
     print(f"  Namespace: {params.get('namespace', '(all)')}")
     print(f"  Labels: {params.get('labels', '(none)')}")
-    print(f"  Metrics: {params.get('metrics', '(all)')}")
+    print("  Metrics: (all)")
 
     # Find the metrics-viewer pod
     result = subprocess.run(
@@ -783,10 +784,7 @@ def cmd_export(run_id: str | None, output: str | None):
             print(f"FAILED ({e}), continuing with dashboard metrics only")
             all_metrics = None
 
-        # Call export API (with dashboard metrics only for speed)
-        if dashboard.get("panels"):
-            params["metrics"] = ",".join(p["metric"] for p in dashboard["panels"])
-
+        # Call export API with all metrics (labels filter still applied)
         url = f"http://localhost:{viewer_port}/api/export?{urlencode(params)}"
         print(f"Fetching data from {url}...", end=" ", flush=True)
 
@@ -799,18 +797,34 @@ def cmd_export(run_id: str | None, output: str | None):
             print(f"  Error: {e}")
             return 1
 
-        # Generate HTML with embedded parquet
+        # Determine output paths
+        base_name = output or f"scenario-results-{run_id}"
+        # Strip extension if provided
+        if base_name.endswith(".html") or base_name.endswith(".parquet"):
+            base_name = base_name.rsplit(".", 1)[0]
+        parquet_path = f"{base_name}.parquet"
+        html_path = f"{base_name}.html"
+
+        # Write raw parquet file
+        print(f"Writing parquet to {parquet_path}...", end=" ", flush=True)
+        Path(parquet_path).write_bytes(parquet_data)
+        parquet_size_mb = len(parquet_data) / (1024 * 1024)
+        print(f"done ({parquet_size_mb:.1f} MB)")
+
+        # Generate and write HTML with embedded parquet
         print("Generating HTML...", end=" ", flush=True)
         html = generate_export_html(parquet_data, dashboard, metadata, all_metrics)
         print("done")
 
-        # Write output file
-        output_path = output or f"scenario-results-{run_id}.html"
-        Path(output_path).write_text(html)
+        print(f"Writing HTML to {html_path}...", end=" ", flush=True)
+        Path(html_path).write_text(html)
+        html_size_mb = len(html) / (1024 * 1024)
+        print(f"done ({html_size_mb:.1f} MB)")
 
-        file_size_mb = len(html) / (1024 * 1024)
-        print(f"\nExported to: {output_path} ({file_size_mb:.1f} MB)")
-        print("  Open in browser to view (works offline)")
+        print("\nExported:")
+        print(f"  Parquet: {parquet_path} ({parquet_size_mb:.1f} MB)")
+        print(f"  HTML:    {html_path} ({html_size_mb:.1f} MB)")
+        print("  Open HTML in browser to view (works offline)")
 
         return 0
 
@@ -961,9 +975,11 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
     logs_parser.add_argument("-c", "--container", type=str, default=None, help="Container name")
 
     # export [run_id]
-    export_parser = subparsers.add_parser("export", help="Export scenario as self-contained HTML")
+    export_parser = subparsers.add_parser("export", help="Export scenario as parquet and HTML files")
     export_parser.add_argument("run_id", type=str, nargs="?", default=None, help="Run ID (default: latest)")
-    export_parser.add_argument("-o", "--output", type=str, default=None, help="Output file path")
+    export_parser.add_argument(
+        "-o", "--output", type=str, default=None, help="Output base name (creates .parquet and .html)"
+    )
 
     args = parser.parse_args()
 
