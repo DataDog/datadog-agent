@@ -1,8 +1,31 @@
 # Fine-Grained Monitor
 
-Capture 1Hz container metrics without touching the Agent you're debugging.
+## What It Does
 
-When investigating CPU throttling, memory pressure, or mysterious resource spikes in the Datadog Agent, you need visibility into what's happening—but the Agent's own telemetry might be part of the problem. This monitor runs independently, writing high-resolution metrics to Parquet files you can analyze after the fact.
+Fine-Grained Monitor (FGM) captures detailed container resource metrics at 1-second resolution in Kubernetes clusters. It runs as a DaemonSet (one pod per node), collecting metrics from every container and storing them in Parquet files for analysis.
+
+Built in Rust, it's designed for debugging resource issues (CPU throttling, memory pressure, OOM kills) in the Datadog Agent—or any containerized workload. The monitor runs independently, so you can observe the Agent without affecting its behavior.
+
+## Prerequisites
+
+- Kubernetes cluster (local or cloud)
+- `kubectl` configured
+- Docker (for building container images)
+
+## Architecture
+
+FGM consists of four binaries, all built from the same Rust codebase:
+
+| Binary | Deployment | Purpose |
+|--------|------------|---------|
+| `fgm` | DaemonSet container | Collects metrics, writes Parquet files |
+| `fgm-viewer` | DaemonSet sidecar | Serves web UI and HTTP API |
+| `fgm-consolidator` | DaemonSet sidecar (optional) | Merges small Parquet files |
+| `fgm-mcp-server` | Deployment (1 replica) | Routes LLM queries to correct node |
+
+All components run in the `fine-grained-monitor` namespace for easy cleanup and management.
+
+**For detailed architecture, data flow, and design decisions, see [specs/design.md](specs/design.md)**
 
 ## Quick Start
 
