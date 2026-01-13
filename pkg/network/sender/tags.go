@@ -127,7 +127,10 @@ func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, 
 
 	tagsStr := tagsSet.Subset(tagIndexes)
 	if c.Pid > 0 {
-		serviceTags := d.serviceExtractor.GetServiceContext(c.Pid)
+		var serviceTags []string
+		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+			serviceTags = dsc.extractor.GetServiceContext(c.Pid)
+		}
 		tagsStr = append(tagsStr, serviceTags...)
 		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(c.Pid)))
 		if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
