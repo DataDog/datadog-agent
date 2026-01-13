@@ -103,7 +103,26 @@ func (r *Resolver) ResolveFileMetadata(event *model.Event, file *model.FileEvent
 	if process.ContainerContext.ContainerID != "" && r.cgroupResolver != nil {
 		w, ok := r.cgroupResolver.GetContainerWorkload(process.ContainerContext.ContainerID)
 		if ok {
+			// Always include the PID from the event (and PID 1) as fallback candidates.
+			// On some systems / during policy replay, the workload PID list can be empty or stale.
 			rootPIDs = w.GetPIDs()
+			if len(rootPIDs) == 0 {
+				rootPIDs = []uint32{process.Pid, 1}
+			} else {
+				seen := make(map[uint32]struct{}, len(rootPIDs)+2)
+				for _, p := range rootPIDs {
+					seen[p] = struct{}{}
+				}
+				if process.Pid != 0 {
+					if _, exists := seen[process.Pid]; !exists {
+						rootPIDs = append(rootPIDs, process.Pid)
+						seen[process.Pid] = struct{}{}
+					}
+				}
+				if _, exists := seen[1]; !exists {
+					rootPIDs = append(rootPIDs, 1)
+				}
+			}
 		}
 	} else if event.ProcessCacheEntry != nil {
 		rootPIDs = event.ProcessCacheEntry.GetAncestorsPIDs()
