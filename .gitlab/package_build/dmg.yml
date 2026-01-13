@@ -36,6 +36,9 @@
     paths:
       - omnibus/pkg/*.dmg
       - omnibus/pkg/version-manifest.json
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   variables:
     SIGN: true
     KEYCHAIN_NAME: "build.keychain"
@@ -74,13 +77,7 @@
 agent_dmg-x64-a7:
   extends: .agent_dmg
   tags: ["macos:sonoma-amd64", "specific:true"]
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
 
 agent_dmg-arm64-a7:
   extends: .agent_dmg
   tags: ["macos:sonoma-arm64", "specific:true"]
-  id_tokens:
-    CI_IDENTITIES_GITLAB_ID_TOKEN:
-      aud: ci-identities
