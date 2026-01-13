@@ -23,6 +23,7 @@ from invoke import Context
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.git import is_a_release_branch
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
 
@@ -826,7 +827,8 @@ class GateMetricHandler:
             json.dump(self.metrics, f)
 
         CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
-        if not is_nightly and branch == "main" and CI_COMMIT_SHA:
+        # Store reports for main and release branches to enable delta calculation for backport PRs
+        if not is_nightly and (branch == "main" or is_a_release_branch(ctx, branch)) and CI_COMMIT_SHA:
             ctx.run(
                 f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",

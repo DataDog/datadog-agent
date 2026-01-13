@@ -16,6 +16,7 @@ The design eliminates inheritance-based issues:
 """
 
 import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -2027,6 +2028,120 @@ class TestGateMetricsData(unittest.TestCase):
         self.assertEqual(metrics.current_on_wire_size, 50)
         self.assertEqual(metrics.max_on_disk_size, 150)
         self.assertEqual(metrics.max_on_wire_size, 75)
+
+
+class TestGenerateMetricReports(unittest.TestCase):
+    """Test the generate_metric_reports function for S3 upload behavior."""
+
+    def setUp(self):
+        """Create a temporary directory for test files."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.temp_report_file = os.path.join(self.temp_dir, "static_gate_report.json")
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        if os.path.exists(self.temp_report_file):
+            os.remove(self.temp_report_file)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_main_branch(self, mock_is_release):
+        """Should upload report to S3 when on main branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_release_branch(self, mock_is_release):
+        """Should upload report to S3 when on a release branch (e.g., 7.54.x)."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_feature_branch(self, mock_is_release):
+        """Should NOT upload report to S3 when on a feature branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("feature/my-branch", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(
+            ctx, filename=self.temp_report_file, branch="feature/my-branch", is_nightly=False
+        )
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_main(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds even on main."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_release(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds on release branches."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_without_commit_sha(self, mock_is_release):
+        """Should NOT upload report to S3 when CI_COMMIT_SHA is not set."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
 
 
 if __name__ == '__main__':
