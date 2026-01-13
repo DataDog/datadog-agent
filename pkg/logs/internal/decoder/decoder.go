@@ -157,30 +157,37 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			aggregator := automultilinedetection.NewCombiningAggregator(
-				outputFn,
-				maxContentSize,
-				pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
-				pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-				tailerInfo)
-			// Read JSON aggregation setting from config, can be overridden by source settings
-			enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
-			if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
-				enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
-			}
-			lineHandler = NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
+			lineHandler = getAutoMultilineAggregatingHandler(outputFn, maxContentSize, tailerInfo, source)
 		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
-			// Detection-only mode: tags lines but doesn't aggregate them
-			// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
-			// while only tagging everything else
-			aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
-			lineHandler = NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+			lineHandler = getAutoMultilineDetectingHandler(outputFn, tailerInfo, maxContentSize, source)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
 	}
-
 	return lineHandler
+}
+
+func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
+	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
+	// while only tagging everything else
+	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+}
+
+func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource) LineHandler {
+	aggregator := automultilinedetection.NewCombiningAggregator(
+		outputFn,
+		maxContentSize,
+		pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+		pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+		tailerInfo)
+
+	// Read JSON aggregation setting from config, can be overridden by source settings
+	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+	if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
+		enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
+	}
+	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {
