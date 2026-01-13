@@ -154,10 +154,12 @@ func SetupDatabricks(s *common.Setup) error {
 		Default: tracerConfigDatabricks,
 	}
 
-	s.Config.DatadogYAML.Obfuscation = config.ObfuscationConfig{CreditCards: config.CreditCardObfuscationConfig{
-		Enabled: config.BoolToPtr(false),
-		//KeepValues: []string{"meta.databricks_job_id", "meta.databricks_job_run_id", "meta.databricks_task_run_id", "config.spark_app_startTime"},
-	}}
+	// Disable credit card obfuscation for Databricks to avoid issues with job and run ids
+	s.Config.DatadogYAML.APMConfig.ObfuscationConfig = &config.ObfuscationConfig{
+		CreditCards: config.CreditCardObfuscationConfig{
+			Enabled: config.BoolToPtr(false),
+		},
+	}
 
 	setupCommonHostTags(s)
 	installMethod := "manual"

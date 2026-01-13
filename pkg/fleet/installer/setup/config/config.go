@@ -89,7 +89,7 @@ type DatadogConfig struct {
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
-	Obfuscation          ObfuscationConfig          `yaml:"obfuscation,omitempty"`
+	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
@@ -232,6 +232,9 @@ type LogProcessingRule struct {
 	Type    string `yaml:"type" json:"type"`
 	Name    string `yaml:"name" json:"name"`
 	Pattern string `yaml:"pattern" json:"pattern"`
+}
+type DatadogAPMConfig struct {
+	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation_config,omitempty"`
 }
 
 // ObfuscationConfig represents the configuration for obfuscation
