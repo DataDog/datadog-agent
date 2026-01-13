@@ -2437,35 +2437,6 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: defaultContainerNames,
 			},
 		},
-		"custom library image via annotation is used": {
-			config: map[string]any{
-				"apm_config.instrumentation.enabled":     false,
-				"admission_controller.mutate_unlabelled": false,
-			},
-			pod: common.FakePodSpec{
-				Name:       defaultTestContainer,
-				NS:         "application",
-				ParentKind: "replicaset",
-				ParentName: "deployment-123",
-				Annotations: map[string]string{
-					// Note: custom-image annotation triggers injection without needing a version annotation
-					"admission.datadoghq.com/python-lib.custom-image": "my-registry.io/custom-python-lib:custom-tag",
-				},
-				Labels: map[string]string{
-					admissioncommon.EnabledLabelKey: "true",
-				},
-			}.Create(),
-			deployments:  defaultDeployments,
-			namespaces:   defaultNamespaces,
-			shouldMutate: true,
-			expected: &expected{
-				initContainerImages: []string{
-					"my-registry.io/custom-python-lib:custom-tag",
-					"gcr.io/datadoghq/apm-inject:0",
-				},
-				containerNames: defaultContainerNames,
-			},
-		},
 		"multiple libraries with different versions are all injected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":     false,
@@ -2601,7 +2572,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			},
 		},
 		// All supported languages tests
-		"all supported languages can be injected simultaneously": {
+		"all supported languages can be injected simultaneously through local SDK injection": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":     false,
 				"admission_controller.mutate_unlabelled": false,
