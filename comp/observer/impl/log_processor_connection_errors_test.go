@@ -29,9 +29,6 @@ func TestConnectionErrorExtractor_Process_ConnectionRefused(t *testing.T) {
 	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
 	assert.Equal(t, 1.0, result.Metrics[0].Value)
 	assert.Equal(t, []string{"env:prod", "service:api"}, result.Metrics[0].Tags)
-
-	// No direct anomaly output - frequency detection is handled by TS analysis on count aggregation
-	assert.Empty(t, result.Anomalies)
 }
 
 func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
@@ -47,9 +44,6 @@ func TestConnectionErrorExtractor_Process_ECONNRESET(t *testing.T) {
 	assert.Equal(t, "connection.errors", result.Metrics[0].Name)
 	assert.Equal(t, 1.0, result.Metrics[0].Value)
 	assert.Equal(t, []string{"env:staging"}, result.Metrics[0].Tags)
-
-	// No direct anomaly output - frequency detection is handled by TS analysis on count aggregation
-	assert.Empty(t, result.Anomalies)
 }
 
 func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
@@ -62,7 +56,6 @@ func TestConnectionErrorExtractor_Process_NoMatch(t *testing.T) {
 	result := e.Process(log)
 
 	assert.Empty(t, result.Metrics)
-	assert.Empty(t, result.Anomalies)
 }
 
 func TestConnectionErrorExtractor_Process_CaseInsensitive(t *testing.T) {

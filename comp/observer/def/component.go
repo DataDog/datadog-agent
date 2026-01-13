@@ -69,8 +69,6 @@ type LogProcessor interface {
 type LogProcessorResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
-	// Anomalies are detected anomaly events.
-	Anomalies []AnomalyOutput
 }
 
 // MetricOutput is a timeseries value derived from log analysis.

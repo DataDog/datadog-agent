@@ -87,7 +87,6 @@ func NewComponent(deps Requires) Provides {
 					"gid":       {},
 				},
 			},
-			&BadDetector{},
 			&ConnectionErrorExtractor{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -301,10 +300,6 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			}
 		}
 
-		// Forward anomalies to processors
-		for _, anomaly := range result.Anomalies {
-			o.processAnomaly(anomaly)
-		}
 	}
 
 	o.flushAndReport()

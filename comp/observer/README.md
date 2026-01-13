@@ -66,9 +66,9 @@ Register in `observer.go`:
 
 ```go
 obs := &observerImpl{
-    logAnalyses: []observerdef.LogAnalysis{
-        &BadDetector{},
-        &MyLogAnalysis{},  // add here
+    logProcessors: []observerdef.LogProcessor{
+        &LogTimeSeriesAnalysis{},
+        &MyLogProcessor{},  // add here
     },
     // ...
 }
