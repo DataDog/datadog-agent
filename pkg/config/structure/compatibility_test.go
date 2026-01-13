@@ -289,7 +289,7 @@ type TargetStruct struct {
 func TestUnmarshalWeaklyTyped(t *testing.T) {
 	// Validate that UnmarshalKey uses mapstructure's implicit conversion from
 	// mapstructure's WeaklyTypedInput setting.
-	// https://github.com/go-viper/mapstructure/blob/v2.4.0/mapstructure.go#L234
+	// https://github.com/go-viper/mapstructure/blob/v2.4.0/mapstructure.go#L257
 	dataYaml := `
 my_target:
   bool_to_string:  true
