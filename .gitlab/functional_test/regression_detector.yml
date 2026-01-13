@@ -308,6 +308,7 @@ single_machine_performance-regression_detector-merge_base_check:
               for gate in passed_gates:
                   f.write(f'- {gate}\n')
               f.write('\n</details>\n')
+          f.write('\n')  # Ensure blank line at end for proper markdown concatenation
 
       if failed_gates:
           print("Quality gate failed, see decision record")
