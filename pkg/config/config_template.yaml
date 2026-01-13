@@ -1726,7 +1726,7 @@ api_key:
 #
 #   profiling_receiver_timeout: 5
 #
-#   # @param additional_profile_tags - map of key:value elements - optional
+#   # @param additional_profile_tags - map of strings - optional
 #   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
 #   # Additional tags to add to all profiles. These tags are added on the agent side
 #   # before forwarding profiles to Datadog. This is useful for environment-identifying
