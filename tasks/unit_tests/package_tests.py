@@ -23,7 +23,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(141000000),
@@ -46,7 +45,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(10500000),
@@ -68,7 +66,6 @@ class TestCheckSize(unittest.TestCase):
         flavor = 'datadog-agent'
         c = MockContext(
             run={
-                'git fetch origin main': Result(''),
                 'git merge-base HEAD origin/main': Result('25'),
                 f"dpkg-deb --info {flavor} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
                 f"rpm -qip {flavor} | grep Size | cut -d : -f 2 | xargs": Result(20000000),
