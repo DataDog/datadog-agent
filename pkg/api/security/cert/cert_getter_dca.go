@@ -18,7 +18,7 @@ import (
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 // clusterCAData holds the cluster CA configuration and certificate data
@@ -170,13 +170,13 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 
 		// Add Kubernetes service DNS names for the cluster agent
 		serviceName := config.GetString("cluster_agent.kubernetes_service_name")
-		namespace := common.GetResourcesNamespace()
-		if serviceName != "" && namespace != "" {
+		ns := namespace.GetResourcesNamespace()
+		if serviceName != "" && ns != "" {
 			dnsNames = []string{
 				serviceName,
-				fmt.Sprintf("%s.%s", serviceName, namespace),
-				fmt.Sprintf("%s.%s.svc", serviceName, namespace),
-				fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, namespace),
+				fmt.Sprintf("%s.%s", serviceName, ns),
+				fmt.Sprintf("%s.%s.svc", serviceName, ns),
+				fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, ns),
 			}
 		}
 	} else if isCLC {
