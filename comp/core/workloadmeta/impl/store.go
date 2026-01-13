@@ -824,16 +824,21 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
+			entityForThisSub := cachedEntity
 			var isEventTypeSet bool
 			if ev.Type == wmdef.EventTypeSet {
 				isEventTypeSet = true
 			} else if filter.Source() == wmdef.SourceAll {
-				isEventTypeSet = len(cachedEntity.sources) > 1
+				isEventTypeSet = len(entityForThisSub.sources) > 1
+				if len(entityForThisSub.sources) > 1 {
+					entityForThisSub = cachedEntity.copy()
+					entityForThisSub.unset(ev.Source)
+				}
 			} else {
 				isEventTypeSet = false
 			}
 
-			entity := cachedEntity.get(filter.Source())
+			entity := entityForThisSub.get(filter.Source())
 			if !filter.MatchEntity(&entity) {
 				continue
 			}
