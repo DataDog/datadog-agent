@@ -108,6 +108,7 @@ def _dd_expand_flags_in_vars_test(name):
         substitutions = {
             "@CAP_INSTALL_DIR@": "{install_dir}",
             "@X@": "{x}",
+            "@NO_CHAINING@": "@CAP_INSTALL_DIR@",
         },
         out = "flags_in_vars_test.out",
     )
@@ -127,6 +128,9 @@ def _flags_in_vars_test_impl(env, target):
     install_dir_actual = env.ctx.attr._install_dir_actual[BuildSettingInfo].value
     biz_val = subject.actual.actions[0].substitutions.get("@CAP_INSTALL_DIR@")
     env.expect.that_str(biz_val).equals(install_dir_actual)
+
+    no_chaining_value = subject.actual.actions[0].substitutions.get("@NO_CHAINING@")
+    env.expect.that_str(no_chaining_value).equals("@CAP_INSTALL_DIR@")
 
     # Since there is no flag for "x", @X@ should pass through unchanged
     value = subject.actual.actions[0].substitutions.get("@X@")

@@ -35,13 +35,15 @@ def _dd_agent_expand_template_impl(ctx):
 
     # Now add local substitutions.
     # For extra oomph, we apply the flag substitutions first. That allows us to
-    # reuse tmplates which migh have <% install_dir %> by declaring a local
+    # reuse tmplates which might have <% install_dir %> by declaring a local
     # substitution   "<% install_dir %>": "{install_dir}".
     # That is an affordance during migration.
+    computed_subs = {}
     for key, value in ctx.attr.substitutions.items():
         for flag, flag_value in subs.items():
             value = value.replace(flag, flag_value)
-        subs[key] = value
+        computed_subs[key] = value
+    subs.update(computed_subs)
 
     # let's add a little flavor. We don't need this today but it will be
     # needed if we expand things like the file name of an artifact and we want
