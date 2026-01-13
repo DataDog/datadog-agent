@@ -1,6 +1,5 @@
 ---
 # codeql_scan stage
-# Contains CodeQL scan job to perform security static analysis
 
 run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v89505840-d7f7832-datadog-agent
