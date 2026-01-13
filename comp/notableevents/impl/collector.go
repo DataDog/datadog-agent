@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -77,14 +77,15 @@ func (c *collector) stop() {
 }
 
 // retryForeverWithCancel retries an operation with exponential backoff until it succeeds or context is cancelled
-func retryForeverWithCancel(ctx context.Context, operation backoff.Operation) error {
+func retryForeverWithCancel(ctx context.Context, operation func() error) error {
 	resetBackoff := backoff.NewExponentialBackOff()
 	resetBackoff.InitialInterval = 1 * time.Second
 	resetBackoff.MaxInterval = 1 * time.Minute
 	// retry never stops if MaxElapsedTime == 0
-	resetBackoff.MaxElapsedTime = 0
-
-	return backoff.Retry(operation, backoff.WithContext(resetBackoff, ctx))
+	_, err := backoff.Retry(ctx, func() (any, error) {
+		return nil, operation()
+	}, backoff.WithBackOff(resetBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 // run is the main event processing loop
