@@ -21,7 +21,20 @@ import (
 // mutex to protect the build process
 var mux sync.Mutex
 
-func buildCBinary(srcDir, outPath string) (string, error) {
+// BuildOptions configures how to build a sample binary
+type BuildOptions struct {
+	// UseCUDA indicates whether to build with CUDA support using nvcc
+	UseCUDA bool
+}
+
+// DefaultBuildOptions returns the default build options (no CUDA)
+func DefaultBuildOptions() BuildOptions {
+	return BuildOptions{
+		UseCUDA: false,
+	}
+}
+
+func buildCBinary(srcDir, outPath string, opts BuildOptions) (string, error) {
 	mux.Lock()
 	defer mux.Unlock()
 
@@ -35,8 +48,16 @@ func buildCBinary(srcDir, outPath string) (string, error) {
 		return cachedServerBinaryPath, nil
 	}
 
-	// Build statically to avoid issues with shared libraries (specially libc if we run in alpine)
-	buildCmd := []string{"clang", "-static", serverSrcDir, "-o", cachedServerBinaryPath}
+	var buildCmd []string
+	if opts.UseCUDA {
+		// Build with nvcc for CUDA support. The binary will be dynamically linked
+		// against CUDA runtime libraries, so it must run on a system with CUDA installed.
+		buildCmd = []string{"nvcc", serverSrcDir, "-o", cachedServerBinaryPath}
+	} else {
+		// Build statically to avoid issues with shared libraries (specially libc if we run in alpine)
+		buildCmd = []string{"clang", "-static", serverSrcDir, "-o", cachedServerBinaryPath}
+	}
+
 	log.Debugf("Building test binary: %s", buildCmd)
 	c := exec.Command(buildCmd[0], buildCmd[1:]...)
 	out, err := c.CombinedOutput()
