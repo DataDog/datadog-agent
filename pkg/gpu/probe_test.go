@@ -203,14 +203,29 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	require.NotEmpty(t, stats.Metrics)
+	require.NotEmpty(t, stats.ProcessMetrics)
 
 	// Ensure the metrics we get are correct
-	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
+	metricKey := model.ProcessStatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: testutil.DefaultGpuUUID}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 	require.Greater(t, metrics.UsedCores, 0.0) // core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
+	require.Greater(t, metrics.ActiveTimePct, 0.0) // active time percentage should be > 0 since kernels ran
+	require.LessOrEqual(t, metrics.ActiveTimePct, 100.0)
+
+	// Check device-level metrics
+	require.NotEmpty(t, stats.DeviceMetrics)
+	var foundDevice bool
+	for _, deviceMetric := range stats.DeviceMetrics {
+		if deviceMetric.DeviceUUID == testutil.DefaultGpuUUID {
+			foundDevice = true
+			require.Greater(t, deviceMetric.Metrics.ActiveTimePct, 0.0)
+			require.LessOrEqual(t, deviceMetric.Metrics.ActiveTimePct, 100.0)
+			break
+		}
+	}
+	require.True(t, foundDevice, "device metrics not found for default GPU")
 
 	// Check that the context was updated with the events
 	require.Equal(t, probe.sysCtx.cudaVisibleDevicesPerProcess[cmd.Process.Pid], "42")
@@ -237,12 +252,26 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	stats, err := probe.GetAndFlush()
 	require.NoError(t, err)
 	require.NotNil(t, stats)
-	metricKey := model.StatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
+	metricKey := model.ProcessStatsKey{PID: uint32(cmd.Process.Pid), DeviceUUID: selectedGPU}
 	metrics := getMetricsEntry(metricKey, stats)
 	require.NotNil(t, metrics)
 
 	require.Greater(t, metrics.UsedCores, 0.0) // average core usage depends on the time this took to run, so it's not deterministic
 	require.Equal(t, expectedCudaSampleMaxMemory, metrics.Memory.MaxBytes)
+	require.Greater(t, metrics.ActiveTimePct, 0.0)
+	require.LessOrEqual(t, metrics.ActiveTimePct, 100.0)
+
+	// Check device-level metrics for the selected GPU
+	var foundDevice bool
+	for _, deviceMetric := range stats.DeviceMetrics {
+		if deviceMetric.DeviceUUID == selectedGPU {
+			foundDevice = true
+			require.Greater(t, deviceMetric.Metrics.ActiveTimePct, 0.0)
+			require.LessOrEqual(t, deviceMetric.Metrics.ActiveTimePct, 100.0)
+			break
+		}
+	}
+	require.True(t, foundDevice, "device metrics not found for selected GPU")
 }
 
 func (s *probeTestSuite) TestDetectsContainer() {
@@ -264,13 +293,15 @@ func (s *probeTestSuite) TestDetectsContainer() {
 		require.NoError(c, err)
 		require.NotNil(c, stats)
 
-		key := model.StatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
+		key := model.ProcessStatsKey{PID: uint32(pid), DeviceUUID: testutil.DefaultGpuUUID, ContainerID: cid}
 		pidStats := getMetricsEntry(key, stats)
 		require.NotNil(c, pidStats)
 
 		// core usage depends on the time this took to run, so it's not deterministic
 		require.Greater(c, pidStats.UsedCores, 0.0)
 		require.Equal(c, expectedCudaSampleMaxMemory, pidStats.Memory.MaxBytes)
+		require.Greater(c, pidStats.ActiveTimePct, 0.0)
+		require.LessOrEqual(c, pidStats.ActiveTimePct, 100.0)
 	}, 3*time.Second, 100*time.Millisecond)
 }
 
