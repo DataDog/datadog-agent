@@ -20,6 +20,11 @@ type DemoConfig struct {
 	// HTTPAddr is the address for the HTML reporter server (e.g., ":8080").
 	// If empty, HTML reporter is disabled and only stdout is used.
 	HTTPAddr string
+	// ParquetDir is the directory containing FGM parquet files for replay.
+	// If set, the demo will replay from parquet instead of generating synthetic data.
+	ParquetDir string
+	// Loop controls whether to loop parquet replay after reaching the end.
+	Loop bool
 }
 
 // RunDemo runs the full demo scenario and blocks until complete.
@@ -103,18 +108,47 @@ func RunDemoWithConfig(config DemoConfig) {
 	// Get a handle for the demo generator
 	handle := obs.GetHandle("demo")
 
-	// Create and configure the data generator
-	generator := NewDataGenerator(handle, GeneratorConfig{
-		TimeScale:     config.TimeScale,
-		BaselineNoise: 0.1,
-	})
+	// Choose between parquet replay and synthetic data generation
+	var ctx context.Context
+	var cancel context.CancelFunc
 
-	// Run the generator with a timeout for the scenario duration (70s scaled)
-	scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
-	ctx, cancel := context.WithTimeout(context.Background(), scenarioDuration)
-	defer cancel()
+	if config.ParquetDir != "" {
+		// Parquet replay mode
+		fmt.Printf("Using parquet replay from: %s\n", config.ParquetDir)
+		replayGen, err := NewParquetReplayGenerator(handle, ParquetReplayConfig{
+			ParquetDir: config.ParquetDir,
+			TimeScale:  config.TimeScale,
+			Loop:       config.Loop,
+		})
+		if err != nil {
+			fmt.Printf("Failed to create parquet replay generator: %v\n", err)
+			return
+		}
 
-	generator.Run(ctx)
+		// For parquet replay, use a long timeout or no timeout if looping
+		if config.Loop {
+			ctx, cancel = context.WithCancel(context.Background())
+		} else {
+			// Give enough time for the replay to complete
+			ctx, cancel = context.WithTimeout(context.Background(), 1*time.Hour)
+		}
+		defer cancel()
+
+		replayGen.Run(ctx)
+	} else {
+		// Synthetic data generation mode
+		generator := NewDataGenerator(handle, GeneratorConfig{
+			TimeScale:     config.TimeScale,
+			BaselineNoise: 0.1,
+		})
+
+		// Run the generator with a timeout for the scenario duration (70s scaled)
+		scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
+		ctx, cancel = context.WithTimeout(context.Background(), scenarioDuration)
+		defer cancel()
+
+		generator.Run(ctx)
+	}
 
 	// Small buffer to let final events flush through the pipeline
 	time.Sleep(time.Duration(float64(500*time.Millisecond) * config.TimeScale))
