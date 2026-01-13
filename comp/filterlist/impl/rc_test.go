@@ -47,7 +47,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	logComponent := logmock.New(t)
-	configComponent := config.NewMock(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
 	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
 	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
 

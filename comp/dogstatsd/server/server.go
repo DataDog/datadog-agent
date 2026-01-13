@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
@@ -77,15 +76,16 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log       log.Component
-	Config    configComponent.Component
-	Debug     serverdebug.Component
-	Replay    replay.Component
-	PidMap    pidmap.Component
-	Params    Params
-	WMeta     option.Option[workloadmeta.Component]
-	Telemetry telemetry.Component
-	Hostname  hostnameinterface.Component
+	Log        log.Component
+	Config     configComponent.Component
+	Debug      serverdebug.Component
+	Replay     replay.Component
+	PidMap     pidmap.Component
+	Params     Params
+	WMeta      option.Option[workloadmeta.Component]
+	Telemetry  telemetry.Component
+	Hostname   hostnameinterface.Component
+	FilterList filterlist.Component
 }
 
 type provides struct {
@@ -93,7 +93,6 @@ type provides struct {
 
 	Comp          Component
 	StatsEndpoint api.AgentEndpointProvider
-	RCListener    rctypes.ListenerProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -104,11 +103,6 @@ type cachedOriginCounter struct {
 	err    map[string]string
 	okCnt  telemetry.SimpleCounter
 	errCnt telemetry.SimpleCounter
-}
-
-type localFilterListConfig struct {
-	metricNames []string
-	matchPrefix bool
 }
 
 // Server represent a Dogstatsd server
@@ -170,7 +164,6 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig
-	localFilterListConfig
 
 	wmeta option.Option[workloadmeta.Component]
 
@@ -217,15 +210,11 @@ func newServer(deps dependencies) provides {
 		})
 	}
 
-	var rcListener rctypes.ListenerProvider
-	rcListener.ListenerProvider = rctypes.RCListener{
-		state.ProductMetricControl: s.onFilterListUpdateCallback,
-	}
+	deps.FilterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
 
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
-		RCListener:    rcListener,
 	}
 }
 
@@ -544,6 +533,7 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
+/*
 // SetFilterList updates the metric names filter on all running worker.
 func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 	s.log.Debugf("SetFilterList with %d metrics", len(metricNames))
@@ -566,7 +556,16 @@ func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
 
 	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
 }
+*/
 
+func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+	// send the complete filterlist to all workers, the listening part of dogstatsd
+	for _, worker := range s.workers {
+		worker.FilterListUpdate <- filterList
+	}
+}
+
+/*
 // create a list based on all `metricNames` but only containing metric names
 // with histogram aggregates suffixes.
 // TODO(remy): should we consider moving this in the metrics package instead?
@@ -598,6 +597,7 @@ func (s *server) createHistogramsFilterList(metricNames []string) []string {
 	s.log.Debugf("SetFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
 	return histoMetricNames
 }
+*/
 
 func (s *server) handleMessages() {
 	if s.Statistics != nil {
@@ -629,32 +629,6 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
-
-	// init the metric names filterlist
-	filterlist := s.config.GetStringSlice("metric_filterlist")
-	filterlistPrefix := s.config.GetBool("metric_filterlist_match_prefix")
-	if len(filterlist) == 0 {
-		filterlist = s.config.GetStringSlice("statsd_metric_blocklist")
-		filterlistPrefix = s.config.GetBool("statsd_metric_blocklist_match_prefix")
-	}
-
-	s.localFilterListConfig = localFilterListConfig{
-		metricNames: filterlist,
-		matchPrefix: filterlistPrefix,
-	}
-	s.restoreFilterListFromLocalConfig()
-}
-
-func (s *server) restoreFilterListFromLocalConfig() {
-	s.log.Debug("Restoring filterlist with local config.")
-
-	s.tlmFilterListUpdates.Inc()
-	s.tlmFilterListSize.Set(float64(len(s.localFilterListConfig.metricNames)))
-
-	s.SetFilterList(
-		s.localFilterListConfig.metricNames,
-		s.localFilterListConfig.matchPrefix,
-	)
 }
 
 func (s *server) UDPLocalAddr() string {

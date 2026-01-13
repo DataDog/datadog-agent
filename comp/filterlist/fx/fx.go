@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package fx provides the fx module for the serializer/metricscompression component
+// Package fx provides the fx module for the filterlist component
 package fx
 
 import (
@@ -14,7 +14,7 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			filterlistimpl.NewRCReq,
+			filterlistimpl.NewFilterListReq,
 		),
 	)
 

@@ -21,6 +21,8 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -171,6 +173,7 @@ type DemultiplexerAgentTestDeps struct {
 	Compressor      compression.Component
 	Tagger          tagger.Component
 	HaAgent         haagent.Component
+	FilterList      filterlist.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
@@ -187,6 +190,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),
+		filterlistfx.Module(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)
 }

@@ -45,7 +45,7 @@ type FilterList struct {
 	config        config.Component
 	telemetrycomp telemetry.Component
 
-	filterListUpdate []func(*utilstrings.Matcher, *utilstrings.Matcher)
+	filterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
 	filterList       utilstrings.Matcher
 	histoFilterList  utilstrings.Matcher
 
@@ -134,7 +134,7 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	fl.histoFilterList = utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
 	for _, update := range fl.filterListUpdate {
-		update(&fl.filterList, &fl.histoFilterList)
+		update(fl.filterList, fl.histoFilterList)
 	}
 }
 
@@ -150,12 +150,12 @@ func (fl *FilterList) restoreFilterListFromLocalConfig() {
 	)
 }
 
-func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(*utilstrings.Matcher, *utilstrings.Matcher)) {
+func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
 	fl.filterListUpdate = append(fl.filterListUpdate, onUpdate)
-	onUpdate(&fl.filterList, &fl.histoFilterList)
+	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
-func NewRCReq(req Requires) Provides {
+func NewFilterListReq(req Requires) Provides {
 	filterList := NewFilterList(req.Log, req.Cfg, req.Telemetry)
 
 	var rcListener rctypes.ListenerProvider

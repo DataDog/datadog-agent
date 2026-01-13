@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -56,12 +58,12 @@ func initSender(id checkid.ID, defaultHostname string) (s senderWithChans) {
 	return s
 }
 
-func testDemux(log log.Component, hostname hostname.Component) *AgentDemultiplexer {
+func testDemux(log log.Component, hostname hostname.Component, filterlist filterlist.Component) *AgentDemultiplexer {
 	opts := DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressionmock.NewMockCompressor()))
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), nooptagger.NewComponent(), defaultHostname)
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressionmock.NewMockCompressor(), nooptagger.NewComponent(), filterList, defaultHostname)
 	return demux
 }
 
@@ -80,14 +82,15 @@ func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
 
 type SenderTestDeps struct {
 	fx.In
-	Log      log.Component
-	Hostname hostname.Component
+	Log        log.Component
+	Hostname   hostname.Component
+	FilterList filterlist.Component
 }
 
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule())
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
 	demux := testDemux(deps.Log, deps.Hostname)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()

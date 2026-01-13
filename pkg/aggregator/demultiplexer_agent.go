@@ -14,6 +14,7 @@ import (
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -132,8 +133,9 @@ func InitAndStartAgentDemultiplexer(
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
+	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, hostname)
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, eventPlatformForwarder, haAgent, compressor, tagger, filterList, hostname)
 	go demux.run()
 	return demux
 }
@@ -146,6 +148,7 @@ func initAgentDemultiplexer(log log.Component,
 	haAgent haagent.Component,
 	compressor compression.Component,
 	tagger tagger.Component,
+	filterList filterlist.Component,
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
@@ -229,6 +232,7 @@ func initAgentDemultiplexer(log log.Component,
 		},
 	}
 
+	filterList.OnUpdateMetricFilterList(demux.SetSamplersFilterList)
 	return demux
 }
 
