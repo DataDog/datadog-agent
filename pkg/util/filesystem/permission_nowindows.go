@@ -72,13 +72,13 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return os.Chmod(path, fs.FileMode(newPerm))
 }
 
-func getDatadogUserUid() (uint32, error) {
+func getDatadogUserUID() (uint32, error) {
 	if ddAgentUser, err := user.Lookup("dd-agent"); err == nil {
-		if ddAgentUid, err := strconv.Atoi(ddAgentUser.Uid); err != nil {
+		ddAgentUID, err := strconv.Atoi(ddAgentUser.Uid)
+		if err != nil {
 			return 0, err
-		} else {
-			return uint32(ddAgentUid), nil
 		}
+		return uint32(ddAgentUID), nil
 	}
 
 	return 0, errors.New("user 'dd-agent' not found")
@@ -102,8 +102,8 @@ func (p *Permission) CheckOwner(path string) error {
 	}
 
 	// check for 'dd-agent' user UID if it exists
-	ddAgentUid, err := getDatadogUserUid()
-	if err == nil && stat.Uid == ddAgentUid {
+	ddAgentUID, err := getDatadogUserUID()
+	if err == nil && stat.Uid == ddAgentUID {
 		return nil
 	}
 
