@@ -266,8 +266,11 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	xmlString := windows.UTF16ToString(xmlUTF16)
 
 	// Convert XML to JSON map using windowsevent package
-	// TODO: We might not want some of the transforms applied here
-	eventMap, err := windowsevent.NewMapXML([]byte(xmlString))
+	eventMap, err := windowsevent.NewMapXMLWithOptions([]byte(xmlString), windowsevent.TransformOptions{
+		FormatEventData:  true,
+		FormatBinaryData: false, // Skip buggy binary transform
+		NormalizeEventID: true,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to parse event XML: %w", err)
 	}
