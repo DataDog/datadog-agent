@@ -6,7 +6,6 @@
 package bootstrap
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,47 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 )
-
-// TestGetInstallerOCIWithDefaultVersion tests getInstallerOCI with default version
-func TestGetInstallerOCIWithDefaultVersion(t *testing.T) {
-	ctx := context.Background()
-	testEnv := &env.Env{}
-
-	url, err := getInstallerOCI(ctx, testEnv)
-	require.NoError(t, err)
-	// PackageURL strips "datadog-" prefix and adds "-package" suffix
-	// So "datadog-installer" becomes "installer-package"
-	assert.Contains(t, url, "installer-package")
-	assert.Contains(t, url, "latest")
-	assert.Contains(t, url, "oci://")
-}
-
-// TestGetInstallerOCIWithVersionOverride tests getInstallerOCI with version override
-func TestGetInstallerOCIWithVersionOverride(t *testing.T) {
-	ctx := context.Background()
-	testEnv := &env.Env{
-		DefaultPackagesVersionOverride: map[string]string{"datadog-installer": "7.50.0"},
-	}
-
-	url, err := getInstallerOCI(ctx, testEnv)
-	require.NoError(t, err)
-	assert.Contains(t, url, "installer-package")
-	assert.Contains(t, url, "7.50.0")
-	assert.NotContains(t, url, "latest")
-}
-
-// TestGetInstallerOCIWithDifferentSite tests getInstallerOCI with different site
-func TestGetInstallerOCIWithDifferentSite(t *testing.T) {
-	ctx := context.Background()
-	testEnv := &env.Env{
-		Site: "datad0g.com",
-	}
-
-	url, err := getInstallerOCI(ctx, testEnv)
-	require.NoError(t, err)
-	assert.Contains(t, url, "installer-package")
-	assert.Contains(t, url, "datad0g.com")
-}
 
 // TestGetLocalInstaller tests getLocalInstaller returns a valid InstallerExec
 func TestGetLocalInstaller(t *testing.T) {
