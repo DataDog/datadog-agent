@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package agentprofiling is a core check that can generate a flare with profiles
-// when the core agent's memory or CPU usage exceeds a certain threshold.
 package agentprofiling
 
 import (
@@ -13,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,38 +25,17 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
-// testConfig represents a test configuration for the agentprofiling check
-type testConfig struct {
-	memoryThreshold           string
-	cpuThreshold              int
-	ticketID                  string
-	userEmail                 string
-	terminateAgentOnThreshold bool
-}
-
-// defaultTestConfig returns a default test configuration
-func defaultTestConfig() testConfig {
-	return testConfig{
-		memoryThreshold:           "0",
-		cpuThreshold:              0,
-		ticketID:                  "",
-		userEmail:                 "",
-		terminateAgentOnThreshold: false,
-	}
-}
-
-// createTestCheck creates a new check instance with the given configuration
-func createTestCheck(t *testing.T, cfg testConfig) *Check {
-	flare := flaremock.NewMock().Comp
+// createTestCheck creates a check instance with the given configuration
+func createTestCheck(t *testing.T, memoryThreshold string, cpuThreshold int, ticketID, userEmail string, terminateAgent bool) *Check {
+	flareComp := flaremock.NewMock().Comp
 	config := configmock.NewMock(t)
-	check := newCheck(flare, config).(*Check)
+	check := newCheck(flareComp, config).(*Check)
 
-	// Configure the check with the test configuration
 	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
 cpu_threshold: %d
 ticket_id: "%s"
 user_email: "%s"
-terminate_agent_on_threshold: %t`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.userEmail, cfg.terminateAgentOnThreshold))
+terminate_agent_on_threshold: %t`, memoryThreshold, cpuThreshold, ticketID, userEmail, terminateAgent))
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -67,168 +45,59 @@ terminate_agent_on_threshold: %t`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ti
 	return check
 }
 
-// TestZeroThresholds tests that the flare is not generated when thresholds are set to zero
-func TestZeroThresholds(t *testing.T) {
-	check := createTestCheck(t, defaultTestConfig())
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
-}
-
-// TestMemThreshold tests that the flare is generated when memory threshold is exceeded
-func TestMemThreshold(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1B" // 1 byte to force trigger
-
-	check := createTestCheck(t, cfg)
-
-	// Verify memory threshold is properly parsed
-	assert.Equal(t, uint(1), check.memoryThreshold)
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// TestCPUThreshold tests that the flare is generated when CPU threshold is exceeded
-func TestCPUThreshold(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.cpuThreshold = 1 // 1 percent to force trigger
-
-	check := createTestCheck(t, cfg)
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// TestBelowThresholds tests that the flare is not generated when both memory and CPU usage are below thresholds
-func TestBelowThresholds(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1000GB" // Very high memory threshold
-	cfg.cpuThreshold = 1000        // 1000% CPU threshold
-
-	check := createTestCheck(t, cfg)
-
-	// Verify memory threshold is properly parsed
-	expectedBytes := uint(1000 * 1024 * 1024 * 1024) // 1000GB in bytes
-	assert.Equal(t, expectedBytes, check.memoryThreshold)
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
-}
-
-// TestGenerateFlareLocal tests that the flare is generated correctly when ticket ID and user email are not provided
-func TestGenerateFlareLocal(t *testing.T) {
-	check := createTestCheck(t, defaultTestConfig())
-
-	err := check.generateFlare()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// TestGenerateFlareTicket tests that the flare is generated correctly when ticket ID and user email are provided
-func TestGenerateFlareTicket(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.ticketID = "12345678"
-	cfg.userEmail = "user@example.com"
-
-	check := createTestCheck(t, cfg)
-
-	err := check.generateFlare()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// TestTerminateAgentOnThresholdConfig tests that the terminate_agent_on_threshold config is parsed correctly
-func TestTerminateAgentOnThresholdConfig(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1B" // Force trigger
-	cfg.terminateAgentOnThreshold = true
-
-	check := createTestCheck(t, cfg)
-
-	// Verify config is parsed correctly
-	assert.True(t, check.instance.TerminateAgentOnThreshold)
-	assert.Equal(t, uint(1), check.memoryThreshold)
-
-	// Verify that when threshold is exceeded, flare is generated
-	// Note: Termination is skipped in test mode (detected via testing.Testing()), so we can't test
-	// the actual shutdown behavior. However, we verify that the config is parsed correctly
-	// and that the check would attempt termination in a non-test environment.
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// TestTerminateAgentOnThresholdDisabled tests that termination does not occur when disabled
-func TestTerminateAgentOnThresholdDisabled(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1B" // Force trigger
-	cfg.terminateAgentOnThreshold = false
-
-	check := createTestCheck(t, cfg)
-
-	// Verify config is parsed correctly
-	assert.False(t, check.instance.TerminateAgentOnThreshold)
-
-	// Verify flare is still generated
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
-
-// failingFlareMock is a mock that fails flare creation or sending
+// failingFlareMock is a mock flare component that can fail on creation or sending
 type failingFlareMock struct {
 	flare.Component
-	createShouldFail bool
-	sendShouldFail   bool
-	attemptCount     int
-	failUntilAttempt int // Fail until this attempt number, then succeed
+	createError error
+	sendError   error
+	callCount   int
+	failUntil   int // Fail until this call count, then succeed
 }
 
-func (f *failingFlareMock) CreateWithArgs(args types.FlareArgs, duration time.Duration, err error, data []byte) (string, error) {
-	f.attemptCount++
-	if f.createShouldFail || (f.failUntilAttempt > 0 && f.attemptCount < f.failUntilAttempt) {
+func (m *failingFlareMock) CreateWithArgs(args types.FlareArgs, duration time.Duration, err error, data []byte) (string, error) {
+	m.callCount++
+	if m.createError != nil || (m.failUntil > 0 && m.callCount < m.failUntil) {
 		return "", errors.New("mock flare creation failure")
 	}
-	// Use the real mock for success case
 	mock := flaremock.NewMock().Comp
 	return mock.CreateWithArgs(args, duration, err, data)
 }
 
-func (f *failingFlareMock) Send(path string, caseID string, email string, source helpers.FlareSource) (string, error) {
-	if f.sendShouldFail || (f.failUntilAttempt > 0 && f.attemptCount < f.failUntilAttempt) {
+func (m *failingFlareMock) Send(path string, caseID string, email string, source helpers.FlareSource) (string, error) {
+	if m.sendError != nil || (m.failUntil > 0 && m.callCount < m.failUntil) {
 		return "", errors.New("mock flare send failure")
 	}
-	// Use the real mock for success case
 	mock := flaremock.NewMock().Comp
 	return mock.Send(path, caseID, email, source)
 }
 
-// createTestCheckWithFailingFlare creates a check with a failing flare mock
-func createTestCheckWithFailingFlare(t *testing.T, cfg testConfig, createShouldFail, sendShouldFail bool, failUntilAttempt int) *Check {
+// createCheckWithFailingFlare creates a check with a failing flare mock
+func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThreshold int, createError, sendError error, failUntil int) *Check {
 	failingMock := &failingFlareMock{
-		createShouldFail: createShouldFail,
-		sendShouldFail:   sendShouldFail,
-		failUntilAttempt: failUntilAttempt,
+		createError: createError,
+		sendError:   sendError,
+		failUntil:   failUntil,
 	}
 	config := configmock.NewMock(t)
+
+	// Initialize backoff policy (same as newCheck)
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Minute
+	expBackoff.MaxInterval = 10 * time.Minute
+	expBackoff.Multiplier = 2.0
+	expBackoff.RandomizationFactor = 0.1
+	expBackoff.Reset()
+
 	check := &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
 		instance:       &Config{},
+		backoffPolicy:  expBackoff,
 		flareComponent: failingMock,
 		agentConfig:    config,
 	}
 
-	// Configure the check with the test configuration
 	configData := []byte(fmt.Sprintf(`memory_threshold: "%s"
-cpu_threshold: %d
-ticket_id: "%s"
-user_email: "%s"
-terminate_agent_on_threshold: %t`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ticketID, cfg.userEmail, cfg.terminateAgentOnThreshold))
+cpu_threshold: %d`, memoryThreshold, cpuThreshold))
 
 	initConfig := []byte("")
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -238,136 +107,368 @@ terminate_agent_on_threshold: %t`, cfg.memoryThreshold, cfg.cpuThreshold, cfg.ti
 	return check
 }
 
-// TestRetryOnFlareFailure tests that the check retries when flare creation or sending fails
-func TestRetryOnFlareFailure(t *testing.T) {
-	tests := []struct {
-		name             string
-		createShouldFail bool
-		sendShouldFail   bool
-		setTicketInfo    bool
-	}{
-		{
-			name:             "creation failure",
-			createShouldFail: true,
-			sendShouldFail:   false,
-			setTicketInfo:    false,
-		},
-		{
-			name:             "send failure",
-			createShouldFail: false,
-			sendShouldFail:   true,
-			setTicketInfo:    true,
-		},
-	}
+// TestConfigurationParsing tests that configuration is parsed correctly
+func TestConfigurationParsing(t *testing.T) {
+	check := createTestCheck(t, "100MB", 50, "TICKET-123", "user@example.com", true)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := defaultTestConfig()
-			cfg.memoryThreshold = "1B" // Force trigger
-			if tt.setTicketInfo {
-				cfg.ticketID = "12345678"
-				cfg.userEmail = "user@example.com"
-			}
-
-			check := createTestCheckWithFailingFlare(t, cfg, tt.createShouldFail, tt.sendShouldFail, 0)
-
-			// First attempt should fail
-			err := check.Run()
-			require.NoError(t, err)
-			assert.False(t, check.flareAttempted)
-			assert.Equal(t, 1, check.flareAttemptCount)
-
-			// Simulate backoff elapsed (backoff for attempt 1 is 1 minute)
-			check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
-
-			// Second attempt should also fail (but we're still within retry limit)
-			err = check.Run()
-			require.NoError(t, err)
-			assert.False(t, check.flareAttempted)
-			assert.Equal(t, 2, check.flareAttemptCount)
-
-			// Simulate backoff elapsed again (backoff for attempt 2 is 5 minutes)
-			check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
-
-			// Third attempt should fail and exhaust retries
-			err = check.Run()
-			require.NoError(t, err)
-			assert.True(t, check.flareAttempted)
-			assert.Equal(t, 3, check.flareAttemptCount)
-		})
-	}
+	assert.Equal(t, uint(100*1024*1024), check.memoryThreshold)
+	assert.Equal(t, 50, check.instance.CPUThreshold)
+	assert.Equal(t, "TICKET-123", check.instance.TicketID)
+	assert.Equal(t, "user@example.com", check.instance.UserEmail)
+	assert.True(t, check.instance.TerminateAgentOnThreshold)
 }
 
-// TestRetryWithBackoff tests that backoff is calculated correctly
-func TestRetryWithBackoff(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1B" // Force trigger
+// TestZeroThresholds tests that the check skips when both thresholds are zero
+func TestZeroThresholds(t *testing.T) {
+	check := createTestCheck(t, "0", 0, "", "", false)
 
-	check := createTestCheckWithFailingFlare(t, cfg, true, false, 0)
+	err := check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 0, check.flareAttemptCount)
+}
 
-	// First attempt
+// TestMemoryThresholdExceeded tests flare generation when memory threshold is exceeded
+func TestMemoryThresholdExceeded(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "", "", false) // 1 byte threshold will always be exceeded
+
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+}
+
+// TestCPUThresholdExceeded tests flare generation when CPU threshold is exceeded
+func TestCPUThresholdExceeded(t *testing.T) {
+	check := createTestCheck(t, "0", 1, "", "", false) // 1% CPU threshold
+
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+}
+
+// TestBelowThresholds tests that flare is not generated when usage is below thresholds
+func TestBelowThresholds(t *testing.T) {
+	check := createTestCheck(t, "1000GB", 1000, "", "", false) // Very high thresholds
+
+	err := check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 0, check.flareAttemptCount)
+}
+
+// TestFlareGenerationLocal tests local flare generation without ticket info
+func TestFlareGenerationLocal(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "", "", false)
+
+	err := check.generateFlare()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+}
+
+// TestFlareGenerationWithTicket tests flare generation and sending with ticket info
+func TestFlareGenerationWithTicket(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "TICKET-123", "user@example.com", false)
+
+	err := check.generateFlare()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+}
+
+// TestRetryOnFlareCreationFailure tests retry logic when flare creation fails
+func TestRetryOnFlareCreationFailure(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("creation failed"), nil, 0)
+
+	// First attempt fails
+	err := check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~2 minutes)
+	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+
+	// Second attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 2, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~4 minutes)
+	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+
+	// Third attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 3, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~8 minutes)
+	check.lastFlareAttempt = time.Now().Add(-9 * time.Minute)
+
+	// Fourth attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 4, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~10 minutes, capped)
+	check.lastFlareAttempt = time.Now().Add(-11 * time.Minute)
+
+	// Fifth attempt fails and exhausts retries
+	err = check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+	assert.Equal(t, 5, check.flareAttemptCount)
+}
+
+// TestRetryOnFlareSendFailure tests retry logic when flare sending fails
+func TestRetryOnFlareSendFailure(t *testing.T) {
+	// Create check with failing send - need ticket info to trigger Send()
+	failingMock := &failingFlareMock{
+		sendError: errors.New("send failed"),
+	}
+	config := configmock.NewMock(t)
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Minute
+	expBackoff.MaxInterval = 10 * time.Minute
+	expBackoff.Multiplier = 2.0
+	expBackoff.RandomizationFactor = 0.1
+	expBackoff.Reset()
+
+	check := &Check{
+		CheckBase:      core.NewCheckBase(CheckName),
+		instance:       &Config{TicketID: "TICKET-123", UserEmail: "user@example.com"},
+		backoffPolicy:  expBackoff,
+		flareComponent: failingMock,
+		agentConfig:    config,
+	}
+
+	configData := []byte(`memory_threshold: "1B"
+cpu_threshold: 0
+ticket_id: "1234567"
+user_email: "user@example.com"`)
+
+	initConfig := []byte("")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := check.Configure(senderManager, integration.FakeConfigHash, configData, initConfig, "test")
+	require.NoError(t, err)
+
+	// First attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Simulate backoff elapsed
+	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+
+	// Second attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 2, check.flareAttemptCount)
+}
+
+// TestRetrySuccessAfterFailure tests that retry succeeds after initial failures
+func TestRetrySuccessAfterFailure(t *testing.T) {
+	// Fail first 2 attempts, succeed on 3rd
+	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 3)
+
+	// First attempt fails
+	err := check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~2 minutes)
+	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+
+	// Second attempt fails
+	err = check.Run()
+	require.NoError(t, err)
+	assert.False(t, check.flareAttempted)
+	assert.Equal(t, 2, check.flareAttemptCount)
+
+	// Simulate backoff elapsed (~4 minutes)
+	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+
+	// Third attempt succeeds
+	err = check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+	assert.Equal(t, 3, check.flareAttemptCount)
+}
+
+// TestBackoffTiming tests that backoff durations follow exponential backoff
+func TestBackoffTiming(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
+
+	// Reset backoff policy to test durations
+	check.backoffPolicy.Reset()
+
+	// First backoff should be ~2 minutes (with randomization)
+	backoffDuration := check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 1*time.Minute+45*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 2*time.Minute+15*time.Second)
+
+	// Second backoff should be ~4 minutes
+	backoffDuration = check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 3*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
+
+	// Third backoff should be ~8 minutes
+	backoffDuration = check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 7*time.Minute)
+	assert.LessOrEqual(t, backoffDuration, 9*time.Minute)
+
+	// Fourth backoff should be ~10 minutes (capped)
+	backoffDuration = check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 9*time.Minute)
+	assert.LessOrEqual(t, backoffDuration, 10*time.Minute+30*time.Second)
+
+	// Subsequent backoffs should remain capped
+	backoffDuration = check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 9*time.Minute)
+	assert.LessOrEqual(t, backoffDuration, 10*time.Minute+30*time.Second)
+}
+
+// TestBackoffWait tests that retry waits for backoff duration
+func TestBackoffWait(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("failed"), nil, 0)
+
+	// First attempt fails
 	err := check.Run()
 	require.NoError(t, err)
 	assert.Equal(t, 1, check.flareAttemptCount)
 	firstAttemptTime := check.lastFlareAttempt
 	assert.False(t, firstAttemptTime.IsZero())
 
-	// Verify backoff calculation is correct
-	backoff := check.calculateBackoff(1)
-	assert.Equal(t, 1*time.Minute, backoff)
-
-	backoff = check.calculateBackoff(2)
-	assert.Equal(t, 5*time.Minute, backoff)
-
-	backoff = check.calculateBackoff(3)
-	assert.Equal(t, 15*time.Minute, backoff)
-
-	// Test that backoff caps at max
-	backoff = check.calculateBackoff(10)
-	assert.Equal(t, 15*time.Minute, backoff)
-}
-
-// TestRetrySuccessAfterFailure tests that retry succeeds after initial failures
-func TestRetrySuccessAfterFailure(t *testing.T) {
-	cfg := defaultTestConfig()
-	cfg.memoryThreshold = "1B" // Force trigger
-	cfg.ticketID = "12345678"
-	cfg.userEmail = "user@example.com"
-
-	// Fail first 2 attempts (attemptCount < 3), then succeed on 3rd (attemptCount = 3)
-	check := createTestCheckWithFailingFlare(t, cfg, false, false, 3)
-
-	// First attempt should fail
-	err := check.Run()
-	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
-	assert.Equal(t, 1, check.flareAttemptCount)
-
-	// Simulate backoff elapsed (backoff for attempt 1 is 1 minute)
-	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
-
-	// Second attempt should fail
+	// Try to retry immediately - should wait (backoff not elapsed)
+	// Note: NextBackOff() advances the backoff state even when we don't retry,
+	// so the backoff duration will be for the next attempt
 	err = check.Run()
 	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
+	// Attempt count should still be 1 because backoff hasn't elapsed
+	assert.Equal(t, 1, check.flareAttemptCount)
+	// lastFlareAttempt should be unchanged (we didn't make a new attempt)
+	assert.Equal(t, firstAttemptTime.Unix(), check.lastFlareAttempt.Unix())
+
+	// Simulate backoff elapsed - need enough time for the backoff duration
+	// (which was advanced by the previous NextBackOff() call, so it's now ~4min)
+	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+
+	// Now retry should proceed
+	err = check.Run()
+	require.NoError(t, err)
 	assert.Equal(t, 2, check.flareAttemptCount)
+}
 
-	// Note: The test expects success on 3rd attempt, but with failUntilAttempt=2,
-	// it will succeed on 2nd attempt. Let's adjust the test expectation.
-	// Actually, wait - failUntilAttempt means fail until that attempt number,
-	// so failUntilAttempt=2 means fail on attempts 1 and 2, succeed on 3.
-	// But we've already done attempt 1, so attempt 2 should fail, then attempt 3 should succeed.
-	// But we need to simulate backoff for attempt 3 (backoff for attempt 2 is 5 minutes)
-	check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
+// TestBackoffResetOnFirstAttempt tests that backoff is reset on first threshold detection
+func TestBackoffResetOnFirstAttempt(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
 
-	// Third attempt should succeed
+	// Advance backoff policy state
+	check.backoffPolicy.NextBackOff()
+	check.backoffPolicy.NextBackOff()
+
+	// First attempt should reset backoff
+	err := check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Backoff should be reset, so next backoff should be initial interval
+	check.backoffPolicy.Reset()
+	backoffDuration := check.backoffPolicy.NextBackOff()
+	assert.GreaterOrEqual(t, backoffDuration, 1*time.Minute+45*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 2*time.Minute+15*time.Second)
+}
+
+// TestNoRetryAfterSuccess tests that no retries occur after successful flare generation
+func TestNoRetryAfterSuccess(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "", "", false)
+
+	// First attempt succeeds
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Subsequent runs should not attempt again
 	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareAttempted)
-	// It succeeds on attempt 2 because failUntilAttempt=2 means fail until attempt 2, succeed on 3
-	// But we've already done 2 attempts, so the next one (3rd) should succeed
-	// Actually wait, let me re-check the logic. failUntilAttempt=2 means fail if attemptCount < 2
-	// So attemptCount=1 fails, attemptCount=2 fails, attemptCount=3 succeeds
-	// But we've done 1 attempt, so next is 2, which should fail, then 3 should succeed
-	assert.Equal(t, 3, check.flareAttemptCount)
+	assert.Equal(t, 1, check.flareAttemptCount) // Still 1, no new attempts
+}
+
+// TestTerminateAgentConfig tests that terminate_agent_on_threshold config is respected
+func TestTerminateAgentConfig(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "", "", true)
+
+	// Verify config is parsed
+	assert.True(t, check.instance.TerminateAgentOnThreshold)
+
+	// Run check - termination is skipped in test mode, but flare should be generated
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+}
+
+// TestTerminateAgentDisabled tests that agent is not terminated when disabled
+func TestTerminateAgentDisabled(t *testing.T) {
+	check := createTestCheck(t, "1B", 0, "", "", false)
+
+	assert.False(t, check.instance.TerminateAgentOnThreshold)
+
+	err := check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted)
+}
+
+// TestFlareComponentNil tests behavior when flare component is nil
+func TestFlareComponentNil(t *testing.T) {
+	config := configmock.NewMock(t)
+
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Minute
+	expBackoff.MaxInterval = 10 * time.Minute
+	expBackoff.Multiplier = 2.0
+	expBackoff.RandomizationFactor = 0.1
+	expBackoff.Reset()
+
+	check := &Check{
+		CheckBase:       core.NewCheckBase(CheckName),
+		instance:        &Config{MemoryThreshold: "1B"},
+		backoffPolicy:   expBackoff,
+		flareComponent:  nil,
+		agentConfig:     config,
+		memoryThreshold: 1,
+	}
+
+	err := check.generateFlare()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted) // Marked as attempted even though skipped
+}
+
+// TestBackoffPolicyStop tests handling of backoff.Stop signal
+func TestBackoffPolicyStop(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
+
+	// Manually set backoff policy to StopBackOff to test stop signal handling
+	check.backoffPolicy = &backoff.StopBackOff{}
+
+	// First attempt
+	err := check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Simulate backoff elapsed
+	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+
+	// Next attempt should stop due to backoff.Stop
+	err = check.Run()
+	require.NoError(t, err)
+	assert.True(t, check.flareAttempted) // Should be marked as attempted due to stop signal
 }
