@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
 package testutil
 
@@ -210,7 +210,7 @@ func runCommandAndPipeOutput(t testing.TB, command []string, sample Sample, args
 
 	cmd = exec.CommandContext(ctx, command[0], command[1:]...)
 	t.Cleanup(func() {
-		if cmd.Process != nil {
+		if cmd != nil && cmd.Process != nil {
 			_ = cmd.Process.Kill()
 			_ = cmd.Wait()
 		}
@@ -263,9 +263,10 @@ func RunSampleWithArgs(t testing.TB, sample Sample, args SampleArgs) SampleOutpu
 	cmd, lines, err := runCommandAndPipeOutput(t, []string{builtBin}, sample, args)
 	require.NoError(t, err, "failed to run command")
 
+	output.Output = lines
 	if cmd.Process != nil {
 		output.PID = cmd.Process.Pid
-		output.Output = lines
+		output.Command = cmd
 	}
 
 	return output
@@ -283,6 +284,15 @@ func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, a
 	scanner, err := procutil.NewScanner(sample.StartPattern, sample.FinishedPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 
+	extraArgs := []dockerutils.RunConfigOption{
+		dockerutils.WithBinaryArgs(args.CLIArgs()),
+		dockerutils.WithMounts(map[string]string{builtBin: builtBin}),
+	}
+
+	if sample.RequiresCUDA {
+		extraArgs = append(extraArgs, dockerutils.WithGPUs("all"))
+	}
+
 	dockerConfig := dockerutils.NewRunConfig(
 		dockerutils.NewBaseConfig(
 			containerName,
@@ -291,8 +301,7 @@ func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, a
 		),
 		string(image),
 		builtBin,
-		dockerutils.WithBinaryArgs(args.CLIArgs()),
-		dockerutils.WithMounts(map[string]string{builtBin: builtBin}))
+		extraArgs...)
 
 	require.NoError(t, dockerutils.Run(t, dockerConfig))
 

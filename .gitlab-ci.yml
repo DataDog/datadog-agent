@@ -1459,7 +1459,6 @@ workflow:
 
 .on_gpu_integration_tests:
   - !reference [.on_scheduled_main]
-  - !reference [.manual]
   # Run on GPU-related changes
   - changes:
       paths:
@@ -1468,7 +1467,7 @@ workflow:
         - comp/core/workloadmeta/collectors/internal/nvml/**/*
         - .gitlab/build/source_test/linux.yml
       compare_to: $COMPARE_TO_BRANCH
-    when: on_success
+  - !reference [.manual]
 
 .on_installer_systemd_changes:
   - <<: *if_main_branch

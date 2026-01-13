@@ -5,7 +5,7 @@
 
 // Package testutil contains helpers to build sample C binaries for testing.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
 package testutil
 
@@ -40,18 +40,18 @@ func buildCBinary(srcDir, outPath string, opts BuildOptions) (string, error) {
 
 	serverSrcDir := srcDir
 	cachedServerBinaryPath := outPath
+	forceBuild := os.Getenv("FORCE_BINARY_REBUILD") != ""
 
 	// If there is a compiled binary already, skip the compilation.
 	// Meant for the CI.
-	if _, err := os.Stat(cachedServerBinaryPath); err == nil {
+	if _, err := os.Stat(cachedServerBinaryPath); err == nil && !forceBuild {
 		log.Debugf("Using cached test binary: %s", cachedServerBinaryPath)
 		return cachedServerBinaryPath, nil
 	}
 
 	var buildCmd []string
 	if opts.UseCUDA {
-		// Build with nvcc for CUDA support. The binary will be dynamically linked
-		// against CUDA runtime libraries, so it must run on a system with CUDA installed.
+		// Building CUDA binaries doesn't really support static linking well
 		buildCmd = []string{"nvcc", serverSrcDir, "-o", cachedServerBinaryPath}
 	} else {
 		// Build statically to avoid issues with shared libraries (specially libc if we run in alpine)
