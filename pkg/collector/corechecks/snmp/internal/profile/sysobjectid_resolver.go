@@ -45,7 +45,7 @@ func getMostSpecificOid(oids []string) (string, error) {
 func getOidPatternSpecificity(pattern string) ([]int, error) {
 	wildcardKey := -1
 	var parts []int
-	for _, part := range strings.Split(strings.TrimLeft(pattern, "."), ".") {
+	for part := range strings.SplitSeq(strings.TrimLeft(pattern, "."), ".") {
 		if part == "*" {
 			parts = append(parts, wildcardKey)
 		} else {
