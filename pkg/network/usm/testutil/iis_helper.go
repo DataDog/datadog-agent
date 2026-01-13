@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows && (test || npm)
+//go:build windows && test && npm
 
 package testutil
 
@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -80,12 +81,23 @@ if (Test-Path $SitePath) {
 // IISManager provides IIS management functionality for unit tests
 type IISManager struct {
 	t               *testing.T
-	isWindowsServer *bool // Cached OS detection result
+	isWindowsServer func() bool // Lazy-initialized OS detection using sync.OnceValue
 }
 
 // NewIISManager creates a new IISManager
 func NewIISManager(t *testing.T) *IISManager {
-	return &IISManager{t: t}
+	m := &IISManager{t: t}
+	// Initialize the sync.OnceValue wrapper for OS detection
+	m.isWindowsServer = sync.OnceValue(func() bool {
+		result := m.checkPowerShellBool("(Get-CimInstance Win32_OperatingSystem).Caption -like '*Server*'")
+		if !result {
+			t.Log("Detected Windows Client")
+		} else {
+			t.Log("Detected Windows Server")
+		}
+		return result
+	})
+	return m
 }
 
 // runPowerShell executes a PowerShell command and returns the output
@@ -149,22 +161,7 @@ func (m *IISManager) IsIISInstalled() bool {
 // IsWindowsServer checks if the system is Windows Server
 func (m *IISManager) IsWindowsServer() bool {
 	m.t.Helper()
-
-	// Return cached result if available
-	if m.isWindowsServer != nil {
-		return *m.isWindowsServer
-	}
-
-	// Detect OS type
-	result := m.checkPowerShellBool("(Get-CimInstance Win32_OperatingSystem).Caption -like '*Server*'")
-	if !result {
-		m.t.Log("Detected Windows Client")
-	} else {
-		m.t.Log("Detected Windows Server")
-	}
-
-	m.isWindowsServer = &result
-	return result
+	return m.isWindowsServer()
 }
 
 // InstallIIS installs IIS on the system
@@ -216,9 +213,7 @@ func (m *IISManager) EnsureIISInstalled() {
 		err := m.InstallIIS()
 		require.NoError(m.t, err, "Failed to install IIS")
 
-		if !m.IsIISInstalled() {
-			m.t.Fatal("IIS installation completed but IIS is still not available")
-		}
+		require.Truef(m.t, m.IsIISInstalled(), "IIS installation completed but IIS is still not available")
 		m.t.Log("IIS installation verified")
 	} else {
 		m.t.Log("IIS is already installed")
