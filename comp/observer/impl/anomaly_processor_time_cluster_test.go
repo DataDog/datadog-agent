@@ -15,21 +15,21 @@ import (
 
 func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 2,
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
 	})
 
-	// Two anomalies with overlapping time ranges should cluster together
+	// Two anomalies with nearby timestamps should cluster together
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.a",
 		Title:     "Anomaly A",
-		TimeRange: observer.TimeRange{Start: 100, End: 110},
+		Timestamp: 100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.b",
 		Title:     "Anomaly B",
-		TimeRange: observer.TimeRange{Start: 105, End: 115},
+		Timestamp: 105, // 5 seconds later, within 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -39,23 +39,23 @@ func TestTimeClusterCorrelator_BasicClustering(t *testing.T) {
 	assert.Contains(t, correlations[0].Signals, "metric.b")
 }
 
-func TestTimeClusterCorrelator_SlackWindow(t *testing.T) {
+func TestTimeClusterCorrelator_ProximityWindow(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 2,
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
 	})
 
-	// Anomalies within slack window should cluster
+	// Anomalies within proximity window should cluster
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.a",
 		Title:     "Anomaly A",
-		TimeRange: observer.TimeRange{Start: 100, End: 105},
+		Timestamp: 100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.b",
 		Title:     "Anomaly B",
-		TimeRange: observer.TimeRange{Start: 108, End: 115}, // starts 3s after A ends, within 5s slack
+		Timestamp: 108, // 8 seconds later, within 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -63,23 +63,23 @@ func TestTimeClusterCorrelator_SlackWindow(t *testing.T) {
 	assert.Len(t, correlations[0].Anomalies, 2)
 }
 
-func TestTimeClusterCorrelator_NoOverlap(t *testing.T) {
+func TestTimeClusterCorrelator_NotNearby(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 2,
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
 	})
 
-	// Anomalies outside slack window should NOT cluster
+	// Anomalies outside proximity window should NOT cluster
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.a",
 		Title:     "Anomaly A",
-		TimeRange: observer.TimeRange{Start: 100, End: 105},
+		Timestamp: 100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.b",
 		Title:     "Anomaly B",
-		TimeRange: observer.TimeRange{Start: 120, End: 130}, // starts 15s after A ends, outside 5s slack
+		Timestamp: 150, // 50 seconds later, outside 10s proximity
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -89,31 +89,35 @@ func TestTimeClusterCorrelator_NoOverlap(t *testing.T) {
 
 func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 2,
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
 	})
 
 	// Create two separate clusters
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.a",
 		Title:     "Anomaly A",
-		TimeRange: observer.TimeRange{Start: 100, End: 105},
+		Timestamp: 100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.b",
 		Title:     "Anomaly B",
-		TimeRange: observer.TimeRange{Start: 120, End: 125},
+		Timestamp: 120, // Far enough to be separate (20s apart)
 	})
 
-	// Verify two separate clusters (both below threshold)
+	// Verify two separate clusters
 	assert.Len(t, c.clusters, 2)
 
 	// Add anomaly that bridges both clusters
+	// Cluster A is at [100,100], cluster B is at [120,120]
+	// An anomaly at 110 is:
+	//   - Within 10s of cluster A: 110 >= 100-10=90 AND 110 <= 100+10=110 ✓
+	//   - Within 10s of cluster B: 110 >= 120-10=110 AND 110 <= 120+10=130 ✓
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.c",
 		Title:     "Anomaly C",
-		TimeRange: observer.TimeRange{Start: 103, End: 122}, // overlaps both
+		Timestamp: 110, // Near both clusters
 	})
 
 	// Should now be merged into one cluster
@@ -125,9 +129,9 @@ func TestTimeClusterCorrelator_MergeClusters(t *testing.T) {
 
 func TestTimeClusterCorrelator_DedupBySource(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 1, // Lower threshold to see single-anomaly clusters
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   1, // Lower threshold to see single-anomaly clusters
+		WindowSeconds:    60,
 	})
 
 	// Same source, later anomaly should replace earlier
@@ -135,13 +139,13 @@ func TestTimeClusterCorrelator_DedupBySource(t *testing.T) {
 		Source:      "metric.a",
 		Title:       "Anomaly A v1",
 		Description: "first",
-		TimeRange:   observer.TimeRange{Start: 100, End: 110},
+		Timestamp:   100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:      "metric.a",
 		Title:       "Anomaly A v2",
 		Description: "second",
-		TimeRange:   observer.TimeRange{Start: 105, End: 120},
+		Timestamp:   105, // Later timestamp, should replace
 	})
 
 	correlations := c.ActiveCorrelations()
@@ -152,23 +156,23 @@ func TestTimeClusterCorrelator_DedupBySource(t *testing.T) {
 
 func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 1,
-		WindowSeconds:  30,
+		ProximitySeconds: 10,
+		MinClusterSize:   1,
+		WindowSeconds:    30,
 	})
 
 	// Add old anomaly
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.old",
 		Title:     "Old Anomaly",
-		TimeRange: observer.TimeRange{Start: 100, End: 110},
+		Timestamp: 100,
 	})
 
 	// Add recent anomaly (advances currentDataTime)
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.new",
 		Title:     "New Anomaly",
-		TimeRange: observer.TimeRange{Start: 200, End: 210},
+		Timestamp: 200, // 100 seconds later, old one should be evicted
 	})
 
 	// Flush should evict the old cluster
@@ -181,19 +185,19 @@ func TestTimeClusterCorrelator_Eviction(t *testing.T) {
 
 func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 	c := NewTimeClusterCorrelator(TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 3, // Require 3 anomalies
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   3, // Require 3 anomalies
+		WindowSeconds:    60,
 	})
 
-	// Add 2 overlapping anomalies
+	// Add 2 nearby anomalies
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.a",
-		TimeRange: observer.TimeRange{Start: 100, End: 110},
+		Timestamp: 100,
 	})
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.b",
-		TimeRange: observer.TimeRange{Start: 105, End: 115},
+		Timestamp: 105,
 	})
 
 	// Should not report - only 2 anomalies, need 3
@@ -203,11 +207,23 @@ func TestTimeClusterCorrelator_MinClusterSize(t *testing.T) {
 	// Add third
 	c.Process(observer.AnomalyOutput{
 		Source:    "metric.c",
-		TimeRange: observer.TimeRange{Start: 108, End: 118},
+		Timestamp: 108,
 	})
 
 	// Now should report
 	correlations = c.ActiveCorrelations()
 	require.Len(t, correlations, 1)
 	assert.Len(t, correlations[0].Anomalies, 3)
+}
+
+func TestTimeClusterCorrelator_DefaultConfig(t *testing.T) {
+	config := DefaultTimeClusterConfig()
+	assert.Equal(t, int64(10), config.ProximitySeconds)
+	assert.Equal(t, 2, config.MinClusterSize)
+	assert.Equal(t, int64(60), config.WindowSeconds)
+}
+
+func TestTimeClusterCorrelator_Name(t *testing.T) {
+	c := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
+	assert.Equal(t, "time_cluster_correlator", c.Name())
 }

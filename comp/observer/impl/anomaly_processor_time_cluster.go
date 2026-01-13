@@ -14,10 +14,10 @@ import (
 
 // TimeClusterConfig configures the TimeClusterCorrelator.
 type TimeClusterConfig struct {
-	// SlackSeconds is the time slack for considering anomalies as overlapping.
-	// Two anomalies overlap if their time ranges are within SlackSeconds of each other.
-	// Default: 5 seconds.
-	SlackSeconds int64
+	// ProximitySeconds is the maximum time difference between anomaly timestamps
+	// for them to be considered part of the same cluster.
+	// Default: 10 seconds.
+	ProximitySeconds int64
 
 	// MinClusterSize is the minimum number of anomalies to form a reportable cluster.
 	// Default: 2.
@@ -31,21 +31,22 @@ type TimeClusterConfig struct {
 // DefaultTimeClusterConfig returns a TimeClusterConfig with default values.
 func DefaultTimeClusterConfig() TimeClusterConfig {
 	return TimeClusterConfig{
-		SlackSeconds:   5,
-		MinClusterSize: 2,
-		WindowSeconds:  60,
+		ProximitySeconds: 10,
+		MinClusterSize:   2,
+		WindowSeconds:    60,
 	}
 }
 
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
-	id        int
-	anomalies map[string]observer.AnomalyOutput // keyed by Source for dedup
-	timeRange observer.TimeRange                // union of all anomaly time ranges
+	id           int
+	anomalies    map[string]observer.AnomalyOutput // keyed by Source for dedup
+	minTimestamp int64                             // earliest anomaly timestamp
+	maxTimestamp int64                             // latest anomaly timestamp
 }
 
-// TimeClusterCorrelator clusters anomalies based purely on time overlap.
-// Anomalies whose time ranges overlap (with configurable slack) are grouped together.
+// TimeClusterCorrelator clusters anomalies based on timestamp proximity.
+// Anomalies whose timestamps are within ProximitySeconds of each other are grouped together.
 type TimeClusterCorrelator struct {
 	config          TimeClusterConfig
 	clusters        []*timeCluster
@@ -55,8 +56,8 @@ type TimeClusterCorrelator struct {
 
 // NewTimeClusterCorrelator creates a new TimeClusterCorrelator with the given config.
 func NewTimeClusterCorrelator(config TimeClusterConfig) *TimeClusterCorrelator {
-	if config.SlackSeconds == 0 {
-		config.SlackSeconds = 5
+	if config.ProximitySeconds == 0 {
+		config.ProximitySeconds = 10
 	}
 	if config.MinClusterSize == 0 {
 		config.MinClusterSize = 2
@@ -78,62 +79,63 @@ func (c *TimeClusterCorrelator) Name() string {
 // Process adds an anomaly, either to an existing cluster or a new one.
 func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 	// Update current data time
-	if anomaly.TimeRange.End > c.currentDataTime {
-		c.currentDataTime = anomaly.TimeRange.End
+	if anomaly.Timestamp > c.currentDataTime {
+		c.currentDataTime = anomaly.Timestamp
 	}
 
-	// Find clusters this anomaly overlaps with
-	var overlapping []*timeCluster
+	// Find clusters this anomaly is within proximity of
+	var nearby []*timeCluster
 	for _, cluster := range c.clusters {
-		if c.timeRangesOverlap(anomaly.TimeRange, cluster.timeRange) {
-			overlapping = append(overlapping, cluster)
+		if c.isNearCluster(anomaly.Timestamp, cluster) {
+			nearby = append(nearby, cluster)
 		}
 	}
 
-	if len(overlapping) == 0 {
-		// No overlap - create new cluster
+	if len(nearby) == 0 {
+		// No nearby cluster - create new cluster
 		c.nextClusterID++
 		newCluster := &timeCluster{
-			id:        c.nextClusterID,
-			anomalies: map[string]observer.AnomalyOutput{anomaly.Source: anomaly},
-			timeRange: anomaly.TimeRange,
+			id:           c.nextClusterID,
+			anomalies:    map[string]observer.AnomalyOutput{anomaly.Source: anomaly},
+			minTimestamp: anomaly.Timestamp,
+			maxTimestamp: anomaly.Timestamp,
 		}
 		c.clusters = append(c.clusters, newCluster)
-	} else if len(overlapping) == 1 {
-		// Single overlap - add to existing cluster
-		cluster := overlapping[0]
+	} else if len(nearby) == 1 {
+		// Single nearby cluster - add to it
+		cluster := nearby[0]
 		c.addToCluster(cluster, anomaly)
 	} else {
-		// Multiple overlaps - merge clusters and add anomaly
-		merged := c.mergeClusters(overlapping)
+		// Multiple nearby clusters - merge them and add anomaly
+		merged := c.mergeClusters(nearby)
 		c.addToCluster(merged, anomaly)
 	}
 }
 
-// timeRangesOverlap checks if two time ranges overlap, considering slack.
-func (c *TimeClusterCorrelator) timeRangesOverlap(a, b observer.TimeRange) bool {
-	slack := c.config.SlackSeconds
-	// Ranges overlap if: a.Start <= b.End + slack AND b.Start <= a.End + slack
-	return a.Start <= b.End+slack && b.Start <= a.End+slack
+// isNearCluster checks if a timestamp is within proximity of any anomaly in the cluster.
+func (c *TimeClusterCorrelator) isNearCluster(ts int64, cluster *timeCluster) bool {
+	proximity := c.config.ProximitySeconds
+	// Check if timestamp is within proximity of the cluster's time range
+	return ts >= cluster.minTimestamp-proximity && ts <= cluster.maxTimestamp+proximity
 }
 
-// addToCluster adds an anomaly to a cluster, updating time range and deduping by source.
+// addToCluster adds an anomaly to a cluster, updating timestamps and deduping by source.
 func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.AnomalyOutput) {
-	// Dedup by source - keep the one with later End time (more recent data)
+	// Dedup by source - keep the one with later timestamp (more recent)
 	if existing, ok := cluster.anomalies[anomaly.Source]; ok {
-		if anomaly.TimeRange.End > existing.TimeRange.End {
+		if anomaly.Timestamp > existing.Timestamp {
 			cluster.anomalies[anomaly.Source] = anomaly
 		}
 	} else {
 		cluster.anomalies[anomaly.Source] = anomaly
 	}
 
-	// Expand cluster time range
-	if anomaly.TimeRange.Start < cluster.timeRange.Start {
-		cluster.timeRange.Start = anomaly.TimeRange.Start
+	// Expand cluster timestamp range
+	if anomaly.Timestamp < cluster.minTimestamp {
+		cluster.minTimestamp = anomaly.Timestamp
 	}
-	if anomaly.TimeRange.End > cluster.timeRange.End {
-		cluster.timeRange.End = anomaly.TimeRange.End
+	if anomaly.Timestamp > cluster.maxTimestamp {
+		cluster.maxTimestamp = anomaly.Timestamp
 	}
 }
 
@@ -150,19 +152,19 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 	for _, other := range clusters[1:] {
 		for source, anomaly := range other.anomalies {
 			if existing, ok := merged.anomalies[source]; ok {
-				if anomaly.TimeRange.End > existing.TimeRange.End {
+				if anomaly.Timestamp > existing.Timestamp {
 					merged.anomalies[source] = anomaly
 				}
 			} else {
 				merged.anomalies[source] = anomaly
 			}
 		}
-		// Expand time range
-		if other.timeRange.Start < merged.timeRange.Start {
-			merged.timeRange.Start = other.timeRange.Start
+		// Expand timestamp range
+		if other.minTimestamp < merged.minTimestamp {
+			merged.minTimestamp = other.minTimestamp
 		}
-		if other.timeRange.End > merged.timeRange.End {
-			merged.timeRange.End = other.timeRange.End
+		if other.maxTimestamp > merged.maxTimestamp {
+			merged.maxTimestamp = other.maxTimestamp
 		}
 	}
 
@@ -188,12 +190,12 @@ func (c *TimeClusterCorrelator) Flush() []observer.ReportOutput {
 	return nil
 }
 
-// evictOldClusters removes clusters whose time range is entirely outside the window.
+// evictOldClusters removes clusters whose latest timestamp is outside the window.
 func (c *TimeClusterCorrelator) evictOldClusters() {
 	cutoff := c.currentDataTime - c.config.WindowSeconds
 	newClusters := c.clusters[:0]
 	for _, cluster := range c.clusters {
-		if cluster.timeRange.End >= cutoff {
+		if cluster.maxTimestamp >= cutoff {
 			newClusters = append(newClusters, cluster)
 		}
 	}
@@ -224,8 +226,8 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 			Title:       fmt.Sprintf("Correlated: %d anomalies in time window", len(cluster.anomalies)),
 			Signals:     sources,
 			Anomalies:   anomalies,
-			FirstSeen:   cluster.timeRange.Start,
-			LastUpdated: cluster.timeRange.End,
+			FirstSeen:   cluster.minTimestamp,
+			LastUpdated: cluster.maxTimestamp,
 		})
 	}
 
