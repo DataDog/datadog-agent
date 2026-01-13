@@ -1078,7 +1078,7 @@ func (r *HTMLReporter) handleAPISeriesBatch(w http.ResponseWriter, req *http.Req
 type correlationOutput struct {
 	Pattern     string          `json:"pattern"`
 	Title       string          `json:"title"`
-	Signals     []string        `json:"signals"`
+	Sources     []string        `json:"sources"`
 	Anomalies   []anomalyOutput `json:"anomalies"`
 	FirstSeen   int64           `json:"firstSeen"`   // unix seconds (from data)
 	LastUpdated int64           `json:"lastUpdated"` // unix seconds (from data)
@@ -1136,7 +1136,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 			correlations[i] = correlationOutput{
 				Pattern:     ac.Pattern,
 				Title:       ac.Title,
-				Signals:     ac.Signals,
+				Sources:     ac.Sources,
 				Anomalies:   anomalies,
 				FirstSeen:   ac.FirstSeen,
 				LastUpdated: ac.LastUpdated,

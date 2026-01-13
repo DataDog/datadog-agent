@@ -228,13 +228,13 @@ func samplePass(rate float64, n uint64) bool {
 type observerImpl struct {
 	logProcessors     []observerdef.LogProcessor
 	tsAnalyses        []observerdef.TimeSeriesAnalysis
-	anomalyProcessors []observerdef.AnomalyProcessor
+	anomalyProcessors []observerdef.AnomalyProcessor // Supports both old (AnomalyOutput) and new (Signal via ProcessSignal)
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
-	// eventBuffer stores recent events (markers) for debugging/dumping.
+	// eventBuffer stores recent event signals (as unified Signals) for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
-	eventBuffer []observerdef.EventSignal
+	eventBuffer []observerdef.Signal
 	maxEvents   int
 
 	// Raw anomaly tracking for test bench display
@@ -310,9 +310,9 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 	o.flushAndReport()
 }
 
-// routeEventSignal converts an event log observation to an EventSignal and sends it
-// to all EventSignalReceivers (typically the correlator). Events are used as correlation
-// context, not as inputs for metric derivation or anomaly detection.
+// routeEventSignal converts an event log observation to a unified Signal and sends it
+// to all SignalProcessors. Events are used as correlation context, not as inputs for 
+// metric derivation or anomaly detection.
 func (o *observerImpl) routeEventSignal(l *logObs) {
 	// Extract event type from tags (already standardized at source, e.g., "event_type:agent_startup")
 	eventSource := "unknown_event"
@@ -323,11 +323,13 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 		}
 	}
 
-	signal := observerdef.EventSignal{
-		Source:    eventSource,
+	// Create unified Signal with "event:" prefix to distinguish from metric anomalies
+	signal := observerdef.Signal{
+		Source:    "event:" + eventSource,
 		Timestamp: l.timestamp,
 		Tags:      l.tags,
-		Message:   string(l.content),
+		Value:     0,    // Events don't have numeric values
+		Score:     nil,  // Events don't have scores
 	}
 
 	// Store in event buffer (ring buffer)
@@ -339,10 +341,11 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 		o.eventBuffer = append(o.eventBuffer, signal)
 	}
 
-	// Send to all anomaly processors that implement EventSignalReceiver
+	// Send to anomaly processors that support signals (new way - use ProcessSignal method)
 	for _, proc := range o.anomalyProcessors {
-		if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
-			receiver.AddEventSignal(signal)
+		// If the processor supports the new Signal-based input, send it
+		if sp, ok := proc.(*CrossSignalCorrelator); ok {
+			sp.ProcessSignal(signal)
 		}
 	}
 }
@@ -479,7 +482,7 @@ func (o *observerImpl) DumpEvents(path string) error {
 		Source    string   `json:"source"`
 		Timestamp int64    `json:"timestamp"`
 		Tags      []string `json:"tags,omitempty"`
-		Message   string   `json:"message"`
+		Value     float64  `json:"value"`
 	}
 
 	events := make([]dumpEvent, len(o.eventBuffer))
@@ -488,7 +491,7 @@ func (o *observerImpl) DumpEvents(path string) error {
 			Source:    signal.Source,
 			Timestamp: signal.Timestamp,
 			Tags:      signal.Tags,
-			Message:   signal.Message,
+			Value:     signal.Value,
 		}
 	}
 

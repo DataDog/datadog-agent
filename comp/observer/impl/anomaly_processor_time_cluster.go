@@ -222,7 +222,7 @@ func (c *TimeClusterCorrelator) ActiveCorrelations() []observer.ActiveCorrelatio
 		result = append(result, observer.ActiveCorrelation{
 			Pattern:     fmt.Sprintf("time_cluster_%d", cluster.id),
 			Title:       fmt.Sprintf("Correlated: %d anomalies in time window", len(cluster.anomalies)),
-			Signals:     sources,
+			Sources:     sources,
 			Anomalies:   anomalies,
 			FirstSeen:   cluster.timeRange.Start,
 			LastUpdated: cluster.timeRange.End,
