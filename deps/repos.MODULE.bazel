@@ -76,7 +76,8 @@ single_version_override(
     module_name = "rules_foreign_cc",
     patch_strip = 1,
     patches = [
-        "//bazel/patches:rules_foreign_cc/0000-expose-pc-files.patch",
+        "//bazel/patches:rules_foreign_cc/0001-include-out_data_dirs-to-the-output-groups.patch",
+        "//bazel/patches:rules_foreign_cc/0002-configure_make-provide-DY-LD_LIBRARY_PATH-based-on-t.patch",
     ],
 )
 
@@ -344,5 +345,17 @@ http_archive(
         "BUILD.bazel": "//deps:xmlsec/xmlsec.BUILD.bazel",
         "config-linux-x86_64.h": "//deps:xmlsec/config-linux-x86_64.h",
         "config-linux-arm64.h": "//deps:xmlsec/config-linux-arm64.h",
+    },
+)
+
+http_archive(
+    name = "rpm",
+    sha256 = "7d51e808138bd8f2ea59bd016f74c69497476eb8faada1067fcb8618ff813817",
+    url = "https://github.com/rpm-software-management/rpm/archive/refs/tags/rpm-4.18.1-release.tar.gz",
+    strip_prefix = "rpm-rpm-4.18.1-release",
+    files = {
+        "BUILD.bazel": "//deps:rpm/rpm.BUILD.bazel",
+        "config-linux-x86_64.h": "//deps:rpm/config-linux-x86_64.h",
+        "config-linux-arm64.h": "//deps:rpm/config-linux-arm64.h",
     },
 )

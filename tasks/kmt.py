@@ -746,6 +746,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/test-json-review/",
+            "tags": "-tags=test",
             "env": env_str,
         },
     )
