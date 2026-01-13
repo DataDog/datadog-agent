@@ -79,7 +79,7 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		return nil, err
 	}
 	integrations := make(map[string]string)
-	for _, integration := range strings.Split(rawIntegrations, "\n") {
+	for integration := range strings.SplitSeq(rawIntegrations, "\n") {
 		integration = strings.TrimSpace(integration)
 		if strings.HasPrefix(integration, "datadog-") {
 			parts := strings.Split(integration, "==")
