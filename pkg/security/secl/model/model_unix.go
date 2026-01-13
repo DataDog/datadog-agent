@@ -898,11 +898,6 @@ type PathKey struct {
 	PathID  uint32 `field:"-"`
 }
 
-// Equals returns true if the path key is equal to the other path key
-func (pk *PathKey) Equals(pk2 PathKey) bool {
-	return pk.Inode == pk2.Inode && pk.MountID == pk2.MountID
-}
-
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event
 const OnDemandPerArgSize = 64
 

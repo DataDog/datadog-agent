@@ -119,7 +119,7 @@ func (cgce *CacheEntry) GetPIDs() []uint32 {
 	return pids
 }
 
-// RemovePID removes the provided pid from the list of pids
+// RemovePID removes the provided pid from the list of pids and return the new size
 func (cgce *CacheEntry) RemovePID(pid uint32) int {
 	cgce.lock.Lock()
 	defer cgce.lock.Unlock()

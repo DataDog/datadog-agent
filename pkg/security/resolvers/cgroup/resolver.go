@@ -68,10 +68,10 @@ type Resolver struct {
 	sync.RWMutex
 	cgroupFS              FSInterface
 	statsdClient          statsd.ClientInterface
-	cacheEntriesByPathKey *simplelru.LRU[model.PathKey, *cgroupModel.CacheEntry]
+	cacheEntriesByPathKey *simplelru.LRU[uint64, *cgroupModel.CacheEntry]
 	hostCacheEntries      *simplelru.LRU[containerutils.CGroupID, *cgroupModel.CacheEntry]
 	containerCacheEntries *simplelru.LRU[containerutils.ContainerID, *cgroupModel.CacheEntry]
-	history               *simplelru.LRU[uint32, model.PathKey]
+	history               *simplelru.LRU[uint32, uint64]
 	dentryResolver        *dentry.Resolver
 
 	// metrics
@@ -116,12 +116,12 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupFS FSInterface, dent
 		return nil, err
 	}
 
-	cr.cacheEntriesByPathKey, err = simplelru.NewLRU(maxCacheEntries, func(_ model.PathKey, _ *cgroupModel.CacheEntry) {})
+	cr.cacheEntriesByPathKey, err = simplelru.NewLRU(maxCacheEntries, func(_ uint64, _ *cgroupModel.CacheEntry) {})
 	if err != nil {
 		return nil, err
 	}
 
-	cr.history, err = simplelru.NewLRU(maxHistoryEntries, func(_ uint32, _ model.PathKey) {})
+	cr.history, err = simplelru.NewLRU(maxHistoryEntries, func(_ uint32, _ uint64) {})
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 		cr.containerCacheEntries.Remove(cacheEntry.GetContainerID())
 	}
 
-	cr.cacheEntriesByPathKey.Remove(cacheEntry.GetCGroupPathKey())
+	cr.cacheEntriesByPathKey.Remove(cacheEntry.GetCGroupPathKey().Inode)
 
 	cr.deletedCgroups.Inc()
 }
@@ -207,10 +207,10 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	}
 
 	// add the cgroup context to the cache
-	cr.cacheEntriesByPathKey.Add(cgroupContext.CGroupPathKey, cacheEntry)
+	cr.cacheEntriesByPathKey.Add(cgroupContext.CGroupPathKey.Inode, cacheEntry)
 
 	// push pid:PathKey pair to an history cache for fallbacks for short lived processes
-	cr.history.Add(pid, cgroupContext.CGroupPathKey)
+	cr.history.Add(pid, cgroupContext.CGroupPathKey.Inode)
 
 	cr.NotifyListeners(CGroupCreated, cacheEntry)
 	cr.addedCgroups.Inc()
@@ -244,16 +244,11 @@ func (cr *Resolver) resolveAndPushNewCacheEntry(pid uint32, cgroupContext model.
 	return cr.pushNewCacheEntry(pid, containerContext, cgroupContext)
 }
 
-func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.Time) *cgroupModel.CacheEntry {
+func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, createdAt time.Time) *cgroupModel.CacheEntry {
 	cid, cgroup, _, err := cr.cgroupFS.FindCGroupContext(pid, pid)
 	if err == nil && cgroup.CGroupID != "" {
-		pathKey := model.PathKey{
-			MountID: cgroup.CGroupFileMountID,
-			Inode:   cgroup.CGroupFileInode,
-		}
-
 		// check if the cgroup is already in the cache
-		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(pathKey); found {
+		if cacheEntry, found := cr.cacheEntriesByPathKey.Get(cgroup.CGroupFileInode); found {
 			seclog.Debugf("fallback to resolve cgroup for pid %d with existing path key %+v", pid, cacheEntry.GetCGroupID())
 			cr.fallbackSucceed.Inc()
 
@@ -264,12 +259,15 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 
 		// if not, create a new cache entry
 		cgroupContext := model.CGroupContext{
-			CGroupPathKey: pathKey,
-			CGroupID:      cgroup.CGroupID,
+			CGroupPathKey: model.PathKey{
+				MountID: cgroup.CGroupFileMountID,
+				Inode:   cgroup.CGroupFileInode,
+			},
+			CGroupID: cgroup.CGroupID,
 		}
 		containerContext := model.ContainerContext{
 			ContainerID: cid,
-			CreatedAt:   uint64(execTime.UnixNano()),
+			CreatedAt:   uint64(createdAt.UnixNano()),
 		}
 		seclog.Debugf("fallback to resolve cgroup for pid %d: %s", pid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -304,7 +302,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 		}
 		containerContext := model.ContainerContext{
 			ContainerID: cid,
-			CreatedAt:   uint64(execTime.UnixNano()),
+			CreatedAt:   uint64(createdAt.UnixNano()),
 		}
 		seclog.Debugf("fallback to resolve parent cgroup for ppid %d: %s", ppid, cgroup.CGroupID)
 		cr.fallbackSucceed.Inc()
@@ -321,7 +319,7 @@ func (cr *Resolver) resolveFromFallback(pid uint32, ppid uint32, execTime time.T
 // AddPID update the cgroup cache to associates a cgroup and a pid
 // Returns true if the kernel maps need to be synced (if we update somehow the process)
 // the cgroup context doesn't have to be resolved, it will be resolved when the cgroup is created.
-func (cr *Resolver) AddPID(pid uint32, ppid uint32, execTime time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
+func (cr *Resolver) AddPID(pid uint32, ppid uint32, createdAt time.Time, cgroupContext model.CGroupContext) *cgroupModel.CacheEntry {
 	cr.Lock()
 	defer cr.Unlock()
 
@@ -350,12 +348,12 @@ func (cr *Resolver) AddPID(pid uint32, ppid uint32, execTime time.Time, cgroupCo
 		}
 
 		// try to resolve the cgroup from the dentry resolver
-		if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, execTime); cacheEntry != nil {
+		if cacheEntry := cr.resolveAndPushNewCacheEntry(pid, cgroupContext, createdAt); cacheEntry != nil {
 			return cacheEntry
 		}
 	}
 
-	return cr.resolveFromFallback(pid, ppid, execTime)
+	return cr.resolveFromFallback(pid, ppid, createdAt)
 }
 
 func (cr *Resolver) iterateCacheEntries(cb func(*cgroupModel.CacheEntry) bool) {
@@ -408,12 +406,12 @@ func (cr *Resolver) GetCacheEntryByCgroupID(cgroupID containerutils.CGroupID) *c
 	return cacheEntry
 }
 
-// GetCacheEntryByPathKey returns the cache entry referenced by the provided path key
-func (cr *Resolver) GetCacheEntryByPathKey(pathKey model.PathKey) *cgroupModel.CacheEntry {
+// GetCacheEntryByInode returns the cache entry referenced by the provided cgroup inode
+func (cr *Resolver) GetCacheEntryByInode(inode uint64) *cgroupModel.CacheEntry {
 	cr.RLock()
 	defer cr.RUnlock()
 
-	cacheEntry, ok := cr.cacheEntriesByPathKey.Get(pathKey)
+	cacheEntry, ok := cr.cacheEntriesByPathKey.Get(inode)
 	if !ok {
 		return nil
 	}

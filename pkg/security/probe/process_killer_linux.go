@@ -96,9 +96,7 @@ func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *
 
 		// Use the CGroupResolver to get all PIDs of the container
 		if p.cgroupResolver != nil {
-			containerID := entry.ContainerContext.ContainerID
-
-			cacheEntry := p.cgroupResolver.GetCacheEntryContainerID(containerID)
+			cacheEntry := p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
 			if cacheEntry == nil {
 				return pcs, errors.New("container not found")
 			}

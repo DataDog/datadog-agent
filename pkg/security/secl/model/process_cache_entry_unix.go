@@ -80,7 +80,7 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 }
 
 func copyProcessContext(parent, child *ProcessCacheEntry) {
-	// inherit the container container context from the parent if necessary. If a container is already running when system-probe
+	// inherit the container context from the parent if necessary. If a container is already running when system-probe
 	// starts, the in-kernel process cache will have out of sync container ID values for the processes of that
 	// container (the snapshot doesn't update the in-kernel cache with the container IDs). This can also happen if
 	// the proc_cache LRU ejects an entry.

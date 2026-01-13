@@ -1603,7 +1603,9 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			CGroupPathKey: event.CgroupWrite.File.PathKey,
 		}
 
-		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, pce.ExecTime, cgroupContext); cacheEntry == nil {
+		createdAt := event.GetTimestamp()
+
+		if cacheEntry := p.Resolvers.CGroupResolver.AddPID(pce.Pid, pce.PPid, createdAt, cgroupContext); cacheEntry == nil {
 			seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", pid, event.CgroupWrite.File.PathKey)
 		} else {
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
@@ -1687,7 +1689,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
-		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByPathKey(event.CgroupTracing.CGroupContext.CGroupPathKey)
+		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(event.CgroupTracing.CGroupContext.CGroupPathKey.Inode)
 		if cacheEntry == nil {
 			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
 			return false

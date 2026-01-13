@@ -107,7 +107,7 @@ func TestResolvePidCgroupFallback_SuccessFromHistory(t *testing.T) {
 	parentPathKey := model.PathKey{Inode: 9999}
 
 	// Add parent cgroup to history
-	resolver.history.Add(ppid, parentPathKey)
+	resolver.history.Add(ppid, parentPathKey.Inode)
 
 	// Add parent cgroup context to cache
 	parentCgroupContext := model.CGroupContext{
@@ -199,7 +199,7 @@ func TestResolvePidCgroupFallback_HistoryFoundButCGroupMissing(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
 
 	// Add parent to history but not to cgroups cache
-	resolver.history.Add(uint32(5678), model.PathKey{Inode: 9999})
+	resolver.history.Add(uint32(5678), 9999)
 
 	expectedContext := utils.CGroupContext{
 		CGroupID:          "fallback-cgroup-id",
@@ -308,7 +308,7 @@ func TestResolveForceFallbackIfCGroupIsNull(t *testing.T) {
 	}, 1234)
 
 	// add an empty entry to the cache
-	resolver.cacheEntriesByPathKey.Add(model.PathKey{}, cacheEntry)
+	resolver.cacheEntriesByPathKey.Add(0, cacheEntry)
 
 	// Mock resolution that returns empty CGroupID (should be ignored)
 	mockFS.On("FindCGroupContext", uint32(1234), uint32(1234)).Return(
