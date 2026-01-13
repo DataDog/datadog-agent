@@ -91,9 +91,8 @@ static __always_inline int kretprobe_conntrack_common(struct pt_regs *ctx, int e
         return 0;
     }
 
-    bpf_map_delete_elem(&conntrack_args, &pid_tgid);
-
     struct nf_conn *ct = *ctpp;
+    bpf_map_delete_elem(&conntrack_args, &pid_tgid);
     if (!ct) {
         return 0;
     }
