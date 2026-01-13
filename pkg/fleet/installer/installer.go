@@ -57,7 +57,7 @@ type Installer interface {
 	RemoveExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
 
-	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error
+	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
 
@@ -523,9 +523,14 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 }
 
 // InstallConfigExperiment installs an experiment on top of an existing package.
-func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations) error {
+func (i *installerImpl) InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
+
+	// Replace secrets in operations
+	if err := config.ReplaceSecrets(&operations, decryptedSecrets); err != nil {
+		return fmt.Errorf("could not replace secrets: %w", err)
+	}
 
 	err := i.packages.Get(pkg).DeleteExperiment(ctx)
 	if err != nil {
@@ -593,6 +598,13 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		err := i.hooks.PreRemove(ctx, pkg.Name, packages.PackageTypeOCI, false)
 		if err != nil {
 			log.Warnf("could not remove package %s: %v", pkg.Name, err)
+		}
+		// Delete the package entry from the database.
+		// This ensures the entry is removed even if os.Remove(packages.db) fails later
+		// due to file locking race conditions on Windows.
+		err = i.db.DeletePackage(pkg.Name)
+		if err != nil {
+			log.Warnf("could not delete package %s from db: %v", pkg.Name, err)
 		}
 	}
 	// NOTE: On Windows, purge must be called from a copy of the installer that

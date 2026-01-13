@@ -734,8 +734,8 @@ func parseEnvironMap(envs, filteredEnvs []string) map[string]string {
 	for _, envValue := range envs {
 		for _, envName := range filteredEnvs {
 			prefix := envName + "="
-			if strings.HasPrefix(envValue, prefix) {
-				envsMap[envName] = strings.TrimPrefix(envValue, prefix)
+			if after, ok := strings.CutPrefix(envValue, prefix); ok {
+				envsMap[envName] = after
 			} else if envValue == envName {
 				envsMap[envName] = ""
 			}
