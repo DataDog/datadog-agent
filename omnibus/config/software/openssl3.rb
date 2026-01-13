@@ -32,8 +32,10 @@ version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29c
 relative_path "openssl-#{version}"
 
 build do
+  fips_flag = fips_mode? ? "--//:fips_mode" : ""
+
   if windows?
-    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded3"
+    command_on_repo_root "bazelisk run #{fips_flag} -- @openssl//:install --destdir=#{install_dir}/embedded3"
   else
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
     lib_extension = if linux_target? then ".so" else ".dylib" end

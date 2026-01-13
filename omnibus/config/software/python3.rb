@@ -29,12 +29,7 @@ build do
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
   else
-    if ENV["AGENT_FLAVOR"] == "fips"
-      fips_flag = "--//:fips_mode=true"
-    else
-      # We could set here //:fips_mode=false, but it's not necessary because the default is false.
-      fips_flag = ""
-    end
+    fips_flag = fips_mode? ? "--//:fips_mode" : ""
     command_on_repo_root "bazelisk run #{fips_flag} -- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
