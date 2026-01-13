@@ -15,6 +15,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
 
@@ -37,9 +38,7 @@ import (
 const (
 	CheckName               = "agentprofiling"
 	MB                      = 1024 * 1024
-	defaultMaxFlareAttempts = 3                // Default maximum number of flare attempts
-	minRetryBackoff         = 1 * time.Minute  // Minimum backoff between retries
-	maxRetryBackoff         = 15 * time.Minute // Maximum backoff between retries
+	defaultMaxFlareAttempts = 5 // Default maximum number of flare attempts
 )
 
 // Config is the configuration for the agentprofiling check
@@ -58,6 +57,7 @@ type Check struct {
 	flareAttempted    bool
 	flareAttemptCount int       // Number of flare attempts made
 	lastFlareAttempt  time.Time // Time of last flare attempt
+	backoffPolicy     backoff.BackOff
 	flareComponent    flare.Component
 	agentConfig       config.Component
 	lastCPUTimes      *cpu.TimesStat
@@ -74,9 +74,27 @@ func Factory(flareComponent flare.Component, agentConfig config.Component) optio
 
 // newCheck creates a new instance of the agentprofiling check
 func newCheck(flareComponent flare.Component, agentConfig config.Component) check.Check {
+	// Configure exponential backoff for flare generation retries.
+	// Flare generation is expensive, so we use a conservative backoff:
+	// - Start at 2 minutes to allow transient issues to resolve
+	// - Double each retry (standard exponential backoff)
+	// - Cap at 10 minutes to avoid excessive delays
+	// With 5 total attempts, backoff durations between retries are:
+	// - After attempt 1 fails: ~2min before attempt 2
+	// - After attempt 2 fails: ~4min before attempt 3
+	// - After attempt 3 fails: ~8min before attempt 4
+	// - After attempt 4 fails: ~10min (capped) before attempt 5
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 2 * time.Minute
+	expBackoff.MaxInterval = 10 * time.Minute
+	expBackoff.Multiplier = 2.0          // Standard exponential backoff
+	expBackoff.RandomizationFactor = 0.1 // Small randomization to avoid thundering herd
+	expBackoff.Reset()
+
 	return &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
 		instance:       &Config{},
+		backoffPolicy:  expBackoff,
 		flareComponent: flareComponent,
 		agentConfig:    agentConfig,
 	}
@@ -195,11 +213,25 @@ func (m *Check) Run() error {
 	attemptNumber := m.flareAttemptCount + 1
 	log.Infof("Threshold exceeded - Memory: %.2f MB, CPU: %.2f%%. Attempting flare generation (attempt %d/%d).", processMemoryMB, currentCPU, attemptNumber, defaultMaxFlareAttempts)
 
-	// Check if we need to wait before retrying (exponential backoff)
-	if m.flareAttemptCount > 0 {
-		backoffDuration := m.calculateBackoff(m.flareAttemptCount)
-		timeSinceLastAttempt := time.Since(m.lastFlareAttempt)
+	// Reset backoff policy when we first detect threshold exceeded (first attempt)
+	if m.flareAttemptCount == 0 {
+		m.backoffPolicy.Reset()
+	}
 
+	// Check if we need to wait before retrying (exponential backoff)
+	// For retries (attempt > 1), check if enough time has passed since last attempt
+	if m.flareAttemptCount > 0 {
+		// Get the backoff duration for the next retry attempt
+		// This advances the backoff policy state, which is correct since we're about to retry
+		backoffDuration := m.backoffPolicy.NextBackOff()
+		if backoffDuration == backoff.Stop {
+			// Backoff policy indicates we should stop retrying
+			m.flareAttempted = true
+			log.Warnf("Flare generation backoff policy indicates stop. No more flares will be generated until the Agent is restarted.")
+			return nil
+		}
+
+		timeSinceLastAttempt := time.Since(m.lastFlareAttempt)
 		if timeSinceLastAttempt < backoffDuration {
 			remainingWait := backoffDuration - timeSinceLastAttempt
 			log.Debugf("Waiting %v before retry (backoff: %v, attempt %d/%d)", remainingWait, backoffDuration, attemptNumber, defaultMaxFlareAttempts)
@@ -223,6 +255,8 @@ func (m *Check) Run() error {
 		return nil // Don't return error to avoid check failure spam
 	}
 
+	// Success - reset backoff policy for future use
+	m.backoffPolicy.Reset()
 	return nil
 }
 
@@ -249,23 +283,6 @@ func (m *Check) terminateAgent() {
 	signals.Stopper <- true
 	log.Info("Agent Profiling check: Graceful shutdown requested. Agent will exit after cleanup.")
 	log.Flush()
-}
-
-// calculateBackoff calculates the exponential backoff duration based on attempt number
-func (m *Check) calculateBackoff(attempt int) time.Duration {
-	// Exponential backoff: 1min, 5min, 15min for attempts 1, 2, 3
-	backoffDurations := []time.Duration{
-		minRetryBackoff, // 1 minute for attempt 1
-		5 * time.Minute, // 5 minutes for attempt 2
-		maxRetryBackoff, // 15 minutes for attempt 3+
-	}
-
-	backoffIndex := attempt - 1
-	if backoffIndex >= len(backoffDurations) {
-		backoffIndex = len(backoffDurations) - 1
-	}
-
-	return backoffDurations[backoffIndex]
 }
 
 // generateFlare generates a flare and sends it to Zendesk if ticketID is specified, otherwise generates it locally
