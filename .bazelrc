@@ -37,7 +37,7 @@ common:windows --shell_executable=C:/tools/msys64/usr/bin/bash.exe
 # Fallback doesn't work for --remote_cache, therefore, setting --remote_executor and --strategy to sandboxed
 # to use cache capabilities in combination with sandboxing.
 common:cache --remote_executor=grpcs://buildbarn-frontend.us1.ddbuild.io:443
-common:cache --remote_instance_name=remote-caching/datadog-agent
+common:cache --remote_instance_name=ci/datadog-agent
 common:cache --remote_local_fallback # best-effort on transient connection errors (no such host)
 common:cache --remote_retries=1
 common:cache --remote_timeout=60
