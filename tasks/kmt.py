@@ -112,7 +112,7 @@ LLC_PATH_CI = Path("/opt/datadog-agent/embedded/bin/llc-bpf")
 
 @task(
     help={
-        "vms": "Comma separated List of VMs to setup. Each definition must contain the following elemets (recipe, architecture, version).",
+        "vms": "Comma separated List of VMs to setup. Each definition m ust contain the following elemets (recipe, architecture, version).",
         "stack": "Name of the stack within which to generate the configuration file",
         "vcpu": "Comma separated list of CPUs, to launch each VM with",
         "memory": "Comma separated list of memory to launch each VM with. Automatically rounded up to power of 2",
