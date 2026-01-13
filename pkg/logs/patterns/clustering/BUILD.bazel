@@ -5,14 +5,15 @@ go_library(
     srcs = [
         "cluster.go",
         "cluster_manager.go",
-        "eviction.go",
-        "eviction_manager.go",
         "pattern.go",
+        "pattern_eviction.go",
+        "pattern_eviction_manager.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering",
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/logs/patterns/clustering/merging",
+        "//pkg/logs/patterns/eviction",
         "//pkg/logs/patterns/token",
         "//pkg/trace/log",
         "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
@@ -25,13 +26,16 @@ go_test(
     srcs = [
         "cluster_manager_test.go",
         "cluster_test.go",
-        "eviction_test.go",
+        "pattern_eviction_manager_test.go",
+        "pattern_eviction_test.go",
         "pattern_test.go",
     ],
     embed = [":clustering"],
     deps = [
         "//pkg/logs/patterns/clustering/merging",
+        "//pkg/logs/patterns/eviction",
         "//pkg/logs/patterns/token",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
