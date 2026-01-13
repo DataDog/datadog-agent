@@ -233,6 +233,8 @@ type LogProcessingRule struct {
 	Name    string `yaml:"name" json:"name"`
 	Pattern string `yaml:"pattern" json:"pattern"`
 }
+
+// DatadogAPMConfig represents the config for the APM agent
 type DatadogAPMConfig struct {
 	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation,omitempty"`
 }
