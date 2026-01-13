@@ -1,0 +1,62 @@
+# Log Archiver Scenario
+#
+# Deploys a log archival service that writes and verifies log archives.
+#
+# Expected behavior:
+# - Application writes log archives to disk
+# - Verifies archive integrity by reading back
+# - Operations complete but may be slow
+# - CPU usage remains low
+# - Memory usage stable
+# - No resource limits hit
+# - Performance visible in operation latency logs
+#
+# Observable in fine-grained-monitor:
+# - I/O activity from archive operations
+# - Low cpu_percentage despite available CPU
+# - Application logs show archive operation times
+# - No CPU throttling
+# - No memory pressure
+# - No crashes or restarts
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-archiver-config
+  labels:
+    app: log-archiver
+data:
+  # Script content will be injected from process.py by cluster.py
+  process.py: __INJECT_SCRIPT__
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: log-archiver
+  labels:
+    app: log-archiver
+spec:
+  restartPolicy: Always
+  volumes:
+    - name: script
+      configMap:
+        name: log-archiver-config
+        defaultMode: 0755
+    - name: data
+      emptyDir: {}
+  containers:
+    - name: archiver
+      image: python:3.11-slim
+      command: ["python3", "/scripts/process.py"]
+      volumeMounts:
+        - name: script
+          mountPath: /scripts
+        - name: data
+          mountPath: /data
+      resources:
+        requests:
+          memory: "64Mi"
+          cpu: "50m"
+        limits:
+          memory: "128Mi"
+          cpu: "500m"
