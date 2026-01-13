@@ -22,12 +22,12 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsmock "github.com/DataDog/datadog-agent/comp/logs/integrations/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 type LauncherTestSuite struct {
@@ -60,7 +60,7 @@ func (suite *LauncherTestSuite) SetupTest() {
 
 	suite.s = NewLauncher(suite.fs, sources.NewLogSources(), suite.integrationsComp)
 	suite.s.fileSizeMax = 10 * 1024 * 1024
-	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	suite.s.runPath = suite.testDir
 }
 
