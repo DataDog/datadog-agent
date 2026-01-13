@@ -70,8 +70,6 @@ type process struct {
 	Cmdline   []string
 	Cwd       string
 	EventType model.EventType
-
-	alive bool
 }
 
 // EventTypes implements eventmonitor.EventConsumerHandler
@@ -135,6 +133,8 @@ func (d *directSenderConsumer) process(p *process) {
 }
 
 // cleanupProcesses is called after connections have been collected, so stale process entries can be cleaned up.
+//
+//nolint:unused // will be used once direct send loop is added in future PR
 func (d *directSenderConsumer) cleanupProcesses() {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
