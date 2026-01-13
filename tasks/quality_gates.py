@@ -510,7 +510,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
     base_branch = get_ancestor_base_branch(branch)
-    ancestor = get_common_ancestor(ctx, "HEAD", base_branch, try_fetch=True)
+    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
     current_commit = get_commit_sha(ctx)
     # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
     # is the current commit. In this case, use the parent commit as the ancestor instead.

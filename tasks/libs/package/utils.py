@@ -140,7 +140,7 @@ def get_ancestor(ctx, package_sizes, on_main):
     Get the common ancestor between HEAD and the default branch
     Return the most recent commit if the ancestor is not found in the package_size file
     """
-    ancestor = get_common_ancestor(ctx, "HEAD", try_fetch=True)
+    ancestor = get_common_ancestor(ctx, "HEAD")
     if not on_main and ancestor not in package_sizes:
         return max(package_sizes, key=lambda x: package_sizes[x]['timestamp'])
     return ancestor
