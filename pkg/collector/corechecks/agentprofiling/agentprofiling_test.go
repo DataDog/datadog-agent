@@ -8,6 +8,7 @@
 package agentprofiling
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -191,7 +192,7 @@ type failingFlareMock struct {
 func (f *failingFlareMock) CreateWithArgs(args types.FlareArgs, duration time.Duration, err error, data []byte) (string, error) {
 	f.attemptCount++
 	if f.createShouldFail || (f.failUntilAttempt > 0 && f.attemptCount < f.failUntilAttempt) {
-		return "", fmt.Errorf("mock flare creation failure")
+		return "", errors.New("mock flare creation failure")
 	}
 	// Use the real mock for success case
 	mock := flaremock.NewMock().Comp
@@ -200,7 +201,7 @@ func (f *failingFlareMock) CreateWithArgs(args types.FlareArgs, duration time.Du
 
 func (f *failingFlareMock) Send(path string, caseID string, email string, source helpers.FlareSource) (string, error) {
 	if f.sendShouldFail || (f.failUntilAttempt > 0 && f.attemptCount < f.failUntilAttempt) {
-		return "", fmt.Errorf("mock flare send failure")
+		return "", errors.New("mock flare send failure")
 	}
 	// Use the real mock for success case
 	mock := flaremock.NewMock().Comp
