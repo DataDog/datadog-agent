@@ -40,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
-	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -132,11 +131,6 @@ func New(
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes
 
-	syscfg := deps.Sysprobeconfig
-	serviceExtractorEnabled := syscfg.GetBool("system_probe_config.process_service_inference.enabled")
-	useWindowsServiceName := syscfg.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
-	useImprovedAlgorithm := syscfg.GetBool("system_probe_config.process_service_inference.use_improved_algorithm")
-
 	// TODO a review pass on config keys and sources
 	checkInterval := 30 * time.Second
 	if deps.Config.IsConfigured("process_config.intervals.connections") {
@@ -150,6 +144,7 @@ func New(
 	_, _ = hash.Write([]byte(strconv.Itoa(rootPID)))
 	hostNamePIDHash := (uint64(hash.Sum32()) & hashMask) << chunkNumberOfBits
 
+	syscfg := deps.Sysprobeconfig
 	ctx, cancel := context.WithCancel(ctx)
 	ds := directSender{
 		tracer: tr,
@@ -161,11 +156,9 @@ func New(
 			CcmEnabled: syscfg.GetBool("ccm_network_config.enabled"),
 			CsmEnabled: syscfg.GetBool("runtime_security_config.enabled"),
 		},
-		// TODO I believe this needs process data to function
-		serviceExtractor: parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
-		ctx:              ctx,
-		cancelFunc:       cancel,
-		resolver:         newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta))),
+		ctx:        ctx,
+		cancelFunc: cancel,
+		resolver:   newContainerResolver(deps.Wmeta, metrics.GetProvider(option.New(deps.Wmeta))),
 
 		sysprobeconfig: syscfg,
 		tagger:         deps.Tagger,
@@ -205,9 +198,8 @@ type directSender struct {
 	tracer  *tracer.Tracer
 	groupID atomic.Int32
 
-	hostTagProvider  *hosttags.HostTagProvider
-	agentCfg         *model.AgentConfiguration
-	serviceExtractor *parser.ServiceExtractor
+	hostTagProvider *hosttags.HostTagProvider
+	agentCfg        *model.AgentConfiguration
 
 	sysprobeconfig sysprobeconfig.Component
 	tagger         tagger.Component
@@ -361,8 +353,9 @@ func (d *directSender) collect() {
 	defer cleanup()
 	defer network.Reclaim(conns)
 
-	if pf := proxyFilterInstance.Load(); pf != nil {
-		pf.FilterProxies(conns)
+	if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+		dsc.proxyFilter.FilterProxies(conns)
+		defer dsc.cleanupProcesses()
 	}
 
 	d.npCollector.ScheduleNetworkPathTests(d.networkPathConnections(conns))
