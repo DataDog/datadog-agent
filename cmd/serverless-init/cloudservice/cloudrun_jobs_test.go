@@ -303,9 +303,9 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
-		hostnameimpl.MockModule(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		demultiplexerimpl.FakeSamplerMockModule(),
+		hostnameimpl.MockModule(),
 	)
 }

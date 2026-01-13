@@ -44,18 +44,8 @@ var (
 	currentMetadataSourceMutex sync.Mutex
 
 	Token              *httputils.APIToken
-	tokenOnce          sync.Once
 	tokenRenewalWindow = 15 * time.Second
 )
-
-// getToken returns the APIToken instance, initializing it lazily on first use.
-// This avoids using init() which breaks initialization order.
-func getToken() *httputils.APIToken {
-	tokenOnce.Do(func() {
-		Token = httputils.NewAPIToken(GetToken)
-	})
-	return Token
-}
 
 // SetCloudProviderSource set the best source available for EC2 metadata to the inventories payload.
 //

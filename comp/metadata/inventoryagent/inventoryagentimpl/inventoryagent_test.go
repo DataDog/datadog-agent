@@ -48,12 +48,12 @@ func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrid
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
-			hostnameimpl.MockModule(),
 			sysprobeconfigimpl.MockModule(),
 			fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysprobeConfOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
@@ -557,6 +557,7 @@ func TestFetchSystemProbeAgent(t *testing.T) {
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	ia = p.Comp.(*inventoryagent)

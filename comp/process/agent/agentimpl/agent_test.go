@@ -68,7 +68,6 @@ func TestProcessAgentComponent(t *testing.T) {
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
-				hostnameimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerfxmock.MockModule(),
 				statsd.MockModule(),
@@ -77,6 +76,7 @@ func TestProcessAgentComponent(t *testing.T) {
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 				sysprobeconfigimpl.MockModule(),
+				hostnameimpl.MockModule(),
 			}
 
 			if tc.checksEnabled {

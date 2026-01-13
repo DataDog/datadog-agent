@@ -138,8 +138,8 @@ func getTestInventoryHost(t *testing.T) *invHost {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
-			hostnameimpl.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
+			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*invHost)

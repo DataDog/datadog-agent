@@ -15,7 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -55,6 +55,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -107,7 +108,6 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{"hostname": "testhost"})
 		}),
-		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		eventplatformreceiverimpl.Module(),
@@ -124,6 +124,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
+		hostnameimpl.MockModule(),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 		Bundle(),
 	)

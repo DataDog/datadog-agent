@@ -74,7 +74,7 @@ func DoHTTPRequest(ctx context.Context, url string, allowedIMDSVersions Ec2IMDSV
 	source := MetadataSourceIMDSv1
 	headers := map[string]string{}
 	if allowedIMDSVersions.V2Allowed() {
-		tokenValue, err := getToken().Get(ctx)
+		tokenValue, err := Token.Get(ctx)
 		if err != nil {
 			if allowedIMDSVersions.V2Only() {
 				return "", fmt.Errorf("could not fetch token from IMDSv2: %s", err)

@@ -23,8 +23,8 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Provide(func() log.Component { return logmock.New(t) }),
 		hostnameimpl.MockModule(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
 		demultiplexerimpl.MockModule(),
 		defaultforwarder.MockModule(),
 	)

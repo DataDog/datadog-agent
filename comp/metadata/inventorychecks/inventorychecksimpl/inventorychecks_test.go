@@ -45,7 +45,6 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
-			hostnameimpl.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() option.Option[collector.Component] {
 				return coll
@@ -53,6 +52,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 			fx.Provide(func() option.Option[logagent.Component] {
 				return logAgent
 			}),
+			hostnameimpl.MockModule(),
 		),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -139,6 +139,7 @@ func TestGetPayload(t *testing.T) {
 			}),
 			collectorimpl.MockModule(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		)
 
@@ -161,6 +162,7 @@ func TestGetPayload(t *testing.T) {
 			t,
 			logsBundle.MockBundle(),
 			core.MockBundle(),
+			hostnameimpl.MockModule(),
 			inventoryagentimpl.MockModule(),
 			logscompression.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),

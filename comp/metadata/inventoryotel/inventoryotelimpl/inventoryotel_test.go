@@ -32,10 +32,10 @@ func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
-			hostnameimpl.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
+			hostnameimpl.MockModule(),
 		),
 	)
 }
