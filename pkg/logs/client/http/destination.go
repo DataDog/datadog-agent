@@ -152,6 +152,8 @@ func newDestination(endpoint config.Endpoint,
 		metrics.DestinationExpVars.Set(destMeta.TelemetryName(), expVars)
 	}
 
+	metrics.DestinationLogsDropped.Set(endpoint.Host, &expvar.Int{})
+
 	workerPool := newDefaultWorkerPool(minConcurrency, maxConcurrency, destMeta)
 
 	return &Destination{
@@ -289,6 +291,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			if d.updateRetryState(err, isRetrying) {
 				continue
 			}
+		}
+
+		if err != nil {
+			// Permanent error, increment the logs dropped metric
+			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
+			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
 		}
 
 		metrics.LogsSent.Add(payload.Count())
