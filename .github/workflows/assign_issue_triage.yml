@@ -237,7 +237,7 @@ jobs:
               *Analysis:* ${explanation}
             `;
 
-            message += "\nYour team was assigned automatically using :claude: analysis.\nPlease redirect if the assignment is incorrect.";
+            message += "\nYour team was assigned automatically using :claude: analysis.\nIf the assignment is incorrect, please redirect either by updating the `team/xyz` label in the issue or reaching out to #agent-devx-help.\n\nYou can refer to <https://datadoghq.atlassian.net/wiki/spaces/agent/pages/5943951863/Agent+GitHub+repositories+issues+and+PR+processing+Framework#Framework-for-backlog-processing|this guide> to respond to GH issues.";
 
             const response = await slack.chat.postMessage({
               channel: channel,
