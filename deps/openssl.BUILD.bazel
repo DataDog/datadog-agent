@@ -162,6 +162,7 @@ configure_make(
     out_data_dirs = [
         "lib/pkgconfig",
         "ssl",
+        "lib/engines-3",
     ],
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
@@ -290,6 +291,12 @@ filegroup(
 )
 
 filegroup(
+    name = "engines_dir",
+    srcs = [":openssl"],
+    output_group = "engines-3",
+)
+
+filegroup(
     name = "libcrypto_dll_a",
     srcs = [":openssl"],
     output_group = "libcrypto.dll.a",
@@ -327,6 +334,15 @@ pkg_files(
     srcs = [":ssl_dir"],
 )
 
+pkg_files(
+    name = "engines_dir_files",
+    srcs = [":engines_dir"],
+    prefix = "lib",
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
+)
+
 filegroup(
     name = "openssl_bin",
     srcs = [":openssl"],
@@ -350,15 +366,16 @@ pkg_install(
     name = "install",
     srcs = [
         ":openssl_hdr_files",
-        ":libssl_with_symlink",
-        ":libcrypto_with_symlink",
         ":ssl_dir_files",
+        ":engines_dir_files",
     ] + select({
         "@platforms//os:windows": [
             ":dll_a",
             ":openssl_bin_dir",
         ],
         "//conditions:default": [
+            ":libssl_with_symlink",
+            ":libcrypto_with_symlink",
             ":openssl_bin_file",
             ":openssl_pkgconfig",
         ],

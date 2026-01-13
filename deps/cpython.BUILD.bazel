@@ -101,14 +101,5 @@ pkg_install(
     srcs = [
         ":install_files",
         "@openssl//:openssl_hdr_files",
-    ] + select({
-        "@platforms//os:windows": [
-            "@openssl//:openssl_bin_dir",
-            "@openssl//:dll_a",
-        ],
-        "//conditions:default": [
-            "@openssl//:openssl_bin_file",
-            "@openssl//:openssl_pkgconfig",
-        ],
-    }),
+    ],
 )
