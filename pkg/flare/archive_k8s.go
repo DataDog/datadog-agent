@@ -9,8 +9,14 @@ package flare
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,6 +47,43 @@ func getKubeletPods() (data []byte, err error) {
 		log.Debugf("Could not get kubelet client: %v", err)
 		return nil, nil
 	}
-	data, _, err = ku.QueryKubelet(ctx, "/pods")
+
+	// Get the raw local pod list from the kubelet
+	pods, err := ku.GetRawLocalPodList(ctx)
+	if err != nil {
+		log.Debugf("Could not get raw local pod list: %v", err)
+		return nil, err
+	}
+
+	// If scrubbing is enabled, scrub the pod list
+	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
+	if err := orchestratorCfg.Load(); err != nil {
+		log.Debugf("Error loading the orchestrator config: %v", err)
+		return nil, err
+	}
+
+	if orchestratorCfg.IsScrubbingEnabled {
+		for _, pod := range pods {
+			redact.ScrubPod(pod, orchestratorCfg.Scrubber)
+		}
+	}
+
+	// Create a new pod list with the (potentially) scrubbed pods
+	podList := &v1.PodList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PodList",
+			APIVersion: "v1",
+		},
+		Items: make([]v1.Pod, len(pods)),
+	}
+	for i, pod := range pods {
+		podList.Items[i] = *pod
+	}
+
+	data, err = json.Marshal(podList)
+	if err != nil {
+		log.Debugf("Could not marshal pod list: %v", err)
+		return nil, err
+	}
 	return
 }
