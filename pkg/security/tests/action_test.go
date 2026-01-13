@@ -952,6 +952,7 @@ func TestActionKillWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignature(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
@@ -1158,6 +1159,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 
 func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 	SkipIfNotAvailable(t)
+	flake.MarkOnJobName(t, "cws_host")
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
