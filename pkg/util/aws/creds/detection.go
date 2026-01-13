@@ -9,79 +9,53 @@ package creds
 
 import (
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
-	"time"
+	"os"
+
+	ec2internal "github.com/DataDog/datadog-agent/pkg/util/aws/creds/internal"
 )
 
-const (
-	// imdsBaseURL is the EC2 instance metadata service base URL
-	imdsBaseURL = "http://169.254.169.254"
-	// imdsTimeout is the timeout for IMDS requests (300ms matches the typical config)
-	imdsTimeout = 300 * time.Millisecond
-)
+// HasAWSCredentialsInEnvironment checks if AWS credentials are available in environment variables.
+// This checks for AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, which are the standard AWS SDK env vars.
+func HasAWSCredentialsInEnvironment() bool {
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
-// instanceIdentity represents the EC2 instance identity document
-type instanceIdentity struct {
-	Region     string `json:"region"`
-	InstanceID string `json:"instanceId"`
+	return accessKeyID != "" && secretAccessKey != ""
 }
 
 // IsRunningOnAWS returns true if the code is running on an AWS EC2 instance.
-// This is a lightweight check that doesn't depend on agent configuration.
+// This attempts to detect AWS using both IMDSv2 (preferred) and IMDSv1 (fallback).
+// It also checks for AWS credentials in environment variables as an additional signal.
 func IsRunningOnAWS(ctx context.Context) bool {
-	client := &http.Client{
-		Timeout: imdsTimeout,
+	// First, check if AWS credentials are explicitly set in environment
+	// This is a strong signal that the user intends to use AWS
+	if HasAWSCredentialsInEnvironment() {
+		return true
 	}
 
-	// Try to fetch the instance identity document from IMDS
-	// Using the instance-identity document endpoint which is reliable
-	req, err := http.NewRequestWithContext(ctx, "GET", imdsBaseURL+"/latest/dynamic/instance-identity/document", nil)
-	if err != nil {
-		return false
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
+	// Try to fetch instance identity document using ImdsAllVersions
+	// This will try IMDSv2 first, then fallback to IMDSv1
+	_, err := ec2internal.GetInstanceIdentity(ctx)
+	return err == nil
 }
 
-// GetAWSRegion returns the AWS region for the current EC2 instance.
+// GetAWSRegion returns the AWS region for the current EC2 instance or from environment.
 // Returns empty string and error if not running on AWS or if region cannot be determined.
+// This function tries multiple methods in order:
+// 1. AWS_REGION or AWS_DEFAULT_REGION environment variables
+// 2. IMDS instance identity document (tries IMDSv2 first, then IMDSv1)
 func GetAWSRegion(ctx context.Context) (string, error) {
-	client := &http.Client{
-		Timeout: imdsTimeout,
+	// First check environment variables (standard AWS SDK behavior)
+	if region := os.Getenv("AWS_REGION"); region != "" {
+		return region, nil
+	}
+	if region := os.Getenv("AWS_DEFAULT_REGION"); region != "" {
+		return region, nil
 	}
 
-	// Get region from the instance identity document
-	// This is more reliable than the placement/region endpoint
-	req, err := http.NewRequestWithContext(ctx, "GET", imdsBaseURL+"/latest/dynamic/instance-identity/document", nil)
+	// Try to get region from IMDS (uses ImdsAllVersions to try v2, then v1)
+	identity, err := ec2internal.GetInstanceIdentity(ctx)
 	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", nil
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	var identity instanceIdentity
-	if err := json.Unmarshal(body, &identity); err != nil {
 		return "", err
 	}
 

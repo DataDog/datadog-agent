@@ -264,6 +264,33 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
+// bindDelegatedAuthConfig binds all delegated authentication configuration keys for a given prefix.
+// This utility function allows any config prefix that has an api_key to also support delegated_auth configuration.
+//
+// Parameters:
+//   - config: The config object to bind keys to
+//   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
+//
+// Example usage:
+//   bindDelegatedAuthConfig(config, "")                    // For global api_key
+//   bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
+//   bindDelegatedAuthConfig(config, "apm_config")    // For apm_config.api_key
+func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
+	// Build the config key prefix
+	var configPrefix string
+	if prefix == "" {
+		configPrefix = "delegated_auth"
+	} else {
+		configPrefix = prefix + ".delegated_auth"
+	}
+
+	// Bind all delegated auth config keys
+	config.BindEnvAndSetDefault(configPrefix+".org_uuid", "")
+	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
+	config.BindEnvAndSetDefault(configPrefix+".provider", "")
+	config.BindEnvAndSetDefault(configPrefix+".aws_region", "")
+}
+
 func init() {
 	osinit()
 
@@ -1133,6 +1160,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("evp_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.max_payload_size")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("evp_proxy_config.receiver_timeout")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for evp_proxy
+	bindDelegatedAuthConfig(config, "evp_proxy_config")
 
 	// trace-agent's ol_proxy
 	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
@@ -1140,6 +1169,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnv("ol_proxy_config.api_key")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("ol_proxy_config.additional_endpoints") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
+	// Delegated authentication for ol_proxy
+	bindDelegatedAuthConfig(config, "ol_proxy_config")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1246,10 +1277,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("vsock_addr", "")
 
 	// Delegated authentication (global)
-	// Cloud provider and region are auto-detected
+	// Cloud provider and region are auto-detected if not specified
 	// Enabled automatically when org_uuid is specified
-	config.BindEnvAndSetDefault("delegated_auth.org_uuid", "", "DD_DELEGATED_AUTH_ORG_UUID")
-	config.BindEnvAndSetDefault("delegated_auth.refresh_interval_mins", 60)
+	bindDelegatedAuthConfig(config, "")
 
 	// Filterlist
 	config.BindEnvAndSetDefault("metric_filterlist", []string{})
@@ -1459,6 +1489,8 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.key", "")
 	config.BindEnv("remote_configuration.api_key")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnv("remote_configuration.rc_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// Delegated authentication for remote_configuration
+	bindDelegatedAuthConfig(config, "remote_configuration")
 	config.BindEnvAndSetDefault("remote_configuration.no_tls", false)
 	config.BindEnvAndSetDefault("remote_configuration.no_tls_validation", false)
 	config.BindEnvAndSetDefault("remote_configuration.config_root", "")
@@ -1828,10 +1860,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	// Delegated authentication for logs
-	// Cloud provider and region are auto-detected
+	// Cloud provider and region are auto-detected if not specified
 	// Enabled automatically when org_uuid is specified
-	config.BindEnvAndSetDefault("logs_config.delegated_auth.org_uuid", "", "DD_LOGS_CONFIG_DELEGATED_AUTH_ORG_UUID")
-	config.BindEnvAndSetDefault("logs_config.delegated_auth.refresh_interval_mins", 60)
+	bindDelegatedAuthConfig(config, "logs_config")
 
 	// Duration during which the host tags will be submitted with log events.
 	config.BindEnvAndSetDefault("logs_config.expected_tags_duration", time.Duration(0)) // duration-formatted string (parsed by `time.ParseDuration`)
@@ -2661,43 +2692,72 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return nil
 }
 
+// configureDelegatedAuthForPrefix configures delegated authentication for a specific config prefix.
+// It checks if org_uuid is set for the given prefix and configures delegated auth if so.
+// Returns true if delegated auth was configured for this prefix.
+func configureDelegatedAuthForPrefix(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, prefix string, apiKeyConfigKey string) bool {
+	// Build the config key prefix for delegated_auth settings
+	var configPrefix string
+	if prefix == "" {
+		configPrefix = "delegated_auth"
+	} else {
+		configPrefix = prefix + ".delegated_auth"
+	}
+
+	// Check if org_uuid is set for this prefix
+	orgUUID := config.GetString(configPrefix + ".org_uuid")
+	if orgUUID == "" {
+		return false
+	}
+
+	// Configure delegated auth for this prefix
+	description := "global"
+	if prefix != "" {
+		description = prefix
+	}
+	log.Infof("Configuring delegated authentication for '%s'", description)
+
+	delegatedAuthComp.Configure(delegatedauth.ConfigParams{
+		Config:          config,
+		OrgUUID:         orgUUID,
+		RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
+		Provider:        config.GetString(configPrefix + ".provider"),
+		AWSRegion:       config.GetString(configPrefix + ".aws_region"),
+		APIKeyConfigKey: apiKeyConfigKey,
+	})
+
+	return true
+}
+
 // configureDelegatedAuth initializes the delegated auth component with configuration parameters.
 // This allows the component to fetch API keys from cloud providers and write them to the config
 // before other components are initialized.
-// Both global and logs-specific delegated auth can be enabled independently.
-// Delegated auth is automatically enabled when org_uuid is specified.
+// Delegated auth can be configured for any config prefix that has an api_key.
+// Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
 // Cloud provider detection happens automatically within the delegatedauth component.
 func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
 	configured := false
 
-	// Configure global delegated auth (writes to api_key)
-	// Cloud provider and region are auto-detected by the delegatedauth component
-	// Enabled automatically when org_uuid is specified
-	orgUUID := config.GetString("delegated_auth.org_uuid")
-	if orgUUID != "" {
-		log.Info("Configuring global delegated authentication")
-		delegatedAuthComp.Configure(delegatedauth.ConfigParams{
-			Config:          config,
-			OrgUUID:         orgUUID,
-			RefreshInterval: config.GetInt("delegated_auth.refresh_interval_mins"),
-			APIKeyConfigKey: "api_key",
-		})
-		configured = true
+	// List of config prefixes and their corresponding API key config keys
+	// This allows any config that has an api_key to support delegated authentication
+	// To add delegated auth support for a new config, add an entry here and call
+	// bindDelegatedAuthConfig(config, prefix, envPrefix) during config initialization
+	delegatedAuthConfigs := []struct {
+		prefix          string // Config prefix (empty for global)
+		apiKeyConfigKey string // The config key where the API key should be written
+	}{
+		{"", "api_key"},                                          // Global api_key
+		{"logs_config", "logs_config.api_key"},                   // Logs-specific api_key
+		{"evp_proxy_config", "evp_proxy_config.api_key"},         // EVP proxy api_key
+		{"ol_proxy_config", "ol_proxy_config.api_key"},           // OL proxy api_key
+		{"remote_configuration", "remote_configuration.api_key"}, // Remote config api_key
 	}
 
-	// Configure logs-specific delegated auth (writes to logs_config.api_key)
-	// Cloud provider and region are auto-detected by the delegatedauth component
-	// Enabled automatically when org_uuid is specified
-	logsOrgUUID := config.GetString("logs_config.delegated_auth.org_uuid")
-	if logsOrgUUID != "" {
-		log.Info("Configuring logs-specific delegated authentication")
-		delegatedAuthComp.Configure(delegatedauth.ConfigParams{
-			Config:          config,
-			OrgUUID:         logsOrgUUID,
-			RefreshInterval: config.GetInt("logs_config.delegated_auth.refresh_interval_mins"),
-			APIKeyConfigKey: "logs_config.api_key",
-		})
-		configured = true
+	// Configure delegated auth for each prefix that has org_uuid set
+	for _, cfg := range delegatedAuthConfigs {
+		if configureDelegatedAuthForPrefix(config, delegatedAuthComp, cfg.prefix, cfg.apiKeyConfigKey) {
+			configured = true
+		}
 	}
 
 	if !configured {
