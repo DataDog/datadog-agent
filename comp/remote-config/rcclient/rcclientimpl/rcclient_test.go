@@ -6,7 +6,6 @@
 package rcclientimpl
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -63,46 +62,6 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 }
 
 func applyEmpty(_ string, _ state.ApplyStatus) {}
-
-type MockComponent interface {
-	settings.Component
-
-	SetRuntimeSetting(setting string, value interface{}, source model.Source) error
-}
-
-type MockComponentImplMrf struct {
-	settings.Component
-
-	logs      *bool
-	metrics   *bool
-	apm       *bool
-	allowlist *[]string
-}
-
-func (m *MockComponentImplMrf) SetRuntimeSetting(setting string, value interface{}, _ model.Source) error {
-	v, ok := value.(bool)
-	if ok {
-		switch setting {
-		case "multi_region_failover.failover_metrics":
-			m.metrics = &v
-		case "multi_region_failover.failover_logs":
-			m.logs = &v
-		case "multi_region_failover.failover_apm":
-			m.apm = &v
-		default:
-			return &settings.SettingNotFoundError{Name: setting}
-		}
-		return nil
-	}
-
-	v2, ok := value.([]string)
-	if ok {
-		m.allowlist = &v2
-		return nil
-	}
-
-	return fmt.Errorf("unexpected value type %T", value)
-}
 
 func TestRCClientCreate(t *testing.T) {
 	_, err := newRemoteConfigClient(
@@ -247,6 +206,7 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 	cfg := configmock.New(t)
 
 	var ipcComp ipc.Component
+	var settingsComp settings.Component
 
 	rcComponent := fxutil.Test[rcclient.Component](t,
 		fx.Options(
@@ -260,17 +220,10 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 					AgentVersion: "7.0.0",
 				},
 			),
-			fx.Supply(
-				settings.Params{
-					Settings: map[string]settings.RuntimeSetting{
-						"log_level": &mockLogLevelRuntimeSettings{logLevel: "info"},
-					},
-					Config: cfg,
-				},
-			),
-			settingsimpl.Module(),
+			settingsimpl.MockModule(),
 			fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			fx.Populate(&ipcComp),
+			fx.Populate(&settingsComp),
 		),
 	)
 
@@ -296,7 +249,6 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		client.WithProducts(state.ProductAgentConfig),
 		client.WithPollInterval(time.Hour),
 	)
-	rc.settingsComponent = &MockComponentImplMrf{}
 
 	// Should enable metrics failover and disable logs failover
 	// and set the metrics allowlist
@@ -308,31 +260,37 @@ func TestAgentMRFConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": activeAllowlist,
 	}, applyEmpty)
 
-	cmpntSettings := rc.settingsComponent.(*MockComponentImplMrf)
-	assert.True(t, *cmpntSettings.metrics)
-	assert.False(t, *cmpntSettings.logs)
-	assert.True(t, *cmpntSettings.apm)
-	assert.ElementsMatch(t, []string{"system.cpu.usage"}, *cmpntSettings.allowlist)
+	metricsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	logsVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_logs")
+	apmVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.failover_apm")
+	allowlistVal, _ := settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.False(t, logsVal.(bool))
+	assert.True(t, apmVal.(bool))
+	assert.ElementsMatch(t, []string{"system.cpu.usage"}, allowlistVal.([]string))
 
 	// Should set an empty allowlist
-	rc.settingsComponent = &MockComponentImplMrf{}
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/yesallowlist/configname": emptyAllowlist,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":   activeMetrics,
 	}, applyEmpty)
 
-	cmpntSettings = rc.settingsComponent.(*MockComponentImplMrf)
-	assert.True(t, *cmpntSettings.metrics)
-	assert.ElementsMatch(t, []string{}, *cmpntSettings.allowlist)
+	metricsVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	allowlistVal, _ = settingsComp.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.ElementsMatch(t, []string{}, allowlistVal.([]string))
 
-	// Should not set an allowlist
-	rc.settingsComponent = &MockComponentImplMrf{}
+	// Should not set an allowlist (nil means not configured, so we fallback)
+	// First, let's set a new mock to verify allowlist is not set
+	settingsComp2 := fxutil.Test[settings.Component](t, settingsimpl.MockModule())
+	rc.settingsComponent = settingsComp2
 	rc.mrfUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_FAILOVER/emptyallowlist/configname": nilAllowlist,
 		"datadog/2/AGENT_FAILOVER/yesmetrics/configname":     activeMetrics,
 	}, applyEmpty)
 
-	cmpntSettings = rc.settingsComponent.(*MockComponentImplMrf)
-	assert.True(t, *cmpntSettings.metrics)
-	assert.Nil(t, cmpntSettings.allowlist)
+	metricsVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.failover_metrics")
+	allowlistVal, _ = settingsComp2.GetRuntimeSetting("multi_region_failover.metric_allowlist")
+	assert.True(t, metricsVal.(bool))
+	assert.Nil(t, allowlistVal)
 }

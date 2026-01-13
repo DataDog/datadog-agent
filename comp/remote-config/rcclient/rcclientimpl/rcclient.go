@@ -225,6 +225,7 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		// Empty allowlist means no metrics are allowed
 		if mrfUpdate.MetricsAllowlist != nil {
 			isAllowlistConfigured = true
+			metricsAllowlistCfgPth = cfgPath
 			for _, metric := range mrfUpdate.MetricsAllowlist {
 				allowedMetrics[metric] = struct{}{}
 			}
