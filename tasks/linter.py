@@ -180,8 +180,8 @@ def python(ctx, show_versions=False):
         ctx.run("ruff check --diff .")
     else:
         # Otherwise we just need to format the files
-        ctx.run("ruff format --diff .")
-        ctx.run("ruff check --diff --fix .")
+        ctx.run("ruff format .")
+        ctx.run("ruff check --fix .")
 
     # vulture and mypy don't work well with individual files, run on full codebase
     ctx.run("vulture")
