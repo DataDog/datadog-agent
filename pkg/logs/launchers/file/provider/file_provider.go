@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
