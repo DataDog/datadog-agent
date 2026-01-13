@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  gitlab-extraction:
+    build: .
+    container_name: ci-analysis-gitlab
+    environment:
+      - GITLAB_TOKEN=${GITLAB_TOKEN}
+      - GITLAB_URL=${GITLAB_URL:-https://gitlab.ddbuild.io}
+    volumes:
+      - ./ci_data:/app/ci_data
+    command: >
+      python gitlab_api_extraction.py
+      --project-id ${GITLAB_PROJECT_ID:-14}
+      --days ${DAYS:-180}
+      --max-pipelines ${MAX_PIPELINES:-1000}
+      --output-dir /app/ci_data
+
+  datadog-extraction:
+    build: .
+    container_name: ci-analysis-datadog
+    environment:
+      - DD_API_KEY=${DD_API_KEY}
+      - DD_APP_KEY=${DD_APP_KEY}
+      - DD_SITE=${DD_SITE:-datadoghq.com}
+    volumes:
+      - ./ci_data:/app/ci_data
+    command: >
+      python datadog_ci_visibility_queries.py
+      --days ${DAYS:-180}
+      --output-dir /app/ci_data

@@ -1,0 +1,7 @@
+Product,Image,Compressed_Size_MB,Layers,Created
+Prometheus,prom/prometheus:latest,121,21,2025-12-02
+Metricbeat,elastic/metricbeat:8.16.0,121,26,2024-11-07
+NewRelic,newrelic/infrastructure:latest,65,25,2025-12-04
+Telegraf,telegraf:latest,155,10,2025-12-09
+OTelCollector,otel/opentelemetry-collector:latest,36,9,2025-12-03
+DatadogLatest,datadog/agent:latest,251,1,2025-11-28

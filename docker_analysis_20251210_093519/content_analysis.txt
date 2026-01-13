@@ -1,0 +1,33 @@
+═══ BINARY SIZES ═══
+
+agent                                104M
+
+═══ DIRECTORY SIZES ═══
+
+613M	/opt/datadog-agent/embedded
+106M	/opt/datadog-agent/bin
+1.1M	/opt/datadog-agent/LICENSES
+640K	/opt/datadog-agent/LICENSE
+28K	/opt/datadog-agent/version-manifest.json
+28K	/opt/datadog-agent/final_constraints-py3.txt
+24K	/opt/datadog-agent/python-scripts
+16K	/opt/datadog-agent/version-manifest.txt
+8.0K	/opt/datadog-agent/requirements-agent-release.txt
+4.0K	/opt/datadog-agent/scripts
+4.0K	/opt/datadog-agent/run
+
+═══ TOTAL DISK USAGE ═══
+
+overlay         911G   11G  855G   2% /
+
+═══ PACKAGE COUNT ═══
+
+
+═══ SHARED LIBRARIES ═══
+
+Total .so files: 211
+64M	total
+
+═══ ARCHITECTURE INFO ═══
+
+/opt/datadog-agent/bin/agent/agent: ELF 64-bit LSB executable, ARM aarch64, version 1 (SYSV), dynamically linked, interpreter /lib/ld-linux-aarch64.so.1, for GNU/Linux 3.7.0, Go BuildID=9B3_iuFAYqW4Tk7wsx7G/tRGxppVyg4h92EYSta6Z/3WOQ5Uc_hInP7p4RKmF7/ne_Z8_Tj2hTe05Jjfx3w, BuildID[sha1]=492b0a055f01325a11defa2a73508a1ce6082aed, stripped
