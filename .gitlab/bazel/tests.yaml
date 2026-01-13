@@ -28,4 +28,5 @@ bazel:tests:windows-amd64:
   extends: [ .bazel:tests, .bazel:runner:windows-amd64 ]
   variables:
     POWERSHELL_SCRIPT: |-
+      Get-ChildItem C:\ -Filter bash.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
       bazel test //bazel/tests/...
