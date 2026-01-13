@@ -226,7 +226,6 @@ core,github.com/GoogleCloudPlatform/docker-credential-gcr/util,Apache-2.0,"Copyr
 core,github.com/GoogleCloudPlatform/docker-credential-gcr/util/cmd,Apache-2.0,"Copyright 2016 Google, Inc."
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/Masterminds/goutils,Apache-2.0,Copyright 2014 Alexander Okoli
-core,github.com/Masterminds/semver,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/semver/v3,MIT,"Copyright (C) 2014-2019, Matt Butcher and Matt Farina"
 core,github.com/Masterminds/sprig/v3,MIT,Copyright (C) 2013-2020 Masterminds
 core,github.com/Masterminds/squirrel,MIT,"Copyright (c) 2014-2015, Lann Martin. Copyright (C) 2015-2016, Google. Copyright (C) 2015, Matt Farina and Matt Butcher"

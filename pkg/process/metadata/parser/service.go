@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
