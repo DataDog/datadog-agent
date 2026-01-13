@@ -244,7 +244,6 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 	}
 
 	// get the path for the discovered pod and container
-	// TODO: need a different base path on windows?
 	path := findK8sLogPath(pod, container.Name)
 
 	// Note that it's not clear from k8s documentation that the container logs,

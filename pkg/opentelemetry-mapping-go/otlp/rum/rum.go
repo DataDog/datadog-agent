@@ -123,7 +123,7 @@ func parseDDForwardIntoResource(attributes pcommon.Map, ddforward string) {
 	ddTags := queryParams.Get("ddtags")
 	if ddTags != "" {
 		ddTagsMap := attributes.PutEmptyMap("ddtags")
-		for _, tag := range strings.Split(ddTags, ",") {
+		for tag := range strings.SplitSeq(ddTags, ",") {
 			parts := strings.SplitN(tag, ":", 2)
 			if len(parts) == 2 {
 				ddTagsMap.PutStr(parts[0], parts[1])

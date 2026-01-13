@@ -471,7 +471,7 @@ func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromHistogramOfDuration(&dp, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return
@@ -596,7 +596,7 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(&dp, tt.scale, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return

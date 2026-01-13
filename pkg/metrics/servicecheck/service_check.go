@@ -69,7 +69,7 @@ type ServiceChecks []*ServiceCheck
 // MarshalStrings converts the service checks to a sorted slice of string slices
 func (sc ServiceChecks) MarshalStrings() ([]string, [][]string) {
 	var headers = []string{"Check", "Hostname", "Timestamp", "Status", "Message", "Tags"}
-	var payload = make([][]string, len(sc))
+	var payload = make([][]string, 0, len(sc))
 
 	for _, c := range sc {
 		payload = append(payload, []string{

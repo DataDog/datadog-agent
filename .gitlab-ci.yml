@@ -610,7 +610,7 @@ workflow:
 .system_probe_change_paths: &system_probe_change_paths
   - cmd/system-probe/**/*
   - pkg/collector/corechecks/ebpf/**/*
-  - pkg/collector/corechecks/servicediscovery/**/*
+  - pkg/discovery/**/*
   - pkg/ebpf/**/*
   - pkg/network/**/*
   - pkg/process/monitor/*
@@ -820,7 +820,6 @@ workflow:
         - comp/core/autodiscovery/providers/process_log.go
         - test/new-e2e/tests/discovery/**/*
         - pkg/collector/corechecks/discovery/**/*
-        - pkg/collector/corechecks/servicediscovery/**/*
         - pkg/discovery/**/*
       compare_to: $COMPARE_TO_BRANCH
 
@@ -1050,7 +1049,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/collector/corechecks/servicediscovery/module/*
+        - pkg/discovery/module/*
         - pkg/network/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
