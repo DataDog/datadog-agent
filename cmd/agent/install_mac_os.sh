@@ -273,8 +273,8 @@ fi
 if [ "$systemdaemon_install" == false ] && [ -f "$systemwide_servicefile_name" ]; then
     printf "${RED}
 $systemwide_servicefile_name exists, suggesting a
-systemwide Agent installation is present. Individual users
-can't install the Agent when systemwide installation exists.
+system-wide Agent installation is present. Individual users
+can't install the Agent when system-wide installation exists.
 
 To proceed, uninstall the system-wide agent first:
     sudo launchctl unload -w /Library/LaunchDaemons/com.datadoghq.agent.plist
