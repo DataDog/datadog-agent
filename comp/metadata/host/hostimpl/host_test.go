@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
@@ -32,6 +33,7 @@ func TestNewHostProviderDefaultIntervals(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			hostnameimpl.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -118,6 +120,7 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 					t,
 					fx.Provide(func() log.Component { return logmock.New(t) }),
 					fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+					hostnameimpl.MockModule(),
 					resourcesimpl.MockModule(),
 					fx.Replace(resources.MockParams{Data: nil}),
 					fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -142,6 +145,7 @@ func TestBackoffWhenEarlyIntervalEqualsCollectionInterval(t *testing.T) {
 	ret := newHostProvider(fxutil.Test[dependencies](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMockWithOverrides(t, overrides) }),
+		hostnameimpl.MockModule(),
 		resourcesimpl.MockModule(),
 		fx.Replace(resources.MockParams{Data: nil}),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -160,6 +164,7 @@ func TestFlareProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			hostnameimpl.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -179,6 +184,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			hostnameimpl.MockModule(),
 			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

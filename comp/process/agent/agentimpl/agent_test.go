@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -67,6 +68,7 @@ func TestProcessAgentComponent(t *testing.T) {
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
+				hostnameimpl.MockModule(),
 				submitterimpl.MockModule(),
 				taggerfxmock.MockModule(),
 				statsd.MockModule(),
