@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package autoinstrumentation_test
+package annotation_test
 
 import (
 	"testing"
@@ -15,33 +15,33 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
 func TestLibraryAnnotationFormat(t *testing.T) {
 	tests := map[string]struct {
-		format   autoinstrumentation.LibraryAnnotationFormat
+		format   annotation.LibraryAnnotationFormat
 		lang     string
 		expected string
 	}{
 		"library version formats correctly": {
-			format:   autoinstrumentation.AnnotationLibraryVersion,
+			format:   annotation.LibraryVersion,
 			lang:     "python",
 			expected: "admission.datadoghq.com/python-lib.version",
 		},
 		"library image formats correctly": {
-			format:   autoinstrumentation.AnnotationLibraryImage,
+			format:   annotation.LibraryImage,
 			lang:     "python",
 			expected: "admission.datadoghq.com/python-lib.custom-image",
 		},
 		"library canonical version formats correctly": {
-			format:   autoinstrumentation.AnnotationLibraryCanonicalVersion,
+			format:   annotation.LibraryCanonicalVersion,
 			lang:     "python",
 			expected: "internal.apm.datadoghq.com/python-canonical-version",
 		},
 		"library config v1 formats correctly": {
-			format:   autoinstrumentation.AnnotationLibraryConfigV1,
+			format:   annotation.LibraryConfigV1,
 			lang:     "python",
 			expected: "admission.datadoghq.com/python-lib.config.v1",
 		},
@@ -57,19 +57,19 @@ func TestLibraryAnnotationFormat(t *testing.T) {
 
 func TestLibraryContainerAnnotationFormat(t *testing.T) {
 	tests := map[string]struct {
-		format    autoinstrumentation.LibraryContainerAnnotationFormat
+		format    annotation.LibraryContainerAnnotationFormat
 		container string
 		lang      string
 		expected  string
 	}{
 		"library container version formats correctly": {
-			format:    autoinstrumentation.AnnotationLibraryContainerVersion,
+			format:    annotation.LibraryContainerVersion,
 			container: "app",
 			lang:      "python",
 			expected:  "admission.datadoghq.com/app.python-lib.version",
 		},
 		"library container image formats correctly": {
-			format:    autoinstrumentation.AnnotationLibraryContainerImage,
+			format:    annotation.LibraryContainerImage,
 			container: "app",
 			lang:      "python",
 			expected:  "admission.datadoghq.com/app.python-lib.custom-image",
@@ -154,7 +154,7 @@ func TestGetAnnotation(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			value, found := autoinstrumentation.GetAnnotation(test.pod, test.key)
+			value, found := annotation.Get(test.pod, test.key)
 			require.Equal(t, test.expected.value, value, "the annotation value did not match expected")
 			require.Equal(t, test.expected.found, found, "the annotation was not found")
 		})
@@ -199,8 +199,8 @@ func TestSetAnnotation(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			autoinstrumentation.SetAnnotation(test.pod, test.key, test.value)
-			actual, found := autoinstrumentation.GetAnnotation(test.pod, test.key)
+			annotation.Set(test.pod, test.key, test.value)
+			actual, found := annotation.Get(test.pod, test.key)
 			require.True(t, found, "annotation was not found")
 			require.Equal(t, test.value, actual, "the value does not match")
 		})
