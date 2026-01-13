@@ -272,9 +272,10 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 //   - prefix: The config prefix (e.g., "" for global, "logs_config" for logs, "apm_config" for APM)
 //
 // Example usage:
-//   bindDelegatedAuthConfig(config, "")                    // For global api_key
-//   bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
-//   bindDelegatedAuthConfig(config, "apm_config")    // For apm_config.api_key
+//
+//	bindDelegatedAuthConfig(config, "")             // For global api_key
+//	bindDelegatedAuthConfig(config, "logs_config")  // For logs_config.api_key
+//	bindDelegatedAuthConfig(config, "apm_config")   // For apm_config.api_key
 func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	// Build the config key prefix
 	var configPrefix string
@@ -2741,7 +2742,7 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 	// List of config prefixes and their corresponding API key config keys
 	// This allows any config that has an api_key to support delegated authentication
 	// To add delegated auth support for a new config, add an entry here and call
-	// bindDelegatedAuthConfig(config, prefix, envPrefix) during config initialization
+	// bindDelegatedAuthConfig(config, prefix) during config initialization
 	delegatedAuthConfigs := []struct {
 		prefix          string // Config prefix (empty for global)
 		apiKeyConfigKey string // The config key where the API key should be written
