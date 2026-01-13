@@ -1665,7 +1665,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		if !p.regularUnmarshalEvent(&event.MountReleased, eventType, offset, dataLen, data) {
 			return false
 		}
-		p.Resolvers.DentryResolver.DelCacheEntriesForMountID(event.MountReleased.MountID)
 
 		// Delete new mount point from cache
 		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID, event.MountReleased.MountIDUnique); err != nil {

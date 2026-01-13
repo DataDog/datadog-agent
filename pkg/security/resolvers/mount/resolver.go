@@ -282,7 +282,6 @@ func (mr *Resolver) Delete(mountID uint32, mountIDUnique uint64) error {
 	if exists && (m.MountIDUnique == 0 || mountIDUnique == 0 || m.MountIDUnique == mountIDUnique) {
 		mr.delete(m)
 	} else {
-		seclog.Warnf("tried to delete non-existent mount id %d", mountID)
 		return &ErrMountNotFound{MountID: mountID}
 	}
 
