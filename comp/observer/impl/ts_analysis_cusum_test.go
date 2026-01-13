@@ -88,11 +88,9 @@ func TestCUSUMDetector_DetectsShift(t *testing.T) {
 	assert.Contains(t, anomaly.Title, "CUSUM")
 	assert.Contains(t, anomaly.Description, "shifted")
 
-	// TimeRange should cover the anomaly period
-	// Start should be around when the shift began (point 10)
-	assert.GreaterOrEqual(t, anomaly.TimeRange.Start, int64(8), "start should be near shift point")
-	assert.LessOrEqual(t, anomaly.TimeRange.Start, int64(12), "start should be near shift point")
-	assert.Equal(t, int64(19), anomaly.TimeRange.End, "end should be last point")
+	// Timestamp should be around when the threshold was first crossed (shortly after point 10)
+	assert.GreaterOrEqual(t, anomaly.Timestamp, int64(10), "detection should be at or after shift point")
+	assert.LessOrEqual(t, anomaly.Timestamp, int64(15), "detection should be near shift point")
 }
 
 func TestCUSUMDetector_GradualIncrease(t *testing.T) {
@@ -123,8 +121,8 @@ func TestCUSUMDetector_GradualIncrease(t *testing.T) {
 	result := d.Analyze(series)
 	require.Len(t, result.Anomalies, 1, "should detect gradual increase")
 
-	// The anomaly should start somewhere after baseline period
-	assert.Greater(t, result.Anomalies[0].TimeRange.Start, int64(5))
+	// The anomaly timestamp should be somewhere after baseline period
+	assert.Greater(t, result.Anomalies[0].Timestamp, int64(5))
 }
 
 func TestCUSUMDetector_ConstantBaseline(t *testing.T) {
@@ -189,37 +187,6 @@ func TestCUSUMDetector_CustomParameters(t *testing.T) {
 	assert.Len(t, result.Anomalies, 1, "sensitive detector should catch small shift")
 }
 
-func TestCUSUMDetector_NoShiftBack(t *testing.T) {
-	d := NewCUSUMDetector()
-
-	// Baseline, shift up, stay up (no return to normal)
-	points := make([]observer.Point, 30)
-	for i := 0; i < 10; i++ {
-		points[i] = observer.Point{
-			Timestamp: int64(i),
-			Value:     10.0,
-		}
-	}
-	for i := 10; i < 30; i++ {
-		points[i] = observer.Point{
-			Timestamp: int64(i),
-			Value:     50.0, // stays elevated
-		}
-	}
-
-	series := observer.Series{
-		Namespace: "test",
-		Name:      "stays_elevated",
-		Points:    points,
-	}
-
-	result := d.Analyze(series)
-	require.Len(t, result.Anomalies, 1)
-
-	// End should be last point since it never returned to normal
-	assert.Equal(t, int64(29), result.Anomalies[0].TimeRange.End)
-}
-
 func TestCUSUMDetector_SourceAndTags(t *testing.T) {
 	d := NewCUSUMDetector()
 
@@ -246,11 +213,11 @@ func TestCUSUMDetector_SourceAndTags(t *testing.T) {
 	assert.Equal(t, []string{"env:prod", "service:api"}, anomaly.Tags, "Tags should be preserved")
 }
 
-func TestCUSUMDetector_DetectsEnd(t *testing.T) {
+func TestCUSUMDetector_EmitsAtThresholdCrossing(t *testing.T) {
 	d := NewCUSUMDetector()
 
-	// Baseline (10), then elevated (50), then back to baseline (10)
-	// This tests that we properly detect the end of an anomaly
+	// Build a series: baseline (10), then elevated (50), then back to baseline (10)
+	// With the new point-based approach, we should emit at the first threshold crossing
 	points := make([]observer.Point, 30)
 	for i := 0; i < 10; i++ {
 		points[i] = observer.Point{
@@ -282,12 +249,8 @@ func TestCUSUMDetector_DetectsEnd(t *testing.T) {
 
 	anomaly := result.Anomalies[0]
 
-	// Start should be around point 10 (when elevation began)
-	assert.GreaterOrEqual(t, anomaly.TimeRange.Start, int64(8), "start should be near elevation start")
-	assert.LessOrEqual(t, anomaly.TimeRange.Start, int64(12), "start should be near elevation start")
-
-	// End should be before point 30 (when it returned to baseline)
-	// The anomaly should end when CUSUM returns to 0, not at the last point
-	assert.Less(t, anomaly.TimeRange.End, int64(29), "end should be before the last point since signal recovered")
-	assert.GreaterOrEqual(t, anomaly.TimeRange.End, int64(18), "end should be in the recovery region")
+	// Timestamp should be at or shortly after point 10 (when elevation began)
+	// This is when the threshold is first crossed, not the entire duration
+	assert.GreaterOrEqual(t, anomaly.Timestamp, int64(10), "detection should be at or after elevation start")
+	assert.LessOrEqual(t, anomaly.Timestamp, int64(15), "detection should be near elevation start")
 }

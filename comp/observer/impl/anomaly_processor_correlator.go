@@ -27,9 +27,9 @@ func DefaultCorrelatorConfig() CorrelatorConfig {
 	}
 }
 
-// timestampedAnomaly pairs an anomaly with its data timestamp (from TimeRange.End).
+// timestampedAnomaly pairs an anomaly with its data timestamp.
 type timestampedAnomaly struct {
-	dataTime int64 // timestamp from the anomaly's data (TimeRange.End)
+	dataTime int64 // timestamp from the anomaly's data (Timestamp field)
 	anomaly  observer.AnomalyOutput
 }
 
@@ -74,14 +74,14 @@ var knownPatterns = []correlationPattern{
 // and detects known patterns. It implements CorrelationState to allow reporters to
 // read the current correlation state.
 //
-// Time is derived entirely from input data timestamps (anomaly.TimeRange.End), making
+// Time is derived entirely from input data timestamps (anomaly.Timestamp), making
 // the correlator deterministic with respect to input data.
 type CrossSignalCorrelator struct {
 	config             CorrelatorConfig
 	buffer             []timestampedAnomaly
 	eventSignals       []timestampedEventSignal // discrete event signals (OOM, restarts, etc.)
 	activeCorrelations map[string]*observer.ActiveCorrelation
-	currentDataTime    int64 // latest data timestamp seen (max of all TimeRange.End values)
+	currentDataTime    int64 // latest data timestamp seen (max of all Timestamp values)
 }
 
 // NewCorrelator creates a new CrossSignalCorrelator with the given config.
@@ -103,10 +103,10 @@ func (c *CrossSignalCorrelator) Name() string {
 	return "cross_signal_correlator"
 }
 
-// Process adds an anomaly to the buffer using its data timestamp (TimeRange.End)
+// Process adds an anomaly to the buffer using its data timestamp
 // and evicts entries older than WindowSeconds.
 func (c *CrossSignalCorrelator) Process(anomaly observer.AnomalyOutput) {
-	dataTime := anomaly.TimeRange.End
+	dataTime := anomaly.Timestamp
 
 	// Update current data time (monotonically advancing)
 	if dataTime > c.currentDataTime {
@@ -253,7 +253,7 @@ func (c *CrossSignalCorrelator) collectEventSignalsInWindow() []observer.EventSi
 }
 
 // collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources,
-// deduped by source - keeping only the most recent anomaly per source (it has the most complete data).
+// deduped by source - keeping only the most recent anomaly per source.
 func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.AnomalyOutput {
 	// Map from source to most recent anomaly for that source
 	bySource := make(map[string]observer.AnomalyOutput)
@@ -262,8 +262,8 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 		for _, src := range pattern.requiredSources {
 			if entry.anomaly.Source == src {
 				existing, exists := bySource[src]
-				// Keep the one with the later End time (more recent/complete data)
-				if !exists || entry.anomaly.TimeRange.End > existing.TimeRange.End {
+				// Keep the one with the later timestamp (more recent)
+				if !exists || entry.anomaly.Timestamp > existing.Timestamp {
 					bySource[src] = entry.anomaly
 				}
 				break

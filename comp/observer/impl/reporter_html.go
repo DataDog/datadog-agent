@@ -404,16 +404,15 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
             return analyzerColors[analyzerName] || analyzerColors['default'];
         }
 
-        // Build a map of chart key -> anomaly time ranges from raw anomalies
+        // Build a map of chart key -> anomaly timestamps from raw anomalies
         function buildAnomalyRanges(rawAnomalies) {
             const ranges = {};
             for (const a of rawAnomalies || []) {
                 const key = a.source;
                 if (!ranges[key]) ranges[key] = [];
-                if (a.timeRange && a.timeRange.start && a.timeRange.end) {
+                if (a.timestamp) {
                     ranges[key].push({
-                        start: a.timeRange.start,
-                        end: a.timeRange.end,
+                        timestamp: a.timestamp,
                         analyzerName: a.analyzerName || 'unknown'
                     });
                 }
@@ -549,54 +548,42 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
         // Aggregations that are analyzed (must match analysisAggregations in observer.go)
         const analysisAggregations = ['avg', 'count'];
 
-        // Build Chart.js annotations from anomaly ranges for a given chart key
+        // Build Chart.js annotations from anomaly timestamps for a given chart key
         // Uses analyzer-specific colors when analyzerName is present
-        function buildAnnotations(timestamps, ranges) {
-            if (!ranges || ranges.length === 0 || !timestamps || timestamps.length === 0) {
+        function buildAnnotations(timestamps, anomalies) {
+            if (!anomalies || anomalies.length === 0 || !timestamps || timestamps.length === 0) {
                 return {};
             }
 
             const annotations = {};
             let idx = 0;
 
-            for (const range of ranges) {
-                let startIdx = -1;
-                let endIdx = -1;
-
+            for (const anomaly of anomalies) {
+                // Find the index of the closest timestamp
+                let pointIdx = -1;
                 for (let i = 0; i < timestamps.length; i++) {
-                    const ts = timestamps[i];
-                    if (ts >= range.start && startIdx === -1) {
-                        startIdx = i;
-                    }
-                    if (ts <= range.end) {
-                        endIdx = i;
+                    if (timestamps[i] >= anomaly.timestamp) {
+                        pointIdx = i;
+                        break;
                     }
                 }
+                // If no exact match, use the last point if timestamp is beyond the data
+                if (pointIdx === -1 && anomaly.timestamp > timestamps[timestamps.length - 1]) {
+                    pointIdx = timestamps.length - 1;
+                }
 
-                if (startIdx !== -1 && endIdx !== -1 && startIdx <= endIdx) {
-                    const color = getAnalyzerColor(range.analyzerName);
-                    annotations['box' + idx] = {
-                        type: 'box',
-                        xMin: startIdx,
-                        xMax: endIdx,
-                        backgroundColor: color.bg,
-                        borderColor: 'transparent'
-                    };
-                    annotations['lineStart' + idx] = {
+                if (pointIdx !== -1) {
+                    const color = getAnalyzerColor(anomaly.analyzerName);
+                    // Draw a vertical line at the anomaly detection point
+                    annotations['line' + idx] = {
                         type: 'line',
-                        xMin: startIdx,
-                        xMax: startIdx,
+                        xMin: pointIdx,
+                        xMax: pointIdx,
                         borderColor: color.border,
                         borderWidth: 2,
-                        borderDash: [4, 4]
-                    };
-                    annotations['lineEnd' + idx] = {
-                        type: 'line',
-                        xMin: endIdx,
-                        xMax: endIdx,
-                        borderColor: color.border,
-                        borderWidth: 2,
-                        borderDash: [4, 4]
+                        label: {
+                            display: false
+                        }
                     };
                     idx++;
                 }
@@ -1084,29 +1071,23 @@ type correlationOutput struct {
 	LastUpdated int64           `json:"lastUpdated"` // unix seconds (from data)
 }
 
-// timeRangeOutput is a JSON-serializable time range.
-type timeRangeOutput struct {
-	Start int64 `json:"start"`
-	End   int64 `json:"end"`
-}
-
 // anomalyOutput is a JSON-serializable anomaly.
 type anomalyOutput struct {
-	Source      string          `json:"source"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Tags        []string        `json:"tags"`
-	TimeRange   timeRangeOutput `json:"timeRange"`
+	Source      string   `json:"source"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+	Timestamp   int64    `json:"timestamp"`
 }
 
 // rawAnomalyOutput is the JSON structure for raw anomaly API responses.
 type rawAnomalyOutput struct {
-	Source       string          `json:"source"`
-	AnalyzerName string          `json:"analyzerName"`
-	Title        string          `json:"title"`
-	Description  string          `json:"description"`
-	Tags         []string        `json:"tags"`
-	TimeRange    timeRangeOutput `json:"timeRange"`
+	Source       string   `json:"source"`
+	AnalyzerName string   `json:"analyzerName"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Tags         []string `json:"tags"`
+	Timestamp    int64    `json:"timestamp"`
 }
 
 // handleAPICorrelations returns currently active correlations.
@@ -1127,10 +1108,7 @@ func (r *HTMLReporter) handleAPICorrelations(w http.ResponseWriter, req *http.Re
 					Title:       a.Title,
 					Description: a.Description,
 					Tags:        a.Tags,
-					TimeRange: timeRangeOutput{
-						Start: a.TimeRange.Start,
-						End:   a.TimeRange.End,
-					},
+					Timestamp:   a.Timestamp,
 				}
 			}
 			correlations[i] = correlationOutput{
@@ -1170,10 +1148,7 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 				Title:        a.Title,
 				Description:  a.Description,
 				Tags:         a.Tags,
-				TimeRange: timeRangeOutput{
-					Start: a.TimeRange.Start,
-					End:   a.TimeRange.End,
-				},
+				Timestamp:    a.Timestamp,
 			}
 		}
 	}

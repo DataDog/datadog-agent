@@ -393,8 +393,8 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 	defer o.rawAnomalyMu.Unlock()
 
 	// Update current data time
-	if anomaly.TimeRange.End > o.currentDataTime {
-		o.currentDataTime = anomaly.TimeRange.End
+	if anomaly.Timestamp > o.currentDataTime {
+		o.currentDataTime = anomaly.Timestamp
 	}
 
 	// Deduplicate by Source+AnalyzerName (keep most recent)
@@ -403,7 +403,7 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 	for i, existing := range o.rawAnomalies {
 		existingKey := existing.Source + "|" + existing.AnalyzerName
 		if existingKey == key {
-			if anomaly.TimeRange.End > existing.TimeRange.End {
+			if anomaly.Timestamp > existing.Timestamp {
 				o.rawAnomalies[i] = anomaly
 			}
 			found = true
@@ -419,7 +419,7 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 		cutoff := o.currentDataTime - o.rawAnomalyWindow
 		newBuffer := o.rawAnomalies[:0]
 		for _, a := range o.rawAnomalies {
-			if a.TimeRange.End >= cutoff {
+			if a.Timestamp >= cutoff {
 				newBuffer = append(newBuffer, a)
 			}
 		}
