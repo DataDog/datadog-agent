@@ -11,9 +11,13 @@ import (
 	"strings"
 
 	"github.com/yusufpapurcu/wmi"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Win32ComputerSystem WMI class
+//
+// https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-computersystem
 type Win32ComputerSystem struct {
 	Manufacturer    string
 	Model           string
@@ -22,20 +26,36 @@ type Win32ComputerSystem struct {
 }
 
 // Win32BIOS WMI class
+//
+// https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-bios
 type Win32BIOS struct {
 	SerialNumber string
 }
 
 // Win32SystemEnclosure WMI class
+//
+// https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemenclosure
 type Win32SystemEnclosure struct {
 	ChassisTypes []int32
 }
 
 func collect() (*SystemInfo, error) {
+	// Initialize WMI client
+	wmiClient := &wmi.Client{}
+	SWbemServicesClient, err := wmi.InitializeSWbemServices(wmiClient)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err := SWbemServicesClient.Close(); err != nil {
+			log.Errorf("error closing SWbemServicesClient: %v", err)
+		}
+	}()
+
 	// Query Win32_ComputerSystem for manufacturer and model
 	var systemInfo SystemInfo
 	var cs []Win32ComputerSystem
-	if err := wmi.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
+	if err := wmiClient.Query("SELECT Manufacturer, Model, SystemFamily, SystemSKUNumber FROM Win32_ComputerSystem", &cs); err == nil && len(cs) > 0 {
 		systemInfo.Manufacturer = cs[0].Manufacturer
 		systemInfo.ModelNumber = cs[0].Model
 		systemInfo.ModelName = cs[0].SystemFamily
@@ -43,15 +63,14 @@ func collect() (*SystemInfo, error) {
 	}
 
 	var bios []Win32BIOS
-	if err := wmi.Query("SELECT SerialNumber FROM Win32_BIOS", &bios); err == nil && len(bios) > 0 {
+	if err := wmiClient.Query("SELECT SerialNumber FROM Win32_BIOS", &bios); err == nil && len(bios) > 0 {
 		systemInfo.SerialNumber = bios[0].SerialNumber
 	}
 
 	var enclosure []Win32SystemEnclosure
-	if err := wmi.Query("SELECT ChassisTypes FROM Win32_SystemEnclosure", &enclosure); err == nil && len(enclosure) > 0 {
+	if err := wmiClient.Query("SELECT ChassisTypes FROM Win32_SystemEnclosure", &enclosure); err == nil && len(enclosure) > 0 {
 		if len(enclosure[0].ChassisTypes) > 0 {
-			// Convert int32 to uint16 for compatibility with DMTF spec
-			chassisType := uint16(enclosure[0].ChassisTypes[0])
+			chassisType := enclosure[0].ChassisTypes[0]
 			systemInfo.ChassisType = getChassisTypeName(chassisType, cs[0].Model, cs[0].Manufacturer)
 		}
 	}
@@ -59,7 +78,7 @@ func collect() (*SystemInfo, error) {
 	return &systemInfo, nil
 }
 
-func getChassisTypeName(chassisType uint16, model string, manufacturer string) string {
+func getChassisTypeName(chassisType int32, model string, manufacturer string) string {
 
 	// Special cases for identifying Virtual Machines
 	// Hyper-V and Azure VMs have the model "Virtual Machine"
@@ -73,7 +92,35 @@ func getChassisTypeName(chassisType uint16, model string, manufacturer string) s
 	}
 
 	// Categorize into broader types for monitoring purposes
-	// see https://powershell.one/wmi/root/cimv2/win32_systemenclosure#examples
+	// see https://learn.microsoft.com/en-us/windows/win32/cimwin32prov/win32-systemenclosure
+	// List of Possible Values:
+	// Other (1)
+	// Unknown (2)
+	// Desktop (3)
+	// Low Profile Desktop (4)
+	// Pizza Box (5)
+	// Mini Tower (6)
+	// Tower (7)
+	// Portable (8)
+	// Laptop (9)
+	// Notebook (10)
+	// Hand Held (11)
+	// Docking Station (12)
+	// All in One (13)
+	// Sub Notebook (14)
+	// Space-Saving (15)
+	// Lunch Box (16)
+	// Main System Chassis (17)
+	// Expansion Chassis (18)
+	// SubChassis (19)
+	// Bus Expansion Chassis (20)
+	// Peripheral Chassis (21)
+	// Storage Chassis (22)
+	// Rack Mount Chassis (23)
+	// Sealed-Case PC (24)
+	// Tablet (30)
+	// Convertible (31)
+	// Detachable (32)
 	switch chassisType {
 	case 3, 4, 5, 6, 7, 13, 15, 16, 24: // Desktop variants
 		return "Desktop"

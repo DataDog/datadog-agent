@@ -121,7 +121,7 @@ func (hh *hostSystemInfo) fillData() error {
 	// System info collection is only supported on Windows
 	if runtime.GOOS != "windows" {
 		hh.log.Debugf("System information collection not supported on %s", runtime.GOOS)
-		hh.data = &hostSystemInfoMetadata{}
+		hh.data = nil
 		return nil
 	}
 
