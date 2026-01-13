@@ -36,7 +36,7 @@ One-page summary with:
 
 ### 🛠️ Data Collection Tools
 
-**Location:** [`scripts/ci_analysis/`](scripts/ci_analysis/)
+**Location:** [`../scripts/`](../scripts/)
 
 **What's included:**
 - ✅ Docker-based extraction scripts (no local pollution)
@@ -47,12 +47,12 @@ One-page summary with:
 
 **Documentation:**
 - [`DATA_COLLECTION_GUIDE.md`](DATA_COLLECTION_GUIDE.md) - How to collect data
-- [`scripts/ci_analysis/README.md`](scripts/ci_analysis/README.md) - Script usage
-- [`scripts/ci_analysis/DATA_COLLECTION_STATUS.md`](scripts/ci_analysis/DATA_COLLECTION_STATUS.md) - What was collected
+- [`../scripts/README.md`](../scripts/README.md) - Script usage
+- [`../scripts/DATA_COLLECTION_STATUS.md`](../scripts/DATA_COLLECTION_STATUS.md) - What was collected
 
 ### 📁 Raw Data
 
-**Location:** `scripts/ci_analysis/ci_data/`
+**Location:** `../scripts/ci_data/`
 
 ```
 ci_data/
@@ -174,7 +174,7 @@ ci_data/
 To collect new data (e.g., after implementing fixes):
 
 ```bash
-cd scripts/ci_analysis
+cd internal/ci-analysis/scripts
 
 # Update .env with credentials (if needed)
 # Already configured with your tokens
@@ -191,7 +191,7 @@ cd scripts/ci_analysis
 ## 📞 Questions or Issues?
 
 ### Technical Questions
-- **GitLab data:** See [`scripts/ci_analysis/README.md`](scripts/ci_analysis/README.md)
+- **GitLab data:** See [`../scripts/README.md`](../scripts/README.md)
 - **Data collection:** See [`DATA_COLLECTION_GUIDE.md`](DATA_COLLECTION_GUIDE.md)
 - **Analysis methodology:** See evidence-based or data results reports
 
@@ -220,13 +220,13 @@ README_CI_ANALYSIS.md                 # This file - navigation guide
 ### Guides
 ```
 DATA_COLLECTION_GUIDE.md              # How to collect data
-scripts/ci_analysis/README.md         # Script documentation
-scripts/ci_analysis/DATA_COLLECTION_STATUS.md  # What was collected
+../scripts/README.md                  # Script documentation
+../scripts/DATA_COLLECTION_STATUS.md  # What was collected
 ```
 
 ### Data
 ```
-scripts/ci_analysis/ci_data/
+../scripts/ci_data/
 ├── gitlab_pipelines.csv              # 200 pipelines
 ├── gitlab_jobs.csv                   # 7,881 jobs
 └── gitlab_critical_path.csv          # 85 critical jobs
@@ -234,7 +234,7 @@ scripts/ci_analysis/ci_data/
 
 ### Tools
 ```
-scripts/ci_analysis/
+../scripts/
 ├── gitlab_api_extraction.py          # GitLab data extraction
 ├── datadog_ci_visibility_queries.py  # Datadog CI Vis (template)
 ├── developer_survey.md               # Survey questionnaire
