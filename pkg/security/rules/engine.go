@@ -357,6 +357,8 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	var ruleIDs []rules.RuleID
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
+	e.currentRuleSet.Store(rs)
+
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
 	filterReport, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
@@ -368,8 +370,6 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	rulesetLoadedEvent := monitor.NewRuleSetLoadedEvent(e.probe.GetAgentContainerContext(), rs, policies, filterReport)
 
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
-
-	e.currentRuleSet.Store(rs)
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
