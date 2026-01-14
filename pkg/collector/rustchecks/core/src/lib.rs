@@ -1,14 +1,12 @@
-mod cstring;
-mod config;
-mod aggregator;
+// modules used by checks
 mod agent_check;
-mod ffi;
-
 pub use agent_check::AgentCheck;
+mod aggregator;
 pub use aggregator::{Aggregator, MetricType, ServiceCheckStatus};
+mod config;
+
+// FFI using the C-ABI
+mod ffi;
+mod cstring;
 pub use cstring::to_rust_string;
 pub use cstring::to_cstring;
-
-// helpers for unit tests
-#[cfg(feature = "test-utils")]
-pub mod test_utils;

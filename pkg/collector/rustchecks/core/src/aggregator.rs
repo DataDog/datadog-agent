@@ -1,7 +1,8 @@
 use crate::cstring::*;
 
 use std::ffi::{c_char, c_double, c_float, c_int, c_long, c_longlong};
-use std::error::Error;
+
+use anyhow::Result;
 
 /// Replica of the Agent metric type enum
 #[repr(C)]
@@ -123,7 +124,7 @@ impl Aggregator {
         unsafe { *ptr }
     }
 
-    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+    pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<()> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         let cstr_name = to_cstring(name)?;
@@ -150,7 +151,7 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_service_check(&self, check_id: &str, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<(), Box<dyn Error>> {
+    pub fn submit_service_check(&self, check_id: &str, name: &str, status: ServiceCheckStatus, tags: &[String], hostname: &str, message: &str) -> Result<()> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         let cstr_name = to_cstring(name)?;
@@ -178,7 +179,7 @@ impl Aggregator {
         Ok(())
 
     }
-    pub fn submit_event(&self, check_id: &str, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<(), Box<dyn Error>> {
+    pub fn submit_event(&self, check_id: &str, title: &str, text: &str, timestamp: c_long, priority: &str, host: &str, tags: &[String], alert_type: &str, aggregation_key: &str, source_type_name: &str, event_type: &str) -> Result<()> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         
@@ -227,7 +228,7 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<(), Box<dyn Error>> {
+    pub fn submit_histogram_bucket(&self, check_id: &str, metric_name: &str, value: c_longlong, lower_bound: f32, upper_bound: f32, monotonic: c_int, hostname: &str, tags: &[String], flush_first_value: bool) -> Result<()> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         let cstr_metric_name = to_cstring(metric_name)?;
@@ -256,7 +257,7 @@ impl Aggregator {
         Ok(())
     }
 
-    pub fn submit_event_platform_event(&self, check_id: &str, raw_event: &str, raw_event_size: c_int, event_type: &str) -> Result<(), Box<dyn Error>> {
+    pub fn submit_event_platform_event(&self, check_id: &str, raw_event: &str, raw_event_size: c_int, event_type: &str) -> Result<()> {
         // create the C strings
         let cstr_check_id = to_cstring(check_id)?;
         let cstr_raw_event = to_cstring(raw_event)?;

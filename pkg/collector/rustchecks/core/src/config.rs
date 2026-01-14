@@ -1,8 +1,9 @@
+use anyhow::{Result, bail};
+
 use serde_yaml::Value;
 use serde::de::DeserializeOwned;
 
 use std::collections::HashMap;
-use std::error::Error;
 
 /// Represents the parameters passed by the Agent to the check
 /// 
@@ -14,15 +15,15 @@ pub struct Config {
 
 impl Config {
     /// Create a configuration map base on a YAML string
-    pub fn new(yaml_str: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn new(yaml_str: &str) -> Result<Self> {
         // try to convert the YAML string
         match serde_yaml::from_str(yaml_str) {
             Ok(map) => Ok(Self { map }),
-            Err(e) => Err(e.to_string().into()),
+            Err(e) => bail!(e),
         }
     }
 
-    pub fn get<T>(&self, key: &str) -> Result<T, Box<dyn Error>>
+    pub fn get<T>(&self, key: &str) -> Result<T>
     where 
         T: DeserializeOwned,
     {
@@ -31,7 +32,7 @@ impl Config {
                 let value = serde_yaml::from_value(serde_value.clone())?;
                 Ok(value)
             },
-            None => Err(format!("key '{key}' not found in the instance").into()),
+            None => bail!("key '{key}' not found in the instance"),
         }
     }
 }
