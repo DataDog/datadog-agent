@@ -12,12 +12,14 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
 
@@ -101,6 +103,8 @@ func (d *directSenderConsumer) Copy(ev *model.Event) any {
 	return p
 }
 
+var cwdLogLimiter = logutil.NewLogLimit(20, 10*time.Minute)
+
 // HandleEvent implements eventmonitor.EventConsumerHandler
 func (d *directSenderConsumer) HandleEvent(ev any) {
 	p, ok := ev.(*process)
@@ -110,7 +114,9 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
 		cwd, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "cwd"))
 		if err != nil {
-			d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
+			if cwdLogLimiter.ShouldLog() {
+				d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
+			}
 		}
 		p.Cwd = cwd
 	}
