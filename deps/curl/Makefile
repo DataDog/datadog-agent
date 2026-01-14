@@ -1,5 +1,5 @@
 C2B=$(HOME)/ws/experimental/teams/agent-supply-chain/configure2bazel
-PRISTINE=curl-8.16.0
+PRISTINE=curl-8.18.0
 
 next:
 	echo Do both steps on each platform.

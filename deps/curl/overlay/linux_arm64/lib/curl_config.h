@@ -108,7 +108,7 @@
 /* to disable NTLM support */
 /* #undef CURL_DISABLE_NTLM */
 
-/* if the OpenSSL configuration won't be loaded automatically */
+/* if the OpenSSL configuration will not be loaded automatically */
 /* #undef CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG */
 
 /* disable date parsing */
@@ -118,7 +118,7 @@
 /* #undef CURL_DISABLE_POP3 */
 
 /* disable progress-meter */
-/* #undef CURL_DISABLE_PROGRESS_METER */
+#define CURL_DISABLE_PROGRESS_METER 1
 
 /* to disable proxies */
 /* #undef CURL_DISABLE_PROXY */
@@ -147,14 +147,20 @@
 /* to disable TFTP */
 /* #undef CURL_DISABLE_TFTP */
 
+/* to disable type checking */
+/* #undef CURL_DISABLE_TYPECHECK */
+
 /* to disable verbose strings */
-/* #undef CURL_DISABLE_VERBOSE_STRINGS */
+#define CURL_DISABLE_VERBOSE_STRINGS 1
 
 /* disable WebSockets */
 /* #undef CURL_DISABLE_WEBSOCKETS */
 
 /* Definition to make a library symbol externally visible. */
 #define CURL_EXTERN_SYMBOL __attribute__((__visibility__("default")))
+
+/* MIT Kerberos version */
+/* #undef CURL_KRB5_VERSION */
 
 /* cpu-machine-OS */
 #define CURL_OS "aarch64-unknown-linux-gnu"
@@ -194,7 +200,6 @@
 
 /* Define to 1 if you have the __builtin_available function. */
 /* #undef HAVE_BUILTIN_AVAILABLE */
-#define HAVE_BUILTIN_AVAILABLE 1
 
 /* Define to 1 if you have the clock_gettime function and monotonic timer. */
 #define HAVE_CLOCK_GETTIME_MONOTONIC 1
@@ -211,6 +216,9 @@
 
 /* Define to 1 if you have the fseeko declaration */
 #define HAVE_DECL_FSEEKO 1
+
+/* if you have the function DES_ecb_encrypt */
+#define HAVE_DES_ECB_ENCRYPT 1
 
 /* if you have <dirent.h> */
 #define HAVE_DIRENT_H 1
@@ -254,7 +262,7 @@
 /* Define to 1 if you have a working getaddrinfo function. */
 #define HAVE_GETADDRINFO 1
 
-/* Define to 1 if the getaddrinfo function is threadsafe. */
+/* Define to 1 if the getaddrinfo function is thread-safe. */
 #define HAVE_GETADDRINFO_THREADSAFE 1
 
 /* Define to 1 if you have the `geteuid' function. */
@@ -310,6 +318,9 @@
 
 /* if you have the function gnutls_srp_verifier */
 /* #undef HAVE_GNUTLS_SRP */
+
+/* Define to 1 if you have the <gsasl.h> header file. */
+/* #undef HAVE_GSASL_H */
 
 /* if you have GSS-API libraries */
 /* #undef HAVE_GSSAPI */
@@ -408,9 +419,6 @@
 /* Define to 1 if you have the `ssl' library (-lssl). */
 #define HAVE_LIBSSL 1
 
-/* Define to 1 if you have the `wolfssh' library (-lwolfssh). */
-/* #undef HAVE_LIBWOLFSSH */
-
 /* if zlib is available */
 #define HAVE_LIBZ 1
 
@@ -423,11 +431,17 @@
 /* Define to 1 if you have the <locale.h> header file. */
 #define HAVE_LOCALE_H 1
 
+/* Define to 1 if you have a working localtime_r function. */
+#define HAVE_LOCALTIME_R 1
+
 /* Define to 1 if the compiler supports the 'long long' data type. */
 #define HAVE_LONGLONG 1
 
 /* Define to 1 if you have the `mach_absolute_time' function. */
 /* #undef HAVE_MACH_ABSOLUTE_TIME */
+
+/* Define to 1 if you have the `mbedtls_des_crypt_ecb' function. */
+/* #undef HAVE_MBEDTLS_DES_CRYPT_ECB */
 
 /* Define to 1 if you have the memrchr function or macro. */
 #define HAVE_MEMRCHR 1
@@ -465,10 +479,6 @@
 /* Define to 1 if you have the <ngtcp2/ngtcp2.h> header file. */
 /* #undef HAVE_NGTCP2_NGTCP2_H */
 
-/* if you have an old MIT Kerberos version, lacking GSS_C_NT_HOSTBASED_SERVICE
-   */
-/* #undef HAVE_OLD_GSSMIT */
-
 /* if you have opendir */
 #define HAVE_OPENDIR 1
 
@@ -490,9 +500,6 @@
 
 /* Define to 1 if you have the <openssl/ssl.h> header file. */
 #define HAVE_OPENSSL_SSL_H 1
-
-/* Define to 1 if you have the <openssl/x509.h> header file. */
-#define HAVE_OPENSSL_X509_H 1
 
 /* Define to 1 if you have the `pipe' function. */
 #define HAVE_PIPE 1
@@ -708,9 +715,6 @@
 /* Define to 1 if you have the <uv.h> header file. */
 /* #undef HAVE_UV_H */
 
-/* Define to 1 if you have the <wolfssh/ssh.h> header file. */
-/* #undef HAVE_WOLFSSH_SSH_H */
-
 /* Define to 1 if you have the `wolfSSL_BIO_new' function. */
 /* #undef HAVE_WOLFSSL_BIO_NEW */
 
@@ -816,8 +820,14 @@
 /* if AppleIDN */
 /* #undef USE_APPLE_IDN */
 
+/* enable Apple OS certificate validation */
+/* #undef USE_APPLE_SECTRUST */
+
 /* Define to enable c-ares support */
 /* #undef USE_ARES */
+
+/* if libbacktrace is in use */
+/* #undef USE_BACKTRACE */
 
 /* if ECH support is available */
 /* #undef USE_ECH */
@@ -904,18 +914,11 @@
 /* Define to 1 if you have the `normaliz' (WinIDN) library (-lnormaliz). */
 /* #undef USE_WIN32_IDN */
 
-/* Define to 1 if you are building a Windows target with large file support.
-   */
-/* #undef USE_WIN32_LARGE_FILES */
-
 /* Use Windows LDAP implementation */
 /* #undef USE_WIN32_LDAP */
 
 /* to enable SSPI support */
 /* #undef USE_WINDOWS_SSPI */
-
-/* if wolfSSH is in use */
-/* #undef USE_WOLFSSH */
 
 /* if wolfSSL is enabled */
 /* #undef USE_WOLFSSL */

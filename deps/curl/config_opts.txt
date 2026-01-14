@@ -24,3 +24,6 @@
 --disable-docs
 --disable-libcurl-option
 --disable-versioned-symbols
+--disable-libuv
+--disable-verbose
+--disable-progress-meter
