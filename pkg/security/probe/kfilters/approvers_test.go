@@ -47,6 +47,25 @@ func TestApproverAncestors1(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	var hasPasswdApprover, hasShadowApprover bool
+	for _, value := range approvers["open.file.path"] {
+		if value.Value.(string) == "/etc/passwd" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasPasswdApprover = true
+		}
+		if value.Value.(string) == "/etc/shadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasShadowApprover = true
+		}
+	}
+
+	assert.Truef(t, hasPasswdApprover, "expected passwd approver not found")
+	assert.Truef(t, hasShadowApprover, "expected shadow approver not found")
 }
 
 func TestApproverAncestors2(t *testing.T) {
@@ -67,6 +86,25 @@ func TestApproverAncestors2(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 2 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	var hasShadowApprover, hasGshadowApprover bool
+	for _, value := range approvers["open.file.path"] {
+		if value.Value.(string) == "/etc/shadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasShadowApprover = true
+		}
+		if value.Value.(string) == "/etc/gshadow" {
+			if value.Type != eval.ScalarValueType {
+				t.Fatalf("expected ScalarValueType, got %v", value.Type)
+			}
+			hasGshadowApprover = true
+		}
+	}
+
+	assert.Truef(t, hasShadowApprover, "expected shadow approver not found")
+	assert.Truef(t, hasGshadowApprover, "expected gshadow approver not found")
 }
 
 func TestApproverGlob(t *testing.T) {
@@ -87,6 +125,14 @@ func TestApproverGlob(t *testing.T) {
 	if values, exists := approvers["open.file.path"]; !exists || len(values) != 1 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	valueString, ok := approvers["open.file.path"][0].Value.(string)
+	if !ok {
+		t.Fatalf("expected string value, got %v", approvers["open.file.path"][0].Value)
+	}
+
+	assert.Equal(t, "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token", valueString)
+	assert.Equal(t, eval.GlobValueType, approvers["open.file.path"][0].Type)
 }
 
 func TestApproverFlags(t *testing.T) {
@@ -107,6 +153,14 @@ func TestApproverFlags(t *testing.T) {
 	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
 		t.Fatalf("expected approver not found: %v", values)
 	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_SYNC|unix.O_NOCTTY, valueInt, "expected flags O_SYNC|O_NOCTTY, got %d", valueInt)
+	assert.Equal(t, eval.BitmaskValueType, approvers["open.flags"][0].Type)
 }
 
 func TestApproverWildcardBasename(t *testing.T) {
@@ -148,6 +202,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
 			t.Fatalf("expected approver not found: %v", values)
 		}
+		valueBool, ok := approvers["open.file.in_upper_layer"][0].Value.(bool)
+		if !ok {
+			t.Fatalf("expected bool value, got %v", approvers["open.file.in_upper_layer"][0].Value)
+		}
+		assert.Truef(t, valueBool, "expected in_upper_layer approver to be true")
 	})
 
 	t.Run("in_upper_layer-ok-2", func(t *testing.T) {
@@ -164,6 +223,11 @@ func TestApproverInUpperLayer(t *testing.T) {
 		if values, exists := approvers["open.file.in_upper_layer"]; !exists || len(values) != 1 {
 			t.Fatalf("expected approver not found: %v", values)
 		}
+		valueBool, ok := approvers["open.file.in_upper_layer"][0].Value.(bool)
+		if !ok {
+			t.Fatalf("expected bool value, got %v", approvers["open.file.in_upper_layer"][0].Value)
+		}
+		assert.Truef(t, valueBool, "expected in_upper_layer approver to be true")
 	})
 
 	t.Run("in_upper_layer-ko", func(t *testing.T) {
