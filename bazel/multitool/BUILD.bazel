@@ -1,0 +1,16 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+
+exports_files([
+    "cwd.bzl",
+    "workspace_root.bzl",
+])
+
+bzl_library(
+    name = "extension",
+    srcs = ["extension.bzl"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//bazel/multitool/private:lockfile",
+        "//bazel/multitool/private:templates",
+    ],
+)
