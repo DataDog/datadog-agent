@@ -400,9 +400,9 @@ func (e *CommonEnvironment) AgentExtraEnvVars() map[string]string {
 		return result
 	}
 
-	extraEnvVarsList := strings.Split(strings.Trim(envVars, " "), ",")
+	extraEnvVarsList := strings.SplitSeq(strings.Trim(envVars, " "), ",")
 
-	for _, envVar := range extraEnvVarsList {
+	for envVar := range extraEnvVarsList {
 		name, value, ok := strings.Cut(envVar, "=")
 		if !ok {
 			e.Ctx().Log.Warn(fmt.Sprintf("Invalid extraEnvVar format: %s", envVar), nil)

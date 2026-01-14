@@ -38,6 +38,7 @@ test_kmt_local_setup_macos:
   before_script:
     - !reference [.vault_login]
     - !reference [.aws_retry_config]
+    - !reference [.setup_agent_github_app]
     # Selecting the current Go version
     - |
       eval $(gimme $(cat .go-version))
@@ -53,3 +54,6 @@ test_kmt_local_setup_macos:
     # - PulumiPlugins: no github tokens in the macos runner and the plugins download fails with rate limits sometimes
     # - MacBasePackages: brew fails to update in the CI
     KMT_EXCLUDE_REQUIREMENTS: "Docker,Compiler,UserInDockerGroup,AWSConfig,PulumiPlugins,MacBasePackages"
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
