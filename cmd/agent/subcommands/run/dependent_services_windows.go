@@ -52,7 +52,8 @@ var subservices = []Servicedef{
 	{
 		name: "sysprobe",
 		configKeys: map[string]model.Config{
-			"network_config.enabled":          pkgconfigsetup.SystemProbe(),
+			"network_config.enabled": pkgconfigsetup.SystemProbe(),
+			// NOTE: may be set at runtime if any modules are enabled (e.g. traceroute.enabled)
 			"system_probe_config.enabled":     pkgconfigsetup.SystemProbe(),
 			"windows_crash_detection.enabled": pkgconfigsetup.SystemProbe(),
 			"runtime_security_config.enabled": pkgconfigsetup.SystemProbe(),
