@@ -4,7 +4,7 @@
 //! - Startup: scan_metadata (parquet vs sidecar fast path)
 //! - Index queries: list_metrics, list_containers (in-memory, instant)
 //! - Timeseries queries: single container, all containers (parquet reads)
-//! - Studies: periodicity, changepoint analysis algorithms
+//! - Studies: periodicity, changepoint, trend detection algorithms
 //! - MCP patterns: analyze_container, summarize_container (compound queries)
 //!
 //! ## Running benchmarks
@@ -39,7 +39,8 @@
 use divan::Bencher;
 use fine_grained_monitor::metrics_viewer::data::TimeRange;
 use fine_grained_monitor::metrics_viewer::studies::{
-    changepoint::ChangepointStudy, periodicity::PeriodicityStudy, Study,
+    changepoint::ChangepointStudy, periodicity::PeriodicityStudy,
+    trend_detection::TrendDetectionStudy, Study,
 };
 use fine_grained_monitor::metrics_viewer::LazyDataStore;
 use std::path::PathBuf;
@@ -336,6 +337,47 @@ fn study_changepoint(bencher: Bencher) {
         });
 }
 
+/// Benchmark: Trend detection algorithm
+///
+/// Detects monotonic trends using linear regression and Mann-Kendall test.
+/// Uses with_inputs to pre-load timeseries data.
+/// Uses deterministic metric/container selection (sorted alphabetically).
+#[divan::bench]
+fn study_trend_detection(bencher: Bencher) {
+    let store = match create_store() {
+        Some(s) => s,
+        None => return,
+    };
+
+    let metric = get_first_metric_sorted(&store);
+    let container = get_first_container_sorted(&store);
+
+    let timeseries = if let (Some(metric_name), Some(container_id)) = (metric, container) {
+        store
+            .get_timeseries(&metric_name, &[container_id.as_str()], TimeRange::All)
+            .ok()
+            .and_then(|mut ts| ts.pop())
+            .map(|(_, points)| points)
+    } else {
+        None
+    };
+
+    let timeseries = match timeseries {
+        Some(ts) if !ts.is_empty() => ts,
+        _ => {
+            eprintln!("No timeseries data available for trend detection benchmark");
+            return;
+        }
+    };
+
+    bencher
+        .with_inputs(|| timeseries.clone())
+        .bench_values(|ts| {
+            let study = TrendDetectionStudy::default();
+            study.analyze(&ts)
+        });
+}
+
 // =============================================================================
 // MCP PATTERN BENCHMARKS - Compound queries matching real MCP tool usage
 // =============================================================================
@@ -492,9 +534,9 @@ fn mcp_summarize_container(bencher: Bencher) {
     });
 }
 
-/// Benchmark: Full analyze_container flow with both studies
+/// Benchmark: Full analyze_container flow with all studies
 ///
-/// Most expensive MCP pattern: single metric analyzed with BOTH studies.
+/// Most expensive MCP pattern: single metric analyzed with ALL studies.
 /// Uses deterministic metric/container selection (sorted alphabetically).
 #[divan::bench]
 fn mcp_analyze_all_studies(bencher: Bencher) {
@@ -521,6 +563,7 @@ fn mcp_analyze_all_studies(bencher: Bencher) {
 
     let periodicity = PeriodicityStudy::default();
     let changepoint = ChangepointStudy::default();
+    let trend_detection = TrendDetectionStudy::default();
 
     bencher.bench(|| {
         let ts_result =
@@ -529,6 +572,7 @@ fn mcp_analyze_all_studies(bencher: Bencher) {
             if let Some((_, points)) = ts.pop() {
                 let _ = periodicity.analyze(&points);
                 let _ = changepoint.analyze(&points);
+                let _ = trend_detection.analyze(&points);
             }
         }
     });
