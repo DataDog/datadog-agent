@@ -174,7 +174,7 @@ func isValidTTYName(ttyName string) bool {
 
 // UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
-	const size = 160
+	const size = 168
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -243,7 +243,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 292 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 308 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -271,7 +271,7 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 	read += n
 
 	// TODO: Is there a better way to determine if there's no interpreter?
-	if e.FileEvent.Inode != pathKey.Inode || e.FileEvent.MountID != pathKey.MountID {
+	if e.FileEvent.Inode != pathKey.Inode || e.FileEvent.MountID != pathKey.MountID || e.FileEvent.MntNS != pathKey.MntNS {
 		e.LinuxBinprm.FileEvent.PathKey = pathKey
 	}
 
@@ -358,14 +358,15 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshals the given content
 func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 16 {
+	if len(data) < PathKeySize {
 		return 0, ErrNotEnoughData
 	}
 	p.Inode = binary.NativeEndian.Uint64(data[0:8])
 	p.MountID = binary.NativeEndian.Uint32(data[8:12])
 	p.PathID = binary.NativeEndian.Uint32(data[12:16])
-
-	return 16, nil
+	p.MntNS = binary.NativeEndian.Uint32(data[16:20])
+	// bytes 20-24 are padding
+	return PathKeySize, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

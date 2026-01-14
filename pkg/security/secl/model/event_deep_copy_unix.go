@@ -295,6 +295,7 @@ func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 func deepCopyPathKey(fieldToCopy PathKey) PathKey {
 	copied := PathKey{}
 	copied.Inode = fieldToCopy.Inode
+	copied.MntNS = fieldToCopy.MntNS
 	copied.MountID = fieldToCopy.MountID
 	copied.PathID = fieldToCopy.PathID
 	return copied

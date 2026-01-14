@@ -355,10 +355,11 @@ func (p *PathKey) IsNull() bool {
 	return p.Inode == 0 && p.MountID == 0
 }
 
-// PathKeySize defines the path key size
-const PathKeySize = 16
+// PathKeySize defines the path key size (ino:8 + mount_id:4 + path_id:4 + mount_ns:4 + padding:4 = 24, aligned to 8)
+const PathKeySize = 24
 
 // PathLeafSize defines path_leaf struct size
+// PathKeySize(24) + Name(256) + Len(2) + Padding(6) = 288 bytes (aligned to 8)
 const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + name + len + padding
 
 // PathLeaf is the go representation of the eBPF path_leaf_t structure

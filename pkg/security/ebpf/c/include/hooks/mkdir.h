@@ -80,6 +80,7 @@ int hook_vfs_mkdir(ctx_t *ctx) {
     }
 
     syscall->mkdir.file.path_key.mount_id = get_path_mount_id(syscall->mkdir.path);
+    syscall->mkdir.file.path_key.mount_ns = get_path_mount_ns(syscall->mkdir.path);
 
     if (approve_syscall(syscall, mkdir_approvers) == DISCARDED) {
         pop_syscall(EVENT_MKDIR);

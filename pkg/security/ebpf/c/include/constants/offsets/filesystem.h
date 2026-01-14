@@ -165,6 +165,22 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
     return inum;
 }
 
+// Get mount namespace inum from vfsmount (converts to struct mount internally)
+static u32 __attribute__((always_inline)) get_vfsmount_mount_ns_inum(struct vfsmount *vfsmnt) {
+    // Convert vfsmount to struct mount using MNT_OFFSETOF_MNT offset
+    void *mnt = (void *)vfsmnt - MNT_OFFSETOF_MNT;
+    return get_mount_mount_ns_inum(mnt);
+}
+
+static u32 __attribute__((always_inline)) get_path_mount_ns(struct path *path) {
+    struct vfsmount *vfsmnt = get_path_vfsmount(path);
+    u32 ns = get_vfsmount_mount_ns_inum(vfsmnt);
+    return ns;
+}
+
+static u32 __attribute__((always_inline)) get_file_mount_ns(struct file *file) {
+    return get_path_mount_ns(get_file_f_path_addr(file));
+}
 static struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
     return (struct vfsmount *)(mnt + MNT_OFFSETOF_MNT);
 }

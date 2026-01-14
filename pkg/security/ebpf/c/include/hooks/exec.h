@@ -745,6 +745,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                     .ino = syscall->exec.file.path_key.ino,
                     .mount_id = syscall->exec.file.path_key.mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
+                    .mount_ns = syscall->exec.file.path_key.mount_ns,
                 },
                 .flags = syscall->exec.file.flags,
                 .metadata = {

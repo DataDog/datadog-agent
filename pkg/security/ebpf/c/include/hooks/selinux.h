@@ -22,6 +22,7 @@ int __attribute__((always_inline)) handle_selinux_event(void *ctx, struct file *
     struct dentry *dentry = get_file_dentry(file);
     syscall.selinux.dentry = dentry;
     syscall.selinux.file.path_key.mount_id = get_file_mount_id(file);
+    syscall.selinux.file.path_key.mount_ns = get_file_mount_ns(file);
 
     if (count < SELINUX_WRITE_BUFFER_LEN) {
         int value = parse_buf_to_bool(buf);

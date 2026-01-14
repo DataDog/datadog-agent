@@ -74,15 +74,15 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
 
-	// marshal cgroup_context/path_key of size 16
+	// marshal cgroup_context/path_key of size 24
 	if len(data) < PathKeySize {
 		return 0, ErrNotEnoughSpace
 	}
 	e.CGroup.CGroupFile.Write(data)
 	written := PathKeySize
 
-	// marshal file_t executable of size 72
-	if len(data[written:]) < 72 {
+	// marshal file_t executable of size 80
+	if len(data[written:]) < FileFieldsSize {
 		return 0, ErrNotEnoughSpace
 	}
 	added, err := MarshalBinary(data[written:], &e.FileEvent)
@@ -180,8 +180,8 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 	buff := make([]byte, PathLeafSize)
 
 	pl.Parent.Write(buff)
-	copy(buff[16:], pl.Name[:])
-	binary.NativeEndian.PutUint16(buff[16+len(pl.Name):], pl.Len)
+	copy(buff[PathKeySize:], pl.Name[:])
+	binary.NativeEndian.PutUint16(buff[PathKeySize+len(pl.Name):], pl.Len)
 
 	return buff, nil
 }
@@ -190,6 +190,8 @@ func (p *PathKey) Write(buffer []byte) {
 	binary.NativeEndian.PutUint64(buffer[0:8], p.Inode)
 	binary.NativeEndian.PutUint32(buffer[8:12], p.MountID)
 	binary.NativeEndian.PutUint32(buffer[12:16], p.PathID)
+	binary.NativeEndian.PutUint32(buffer[16:20], p.MntNS)
+	binary.NativeEndian.PutUint32(buffer[20:24], 0) // explicit padding for alignment
 }
 
 // MarshalBinary returns the binary representation of a path key

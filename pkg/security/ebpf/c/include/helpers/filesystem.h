@@ -36,7 +36,7 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
     // need to invalidate the current path id for event which may change the association inode/name like
     // unlink, rename, rmdir.
     if (invalidate) {
-        __sync_fetch_and_add(id, 1);
+        __sync_fetch_and_add(id, 1);    // pas conditionnel 
     }
 
     u8 link_id_value;
@@ -53,7 +53,7 @@ static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int
         link_id_value = 0;
     }
 
-    id_value = PATH_ID(link_id_value, id_value);
+    id_value = PATH_ID(link_id_value, id_value); // use id 
 
     return id_value;
 }
@@ -195,11 +195,15 @@ void __attribute__((always_inline)) fill_file(struct dentry *dentry, struct file
 
 #define get_dentry_key_path(dentry, path)                                  \
     (struct path_key_t) {                                                  \
-        .ino = get_dentry_ino(dentry), .mount_id = get_path_mount_id(path) \
+        .ino = get_dentry_ino(dentry),                                     \
+        .mount_id = get_path_mount_id(path),                               \
+        .mount_ns = get_path_mount_ns(path)                                  \
     }
-#define get_inode_key_path(inode, path)                                  \
-    (struct path_key_t) {                                                \
-        .ino = get_inode_ino(inode), .mount_id = get_path_mount_id(path) \
+#define get_inode_key_path(inode, path)                                    \
+    (struct path_key_t) {                                                  \
+        .ino = get_inode_ino(inode),                                       \
+        .mount_id = get_path_mount_id(path),                               \
+        .mount_ns = get_path_mount_ns(path)                                  \
     }
 
 static __attribute__((always_inline)) void set_file_inode(struct dentry *dentry, struct file_t *file, int invalidate) {

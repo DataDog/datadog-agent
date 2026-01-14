@@ -48,7 +48,7 @@ func newTestInteger[T testIntegerType](value T) *testInteger[T] {
 }
 
 func TestMarshalProcCache(t *testing.T) {
-	const procCacheSize = 176
+	const procCacheSize = 192
 
 	testCGroupFileInode := newTestInteger(uint64(123456789))
 	testCGroupFileMountID := newTestInteger(uint32(24))

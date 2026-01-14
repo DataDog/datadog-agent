@@ -422,13 +422,16 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 	challenge := dr.challenge
 	dr.challenge++
 
-	// create eRPC request
+	// create eRPC request - path_key_t is 24 bytes (ino:8 + mount_id:4 + path_id:4 + mount_ns:4 + padding:4)
+	// Layout: [0-24] path_key, [24-32] userspace_buffer, [32-36] buffer_size, [36-40] challenge
 	dr.erpcRequest.OP = op
 	binary.NativeEndian.PutUint64(dr.erpcRequest.Data[0:8], pathKey.Inode)
 	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[8:12], pathKey.MountID)
 	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
-	// 16-28 populated at start
-	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[28:32], challenge)
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[16:20], pathKey.MntNS)
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[20:24], 0) // padding
+	// 24-32 userspace_buffer populated at start, 32-36 buffer_size populated at start
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[36:40], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	if dr.useBPFProgWriteUser {
@@ -461,7 +464,7 @@ func (dr *Resolver) computeSegmentCount() int {
 	count := 0
 	i := 0
 	for i < dr.erpcSegmentSize {
-		i += 16 // skip the path key
+		i += 24 // skip the path key (24 bytes with padding)
 
 		if i < dr.erpcSegmentSize {
 			if dr.erpcSegment[i] == '/' {
@@ -499,13 +502,14 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	dr.prepareBuffersWithCapacity(segmentCount)
 
 	i := 0
-	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
-	for i < dr.erpcSegmentSize-17 {
+	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(path_key_t) + 1 = 25)
+	for i < dr.erpcSegmentSize-25 {
 		depth++
 
-		// parse the path_key_t structure
+		// parse the path_key_t structure (24 bytes: ino:8 + mount_id:4 + path_id:4 + mount_ns:4 + padding:4)
 		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
 		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
+		pathKey.MntNS = binary.NativeEndian.Uint32(dr.erpcSegment[i+16 : i+20])
 
 		// check challenge
 		if challenge != binary.NativeEndian.Uint32(dr.erpcSegment[i+12:i+16]) {
@@ -517,8 +521,8 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			return "", errERPCRequestNotProcessed
 		}
 
-		// skip PathID
-		i += 16
+		// skip full path_key_t (24 bytes)
+		i += 24
 
 		if dr.erpcSegment[i] == 0 {
 			if depth >= model.MaxPathDepth {
@@ -686,17 +690,18 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 	// Allocate memory area in userspace that ebpf programs will write to. Will receive warning because the kernel writing to userspace memory can cause instability.
 	if dr.erpcSegment == nil {
 		// We need at least 7 memory pages for the eRPC segment method to work.
-		// For each segment of a path, we write 16 bytes to store (inode, mount_id, path_id), and then at least 2 bytes to
-		// store the smallest possible path (segment of size 1 + trailing 0). 18 * 1500 = 27 000.
-		// Then, 27k + 256 / page_size < 7.
+		// For each segment of a path, we write 24 bytes to store path_key_t, and then at least 2 bytes to
+		// store the smallest possible path (segment of size 1 + trailing 0). 26 * 1100 = 28 600.
+		// Then, 28.6k + 256 / page_size < 7.
 		dr.erpcSegment = make([]byte, 7*4096)
 		dr.useBPFProgWriteUser = true
 
-		binary.NativeEndian.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+		// Layout: [0-24] path_key, [24-32] userspace_buffer, [32-36] buffer_size, [36-40] challenge
+		binary.NativeEndian.PutUint64(dr.erpcRequest.Data[24:32], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	}
 
 	dr.erpcSegmentSize = len(dr.erpcSegment)
-	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[32:36], uint32(dr.erpcSegmentSize))
 
 	return nil
 }

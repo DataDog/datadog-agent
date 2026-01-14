@@ -26,7 +26,8 @@ import (
 
 const (
 	// FileFieldsSize is the size used by the file_t structure
-	FileFieldsSize = 72
+	// path_key(24) + dev(4) + flags(4) + metadata(48) = 80
+	FileFieldsSize = 80
 )
 
 // NewEvent returns a new Event
@@ -894,6 +895,7 @@ type PathKey struct {
 	Inode   uint64 `field:"inode"`    // SECLDoc[inode] Definition:`Inode of the file`
 	MountID uint32 `field:"mount_id"` // SECLDoc[mount_id] Definition:`Mount ID of the file`
 	PathID  uint32 `field:"-"`
+	MntNS   uint32 `field:"-"` // Mount namespace inode - prevents cross-namespace collisions
 }
 
 // OnDemandPerArgSize is the size of each argument in Data in the on-demand event

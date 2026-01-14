@@ -66,6 +66,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         bpf_printk("[KERN] i=%d name=%s ino=%lu", i, map_value.name, key.ino);
         bpf_printk("[KERN] i=%d mid=%u p_id=%u", i, key.mount_id, key.path_id);
+        bpf_printk("[KERN] mount_ns = %lu", key.mount_ns);
+        bpf_printk("[KERN] dentry==parent=%d", dentry == d_parent);
 
         if (map_value.name[0] == '/' || map_value.name[0] == 0) {
             next_key.ino = 0;
@@ -75,6 +77,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 
         map_value.parent = next_key;
 
+        bpf_printk("[KERN] WRITE pathnames[ino=%lu, mid=%u, p_id=%u, ns=%lu] = {name=%s, parent_ino=%lu}", 
+            key.ino, key.mount_id, key.path_id, key.mount_ns, map_value.name, next_key.ino);
         bpf_map_update_elem(&pathnames, &key, &map_value, BPF_ANY);
 
         dentry = d_parent;
@@ -87,9 +91,11 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
 
     if (input->iteration == DR_MAX_TAIL_CALL) {
+        bpf_printk("[KERN] Hit max iteration depth");
         map_value.name[0] = 0;
         map_value.parent.mount_id = 0;
         map_value.parent.ino = 0;
+        map_value.parent.mount_ns = 0;
         bpf_map_update_elem(&pathnames, &next_key, &map_value, BPF_ANY);
     }
 
@@ -235,6 +241,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, en
         state->key.ino = map_value->parent.ino;
         state->key.path_id = map_value->parent.path_id;
         state->key.mount_id = map_value->parent.mount_id;
+        state->key.mount_ns = map_value->parent.mount_ns;
         if (state->key.ino == 0) {
             goto exit;
         }
@@ -279,6 +286,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 #endif
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
+        bpf_printk("[ERPC] reading map ino=%lu mid=%u p_id=%u, ns=%u", iteration_key.ino, iteration_key.mount_id, iteration_key.path_id, iteration_key.mount_ns);
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL) {
             bpf_printk("[ERPC] MISS i=%d ino=%lu", i, iteration_key.ino);
@@ -320,12 +328,14 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, enum TAI
 
         bpf_printk("[ERPC] i=%d name=%s", i, map_value->name);
         bpf_printk("[ERPC] i=%d cur_ino=%lu parent_ino=%lu", i, iteration_key.ino, map_value->parent.ino);
+        bpf_printk("[ERPC] i=%d mount_ns=%lu", i, map_value->parent.mount_ns);
 
         state->cursor += map_value->len;
 
         state->key.ino = map_value->parent.ino;
         state->key.path_id = map_value->parent.path_id;
         state->key.mount_id = map_value->parent.mount_id;
+        state->key.mount_ns = map_value->parent.mount_ns;
         if (state->key.ino == 0) {
             bpf_printk("[ERPC] done at i=%d", i);
             goto exit;

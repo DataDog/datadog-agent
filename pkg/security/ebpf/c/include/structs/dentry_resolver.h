@@ -7,6 +7,8 @@ struct path_key_t {
     u64 ino;
     u32 mount_id;
     u32 path_id;
+    u32 mount_ns;
+    u32 padding;
 };
 
 struct path_leaf_t {

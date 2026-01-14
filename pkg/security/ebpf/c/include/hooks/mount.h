@@ -14,6 +14,7 @@ int hook_mnt_want_write(ctx_t *ctx) {
     }
 
     struct vfsmount *mnt = (struct vfsmount *)CTX_PARM1(ctx);
+    u32 mnt_ns = get_vfsmount_mount_ns_inum(mnt);
 
     switch (syscall->type) {
     case EVENT_UTIME:
@@ -21,49 +22,58 @@ int hook_mnt_want_write(ctx_t *ctx) {
             return 0;
         }
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_CHMOD:
         if (syscall->setattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_CHOWN:
         if (syscall->setattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_RENAME:
         if (syscall->rename.src_file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->rename.src_file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->rename.src_file.path_key.mount_ns = mnt_ns;
         syscall->rename.target_file.path_key.mount_id = syscall->rename.src_file.path_key.mount_id;
+        syscall->rename.target_file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_RMDIR:
         if (syscall->rmdir.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->rmdir.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->rmdir.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_UNLINK:
         if (syscall->unlink.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->unlink.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->unlink.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_SETXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_REMOVEXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.path_key.mount_ns = mnt_ns;
         break;
     }
     return 0;
@@ -78,6 +88,7 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
     struct file *file = (struct file *)CTX_PARM1(ctx);
     struct vfsmount *mnt;
     bpf_probe_read(&mnt, sizeof(mnt), &get_file_f_path_addr(file)->mnt);
+    u32 mnt_ns = get_vfsmount_mount_ns_inum(mnt);
 
     switch (syscall->type) {
     case EVENT_CHOWN:
@@ -85,18 +96,21 @@ int __attribute__((always_inline)) trace__mnt_want_write_file(ctx_t *ctx) {
             return 0;
         }
         syscall->setattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->setattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_SETXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.path_key.mount_ns = mnt_ns;
         break;
     case EVENT_REMOVEXATTR:
         if (syscall->xattr.file.path_key.mount_id > 0) {
             return 0;
         }
         syscall->xattr.file.path_key.mount_id = get_vfsmount_mount_id(mnt);
+        syscall->xattr.file.path_key.mount_ns = mnt_ns;
         break;
     }
     return 0;
@@ -114,6 +128,8 @@ int hook_mnt_want_write_file_path(ctx_t *ctx) {
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, const char *, fstype) {
+    // bpf_printk("[MOUNT] mount ENTRY (classic syscall)");
+    
     struct syscall_cache_t syscall = {
         .type = EVENT_MOUNT,
     };
@@ -180,25 +196,51 @@ int __attribute__((always_inline)) send_detached_event(void *ctx, struct syscall
 }
 
 void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type, bool detached) {
+    // bpf_printk("[MOUNT] handle_new_mount called, detached=%d, type=%d", detached, syscall->type);
+    
     // populate the root dentry key
     struct dentry *root_dentry = get_vfsmount_dentry(get_mount_vfsmount(syscall->mount.newmnt));
     syscall->mount.root_key.mount_id = get_mount_mount_id(syscall->mount.newmnt);
     syscall->mount.mount_id_unique = get_mount_mount_id_unique(syscall->mount.newmnt);
     syscall->mount.root_key.ino = get_dentry_ino(root_dentry);
+    
+    // Get mount namespace for new mount and add to key
+    u32 new_mnt_ns = get_mount_mount_ns_inum(syscall->mount.newmnt);
+    syscall->mount.root_key.mount_ns = new_mnt_ns;
+    
     update_path_id(&syscall->mount.root_key, 0, 0);
-
-    bpf_printk("[MOUNT] root_key: ino=%lu mid=%u p_id=%u", 
-        syscall->mount.root_key.ino, syscall->mount.root_key.mount_id, syscall->mount.root_key.path_id);
+    
+    // bpf_printk("[MOUNT] root_key: ino=%lu mid=%u p_id=%u ns=%u", 
+    //     syscall->mount.root_key.ino, syscall->mount.root_key.mount_id, 
+    //     syscall->mount.root_key.path_id, syscall->mount.root_key.mount_ns);
 
     if(!detached) {
         // populate the mountpoint dentry key
         syscall->mount.mountpoint_key.mount_id = get_mount_mount_id(syscall->mount.parent);
         syscall->mount.parent_mount_id_unique = get_mount_mount_id_unique(syscall->mount.parent);
         syscall->mount.mountpoint_key.ino = get_dentry_ino(syscall->mount.mountpoint_dentry);
+        
+        // Get mount namespace for parent mount and add to key
+        u32 parent_mnt_ns = get_mount_mount_ns_inum(syscall->mount.parent);
+        syscall->mount.mountpoint_key.mount_ns = parent_mnt_ns;
+        
         update_path_id(&syscall->mount.mountpoint_key, 0, 0);
 
-        bpf_printk("[MOUNT] mountpoint_key: ino=%lu mid=%u p_id=%u", 
-            syscall->mount.mountpoint_key.ino, syscall->mount.mountpoint_key.mount_id, syscall->mount.mountpoint_key.path_id);
+        // bpf_printk("[MOUNT] mountpoint_key: ino=%lu mid=%u p_id=%u ns=%u", 
+        //     syscall->mount.mountpoint_key.ino, syscall->mount.mountpoint_key.mount_id,
+        //     syscall->mount.mountpoint_key.path_id, syscall->mount.mountpoint_key.mount_ns);
+
+        // Détecte si root_key et mountpoint_key ont des mount_id différents (for debugging)
+        // if (syscall->mount.root_key.mount_id != syscall->mount.mountpoint_key.mount_id) {
+        //     bpf_printk("[MOUNT] WARN: different mount_ids! root=%u mountpoint=%u",
+        //         syscall->mount.root_key.mount_id, syscall->mount.mountpoint_key.mount_id);
+        // }
+
+        // Détecte si les mount namespaces sont différents (for debugging)
+        // if (new_mnt_ns != parent_mnt_ns) {
+        //     bpf_printk("[MOUNT] INFO: different mount namespaces (expected for containers) new=%u parent=%u",
+        //         new_mnt_ns, parent_mnt_ns);
+        // }
     }
 
     // populate the device of the new mount
@@ -215,6 +257,9 @@ void __attribute__((always_inline)) handle_new_mount(void *ctx, struct syscall_c
     }
 
     if(!detached) {
+        // bpf_printk("[MOUNT] Stage1: resolving root_key ino=%lu mid=%u", 
+        //     syscall->mount.root_key.ino, syscall->mount.root_key.mount_id);
+
         syscall->resolver.key = syscall->mount.root_key;
         syscall->resolver.dentry = root_dentry;
         syscall->resolver.discarder_event_type = 0;
@@ -236,6 +281,9 @@ int __attribute__((always_inline)) dr_mount_stage_one_callback(void *ctx, enum T
     if (!syscall) {
         return 0;
     }
+
+    // bpf_printk("[MOUNT] Stage2: resolving mountpoint_key ino=%lu mid=%u",
+    //     syscall->mount.mountpoint_key.ino, syscall->mount.mountpoint_key.mount_id);
 
     syscall->resolver.key = syscall->mount.mountpoint_key;
     syscall->resolver.dentry = syscall->mount.mountpoint_dentry;
@@ -562,6 +610,8 @@ HOOK_SYSCALL_EXIT(open_tree) {
 
 HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr_flags)
 {
+    // bpf_printk("[MOUNT] fsmount ENTRY fd=%d flags=%u", fs_fd, flags);
+    
     struct syscall_cache_t syscall = {
         .type = EVENT_FSMOUNT,
     };
@@ -587,6 +637,8 @@ HOOK_SYSCALL_EXIT(fsmount) {
 
 HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int, to_dfd, const char *, to_pathname)
 {
+    // bpf_printk("[MOUNT] move_mount ENTRY from_dfd=%d to_dfd=%d", from_dfd, to_dfd);
+    
     struct syscall_cache_t syscall = {
         .type = EVENT_MOVE_MOUNT,
     };

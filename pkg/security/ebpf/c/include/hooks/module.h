@@ -38,6 +38,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 
     syscall->init_module.dentry = get_file_dentry(f);
     syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
+    syscall->init_module.file.path_key.mount_ns = get_file_mount_ns(f);
     set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
 
     syscall->resolver.key = syscall->init_module.file.path_key;

@@ -57,6 +57,7 @@ int hook_complete_walk(ctx_t *ctx) {
     syscall->link.src_dentry = src_dentry;
 
     syscall->link.src_file.path_key.mount_id = get_path_mount_id(syscall->link.src_path);
+    syscall->link.src_file.path_key.mount_ns = get_path_mount_ns(syscall->link.src_path);
 
     // force a new path id to force path resolution
     set_file_inode(src_dentry, &syscall->link.src_file, 1);
@@ -162,6 +163,7 @@ int __attribute__((always_inline)) sys_link_ret(void *ctx, int retval, enum TAIL
         syscall->link.target_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
         // this is a hard link, source and target dentries are on the same filesystem & mount point
         syscall->link.target_file.path_key.mount_id = syscall->link.src_file.path_key.mount_id;
+        syscall->link.target_file.path_key.mount_ns = syscall->link.src_file.path_key.mount_ns;
         if (is_overlayfs(syscall->link.src_dentry)) {
             syscall->link.target_file.flags |= UPPER_LAYER;
         }
