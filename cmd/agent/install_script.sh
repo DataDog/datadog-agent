@@ -106,10 +106,12 @@ Troubleshooting and basic usage information for the %s are available at:
       exit 1;
     fi
 
-    if [ "$site" == "ddog-gov.com" ]; then
-      fallback_msg
-      exit 1;
-    fi
+    case $site in
+        *"ddog-gov.com")
+        fallback_msg
+        exit 1;
+        ;;
+    esac
 
     while true; do
         read -t 60 -p  "Do you want to send a failure report to Datadog (including $logfile)? (y/[n]) " -r yn || on_read_error

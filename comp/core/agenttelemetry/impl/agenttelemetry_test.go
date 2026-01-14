@@ -442,6 +442,16 @@ agent_telemetry:
 	assert.False(t, a.enabled)
 }
 
+func TestDisableIfLongGovCloud(t *testing.T) {
+	c := `
+site: "xxxx99.ddog-gov.com"
+agent_telemetry:
+  enabled: true
+`
+	a := getTestAtel(t, nil, c, nil, nil, nil)
+	assert.False(t, a.enabled)
+}
+
 func TestEnableIfNotGovCloud(t *testing.T) {
 	c := `
 site: "datadoghq.eu"
