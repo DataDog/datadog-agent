@@ -82,9 +82,9 @@ func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThresh
 
 	// Initialize backoff policy (same as newCheck)
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 2 * time.Minute
-	expBackoff.MaxInterval = 10 * time.Minute
-	expBackoff.Multiplier = 2.0
+	expBackoff.InitialInterval = 1 * time.Minute
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.Multiplier = 5.0
 	expBackoff.RandomizationFactor = 0.1
 	expBackoff.Reset()
 
@@ -186,8 +186,8 @@ func TestRetryOnFlareCreationFailure(t *testing.T) {
 	assert.False(t, check.flareAttempted)
 	assert.Equal(t, 1, check.flareAttemptCount)
 
-	// Simulate backoff elapsed (~2 minutes)
-	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+	// Simulate backoff elapsed (~1 minute)
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
 
 	// Second attempt fails
 	err = check.Run()
@@ -195,32 +195,14 @@ func TestRetryOnFlareCreationFailure(t *testing.T) {
 	assert.False(t, check.flareAttempted)
 	assert.Equal(t, 2, check.flareAttemptCount)
 
-	// Simulate backoff elapsed (~4 minutes)
-	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+	// Simulate backoff elapsed (~5 minutes)
+	check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
 
-	// Third attempt fails
-	err = check.Run()
-	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
-	assert.Equal(t, 3, check.flareAttemptCount)
-
-	// Simulate backoff elapsed (~8 minutes)
-	check.lastFlareAttempt = time.Now().Add(-9 * time.Minute)
-
-	// Fourth attempt fails
-	err = check.Run()
-	require.NoError(t, err)
-	assert.False(t, check.flareAttempted)
-	assert.Equal(t, 4, check.flareAttemptCount)
-
-	// Simulate backoff elapsed (~10 minutes, capped)
-	check.lastFlareAttempt = time.Now().Add(-11 * time.Minute)
-
-	// Fifth attempt fails and exhausts retries
+	// Third attempt fails and exhausts retries
 	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareAttempted)
-	assert.Equal(t, 5, check.flareAttemptCount)
+	assert.Equal(t, 3, check.flareAttemptCount)
 }
 
 // TestRetryOnFlareSendFailure tests retry logic when flare sending fails
@@ -232,9 +214,9 @@ func TestRetryOnFlareSendFailure(t *testing.T) {
 	config := configmock.NewMock(t)
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 2 * time.Minute
-	expBackoff.MaxInterval = 10 * time.Minute
-	expBackoff.Multiplier = 2.0
+	expBackoff.InitialInterval = 1 * time.Minute
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.Multiplier = 5.0
 	expBackoff.RandomizationFactor = 0.1
 	expBackoff.Reset()
 
@@ -262,8 +244,8 @@ user_email: "user@example.com"`)
 	assert.False(t, check.flareAttempted)
 	assert.Equal(t, 1, check.flareAttemptCount)
 
-	// Simulate backoff elapsed
-	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+	// Simulate backoff elapsed (~1 minute)
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
 
 	// Second attempt fails
 	err = check.Run()
@@ -283,8 +265,8 @@ func TestRetrySuccessAfterFailure(t *testing.T) {
 	assert.False(t, check.flareAttempted)
 	assert.Equal(t, 1, check.flareAttemptCount)
 
-	// Simulate backoff elapsed (~2 minutes)
-	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+	// Simulate backoff elapsed (~1 minute)
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
 
 	// Second attempt fails
 	err = check.Run()
@@ -292,8 +274,8 @@ func TestRetrySuccessAfterFailure(t *testing.T) {
 	assert.False(t, check.flareAttempted)
 	assert.Equal(t, 2, check.flareAttemptCount)
 
-	// Simulate backoff elapsed (~4 minutes)
-	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+	// Simulate backoff elapsed (~5 minutes)
+	check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
 
 	// Third attempt succeeds
 	err = check.Run()
@@ -309,30 +291,26 @@ func TestBackoffTiming(t *testing.T) {
 	// Reset backoff policy to test durations
 	check.backoffPolicy.Reset()
 
-	// First backoff should be ~2 minutes (with randomization)
+	// First backoff should be ~1 minute (with randomization)
 	backoffDuration := check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 1*time.Minute+45*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 2*time.Minute+15*time.Second)
+	assert.GreaterOrEqual(t, backoffDuration, 50*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 1*time.Minute+10*time.Second)
 
-	// Second backoff should be ~4 minutes
+	// Second backoff should be ~5 minutes (1min * 5 multiplier)
 	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 3*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
+	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
 
-	// Third backoff should be ~8 minutes
+	// Third backoff would be ~25 minutes (5min * 5), but capped at 5 minutes
+	// Note: We never actually use this since we only have 3 attempts total
 	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 7*time.Minute)
-	assert.LessOrEqual(t, backoffDuration, 9*time.Minute)
+	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
 
-	// Fourth backoff should be ~10 minutes (capped)
+	// Subsequent backoffs should remain capped at 5 minutes
 	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 9*time.Minute)
-	assert.LessOrEqual(t, backoffDuration, 10*time.Minute+30*time.Second)
-
-	// Subsequent backoffs should remain capped
-	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 9*time.Minute)
-	assert.LessOrEqual(t, backoffDuration, 10*time.Minute+30*time.Second)
+	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
 }
 
 // TestBackoffWait tests that retry waits for backoff duration
@@ -345,25 +323,45 @@ func TestBackoffWait(t *testing.T) {
 	assert.Equal(t, 1, check.flareAttemptCount)
 	firstAttemptTime := check.lastFlareAttempt
 	assert.False(t, firstAttemptTime.IsZero())
+	// Backoff duration not yet calculated (will be calculated on next Run when checking if we need to wait)
+	assert.Equal(t, time.Duration(0), check.nextBackoffDuration)
 
 	// Try to retry immediately - should wait (backoff not elapsed)
-	// Note: NextBackOff() advances the backoff state even when we don't retry,
-	// so the backoff duration will be for the next attempt
+	// This Run() call will calculate the backoff duration (~1 minute) and check if we need to wait
 	err = check.Run()
 	require.NoError(t, err)
 	// Attempt count should still be 1 because backoff hasn't elapsed
 	assert.Equal(t, 1, check.flareAttemptCount)
 	// lastFlareAttempt should be unchanged (we didn't make a new attempt)
 	assert.Equal(t, firstAttemptTime.Unix(), check.lastFlareAttempt.Unix())
+	// Backoff duration should now be cached (~1 minute) and remain the same on subsequent checks
+	assert.Greater(t, check.nextBackoffDuration, 50*time.Second)
+	assert.LessOrEqual(t, check.nextBackoffDuration, 1*time.Minute+10*time.Second)
 
-	// Simulate backoff elapsed - need enough time for the backoff duration
-	// (which was advanced by the previous NextBackOff() call, so it's now ~4min)
-	check.lastFlareAttempt = time.Now().Add(-5 * time.Minute)
+	// Call Run() again - backoff duration should remain the same (not advance)
+	err = check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 1, check.flareAttemptCount)
+	assert.Greater(t, check.nextBackoffDuration, 50*time.Second)
+	assert.LessOrEqual(t, check.nextBackoffDuration, 1*time.Minute+10*time.Second)
+
+	// Simulate backoff elapsed - need enough time for the backoff duration (~1 minute)
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
 
 	// Now retry should proceed
 	err = check.Run()
 	require.NoError(t, err)
 	assert.Equal(t, 2, check.flareAttemptCount)
+	// After second attempt fails, next backoff will be calculated on next Run() call
+	// Clear the cached duration to simulate what happens after backoff elapsed
+	check.nextBackoffDuration = 0
+
+	// Next Run() call will calculate the next backoff duration (~5 minutes)
+	err = check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 2, check.flareAttemptCount) // Still 2, waiting for backoff
+	assert.Greater(t, check.nextBackoffDuration, 4*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, check.nextBackoffDuration, 5*time.Minute+30*time.Second)
 }
 
 // TestBackoffResetOnFirstAttempt tests that backoff is reset on first threshold detection
@@ -382,8 +380,8 @@ func TestBackoffResetOnFirstAttempt(t *testing.T) {
 	// Backoff should be reset, so next backoff should be initial interval
 	check.backoffPolicy.Reset()
 	backoffDuration := check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 1*time.Minute+45*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 2*time.Minute+15*time.Second)
+	assert.GreaterOrEqual(t, backoffDuration, 50*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 1*time.Minute+10*time.Second)
 }
 
 // TestNoRetryAfterSuccess tests that no retries occur after successful flare generation
@@ -432,9 +430,9 @@ func TestFlareComponentNil(t *testing.T) {
 	config := configmock.NewMock(t)
 
 	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 2 * time.Minute
-	expBackoff.MaxInterval = 10 * time.Minute
-	expBackoff.Multiplier = 2.0
+	expBackoff.InitialInterval = 1 * time.Minute
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.Multiplier = 5.0
 	expBackoff.RandomizationFactor = 0.1
 	expBackoff.Reset()
 
@@ -454,21 +452,102 @@ func TestFlareComponentNil(t *testing.T) {
 
 // TestBackoffPolicyStop tests handling of backoff.Stop signal
 func TestBackoffPolicyStop(t *testing.T) {
-	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
+	// First attempt must fail to trigger retry logic and backoff.Stop handling
+	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("creation failed"), nil, 0)
 
 	// Manually set backoff policy to StopBackOff to test stop signal handling
 	check.backoffPolicy = &backoff.StopBackOff{}
 
-	// First attempt
+	// First attempt fails
 	err := check.Run()
 	require.NoError(t, err)
 	assert.Equal(t, 1, check.flareAttemptCount)
+	assert.False(t, check.flareAttempted) // Should not be marked as attempted yet
 
-	// Simulate backoff elapsed
+	// Simulate backoff elapsed - this will trigger NextBackOff() which returns Stop
 	check.lastFlareAttempt = time.Now().Add(-3 * time.Minute)
+	check.nextBackoffDuration = 0 // Clear cached duration to trigger recalculation
 
 	// Next attempt should stop due to backoff.Stop
 	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareAttempted) // Should be marked as attempted due to stop signal
+}
+
+// stopAfterFirstCallBackoff is a backoff that returns Stop after the first call
+type stopAfterFirstCallBackoff struct {
+	callCount   int
+	realBackoff backoff.BackOff
+}
+
+func (b *stopAfterFirstCallBackoff) NextBackOff() time.Duration {
+	b.callCount++
+	if b.callCount == 1 {
+		return backoff.Stop
+	}
+	return b.realBackoff.NextBackOff()
+}
+
+func (b *stopAfterFirstCallBackoff) Reset() {
+	b.callCount = 0
+	b.realBackoff.Reset()
+}
+
+// TestBackoffResetAndAdvance tests that reset-and-advance logic correctly positions backoff state
+func TestBackoffResetAndAdvance(t *testing.T) {
+	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("failed"), nil, 0)
+
+	// Create a backoff that returns Stop after first call, forcing reset
+	realBackoff := backoff.NewExponentialBackOff()
+	realBackoff.InitialInterval = 1 * time.Minute
+	realBackoff.MaxInterval = 5 * time.Minute
+	realBackoff.Multiplier = 5.0
+	realBackoff.RandomizationFactor = 0.1
+	realBackoff.Reset()
+
+	stopBackoff := &stopAfterFirstCallBackoff{
+		realBackoff: realBackoff,
+	}
+	check.backoffPolicy = stopBackoff
+
+	// First attempt fails
+	err := check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 1, check.flareAttemptCount)
+
+	// Simulate backoff elapsed - this will trigger NextBackOff() which returns Stop,
+	// causing reset and advance logic
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
+	check.nextBackoffDuration = 0 // Clear cached duration to trigger recalculation
+
+	// This Run() should reset the policy and advance correctly
+	// With flareAttemptCount=1, we should advance 0 times (1-1=0), then get 1st backoff
+	err = check.Run()
+	require.NoError(t, err)
+
+	// Verify we got the 1st backoff duration (~1 min), not the 2nd (~5 min)
+	assert.GreaterOrEqual(t, check.nextBackoffDuration, 50*time.Second)
+	assert.LessOrEqual(t, check.nextBackoffDuration, 1*time.Minute+10*time.Second)
+	assert.Equal(t, 1, check.flareAttemptCount) // Still waiting for backoff
+
+	// Now simulate second attempt failing
+	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
+	check.nextBackoffDuration = 0
+	err = check.Run()
+	require.NoError(t, err)
+	assert.Equal(t, 2, check.flareAttemptCount)
+
+	// Reset the stop backoff for next test
+	stopBackoff.callCount = 0
+	check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
+	check.nextBackoffDuration = 0
+
+	// With flareAttemptCount=2, we should advance 1 time (2-1=1), then get 2nd backoff
+	err = check.Run()
+	require.NoError(t, err)
+
+	// Verify we got the 2nd backoff duration (~5 min), not the 3rd
+	assert.GreaterOrEqual(t, check.nextBackoffDuration, 4*time.Minute+30*time.Second)
+	assert.LessOrEqual(t, check.nextBackoffDuration, 5*time.Minute+30*time.Second)
+	assert.Equal(t, 2, check.flareAttemptCount) // Still waiting for backoff
 }
