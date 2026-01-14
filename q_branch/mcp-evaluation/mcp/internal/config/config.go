@@ -4,15 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 )
 
 // Config holds the server configuration
 type Config struct {
-	Port           int
-	KubeconfigPath string
-	Context        string
-	LogLevel       string
+	Port     int
+	LogLevel string
 }
 
 // Load loads configuration from command-line flags, environment variables, and defaults
@@ -21,8 +18,6 @@ func Load() (*Config, error) {
 
 	// Define command-line flags
 	flag.IntVar(&cfg.Port, "port", getEnvInt("MCP_EVAL_PORT", 8080), "Port to listen on")
-	flag.StringVar(&cfg.KubeconfigPath, "kubeconfig", getEnvString("MCP_EVAL_KUBECONFIG", defaultKubeconfigPath()), "Path to kubeconfig file")
-	flag.StringVar(&cfg.Context, "context", getEnvString("MCP_EVAL_CONTEXT", "kind-mcp-eval"), "Kubernetes context to use")
 	flag.StringVar(&cfg.LogLevel, "loglevel", getEnvString("MCP_EVAL_LOGLEVEL", "info"), "Log level (debug, info, warn, error)")
 
 	flag.Parse()
@@ -34,14 +29,6 @@ func Load() (*Config, error) {
 func (c *Config) validate() error {
 	if c.Port < 1 || c.Port > 65535 {
 		return fmt.Errorf("invalid port: %d (must be between 1 and 65535)", c.Port)
-	}
-
-	if c.KubeconfigPath == "" {
-		return fmt.Errorf("kubeconfig path cannot be empty")
-	}
-
-	if c.Context == "" {
-		return fmt.Errorf("kubernetes context cannot be empty")
 	}
 
 	// Validate log level
@@ -56,21 +43,6 @@ func (c *Config) validate() error {
 	}
 
 	return nil
-}
-
-// defaultKubeconfigPath returns the default kubeconfig path
-func defaultKubeconfigPath() string {
-	// Check KUBECONFIG environment variable first
-	if kubeconfigEnv := os.Getenv("KUBECONFIG"); kubeconfigEnv != "" {
-		return kubeconfigEnv
-	}
-
-	// Fall back to ~/.kube/config
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".kube", "config")
 }
 
 // getEnvString gets a string from environment variable or returns default

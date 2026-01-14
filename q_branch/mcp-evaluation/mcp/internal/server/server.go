@@ -9,22 +9,18 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/k8s"
+	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools"
 )
 
 // Server represents the MCP evaluation server
 type Server struct {
 	mcpServer  *mcp.Server
 	httpServer *http.Server
-	k8sClient  *k8s.Client
 	port       int
 }
 
 // New creates a new MCP server
-func New(
-	k8sClient *k8s.Client,
-	port int,
-) *Server {
+func New(port int) *Server {
 	// Create MCP server with implementation metadata
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -36,8 +32,13 @@ func New(
 
 	s := &Server{
 		mcpServer: mcpServer,
-		k8sClient: k8sClient,
 		port:      port,
+	}
+
+	// Register tools
+	bashTool := tools.NewBashTool(30 * time.Second)
+	if err := bashTool.Register(mcpServer); err != nil {
+		log.Printf("Failed to register bash tool: %v", err)
 	}
 
 	return s
@@ -60,19 +61,44 @@ func (s *Server) RegisterTool(
 	)
 }
 
+// loggingMiddleware wraps an HTTP handler with request logging
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
+		log.Printf("[MCP] %s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+
+		// Log headers for debugging
+		if sessionID := r.Header.Get("x-mcp-session-id"); sessionID != "" {
+			log.Printf("[MCP] Session ID: %s", sessionID)
+		}
+
+		// Call the actual handler
+		next.ServeHTTP(w, r)
+
+		log.Printf("[MCP] %s %s completed in %v", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
 // Start starts the MCP server
 func (s *Server) Start(ctx context.Context) error {
-	// Create HTTP/SSE handler for MCP protocol
+	// Create HTTP/SSE handler for MCP protocol with JSON response option
+	opts := &mcp.StreamableHTTPOptions{
+		JSONResponse: true, // Return JSON instead of SSE
+	}
 	handler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return s.mcpServer },
-		nil,
+		opts,
 	)
+
+	// Wrap handler with logging middleware
+	loggedHandler := loggingMiddleware(handler)
 
 	// Create HTTP server
 	mux := http.NewServeMux()
 	mux.Handle(
 		"/mcp",
-		handler,
+		loggedHandler,
 	)
 
 	// Add health check endpoint
@@ -105,10 +131,6 @@ func (s *Server) Start(ctx context.Context) error {
 	log.Printf(
 		"Health check endpoint: http://127.0.0.1:%d/health\n",
 		s.port,
-	)
-	log.Printf(
-		"Kubernetes context: %s\n",
-		s.k8sClient.Context(),
 	)
 
 	// Start server in a goroutine
