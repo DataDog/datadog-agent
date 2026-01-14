@@ -323,9 +323,9 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 					Repo: pulumi.String("https://nvidia.github.io/k8s-device-plugin"),
 				},
 				Values: pulumi.Map{
-					// Configure device plugin:
-					// - failOnInitError: false - Don't crash on non-GPU nodes
-					// - deviceListStrategy: envvar - Sets NVIDIA_VISIBLE_DEVICES env var
+					// Configure device plugin with default values:
+					// - failOnInitError: false (default) - Don't crash on non-GPU nodes
+					// - deviceListStrategy: envvar (default) - Sets NVIDIA_VISIBLE_DEVICES env var
 					//   in container specs, enabling GPU-to-container mapping for Datadog GPU monitoring
 					"config": pulumi.Map{
 						"default": pulumi.String("eks-gpu-config"),

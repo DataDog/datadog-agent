@@ -68,6 +68,11 @@ def create_eks(
     Create a new EKS environment. It lasts around 20 minutes.
     """
 
+    # When GPU node group is enabled, disable other node groups for a GPU-only cluster
+    if gpu_node_group:
+        linux_node_group = False
+        bottlerocket_node_group = False
+
     extra_flags = {
         "ddinfra:aws/eks/linuxARMNodeGroup": linux_arm_node_group,
         "ddinfra:aws/eks/linuxBottlerocketNodeGroup": bottlerocket_node_group,
