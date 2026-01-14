@@ -15,6 +15,18 @@ bazel:mod-deps:
         echo >&2 "💡 bazel mod deps"
       fi
 
+bazel:mod-tidy:
+  extends: .bazel:runner:linux-amd64
+  stage: lint
+  script:
+    - bazel mod tidy
+    - git diff --exit-code
+  after_script:
+    - |-
+      if [ $CI_JOB_STATUS = failed ]; then
+        echo >&2 "💡 bazel mod tidy"
+      fi
+
 bazel:run-buildifier-test:
   extends: .bazel:runner:linux-amd64
   stage: lint

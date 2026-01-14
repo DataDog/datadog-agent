@@ -129,8 +129,14 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 		)
 	}
 
+	releaseVersion, err := GetNodesVersion(amiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+
 	// common args
 	args := &eks.ManagedNodeGroupArgs{
+		ReleaseVersion:      pulumi.String(releaseVersion),
 		AmiType:             pulumi.StringPtr(amiType),
 		Cluster:             cluster.Core,
 		InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),

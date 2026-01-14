@@ -20,10 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 const (
@@ -128,7 +128,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := suite.testDir + "/1/1.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	util.CreateSources(logSources)
+	testutils.CreateSources(logSources)
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(1, len(files))
@@ -143,7 +143,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := suite.testDir + "/1/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(3, len(files))
@@ -190,7 +190,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	path := suite.testDir + "/*/*1.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	util.CreateSources(logSources)
+	testutils.CreateSources(logSources)
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(2, len(files))
@@ -207,7 +207,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := suite.testDir + "/1/?.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(3, len(files))
@@ -249,7 +249,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := suite.testDir + "/*/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -269,7 +269,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/1/*.log"}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/2/*.log"}),
 	}
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())

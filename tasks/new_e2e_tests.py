@@ -106,6 +106,8 @@ def build_binaries(
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if parallel == 0:
         parallel = multiprocessing.cpu_count()
@@ -267,6 +269,8 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if shutil.which("pulumi") is None:
         raise Exit(

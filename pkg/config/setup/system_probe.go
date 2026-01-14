@@ -177,7 +177,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interval", 1*time.Second)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.per_probe_cpu_limit", 0.1)
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.all_probes_cpu_limit", 0.5)
-	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breakerinterrupt_overhead", 5*time.Microsecond)
+	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 5*time.Microsecond)
 
 	// network_tracer settings
 	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
@@ -338,7 +338,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.enabled", true)
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.container_store.max_containers_tracked", 1024)
 
-	cfg.BindEnvAndSetDefault("compliance_config.enabled", false)
+	cfg.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault("network_config.enable_root_netns", true)
