@@ -549,3 +549,7 @@ func TestFirstNonZero(t *testing.T) {
 		})
 	}
 }
+
+func TestIntentionalFailure(t *testing.T) {
+	assert.True(t, false, "intentional failing test")
+}
