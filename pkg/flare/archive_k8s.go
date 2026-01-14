@@ -15,7 +15,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -55,17 +54,9 @@ func getKubeletPods() (data []byte, err error) {
 		return nil, err
 	}
 
-	// If scrubbing is enabled, scrub the pod list
-	orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
-	if err := orchestratorCfg.Load(); err != nil {
-		log.Debugf("Error loading the orchestrator config: %v", err)
-		return nil, err
-	}
-
-	if orchestratorCfg.IsScrubbingEnabled {
-		for _, pod := range pods {
-			redact.ScrubPod(pod, orchestratorCfg.Scrubber)
-		}
+	scrubber := redact.NewDefaultDataScrubber()
+	for _, pod := range pods {
+		redact.ScrubPod(pod, scrubber)
 	}
 
 	// Create a new pod list with the (potentially) scrubbed pods
