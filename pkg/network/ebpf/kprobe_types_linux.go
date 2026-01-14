@@ -104,6 +104,7 @@ type Telemetry struct {
 	Protocol_classifier_entrypoint_stack_not_fully_classified_calls  uint64
 	Protocol_classifier_entrypoint_flag_set_but_not_classified_calls uint64
 	Protocol_classifier_entrypoint_has_app_layer_no_flag_calls       uint64
+	Protocol_classifier_entrypoint_empty_stack_calls                 uint64
 	Socket_classifier_entry_calls                                    uint64
 	Socket_classifier_entry_time_ns                                  uint64
 }

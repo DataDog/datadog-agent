@@ -186,6 +186,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         } else if (protocol_stack->layer_application > 0) {
             // Has app layer but flag not set
             increment_telemetry_count(protocol_classifier_entrypoint_has_app_layer_no_flag_calls);
+        } else {
+            // Stack exists but has NO app layer at all - empty/unclassified stack
+            increment_telemetry_count(protocol_classifier_entrypoint_empty_stack_calls);
         }
     }
 

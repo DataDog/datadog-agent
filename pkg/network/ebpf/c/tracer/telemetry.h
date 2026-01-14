@@ -46,6 +46,7 @@ enum telemetry_counter {
     protocol_classifier_entrypoint_stack_not_fully_classified_calls,
     protocol_classifier_entrypoint_flag_set_but_not_classified_calls,
     protocol_classifier_entrypoint_has_app_layer_no_flag_calls,
+    protocol_classifier_entrypoint_empty_stack_calls,
     socket_classifier_entry_calls,
 };
 
@@ -150,6 +151,9 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case protocol_classifier_entrypoint_has_app_layer_no_flag_calls:
         __sync_fetch_and_add(&val->protocol_classifier_entrypoint_has_app_layer_no_flag_calls, times);
+        break;
+    case protocol_classifier_entrypoint_empty_stack_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_empty_stack_calls, times);
         break;
     case socket_classifier_entry_calls:
         __sync_fetch_and_add(&val->socket_classifier_entry_calls, times);

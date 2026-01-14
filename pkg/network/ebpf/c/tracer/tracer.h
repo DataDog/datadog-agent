@@ -171,6 +171,7 @@ typedef struct {
     __u64 protocol_classifier_entrypoint_stack_not_fully_classified_calls;
     __u64 protocol_classifier_entrypoint_flag_set_but_not_classified_calls;
     __u64 protocol_classifier_entrypoint_has_app_layer_no_flag_calls;
+    __u64 protocol_classifier_entrypoint_empty_stack_calls;
     // socket classifier entry timing metrics
     __u64 socket_classifier_entry_calls;
     __u64 socket_classifier_entry_time_ns;

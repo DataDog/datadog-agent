@@ -983,8 +983,9 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		hasAppLayerNoFlag := int64(ebpfTelemetry.Protocol_classifier_entrypoint_has_app_layer_no_flag_calls)
 		log.Infof("JMW   debug (cumulative): no_protocol_stack=%d, stack_not_fully_classified=%d",
 			noProtocolStackCalls, stackNotFullyClassifiedCalls)
-		log.Infof("JMW   debug2 (cumulative): flag_set_but_not_classified=%d, has_app_layer_no_flag=%d",
-			flagSetButNotClassified, hasAppLayerNoFlag)
+		emptyStackCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_empty_stack_calls)
+		log.Infof("JMW   debug2 (cumulative): flag_set_but_not_classified=%d, has_app_layer_no_flag=%d, empty_stack=%d",
+			flagSetButNotClassified, hasAppLayerNoFlag, emptyStackCalls)
 
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)
