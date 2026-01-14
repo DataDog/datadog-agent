@@ -201,7 +201,7 @@ copy_directory(
 cc_library(
     name = "imported_ssl_headers",
     hdrs = [":copy_headers"],
-    includes = [".", "copied_headers", "TOAST2"],
+    includes = ["copied_headers"],
 )
 
 filegroup(
