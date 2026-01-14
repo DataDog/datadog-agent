@@ -206,8 +206,12 @@ filegroup(
 copy_to_directory(
     name = "libs_unix_no_symlinks",
     srcs = [":libs_unix"],
-    exclude_srcs_patterns = [
-        "**/libpython3.*.so",
+    exclude_srcs_patterns = select({
+        # We want to include libpython3.so & libpython3.13.so.1.0, but
+        # exclude libpython3.13.so
+        "@platforms//os:linux": ["**/libpython3.*.so"],
+        "//conditions:default": [],
+    }) + [
         "**/*.pyc",
     ],
     include_external_repositories = ["*"],
@@ -269,7 +273,9 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
-            ":libpython_symlink",
         ],
+    }) + select({
+        "@platforms//os:linux": [":libpython_symlink"],
+        "//conditions:default": [],
     }),
 )
