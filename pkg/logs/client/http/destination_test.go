@@ -128,7 +128,7 @@ func TestLogsDroppedMetric(t *testing.T) {
 	testLogsDropped(t, 413)
 }
 
-func testLogsDropped(t *testing.T, statusCode int){
+func testLogsDropped(t *testing.T, statusCode int) {
 	cfg := configmock.New(t)
 	telemetryMock := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	metrics.TlmLogsDropped = telemetryMock.NewCounter("logs", "dropped", []string{"destination"}, "")
@@ -149,10 +149,10 @@ func testLogsDropped(t *testing.T, statusCode int){
 
 	// Send Payload that should fail & be non-retryable
 	input <- payload
-	<- output
+	<-output
 
 	// Verify the logs.dropped metric was incremented & has correct destination tag
-	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs","dropped")
+	metric, err := telemetryMock.(telemetry.Mock).GetCountMetric("logs", "dropped")
 	assert.NoError(t, err)
 	assert.Len(t, metric, 1, "Should have one metric entry")
 
