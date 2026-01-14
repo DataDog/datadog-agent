@@ -1,8 +1,13 @@
 import re
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from typing import cast
+
+# Skip kernel matrix testing on Windows as it's Linux-specific (eBPF/kernel testing)
+if sys.platform == 'win32':
+    raise unittest.SkipTest("Kernel matrix testing is not supported on Windows")
 
 from invoke.context import Context, MockContext
 

@@ -1,9 +1,17 @@
 import os
+import platform
+import sys
+from unittest import mock
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
+
+# Mock the pwd module on Windows since it's Unix-only
+if platform.system() == 'Windows':
+    pwd_mock = mock.MagicMock()
+    sys.modules['pwd'] = pwd_mock
 
 TEST_ENV = {
     'INVOKE_UNIT_TESTS': '1',

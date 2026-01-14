@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import unittest
 from unittest.mock import MagicMock, patch
@@ -199,12 +200,12 @@ class TestCompare(unittest.TestCase):
     def test_on_main(self, mock_print):
         flavor, arch, os_name = 'datadog-heroku-agent', 'amd64', 'deb'
         s = PackageSize(arch, flavor, os_name, 2001)
+        # Normalize path for cross-platform compatibility
+        pkg_path = os.path.join(self.pkg_root, f"{flavor}_7_{arch}.{os_name}")
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('12345'),
-                f"dpkg-deb --info {self.pkg_root}/{flavor}_7_{arch}.{os_name} | grep Installed-Size | cut -d : -f 2 | xargs": Result(
-                    42
-                ),
+                f"dpkg-deb --info {pkg_path} | grep Installed-Size | cut -d : -f 2 | xargs": Result(42),
             }
         )
         self.package_sizes['12345'] = {arch: {flavor: {os_name: 70000000}}}
@@ -222,10 +223,12 @@ class TestCompare(unittest.TestCase):
     def test_on_branch_warning(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         s = PackageSize(arch, flavor, os_name, 70000000)
+        # Normalize path for cross-platform compatibility
+        pkg_path = os.path.join(self.pkg_root, f"{flavor}-7.{arch}.rpm")
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
-                f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(69000000),
+                f"rpm -qip {pkg_path} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
         )
         res = compare(c, self.package_sizes, '25', s)
@@ -242,10 +245,12 @@ class TestCompare(unittest.TestCase):
     def test_on_branch_ok_small_diff(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         s = PackageSize(arch, flavor, os_name, 70000000)
+        # Normalize path for cross-platform compatibility
+        pkg_path = os.path.join(self.pkg_root, f"{flavor}-7.{arch}.rpm")
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
-                f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(68004999),
+                f"rpm -qip {pkg_path} | grep Size | cut -d : -f 2 | xargs": Result(68004999),
             }
         )
         res = compare(c, self.package_sizes, '25', s)
@@ -261,12 +266,12 @@ class TestCompare(unittest.TestCase):
     def test_on_branch_ok_rpm(self, mock_print):
         flavor, arch, os_name = 'datadog-iot-agent', 'x86_64', 'rpm'
         s = PackageSize(arch, flavor, os_name, 70000000)
+        # Normalize path for cross-platform compatibility
+        pkg_path = os.path.join(self.pkg_root, f"{flavor}-7.{arch}.{os_name}")
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
-                f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.{os_name} | grep Size | cut -d : -f 2 | xargs": Result(
-                    69000000
-                ),
+                f"rpm -qip {pkg_path} | grep Size | cut -d : -f 2 | xargs": Result(69000000),
             }
         )
         res = compare(c, self.package_sizes, '25', s)
@@ -283,12 +288,12 @@ class TestCompare(unittest.TestCase):
     def test_on_branch_ko(self, mock_print):
         flavor, arch, os_name = 'datadog-agent', 'aarch64', 'suse'
         s = PackageSize(arch, flavor, os_name, 70000000)
+        # Normalize path for cross-platform compatibility
+        pkg_path = os.path.join(self.pkg_root, f"{flavor}-7.{arch}.rpm")
         c = MockContext(
             run={
                 'git merge-base HEAD origin/main': Result('25'),
-                f"rpm -qip {self.pkg_root}/{flavor}-7.{arch}.rpm | grep Size | cut -d : -f 2 | xargs": Result(
-                    139000000
-                ),
+                f"rpm -qip {pkg_path} | grep Size | cut -d : -f 2 | xargs": Result(139000000),
             }
         )
         res = compare(c, self.package_sizes, '25', s)

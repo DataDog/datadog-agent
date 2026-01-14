@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import MagicMock, call, mock_open, patch
 
@@ -78,11 +79,12 @@ class TestDownload(unittest.TestCase):
         path = '/path/to/dir'
         result = download(url, path)
 
-        # Verify results
-        self.assertEqual(result, '/path/to/dir/file.txt')
+        # Verify results (normalize path separators for cross-platform)
+        expected_path = os.path.join('/path/to/dir', 'file.txt')
+        self.assertEqual(result, expected_path)
 
         # Verify file operations
-        mock_open.assert_called_once_with('/path/to/dir/file.txt', 'wb')
+        mock_open.assert_called_once_with(expected_path, 'wb')
 
     @patch('os.path.isdir')
     @patch('builtins.open', new_callable=mock_open)
