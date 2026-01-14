@@ -4,6 +4,7 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 
 package(default_package_metadata = [":license"])
 
@@ -147,6 +148,7 @@ pkg_files(
         ":_bins",
     ],
     prefix = "bin",
+    attributes = pkg_attributes("0755"),
 )
 
 pkg_install(
