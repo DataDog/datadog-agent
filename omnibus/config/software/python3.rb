@@ -36,8 +36,6 @@ build do
     elsif linux_target?
       python_configure_options.push("--enable-shared",
                             "--enable-ipv6")
-    elsif aix?
-      # something here...
     end
 
     python_configure_options.push("--with-dbmliborder=")
