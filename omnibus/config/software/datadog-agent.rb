@@ -272,7 +272,12 @@ build do
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+        }
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
