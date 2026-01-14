@@ -21,6 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const (
+	cudaTestsDockerImage = "ubuntu:24.04" // use Ubuntu images instead of Alpine for CUDA tests, to avoid issues with libc
+)
+
 // requireDocker skips the test if Docker is not available
 func requireDocker(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
@@ -132,9 +136,6 @@ func TestDeviceAssignment(t *testing.T) {
 					CudaVisibleDevicesEnv: tc.cudaVisibleDevices,
 				}
 				out := testutil.RunSampleWithArgs(t, testutil.GPUUUIDsSample, args)
-				cmd := out.Command
-				require.NotNil(t, cmd)
-
 				pid := out.PID
 				t.Logf("Sample started: PID=%d, CUDA_VISIBLE_DEVICES=%q", pid, tc.cudaVisibleDevices)
 
@@ -169,7 +170,7 @@ func TestDeviceAssignment(t *testing.T) {
 				args := &testutil.GPUUUIDsSampleArgs{
 					CudaVisibleDevicesEnv: tc.cudaVisibleDevices,
 				}
-				out := testutil.RunSampleInDockerWithArgs(t, testutil.GPUUUIDsSample, testutil.MinimalDockerImage, args)
+				out := testutil.RunSampleInDockerWithArgs(t, testutil.GPUUUIDsSample, cudaTestsDockerImage, args)
 				pid := out.PID
 				containerID := out.ContainerID
 				require.NotZero(t, pid, "Container PID should not be zero")
