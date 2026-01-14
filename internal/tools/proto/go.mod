@@ -24,5 +24,3 @@ require (
 	golang.org/x/tools v0.40.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 )
-
-replace google.golang.org/protobuf v1.36.11 => google.golang.org/protobuf v1.36.11

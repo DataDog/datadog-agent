@@ -89,6 +89,7 @@ type DatadogConfig struct {
 	GPUCheck             GPUCheckConfig             `yaml:"gpu,omitempty"`
 	SBOM                 SBOMConfig                 `yaml:"sbom,omitempty"`
 	InfrastructureMode   string                     `yaml:"infrastructure_mode,omitempty"`
+	APMConfig            DatadogAPMConfig           `yaml:"apm_config,omitempty"`
 }
 
 // GPUCheckConfig represents the configuration for the GPU check
@@ -231,6 +232,22 @@ type LogProcessingRule struct {
 	Type    string `yaml:"type" json:"type"`
 	Name    string `yaml:"name" json:"name"`
 	Pattern string `yaml:"pattern" json:"pattern"`
+}
+
+// DatadogAPMConfig represents the config for the APM agent
+type DatadogAPMConfig struct {
+	ObfuscationConfig *ObfuscationConfig `yaml:"obfuscation,omitempty"`
+}
+
+// ObfuscationConfig represents the configuration for obfuscation
+type ObfuscationConfig struct {
+	CreditCards CreditCardObfuscationConfig `yaml:"credit_cards,omitempty"`
+}
+
+// CreditCardObfuscationConfig represents the configuration for credit card obfuscation
+type CreditCardObfuscationConfig struct {
+	Enabled    *bool    `yaml:"enabled,omitempty"`
+	KeepValues []string `yaml:"keep_values,omitempty"`
 }
 
 // ApplicationMonitoringConfig represents the configuration for the application monitoring
