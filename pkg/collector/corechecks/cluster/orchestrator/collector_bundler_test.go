@@ -384,6 +384,17 @@ func TestNewBuiltinCRDConfigs(t *testing.T) {
 
 		// Argo
 		"argoproj.io/v1alpha1/rollouts",
+		"argoproj.io/v1alpha1/applications",
+		"argoproj.io/v1alpha1/applicationsets",
+
+		// Flux
+		"source.toolkit.fluxcd.io/v1/buckets",
+		"source.toolkit.fluxcd.io/v1/helmcharts",
+		"source.toolkit.fluxcd.io/v1/externalartifacts",
+		"source.toolkit.fluxcd.io/v1/gitrepositories",
+		"source.toolkit.fluxcd.io/v1/helmrepositories",
+		"source.toolkit.fluxcd.io/v1/ocirepositories",
+		"kustomize.toolkit.fluxcd.io/v1/kustomizations",
 
 		// karpenter all resources
 		"karpenter.sh/v1/",

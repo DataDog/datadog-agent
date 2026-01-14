@@ -53,6 +53,9 @@ build do
            "--disable-docs",
            "--disable-libcurl-option",
            "--disable-versioned-symbols",
+           "--disable-libuv",
+           "--disable-verbose",
+           "--disable-progress-meter",
   ]
   configure(*configure_options, env: env)
 

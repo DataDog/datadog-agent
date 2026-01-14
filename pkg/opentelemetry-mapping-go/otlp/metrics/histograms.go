@@ -188,9 +188,11 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 	base := math.Pow(2, math.Pow(2, float64(-scale)))
 	var positiveStore store.Store
 	var negativeStore store.Store
+	var zeroCount float64
 	if p != nil {
 		positiveStore = toStoreFromExponentialBucketsWithUnitScale(p.Positive(), mapping, base, scaleToNanos)
 		negativeStore = toStoreFromExponentialBucketsWithUnitScale(p.Negative(), mapping, base, scaleToNanos)
+		zeroCount = float64(p.ZeroCount())
 	} else {
 		positiveStore = store.NewDenseStore()
 		negativeStore = store.NewDenseStore()
@@ -198,7 +200,7 @@ func CreateDDSketchFromExponentialHistogramOfDuration(p *pmetric.ExponentialHist
 
 	// Create DDSketch with the above mapping and stores
 	sketch := ddsketch.NewDDSketch(mapping, positiveStore, negativeStore)
-	err = sketch.AddWithCount(0, float64(p.ZeroCount()))
+	err = sketch.AddWithCount(0, zeroCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add ZeroCount to DDSketch: %w", err)
 	}

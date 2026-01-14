@@ -36,6 +36,7 @@ scenario_name = "aws/eks"
         "agent_flavor": doc.agent_flavor,
         "helm_config": doc.helm_config,
         "local_chart_path": doc.local_chart_path,
+        "kube_version": doc.kubernetes_version,
     }
 )
 def create_eks(
@@ -57,6 +58,7 @@ def create_eks(
     agent_flavor: Optional[str] = None,
     helm_config: Optional[str] = None,
     local_chart_path: Optional[str] = None,
+    kube_version: Optional[str] = None,
 ):
     """
     Create a new EKS environment. It lasts around 20 minutes.
@@ -69,6 +71,7 @@ def create_eks(
         "ddinfra:aws/eks/windowsNodeGroup": windows_node_group,
         "ddagent:localChartPath": local_chart_path,
         "ddtestworkload:deployArgoRollout": install_argorollout,
+        "ddinfra:kubernetesVersion": kube_version,
     }
 
     # Override the instance type if specified

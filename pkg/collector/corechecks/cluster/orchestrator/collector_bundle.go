@@ -39,6 +39,8 @@ const (
 	defaultMaximumCRDs      = 100
 	datadogAPIGroup         = "datadoghq.com"
 	ArgoAPIGroup            = "argoproj.io"
+	FluxAPIGroup            = "source.toolkit.fluxcd.io"
+	FluxKustomizeAPIGroup   = "kustomize.toolkit.fluxcd.io"
 	KarpenterAPIGroup       = "karpenter.sh"
 	KarpenterAWSAPIGroup    = "karpenter.k8s.aws"
 	KarpenterAzureAPIGroup  = "karpenter.azure.com"
@@ -362,7 +364,6 @@ func (cb *CollectorBundle) skipCollector(informerName apiserver.InformerName, er
 
 // Run is used to sequentially run all collectors in the bundle.
 func (cb *CollectorBundle) Run(sender sender.Sender) {
-
 	// Start a thread to buffer manifests and kill it when the check is finished.
 	if cb.runCfg.Config.IsManifestCollectionEnabled && cb.manifestBuffer.Cfg.BufferedManifestEnabled {
 		cb.manifestBuffer.Start(sender)
@@ -496,6 +497,18 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 
 		// Argo resources
 		newBuiltinCRDConfig(ArgoAPIGroup, "rollouts", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applications", isOOTBCRDEnabled, "v1alpha1"),
+		newBuiltinCRDConfig(ArgoAPIGroup, "applicationsets", isOOTBCRDEnabled, "v1alpha1"),
+		// appprojects also exists, but unclear if they are need for resource location identification.
+
+		// Flux resources
+		newBuiltinCRDConfig(FluxAPIGroup, "buckets", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmcharts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "externalartifacts", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "gitrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "helmrepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxAPIGroup, "ocirepositories", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig(FluxKustomizeAPIGroup, "kustomizations", isOOTBCRDEnabled, "v1"),
 
 		// Karpenter resources (empty kind = all resources in group)
 		newBuiltinCRDConfig(KarpenterAPIGroup, "", isOOTBCRDEnabled, "v1"),
