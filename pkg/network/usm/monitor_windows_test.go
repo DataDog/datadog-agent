@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	nethttp "net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -68,101 +67,125 @@ func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
 	return monitor
 }
 
-// HTTPEndpointValidator defines a function that checks if an HTTP endpoint is relevant and valid.
-// It receives the request key and stats, and should return true if this endpoint matches the expected criteria.
-type HTTPEndpointValidator func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool
-
-// makeHTTPEndpointValidator creates a validator function for a specific HTTP endpoint.
-// It checks for GET requests matching the path suffix, port, status code, and expected count.
-// Optional additionalChecks can be provided for extra validations (e.g., IIS tags).
-func makeHTTPEndpointValidator(pathSuffix string, expectedStatus uint16, serverPort int, expectedCount int, additionalChecks func(*testing.T, *http.RequestStat) bool) HTTPEndpointValidator {
-	return func(t *testing.T, key http.Key, reqStats *http.RequestStats) bool {
-		// Check method
-		if key.Method != http.MethodGet {
-			return false
-		}
-		// Check path
-		if !strings.HasSuffix(key.Path.Content.Get(), pathSuffix) {
-			return false
-		}
-		// Check port (either source or destination should match server port)
-		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
-			return false
-		}
-
-		// Check status code and count
-		stat := reqStats.Data[expectedStatus]
-		if stat == nil || stat.Count != expectedCount {
-			return false
-		}
-
-		// Run any additional checks
-		if additionalChecks != nil {
-			return additionalChecks(t, stat)
-		}
-		return true
-	}
+// statusCodeCount holds the expected status code and count for validation.
+type statusCodeCount struct {
+	statusCode uint16
+	count      int
 }
 
-// verifyHTTPStats iterates through HTTP stats and checks which of the expected endpoints are found.
-// Each validator in expectedEndpoints determines if an endpoint is "relevant" (matches the criteria) and passes validation.
-// endpointsFound is a slice where each index corresponds to an endpoint, and the value indicates if found.
-// This function is called repeatedly in require.Eventually to handle in-flight kernel requests.
-func verifyHTTPStats(t *testing.T, monitor Monitor, endpointsFound []bool, expectedEndpoints ...HTTPEndpointValidator) {
+// getHTTPLikeProtocolStats extracts HTTP protocol stats from the monitor.
+func getHTTPLikeProtocolStats(t *testing.T, monitor Monitor, protocolType protocols.ProtocolType) map[http.Key]*http.RequestStats {
 	t.Helper()
 
-	// Get fresh stats from monitor
 	allStats := monitor.GetHTTPStats()
 	if allStats == nil {
-		return
+		return nil
 	}
 
-	statsObj, ok := allStats[protocols.HTTP]
+	statsObj, ok := allStats[protocolType]
 	if !ok {
-		return
+		return nil
 	}
 
 	stats, ok := statsObj.(map[http.Key]*http.RequestStats)
 	if !ok {
-		t.Logf("unexpected type for HTTP stats: %T", statsObj)
-		return
+		return nil
 	}
 
-	// Iterate through all HTTP stats and check validators
+	return stats
+}
+
+// verifyHTTPStats validates that the expected HTTP endpoints are present in the stats.
+// expectedEndpoints maps http.Key (without connection details) to expected status code and count.
+// serverPort is used to filter stats to only those matching the server port.
+// additionalValidator is optional - if provided, performs custom validation on each RequestStat.
+// Returns true if all expected endpoints are found with matching status codes and counts.
+func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints map[http.Key]statusCodeCount, serverPort int, additionalValidator func(*testing.T, *http.RequestStat) bool) bool {
+	t.Helper()
+
+	stats := getHTTPLikeProtocolStats(t, monitor, protocols.HTTP)
+	if len(stats) == 0 {
+		return false
+	}
+
+	// Build result map from actual stats
+	result := make(map[http.Key]statusCodeCount)
+
 	for key, reqStats := range stats {
-		// Check against each expected endpoint validator
-		for i, validator := range expectedEndpoints {
-			// Only check validators that haven't been satisfied yet
-			if !endpointsFound[i] && validator(t, key, reqStats) {
-				t.Logf("Found expected endpoint %d: %v %s [%d:%d]", i, key.Method, key.Path.Content.Get(), key.SrcPort, key.DstPort)
-				endpointsFound[i] = true
+		// Only check stats matching the server port
+		if key.SrcPort != uint16(serverPort) && key.DstPort != uint16(serverPort) {
+			continue
+		}
+
+		// Iterate through all status codes in the stats
+		for statusCode, stat := range reqStats.Data {
+			if stat == nil || stat.Count == 0 {
+				continue
+			}
+
+			// Run additional validation if provided
+			if additionalValidator != nil && !additionalValidator(t, stat) {
+				continue
+			}
+
+			// Create a simplified key for comparison (normalize path and method only)
+			simpleKey := http.Key{
+				Method: key.Method,
+				Path: http.Path{
+					Content: key.Path.Content,
+				},
+			}
+
+			// Store in result map
+			result[simpleKey] = statusCodeCount{
+				statusCode: statusCode,
+				count:      stat.Count,
 			}
 		}
 	}
-}
 
-// allEndpointsFound is a helper that checks if all expected endpoints were found.
-func allEndpointsFound(found []bool) bool {
-	return !slices.Contains(found, false)
-}
+	// Compare result with expected endpoints
+	if len(result) != len(expectedEndpoints) {
+		return false
+	}
 
-// verifyIISDynamicTags validates that IIS-specific dynamic tags are present in the request stats.
-func verifyIISDynamicTags(t *testing.T, stat *http.RequestStat, expectedTags map[string]struct{}) {
-	t.Helper()
-
-	// Verify IIS dynamic tags are present
-	require.NotNil(t, stat.DynamicTags, "Dynamic tags should be present for IIS traffic")
-
-	statsTags := make(map[string]struct{})
-	for _, tag := range stat.DynamicTags.GetAll() {
-		if name, _, ok := strings.Cut(tag, ":"); ok && name != "" {
-			statsTags[name] = struct{}{}
+	for key, expected := range expectedEndpoints {
+		actual, ok := result[key]
+		if !ok {
+			return false
+		}
+		if actual.statusCode != expected.statusCode || actual.count != expected.count {
+			return false
 		}
 	}
 
-	// Verify all expected tags are present
-	require.Subset(t, expectedTags, statsTags, "Expected IIS tags to be present in stats")
-	t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
+	return true
+}
+
+// makeIISTagValidator creates a validator function that checks for expected IIS dynamic tags.
+func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *http.RequestStat) bool {
+	return func(t *testing.T, stat *http.RequestStat) bool {
+		if stat.DynamicTags == nil {
+			return false
+		}
+
+		statsTags := make(map[string]struct{})
+		for _, tag := range stat.DynamicTags.GetAll() {
+			if name, _, ok := strings.Cut(tag, ":"); ok && name != "" {
+				statsTags[name] = struct{}{}
+			}
+		}
+
+		// Check if all expected tags are present
+		for expectedTag := range expectedTags {
+			if _, exists := statsTags[expectedTag]; !exists {
+				return false
+			}
+		}
+
+		t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
+		return true
+	}
 }
 
 // TestHTTPStats tests basic HTTP monitoring functionality on Windows.
@@ -178,27 +201,43 @@ func TestHTTPStats(t *testing.T) {
 
 	monitor := setupWindowsMonitor(t, getHTTPCfg())
 
-	// Make first request: GET /test with 204 status
-	resp1, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test")
+	// Define test endpoints with status codes in path
+	testEndpointPath := "/" + strconv.Itoa(nethttp.StatusNoContent) + "/test"
+	healthEndpointPath := "/" + strconv.Itoa(nethttp.StatusOK) + "/api/health"
+
+	// Make first request: GET /204/test with 204 status
+	resp1, err := nethttp.Get("http://" + serverAddr + testEndpointPath)
 	require.NoError(t, err)
 	defer resp1.Body.Close()
 
-	// Make second request: GET /api/health with 200 status
-	resp2, err := nethttp.Get("http://" + serverAddr + "/" + strconv.Itoa(nethttp.StatusOK) + "/api/health")
+	// Make second request: GET /200/api/health with 200 status
+	resp2, err := nethttp.Get("http://" + serverAddr + healthEndpointPath)
 	require.NoError(t, err)
 	defer resp2.Body.Close()
 
 	srvDoneFn()
 
+	// Define expected endpoints
+	expectedEndpoints := map[http.Key]statusCodeCount{
+		{
+			Path:   http.Path{Content: http.Interner.GetString(testEndpointPath)},
+			Method: http.MethodGet,
+		}: {
+			statusCode: 204,
+			count:      1,
+		},
+		{
+			Path:   http.Path{Content: http.Interner.GetString(healthEndpointPath)},
+			Method: http.MethodGet,
+		}: {
+			statusCode: 200,
+			count:      1,
+		},
+	}
+
 	// Verify both endpoints were captured by the monitor
-	// Track which endpoints have been found across iterations to handle in-flight kernel requests
-	endpointsFound := make([]bool, 2)
 	require.Eventuallyf(t, func() bool {
-		verifyHTTPStats(t, monitor, endpointsFound,
-			makeHTTPEndpointValidator("/test", 204, serverPort, 1, nil),
-			makeHTTPEndpointValidator("/api/health", 200, serverPort, 1, nil),
-		)
-		return allEndpointsFound(endpointsFound)
+		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
 	}, 3*time.Second, 100*time.Millisecond, "HTTP connections not found for %s", serverAddr)
 }
 
@@ -252,17 +291,19 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("Response body length: %d bytes", len(body))
 
-	// Verify the monitor captured the HTTP traffic
-	// Track which endpoints have been found across iterations to handle in-flight kernel requests
-	endpointsFound := make([]bool, 1)
+	// Define expected endpoints
+	expectedEndpoints := map[http.Key]statusCodeCount{
+		{
+			Path:   http.Path{Content: http.Interner.GetString(testPath)},
+			Method: http.MethodGet,
+		}: {
+			statusCode: uint16(expectedStatus),
+			count:      1,
+		},
+	}
+
+	// Verify the monitor captured the HTTP traffic with IIS tags
 	require.Eventuallyf(t, func() bool {
-		verifyHTTPStats(t, monitor, endpointsFound,
-			makeHTTPEndpointValidator(testPath, uint16(expectedStatus), serverPort, 1, func(t *testing.T, stat *http.RequestStat) bool {
-				// Verify IIS-specific dynamic tags
-				verifyIISDynamicTags(t, stat, expectedTags)
-				return true
-			}),
-		)
-		return allEndpointsFound(endpointsFound)
+		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
 }
