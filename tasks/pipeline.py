@@ -14,12 +14,10 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import (
     cancel_pipeline,
     get_gitlab_repo,
-    get_gitlab_token,
     gitlab_configuration_is_modified,
     refresh_pipeline,
 )
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_default_branch
 from tasks.libs.common.utils import (
     get_all_allowed_repo_branches,
@@ -308,10 +306,10 @@ def wait_for_pipeline_from_ref(repo: Project, ref):
 
 
 @task(iterable=['variable'])
-def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=True, timeout=7200):
+def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True, timeout=7200):
     """
     Trigger a child pipeline on a target repository and git ref.
-    Used in CI jobs only (automatically generate a token targeting the target project).
+    Used in CI jobs only (requires CI_JOB_TOKEN).
 
     Use --variable to specify the environment variables that should be passed to the child pipeline.
     You can pass the argument multiple times for each new variable you wish to forward
@@ -325,6 +323,13 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
 
     dda inv pipeline.trigger-child-pipeline --git-ref "main" --project-name "DataDog/agent-release-management" --variable "VAR1" --variable "VAR2" --variable "VAR3"
     """
+
+    if not os.environ.get('CI_JOB_TOKEN'):
+        raise Exit("CI_JOB_TOKEN variable needed to create child pipelines.", 1)
+
+    # Use the CI_JOB_TOKEN which is passed from gitlab
+    token = None if follow else os.environ['CI_JOB_TOKEN']
+    repo = get_gitlab_repo(project_name, token=token)
 
     # Fill the environment variables to pass to the child pipeline.
     variables = {}
@@ -348,28 +353,10 @@ def trigger_child_pipeline(ctx, git_ref, project_name, variable=None, follow=Tru
         flush=True,
     )
 
-    # Feature flag for short lived tokens. When enabled we use short lived tokens to create the pipeline. As a consequence we need to use the "create" pipeline API instead of the "trigger" pipeline API.
-    # When disabled we use the CI_JOB_TOKEN to create the pipeline.
-    # Note: With short-lived tokens enabled we lose the link between the parent and the child pipeline. It should work again when BTI fix the issue, tracked in: CIP-896
-    if is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
-        token = get_gitlab_token(ctx, repo=project_name.split('/')[1], verbose=True)
-        repo = get_gitlab_repo(project_name, token=token)
-        try:
-            # GitLab API expects `variables` as a list of `{key, value}` objects, not a dict.
-            # Sending a dict will result in: `400: variables is invalid`.
-            variables_payload = [{'key': key, 'value': value} for (key, value) in variables.items()]
-            pipeline = repo.pipelines.create({'ref': git_ref, 'variables': variables_payload})
-        except GitlabError as e:
-            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
-    else:
-        if "CI_JOB_TOKEN" not in os.environ:
-            raise Exit("CI_JOB_TOKEN environment variable is required when short lived tokens are disabled", code=1)
-        token = None if follow else os.environ["CI_JOB_TOKEN"]
-        repo = get_gitlab_repo(project_name, token=token)
-        try:
-            pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
-        except GitlabError as e:
-            raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
+    try:
+        pipeline = repo.trigger_pipeline(git_ref, os.environ['CI_JOB_TOKEN'], variables=variables)
+    except GitlabError as e:
+        raise Exit(f"Failed to create child pipeline: {e}", code=1) from e
 
     print(f"Created a child pipeline with id={pipeline.id}, url={pipeline.web_url}", flush=True)
 

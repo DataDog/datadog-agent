@@ -16,6 +16,7 @@ from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import (
     create_tree,
+    get_ancestor_base_branch,
     get_commit_sha,
     get_common_ancestor,
     get_current_branch,
@@ -507,9 +508,14 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
 
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
-    ancestor = get_common_ancestor(ctx, "HEAD")
+    # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
+    base_branch = get_ancestor_base_branch(branch)
+    # get_common_ancestor is supposed to fetch this but it doesn't, so we do it here explicitly
+    ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=True)
+    ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
+    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
     current_commit = get_commit_sha(ctx)
-    # When on main branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/main
+    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
     # is the current commit. In this case, use the parent commit as the ancestor instead.
     if ancestor == current_commit:
         ancestor = get_commit_sha(ctx, commit="HEAD~1")
