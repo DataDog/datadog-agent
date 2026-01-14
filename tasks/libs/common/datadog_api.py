@@ -220,3 +220,50 @@ def query_metrics(query, from_time, to_time):
             series_list.append(series_data)
 
         return series_list
+
+
+def query_gate_metrics_for_commit(commit_sha: str, gate_name: str, lookback: str = "now-7d") -> dict:
+    """
+    Query Datadog for static quality gate metrics for a specific commit.
+
+    Uses the existing query_metrics function to fetch on_disk_size and on_wire_size
+    metrics for an ancestor commit. This provides a consistent source of truth
+    for calculating relative size changes.
+
+    Args:
+        commit_sha: The git commit SHA to query metrics for
+        gate_name: The quality gate name to filter by
+        lookback: How far back to look (default 7 days)
+
+    Returns:
+        Dict with 'current_on_disk_size' and 'current_on_wire_size' if found,
+        empty dict otherwise
+    """
+    results = {}
+
+    metrics_to_query = {
+        'current_on_disk_size': 'datadog.agent.static_quality_gate.on_disk_size',
+        'current_on_wire_size': 'datadog.agent.static_quality_gate.on_wire_size',
+    }
+
+    for metric_key, metric_name in metrics_to_query.items():
+        query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha},gate_name:{gate_name}}}"
+
+        try:
+            series_list = query_metrics(query, lookback, "now")
+
+            # Get the most recent non-null value from the first matching series
+            for series in series_list:
+                pointlist = series.get("pointlist", [])
+                # Iterate backwards to get most recent value
+                for point in reversed(pointlist):
+                    if len(point) > 1 and point[1] is not None:
+                        results[metric_key] = int(point[1])
+                        break
+                if metric_key in results:
+                    break
+
+        except Exception as e:
+            print(f"[WARN] Failed to query {metric_name} for commit {commit_sha}: {e}", file=sys.stderr)
+
+    return results

@@ -727,46 +727,99 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(
-        self, ctx, filename="static_gate_report.json", report_path="static_gate_report.json", ancestor=None
-    ):
-        if ancestor:
-            # Fetch the ancestor's static quality gates report json file
-            out = ctx.run(
-                f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.S3_REPORT_PATH}/{ancestor}/{filename} {report_path}",
-                hide=True,
-                warn=True,
-            )
-            if out.exited == 0:
-                # Load the report inside of a GateMetricHandler specific to the ancestor
-                ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
-                for gate in self.metrics:
-                    ancestor_gate = ancestor_metric_handler.metrics.get(gate)
-                    if not ancestor_gate:
-                        continue
-                    # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
-                    for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                        current_value = self.metrics[gate].get(metric_key)
-                        ancestor_value = ancestor_gate.get(metric_key)
-                        if current_value is not None and ancestor_value is not None:
-                            relative_metric_size = current_value - ancestor_value
-                            self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
-            else:
-                print(
-                    color_message(
-                        f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} !\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
-                        "orange",
-                    )
+    def generate_relative_size(self, ctx, ancestor=None, report_path="static_gate_report.json"):
+        """
+        Calculate relative sizes by querying Datadog for ancestor metrics.
+        Falls back to S3 report if Datadog query fails or returns no data.
+
+        Args:
+            ctx: Invoke context
+            ancestor: The ancestor commit SHA to compare against
+            report_path: Local path to store S3 report (only used for fallback)
+        """
+        if not ancestor:
+            print(color_message("[WARN] Unable to find this commit ancestor", "orange"))
+            return
+
+        from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
+
+        datadog_gates_found = 0
+
+        for gate in self.metrics:
+            # Query Datadog for ancestor's metrics
+            ancestor_gate = query_gate_metrics_for_commit(ancestor, gate)
+
+            if ancestor_gate:
+                datadog_gates_found += 1
+                # Calculate relative sizes using Datadog data
+                for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
+                    current_value = self.metrics[gate].get(metric_key)
+                    ancestor_value = ancestor_gate.get(metric_key)
+                    if current_value is not None and ancestor_value is not None:
+                        relative_metric_size = current_value - ancestor_value
+                        self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
+
+        # Fallback to S3 if no Datadog metrics found for any gate
+        if datadog_gates_found == 0:
+            print(
+                color_message(
+                    f"[INFO] No Datadog metrics found for ancestor {ancestor}, falling back to S3 report",
+                    "blue",
                 )
+            )
+            self._generate_relative_size_from_s3(ctx, ancestor, report_path)
         else:
             print(
                 color_message(
-                    "[WARN] Unable to find this commit ancestor",
+                    f"[INFO] Successfully fetched ancestor metrics from Datadog for {datadog_gates_found} gate(s)",
+                    "green",
+                )
+            )
+
+    def _generate_relative_size_from_s3(self, ctx, ancestor, report_path):
+        """
+        Legacy method: Calculate relative sizes from S3 report.
+        Used as fallback when Datadog query fails or for historical commits.
+
+        Args:
+            ctx: Invoke context
+            ancestor: The ancestor commit SHA
+            report_path: Local path to download the S3 report to
+        """
+        s3_filename = "static_gate_report.json"
+        out = ctx.run(
+            f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.S3_REPORT_PATH}/{ancestor}/{s3_filename} {report_path}",
+            hide=True,
+            warn=True,
+        )
+        if out.exited == 0:
+            ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
+            for gate in self.metrics:
+                ancestor_gate = ancestor_metric_handler.metrics.get(gate)
+                if not ancestor_gate:
+                    continue
+                for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
+                    current_value = self.metrics[gate].get(metric_key)
+                    ancestor_value = ancestor_gate.get(metric_key)
+                    if current_value is not None and ancestor_value is not None:
+                        relative_metric_size = current_value - ancestor_value
+                        self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
+            print(
+                color_message(
+                    f"[INFO] Successfully fetched ancestor metrics from S3 for ancestor {ancestor}",
+                    "green",
+                )
+            )
+        else:
+            print(
+                color_message(
+                    f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} via S3!\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
                     "orange",
                 )
             )
 
     def _generate_series(self):
+        """Generate metric series for sending to Datadog."""
         if not self.git_ref or not self.bucket_branch:
             return None
 
@@ -789,14 +842,6 @@ class GateMetricHandler:
                 gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
                 if gauge:
                     series.append(gauge)
-                elif "relative" in metric_key:
-                    # Relative metrics may be missing if ancestor predates delta tracking - this is expected
-                    print(
-                        color_message(
-                            f"[INFO] gate {gate} doesn't have the {metric_name} metric registered (ancestor may predate delta tracking)",
-                            "blue",
-                        )
-                    )
                 else:
                     print(
                         color_message(
@@ -808,6 +853,7 @@ class GateMetricHandler:
         return series
 
     def send_metrics_to_datadog(self):
+        """Send all metrics to Datadog (backward compatible)."""
         series = self._generate_series()
 
         if series:
