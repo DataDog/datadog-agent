@@ -179,6 +179,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         increment_telemetry_count(protocol_classifier_entrypoint_no_protocol_stack_calls);
     } else if (!is_fully_classified(protocol_stack)) {
         increment_telemetry_count(protocol_classifier_entrypoint_stack_not_fully_classified_calls);
+        // More detailed debug: check if FLAG_FULLY_CLASSIFIED is set
+        if (protocol_stack->flags & FLAG_FULLY_CLASSIFIED) {
+            // Flag IS set but is_fully_classified still returned false - shouldn't happen!
+            increment_telemetry_count(protocol_classifier_entrypoint_flag_set_but_not_classified_calls);
+        } else if (protocol_stack->layer_application > 0) {
+            // Has app layer but flag not set
+            increment_telemetry_count(protocol_classifier_entrypoint_has_app_layer_no_flag_calls);
+        }
     }
 
     if (is_fully_classified(protocol_stack)) {
