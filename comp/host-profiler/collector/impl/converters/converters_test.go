@@ -129,7 +129,7 @@ func TestGetNonExistentPath(t *testing.T) {
 	require.Equal(t, "", val) // Zero value
 
 	// Nested non-existent
-	val, ok = Get[string](cm, "level1::level2::missing")
+	_, ok = Get[string](cm, "level1::level2::missing")
 	require.False(t, ok)
 }
 
@@ -150,7 +150,7 @@ func TestGetWrongType(t *testing.T) {
 }
 
 func TestGetIntermediateNodeNotMap(t *testing.T) {
-	cm := loadTestData(t, "helper_functions/get_intermediate_non_map.yaml")
+	cm := loadTestData(t, "helper_functions/get_intermediate_nonmap.yaml")
 
 	// Intermediate node is string
 	_, ok := Get[string](cm, "processors::batch::timeout")
@@ -209,7 +209,7 @@ func TestSetNestedPathCreatesIntermediates(t *testing.T) {
 }
 
 func TestSetOverwritesExistingValue(t *testing.T) {
-	cm := loadTestData(t, "helper_functions/set_overwrites_values.yaml")
+	cm := loadTestData(t, "helper_functions/set_overwrites.yaml")
 
 	// Get original value
 	origVal, ok := Get[string](cm, "processors::batch::timeout")
@@ -249,7 +249,7 @@ func TestSetMapAndArray(t *testing.T) {
 }
 
 func TestSetIntermediateNodeNotMap(t *testing.T) {
-	cm := loadTestData(t, "helper_functions/set_intermediate_non_map.yaml")
+	cm := loadTestData(t, "helper_functions/set_intermediate_nonmap.yaml")
 
 	// Intermediate node is string - should error
 	err := Set(cm, "processors::batch::timeout", "10s")

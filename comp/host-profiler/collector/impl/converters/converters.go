@@ -31,7 +31,7 @@ type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes  = "infraattributes"
+	componentTypeInfraAttributes   = "infraattributes"
 	componentTypeResourceDetection = "resourcedetection"
 	componentTypeHostProfiler      = "hostprofiler"
 	componentTypeOtlpHTTP          = "otlphttp"

@@ -27,7 +27,7 @@ import (
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 type converterWithAgent struct{}
 
-func newConverterWithAgent(settings confmap.ConverterSettings) confmap.Converter {
+func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithAgent{}
 }
 

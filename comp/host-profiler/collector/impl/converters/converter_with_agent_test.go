@@ -255,7 +255,7 @@ func TestWithAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 
 func TestWithAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 	// Test that symbol_endpoints with wrong type (string not list) returns error
-	path := filepath.Join("testdata", "symbol_endpoints_exists_but_wrong_type.yaml")
+	path := filepath.Join("testdata", "symbol_endpoints_wrong_type.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -302,14 +302,14 @@ func TestWithAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 	result := loadAsAgentMode(t, "multiple_otlphttp_exporters.yaml")
 
 	// Check prod exporter api key was converted to string
-	prodApiKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
+	prodAPIKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
 	require.True(t, ok)
-	require.Equal(t, "11111", prodApiKey)
+	require.Equal(t, "11111", prodAPIKey)
 
 	// Check staging exporter api key is preserved as string
-	stagingApiKey, ok := Get[string](result, "exporters::otlphttp/staging::headers::dd-api-key")
+	stagingAPIKey, ok := Get[string](result, "exporters::otlphttp/staging::headers::dd-api-key")
 	require.True(t, ok)
-	require.Equal(t, "staging-key", stagingApiKey)
+	require.Equal(t, "staging-key", stagingAPIKey)
 
 	// Check that logging exporter still exists
 	_, ok = Get[confMap](result, "exporters::logging")
@@ -346,7 +346,7 @@ func TestWithAgentCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
 
 func TestWithAgentProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 	// Test that even if allow_hostname_override is explicitly set to false, we override it to true
-	result := loadAsAgentMode(t, "overrides_allow_hostname_override_to_true.yaml")
+	result := loadAsAgentMode(t, "overrides_hostname_override_true.yaml")
 
 	// Should be overridden to true
 	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
@@ -361,7 +361,7 @@ func TestWithAgentProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 
 func TestWithAgentProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
 	// Edge case: both infraattributes and infraattributes/custom in pipeline
-	result := loadAsAgentMode(t, "both_default_and_custom_infraattributes.yaml")
+	result := loadAsAgentMode(t, "default_and_custom_infraattrs.yaml")
 
 	// Both should have allow_hostname_override set to true
 	allowHostnameOverride1, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
@@ -401,7 +401,7 @@ func TestWithAgentProcessorsWithMultipleResourcedetectionProcessors(t *testing.T
 
 func TestWithAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
-	path := filepath.Join("testdata", "symbol_uploader_enabled_with_empty_endpoints.yaml")
+	path := filepath.Join("testdata", "symbol_uploader_empty_endpoints.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -470,8 +470,8 @@ func TestWithAgentHeadersExistButWrongType(t *testing.T) {
 	// ensureStringKey fills in dd-api-key from config when it doesn't exist
 	// So after replacement, the headers map will have the default api key from config
 	require.NotEmpty(t, headers) // Now contains dd-api-key from config
-	_, hasApiKey := headers["dd-api-key"]
-	require.True(t, hasApiKey) // Filled from config
+	_, hasAPIKey := headers["dd-api-key"]
+	require.True(t, hasAPIKey) // Filled from config
 }
 
 func TestWithAgentEmptyStringProcessorName(t *testing.T) {
@@ -488,7 +488,7 @@ func TestWithAgentEmptyStringProcessorName(t *testing.T) {
 func TestWithAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	// Tests that similar names don't match - uses proper OTEL type/id parsing
 	// In OTEL specs, components must use type/id format (e.g., infraattributes/custom)
-	result := loadAsAgentMode(t, "processor_name_similar_but_not_exact_match.yaml")
+	result := loadAsAgentMode(t, "processor_name_similar_not_exact.yaml")
 
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
@@ -514,7 +514,6 @@ func TestWithAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, true, allowHostnameOverride)
 }
-
 
 func TestWithAgentGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Tricky: processors section exists but is a string, not a map

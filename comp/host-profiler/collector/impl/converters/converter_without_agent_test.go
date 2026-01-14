@@ -19,7 +19,7 @@ import (
 
 func TestWithoutAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	// Tests that similar names don't match - uses proper OTEL type/id parsing
-	result := loadAsStandaloneMode(t, "without_agent_processor_name_similar_but_not_exact_match.yaml")
+	result := loadAsStandaloneMode(t, "wo_agent_proc_name_similar_not_exact.yaml")
 
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
@@ -44,7 +44,7 @@ func TestWithoutAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 
 func TestWithoutAgentRemovesInfraattributesFromMetricsPipeline(t *testing.T) {
 	// Test that infraattributes is removed from metrics pipeline, not just profiles pipeline
-	result := loadAsStandaloneMode(t, "without_agent_removes_infraattributes_from_metrics_pipeline.yaml")
+	result := loadAsStandaloneMode(t, "wo_agent_removes_infraattrs_metrics.yaml")
 
 	// Check that infraattributes processors were removed from global config
 	_, ok := Get[confMap](result, "processors::infraattributes")
@@ -218,7 +218,7 @@ func TestWithoutAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 
 func TestWithoutAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 	// Test that symbol_endpoints with wrong type (string not list) returns error
-	path := filepath.Join("testdata", "symbol_endpoints_exists_but_wrong_type.yaml")
+	path := filepath.Join("testdata", "symbol_endpoints_wrong_type.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestWithoutAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 
 func TestWithoutAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
-	path := filepath.Join("testdata", "symbol_uploader_enabled_with_empty_endpoints.yaml")
+	path := filepath.Join("testdata", "symbol_uploader_empty_endpoints.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -287,14 +287,14 @@ func TestWithoutAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 	result := loadAsStandaloneMode(t, "multiple_otlphttp_exporters.yaml")
 
 	// Check prod exporter api key was converted to string
-	prodApiKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
+	prodAPIKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
 	require.True(t, ok)
-	require.Equal(t, "11111", prodApiKey)
+	require.Equal(t, "11111", prodAPIKey)
 
 	// Check staging exporter api key is preserved as string
-	stagingApiKey, ok := Get[string](result, "exporters::otlphttp/staging::headers::dd-api-key")
+	stagingAPIKey, ok := Get[string](result, "exporters::otlphttp/staging::headers::dd-api-key")
 	require.True(t, ok)
-	require.Equal(t, "staging-key", stagingApiKey)
+	require.Equal(t, "staging-key", stagingAPIKey)
 
 	// Check that logging exporter still exists
 	_, ok = Get[confMap](result, "exporters::logging")
@@ -342,12 +342,12 @@ func TestWithoutAgentHeadersExistButWrongType(t *testing.T) {
 	// ensureStringKey fills in dd-api-key from config when it doesn't exist
 	// So after replacement, the headers map will have the default api key from config
 	require.NotEmpty(t, headers) // Now contains dd-api-key from config
-	_, hasApiKey := headers["dd-api-key"]
-	require.True(t, hasApiKey) // Filled from config
+	_, hasAPIKey := headers["dd-api-key"]
+	require.True(t, hasAPIKey) // Filled from config
 }
 
 func TestWithoutAgentRemovesAgentExtensions(t *testing.T) {
-	result := loadAsStandaloneMode(t, "without_agent_removes_agent_extensions.yaml")
+	result := loadAsStandaloneMode(t, "wo_agent_removes_extensions.yaml")
 
 	// Check that all agent extensions were removed from definitions (both base and custom names)
 	extensions, ok := Get[confMap](result, "extensions")
@@ -377,7 +377,7 @@ func TestWithoutAgentRemovesAgentExtensions(t *testing.T) {
 func TestWithoutAgentGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Tricky: processors section exists but is a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	result := loadAsStandaloneMode(t, "without_agent_global_processors_section_is_not_map.yaml")
+	result := loadAsStandaloneMode(t, "wo_agent_global_procs_not_map.yaml")
 
 	// The invalid string should have been replaced with a valid map
 	processors, ok := Get[confMap](result, "processors")

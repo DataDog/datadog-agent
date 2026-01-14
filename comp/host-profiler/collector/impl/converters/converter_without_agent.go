@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var resourceDetectionDefaultConfig confMap = confMap{
+var resourceDetectionDefaultConfig = confMap{
 	"detectors": []any{"system"},
 	"system": confMap{
 		"resource_attributes": confMap{
@@ -50,7 +50,7 @@ var standaloneLogger = zap.L().Sugar()
 //   - remove ddprofiling & hpflare extensions
 type converterWithoutAgent struct{}
 
-func newConverterWithoutAgent(settings confmap.ConverterSettings) confmap.Converter {
+func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
 	return &converterWithoutAgent{}
 }
 
@@ -191,7 +191,9 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		// Track if we have resourcedetection
 		if isComponentType(name, componentTypeResourceDetection) {
 			if resourceDetectionConfig, ok := Get[confMap](conf, "processors::"+name); ok {
-				c.ensureResourceDetectionConfig(resourceDetectionConfig)
+				if err := c.ensureResourceDetectionConfig(resourceDetectionConfig); err != nil {
+					return nil, err
+				}
 			}
 			foundResourcedetection = true
 		}
