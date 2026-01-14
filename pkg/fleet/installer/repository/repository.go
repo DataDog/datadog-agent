@@ -558,11 +558,11 @@ func (l *link) Delete() error {
 
 func buildFileMap(rootPath string) (map[string]struct{}, error) {
 	files := make(map[string]struct{})
-	err := filepath.Walk(rootPath, func(path string, info fs.FileInfo, err error) error {
+	err := filepath.WalkDir(rootPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !d.IsDir() {
 			relPath, err := filepath.Rel(rootPath, path)
 			if err != nil {
 				return fmt.Errorf("failed to get relative path: %w", err)
@@ -603,7 +603,7 @@ func repairDirectory(sourcePath, targetPath string) error {
 	}
 
 	// Walk through source directory and compare/copy files
-	return filepath.Walk(sourcePath, func(path string, info fs.FileInfo, err error) error {
+	return filepath.WalkDir(sourcePath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -617,8 +617,12 @@ func repairDirectory(sourcePath, targetPath string) error {
 		// Construct target path
 		targetFilePath := filepath.Join(targetPath, relPath)
 
-		if info.IsDir() {
+		if d.IsDir() {
 			// Create directory if it doesn't exist
+			info, err := d.Info()
+			if err != nil {
+				return fmt.Errorf("failed to get directory info: %w", err)
+			}
 			return os.MkdirAll(targetFilePath, info.Mode())
 		}
 

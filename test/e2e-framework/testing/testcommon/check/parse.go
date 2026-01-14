@@ -22,7 +22,9 @@ type Root struct {
 
 // Aggregator contains the metrics emitted by a check
 type Aggregator struct {
-	Metrics []Metric `json:"metrics"`
+	Metrics       []Metric       `json:"metrics"`
+	ServiceChecks []ServiceCheck `json:"service_checks"`
+	Events        []Event        `json:"events"`
 }
 
 // Runner contains the check execution information
@@ -41,6 +43,26 @@ type Metric struct {
 	SourceTypeName string      `json:"source_type_name"`
 	Tags           []string    `json:"tags"`
 	Type           string      `json:"type"`
+}
+
+// ServiceCheck represents a service check emitted by a check
+type ServiceCheck struct {
+	Name      string   `json:"check"`
+	Host      string   `json:"host_name"`
+	Status    int      `json:"status"`
+	Timestamp int64    `json:"timestamp"`
+	Message   string   `json:"message"`
+	Tags      []string `json:"tags"`
+}
+
+// Event represents a event emitted by a check
+type Event struct {
+	Title     string `json:"msg_title"`
+	Text      string `json:"msg_text"`
+	Host      string `json:"host"`
+	Timestamp int64  `json:"timestamp"`
+	Priority  string `json:"priority"`
+	AlertType string `json:"alert_type"`
 }
 
 // ParseJSONOutput parses the check command json output

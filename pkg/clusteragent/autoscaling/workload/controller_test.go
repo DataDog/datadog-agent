@@ -555,6 +555,9 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 	dpa1, dpaTyped1 := newFakePodAutoscaler(currentNs, "dpa-1", 1, dpa1Time, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 	dpa2, dpaTyped2 := newFakePodAutoscaler(currentNs, "dpa-2", 1, dpa2Time, dpaSpec, datadoghqcommon.DatadogPodAutoscalerStatus{})
 
+	// Setup scaler mock to handle any get calls during concurrent processing
+	f.scaler.On("get", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(&autoscalingv1.Scale{}, schema.GroupResource{}, nil).Maybe()
+
 	f.InformerObjects = append(f.InformerObjects, dpa, dpa1)
 	f.Objects = append(f.Objects, dpaTyped, dpaTyped1)
 

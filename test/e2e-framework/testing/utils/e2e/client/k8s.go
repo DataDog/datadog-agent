@@ -157,8 +157,8 @@ func (k *KubernetesClient) DownloadFromPod(namespace, podName, container, srcPat
 			// Skip the root directory entry
 			continue
 		}
-		if strings.HasPrefix(entryName, baseName+"/") {
-			entryName = strings.TrimPrefix(entryName, baseName+"/")
+		if after, ok := strings.CutPrefix(entryName, baseName+"/"); ok {
+			entryName = after
 		}
 		target := filepath.Join(destPath, entryName)
 

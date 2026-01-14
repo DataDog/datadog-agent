@@ -12,15 +12,16 @@ import (
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/winmem"
 )
 
 // For testing purpose
-var virtualMemory = winutil.VirtualMemory
+var virtualMemory = winmem.VirtualMemory
 
 var (
-	swapMemory = winutil.SwapMemory
-	pageMemory = winutil.PagefileMemory
+	swapMemory       = winmem.SwapMemory
+	pageMemory       = winmem.PagefileMemory
+	pagingFileMemory = winmem.PagingFileMemory
 )
 
 // Check doesn't need additional fields
@@ -108,6 +109,19 @@ func (c *Check) Run() error {
 		sender.Gauge("system.mem.pagefile.used", float64(p.Used)/mbSize, "", nil)
 	} else {
 		c.Warnf("memory.Check: could not retrieve swap memory stats: %s", errSwap)
+	}
+
+	pageFiles, errPaging := pagingFileMemory()
+	if errPaging == nil {
+		for _, pf := range pageFiles {
+			tag := []string{"pagefile_path:" + pf.Name}
+			sender.Gauge("system.paging.total", float64(pf.Total)/mbSize, "", tag)
+			sender.Gauge("system.paging.free", float64(pf.Available)/mbSize, "", tag)
+			sender.Gauge("system.paging.used", float64(pf.Used)/mbSize, "", tag)
+			sender.Gauge("system.paging.pct_free", float64(100-pf.UsedPercent)/100, "", tag)
+		}
+	} else {
+		c.Warnf("memory.Check: could not retrieve paging file memory stats: %s", errPaging)
 	}
 
 	sender.Commit()

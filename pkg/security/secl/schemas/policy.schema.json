@@ -33,6 +33,12 @@
             "log"
           ],
           "title": "LogAction"
+        },
+        {
+          "required": [
+            "network_filter"
+          ],
+          "title": "NetworkFilterAction"
         }
       ],
       "properties": {
@@ -125,7 +131,8 @@
           "type": "string",
           "enum": [
             "process",
-            "container"
+            "container",
+            "cgroup"
           ]
         },
         "disable_container_disarmer": {

@@ -183,7 +183,7 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, agg.tagFilterList)
 	}
 
 	var noAggWorker *noAggregationStreamWorker

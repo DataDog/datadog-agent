@@ -3,8 +3,6 @@ load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -91,40 +89,4 @@ so_symlink(
     src = ":zstd",
     version = _VERSION,
     prefix = "embedded",
-)
-
-pkg_files(
-    name = "hdr_files",
-    srcs = _PUBLIC_HEADERS,
-    prefix = "embedded/include",
-)
-
-expand_template(
-    name = "gen_pkgconfig",
-    template = "lib/libzstd.pc.in",
-    out = "libzstd.pc",
-    substitutions = {
-        "@PREFIX@": "##PREFIX##",
-        "@EXEC_PREFIX@": "${prefix}",
-        "@LIBDIR@": "${prefix}/lib",
-        "@INCLUDEDIR@": "${prefix}/include",
-        "@VERSION@": _VERSION,
-        "@LIBS_MT@": "",
-        "@LIBS_PRIVATE@": "",
-    },
-)
-
-pkg_files(
-    name = "pc_file",
-    srcs = [":gen_pkgconfig"],
-    prefix = "embedded/lib/pkgconfig",
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":hdr_files",
-        ":lib_files",
-        ":pc_file",
-    ],
 )

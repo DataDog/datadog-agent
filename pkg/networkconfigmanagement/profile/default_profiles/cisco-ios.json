@@ -9,7 +9,7 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
+            "regex": "(?m)^! Last configuration change at (.*?)(?:\\s+by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
@@ -128,6 +128,21 @@
             "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
             "replacement" : "",
             "multiline": true
+          },
+          {
+            "regex": "(?m)^\\s*Building configuration...\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "Current configuration : (.*)\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)(?:^!\\s*$\\s*)?^! Last configuration change at .*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
+            "multiline": true
           }
         ]
       }
@@ -141,18 +156,18 @@
         "metadata": [
           {
             "type": "timestamp",
-            "regex": "(?m)^! Last configuration change at (.*?) (?:by \\S+)?$",
+            "regex": "(?m)^! Last configuration change at (.*?)(?:\\s+by \\S+)?$",
             "format": "15:04:05 MST Mon Jan 2 2006"
           },
           {
             "type": "config_size",
-            "regex": "Current configuration : (?P<Size>\\d+)"
+            "regex": "Using (?P<Size>\\d+) out of (.*?) bytes"
           }
         ],
         "validation": [
           {
             "type": "valid_output",
-            "pattern": "Building configuration..."
+            "pattern": "Using (.*?) out of (.*?) bytes"
           }
         ],
         "redaction": [
@@ -259,6 +274,21 @@
           {
             "regex": "(?s)banner (exec|incoming|login) \\^C.*?\\^C\\s*",
             "replacement" : "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)^\\s*Building configuration...\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?s)^\\s*Using \\d+ out of \\d+ bytes\\s*",
+            "replacement": "",
+            "multiline": true
+          },
+          {
+            "regex": "(?m)(?:^!\\s*$\\s*)?^! Last configuration change at .*?$\\s*(?:^!\\s*$\\s*)?",
+            "replacement": "",
             "multiline": true
           }
         ]

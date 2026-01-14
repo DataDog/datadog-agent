@@ -130,6 +130,28 @@ func Setup(t *testing.T, callback func()) *Handler {
 	return handler
 }
 
+// WithParentPermFixup ensures that the parent directory of the given path has
+// execute permissions before operations that manipulate the log files from the
+// tests.  This is necessary to ensure that the tests can manipulate the log
+// files even when the parent directory does not have search permissions.
+func WithParentPermFixup(t *testing.T, path string, op func() error) error {
+	parent := filepath.Dir(path)
+	err := os.Chmod(parent, 0755)
+	require.NoError(t, err)
+
+	opErr := op()
+
+	err = os.Chmod(parent, 0)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err := os.Chmod(parent, 0755)
+		require.NoError(t, err)
+	})
+
+	return opErr
+}
+
 func setupTestServer(t *testing.T) *Handler {
 	cfg := &sysconfigtypes.Config{}
 	deps := module.FactoryDependencies{}
