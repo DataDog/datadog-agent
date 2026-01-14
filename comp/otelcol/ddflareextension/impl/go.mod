@@ -51,7 +51,6 @@ require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-dev
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
