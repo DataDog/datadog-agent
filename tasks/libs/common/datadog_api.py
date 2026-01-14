@@ -222,7 +222,7 @@ def query_metrics(query, from_time, to_time):
         return series_list
 
 
-def query_gate_metrics_for_commit(commit_sha: str, gate_name: str, lookback: str = "now-7d") -> dict:
+def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> dict:
     """
     Query Datadog for static quality gate metrics for a specific commit.
 
@@ -232,12 +232,11 @@ def query_gate_metrics_for_commit(commit_sha: str, gate_name: str, lookback: str
 
     Args:
         commit_sha: The git commit SHA to query metrics for
-        gate_name: The quality gate name to filter by
         lookback: How far back to look (default 7 days)
 
     Returns:
-        Dict with 'current_on_disk_size' and 'current_on_wire_size' if found,
-        empty dict otherwise
+        Dict mapping gate_name -> {'current_on_disk_size': ..., 'current_on_wire_size': ...}
+        Empty dict if no metrics found.
     """
     results = {}
 
@@ -247,21 +246,32 @@ def query_gate_metrics_for_commit(commit_sha: str, gate_name: str, lookback: str
     }
 
     for metric_key, metric_name in metrics_to_query.items():
-        query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha},gate_name:{gate_name}}}"
+        # Query all gates at once using "by {gate_name}" aggregation
+        query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
 
         try:
             series_list = query_metrics(query, lookback, "now")
 
-            # Get the most recent non-null value from the first matching series
             for series in series_list:
+                # Extract gate_name from scope (e.g., "gate_name:static_quality_gate_agent_deb_amd64")
+                scope = series.get("scope", "")
+                gate_name = None
+                for tag in scope.split(","):
+                    if tag.startswith("gate_name:"):
+                        gate_name = tag.split(":", 1)[1]
+                        break
+
+                if not gate_name:
+                    continue
+
+                # Get the most recent non-null value
                 pointlist = series.get("pointlist", [])
-                # Iterate backwards to get most recent value
                 for point in reversed(pointlist):
                     if len(point) > 1 and point[1] is not None:
-                        results[metric_key] = int(point[1])
+                        if gate_name not in results:
+                            results[gate_name] = {}
+                        results[gate_name][metric_key] = int(point[1])
                         break
-                if metric_key in results:
-                    break
 
         except Exception as e:
             print(f"[WARN] Failed to query {metric_name} for commit {commit_sha}: {e}", file=sys.stderr)

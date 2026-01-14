@@ -743,11 +743,12 @@ class GateMetricHandler:
 
         from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
 
-        datadog_gates_found = 0
+        # Query Datadog once for all gates
+        ancestor_metrics = query_gate_metrics_for_commit(ancestor)
 
+        datadog_gates_found = 0
         for gate in self.metrics:
-            # Query Datadog for ancestor's metrics
-            ancestor_gate = query_gate_metrics_for_commit(ancestor, gate)
+            ancestor_gate = ancestor_metrics.get(gate)
 
             if ancestor_gate:
                 datadog_gates_found += 1
