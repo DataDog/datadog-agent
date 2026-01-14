@@ -1336,7 +1336,16 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
 	config.BindEnvAndSetDefault("integration.enabled", true)
+
+	// integration.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.additional", []string{})
+	// integration.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.excluded", []string{})
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
@@ -1371,14 +1380,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-	// integration.basic.excluded: checks to exclude (user configured)
-	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
-	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
-	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
-
-	// Legacy alias for backward compatibility
-	// This applies to the current infrastructure_mode
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
