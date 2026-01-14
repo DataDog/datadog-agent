@@ -125,7 +125,8 @@ def generate(ctx, pre_commit=False):
             except FileExistsError:
                 print(f"{mockgen_out} folder already exists")
 
-            ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+            # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
+            ctx.run(f"mockgen -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # Generate messagepack marshallers
     # msgp targets (file, io)
