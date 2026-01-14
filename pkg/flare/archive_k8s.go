@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build kubelet
+//go:build kubelet && orchestrator
 
 package flare
 
@@ -59,7 +59,7 @@ func getKubeletPods() (data []byte, err error) {
 		redact.ScrubPod(pod, scrubber)
 	}
 
-	// Create a new pod list with the (potentially) scrubbed pods
+	// Create a new pod list with the scrubbed pods
 	podList := &v1.PodList{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PodList",
