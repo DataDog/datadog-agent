@@ -26,7 +26,7 @@ func newCCObfuscator(config *CreditCardsConfig) *creditCard {
 	}
 }
 
-// ShouldObfuscateKey returns true if the value for the given key should be obfuscated
+// ShouldObfuscateCCKey returns true if the value for the given key should be obfuscated
 // This is used to skip known safe attributes and specifically configured safe tags
 func (o *Obfuscator) ShouldObfuscateCCKey(key string) bool {
 	switch key {
@@ -57,7 +57,13 @@ func (o *Obfuscator) ShouldObfuscateCCKey(key string) bool {
 		"service.name",
 		"service",
 		"sql.query",
-		"version":
+		"version",
+		// Data Job Monitoring tags - these values are frequently similar to credit card numbers
+		"databricks_job_id",
+		"databricks_job_run_id",
+		"databricks_task_run_id",
+		"config.spark_app_startTime",
+		"config.spark_databricks_job_parentRunId":
 		// these tags are known to not be credit card numbers
 		return false
 	}
@@ -83,8 +89,8 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(val string) string {
 func (cc *creditCard) IsCardNumber(b string) (ok bool) {
 	//
 	// Just credit card numbers for now, based on:
-	// • https://baymard.com/checkout-usability/credit-card-patterns
-	// • https://www.regular-expressions.info/creditcard.html
+	// • https://baymard.com/checkout-usability/credit-card-patterns
+	// • https://www.regular-expressions.info/creditcard.html
 	//
 	if len(b) == 0 {
 		return false
@@ -161,8 +167,8 @@ loop:
 // str is expected to contain exclusively digits at all positions.
 //
 // See:
-// • https://en.wikipedia.org/wiki/Luhn_algorithm
-// • https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
+// • https://en.wikipedia.org/wiki/Luhn_algorithm
+// • https://dev.to/shiraazm/goluhn-a-simple-library-for-generating-calculating-and-verifying-luhn-numbers-588j
 func luhnValid(str []byte) bool {
 	var (
 		sum int

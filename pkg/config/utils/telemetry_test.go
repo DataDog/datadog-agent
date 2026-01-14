@@ -8,8 +8,9 @@ package utils
 import (
 	"testing"
 
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/stretchr/testify/assert"
+
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 func TestIsCheckTelemetryEnabled(t *testing.T) {
@@ -50,4 +51,8 @@ func TestIsCheckTelemetryEnabled(t *testing.T) {
 
 	assert.True(IsCheckTelemetryEnabled("cpu", mockConfig))
 	assert.True(IsCheckTelemetryEnabled("disk", mockConfig))
+
+	mockConfig.SetWithoutSource("agent_telemetry.enabled", true)
+	mockConfig.SetWithoutSource("site", "xx.ddog-gov.com")
+	assert.False(IsAgentTelemetryEnabled(mockConfig))
 }

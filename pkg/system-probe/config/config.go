@@ -142,7 +142,7 @@ func load() (*types.Config, error) {
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := cfg.GetBool(compNS("enabled")) ||
+	complianceEnabled := cfg.GetBool(compNS("database_benchmarks.enabled")) ||
 		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")))
 	if complianceEnabled {
 		c.EnabledModules[ComplianceModule] = struct{}{}

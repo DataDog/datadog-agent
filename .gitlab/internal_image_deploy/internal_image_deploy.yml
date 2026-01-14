@@ -51,6 +51,11 @@
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
 
+.host_profiler_standalone_variables: &host_profiler_standalone_variables
+  IMAGE_VERSION: tmpl-v1
+  IMAGE_NAME: ddot-ebpf
+  TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
+
 # -- publish jobs --
 publish_internal_container_image-jmx:
   extends: .docker_trigger_base
@@ -99,6 +104,17 @@ publish_internal_container_image-ot_standalone:
       artifacts: false
   variables:
     <<: *ot_standalone_variables
+    TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+publish_internal_container_image-host_profiler_standalone:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_host_profiler_standalone_amd64
+      artifacts: false
+    - job: docker_build_host_profiler_standalone_arm64
+      artifacts: false
+  variables:
+    <<: *host_profiler_standalone_variables
     TMPL_SRC_IMAGE_SUFFIX: "-7"
 
 # DCA publish jobs

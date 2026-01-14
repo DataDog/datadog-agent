@@ -672,9 +672,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if k := "apm_config.debug_v1_payloads"; core.IsSet(k) {
 		c.DebugV1Payloads = core.GetBool("apm_config.debug_v1_payloads")
 	}
+	if k := "apm_config.mode"; core.IsConfigured(k) {
+		c.APMMode = normalizeAPMMode(core.GetString(k))
+	}
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
-	c.APMMode = normalizeAPMMode(core.GetString("apm_config.mode"))
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
 	return nil
 }

@@ -29,6 +29,8 @@ import (
 
 func init() { registerModule(ComplianceModule) }
 
+var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
+
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
 // can offer.
@@ -37,7 +39,7 @@ func init() { registerModule(ComplianceModule) }
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
 	Name:             config.ComplianceModule,
-	ConfigNamespaces: []string{},
+	ConfigNamespaces: complianceConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &complianceModule{}, nil
 	},

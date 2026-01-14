@@ -1909,3 +1909,19 @@ func TestOwnerTags(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkOwnerTags(b *testing.B) {
+	b.Run("ReplicaSet", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			_ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+		}
+	})
+
+	b.Run("Job", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			_ = ownerTags("Job", "foo-1627309500")
+		}
+	})
+}
