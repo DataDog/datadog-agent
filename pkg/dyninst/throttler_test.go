@@ -96,13 +96,22 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		require.NoError(t, err)
 	}
 
-	// Check that throttling happened.
-	perCoreStats := program.RuntimeStats()
+	// Check that throttling happened. We may need to give it more time.
+	deadline := time.Now().Add(5 * time.Second)
 	var stats loader.RuntimeStats
-	for _, coreStats := range perCoreStats {
-		stats.HitCnt += coreStats.HitCnt
-		stats.ThrottledCnt += coreStats.ThrottledCnt
-		stats.CPU += coreStats.CPU
+	for {
+		stats = loader.RuntimeStats{}
+		perCoreStats := program.RuntimeStats()
+		for _, coreStats := range perCoreStats {
+			stats.HitCnt += coreStats.HitCnt
+			stats.ThrottledCnt += coreStats.ThrottledCnt
+			stats.CPU += coreStats.CPU
+		}
+		if int(stats.ThrottledCnt) > 0 {
+			break
+		}
+		require.True(t, time.Now().Before(deadline), "timed out waiting for throttling to happen")
+		time.Sleep(100 * time.Millisecond)
 	}
 	require.Greater(t, int(stats.HitCnt), expectedEvents)
 	require.Greater(t, int(stats.ThrottledCnt), 0)

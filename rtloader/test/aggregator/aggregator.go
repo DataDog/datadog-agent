@@ -34,6 +34,10 @@ static void initAggregatorTests(rtloader_t *rtloader) {
    set_submit_histogram_bucket_cb(rtloader, submitHistogramBucket);
    set_submit_event_platform_event_cb(rtloader, submitEventPlatformEvent);
 }
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
+}
 */
 import "C"
 
@@ -117,20 +121,20 @@ func run(call string) (string, error) {
 	}
 	defer os.Remove(tmpfile.Name())
 
-	code := (*C.char)(helpers.TrackedCString(fmt.Sprintf(`
+	code := helpers.TrackedCString(fmt.Sprintf(`
 try:
 	import aggregator
 	%s
 except Exception as e:
 	with open(r'%s', 'w') as f:
 		f.write("{}: {}\n".format(type(e).__name__, e))
-`, call, tmpfile.Name())))
-	defer C._free(unsafe.Pointer(code))
+`, call, tmpfile.Name()))
+	defer C.call_free(code)
 
 	runtime.LockOSThread()
 	state := C.ensure_gil(rtloader)
 
-	ret := C.run_simple_string(rtloader, code) == 1
+	ret := C.run_simple_string(rtloader, (*C.char)(code)) == 1
 
 	C.release_gil(rtloader, state)
 	runtime.UnlockOSThread()

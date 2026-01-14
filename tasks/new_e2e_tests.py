@@ -106,6 +106,8 @@ def build_binaries(
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if parallel == 0:
         parallel = multiprocessing.cpu_count()
@@ -228,6 +230,7 @@ def build_binaries(
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
+        "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
     },
 )
 def run(
@@ -244,7 +247,7 @@ def run(
     cws_supported_osdescriptors="",
     src_agent_version="",
     dest_agent_version="",
-    keep_stacks=False,
+    keep_stack=False,
     extra_flags="",
     cache=False,
     junit_tar="",
@@ -266,6 +269,8 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if shutil.which("pulumi") is None:
         raise Exit(
@@ -378,7 +383,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -404,7 +409,6 @@ def run(
         else "",
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
-        "keep_stacks": '-keep-stacks' if keep_stacks else "",
         "extra_flags": extra_flags,
     }
 
@@ -418,6 +422,9 @@ def run(
             env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
         else:
             env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
+        if keep_stack is True:
+            env_vars["E2E_DEV_MODE"] = "true"
 
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)

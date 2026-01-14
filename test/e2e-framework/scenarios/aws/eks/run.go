@@ -102,7 +102,10 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	var kubernetesAgent *agent.KubernetesAgent
 	// Deploy the agent
 	if params.agentOptions != nil {
-		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithFakeintake(fakeIntake), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
+		if fakeIntake != nil {
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithFakeintake(fakeIntake))
+		}
+		params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithPulumiResourceOptions(utils.PulumiDependsOn(cluster)), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()}))
 
 		eksParams, err := NewParams(params.eksOptions...)
 		if err != nil {
@@ -126,7 +129,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 	}
 	// Deploy standalone dogstatsd
 	if params.deployDogstatsd {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", fakeIntake, true, ""); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", fakeIntake, true, ""); err != nil {
 			return err
 		}
 	}
@@ -171,7 +174,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 
 		// These resources cannot be deployed if the Agent is not installed, it requires some CRDs provided by the Helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -38,6 +38,7 @@ type Check struct {
 	core.CheckBase
 	config        *CheckConfig
 	lastCheckTime time.Time
+	traceroute    traceroute.Component
 	telemetryComp telemetryComp.Component
 }
 
@@ -64,11 +65,7 @@ func (c *Check) Run() error {
 		E2eQueries:                c.config.E2eQueries,
 	}
 
-	tr, err := traceroute.New(cfg, c.telemetryComp)
-	if err != nil {
-		return fmt.Errorf("failed to initialize traceroute: %w", err)
-	}
-	path, err := tr.Run(context.TODO())
+	path, err := c.traceroute.Run(context.TODO(), cfg)
 	if err != nil {
 		return fmt.Errorf("failed to trace path: %w", err)
 	}
@@ -155,11 +152,12 @@ func (c *Check) IsHASupported() bool {
 }
 
 // Factory creates a new check factory
-func Factory(telemetry telemetryComp.Component) option.Option[func() check.Check] {
+func Factory(telemetry telemetryComp.Component, traceroute traceroute.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:     core.NewCheckBase(CheckName),
 			telemetryComp: telemetry,
+			traceroute:    traceroute,
 		}
 	})
 }

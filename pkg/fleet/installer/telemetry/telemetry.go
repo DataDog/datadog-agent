@@ -42,6 +42,9 @@ func NewTelemetry(client *http.Client, apiKey string, site string, service strin
 }
 
 func newTelemetry(client *http.Client, apiKey string, site string, service string) *Telemetry {
+	if site == "" {
+		site = "datadoghq.com"
+	}
 	e := &endpoint{
 		Host:   fmt.Sprintf("https://%s.%s", telemetrySubdomain, strings.TrimSpace(site)),
 		APIKey: apiKey,

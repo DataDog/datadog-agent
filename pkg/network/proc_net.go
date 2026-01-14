@@ -74,14 +74,14 @@ func readProcNetWithStatus(path string, status int64) ([]uint16, error) {
 			continue
 		}
 
-		idx := bytes.IndexByte(rawLocal, ':')
-		if idx == -1 {
+		_, after, ok := bytes.Cut(rawLocal, []byte{':'})
+		if !ok {
 			continue
 		}
 
-		port, err := strconv.ParseUint(string(rawLocal[idx+1:]), 16, 16)
+		port, err := strconv.ParseUint(string(after), 16, 16)
 		if err != nil {
-			log.Errorf("error parsing port [%s] as hex: %s", rawLocal[idx+1:], err)
+			log.Errorf("error parsing port [%s] as hex: %s", after, err)
 			continue
 		}
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -24,9 +25,14 @@ func TestLoginUID(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{
 		{
@@ -56,7 +62,7 @@ func TestLoginUID(t *testing.T) {
 	defer dockerInstance.stop()
 
 	t.Run("open", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			args := []string{
 				"-login-uid-test",
 				"-login-uid-event-type", "open",
@@ -70,11 +76,11 @@ func TestLoginUID(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "open", event.GetType(), "wrong event type")
 			assert.Equal(t, "auid_open", rule.ID, "wrong rule triggered")
-		})
+		}, "auid_open")
 	})
 
 	t.Run("exec", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			args := []string{
 				"-login-uid-test",
 				"-login-uid-event-type", "exec",
@@ -93,6 +99,6 @@ func TestLoginUID(t *testing.T) {
 		}, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, "auid_exec", rule.ID, "wrong rule triggered")
-		})
+		}, "auid_exec")
 	})
 }

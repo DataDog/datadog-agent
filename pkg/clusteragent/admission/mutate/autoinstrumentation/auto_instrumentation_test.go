@@ -23,8 +23,6 @@ import (
 	admissioncommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
@@ -42,7 +40,7 @@ var defaultLibraries = map[string]string{
 	"java":   "v1",
 	"js":     "v5",
 	"php":    "v1",
-	"python": "v3",
+	"python": "v4",
 	"ruby":   "v2",
 }
 
@@ -82,6 +80,11 @@ func TestAutoinstrumentation(t *testing.T) {
 		initSecurityContext *corev1.SecurityContext
 		// initResourceRequirements (optional) ensures that the init containers contain the proper resource requirements.
 		initResourceRequirements *corev1.ResourceRequirements
+		// unmutatedContainers (optional) ensures that specific containers have NO Datadog-related env vars (DD_*, LD_PRELOAD).
+		// This is useful to verify containers like istio-proxy are completely excluded from mutation.
+		unmutatedContainers []string
+		// expectedAnnotations (optional) ensures that the pod has the expected annotations.
+		expectedAnnotations map[string]string
 	}
 
 	tests := map[string]struct {
@@ -1512,12 +1515,20 @@ func TestAutoinstrumentation(t *testing.T) {
 		"istio-proxy is not injected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
 			},
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
 				ParentKind: "replicaset",
 				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
 				Containers: []corev1.Container{
 					{
 						Name: defaultTestContainer,
@@ -1536,6 +1547,8 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: []string{
 					defaultTestContainer,
 				},
+				// Verify istio-proxy has NO Datadog env vars at all (DD_*, LD_PRELOAD)
+				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
 		"injection does not occur in the namespace where datadog is deployed": {
@@ -2182,6 +2195,146 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		"UST env vars from pod_labels_as_tags injects DD_VERSION and DD_ENV": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				// DD_VERSION and DD_ENV are injected with ValueFrom.FieldRef, so Value is empty
+				requiredEnvs: map[string]string{
+					"DD_VERSION": "",
+					"DD_ENV":     "",
+				},
+			},
+		},
+		"UST env vars from pod_labels_as_tags does not inject when namespace is not eligible": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"other-namespace",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version":                   "v1.2.3",
+					"environment":                   "production",
+					admissioncommon.EnabledLabelKey: "true",
+				},
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			// Pod is mutated via local lib injection, but UST env vars should NOT be injected
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				// DD_VERSION and DD_ENV should NOT be present since namespace is not eligible
+				unsetEnvs: []string{"DD_VERSION", "DD_ENV"},
+			},
+		},
+		"lib config from annotations injects config for python language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/python-lib.version":   "v1",
+					"admission.datadoghq.com/python-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_sampling_rate":0.5}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_RUNTIME_METRICS_ENABLED": "true",
+					"DD_TRACE_SAMPLE_RATE":       "0.50",
+				},
+			},
+		},
+		"lib config from annotations injects config for js language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/js-lib.version":   "v1",
+					"admission.datadoghq.com/js-lib.config.v1": `{"tracing_debug":true,"log_injection_enabled":true}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"js": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_TRACE_DEBUG":    "true",
+					"DD_LOGS_INJECTION": "true",
+				},
+			},
+		},
 		"config webhook applies to enabled namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
@@ -2226,6 +2379,318 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		// Image configuration tests
+		"custom container registry via config is used for init containers": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":                           true,
+				"admission_controller.auto_instrumentation.container_registry": "my-registry.example.com/datadog",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1.2.3",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				initContainerImages: []string{
+					"my-registry.example.com/datadog/dd-lib-java-init:v1.2.3",
+					"my-registry.example.com/datadog/apm-inject:0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"custom injector version via annotation overrides config": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":            true,
+				"apm_config.instrumentation.injector_image_tag": "1.0.0",
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/apm-inject.version": "2.0.0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: "2.0.0",
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		"multiple libraries with different versions are all injected": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1.5.0",
+					"admission.datadoghq.com/python-lib.version": "v2.3.0",
+					"admission.datadoghq.com/js-lib.version":     "v4.1.0",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java":   "v1.5.0",
+					"python": "v2.3.0",
+					"js":     "v4.1.0",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		// Target annotation tests
+		"target with matching rule sets applied-target annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.targets": []autoinstrumentation.Target{
+					{
+						Name: "Python Apps",
+						TracerVersions: map[string]string{
+							"python": "v3",
+						},
+						NamespaceSelector: &autoinstrumentation.NamespaceSelector{
+							MatchNames: []string{
+								"application",
+							},
+						},
+					},
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v3",
+				},
+				containerNames: defaultContainerNames,
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"Python Apps","namespaceSelector":{"matchNames":["application"]},"ddTraceVersions":{"python":"v3"}}`,
+				},
+			},
+		},
+		// Debug mode tests via annotation with single step
+		"single step with debug enabled via annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.debug": "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_APM_INSTRUMENTATION_DEBUG": "true",
+					"DD_TRACE_STARTUP_LOGS":        "true",
+					"DD_TRACE_DEBUG":               "true",
+				},
+			},
+		},
+		// Verify LD_PRELOAD and DD_INJECT_SENDER_TYPE are set correctly
+		"injection sets LD_PRELOAD and DD_INJECT_SENDER_TYPE environment variables": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"LD_PRELOAD":            "/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so",
+					"DD_INJECT_SENDER_TYPE": "k8s",
+				},
+			},
+		},
+		// All supported languages tests
+		"all supported languages can be injected simultaneously through local SDK injection": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version":   "v1",
+					"admission.datadoghq.com/python-lib.version": "v2",
+					"admission.datadoghq.com/js-lib.version":     "v3",
+					"admission.datadoghq.com/dotnet-lib.version": "v4",
+					"admission.datadoghq.com/ruby-lib.version":   "v5",
+					"admission.datadoghq.com/php-lib.version":    "v6",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java":   "v1",
+					"python": "v2",
+					"js":     "v3",
+					"dotnet": "v4",
+					"ruby":   "v5",
+					"php":    "v6",
+				},
+				containerNames: defaultContainerNames,
+			},
+		},
+		// Default versions resolution test
+		"default magic string resolves to correct versions for all languages": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/all-lib.version": "default",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries, // Should resolve to v1, v3, v4, v2, v5, v1
+				containerNames:  defaultContainerNames,
+			},
+		},
+		// Unsupported language test
+		"unsupported language annotation does not cause mutation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/go-lib.version": "v1", // Go is not supported
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: false,
+		},
+		// Autoscaler safe-to-evict annotation test
+		"injection sets cluster-autoscaler safe-to-evict annotation": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				expectedAnnotations: map[string]string{
+					"cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes": "datadog-auto-instrumentation,datadog-auto-instrumentation-etc",
+				},
+			},
+		},
 	}
 
 	for name, test := range tests {
@@ -2233,7 +2698,6 @@ func TestAutoinstrumentation(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2242,17 +2706,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2292,11 +2746,17 @@ func TestAutoinstrumentation(t *testing.T) {
 			validator.RequireEnvs(t, test.expected.requiredEnvs, test.expected.containerNames)
 			validator.RequireMissingEnvs(t, test.expected.unsetEnvs, test.expected.containerNames)
 
+			// Require specific containers have NO Datadog env vars (e.g., istio-proxy should be completely excluded).
+			validator.RequireUnmutatedContainers(t, test.expected.unmutatedContainers)
+
 			// Require security context to match expected.
 			validator.RequireInitSecurityContext(t, test.expected.initSecurityContext)
 
 			// Require resources match expected.
 			validator.RequireInitResourceRequirements(t, test.expected.initResourceRequirements)
+
+			// Require annotations match expected.
+			validator.RequireAnnotations(t, test.expected.expectedAnnotations)
 		})
 	}
 }
@@ -2390,7 +2850,6 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2399,17 +2858,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2487,7 +2936,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu is skipped": {
@@ -2518,7 +2967,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
 			},
 		},
 		"a pod with low cpu and memory is skipped": {
@@ -2551,7 +3000,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu and memory but with config override is not skipped": {
@@ -2593,7 +3042,6 @@ func TestSkippedDueToResources(t *testing.T) {
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)
-			mockImageResolver := NewFakeImageResolver()
 			mockDynamic := fake.NewSimpleDynamicClient(runtime.NewScheme())
 
 			// Add the namespaces.
@@ -2602,17 +3050,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			config, err := autoinstrumentation.NewConfig(mockConfig)
-			require.NoError(t, err)
-			apmMutator, err := autoinstrumentation.NewTargetMutator(config, mockMeta, mockImageResolver)
-			require.NoError(t, err)
-			mutator := common.NewMutators(
-				tagsfromlabels.NewMutator(tagsfromlabels.NewMutatorConfig(mockConfig), apmMutator),
-				configWebhook.NewMutator(configWebhook.NewMutatorConfig(mockConfig), apmMutator),
-				apmMutator,
-			)
-			labelSelectors := autoinstrumentation.NewLabelSelectors(autoinstrumentation.NewLabelSelectorsConfig(mockConfig))
-			webhook, err := autoinstrumentation.NewWebhook(config.Webhook, mockMeta, mutator, labelSelectors)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2659,17 +3097,4 @@ func languageSetOf(languages ...string) languagemodels.LanguageSet {
 		_ = set.Add(languagemodels.LanguageName(l))
 	}
 	return set
-}
-
-// MockImageResolver is a simple implementation that returns the original image unchanged.
-type MockImageResolver struct{}
-
-// newNoOpImageResolver creates a new noOpImageResolver.
-func NewFakeImageResolver() *MockImageResolver {
-	return &MockImageResolver{}
-}
-
-// Resolve returns the original image reference.
-func (r *MockImageResolver) Resolve(_ string, _ string, _ string) (*autoinstrumentation.ResolvedImage, bool) {
-	return nil, false
 }

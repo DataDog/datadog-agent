@@ -32,7 +32,7 @@ class RtLoader
 {
 public:
     //! Constructor.
-    RtLoader(cb_memory_tracker_t memtrack_cb);
+    RtLoader(rtloader_malloc_t, rtloader_free_t);
 
     //! Destructor.
     // clang-format off
@@ -537,7 +537,7 @@ private:
   \param python_exe A C-string path to the python interpreter.
   \return A pointer to the RtLoader instance created by the implementing function.
 */
-typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, cb_memory_tracker_t memtrack_cb);
+typedef RtLoader *(create_t)(const char *python_home, const char *python_exe, rtloader_malloc_t, rtloader_free_t);
 
 /*! destroy_t function prototype
   \typedef destroy_t defines the destructor function prototype to destroy existing RtLoader instances.

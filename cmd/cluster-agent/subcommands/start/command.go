@@ -66,7 +66,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	metadatarunner "github.com/DataDog/datadog-agent/comp/metadata/runner"
@@ -79,7 +81,6 @@ import (
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster"
@@ -190,6 +191,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Provide(func() option.Option[agenttelemetry.Component] {
 					return option.None[agenttelemetry.Component]()
+				}),
+				fx.Provide(func() option.Option[healthplatform.Component] {
+					return option.None[healthplatform.Component]()
 				}),
 
 				statusimpl.Module(),
@@ -369,15 +373,16 @@ func start(log log.Component,
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	ctx := controllers.ControllerContext{
-		InformerFactory:        apiCl.InformerFactory,
-		DynamicClient:          apiCl.DynamicInformerCl,
-		DynamicInformerFactory: apiCl.DynamicInformerFactory,
-		Client:                 apiCl.InformerCl,
-		IsLeaderFunc:           le.IsLeader,
-		EventRecorder:          eventRecorder,
-		WorkloadMeta:           wmeta,
-		StopCh:                 stopCh,
-		DatadogClient:          dc,
+		InformerFactory:             apiCl.InformerFactory,
+		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
+		DynamicClient:               apiCl.DynamicInformerCl,
+		DynamicInformerFactory:      apiCl.DynamicInformerFactory,
+		Client:                      apiCl.InformerCl,
+		IsLeaderFunc:                le.IsLeader,
+		EventRecorder:               eventRecorder,
+		WorkloadMeta:                wmeta,
+		StopCh:                      stopCh,
+		DatadogClient:               dc,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -554,7 +559,6 @@ func start(log log.Component,
 		} else {
 			log.Info("Auto instrumentation patcher is disabled")
 		}
-		imageResolver := autoinstrumentation.NewImageResolver(rcClient, datadogConfig)
 
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
@@ -565,7 +569,7 @@ func start(log log.Component,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
-			ImageResolver:                imageResolver,
+			RcClient:                     rcClient,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, datadogConfig)
@@ -600,6 +604,17 @@ func start(log log.Component,
 		}
 	} else {
 		pkglog.Info("Admission controller is disabled")
+	}
+
+	if config.GetBool("cluster_agent.mcp.enabled") {
+		// Get MCP configured endpoint
+		mcpEndpoint := config.GetString("cluster_agent.mcp.endpoint")
+		// Register MCP handler on the HTTP metrics server via HTTP
+		mcpHandler := mcp.CreateMCPHandler()
+		http.Handle(mcpEndpoint, mcpHandler)
+		pkglog.Infof("MCP endpoint registered with HTTP metrics server on port %d: %s", metricsPort, mcpEndpoint)
+	} else {
+		pkglog.Debug("MCP server is disabled")
 	}
 
 	pkglog.Infof("All components started. Cluster Agent now running.")
