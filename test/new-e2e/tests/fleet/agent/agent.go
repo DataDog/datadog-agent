@@ -79,7 +79,7 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		return nil, err
 	}
 	integrations := make(map[string]string)
-	for _, integration := range strings.Split(rawIntegrations, "\n") {
+	for integration := range strings.SplitSeq(rawIntegrations, "\n") {
 		integration = strings.TrimSpace(integration)
 		if strings.HasPrefix(integration, "datadog-") {
 			parts := strings.Split(integration, "==")
@@ -1014,8 +1014,6 @@ type Status struct {
 					Alloc int `json:"alloc"`
 				} `json:"memstats"`
 				Pid                             int    `json:"pid"`
-				PodQueueBytes                   int    `json:"pod_queue_bytes"`
-				PodQueueSize                    int    `json:"pod_queue_size"`
 				ProcessCount                    int    `json:"process_count"`
 				ProcessQueueBytes               int    `json:"process_queue_bytes"`
 				ProcessQueueSize                int    `json:"process_queue_size"`

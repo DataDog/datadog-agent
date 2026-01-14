@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/DataDog/go-tuf/data"
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"

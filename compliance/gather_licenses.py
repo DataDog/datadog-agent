@@ -54,9 +54,9 @@ import csv
 import json
 import os
 
-_DEBUG = 0
-
 from tasks.licenses import find_copyright_in_text
+
+_DEBUG = 0
 
 
 def repo_of_target(target):

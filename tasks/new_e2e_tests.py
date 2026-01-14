@@ -106,6 +106,8 @@ def build_binaries(
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if parallel == 0:
         parallel = multiprocessing.cpu_count()
@@ -267,6 +269,8 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if shutil.which("pulumi") is None:
         raise Exit(
@@ -290,7 +294,10 @@ def run(
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
-                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
+                test_job_name = os.getenv("CI_JOB_NAME")
+                if test_job_name.endswith("-init"):
+                    test_job_name = test_job_name.removesuffix("-init")
+                to_skip = executor.tests_to_skip(test_job_name, changed_packages + changed_files)
                 ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
