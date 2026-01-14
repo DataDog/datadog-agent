@@ -24,6 +24,7 @@
 #include "protocols/redis/helpers.h"
 #include "protocols/postgres/helpers.h"
 #include "protocols/tls/tls.h"
+#include "tracer/telemetry.h"
 
 // Some considerations about multiple protocol classification:
 //
@@ -129,6 +130,9 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
+    // Capture start time for timing metrics
+    __u64 entrypoint_start_ns = bpf_ktime_get_ns();
+
     skb_info_t skb_info = {0};
     conn_tuple_t skb_tup = {0};
 
@@ -150,6 +154,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
     if (is_fully_classified(protocol_stack)) {
+        // Track early exit when connection is already fully classified
+        increment_telemetry_count(protocol_classifier_entrypoint_early_exit_calls);
+        __u64 key = 0;
+        telemetry_t *val = bpf_map_lookup_elem(&telemetry, &key);
+        if (val != NULL) {
+            __u64 duration = bpf_ktime_get_ns() - entrypoint_start_ns;
+            __sync_fetch_and_add(&val->protocol_classifier_entrypoint_early_exit_time_ns, duration);
+        }
         return;
     }
 

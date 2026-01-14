@@ -26,7 +26,9 @@
 
 SEC("socket/classifier_entry")
 int socket__classifier_entry(struct __sk_buff *skb) {
-    protocol_classifier_entrypoint(skb);
+    RECORD_TIMING(socket_classifier_entry_calls, socket_classifier_entry_time_ns, {
+        protocol_classifier_entrypoint(skb);
+    });
     return 0;
 }
 

@@ -158,6 +158,12 @@ typedef struct {
     __u64 net_dev_queue_is_equal_time_ns;
     __u64 net_dev_queue_not_equal_calls;
     __u64 net_dev_queue_not_equal_time_ns;
+    // protocol classifier timing metrics
+    __u64 protocol_classifier_entrypoint_early_exit_calls;
+    __u64 protocol_classifier_entrypoint_early_exit_time_ns;
+    // socket classifier entry timing metrics
+    __u64 socket_classifier_entry_calls;
+    __u64 socket_classifier_entry_time_ns;
 } telemetry_t;
 
 typedef struct {
