@@ -543,6 +543,7 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-runtimes
+/pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
 /pkg/system-probe/api/client/client_windows.go      @DataDog/windows-products
 /pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-products
