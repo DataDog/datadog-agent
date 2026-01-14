@@ -63,23 +63,31 @@ type logObs struct {
 	timestamp int64
 }
 
-// NewComponent creates an observer.Component.
-func NewComponent(deps Requires) Provides {
-	correlator := NewCorrelator(CorrelatorConfig{})
-	reporter := &StdoutReporter{}
+// ObserverOpts allows selective enabling of algorithms.
+// All fields optional - nil slices mean disabled.
+type ObserverOpts struct {
+	TSAnalyses        []observerdef.TimeSeriesAnalysis
+	SignalEmitters    []observerdef.SignalEmitter
+	AnomalyProcessors []observerdef.AnomalyProcessor
+	SignalProcessors  []observerdef.SignalProcessor
+}
 
-	// Connect the reporter to the correlator's state
-	reporter.SetCorrelationState(correlator)
-
+// NewObserverWithOpts creates an observer with specific algorithms enabled.
+// Example:
+//
+//	obs := NewObserverWithOpts(ObserverOpts{
+//	    SignalEmitters: []observerdef.SignalEmitter{
+//	        NewGraphSketchEmitter(DefaultGraphSketchConfig()),
+//	    },
+//	})
+func NewObserverWithOpts(opts ObserverOpts) observerdef.Component {
 	obs := &observerImpl{
 		logProcessors: []observerdef.LogProcessor{
 			&LogTimeSeriesAnalysis{
 				MaxEvalBytes: 4096,
-				// Exclude metadata fields that shouldn't be metrics.
-				// These are common timestamp/ID fields that appear in event JSON.
 				ExcludeFields: map[string]struct{}{
-					"timestamp": {}, // event.Event.Ts serializes as "timestamp"
-					"ts":        {}, // alternate timestamp field name
+					"timestamp": {},
+					"ts":        {},
 					"time":      {},
 					"pid":       {},
 					"ppid":      {},
@@ -90,24 +98,25 @@ func NewComponent(deps Requires) Provides {
 			&BadDetector{},
 			&ConnectionErrorExtractor{},
 		},
-		tsAnalyses: []observerdef.TimeSeriesAnalysis{
-			NewCUSUMDetector(),
-		},
-		anomalyProcessors: []observerdef.AnomalyProcessor{
-			correlator,
-		},
-		reporters: []observerdef.Reporter{
-			reporter,
-		},
-		storage:   newTimeSeriesStorage(),
-		obsCh:     make(chan observation, 1000),
-		maxEvents: 1000, // Keep last 1000 events for debugging
+		tsAnalyses:        opts.TSAnalyses,
+		signalEmitters:    opts.SignalEmitters,
+		anomalyProcessors: opts.AnomalyProcessors,
+		signalProcessors:  opts.SignalProcessors,
+		reporters:         []observerdef.Reporter{&StdoutReporter{}},
+		storage:           newTimeSeriesStorage(),
+		obsCh:             make(chan observation, 1000),
+		maxEvents:         1000,
 	}
 	go obs.run()
+	return obs
+}
+
+// NewComponent creates an observer.Component.
+// By default, NO algorithms are enabled to avoid UI rendering interference.
+func NewComponent(deps Requires) Provides {
+	obs := NewObserverWithOpts(ObserverOpts{}).(*observerImpl)
 
 	cfg := pkgconfigsetup.Datadog()
-
-	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
 	eventsDumpPath := cfg.GetString("observer.debug_events_dump_path")
 	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
@@ -227,8 +236,10 @@ func samplePass(rate float64, n uint64) bool {
 // observerImpl is the implementation of the observer component.
 type observerImpl struct {
 	logProcessors     []observerdef.LogProcessor
-	tsAnalyses        []observerdef.TimeSeriesAnalysis
-	anomalyProcessors []observerdef.AnomalyProcessor // Supports both old (AnomalyOutput) and new (Signal via ProcessSignal)
+	tsAnalyses        []observerdef.TimeSeriesAnalysis // OLD: Backward compatibility for region-based anomaly detection
+	signalEmitters    []observerdef.SignalEmitter      // NEW: Layer 1 - Point-based anomaly detection
+	anomalyProcessors []observerdef.AnomalyProcessor   // OLD: For backward compatibility with region-based anomaly detection
+	signalProcessors  []observerdef.SignalProcessor    // NEW: Layer 2 - Signal correlation/clustering
 	reporters         []observerdef.Reporter
 	storage           *timeSeriesStorage
 	obsCh             chan observation
@@ -242,6 +253,27 @@ type observerImpl struct {
 	rawAnomalyMu     sync.RWMutex
 	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
 	currentDataTime  int64 // latest data timestamp seen
+}
+
+// correlatorAdapter wraps CrossSignalCorrelator to implement SignalProcessor.
+// This is needed because CrossSignalCorrelator implements AnomalyProcessor with
+// Process(AnomalyOutput) and Flush() []ReportOutput, but SignalProcessor needs
+// Process(Signal) and Flush() with no return.
+type correlatorAdapter struct {
+	correlator *CrossSignalCorrelator
+}
+
+func (a *correlatorAdapter) Name() string {
+	return a.correlator.Name()
+}
+
+func (a *correlatorAdapter) Process(signal observerdef.Signal) {
+	a.correlator.ProcessSignal(signal)
+}
+
+func (a *correlatorAdapter) Flush() {
+	// Call the underlying Flush() but discard the return value
+	_ = a.correlator.Flush()
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -311,7 +343,7 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 }
 
 // routeEventSignal converts an event log observation to a unified Signal and sends it
-// to all SignalProcessors. Events are used as correlation context, not as inputs for 
+// to all SignalProcessors. Events are used as correlation context, not as inputs for
 // metric derivation or anomaly detection.
 func (o *observerImpl) routeEventSignal(l *logObs) {
 	// Extract event type from tags (already standardized at source, e.g., "event_type:agent_startup")
@@ -328,8 +360,8 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 		Source:    "event:" + eventSource,
 		Timestamp: l.timestamp,
 		Tags:      l.tags,
-		Value:     0,    // Events don't have numeric values
-		Score:     nil,  // Events don't have scores
+		Value:     0,   // Events don't have numeric values
+		Score:     nil, // Events don't have scores
 	}
 
 	// Store in event buffer (ring buffer)
@@ -341,22 +373,19 @@ func (o *observerImpl) routeEventSignal(l *logObs) {
 		o.eventBuffer = append(o.eventBuffer, signal)
 	}
 
-	// Send to anomaly processors that support signals (new way - use ProcessSignal method)
-	for _, proc := range o.anomalyProcessors {
-		// If the processor supports the new Signal-based input, send it
-		if sp, ok := proc.(*CrossSignalCorrelator); ok {
-			sp.ProcessSignal(signal)
-		}
-	}
+	// Send to all signal processors (Layer 2)
+	o.processSignal(signal)
 }
 
 // runTSAnalyses runs all time series analyses on a series with the given aggregation.
 // It appends an aggregation suffix to the series name for distinct Source tracking.
+// This function runs BOTH old (TimeSeriesAnalysis -> AnomalyOutput) and new (SignalEmitter -> Signal) detectors.
 func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 	// Append aggregation suffix to series name for distinct Source tracking
 	seriesWithAgg := series
 	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
 
+	// OLD: Run region-based anomaly detection (TimeSeriesAnalysis) for backward compatibility
 	for _, tsAnalysis := range o.tsAnalyses {
 		result := tsAnalysis.Analyze(seriesWithAgg)
 		for _, anomaly := range result.Anomalies {
@@ -365,6 +394,15 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 			// Capture raw anomaly before passing to processors
 			o.captureRawAnomaly(anomaly)
 			o.processAnomaly(anomaly)
+		}
+	}
+
+	// NEW: Run point-based anomaly detection (SignalEmitter) and send signals to processors
+	for _, emitter := range o.signalEmitters {
+		signals := emitter.Emit(seriesWithAgg)
+		for _, signal := range signals {
+			// Send signal to all Layer 2 processors
+			o.processSignal(signal)
 		}
 	}
 }
@@ -391,6 +429,13 @@ func aggSuffix(agg Aggregate) string {
 func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 	for _, processor := range o.anomalyProcessors {
 		processor.Process(anomaly)
+	}
+}
+
+// processSignal sends a signal to all registered signal processors (Layer 2).
+func (o *observerImpl) processSignal(signal observerdef.Signal) {
+	for _, processor := range o.signalProcessors {
+		processor.Process(signal)
 	}
 }
 
@@ -446,10 +491,15 @@ func (o *observerImpl) RawAnomalies() []observerdef.AnomalyOutput {
 	return result
 }
 
-// flushAndReport flushes all anomaly processors and notifies all reporters.
+// flushAndReport flushes all processors and notifies all reporters.
 // Reporters are called with an empty report to trigger state-based reporting.
 func (o *observerImpl) flushAndReport() {
+	// Flush old anomaly processors for backward compatibility
 	for _, processor := range o.anomalyProcessors {
+		processor.Flush()
+	}
+	// Flush new signal processors (Layer 2)
+	for _, processor := range o.signalProcessors {
 		processor.Flush()
 	}
 	// Always notify reporters so they can check correlation state
