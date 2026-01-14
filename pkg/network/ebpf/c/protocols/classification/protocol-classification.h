@@ -174,6 +174,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
 
     protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
 
+    // Debug: track when protocol_stack is NULL vs when it exists but isn't fully classified
+    if (!protocol_stack) {
+        increment_telemetry_count(protocol_classifier_entrypoint_no_protocol_stack_calls);
+    } else if (!is_fully_classified(protocol_stack)) {
+        increment_telemetry_count(protocol_classifier_entrypoint_stack_not_fully_classified_calls);
+    }
+
     if (is_fully_classified(protocol_stack)) {
         // Track early exit when connection is already fully classified
         RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_entrypoint_already_classified_calls,

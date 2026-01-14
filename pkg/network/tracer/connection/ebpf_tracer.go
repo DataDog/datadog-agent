@@ -975,6 +975,12 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 			float64(fullClassificationCalls)*100/float64(socketClassifierCalls),
 			avgFullClassificationTime)
 
+		// Debug: why aren't more connections hitting already_classified?
+		noProtocolStackCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_no_protocol_stack_calls)
+		stackNotFullyClassifiedCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_stack_not_fully_classified_calls)
+		log.Infof("JMW   debug: no_protocol_stack=%d, stack_exists_but_not_fully_classified=%d",
+			noProtocolStackCalls, stackNotFullyClassifiedCalls)
+
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)
 		EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs = int64(ebpfTelemetry.Socket_classifier_entry_time_ns)

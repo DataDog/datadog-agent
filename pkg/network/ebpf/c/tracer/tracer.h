@@ -167,6 +167,8 @@ typedef struct {
     __u64 protocol_classifier_entrypoint_context_init_failed_time_ns;
     __u64 protocol_classifier_entrypoint_already_classified_calls;
     __u64 protocol_classifier_entrypoint_already_classified_time_ns;
+    __u64 protocol_classifier_entrypoint_no_protocol_stack_calls;
+    __u64 protocol_classifier_entrypoint_stack_not_fully_classified_calls;
     // socket classifier entry timing metrics
     __u64 socket_classifier_entry_calls;
     __u64 socket_classifier_entry_time_ns;
