@@ -24,7 +24,7 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:    "Cisco IOS",
 			profile: IOSProfile(),
-			fixture: loadFixture("cisco-ios"),
+			fixture: loadFixture("cisco-ios", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp:  1760099696,
 				ConfigSize: 3781,
@@ -33,18 +33,61 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 		{
 			name:    "JunOS",
 			profile: JunOSProfile(),
-			fixture: loadFixture("junos"),
+			fixture: loadFixture("junos", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{
 				ConfigSize: 0,
 				Timestamp:  1730646727,
 				Author:     "netops",
 			},
 		},
+		{
+			name:                      "PAN-OS",
+			profile:                   DefaultProfile("pan-os"),
+			fixture:                   loadFixture("pan-os", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "AOSW",
+			profile:                   DefaultProfile("aosw"),
+			fixture:                   loadFixture("aosw", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.profile.initializeScrubbers()
 			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessCommandOutput(Running, tt.fixture.Initial)
+			if tt.expectedErrMsg != "" {
+				assert.EqualError(t, err, tt.expectedErrMsg)
+			}
+			assert.Equal(t, tt.fixture.Expected, actualOutput)
+			assert.Equal(t, tt.expectedExtractedMetadata, actualExtractedMetadata)
+		})
+	}
+}
+
+func Test_DefaultProfiles_Startup(t *testing.T) {
+	tests := []struct {
+		name                      string
+		profile                   *NCMProfile
+		fixture                   Fixture
+		expectedExtractedMetadata *ExtractedMetadata
+		expectedErrMsg            string
+	}{
+		{
+			name:    "Cisco IOS",
+			profile: IOSProfile(),
+			fixture: loadFixture("cisco-ios", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp:  1765307830,
+				ConfigSize: 3163,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.profile.initializeScrubbers()
+			actualOutput, actualExtractedMetadata, err := tt.profile.ProcessCommandOutput(Startup, tt.fixture.Initial)
 			if tt.expectedErrMsg != "" {
 				assert.EqualError(t, err, tt.expectedErrMsg)
 			}

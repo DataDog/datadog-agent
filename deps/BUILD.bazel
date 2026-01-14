@@ -19,17 +19,8 @@ filegroup(
         "@zlib//:z",
     ] + select({
         "@platforms//os:linux": [
-            "@acl",
-            "@attr",
-            "@gcrypt",
             "@gpg-error",
-            "@libsepol//:sepol",
-            "@libxml2",
-            "@libxslt",
             "@nghttp2",
-            "@pcre2",
-            "@popt",
-            "@zstd",
         ],
         "//:macos_arm64": [
             "@openssl3//:libcrypto",
@@ -39,5 +30,8 @@ filegroup(
         ],
         "//conditions:default": [],
     }),
-    visibility = ["//compliance:__pkg__"],
+    visibility = [
+        "//compliance:__pkg__",
+        "//packages:__subpackages__",
+    ],
 )

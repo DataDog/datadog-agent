@@ -201,7 +201,7 @@ func (p *Profile) ToSecurityProfileMessage(timeResolver *ktime.Resolver) *api.Se
 	defer p.InstancesLock.Unlock()
 	for _, inst := range p.Instances {
 		msg.Instances = append(msg.Instances, &api.InstanceMessage{
-			ContainerID: string(inst.ContainerID),
+			ContainerID: string(inst.ContainerContext.ContainerID),
 			CGroupID:    string(inst.CGroupContext.CGroupID),
 			Tags:        inst.Tags,
 		})

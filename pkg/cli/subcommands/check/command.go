@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -61,10 +62,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -73,6 +77,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	"github.com/DataDog/datadog-agent/pkg/collector/sharedlibrary/sharedlibraryimpl"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -99,6 +104,7 @@ type cliParams struct {
 	checkPause                int
 	checkName                 string
 	checkDelay                int
+	checkConfig               string
 	instanceFilter            string
 	logLevel                  string
 	formatJSON                bool
@@ -207,10 +213,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				jmxloggerimpl.Module(jmxloggerimpl.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
+				remotetraceroute.Module(),
 			)
 		},
 	}
 
+	cmd.Flags().StringVarP(&cliParams.checkConfig, "check-config", "C", "", "path to a check configuration file")
 	cmd.Flags().BoolVarP(&cliParams.checkRate, "check-rate", "r", false, "check rates by running the check twice with a 1sec-pause between the 2 runs")
 	cmd.Flags().IntVarP(&cliParams.checkTimes, "check-times", "t", 1, "number of times to run the check")
 	cmd.Flags().IntVar(&cliParams.checkPause, "pause", 0, "pause between multiple runs of the check, in milliseconds")
@@ -226,7 +234,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
-
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -262,6 +269,7 @@ func run(
 	telemetry telemetry.Component,
 	logReceiver option.Option[integrations.Component],
 	ipc ipc.Component,
+	traceroute traceroute.Component,
 ) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
@@ -294,10 +302,14 @@ func run(
 	if !config.GetBool("python_lazy_loading") {
 		python.InitPython(common.GetPythonPaths()...)
 	}
+
+	if config.GetBool("shared_library_check.enabled") {
+		sharedlibrarycheck.InitSharedLibraryChecksLoader()
+	}
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
 
 	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -306,11 +318,7 @@ func run(
 	// AutoDiscovery.
 	pkgcollector.InitCheckScheduler(collector, demultiplexer, logReceiver, tagger, filterStore)
 
-	waitCtx, cancelTimeout := context.WithTimeout(
-		context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
-
-	allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
-	cancelTimeout()
+	allConfigs, err := getAllCheckConfigs(ac, *cliParams)
 	if err != nil {
 		return err
 	}
@@ -628,7 +636,7 @@ func run(
 }
 
 func runCheck(cliParams *cliParams, c check.Check, _ aggregator.Demultiplexer) *stats.Stats {
-	s := stats.NewStats(c)
+	s := stats.NewStats(c, healthplatformmock.Mock(nil))
 	times := cliParams.checkTimes
 	pause := cliParams.checkPause
 	if cliParams.checkRate {
@@ -759,6 +767,27 @@ func populateMemoryProfileConfig(cliParams *cliParams, initConfig map[string]int
 	}
 
 	return nil
+}
+
+func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]integration.Config, error) {
+	// get configs from auto discovery
+	if cliParams.checkConfig == "" {
+		waitCtx, cancelTimeout := context.WithTimeout(
+			context.Background(), time.Duration(cliParams.discoveryTimeout)*time.Second)
+
+		allConfigs, err := common.WaitForConfigsFromAD(waitCtx, []string{cliParams.checkName}, int(cliParams.discoveryMinInstances), cliParams.instanceFilter, ac)
+		defer cancelTimeout()
+
+		return allConfigs, err
+	}
+
+	// get config from custom config file
+	customConf, _, err := providers.GetIntegrationConfigFromFile(cliParams.checkName, cliParams.checkConfig)
+	if err != nil {
+		return nil, fmt.Errorf("fail to load custom config: %v", err)
+	}
+
+	return []integration.Config{customConf}, nil
 }
 
 // disableCmdPort overrrides the `cmd_port` configuration so that when the

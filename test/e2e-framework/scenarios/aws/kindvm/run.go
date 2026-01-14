@@ -35,9 +35,10 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 //go:embed agent_helm_values.yaml
@@ -184,10 +185,11 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		if err != nil {
 			return err
 		}
+		dependsOnDDAgent = utils.PulumiDependsOn(operatorComp)
 	}
 
 	if params.deployDogstatsd {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", fakeIntake, false, ctx.Stack()); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(&awsEnv, kubeProvider, "dogstatsd-standalone", "/run/containerd/containerd.sock", fakeIntake, false, ctx.Stack()); err != nil {
 			return err
 		}
 	}
@@ -224,7 +226,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
 		if params.agentOptions != nil {
-			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
+			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
 
@@ -243,6 +245,16 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			}
 		}
 	}
+
+	if dependsOnDDAgent != nil {
+		for _, appFunc := range params.depWorkloadAppFuncs {
+			_, err := appFunc(&awsEnv, kubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {

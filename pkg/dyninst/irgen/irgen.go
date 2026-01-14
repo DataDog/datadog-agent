@@ -25,7 +25,6 @@ import (
 	"cmp"
 	"container/heap"
 	"debug/dwarf"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -3559,6 +3558,7 @@ func pickInjectionPoint(
 				PC:                  ranges[0][0],
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonInlined,
 			})
 		} else {
 			call, err := pickCallInjectionPoint(arch, addr, frameless, lines)
@@ -3580,21 +3580,30 @@ func pickInjectionPoint(
 				return buf, nil, issue, nil
 			}
 
-			// Add a workaround for the fact that single-instruction functions
-			// would have the same entry and exit probes, but the ordering between
-			// them would not be well-defined, so in this extremely uncommon case
-			// the user doesn't get to see the return probe. It's okay because
-			// there literally cannot be a return value.
-			hasAssociatedReturn := !skipReturnEvents
-			if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+			var hasAssociatedReturn bool
+			var noReturnReason ir.NoReturnReason
+			if skipReturnEvents {
 				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+				// Add a workaround for the fact that single-instruction
+				// functions would have the same entry and exit probes, but the
+				// ordering between them would not be well-defined, so in this
+				// extremely uncommon case the user doesn't get to see the
+				// return probe. It's okay because there literally cannot be a
+				// return value.
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
 				returnLocations = returnLocations[:0]
+			} else {
+				hasAssociatedReturn = true
 			}
 
 			buf = append(buf, ir.InjectionPoint{
 				PC:                  call.pc,
 				Frameless:           call.frameless,
 				HasAssociatedReturn: hasAssociatedReturn,
+				NoReturnReason:      noReturnReason,
 				TopPCOffset:         call.topPCOffset,
 			})
 			if hasAssociatedReturn {
@@ -3635,6 +3644,7 @@ func pickInjectionPoint(
 			PC:                  injectionPC,
 			Frameless:           frameless,
 			HasAssociatedReturn: false,
+			NoReturnReason:      ir.NoReturnReasonLineProbe,
 		})
 	}
 	return buf, returnEvent, ir.Issue{}, nil
@@ -3826,6 +3836,7 @@ func disassembleAmd64Function(
 					PC:                  epilogueStart,
 					Frameless:           frameless,
 					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonIsReturn,
 				})
 			}
 		}
@@ -3834,6 +3845,7 @@ func disassembleAmd64Function(
 				PC:                  addr + uint64(offset),
 				Frameless:           frameless,
 				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonIsReturn,
 			})
 		}
 		offset += instruction.Len
@@ -3848,7 +3860,9 @@ func disassembleAmd64Function(
 	return returnLocations, ir.Issue{}
 }
 
-// disassembleAmd64Function implemented disassembleFunction for arm64.
+const Arm64InstructionByteLength = 4
+
+// disassembleArm64Function implements disassembleFunction for arm64.
 func disassembleArm64Function(
 	addr uint64,
 	injectionPC uint64,
@@ -3868,18 +3882,17 @@ func disassembleArm64Function(
 	for offset := 0; offset < len(body); {
 		instBytes := body[offset : offset+4]
 		instruction, err := arm64asm.Decode(instBytes)
-		// All-zero instruction fails to parse, but is used as padding and valid.
-		if err != nil && binary.LittleEndian.Uint32(instBytes) != 0 {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindDisassemblyFailed,
-				Message: fmt.Sprintf(
-					"failed to decode arm64 instruction: at offset %d of %#x %#x: %v",
-					offset, addr+uint64(offset), body[offset:min(offset+4, len(body))], err,
-				),
-			}
-		}
 		if offset == int(injectionPC)-int(addr) {
 			validInjectionPC = true
+		}
+		if err != nil {
+			// Skip instructions we can't decode. The arm64asm package doesn't
+			// support all instructions (e.g. arm LSE atomics)
+			// Since we only care about the epilouge, unknown instructions
+			// or padding are skipped. Every instruction is exactly 4 bytes
+			// so we can do this safely, unlike x86.
+			offset += Arm64InstructionByteLength
+			continue
 		}
 		if instruction.Op == arm64asm.RET {
 			retPC := addr + uint64(offset)

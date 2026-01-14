@@ -144,7 +144,10 @@ struct cgroup_tracing_event_t {
 
 struct cgroup_write_event_t {
     struct kevent_t event;
-    struct file_t file;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct cgroup_context_t cgroup;
+    struct path_key_t path_key;
     u32 pid; // pid of the process added to the cgroup
 };
 
@@ -583,6 +586,10 @@ struct tracer_memfd_seal_event_t {
     struct syscall_t syscall;
 
     u32 fd;
+};
+
+struct nop_event_t {
+    struct kevent_t event;
 };
 
 #endif

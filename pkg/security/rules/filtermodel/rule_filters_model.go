@@ -59,6 +59,11 @@ func (m *RuleFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
 	return nil
 }
 
+// ValidateRule returns whether the rule is valid
+func (m *RuleFilterModel) ValidateRule(_ *eval.Rule) error {
+	return nil
+}
+
 // GetFieldRestrictions returns the field event type restrictions
 func (m *RuleFilterModel) GetFieldRestrictions(_ eval.Field) []eval.EventType {
 	return nil

@@ -10,6 +10,7 @@ package catalog
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -17,7 +18,7 @@ import (
 // AutodiscoveryAnnotations creates a CEL program for autodiscovery annotations.
 func AutodiscoveryAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryAnnotation",
+		Name:          string(workloadfilter.ContainerADAnnotations),
 		ExcludePrefix: "",
 	}
 }
@@ -25,7 +26,7 @@ func AutodiscoveryAnnotations() program.FilterProgram {
 // AutodiscoveryMetricsAnnotations creates a CEL program for autodiscovery metrics annotations.
 func AutodiscoveryMetricsAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryMetricsAnnotations",
+		Name:          string(workloadfilter.ContainerADAnnotationsMetrics),
 		ExcludePrefix: "metrics_",
 	}
 }
@@ -33,39 +34,39 @@ func AutodiscoveryMetricsAnnotations() program.FilterProgram {
 // AutodiscoveryLogsAnnotations creates a CEL program for autodiscovery logs annotations.
 func AutodiscoveryLogsAnnotations() program.FilterProgram {
 	return program.AnnotationsProgram{
-		Name:          "AutodiscoveryLogsAnnotations",
+		Name:          string(workloadfilter.ContainerADAnnotationsLogs),
 		ExcludePrefix: "logs_",
 	}
 }
 
 // LegacyContainerGlobalProgram creates a legacy filter program for global containerized filtering
 func LegacyContainerGlobalProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerGlobalProgram", cfg.ContainerInclude, cfg.ContainerExclude, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyGlobal), cfg.ContainerInclude, cfg.ContainerExclude, logger)
 }
 
 // LegacyContainerMetricsProgram creates a legacy filter program for containerized metrics filtering
 func LegacyContainerMetricsProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerMetricsProgram", cfg.ContainerIncludeMetrics, cfg.ContainerExcludeMetrics, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyMetrics), cfg.ContainerIncludeMetrics, cfg.ContainerExcludeMetrics, logger)
 }
 
 // LegacyContainerLogsProgram creates a legacy filter program for containerized logs filtering
 func LegacyContainerLogsProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerLogsProgram", cfg.ContainerIncludeLogs, cfg.ContainerExcludeLogs, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyLogs), cfg.ContainerIncludeLogs, cfg.ContainerExcludeLogs, logger)
 }
 
 // LegacyContainerACExcludeProgram creates a legacy filter program for containerized AC exclusion filtering
 func LegacyContainerACExcludeProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerACExcludeProgram", nil, cfg.ACExclude, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyACExclude), nil, cfg.ACExclude, logger)
 }
 
 // LegacyContainerACIncludeProgram creates a legacy filter program for containerized AC inclusion filtering
 func LegacyContainerACIncludeProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerACIncludeProgram", cfg.ACInclude, nil, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacyACInclude), cfg.ACInclude, nil, logger)
 }
 
 // LegacyContainerSBOMProgram creates a legacy filter program for containerized SBOM filtering
 func LegacyContainerSBOMProgram(cfg *FilterConfig, logger log.Component) program.FilterProgram {
-	return createLegacyContainerProgram("LegacyContainerSBOMProgram", cfg.SBOMContainerInclude, cfg.SBOMContainerExclude, logger)
+	return createLegacyContainerProgram(string(workloadfilter.ContainerLegacySBOM), cfg.SBOMContainerInclude, cfg.SBOMContainerExclude, logger)
 }
 
 func createLegacyContainerProgram(programName string, include, exclude []string, logger log.Component) program.FilterProgram {

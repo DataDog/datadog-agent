@@ -28,8 +28,6 @@ func NewDecoderFromSource(source *sources.ReplaceableSource, tailerInfo *status.
 
 // NewDecoderFromSourceWithPattern creates a new decoder from a log source with a multiline pattern
 func NewDecoderFromSourceWithPattern(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry) Decoder {
-
-	// TODO: remove those checks and add to source a reference to a tagProvider and a lineParser.
 	var lineParser parsers.Parser
 	framing := framer.UTF8Newline
 	switch source.GetSourceType() {

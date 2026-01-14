@@ -808,7 +808,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 	// Get req/resp conn link
 	httpConnLink, found := getHttpConnLink(eventInfo.EventHeader.ActivityID)
 	if !found {
-		log.Warnf("connlink not found at tracetaskdeliver")
 		return
 	}
 	httpConnLink.opcodes = append(httpConnLink.opcodes, eventInfo.EventHeader.EventDescriptor.ID)

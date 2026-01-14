@@ -464,6 +464,10 @@ Package networkpath implements the "networkpath" bundle,
 
 Package npcollector used to manage network paths
 
+### [comp/networkpath/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/traceroute)
+
+Package traceroute provides the traceroute component
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent
@@ -766,7 +770,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core ndm-integrations
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 

@@ -6,7 +6,7 @@
     - BUILD_ARG=${BUILD_ARG:-}
     - EXTRA_BUILD_CONTEXT=${ARTIFACTS_BUILD_CONTEXT:+"--build-context artifacts=$ARTIFACTS_BUILD_CONTEXT"}
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" ) ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation"  || "$IMAGE" =~ "ci/datadog-agent/otel-agent" || "$IMAGE" =~ "ci/datadog-agent/ddot-ebpf" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
@@ -267,6 +267,36 @@ docker_build_base_image_amd64:
 
 docker_build_base_image_arm64:
   extends: [.docker_build_base_image, .docker_build_arm64]
+
+.docker_build_host_profiler_standalone:
+  extends: .docker_build_job_definition
+  before_script:
+    - cp bin/full-host-profiler/full-host-profiler $BUILD_CONTEXT/
+    - cp cmd/host-profiler/dist/host-profiler-config.yaml $BUILD_CONTEXT/
+    - ls -l $BUILD_CONTEXT/
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  variables:
+    IMAGE: registry.ddbuild.io/ci/datadog-agent/ddot-ebpf
+    BUILD_CONTEXT: Dockerfiles/ddot-ebpf
+    FLATTEN_IMAGE: false
+    BUILD_ARG: --target release
+    TAG_SUFFIX: -7
+
+docker_build_host_profiler_standalone_amd64:
+  extends:
+    [.docker_build_host_profiler_standalone, .docker_build_amd64]
+  needs:
+    - job: docker_build_base_image_amd64
+    - job: build_host_profiler_binary_x64
+
+docker_build_host_profiler_standalone_arm64:
+  extends:
+    [.docker_build_host_profiler_standalone, .docker_build_arm64]
+  needs:
+    - job: docker_build_base_image_arm64
+    - job: build_host_profiler_binary_arm64
 
 .docker_build_ot_agent_standalone:
   extends: .docker_build_job_definition

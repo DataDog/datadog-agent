@@ -77,6 +77,8 @@ func computeRawsTable() map[string]uint64 {
 		SizeOfPipeBuffer:                          40,
 		OffsetNamePipeBufferStructFlags:           24,
 		OffsetNameRtnlLinkOpsKind:                 16,
+		OffsetNameMntNamespaceNs:                  8,
+		OffsetNameNsCommonInum:                    16,
 	}
 }
 
@@ -126,6 +128,7 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
+		OffsetNameMountMntNs:                  getMountMntNsOffset,
 	}
 }
 
@@ -1018,5 +1021,14 @@ func getFlowiProtoOffset(kv *kernel.Version) uint64 {
 		return 14
 	default:
 		return 18
+	}
+}
+
+func getMountMntNsOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuse12Kernel():
+		return 232
+	default:
+		return 224
 	}
 }

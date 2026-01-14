@@ -99,9 +99,9 @@ network_devices:
 	assert.Equal(t, model.NewWarnings(nil), warnings)
 	assert.Equal(t, 0, len(warnings.Errors))
 
-	// NOTE: An additional warning is created here because the config has an error
+	// NOTE: Keys are declared using SetKnown, no warnings generated
 	warnings = ntmConf.Warnings()
-	assert.Equal(t, 1, len(warnings.Errors))
+	assert.Equal(t, 0, len(warnings.Errors))
 
 	type simpleConfig struct {
 		Workers int `mapstructure:"workers"`
@@ -289,7 +289,7 @@ type TargetStruct struct {
 func TestUnmarshalWeaklyTyped(t *testing.T) {
 	// Validate that UnmarshalKey uses mapstructure's implicit conversion from
 	// mapstructure's WeaklyTypedInput setting.
-	// https://github.com/mitchellh/mapstructure/blob/8508981c8b6c964e6986dd8aa85490e70ce3c2e2/mapstructure.go#L229
+	// https://github.com/go-viper/mapstructure/blob/v2.4.0/mapstructure.go#L257
 	dataYaml := `
 my_target:
   bool_to_string:  true

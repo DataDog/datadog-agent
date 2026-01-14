@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	devicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 	podresourcesv1 "k8s.io/kubelet/pkg/apis/podresources/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
@@ -69,6 +70,7 @@ type KubeUtil struct {
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
+	devicePluginsClient  DevicePluginClient
 
 	useAPIServer bool
 
@@ -104,6 +106,13 @@ func (ku *KubeUtil) init() error {
 		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
 		if err != nil {
 			log.Warnf("Failed to create pod resources client, resource data will not be available: %s", err)
+		}
+	}
+
+	if env.IsFeaturePresent(env.KubernetesDevicePlugins) {
+		ku.devicePluginsClient, err = NewDevicePluginClient(pkgconfigsetup.Datadog())
+		if err != nil {
+			log.Warnf("Failed to create device plugins client, devices health will not be available: %s", err)
 		}
 	}
 
@@ -332,6 +341,33 @@ func (ku *KubeUtil) addResourcesToContainerList(containerToDevicesMap map[Contai
 			}
 		}
 	}
+}
+
+// GetDevicesList returns the list of devices registered to the kubelet on the node.
+// Information is cached for as configured by kubernetes_kubelet_deviceplugins_cache_duration
+func (ku *KubeUtil) GetDevicesList(ctx context.Context) ([]*Device, error) {
+	if ku.devicePluginsClient == nil {
+		return nil, nil
+	}
+
+	if err := ku.devicePluginsClient.Refresh(ctx); err != nil {
+		return nil, err
+	}
+
+	info, err := ku.devicePluginsClient.ListDevices(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	devices := []*Device{}
+	for _, d := range info {
+		devices = append(devices, &Device{
+			ID:      d.ID,
+			Healthy: d.Health == devicepluginv1beta1.Healthy,
+		})
+	}
+
+	return devices, nil
 }
 
 // GetLocalPodList returns the list of pods running on the node.

@@ -36,20 +36,25 @@
 
 # -- binary specific variables --
 .agent_variables: &agent_variables
-  IMAGE_VERSION: tmpl-v16
+  IMAGE_VERSION: tmpl-v17
   IMAGE_NAME: datadog-agent
   TMPL_SRC_REPO: ci/datadog-agent/agent
 
 .cluster_agent_variables: &cluster_agent_variables
-  IMAGE_VERSION: tmpl-v8
+  IMAGE_VERSION: tmpl-v9
   IMAGE_NAME: datadog-cluster-agent
   TMPL_SRC_REPO: ci/datadog-agent/cluster-agent
   RELEASE_PROD: "true"
 
 .ot_standalone_variables: &ot_standalone_variables
-  IMAGE_VERSION: tmpl-v2
+  IMAGE_VERSION: tmpl-v3
   IMAGE_NAME: otel-agent
   TMPL_SRC_REPO: ci/datadog-agent/otel-agent
+
+.host_profiler_standalone_variables: &host_profiler_standalone_variables
+  IMAGE_VERSION: tmpl-v1
+  IMAGE_NAME: ddot-ebpf
+  TMPL_SRC_REPO: ci/datadog-agent/ddot-ebpf
 
 # -- publish jobs --
 publish_internal_container_image-jmx:
@@ -99,6 +104,17 @@ publish_internal_container_image-ot_standalone:
       artifacts: false
   variables:
     <<: *ot_standalone_variables
+    TMPL_SRC_IMAGE_SUFFIX: "-7"
+
+publish_internal_container_image-host_profiler_standalone:
+  extends: .docker_trigger_base
+  needs:
+    - job: docker_build_host_profiler_standalone_amd64
+      artifacts: false
+    - job: docker_build_host_profiler_standalone_arm64
+      artifacts: false
+  variables:
+    <<: *host_profiler_standalone_variables
     TMPL_SRC_IMAGE_SUFFIX: "-7"
 
 # DCA publish jobs

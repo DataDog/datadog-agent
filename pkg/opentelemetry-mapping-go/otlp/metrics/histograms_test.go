@@ -145,7 +145,7 @@ func TestDeltaHistogramTranslatorOptions(t *testing.T) {
 			set := componenttest.NewNopTelemetrySettings()
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator, options...)
+			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			if testinstance.err != "" {
 				assert.EqualError(t, err, testinstance.err)
 				return
@@ -173,7 +173,7 @@ func TestNonMonotonicCount(t *testing.T) {
 	attributesTranslator, err := attributes.NewTranslator(set)
 	assert.NoError(t, err)
 
-	translator, err := NewTranslator(set, attributesTranslator, options...)
+	translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 	assert.NoError(t, err)
 
 	_, err = translator.MapMetrics(context.Background(), otlpdata, &consumer, nil)
@@ -382,7 +382,7 @@ func TestExponentialHistogramTranslatorOptions(t *testing.T) {
 			set.Logger = zap.New(core)
 			attributesTranslator, err := attributes.NewTranslator(set)
 			require.NoError(t, err)
-			translator, err := NewTranslator(set, attributesTranslator, options...)
+			translator, err := NewDefaultTranslator(set, attributesTranslator, options...)
 			require.NoError(t, err)
 			AssertTranslatorMap(t, translator, testinstance.otlpfile, testinstance.ddogfile)
 			assert.Equal(t, testinstance.expectedUnknownMetricType, observed.FilterMessage("Unknown or unsupported metric type").Len())
@@ -471,7 +471,7 @@ func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromHistogramOfDuration(&dp, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return
@@ -496,6 +496,15 @@ func TestCreateDDSketchFromHistogramOfDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateDDSketchFromHistogramOfDuration_Nil(t *testing.T) {
+	sketch, err := CreateDDSketchFromHistogramOfDuration(nil, "ms")
+	assert.NoError(t, err)
+	assert.NotNil(t, sketch)
+	assert.Equal(t, 0.0, sketch.GetCount())
+	assert.Equal(t, 0.0, sketch.GetSum())
+	assert.Equal(t, 0.0, sketch.GetZeroCount())
 }
 
 func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
@@ -596,7 +605,7 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			}
 
 			// Test the function
-			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(dp, tt.unit)
+			sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(&dp, tt.scale, tt.unit)
 			if tt.hasError {
 				assert.Error(t, err)
 				return
@@ -634,6 +643,15 @@ func TestCreateDDSketchFromExponentialHistogramOfDuration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCreateDDSketchFromExponentialHistogramOfDuration_Nil(t *testing.T) {
+	sketch, err := CreateDDSketchFromExponentialHistogramOfDuration(nil, 0, "ms")
+	assert.NoError(t, err)
+	assert.NotNil(t, sketch)
+	assert.Equal(t, 0.0, sketch.GetCount())
+	assert.Equal(t, 0.0, sketch.GetSum())
+	assert.Equal(t, 0.0, sketch.GetZeroCount())
 }
 
 // PrettyPrintEHDP returns a readable string for one ExponentialHistogramDataPoint.
