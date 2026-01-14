@@ -35,8 +35,8 @@ type eudmSuite struct {
 
 func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Build agent options with EUDM mode configuration
-	// The wlan check is automatically loaded via the embedded config provider
-	// (configured in integration.end_user_device.inject_embedded)
+	// The wlan check is automatically loaded via StaticConfigListener
+	// (checks with ad_identifiers: [_end_user_device] are scheduled)
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"`),
 	}

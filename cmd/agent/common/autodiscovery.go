@@ -59,10 +59,6 @@ func setupAutoDiscovery(confSearchPaths []string, wmeta workloadmeta.Component, 
 		time.Duration(pkgconfigsetup.Datadog().GetInt("autoconf_config_files_poll_interval"))*time.Second,
 	)
 
-	if embeddedProvider, embeddedErr := providers.NewEmbeddedConfigProvider(nil, acTelemetryStore); embeddedErr == nil {
-		ac.AddConfigProvider(embeddedProvider, false, 0)
-	}
-
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig()
 

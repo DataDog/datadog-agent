@@ -39,5 +39,5 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	}
 
 	// Check additional list for the current mode
-	return slices.Contains(cfg.GetStringSlice("integration."+infraMode+".additional"), checkName) || slices.Contains(cfg.GetStringSlice("integration."+infraMode+".inject_embedded"), checkName)
+	return slices.Contains(cfg.GetStringSlice("integration."+infraMode+".additional"), checkName)
 }

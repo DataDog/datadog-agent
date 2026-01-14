@@ -1376,12 +1376,6 @@ func agent(config pkgconfigmodel.Setup) {
 	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
 	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
-	// Infrastructure mode - inject embedded checks
-	// When infrastructure_mode is set to end_user_device, these checks are injected and run embedded in the agent.
-	config.BindEnvAndSetDefault("integration.end_user_device.inject_embedded", []string{
-		"wlan",
-	})
-
 	// Legacy alias for backward compatibility
 	// This applies to the current infrastructure_mode
 	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
