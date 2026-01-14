@@ -297,10 +297,11 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			// Permanent error, increment the logs dropped metric
 			metrics.DestinationLogsDropped.Add(d.host, payload.Count())
 			metrics.TlmLogsDropped.Add(float64(payload.Count()), d.host)
+		} else {
+			metrics.LogsSent.Add(payload.Count())
+			metrics.TlmLogsSent.Add(float64(payload.Count()))
 		}
 
-		metrics.LogsSent.Add(payload.Count())
-		metrics.TlmLogsSent.Add(float64(payload.Count()))
 		output <- payload
 		return result
 	}
