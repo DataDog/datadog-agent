@@ -182,4 +182,5 @@ use (
 	test/new-e2e
 	test/otel
 	tools/retry_file_dump
+	q_branch/mcp-evaluation/mcp
 )
