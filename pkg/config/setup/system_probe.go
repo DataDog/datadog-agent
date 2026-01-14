@@ -61,16 +61,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_thp", true)
 
-	// SBOM configuration
-	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
-	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
-	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

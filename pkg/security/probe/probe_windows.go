@@ -1169,6 +1169,10 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	return err
 }
 
+// ReplayEvents replays the events from the rule set
+func (p *WindowsProbe) ReplayEvents() {
+}
+
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 	p.probe.logTraceEvent(event.GetEventType(), event)
@@ -1446,7 +1450,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	p.enabledEventTypesLock.Lock()
 	clear(p.enabledEventTypes)
 	for _, eventType := range rs.GetEventTypes() {
@@ -1456,7 +1460,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 
 	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// remove old approvers
@@ -1466,17 +1470,17 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, 
 
 	for eventType, report := range filterReport.ApproverReports {
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	p.enabledEventTypesLock.RLock()
 	defer p.enabledEventTypesLock.RUnlock()
 	if err := p.reconfigureProvider(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return filterReport, nil
+	return filterReport, false, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded

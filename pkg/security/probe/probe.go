@@ -48,7 +48,7 @@ type PlatformProbe interface {
 	NewModel() *model.Model
 	DumpDiscarders() (string, error)
 	FlushDiscarders() error
-	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, error)
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
@@ -58,6 +58,7 @@ type PlatformProbe interface {
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
+	ReplayEvents()
 }
 
 var probeTelemetry = struct {
@@ -221,7 +222,7 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
-func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
@@ -407,6 +408,11 @@ func (p *Probe) onRuleActionPerformed(rule *rules.Rule, action *rules.ActionDefi
 	} else {
 		counter.Inc()
 	}
+}
+
+// ReplayEvents replays the events from the rule set
+func (p *Probe) ReplayEvents() {
+	p.PlatformProbe.ReplayEvents()
 }
 
 // NewRuleSet returns a new ruleset
