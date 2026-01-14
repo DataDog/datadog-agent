@@ -29,6 +29,7 @@ type TerminatedResourceBundle struct {
 	check               *OrchestratorCheck
 	terminatedResources map[collectors.K8sCollector][]interface{}
 	manifestBuffer      *ManifestBuffer
+	podDeletionWatcher  *PodDeletionWatcher
 }
 
 // NewTerminatedResourceBundle returns a TerminatedResourceBundle
@@ -111,15 +112,20 @@ func (tb *TerminatedResourceBundle) Run() {
 	}
 }
 
-// Enable enables the TerminatedResourceBundle to start buffering terminated resources.
+// Enable enables the TerminatedResourceBundle to start buffering terminated resources
+// and starts the pod deletion watcher.
 func (tb *TerminatedResourceBundle) Enable() {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	tb.enabled = true
+
+	if tb.podDeletionWatcher != nil {
+		tb.podDeletionWatcher.Start()
+	}
 }
 
-// Disable flushes any buffered terminated resources and then disables the bundle
-// from accepting new terminated resources.
+// Disable flushes any buffered terminated resources, disables the bundle
+// from accepting new terminated resources, and stops the pod deletion watcher.
 func (tb *TerminatedResourceBundle) Disable() {
 	// send all buffered terminated resources
 	tb.Run()
@@ -127,6 +133,18 @@ func (tb *TerminatedResourceBundle) Disable() {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	tb.enabled = false
+
+	// Stop the watcher to avoid receiving events we won't process
+	if tb.podDeletionWatcher != nil {
+		tb.podDeletionWatcher.Stop()
+	}
+}
+
+// SetPodDeletionWatcher sets the pod deletion watcher reference.
+func (tb *TerminatedResourceBundle) SetPodDeletionWatcher(w *PodDeletionWatcher) {
+	tb.mu.Lock()
+	defer tb.mu.Unlock()
+	tb.podDeletionWatcher = w
 }
 
 func toTypedSlice(k8sCollector collectors.K8sCollector, list []interface{}) interface{} {

@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -316,6 +317,11 @@ func (cb *CollectorBundle) initialize() {
 		collector.Init(cb.runCfg)
 		informer := collector.Informer()
 
+		// Skip collectors without informers (e.g., TerminatedPodCollector uses a watcher instead)
+		if informer == nil {
+			continue
+		}
+
 		if _, found := informerSynced[informer]; !found {
 			informersToSync[apiserver.InformerName(collectorFullName)] = informer
 			informerSynced[informer] = struct{}{}
@@ -437,8 +443,10 @@ func (cb *CollectorBundle) importBuiltinCollectors() {
 	builtinCollectors := cb.getBuiltinCustomResourceCollectors()
 
 	// add terminated pod collector
-	terminatedPodCollector := cb.getTerminatedPodCollector()
-	if terminatedPodCollector != nil {
+	if terminatedPodCollector := cb.getTerminatedPodCollector(); terminatedPodCollector != nil {
+		handler := func(pod *corev1.Pod) { cb.terminatedResourceBundle.Add(terminatedPodCollector, pod) }
+		watcher := NewPodDeletionWatcher(cb.runCfg.APIClient.InformerCl, handler)
+		cb.terminatedResourceBundle.SetPodDeletionWatcher(watcher)
 		builtinCollectors = append(builtinCollectors, terminatedPodCollector)
 	}
 

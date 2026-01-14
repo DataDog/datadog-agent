@@ -83,6 +83,8 @@ func TestTerminatedPodCollector(t *testing.T) {
 	collector := NewTerminatedPodCollector(mockCfg, mockStore, mockTagger, metadataAsTags)
 
 	// Test basic collector setup with RunCollectorTest
+	// Note: TerminatedPodCollector doesn't use an informer - it uses PodDeletionWatcher instead.
+	// So we only test the Process() method which handles pods passed from the watcher.
 	config := CollectorTestConfig{
 		Resources:                  []runtime.Object{pod},
 		ExpectedMetadataType:       &model.CollectorPod{},
@@ -90,10 +92,7 @@ func TestTerminatedPodCollector(t *testing.T) {
 		ExpectedResourcesProcessed: 0,
 		ExpectedMetadataMessages:   0,
 		ExpectedManifestMessages:   0,
-		SetupFn: func(runCfg *collectors.CollectorRunConfig) {
-			// Set up the terminated pod informer factory
-			runCfg.OrchestratorInformerFactory.TerminatedPodInformerFactory = runCfg.OrchestratorInformerFactory.InformerFactory
-		},
+		// No SetupFn needed - collector doesn't use informer
 		AssertionsFn: func(t *testing.T, runCfg *collectors.CollectorRunConfig, _ *collectors.CollectorRunResult) {
 			terminatedPods := []*corev1.Pod{pod}
 			processResult, err := collector.Process(runCfg, terminatedPods)

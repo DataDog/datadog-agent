@@ -86,9 +86,11 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	defer close(stopCh)
 	informerFactory.Start(stopCh)
 
-	// Wait for the informer to sync
+	// Wait for the informer to sync (skip if collector has no informer)
 	if k8sCollector, ok := collector.(collectors.K8sCollector); ok {
-		cache.WaitForCacheSync(stopCh, k8sCollector.Informer().HasSynced)
+		if informer := k8sCollector.Informer(); informer != nil {
+			cache.WaitForCacheSync(stopCh, informer.HasSynced)
+		}
 	}
 
 	// Run the collector

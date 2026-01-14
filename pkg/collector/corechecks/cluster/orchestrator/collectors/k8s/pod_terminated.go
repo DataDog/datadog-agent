@@ -9,6 +9,7 @@ package k8s
 
 import (
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -21,10 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
-	corev1Informers "k8s.io/client-go/informers/core/v1"
-	corev1Listers "k8s.io/client-go/listers/core/v1"
-	"k8s.io/client-go/tools/cache"
 )
 
 // NewTerminatedPodCollectorVersions builds the group of collector versions.
@@ -34,11 +31,10 @@ func NewTerminatedPodCollectorVersions(cfg config.Component, store workloadmeta.
 	)
 }
 
-// TerminatedPodCollector is a collector for Kubernetes Pods that are not
-// assigned to a node yet.
+// TerminatedPodCollector is a collector for terminated Kubernetes Pods.
+// Unlike other collectors, it does not use an informer. Instead, pod deletions
+// are captured by PodDeletionWatcher and processed through this collector.
 type TerminatedPodCollector struct {
-	informer  corev1Informers.PodInformer
-	lister    corev1Listers.PodLister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
 }
@@ -52,32 +48,32 @@ func NewTerminatedPodCollector(cfg config.Component, store workloadmeta.Componen
 
 	return &TerminatedPodCollector{
 		metadata: &collectors.CollectorMetadata{
-			IsDefaultVersion:                     true,
-			IsStable:                             pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods.enabled"),
-			IsMetadataProducer:                   true,
-			IsManifestProducer:                   true,
-			SupportsManifestBuffering:            true,
-			Name:                                 utilTypes.TerminatedPodName,
-			Kind:                                 kubernetes.PodKind,
-			NodeType:                             orchestrator.K8sPod,
-			Version:                              utilTypes.PodVersion,
-			LabelsAsTags:                         labelsAsTags,
-			AnnotationsAsTags:                    annotationsAsTags,
-			SupportsTerminatedResourceCollection: true,
+			IsDefaultVersion:          true,
+			IsStable:                  pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods.enabled"),
+			IsMetadataProducer:        true,
+			IsManifestProducer:        true,
+			SupportsManifestBuffering: true,
+			Name:                      utilTypes.TerminatedPodName,
+			Kind:                      kubernetes.PodKind,
+			NodeType:                  orchestrator.K8sPod,
+			Version:                   utilTypes.PodVersion,
+			LabelsAsTags:              labelsAsTags,
+			AnnotationsAsTags:         annotationsAsTags,
+			// Note: SupportsTerminatedResourceCollection is not set because this collector
+			// uses PodDeletionWatcher instead of informer-based delete event handlers.
 		},
 		processor: processors.NewProcessor(k8sProcessors.NewPodHandlers(cfg, store, tagger)),
 	}
 }
 
-// Informer returns the shared informer.
+// Informer returns nil because this collector uses PodDeletionWatcher instead of an informer.
 func (c *TerminatedPodCollector) Informer() cache.SharedInformer {
-	return c.informer.Informer()
+	return nil
 }
 
-// Init is used to initialize the collector.
+// Init is a no-op because this collector uses PodDeletionWatcher instead of an informer.
 func (c *TerminatedPodCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.OrchestratorInformerFactory.TerminatedPodInformerFactory.Core().V1().Pods()
-	c.lister = c.informer.Lister()
+	// No initialization needed - pod deletions are handled by PodDeletionWatcher
 }
 
 // Metadata is used to access information about the collector.
