@@ -108,7 +108,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
-			_ sysprobeconfig.Component,
+			sysprobeConf sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
@@ -149,7 +149,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
 		) error {
-			defer StopAgentWithDefaults()
+			defer StopAgentWithDefaults(config, sysprobeConf)
 
 			err := startAgent(
 				log,
