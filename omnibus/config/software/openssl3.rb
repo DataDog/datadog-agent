@@ -35,21 +35,21 @@ build do
   if !fips_mode?
     # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
     if !windows?
+      command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
       # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
-      # This messes up openssl's internal paths. So we have to hardcode the install directory
+      # This messes up openssl's internal paths. So we have to use another variable
       # so that replace_prefix and fix_openssl_paths set path correctly inside of the
       # openssl binaries on macos
-      install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
-      command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+      real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
       lib_extension = if linux_target? then ".so" else ".dylib" end
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
-        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-        " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
-        " #{install_dir}/embedded/bin/openssl"
+        " #{real_install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{real_install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+        " #{real_install_dir}/embedded/lib/pkgconfig/*.pc" \
+        " #{real_install_dir}/embedded/bin/openssl"
       command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{install_dir}/embedded" \
-        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
+        " #{real_install_dir}/embedded/lib/libssl#{lib_extension}" \
+        " #{real_install_dir}/embedded/lib/libcrypto#{lib_extension}" \
     end
   else
 
