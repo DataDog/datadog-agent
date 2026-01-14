@@ -256,7 +256,7 @@ func (s *configSuite) TestSystemProbeConfig() {
 				Patch:             []byte(`{"runtime_security_config": {"enabled": true}}`),
 			},
 		},
-	}, nil)
+	})
 	require.NoError(s.T(), err)
 
 	// Check agent is alive during experiment
