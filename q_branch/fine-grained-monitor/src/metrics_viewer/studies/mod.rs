@@ -6,6 +6,7 @@
 pub mod changepoint;
 pub mod pelt;
 pub mod periodicity;
+pub mod trend_detection;
 
 use crate::metrics_viewer::data::TimeseriesPoint;
 use std::collections::HashMap;
@@ -84,6 +85,7 @@ impl StudyRegistry {
         };
         registry.register(Box::new(periodicity::PeriodicityStudy::default()));
         registry.register(Box::new(changepoint::ChangepointStudy::default()));
+        registry.register(Box::new(trend_detection::TrendDetectionStudy::default()));
         registry
     }
 

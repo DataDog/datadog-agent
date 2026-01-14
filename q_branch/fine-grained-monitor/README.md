@@ -132,3 +132,9 @@ cargo bench 2>/dev/null
 # Generate test data
 cargo run --release --bin generate-bench-data -- --scenario realistic --duration 1h
 ```
+
+## Plans
+
+Future enhancements ready for implementation:
+
+- **[Correlation Discovery](plans/idea-correlation-discovery.md)** - Automatically discover relationships between metrics across containers with top-K ranked results, lag detection, and cross-container analysis
