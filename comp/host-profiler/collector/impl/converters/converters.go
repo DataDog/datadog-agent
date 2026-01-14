@@ -76,11 +76,6 @@ func Get[T any](c confMap, path string) (T, bool) {
 	var zero T
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
-	if len(pathSlice) == 0 {
-		// should never happen
-		log.Debugf("No element to get given")
-		return zero, false
-	}
 
 	target := pathSlice[len(pathSlice)-1]
 	for _, key := range pathSlice[:len(pathSlice)-1] {
@@ -137,9 +132,6 @@ func Ensure[T any](c confMap, path string) (T, error) {
 func Set[T any](c confMap, path string, value T) error {
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
-	if len(pathSlice) == 0 {
-		return errors.New("empty path")
-	}
 
 	target := pathSlice[len(pathSlice)-1]
 	for _, key := range pathSlice[:len(pathSlice)-1] {
@@ -157,24 +149,36 @@ func Set[T any](c confMap, path string, value T) error {
 		currentMap = childMap
 	}
 
+	if existingValue, exists := currentMap[target]; exists {
+		log.Debugf("Overwriting config at %s: %v -> %v", path, existingValue, value)
+	}
 	currentMap[target] = value
 	return nil
 }
 
 // ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.
-// Returns true if the key exists (regardless of whether conversion was needed), false otherwise.
+// Only converts primitive numeric types; rejects complex types like maps, slices, or structs.
+// Returns true if the key exists and is (or was converted to) a string, false otherwise.
 func ensureKeyStringValue(config confMap, key string) bool {
 	val, ok := config[key]
 	if !ok {
 		return false
 	}
 
-	if _, isString := val.(string); !isString {
-		log.Debugf("converting %s value to string", key)
-		config[key] = fmt.Sprintf("%v", val)
+	if _, isString := val.(string); isString {
+		return true
 	}
 
-	return true
+	// Only convert primitive numeric types
+	switch v := val.(type) {
+	case int, int32, int64, float32, float64, uint, uint32, uint64:
+		log.Debugf("converting %s value from %T to string", key, val)
+		config[key] = fmt.Sprintf("%v", v)
+		return true
+	default:
+		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
+		return false
+	}
 }
 
 // fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
@@ -226,11 +230,11 @@ func checkHostProfilerReceiverConfig(hostProfiler confMap) error {
 	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
 
 	if !ok {
-		return errors.New("hostprofiler's symbol_endpoints should be a list")
+		return errors.New("symbol_endpoints must be a list")
 	}
 
 	if len(endpoints) == 0 {
-		return errors.New("hostprofiler's symbol_endpoints cannot be empty when symbol_uploader is enabled")
+		return errors.New("symbol_endpoints cannot be empty when symbol_uploader is enabled")
 	}
 
 	for _, epAny := range endpoints {
@@ -255,7 +259,7 @@ func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 			}
 
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
-				return fmt.Errorf("%s exporter should contain a datadog API key", name)
+				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
 		}
 	}

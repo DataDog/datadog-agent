@@ -132,11 +132,11 @@ func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
 		return err
 	}
 
-	filteredProcessors := make([]any, 0, len(metrics))
+	filteredProcessors := make([]any, 0, len(processors))
 	for _, processorAny := range processors {
 		processor, ok := processorAny.(string)
 		if !ok {
-			return errors.New("extensions in profiles service pipeline should be strings")
+			return errors.New("processors in metrics pipeline should be strings")
 		}
 
 		if isComponentType(processor, componentTypeInfraAttributes) {
@@ -222,28 +222,30 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 		return err
 	}
 
-	var resourceAttributes map[string]bool
-	if !slices.ContainsFunc(detectors, func(detector any) bool {
-		if detector, ok := detector.(string); ok {
-			return detector == "system"
-		}
-		return false
-	}) {
+	hasSystemDetector := slices.ContainsFunc(detectors, func(detector any) bool {
+		d, ok := detector.(string)
+		return ok && d == "system"
+	})
+
+	if !hasSystemDetector {
 		resourceDetection["detectors"] = append(detectors, "system")
-		resourceAttributes = map[string]bool{
-			"host.arch": true,
-			"host.name": false,
-			"os.type":   false,
-		}
-	} else {
-		resourceAttributes = map[string]bool{"host.arch": true}
 	}
 
-	for attribute, value := range resourceAttributes {
-		if err := Set(resourceDetection, "system::resource_attributes::"+attribute+"::enabled", value); err != nil {
+	// Always ensure host.arch is enabled
+	if err := Set(resourceDetection, "system::resource_attributes::host.arch::enabled", true); err != nil {
+		return err
+	}
+
+	// Only set these defaults if we added the system detector
+	if !hasSystemDetector {
+		if err := Set(resourceDetection, "system::resource_attributes::host.name::enabled", false); err != nil {
+			return err
+		}
+		if err := Set(resourceDetection, "system::resource_attributes::os.type::enabled", false); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -263,7 +265,7 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	for _, extAny := range extensions {
 		ext, ok := extAny.(string)
 		if !ok {
-			return errors.New("extensions in profiles service pipeline should be strings")
+			return errors.New("extension names in service should be strings")
 		}
 
 		// Skip ddprofiling and hpflare extensions

@@ -269,7 +269,7 @@ func TestWithAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 	err = converter.Convert(context.Background(), conf)
 
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "symbol_endpoints should be a list")
+	require.Contains(t, err.Error(), "symbol_endpoints must be a list")
 }
 
 func TestWithAgentCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {

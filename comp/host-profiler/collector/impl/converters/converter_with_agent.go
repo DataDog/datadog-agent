@@ -39,11 +39,21 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	if err != nil {
 		return err
 	}
-	// no need to check for errors here as we directly depend on profilesPipeline that had to be valid for this code
-	// path to be executed
-	processorNames, _ := Ensure[[]any](profilesPipeline, "processors")
-	receiverNames, _ := Ensure[[]any](profilesPipeline, "receivers")
-	exporterNames, _ := Ensure[[]any](profilesPipeline, "exporters")
+
+	processorNames, err := Ensure[[]any](profilesPipeline, "processors")
+	if err != nil {
+		return err
+	}
+
+	receiverNames, err := Ensure[[]any](profilesPipeline, "receivers")
+	if err != nil {
+		return err
+	}
+
+	exporterNames, err := Ensure[[]any](profilesPipeline, "exporters")
+	if err != nil {
+		return err
+	}
 
 	// If there's no otlphttpexporter configured. We can't infer necessary configurations as it needs URLs and API keys
 	// so if nothing is found, notify user
