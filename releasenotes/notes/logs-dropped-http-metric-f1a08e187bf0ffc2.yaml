@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    The ``logs.dropped`` metric now tracks dropped logs for both TCP and HTTP 
+    The `logs.dropped` metric now tracks dropped logs for both TCP and HTTP 
     log transports. Previously, this metric was only available when using TCP 
     transport. Customers can now monitor dropped logs with a single unified 
     metric regardless of which transport protocol is configured, making it 
