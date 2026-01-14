@@ -15,6 +15,8 @@ Usage:
     ./scenario.py stop <run_id>           # Stop and clean up scenario
     ./scenario.py logs [run_id]           # Show scenario pod logs
     ./scenario.py export [run_id]         # Export as parquet and HTML files
+    ./scenario.py import <name>           # Import scenario from gensim blueprint
+    ./scenario.py import --list           # List available gensim blueprints
 
 Examples:
     ./scenario.py run sigpipe-crash       # Deploy the SIGPIPE crash scenario
@@ -22,14 +24,17 @@ Examples:
     ./scenario.py logs -c victim-app      # Show logs from victim-app container
     ./scenario.py stop a1b2c3d4           # Stop scenario run a1b2c3d4
     ./scenario.py export                  # Export latest run as .parquet and .html
+    ./scenario.py import todo-app         # Import todo-app blueprint from gensim
 """
 
 import argparse
 import base64
 import json
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -63,6 +68,11 @@ SCENARIO_RETENTION_DAYS = 7
 # Cluster deployment config
 LIMA_VM = q_branch_dev.LIMA_VM
 DEFAULT_NAMESPACE = "default"  # For legacy scenarios without namespace isolation
+
+# Gensim cache config (for importing blueprints)
+GENSIM_CACHE_DIR = Path.home() / ".cache" / "fgm" / "gensim"
+GENSIM_REPO_URL = "https://github.com/DataDog/gensim.git"
+GENSIM_BRANCH = "sopell/k8s-adapter"  # TODO: Change to "main" once PR #106 is merged
 
 # Environment and backend (lazy initialization)
 _env = None
@@ -237,6 +247,93 @@ def get_latest_scenario_run() -> str | None:
     # Sort by start time, return most recent
     runs.sort(reverse=True)
     return runs[0][1]
+
+
+# === Gensim Import Utilities ===
+
+
+def ensure_gensim_cache() -> Path:
+    """Clone gensim repo to cache if not present, return cache path."""
+    if GENSIM_CACHE_DIR.exists():
+        return GENSIM_CACHE_DIR
+
+    print("Cloning gensim (first-time setup)...")
+    GENSIM_CACHE_DIR.parent.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            GENSIM_BRANCH,
+            GENSIM_REPO_URL,
+            str(GENSIM_CACHE_DIR),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0:
+        print(f"Failed to clone gensim: {result.stderr}")
+        raise RuntimeError("Failed to clone gensim repository")
+
+    print(f"Cloned gensim to {GENSIM_CACHE_DIR}")
+    return GENSIM_CACHE_DIR
+
+
+def update_gensim_cache():
+    """Update the cached gensim repo to latest."""
+    if not GENSIM_CACHE_DIR.exists():
+        ensure_gensim_cache()
+        return
+
+    print(f"Updating gensim cache from {GENSIM_BRANCH}...")
+
+    # Fetch and reset to the branch
+    fetch_result = subprocess.run(
+        ["git", "-C", str(GENSIM_CACHE_DIR), "fetch", "origin", GENSIM_BRANCH],
+        capture_output=True,
+        text=True,
+    )
+
+    if fetch_result.returncode != 0:
+        print(f"Failed to fetch: {fetch_result.stderr}")
+        return
+
+    reset_result = subprocess.run(
+        ["git", "-C", str(GENSIM_CACHE_DIR), "reset", "--hard", f"origin/{GENSIM_BRANCH}"],
+        capture_output=True,
+        text=True,
+    )
+
+    if reset_result.returncode != 0:
+        print(f"Failed to reset: {reset_result.stderr}")
+        return
+
+    print("Gensim cache updated")
+
+
+def list_gensim_blueprints() -> str:
+    """List available blueprints from cached gensim repo."""
+    cache = ensure_gensim_cache()
+    adapter = cache / "src" / "k8s-adapter" / "adapter.py"
+
+    if not adapter.exists():
+        raise FileNotFoundError(f"k8s-adapter not found at {adapter}")
+
+    result = subprocess.run(
+        ["uv", "run", str(adapter), "list-blueprints"],
+        capture_output=True,
+        text=True,
+        cwd=cache / "src" / "k8s-adapter",
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Failed to list blueprints: {result.stderr}")
+
+    return result.stdout
 
 
 # === Scenario Commands ===
@@ -834,6 +931,92 @@ def cmd_export(run_id: str | None, output: str | None):
         pf_proc.wait()
 
 
+def cmd_import(blueprint_name: str | None, list_only: bool, update: bool):
+    """Import a scenario from a gensim blueprint."""
+    # Handle --update flag
+    if update:
+        update_gensim_cache()
+        return 0
+
+    # Handle --list flag
+    if list_only:
+        try:
+            output = list_gensim_blueprints()
+            print(output)
+            return 0
+        except Exception as e:
+            print(f"Error listing blueprints: {e}")
+            return 1
+
+    # Import specific blueprint
+    if blueprint_name is None:
+        print("Error: Blueprint name required")
+        print("  Usage: ./scenario.py import <blueprint-name>")
+        print("  List available: ./scenario.py import --list")
+        return 1
+
+    try:
+        cache = ensure_gensim_cache()
+    except RuntimeError as e:
+        print(f"Error: {e}")
+        return 1
+
+    # Validate blueprint exists
+    blueprint_path = cache / "blueprints" / blueprint_name / f"{blueprint_name}.spec.yaml"
+    if not blueprint_path.exists():
+        print(f"Error: Blueprint '{blueprint_name}' not found")
+        print(f"  Expected: {blueprint_path}")
+        print("  List available: ./scenario.py import --list")
+        return 1
+
+    adapter = cache / "src" / "k8s-adapter" / "adapter.py"
+    if not adapter.exists():
+        print(f"Error: k8s-adapter not found at {adapter}")
+        return 1
+
+    output_dir = SCENARIOS_DIR / blueprint_name
+
+    print(f"Importing blueprint '{blueprint_name}'...")
+
+    # Run k8s-adapter generate in a temp directory first
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_output = Path(tmp_dir) / blueprint_name
+
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                str(adapter),
+                "generate",
+                "--blueprint",
+                str(blueprint_path),
+                "--output",
+                str(tmp_output),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=cache / "src" / "k8s-adapter",
+        )
+
+        if result.returncode != 0:
+            print("Failed to generate scenario")
+            print(f"  Error: {result.stderr}")
+            if result.stdout:
+                print(f"  Output: {result.stdout}")
+            return 1
+
+        # Copy to scenarios dir (overwrite if exists)
+        if output_dir.exists():
+            print(f"  Replacing existing scenario at {output_dir}")
+            shutil.rmtree(output_dir)
+
+        shutil.copytree(tmp_output, output_dir)
+
+    print(f"\nImported '{blueprint_name}' to scenarios/{blueprint_name}/")
+    print(f"  Deploy with: ./scenario.py run {blueprint_name}")
+    return 0
+
+
 def generate_export_html(parquet_data: bytes, dashboard: dict, metadata: dict, all_metrics: list = None) -> str:
     """Generate a self-contained HTML file with embedded parquet data.
 
@@ -946,6 +1129,8 @@ Examples:
   ./scenario.py stop a1b2c3d4          # Stop and clean up scenario
   ./scenario.py export                 # Export latest run as self-contained HTML
   ./scenario.py export a1b2c3d4 -o results.html  # Export specific run
+  ./scenario.py import --list          # List blueprints available for import
+  ./scenario.py import todo-app        # Import todo-app blueprint from gensim
 
 Scenarios are deployed to the Kind cluster for this worktree.
 Use ./dev.py cluster deploy first to ensure the cluster exists.
@@ -981,6 +1166,12 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
         "-o", "--output", type=str, default=None, help="Output base name (creates .parquet and .html)"
     )
 
+    # import <name> | --list | --update
+    import_parser = subparsers.add_parser("import", help="Import scenario from gensim blueprint")
+    import_parser.add_argument("name", type=str, nargs="?", default=None, help="Blueprint name to import")
+    import_parser.add_argument("--list", action="store_true", dest="list_blueprints", help="List available blueprints")
+    import_parser.add_argument("--update", action="store_true", help="Update gensim cache")
+
     args = parser.parse_args()
 
     if args.command == "list":
@@ -995,6 +1186,8 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
         sys.exit(cmd_logs(args.run_id, args.container))
     elif args.command == "export":
         sys.exit(cmd_export(args.run_id, args.output))
+    elif args.command == "import":
+        sys.exit(cmd_import(args.name, args.list_blueprints, args.update))
 
 
 if __name__ == "__main__":

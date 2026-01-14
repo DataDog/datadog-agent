@@ -37,13 +37,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from lib.k8s_backend import (
-    Mode,
-    Environment,
-    VMBackend,
-    DirectBackend,
     CommandError,
-    detect_environment,
+    DirectBackend,
+    Environment,
+    Mode,
+    VMBackend,
     create_backend,
+    detect_environment,
 )
 
 # Configuration

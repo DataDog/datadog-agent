@@ -33,15 +33,12 @@ All resources deploy to the 'fine-grained-monitor' namespace.
 """
 
 import argparse
-import hashlib
 import json
 import os
 import signal
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -50,17 +47,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from lib.k8s_backend import (
-    Mode,
-    Environment,
-    VMBackend,
     DirectBackend,
-    detect_environment,
-    create_backend,
-    is_process_running,
+    Environment,
+    Mode,
+    VMBackend,
     check_health,
+    create_backend,
+    detect_environment,
     format_uptime,
+    is_process_running,
     run_cmd,
 )
+
 import dev as q_branch_dev
 
 # Project root is where this script lives
@@ -666,7 +664,7 @@ def cmd_deploy():
             return 1
         print("running")
     else:
-        print(f"Using direct mode (no VM needed)")
+        print("Using direct mode (no VM needed)")
         if not env.has_docker:
             print("Error: Docker is not available")
             return 1
