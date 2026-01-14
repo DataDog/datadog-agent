@@ -1100,6 +1100,8 @@ generate-flakes-finder-pipeline:
     - deploy_installer_oci
     - deploy_agent_oci
     - qa_cws_instrumentation
+    - qa_agent_jmx
+    - qa_ot_agent_standalone
     - qa_dca
     - qa_dogstatsd
     - qa_agent
@@ -1161,6 +1163,8 @@ generate-fips-e2e-pipeline:
     - qa_dca
     - qa_dogstatsd
     - qa_agent
+    - qa_agent_jmx
+    - qa_ot_agent_standalone
     - qa_agent_full
     - qa_agent_fips
     - qa_agent_fips_jmx
