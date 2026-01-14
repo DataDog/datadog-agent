@@ -5,7 +5,6 @@
 
 //go:build test
 
-// Package testutil provides general test utilities
 package testutil
 
 import (

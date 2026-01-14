@@ -18,7 +18,7 @@ bazel_dep(name = "rules_license", version = "1.0.0")
 # We are temporarily using a development fork which is ahead of the release.
 archive_override(
     module_name = "rules_license",
-    # sha256 = TBD,
+    sha256 = "d843315c777a0296a40c22e5189b576e9944f6f4b377fe438ebf6d1e21e794eb",
     strip_prefix = "supply-chain-dd_test/rules_license",
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
@@ -32,6 +32,18 @@ bazel_dep(name = "rules_pkg", version = "1.1.0")
 bazel_dep(name = "rules_shell", version = "0.6.1")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
+
+# Rust support
+bazel_dep(name = "rules_rust", version = "0.68.1")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    versions = ["1.92.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
 
 # Temporary until rules_pkg 1.2.0 is in BCR
 archive_override(
@@ -212,6 +224,6 @@ include("//deps/windows:drivers.MODULE.bazel")
 # This enables cross-compilation for macOS x86_64 on Apple Silicon.
 # Simply add --platforms=@apple_support//platforms:macos_x86_64
 # to the build command to enable it.
-bazel_dep(name = "apple_support", version = "1.23.1")
+bazel_dep(name = "apple_support", version = "1.24.1")
 
 use_repo_rule("//bazel/tools:check_bazel_version.bzl", "check_bazel_version")(name = "check_bazel_version")
