@@ -10,7 +10,9 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -3008,4 +3010,43 @@ func TestObfuscatorCacheKey(t *testing.T) {
 	require.NotNil(t, oq4)
 	assert.NotEqual(t, oq4.Query, oq.Query)
 	assert.Equal(t, obfuscator.queryCache.Metrics.Hits(), uint64(1))
+}
+
+// TestObfuscatedQueryClone verifies that Clone() creates a right-sized copy
+// of the Query string, releasing any over-sized backing array from strings.Builder.
+func TestObfuscatedQueryClone(t *testing.T) {
+	// Simulate what go-sqllexer does: pre-allocate builder with input size,
+	// then write a shorter obfuscated output
+	input := "SELECT * FROM users WHERE id IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)"
+	output := "SELECT * FROM users WHERE id IN ( ? )"
+
+	// Create ObfuscatedQuery with a string that has excess capacity
+	// (simulating strings.Builder behavior)
+	var builder strings.Builder
+	builder.Grow(len(input)) // Pre-allocate for input size
+	builder.WriteString(output)
+	oversizedString := builder.String()
+
+	oq := &ObfuscatedQuery{
+		Query: oversizedString,
+		Metadata: SQLMetadata{
+			TablesCSV: "users",
+			Commands:  []string{"SELECT"},
+		},
+	}
+
+	// Clone should create a right-sized copy
+	cloned := oq.Clone()
+
+	// Verify content is identical
+	assert.Equal(t, oq.Query, cloned.Query)
+	assert.Equal(t, oq.Metadata.TablesCSV, cloned.Metadata.TablesCSV)
+	assert.Equal(t, oq.Metadata.Commands, cloned.Metadata.Commands)
+
+	// Verify the cloned Query has its own backing array (different address)
+	// This ensures we're not sharing the over-sized backing array
+	originalPtr := unsafe.StringData(oq.Query)
+	clonedPtr := unsafe.StringData(cloned.Query)
+	assert.False(t, originalPtr == clonedPtr,
+		"Clone should create a new backing array, not share the original")
 }
