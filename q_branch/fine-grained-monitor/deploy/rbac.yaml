@@ -1,0 +1,46 @@
+# REQ-MV-015: RBAC for Kubernetes API access (pod metadata enrichment)
+#
+# The DaemonSet collector needs ClusterRole to list pods across ALL namespaces
+# for metadata enrichment (mapping container IDs to pod names/namespaces).
+# See deploy/mcp-server.yaml for MCP server RBAC (namespace-scoped Role).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fine-grained-monitor
+  namespace: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fine-grained-monitor
+subjects:
+  - kind: ServiceAccount
+    name: fine-grained-monitor
+    namespace: fine-grained-monitor

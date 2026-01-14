@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__kubernetes-mcp-server__pods_list",
+      "mcp__kubernetes-mcp-server__namespaces_list",
+      "mcp__kubernetes-mcp-server__pods_log",
+      "mcp__kubernetes-mcp-server__resources_list",
+      "mcp__metrics-viewer__list_containers",
+      "mcp__metrics-viewer__analyze_container",
+      "mcp__kubernetes-mcp-server__pods_get",
+      "mcp__kubernetes-mcp-server__pods_exec",
+      "mcp__metrics-viewer__list_metrics"
+    ]
+  }
+}

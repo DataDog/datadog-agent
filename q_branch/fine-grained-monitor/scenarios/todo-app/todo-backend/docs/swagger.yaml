@@ -1,0 +1,10 @@
+basePath: /api
+definitions:
+host: localhost:8081
+info:
+  contact: {}
+  description: API server for todo-backend
+  title: todo-backend API
+  version: "1.0"
+paths:
+swagger: "2.0"

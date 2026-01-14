@@ -1,0 +1,111 @@
+[package]
+name = "fine-grained-monitor"
+version = "0.1.0"
+edition = "2021"
+description = "Fine-grained container resource monitoring for datadog-agent development"
+license = "Apache-2.0"
+
+[dependencies]
+# Lading ecosystem - using branch with rotation API
+lading = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
+lading-capture = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
+lading-signal = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public" }
+
+# Metrics facade - observer emits via gauge!(), counter!()
+metrics = "0.24"
+
+# Async runtime
+tokio = { version = "1.47", features = ["full", "signal"] }
+
+# Structured logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# CLI argument parsing
+clap = { version = "4", features = ["derive", "env"] }
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Fast hash maps (matches lading)
+rustc-hash = "2"
+
+# Hostname detection
+hostname = "0.4"
+
+# Timestamp formatting for file rotation
+chrono = "0.4"
+
+# Session manifest serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Fast binary serialization for container sidecars
+bincode = "1"
+
+# UUID for run_id
+uuid = { version = "1", features = ["v4"] }
+
+# File globbing for directory input
+glob = "0.3"
+
+# Directory walking for benchmark summary
+walkdir = "2"
+
+# Metrics viewer dependencies
+parquet = { version = "54", features = ["arrow"] }
+arrow = "54"
+axum = "0.7"
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+rayon = "1.10"
+
+# Kubernetes API client (REQ-MV-015)
+kube = { version = "0.93", features = ["client", "runtime"] }
+k8s-openapi = { version = "0.22", features = ["v1_29"] }
+
+# Changepoint detection (REQ-MV-017)
+# Now using custom PELT implementation in src/metrics_viewer/studies/pelt.rs
+# (removed: augurs = { version = "0.8", features = ["changepoint"] })
+
+# MCP server dependencies (REQ-MCP-006)
+rmcp = { version = "0.12", features = ["server", "transport-streamable-http-server", "macros"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+reqwest = { version = "0.12", features = ["json"] }
+schemars = "1"
+urlencoding = "2"
+futures = "0.3"
+
+[dev-dependencies]
+proptest = "1.5"
+proptest-derive = "0.5"
+tempfile = "3"
+divan = "0.1"
+
+[[bench]]
+name = "query_benchmarks"
+harness = false
+
+[[bin]]
+name = "fine-grained-monitor"
+path = "src/main.rs"
+
+[[bin]]
+name = "fgm-viewer"
+path = "src/bin/fgm-viewer.rs"
+
+[[bin]]
+name = "fgm-consolidator"
+path = "src/bin/fgm-consolidator.rs"
+
+[[bin]]
+name = "generate-bench-data"
+path = "src/bin/generate-bench-data.rs"
+
+[[bin]]
+name = "mcp-metrics-viewer"
+path = "src/bin/mcp_metrics_viewer.rs"
+
+[[bin]]
+name = "alloc-profile"
+path = "src/bin/alloc-profile.rs"

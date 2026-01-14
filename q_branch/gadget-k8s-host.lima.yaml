@@ -18,10 +18,18 @@ disk: 80GiB
 ssh:
   localPort: 0
 
-# Port forwarding for Kind API server (6443) and NodePorts
+# Port forwarding for Kind API servers (6443-6447 for up to 5 clusters) and NodePorts
 portForwards:
   - guestPort: 6443
     hostPort: 6443
+  - guestPort: 6444
+    hostPort: 6444
+  - guestPort: 6445
+    hostPort: 6445
+  - guestPort: 6446
+    hostPort: 6446
+  - guestPort: 6447
+    hostPort: 6447
   - guestPortRange: [30000, 30100]
     hostPortRange: [30000, 30100]
 
@@ -32,8 +40,61 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      set -eux
+      set -eu
       export DEBIAN_FRONTEND=noninteractive
+
+      # ============================================================
+      # Increase system ulimits for Kind/Kubernetes
+      # ============================================================
+      # Issue observed: kube-proxy crashes with "too many open files"
+      # when default ulimit -n is 1024. Kind clusters with multiple
+      # nodes and kube-proxy DaemonSets require higher limits.
+      #
+      # Thresholds observed:
+      #   - 1024:  FAILS - kube-proxy crashes after ~2 hours with
+      #            "failed complete: too many open files"
+      #   - 65536: WORKS - recommended for Kind clusters
+      #
+      # These limits apply to all processes including Docker containers
+      # (Kind nodes) and their children (kube-proxy, kubelet, etc.)
+      # ============================================================
+      cat > /etc/security/limits.d/99-kind-limits.conf << 'EOF'
+# Kind/Kubernetes file descriptor limits
+# Required for kube-proxy and other k8s components
+*               soft    nofile          65536
+*               hard    nofile          65536
+root            soft    nofile          65536
+root            hard    nofile          65536
+*               soft    nproc           65536
+*               hard    nproc           65536
+EOF
+
+      # Also set systemd defaults for services
+      mkdir -p /etc/systemd/system.conf.d
+      cat > /etc/systemd/system.conf.d/limits.conf << 'EOF'
+[Manager]
+DefaultLimitNOFILE=65536
+DefaultLimitNPROC=65536
+EOF
+
+      # Docker daemon needs explicit config for container limits
+      mkdir -p /etc/docker
+      cat > /etc/docker/daemon.json << 'EOF'
+{
+  "default-ulimits": {
+    "nofile": {
+      "Name": "nofile",
+      "Hard": 65536,
+      "Soft": 65536
+    },
+    "nproc": {
+      "Name": "nproc",
+      "Hard": 65536,
+      "Soft": 65536
+    }
+  }
+}
+EOF
 
       apt-get update
       apt-get install -y \
@@ -64,15 +125,23 @@ provision:
       # Helm
       curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
+      # Reboot once to activate docker group membership for lima user
+      if [ ! -f /var/lib/lima-docker-reboot-done ]; then
+          touch /var/lib/lima-docker-reboot-done
+          reboot
+      fi
+
   # Datadog helm repo for lima user
   - mode: user
     script: |
       #!/bin/bash
-      set -eux
+      set -eu
       helm repo add datadog https://helm.datadoghq.com
       helm repo update
 
 message: |
   Tools installed: docker, kubectl, kind, helm
 
-  Run setup-k8s-host.sh to create the Kind cluster and configure kubectl.
+  To deploy fine-grained-monitor:
+    cd q_branch/fine-grained-monitor
+    ./dev.py cluster deploy

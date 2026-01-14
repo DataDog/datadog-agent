@@ -1,0 +1,10 @@
+target/
+
+# dev.py state directory
+.dev/
+
+# Generated test/benchmark data
+testdata/
+
+# MCP server config (worktree-specific)
+.mcp.json

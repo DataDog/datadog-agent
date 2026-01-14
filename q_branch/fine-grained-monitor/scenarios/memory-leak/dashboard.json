@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "Memory Leak Pattern",
+  "description": "Container leaking 512KB every 2s until OOM kill",
+
+  "containers": {
+    "namespace": "default",
+    "label_selector": {
+      "app": "memory-leak",
+      "fgm-scenario": "{{RUN_ID}}"
+    }
+  },
+
+  "time_range": {
+    "mode": "from_containers",
+    "padding_seconds": 30
+  },
+
+  "panels": [
+    {
+      "metric": "cgroup.v2.memory.current",
+      "title": "Memory Usage (watch for sawtooth pattern)"
+    },
+    {
+      "metric": "smaps_rollup.pss",
+      "title": "PSS Memory"
+    },
+    {
+      "metric": "cpu_percentage",
+      "title": "CPU Usage %"
+    }
+  ]
+}

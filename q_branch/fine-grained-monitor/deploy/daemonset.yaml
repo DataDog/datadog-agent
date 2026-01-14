@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fine-grained-monitor
+  namespace: fine-grained-monitor
+  labels:
+    app: fine-grained-monitor
+spec:
+  selector:
+    matchLabels:
+      app: fine-grained-monitor
+  template:
+    metadata:
+      labels:
+        app: fine-grained-monitor
+    spec:
+      # REQ-MV-015: ServiceAccount for Kubernetes API access
+      serviceAccountName: fine-grained-monitor
+      hostPID: true  # Needed to read /proc for all processes
+      containers:
+      - name: monitor
+        image: fine-grained-monitor:latest
+        imagePullPolicy: Never  # Use locally loaded image
+        args:
+          - "--output-dir=/data"
+          - "--interval-ms=1000"
+          # rotation-seconds defaults to 90 (exceeds 60s accumulator window)
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: CLUSTER_NAME
+            value: "gadget-dev"
+          - name: RUST_LOG
+            value: "debug"
+        securityContext:
+          privileged: true  # Needed for full cgroup/procfs access
+        volumeMounts:
+          - name: cgroup
+            mountPath: /sys/fs/cgroup
+            readOnly: true
+          - name: proc
+            mountPath: /proc
+            readOnly: true
+          - name: data
+            mountPath: /data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      # REQ-MV-010: Viewer sidecar for in-cluster access
+      - name: viewer
+        image: fine-grained-monitor:latest
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/fgm-viewer"]
+        args:
+          - "/data"
+          - "--port=8050"
+          - "--no-browser"
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: CLUSTER_NAME
+            value: "gadget-dev"
+          - name: RUST_LOG
+            value: "debug"
+        ports:
+          - containerPort: 8050
+            name: http
+            protocol: TCP
+        volumeMounts:
+          - name: data
+            mountPath: /data
+            readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      # REQ-CON-005: Consolidator sidecar for background file merging
+      - name: consolidator
+        image: fine-grained-monitor:latest
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/fgm-consolidator"]
+        args:
+          - "--data-dir=/data"
+          - "--check-interval=300"
+          - "--min-files=10"
+          - "--min-age-secs=300"
+          - "--max-output-size-mb=500"
+        env:
+          - name: RUST_LOG
+            value: "info"
+        volumeMounts:
+          - name: data
+            mountPath: /data
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      terminationGracePeriodSeconds: 60  # Allow time for parquet footer to be written
+      volumes:
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: data
+          hostPath:
+            path: /var/lib/fine-grained-monitor
+            type: DirectoryOrCreate  # Create dir if it doesn't exist
+      tolerations:
+        - operator: Exists  # Run on all nodes including control-plane

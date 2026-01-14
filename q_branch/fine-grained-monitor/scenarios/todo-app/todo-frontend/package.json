@@ -1,0 +1,26 @@
+{
+  "name": "static-web-app",
+  "version": "1.0.0",
+  "description": "Static web application served by Node.js/Express with Datadog APM",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --require ./tracing.js server.js",
+    "dev": "node --require ./tracing.js server.js"
+  },
+  "keywords": [
+    "static",
+    "web",
+    "express",
+    "datadog"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "compression": "^1.7.4",
+    "helmet": "^7.1.0",
+    "http-proxy-middleware": "^2.0.6",
+    "dd-trace": "^5.0.0",
+    "hot-shots": "^11.0.0"
+  }
+}

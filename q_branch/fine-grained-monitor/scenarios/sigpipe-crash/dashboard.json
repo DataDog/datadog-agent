@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "name": "SIGPIPE Crash Pattern",
+  "description": "Container crashes from SIGPIPE (exit 141) when UDS server restarts",
+
+  "containers": {
+    "namespace": "default",
+    "label_selector": {
+      "fgm-scenario": "{{RUN_ID}}"
+    }
+  },
+
+  "time_range": {
+    "mode": "from_containers",
+    "padding_seconds": 30
+  },
+
+  "panels": [
+    {
+      "metric": "cpu_percentage",
+      "title": "CPU Usage %"
+    },
+    {
+      "metric": "cgroup.v2.memory.current",
+      "title": "Memory"
+    },
+    {
+      "metric": "cgroup.v2.pids.current",
+      "title": "PIDs"
+    }
+  ]
+}

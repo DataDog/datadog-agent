@@ -355,6 +355,9 @@ modules:
     used_by_otel: true
   pkg/version:
     used_by_otel: true
+  q_branch/fine-grained-monitor/scenarios/sigpipe-crash/uds-server: ignored
+  q_branch/fine-grained-monitor/scenarios/sigpipe-crash/victim-app: ignored
+  q_branch/fine-grained-monitor/scenarios/sigpipe-crash/victim-app-c: ignored
   tasks/unit_tests/testdata/go_mod_formatter/invalid_package: ignored
   tasks/unit_tests/testdata/go_mod_formatter/valid_package: ignored
   test/e2e-framework:

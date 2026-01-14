@@ -1,0 +1,68 @@
+# OOM Kill Scenario
+#
+# Deploys a pod that immediately allocates memory beyond its limit,
+# triggering the OOM killer.
+#
+# Expected behavior:
+# - Container starts and rapidly allocates memory
+# - Hits memory limit (64Mi) and gets OOMKilled
+# - Exit code 137 (128 + 9 = SIGKILL from OOM)
+# - Kubernetes restarts container
+# - Cycle repeats every ~5-10 seconds
+#
+# Observable in fine-grained-monitor:
+# - Frequent restarts with exit code 137
+# - Memory usage spikes to limit before each restart
+# - OOMKilled reason in container status
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oom-kill-script-{{RUN_ID}}
+data:
+  oom.py: |
+    #!/usr/bin/env python3
+    """Allocate memory until OOM killed."""
+    import time
+
+    print("Starting OOM kill scenario", flush=True)
+    print("Allocating memory rapidly...", flush=True)
+
+    # Allocate memory in chunks until killed
+    chunks = []
+    chunk_size = 10 * 1024 * 1024  # 10MB chunks
+
+    while True:
+        chunks.append(bytearray(chunk_size))
+        mb_allocated = len(chunks) * 10
+        print(f"Allocated {mb_allocated}MB", flush=True)
+        time.sleep(0.1)  # Small delay to see progress
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oom-kill-{{RUN_ID}}
+  labels:
+    app: oom-kill
+    scenario: oom-kill
+spec:
+  restartPolicy: Always
+  volumes:
+    - name: script
+      configMap:
+        name: oom-kill-script-{{RUN_ID}}
+        defaultMode: 0755
+  containers:
+    - name: oom-victim
+      image: python:3.11-slim
+      command: ["python3", "/scripts/oom.py"]
+      volumeMounts:
+        - name: script
+          mountPath: /scripts
+      resources:
+        requests:
+          memory: "32Mi"
+          cpu: "10m"
+        limits:
+          memory: "64Mi"
+          cpu: "100m"

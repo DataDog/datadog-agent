@@ -1,0 +1,77 @@
+# SIGPIPE Crash Scenario
+#
+# This manifest deploys a single pod with two containers:
+# 1. uds-server: Simulates an agent that restarts periodically
+# 2. victim-app: Go app with C library that crashes on SIGPIPE
+#
+# The containers share a socket via emptyDir volume at /shared/metrics.sock
+#
+# Expected behavior:
+# - uds-server starts and creates socket
+# - victim-app connects and writes metrics every second via C library
+# - After RESTART_INTERVAL_SECONDS (default 30s), uds-server exits cleanly
+# - victim-app's next write triggers SIGPIPE -> crash (exit code 141)
+# - Kubernetes restarts both containers
+# - Cycle repeats
+#
+# Observable in fine-grained-monitor:
+# - victim-app: periodic restarts, exit code 141 (128 + 13 = SIGPIPE)
+# - uds-server: clean exits (exit code 0)
+# - Restart timing correlation between containers
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sigpipe-crash
+  labels:
+    app: sigpipe-crash
+    scenario: sigpipe-crash
+    # fgm-scenario label will be added by dev.py scenario run
+spec:
+  restartPolicy: Always
+
+  # Shared volume for UDS socket
+  volumes:
+    - name: shared-socket
+      emptyDir: {}
+
+  containers:
+    # UDS Server - simulates agent that restarts
+    - name: uds-server
+      image: fgm-scenario-sigpipe-crash-uds-server:{{IMAGE_TAG}}
+      imagePullPolicy: Never
+      env:
+        - name: SOCKET_PATH
+          value: "/shared/metrics.sock"
+        - name: RESTART_INTERVAL_SECONDS
+          value: "30"
+      volumeMounts:
+        - name: shared-socket
+          mountPath: /shared
+      resources:
+        requests:
+          memory: "16Mi"
+          cpu: "10m"
+        limits:
+          memory: "64Mi"
+          cpu: "100m"
+
+    # Victim App - Go + C library that crashes on SIGPIPE
+    - name: victim-app
+      image: fgm-scenario-sigpipe-crash-victim-app-c:{{IMAGE_TAG}}
+      imagePullPolicy: Never
+      env:
+        - name: SOCKET_PATH
+          value: "/shared/metrics.sock"
+        - name: WRITE_INTERVAL_MS
+          value: "1000"
+      volumeMounts:
+        - name: shared-socket
+          mountPath: /shared
+      resources:
+        requests:
+          memory: "16Mi"
+          cpu: "10m"
+        limits:
+          memory: "64Mi"
+          cpu: "100m"

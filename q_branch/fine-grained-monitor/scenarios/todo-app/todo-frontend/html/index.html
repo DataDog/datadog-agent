@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Web Application</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Static Web Application</h1>
+            <p>A modern, responsive template ready for your next project</p>
+        </header>
+
+        <main>
+            <!-- Active Content -->
+            <section class="content-section">
+                <h2>Welcome</h2>
+                <p>This application is currently served by Nginx. Use the button below to verify connectivity with the backend API.</p>
+
+                <div class="actions">
+                    <button id="testBtn" class="btn btn-primary">
+                        <span>Test API Connection</span>
+                    </button>
+                </div>
+
+                <div id="result" class="result hidden"></div>
+            </section>
+
+            <!-- 
+            =============================================================================
+            TEMPLATE LIBRARY (COMMENTED OUT)
+            The following sections are pre-styled templates for common UI patterns.
+            Uncomment active parts to use them.
+            =============================================================================
+            -->
+
+            <!-- TEMPLATE: Feature Grid -->
+            <section class="content-section">
+                <h3>Features</h3>
+                <div class="grid-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>Analytics</h4>
+                            <p>Real-time data visualization and reporting metrics.</p>
+                        </div>
+                        <div class="card-footer">
+                            <a href="#" class="btn btn-secondary" style="font-size: 0.875rem;">View Details</a>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>Security</h4>
+                            <p>Enterprise-grade security with role-based access control.</p>
+                        </div>
+                        <div class="card-footer">
+                            <a href="#" class="btn btn-secondary" style="font-size: 0.875rem;">Configure</a>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <h4>Integration</h4>
+                            <p>Seamlessly connect with your favorite third-party tools.</p>
+                        </div>
+                        <div class="card-footer">
+                            <a href="#" class="btn btn-secondary" style="font-size: 0.875rem;">Connect</a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TEMPLATE: Data Table -->
+            <section class="content-section">
+                <h3>System Status</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Status</th>
+                                <th>Uptime</th>
+                                <th>Last Updated</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>API Gateway</td>
+                                <td><span style="color: var(--success-color);">● Online</span></td>
+                                <td>99.9%</td>
+                                <td>2 mins ago</td>
+                            </tr>
+                            <tr>
+                                <td>Database</td>
+                                <td><span style="color: var(--success-color);">● Online</span></td>
+                                <td>99.99%</td>
+                                <td>1 min ago</td>
+                            </tr>
+                            <tr>
+                                <td>Cache Layer</td>
+                                <td><span style="color: var(--warning-color);">● Degraded</span></td>
+                                <td>98.5%</td>
+                                <td>5 mins ago</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TEMPLATE: Contact Form -->
+            <section class="content-section">
+                <h3>Contact Us</h3>
+                <form>
+                    <div class="form-group">
+                        <label for="email" class="form-label">Email Address</label>
+                        <input type="email" id="email" class="form-control" placeholder="you@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="message" class="form-label">Message</label>
+                        <textarea id="message" class="form-control" rows="4" placeholder="How can we help?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Send Message</button>
+                </form>
+            </section>
+
+            <!-- TEMPLATE: Notifications -->
+            <section class="content-section">
+                <h3>Notifications</h3>
+                <div class="alert alert-success">
+                    <strong>Success!</strong> Operation completed successfully.
+                </div>
+                <div class="alert alert-info">
+                    <strong>Info:</strong> System maintenance scheduled for tonight.
+                </div>
+                <div class="alert alert-error">
+                    <strong>Error:</strong> Failed to connect to database.
+                </div>
+            </section>
+
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Built with ❤️ by Datadog GenSim Vibecoder</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
