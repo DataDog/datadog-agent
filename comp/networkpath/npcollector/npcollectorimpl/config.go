@@ -40,6 +40,7 @@ type collectorConfigs struct {
 	filterConfig                 []connfilter.Config
 	monitorIPWithoutDomain       bool
 	ddSite                       string
+	sourceProduct                payload.SourceProduct
 }
 
 func newConfig(agentConfig config.Component, logger log.Component) *collectorConfigs {
@@ -79,6 +80,7 @@ func newConfig(agentConfig config.Component, logger log.Component) *collectorCon
 		filterConfig:              filterConfigs,
 		monitorIPWithoutDomain:    agentConfig.GetBool("network_path.collector.monitor_ip_without_domain"),
 		ddSite:                    agentConfig.GetString("site"),
+		sourceProduct:             payload.GetSourceProduct(agentConfig.GetString("infrastructure_mode")),
 	}
 }
 

@@ -72,6 +72,7 @@ func TestNewConfig(t *testing.T) {
 				filterConfig:              []connfilter.Config{},
 				monitorIPWithoutDomain:    false,
 				ddSite:                    "",
+				sourceProduct:             payload.SourceProductNetworkPath,
 			},
 		},
 		{
@@ -147,6 +148,7 @@ func TestNewConfig(t *testing.T) {
 				},
 				monitorIPWithoutDomain: true,
 				ddSite:                 "datadoghq.eu",
+				sourceProduct:          payload.SourceProductNetworkPath,
 			},
 		},
 	}
