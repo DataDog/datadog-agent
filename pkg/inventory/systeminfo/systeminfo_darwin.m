@@ -46,9 +46,8 @@ DeviceInfo getDeviceInfo(void) {
                 asprintf(&info.modelNumber, "%s%s", modelNum, region);
                 free(modelNum);
                 free(region);
-            } else {
+            } else if (modelNum) {
                 info.modelNumber = modelNum;
-                free(region);
             }
         }
 
@@ -57,7 +56,12 @@ DeviceInfo getDeviceInfo(void) {
             info.productName = copyStringProperty(product, @"product-name");
         }
         if (!product || !info.productName) {
-            info.productName = strdup(info.modelIdentifier);
+            // Fallback to modelIdentifier if available, otherwise use empty string
+            if (info.modelIdentifier) {
+                info.productName = strdup(info.modelIdentifier);
+            } else {
+                info.productName = strdup("");
+            }
         }
 
         return info;
