@@ -73,6 +73,16 @@ int __attribute__((always_inline)) handle_nop_event(ctx_t *ctx) {
     return 0;
 }
 
+void __attribute__((always_inline)) handle_discard_prctl(void * data) {
+    if (!is_runtime_request()) {
+        return;
+    }
+
+    char discarder[MAX_PRCTL_NAME_LEN];
+    bpf_probe_read_user(&discarder, sizeof(discarder), data);
+    discard_pr_name(discarder);
+}
+
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     void *req = (void *)CTX_PARM3(ctx);
 
@@ -108,6 +118,9 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_expire_inode_discarder(data);
     case BUMP_DISCARDERS_REVISION:
         return handle_bump_discarders_revision(data);
+    case PRCTL_DISCARDER:
+        handle_discard_prctl(data);
+        return 0;
     case NOP_EVENT_OP:
         return handle_nop_event(ctx);
 #if USE_RING_BUFFER == 1

@@ -306,4 +306,19 @@ int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct s
     return syscall->type;
 }
 
+void __attribute__((always_inline)) discard_pr_name(char *data) {
+    bool val = true;
+    bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
+}
+
+bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * pr_name) {
+    bool *entry = bpf_map_lookup_elem(&prctl_discarders, pr_name);
+    if (entry == NULL) {
+        return false;
+    }
+
+    return true;
+}
+
+
 #endif

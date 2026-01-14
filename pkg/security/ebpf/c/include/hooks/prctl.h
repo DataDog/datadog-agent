@@ -19,8 +19,8 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
             .option = option,
         }
     };
-    switch (option) {
-    case PR_SET_NAME: {
+
+    if(option == PR_SET_NAME) {
         int n = bpf_probe_read_str(&syscall.prctl.name, MAX_PRCTL_NAME_LEN + 1, arg2);
         syscall.prctl.name_size_to_send = n;
         if (n > MAX_PRCTL_NAME_LEN) {
@@ -28,9 +28,12 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
         } else if (n < 0) {
             syscall.prctl.name_size_to_send = 0;
         }
-        break;
-        }
+
+        if (is_prctl_pr_name_discarder(syscall.prctl.name)) {
+            return 0;
+        };
     }
+
     cache_syscall(&syscall);
     return 0;
 }
