@@ -4,8 +4,15 @@
 #import <stdlib.h>
 #import <string.h>
 
+// kIOMainPortDefault was introduced in macOS 12.0, use kIOMasterPortDefault for older versions
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 120000
+#define IOKIT_MAIN_PORT kIOMainPortDefault
+#else
+#define IOKIT_MAIN_PORT kIOMasterPortDefault
+#endif
+
 static NSDictionary *getServiceProperties(CFMutableDictionaryRef matching) {
-    io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault, matching);
+    io_service_t service = IOServiceGetMatchingService(IOKIT_MAIN_PORT, matching);
     if (!service) return nil;
 
     CFMutableDictionaryRef props = NULL;
