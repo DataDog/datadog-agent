@@ -95,8 +95,14 @@ type EbpfTracerTelemetryData struct {
 	netDevQueueNotEqualCalls       *prometheus.Desc
 	netDevQueueNotEqualTimeNs      *prometheus.Desc
 	// protocol classifier timing metrics (prometheus)
-	protocolClassifierEntrypointEarlyExitCalls  *prometheus.Desc
-	protocolClassifierEntrypointEarlyExitTimeNs *prometheus.Desc
+	protocolClassifierReadConnTupleFailedCalls  *prometheus.Desc
+	protocolClassifierReadConnTupleFailedTimeNs *prometheus.Desc
+	protocolClassifierNotTcpOrEmptyCalls        *prometheus.Desc
+	protocolClassifierNotTcpOrEmptyTimeNs       *prometheus.Desc
+	protocolClassifierContextInitFailedCalls    *prometheus.Desc
+	protocolClassifierContextInitFailedTimeNs   *prometheus.Desc
+	protocolClassifierAlreadyClassifiedCalls    *prometheus.Desc
+	protocolClassifierAlreadyClassifiedTimeNs   *prometheus.Desc
 	// socket classifier entry timing metrics (prometheus)
 	socketClassifierEntryCalls  *prometheus.Desc
 	socketClassifierEntryTimeNs *prometheus.Desc
@@ -140,8 +146,14 @@ type EbpfTracerTelemetryData struct {
 	lastNetDevQueueNotEqualCalls       int64
 	lastNetDevQueueNotEqualTimeNs      int64
 	// protocol classifier timing metrics last values
-	lastProtocolClassifierEntrypointEarlyExitCalls  int64
-	lastProtocolClassifierEntrypointEarlyExitTimeNs int64
+	lastProtocolClassifierReadConnTupleFailedCalls  int64
+	lastProtocolClassifierReadConnTupleFailedTimeNs int64
+	lastProtocolClassifierNotTcpOrEmptyCalls        int64
+	lastProtocolClassifierNotTcpOrEmptyTimeNs       int64
+	lastProtocolClassifierContextInitFailedCalls    int64
+	lastProtocolClassifierContextInitFailedTimeNs   int64
+	lastProtocolClassifierAlreadyClassifiedCalls    int64
+	lastProtocolClassifierAlreadyClassifiedTimeNs   int64
 	// socket classifier entry timing metrics last values
 	lastSocketClassifierEntryCalls  int64
 	lastSocketClassifierEntryTimeNs int64
@@ -189,8 +201,14 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_is_equal_time_ns", "Counter measuring time spent comparing tuples (nanoseconds)", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_not_equal_calls", "Counter measuring the number of not-equal path executions (normalize + map update)", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__net_dev_queue_not_equal_time_ns", "Counter measuring time spent in not-equal path (normalize + map update) (nanoseconds)", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_entrypoint_early_exit_calls", "Counter measuring the number of early exits from protocol classifier (already classified)", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_entrypoint_early_exit_time_ns", "Counter measuring time spent in protocol classifier early exit path (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_read_conn_tuple_failed_calls", "Counter measuring early exits from protocol classifier due to read_conn_tuple_skb failure", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_read_conn_tuple_failed_time_ns", "Counter measuring time spent before read_conn_tuple_skb failure (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_not_tcp_or_empty_calls", "Counter measuring early exits from protocol classifier due to non-TCP or empty payload", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_not_tcp_or_empty_time_ns", "Counter measuring time spent before non-TCP/empty payload exit (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_context_init_failed_calls", "Counter measuring early exits from protocol classifier due to context init failure", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_context_init_failed_time_ns", "Counter measuring time spent before context init failure (nanoseconds)", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_already_classified_calls", "Counter measuring early exits from protocol classifier when connection already classified", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_already_classified_time_ns", "Counter measuring time spent before already-classified exit (nanoseconds)", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__socket_classifier_entry_calls", "Counter measuring the number of socket classifier entry calls", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__socket_classifier_entry_time_ns", "Counter measuring time spent in socket classifier entry (nanoseconds)", nil, nil),
 	sync.Mutex{},
@@ -227,8 +245,14 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	0, // lastNetDevQueueIsEqualTimeNs
 	0, // lastNetDevQueueNotEqualCalls
 	0, // lastNetDevQueueNotEqualTimeNs
-	0, // lastProtocolClassifierEntrypointEarlyExitCalls
-	0, // lastProtocolClassifierEntrypointEarlyExitTimeNs
+	0, // lastProtocolClassifierReadConnTupleFailedCalls
+	0, // lastProtocolClassifierReadConnTupleFailedTimeNs
+	0, // lastProtocolClassifierNotTcpOrEmptyCalls
+	0, // lastProtocolClassifierNotTcpOrEmptyTimeNs
+	0, // lastProtocolClassifierContextInitFailedCalls
+	0, // lastProtocolClassifierContextInitFailedTimeNs
+	0, // lastProtocolClassifierAlreadyClassifiedCalls
+	0, // lastProtocolClassifierAlreadyClassifiedTimeNs
 	0, // lastSocketClassifierEntryCalls
 	0, // lastSocketClassifierEntryTimeNs
 }
@@ -898,20 +922,70 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 	if socketClassifierCalls > 0 {
 		avgSocketClassifierTime := float64(int64(ebpfTelemetry.Socket_classifier_entry_time_ns)-EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs) / float64(socketClassifierCalls)
 
-		earlyExitCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_calls) - EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitCalls
-		avgEarlyExitTime := float64(0)
-		if earlyExitCalls > 0 {
-			avgEarlyExitTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitTimeNs) / float64(earlyExitCalls)
+		// Read conn tuple failed
+		readConnTupleFailedCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls
+		avgReadConnTupleFailedTime := float64(0)
+		if readConnTupleFailedCalls > 0 {
+			avgReadConnTupleFailedTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs) / float64(readConnTupleFailedCalls)
 		}
 
-		log.Infof("JMW socket_classifier_entry telemetry: calls=%d (avg %.2fns), early_exit_calls=%d (avg %.2fns)",
-			socketClassifierCalls, avgSocketClassifierTime, earlyExitCalls, avgEarlyExitTime)
+		// Not TCP or empty payload
+		notTcpOrEmptyCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls
+		avgNotTcpOrEmptyTime := float64(0)
+		if notTcpOrEmptyCalls > 0 {
+			avgNotTcpOrEmptyTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs) / float64(notTcpOrEmptyCalls)
+		}
+
+		// Context init failed
+		contextInitFailedCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls
+		avgContextInitFailedTime := float64(0)
+		if contextInitFailedCalls > 0 {
+			avgContextInitFailedTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs) / float64(contextInitFailedCalls)
+		}
+
+		// Already classified
+		alreadyClassifiedCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls) - EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls
+		avgAlreadyClassifiedTime := float64(0)
+		if alreadyClassifiedCalls > 0 {
+			avgAlreadyClassifiedTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs) / float64(alreadyClassifiedCalls)
+		}
+
+		// Calculate full classification stats
+		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls
+		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
+		avgFullClassificationTime := float64(0)
+		if fullClassificationCalls > 0 {
+			totalTimeNs := float64(socketClassifierCalls) * avgSocketClassifierTime
+			earlyExitTimeNs := float64(readConnTupleFailedCalls)*avgReadConnTupleFailedTime +
+				float64(notTcpOrEmptyCalls)*avgNotTcpOrEmptyTime +
+				float64(contextInitFailedCalls)*avgContextInitFailedTime +
+				float64(alreadyClassifiedCalls)*avgAlreadyClassifiedTime
+			fullClassificationTimeNs := totalTimeNs - earlyExitTimeNs
+			avgFullClassificationTime = fullClassificationTimeNs / float64(fullClassificationCalls)
+		}
+
+		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
+		log.Infof("JMW   early_exits: read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns)",
+			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
+			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
+			contextInitFailedCalls, avgContextInitFailedTime,
+			alreadyClassifiedCalls, avgAlreadyClassifiedTime)
+		log.Infof("JMW   full_classification: calls=%d (%.1f%%) (avg %.2fns)",
+			fullClassificationCalls,
+			float64(fullClassificationCalls)*100/float64(socketClassifierCalls),
+			avgFullClassificationTime)
 
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)
 		EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs = int64(ebpfTelemetry.Socket_classifier_entry_time_ns)
-		EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_calls)
-		EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_time_ns)
+		EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls)
+		EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns)
+		EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls)
+		EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)
+		EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls)
+		EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)
+		EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls)
+		EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)
 	}
 }
 
@@ -950,8 +1024,14 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.netDevQueueIsEqualTimeNs
 	ch <- EbpfTracerTelemetry.netDevQueueNotEqualCalls
 	ch <- EbpfTracerTelemetry.netDevQueueNotEqualTimeNs
-	ch <- EbpfTracerTelemetry.protocolClassifierEntrypointEarlyExitCalls
-	ch <- EbpfTracerTelemetry.protocolClassifierEntrypointEarlyExitTimeNs
+	ch <- EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs
+	ch <- EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs
+	ch <- EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs
+	ch <- EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedTimeNs
 	ch <- EbpfTracerTelemetry.socketClassifierEntryCalls
 	ch <- EbpfTracerTelemetry.socketClassifierEntryTimeNs
 }
@@ -1105,13 +1185,37 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualTimeNs, prometheus.CounterValue, float64(delta))
 
 	// protocol classifier timing metrics
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_calls) - EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitCalls
-	EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierEntrypointEarlyExitCalls, prometheus.CounterValue, float64(delta))
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls
+	EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls, prometheus.CounterValue, float64(delta))
 
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitTimeNs
-	EbpfTracerTelemetry.lastProtocolClassifierEntrypointEarlyExitTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_early_exit_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierEntrypointEarlyExitTimeNs, prometheus.CounterValue, float64(delta))
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs
+	EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls
+	EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs
+	EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls
+	EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs
+	EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls) - EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls
+	EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs
+	EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedTimeNs, prometheus.CounterValue, float64(delta))
 
 	// socket classifier entry timing metrics
 	delta = int64(ebpfTelemetry.Socket_classifier_entry_calls) - EbpfTracerTelemetry.lastSocketClassifierEntryCalls

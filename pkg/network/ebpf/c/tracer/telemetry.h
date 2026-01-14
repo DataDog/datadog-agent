@@ -38,7 +38,10 @@ enum telemetry_counter {
     net_dev_queue_read_conn_tuple_calls,
     net_dev_queue_is_equal_calls,
     net_dev_queue_not_equal_calls,
-    protocol_classifier_entrypoint_early_exit_calls,
+    protocol_classifier_entrypoint_read_conn_tuple_failed_calls,
+    protocol_classifier_entrypoint_not_tcp_or_empty_calls,
+    protocol_classifier_entrypoint_context_init_failed_calls,
+    protocol_classifier_entrypoint_already_classified_calls,
     socket_classifier_entry_calls,
 };
 
@@ -120,8 +123,17 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
     case net_dev_queue_not_equal_calls:
         __sync_fetch_and_add(&val->net_dev_queue_not_equal_calls, times);
         break;
-    case protocol_classifier_entrypoint_early_exit_calls:
-        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_early_exit_calls, times);
+    case protocol_classifier_entrypoint_read_conn_tuple_failed_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_read_conn_tuple_failed_calls, times);
+        break;
+    case protocol_classifier_entrypoint_not_tcp_or_empty_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_not_tcp_or_empty_calls, times);
+        break;
+    case protocol_classifier_entrypoint_context_init_failed_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_context_init_failed_calls, times);
+        break;
+    case protocol_classifier_entrypoint_already_classified_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_entrypoint_already_classified_calls, times);
         break;
     case socket_classifier_entry_calls:
         __sync_fetch_and_add(&val->socket_classifier_entry_calls, times);

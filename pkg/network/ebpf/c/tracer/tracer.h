@@ -159,8 +159,14 @@ typedef struct {
     __u64 net_dev_queue_not_equal_calls;
     __u64 net_dev_queue_not_equal_time_ns;
     // protocol classifier timing metrics
-    __u64 protocol_classifier_entrypoint_early_exit_calls;
-    __u64 protocol_classifier_entrypoint_early_exit_time_ns;
+    __u64 protocol_classifier_entrypoint_read_conn_tuple_failed_calls;
+    __u64 protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns;
+    __u64 protocol_classifier_entrypoint_not_tcp_or_empty_calls;
+    __u64 protocol_classifier_entrypoint_not_tcp_or_empty_time_ns;
+    __u64 protocol_classifier_entrypoint_context_init_failed_calls;
+    __u64 protocol_classifier_entrypoint_context_init_failed_time_ns;
+    __u64 protocol_classifier_entrypoint_already_classified_calls;
+    __u64 protocol_classifier_entrypoint_already_classified_time_ns;
     // socket classifier entry timing metrics
     __u64 socket_classifier_entry_calls;
     __u64 socket_classifier_entry_time_ns;
