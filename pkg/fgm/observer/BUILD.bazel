@@ -1,0 +1,40 @@
+load("@rules_rust//rust:defs.bzl", "rust_static_library", "rust_test")
+load("@fgm_observer_crates//:defs.bzl", "all_crate_deps")
+
+package(default_visibility = ["//visibility:public"])
+
+# Export Cargo files for crate_universe
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+# Build Rust library as static archive
+rust_static_library(
+    name = "fgm_observer",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    deps = all_crate_deps(),
+)
+
+# C-compatible wrapper library
+cc_library(
+    name = "fgm_observer_c",
+    hdrs = ["include/fgm_observer.h"],
+    deps = [":fgm_observer"],
+    linkopts = select({
+        "@platforms//os:linux": [
+            "-ldl",
+            "-lpthread",
+            "-lm",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Rust unit tests
+rust_test(
+    name = "fgm_observer_test",
+    crate = ":fgm_observer",
+)

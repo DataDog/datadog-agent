@@ -1,0 +1,30 @@
+[package]
+name = "fgm-observer"
+version = "0.1.0"
+edition = "2021"
+description = "Fine-grained metrics observer FFI library for Datadog Agent"
+license = "Apache-2.0"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# Lading observer for container metrics sampling
+# Using expose-observer-public branch with public observer APIs
+lading = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public", package = "lading" }
+lading-capture = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public", package = "lading-capture" }
+
+# Metrics facade - lading emits via this, we'll intercept with custom Recorder
+metrics = "0.24"
+
+# Async runtime for file I/O
+tokio = { version = "1.47", features = ["rt-multi-thread", "fs"] }
+
+# JSON serialization for tags
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+
+# Fast hash maps (matches lading)
+rustc-hash = "2"
