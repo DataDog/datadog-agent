@@ -9,7 +9,6 @@
 package converters
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -131,24 +130,43 @@ func Set[T any](c confMap, path string, value T) error {
 	return nil
 }
 
-type converterWithoutAgent struct{}
+// ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.
+// Returns true if the key exists (regardless of whether conversion was needed), false otherwise.
+func ensureKeyStringValue(config confMap, key string) bool {
+	val, ok := config[key]
+	if !ok {
+		return false
+	}
 
-func newConverterWithoutAgent(_ confmap.ConverterSettings) confmap.Converter {
-	return &converterWithoutAgent{}
+	if _, isString := val.(string); !isString {
+		log.Debugf("converting %s value to string", key)
+		config[key] = fmt.Sprintf("%v", val)
+	}
+
+	return true
 }
 
-func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-	if err := removeInfraAttributesProcessor(confStringMap); err != nil {
-		return err
-	}
-	if err := removeDDProfilingExtension(confStringMap); err != nil {
-		return err
-	}
-	if err := removeHpFlareExtension(confStringMap); err != nil {
-		return err
+func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
+	// for each otlphttpexporter used, check if necessary api key is present
+	hasOtlpHTTP := false
+	for _, nameAny := range exporterNames {
+		if name, ok := nameAny.(string); ok && isComponentType(name, "otlphttp") {
+			hasOtlpHTTP = true
+
+			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
+			if err != nil {
+				return err
+			}
+
+			if !ensureKeyStringValue(headers, "dd-api-key") {
+				return fmt.Errorf("%s exporter should contain a datadog API key", name)
+			}
+		}
 	}
 
-	*conf = *confmap.NewFromStringMap(confStringMap)
+	if !hasOtlpHTTP {
+		return errors.New("no otlphttp exporter configured in profiles pipeline")
+	}
+
 	return nil
 }

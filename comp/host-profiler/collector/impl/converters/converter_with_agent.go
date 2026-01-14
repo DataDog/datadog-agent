@@ -23,11 +23,12 @@ import (
 //   - If no infraattributes processor used, declare & use a minimal infraattributes processor
 //   - No resourcedetection configured nor declared
 //   - At least one otlphttpexporter with dd-api-key declared & used
+//   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If hostprofiler::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 type converterWithAgent struct{}
 
-func newConverterWithAgent(_ confmap.ConverterSettings) confmap.Converter {
+func newConverterWithAgent(settings confmap.ConverterSettings) confmap.Converter {
 	return &converterWithAgent{}
 }
 
@@ -47,7 +48,7 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 
 	// If there's no otlphttpexporter configured. We can't infer necessary configurations as it needs URLs and API keys
 	// so if nothing is found, notify user
-	if err := c.fixExportersPipeline(confStringMap, exporterNames); err != nil {
+	if err := ensureOtlpHTTPExporterConfig(confStringMap, exporterNames); err != nil {
 		return err
 	}
 
@@ -88,46 +89,6 @@ func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) error {
 			delete(processors, name)
 		}
 	}
-	return nil
-}
-
-func ensureKeyStringValue(config confMap, key string) bool {
-	val, ok := config[key]
-
-	if !ok {
-		return false
-	}
-
-	if _, isString := val.(string); !isString {
-		log.Debugf("converting %s value to string", key)
-		config[key] = fmt.Sprintf("%v", val)
-	}
-
-	return true
-}
-
-func (c *converterWithAgent) fixExportersPipeline(conf confMap, exporterNames []any) error {
-	// for each otlphttpexporter used, check if necessary api key is present
-	hasOtlpHttp := false
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, "otlphttp") {
-			hasOtlpHttp = true
-
-			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
-			if err != nil {
-				return err
-			}
-
-			if !ensureKeyStringValue(headers, "dd-api-key") {
-				return fmt.Errorf("%s exporter should contain a datadog API key", name)
-			}
-		}
-	}
-
-	if !hasOtlpHttp {
-		return errors.New("no otlphttp exporter configured in profiles pipeline")
-	}
-
 	return nil
 }
 

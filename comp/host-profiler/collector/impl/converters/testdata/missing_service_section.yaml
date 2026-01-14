@@ -1,4 +1,0 @@
-exporters:
-  otlphttp:
-    headers:
-      dd-api-key: test-api-key

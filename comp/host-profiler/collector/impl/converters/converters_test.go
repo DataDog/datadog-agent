@@ -9,122 +9,20 @@ package converters
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 )
 
-func TestConverterInfraAttributes(t *testing.T) {
-	yaml := fmt.Sprintf(`
-processors:
-  %s:
-    enabled: true
-  otherProcessor: {}
-service:
-  pipelines:
-    profiles:
-      processors:
-        - %s
-        - otherProcessor
-`, infraAttributesName(), infraAttributesName())
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"processors": map[string]any{
-			"otherProcessor": map[string]any{},
-		},
-		"service": map[string]any{
-			"pipelines": map[string]any{
-				"profiles": map[string]any{
-					"processors": []any{"otherProcessor"},
-				},
-			},
-		},
-	})
-}
-
-func TestConverterNoInfraAttributes(t *testing.T) {
-	yaml := `
-processors:
-  otherProcessor: {}
-service:
-  pipelines:
-    profiles:
-      processors:
-        - otherProcessor
-`
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"processors": map[string]any{
-			"otherProcessor": map[string]any{},
-		},
-		"service": map[string]any{
-			"pipelines": map[string]any{
-				"profiles": map[string]any{
-					"processors": []any{"otherProcessor"},
-				},
-			},
-		},
-	})
-}
-
-func TestConverterDDProfiling(t *testing.T) {
-	yaml := fmt.Sprintf(`
-extensions:
-  %s: {}
-service:
-  extensions: [%s]
-`, ddprofilingName(), ddprofilingName())
-
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"extensions": map[string]any{},
-		"service": map[string]any{
-			"extensions": []any{},
-		},
-	})
-}
-
-func TestConverterHPFlare(t *testing.T) {
-	yaml := fmt.Sprintf(`
-extensions:
-  %s: {}
-service:
-  extensions: [%s]
-`, hpflareName(), hpflareName())
-
-	conf := readFromYamlFile(t, yaml)
-	require.Equal(t, conf, map[string]any{
-		"extensions": map[string]any{},
-		"service": map[string]any{
-			"extensions": []any{},
-		},
-	})
-}
-
-func readFromYamlFile(t *testing.T, yamlContent string) map[string]any {
-	confRetrieved, err := confmap.NewRetrievedFromYAML([]byte(yamlContent))
-	require.NoError(t, err)
-	conf, err := confRetrieved.AsConf()
-	require.NoError(t, err)
-	converter := &converterWithoutAgent{}
-	err = converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-	return conf.ToStringMap()
-}
-
-// loadTestData loads a confMap from a YAML file in the testdata directory
 func loadTestData(t *testing.T, filename string) confMap {
 	t.Helper()
 	path := filepath.Join("testdata", filename)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err, "failed to read test data file: %s", filename)
 
-	// Parse YAML using confmap's YAML parser
 	retrieved, err := confmap.NewRetrievedFromYAML(data)
 	require.NoError(t, err, "failed to parse YAML from: %s", filename)
 
@@ -134,795 +32,297 @@ func loadTestData(t *testing.T, filename string) confMap {
 	return conf.ToStringMap()
 }
 
-// newTestConfig creates a mock config for testing
-func newTestConfig(t *testing.T) config.Component {
+func loadAsAgentMode(t *testing.T, filename string) confMap {
 	t.Helper()
-	return config.NewMock(t)
+	path := filepath.Join("testdata", filename)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err, "failed to read test data file: %s", filename)
+
+	retrieved, err := confmap.NewRetrievedFromYAML(data)
+	require.NoError(t, err, "failed to parse YAML from: %s", filename)
+
+	conf, err := retrieved.AsConf()
+	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
+
+	converter := &converterWithAgent{}
+	err = converter.Convert(context.Background(), conf)
+	require.NoError(t, err, "converter failed for: %s", filename)
+
+	return conf.ToStringMap()
 }
 
-// Removed - duplicate of TestCheckProcessorsAddsDefaultWhenNoInfraattributes
+func loadAsStandaloneMode(t *testing.T, filename string) confMap {
+	t.Helper()
+	path := filepath.Join("testdata", filename)
+	data, err := os.ReadFile(path)
+	require.NoError(t, err, "failed to read test data file: %s", filename)
 
-func TestCheckProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
-	cm := loadTestData(t, "adds_default_when_no_infraattributes.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
+	retrieved, err := confmap.NewRetrievedFromYAML(data)
+	require.NoError(t, err, "failed to parse YAML from: %s", filename)
 
-	result := conf.ToStringMap()
+	conf, err := retrieved.AsConf()
+	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
 
-	// Check that infraattributes/default was added
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/default::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
+	converter := &converterWithoutAgent{}
+	err = converter.Convert(context.Background(), conf)
+	require.NoError(t, err, "converter failed for: %s", filename)
 
-	// Check that batch still exists
-	timeout, ok := Get[string](result, "processors::batch::timeout")
-	require.True(t, ok)
-	require.Equal(t, "10s", timeout)
-
-	// Check both are in the pipeline
-	processors, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.Contains(t, processors, "infraattributes/default")
-	require.Contains(t, processors, "batch")
+	return conf.ToStringMap()
 }
 
-func TestCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
-	cm := loadTestData(t, "ensures_infraattributes_config.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
+func TestGetBasicTypes(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_simple_values.yaml")
 
-	result := conf.ToStringMap()
-
-	// Check that allow_hostname_override was set correctly
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
+	// String
+	strVal, ok := Get[string](cm, "string_value")
 	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
+	require.Equal(t, "test-string", strVal)
 
-	// Check that existing config was preserved
-	someOtherConfig, ok := Get[string](result, "processors::infraattributes::some_other_config")
+	// Int
+	intVal, ok := Get[int](cm, "int_value")
 	require.True(t, ok)
-	require.Equal(t, "value", someOtherConfig)
+	require.Equal(t, 42, intVal)
+
+	// Bool
+	boolVal, ok := Get[bool](cm, "bool_value")
+	require.True(t, ok)
+	require.Equal(t, true, boolVal)
+
+	// Float
+	floatVal, ok := Get[float64](cm, "float_value")
+	require.True(t, ok)
+	require.Equal(t, 3.14, floatVal)
 }
 
-func TestCheckProcessorsRemovesResourcedetection(t *testing.T) {
-	cm := loadTestData(t, "removes_resourcedetection.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
+func TestGetNestedValues(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_nested_values.yaml")
 
-	result := conf.ToStringMap()
+	val, ok := Get[string](cm, "level1::level2::level3::deep_string")
+	require.True(t, ok)
+	require.Equal(t, "deep-value", val)
 
-	// Check that resourcedetection was removed
-	_, ok := Get[confMap](result, "processors::resourcedetection")
+	numVal, ok := Get[int](cm, "level1::level2::level3::deep_number")
+	require.True(t, ok)
+	require.Equal(t, 999, numVal)
+}
+
+func TestGetMapAndArray(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_maps_and_arrays.yaml")
+
+	// Get map
+	mapVal, ok := Get[confMap](cm, "processors::batch")
+	require.True(t, ok)
+	require.Equal(t, "10s", mapVal["timeout"])
+
+	// Get array
+	arrVal, ok := Get[[]any](cm, "list_values")
+	require.True(t, ok)
+	require.Len(t, arrVal, 3)
+	require.Equal(t, "item1", arrVal[0])
+}
+
+func TestGetNonExistentPath(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_simple_values.yaml")
+
+	val, ok := Get[string](cm, "non_existent_field")
+	require.False(t, ok)
+	require.Equal(t, "", val) // Zero value
+
+	// Nested non-existent
+	val, ok = Get[string](cm, "level1::level2::missing")
+	require.False(t, ok)
+}
+
+func TestGetWrongType(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_wrong_types.yaml")
+
+	// Try to get string as int
+	_, ok := Get[int](cm, "string_field")
 	require.False(t, ok)
 
-	// Check that batch still exists
-	_, ok = Get[confMap](result, "processors::batch")
-	require.True(t, ok)
-
-	// Check pipeline
-	processors, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.NotContains(t, processors, "resourcedetection")
-	require.Contains(t, processors, "batch")
-}
-
-func TestCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
-	cm := loadTestData(t, "removes_resourcedetection_custom_name.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that resourcedetection/custom was removed
-	_, ok := Get[confMap](result, "processors::resourcedetection/custom")
+	// Try to get number as string
+	_, ok = Get[string](cm, "number_field")
 	require.False(t, ok)
 
-	// Check that infraattributes still exists
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
-
-	// Check pipeline
-	processors, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.NotContains(t, processors, "resourcedetection/custom")
-	require.Contains(t, processors, "infraattributes")
+	// Try to get map as string
+	_, ok = Get[string](cm, "map_field")
+	require.False(t, ok)
 }
 
-func TestCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
-	cm := loadTestData(t, "handles_infraattributes_custom_name.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
+func TestGetIntermediateNodeNotMap(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/get_intermediate_non_map.yaml")
 
-	result := conf.ToStringMap()
-
-	// Check that allow_hostname_override was set on custom infraattributes
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/custom::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
-
-	// Check that default infraattributes was not added
-	_, ok = Get[confMap](result, "processors::infraattributes/default")
+	// Intermediate node is string
+	_, ok := Get[string](cm, "processors::batch::timeout")
 	require.False(t, ok)
 
-	// Check pipeline
-	processors, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.NotContains(t, processors, "infraattributes/default")
-	require.Contains(t, processors, "infraattributes/custom")
+	// Intermediate node is number
+	_, ok = Get[string](cm, "receivers::otlp::protocols")
+	require.False(t, ok)
+
+	// Intermediate node is array
+	_, ok = Get[string](cm, "exporters::otlphttp::headers")
+	require.False(t, ok)
 }
 
-func TestCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
-	cm := loadTestData(t, "adds_hostprofiler_when_missing.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestSetBasicTypes(t *testing.T) {
+	cm := confMap{}
+
+	// Set string
+	err := Set(cm, "string_value", "test")
+	require.NoError(t, err)
+	val, ok := Get[string](cm, "string_value")
+	require.True(t, ok)
+	require.Equal(t, "test", val)
+
+	// Set int
+	err = Set(cm, "int_value", 42)
+	require.NoError(t, err)
+	intVal, ok := Get[int](cm, "int_value")
+	require.True(t, ok)
+	require.Equal(t, 42, intVal)
+
+	// Set bool
+	err = Set(cm, "bool_value", true)
+	require.NoError(t, err)
+	boolVal, ok := Get[bool](cm, "bool_value")
+	require.True(t, ok)
+	require.Equal(t, true, boolVal)
+}
+
+func TestSetNestedPathCreatesIntermediates(t *testing.T) {
+	cm := confMap{}
+
+	err := Set(cm, "level1::level2::level3::value", "deep-value")
 	require.NoError(t, err)
 
-	result := conf.ToStringMap()
-
-	// Check that hostprofiler was added with symbol_uploader disabled
-	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
+	// Verify intermediate maps were created
+	_, ok := Get[confMap](cm, "level1")
 	require.True(t, ok)
-	require.Equal(t, false, enabled)
-
-	// Check that hostprofiler was added to pipeline
-	receivers, ok := Get[[]any](result, "service::pipelines::profiles::receivers")
+	_, ok = Get[confMap](cm, "level1::level2")
 	require.True(t, ok)
-	require.Contains(t, receivers, "hostprofiler")
+
+	// Verify the value
+	val, ok := Get[string](cm, "level1::level2::level3::value")
+	require.True(t, ok)
+	require.Equal(t, "deep-value", val)
 }
 
-func TestCheckReceiversPreservesOtlpProtocols(t *testing.T) {
-	cm := loadTestData(t, "preserves_otlp_protocols.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestSetOverwritesExistingValue(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/set_overwrites_values.yaml")
+
+	// Get original value
+	origVal, ok := Get[string](cm, "processors::batch::timeout")
+	require.True(t, ok)
+	require.Equal(t, "10s", origVal)
+
+	// Overwrite
+	err := Set(cm, "processors::batch::timeout", "20s")
 	require.NoError(t, err)
 
-	result := conf.ToStringMap()
-
-	// Check that existing OTLP protocol config is preserved
-	endpoint, ok := Get[string](result, "receivers::otlp::protocols::grpc::endpoint")
+	// Verify new value
+	newVal, ok := Get[string](cm, "processors::batch::timeout")
 	require.True(t, ok)
-	require.Equal(t, "0.0.0.0:4317", endpoint)
+	require.Equal(t, "20s", newVal)
 }
 
-func TestCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
-	cm := loadTestData(t, "creates_default_hostprofiler.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestSetMapAndArray(t *testing.T) {
+	cm := confMap{}
+
+	// Set map
+	newMap := confMap{"key1": "value1", "key2": 42}
+	err := Set(cm, "nested::map", newMap)
 	require.NoError(t, err)
 
-	result := conf.ToStringMap()
-
-	// Check that hostprofiler was created with symbol_uploader disabled
-	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
+	val, ok := Get[confMap](cm, "nested::map")
 	require.True(t, ok)
-	require.Equal(t, false, enabled)
-}
+	require.Equal(t, "value1", val["key1"])
 
-func TestCheckReceiversSymbolUploaderDisabled(t *testing.T) {
-	cm := loadTestData(t, "symbol_uploader_disabled.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+	// Set array
+	arr := []any{"item1", "item2"}
+	err = Set(cm, "list::items", arr)
 	require.NoError(t, err)
 
-	result := conf.ToStringMap()
-
-	// Check that symbol_uploader remains disabled
-	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
+	arrVal, ok := Get[[]any](cm, "list::items")
 	require.True(t, ok)
-	require.Equal(t, false, enabled)
+	require.Len(t, arrVal, 2)
 }
 
-func TestCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
-	cm := loadTestData(t, "symbol_uploader_with_string_keys.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
+func TestSetIntermediateNodeNotMap(t *testing.T) {
+	cm := loadTestData(t, "helper_functions/set_intermediate_non_map.yaml")
 
-	result := conf.ToStringMap()
-
-	// Get symbol endpoints and check the first endpoint
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Len(t, endpoints, 1)
-
-	endpoint := endpoints[0].(confMap)
-	require.Equal(t, "test-key", endpoint["api_key"])
-	require.Equal(t, "test-app-key", endpoint["app_key"])
-}
-
-func TestCheckReceiversConvertsNonStringApiKey(t *testing.T) {
-	cm := loadTestData(t, "converts_non_string_api_key.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that api_key was converted to string
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	endpoint := endpoints[0].(confMap)
-	require.Equal(t, "12345", endpoint["api_key"])
-}
-
-func TestCheckReceiversConvertsNonStringAppKey(t *testing.T) {
-	cm := loadTestData(t, "converts_non_string_app_key.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that app_key was converted to string
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	endpoint := endpoints[0].(confMap)
-	require.Equal(t, "67890", endpoint["app_key"])
-}
-
-func TestCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
-	cm := loadTestData(t, "adds_hostprofiler_to_pipeline.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Verify hostprofiler was added to pipeline
-	receivers, ok := Get[[]any](result, "service::pipelines::profiles::receivers")
-	require.True(t, ok)
-	require.Contains(t, receivers, "hostprofiler")
-	require.Contains(t, receivers, "otlp")
-
-	// Verify hostprofiler config was created
-	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
-	require.True(t, ok)
-	require.Equal(t, false, enabled)
-}
-
-func TestCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
-	cm := loadTestData(t, "multiple_symbol_endpoints.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that both endpoints were processed correctly
-	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Len(t, endpoints, 2)
-
-	endpoint1 := endpoints[0].(confMap)
-	require.Equal(t, "key1", endpoint1["api_key"])
-	require.Equal(t, "app1", endpoint1["app_key"])
-
-	endpoint2 := endpoints[1].(confMap)
-	require.Equal(t, "123", endpoint2["api_key"])
-	require.Equal(t, "456", endpoint2["app_key"])
-}
-
-func TestCheckReceiversNonStringReceiverName(t *testing.T) {
-	// Test that non-string receiver names in pipeline are rejected
-	cm := loadTestData(t, "non_string_receiver_name_in_pipeline.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
+	// Intermediate node is string - should error
+	err := Set(cm, "processors::batch::timeout", "10s")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "receiver name must be a string")
-}
+	require.Contains(t, err.Error(), "processors")
 
-func TestCheckReceiversMultipleHostprofilers(t *testing.T) {
-	// Test that multiple hostprofiler receivers in pipeline are all processed
-	cm := loadTestData(t, "multiple_hostprofiler_receivers.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check first hostprofiler - keys should be converted to strings
-	endpoints1, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Len(t, endpoints1, 1)
-	ep1 := endpoints1[0].(confMap)
-	require.Equal(t, "11111", ep1["api_key"])
-	require.Equal(t, "22222", ep1["app_key"])
-
-	// Check second hostprofiler/custom - keys should be converted to strings
-	endpoints2, ok := Get[[]any](result, "receivers::hostprofiler/custom::symbol_uploader::symbol_endpoints")
-	require.True(t, ok)
-	require.Len(t, endpoints2, 1)
-	ep2 := endpoints2[0].(confMap)
-	require.Equal(t, "33333", ep2["api_key"])
-	require.Equal(t, "string-app", ep2["app_key"])
-}
-
-func TestCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
-	// Test that symbol_endpoints with wrong type (string not list) returns error
-	cm := loadTestData(t, "symbol_endpoints_exists_but_wrong_type.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
+	// Intermediate node is number - should error
+	err = Set(cm, "receivers::otlp::protocols", confMap{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "symbol_endpoints should be a list")
+	require.Contains(t, err.Error(), "otlp")
 }
 
-func TestCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
-	cm := loadTestData(t, "ensures_headers.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestEnsureCreatesZeroValues(t *testing.T) {
+	cm := confMap{}
+
+	// String zero value
+	strVal, err := Ensure[string](cm, "string_field")
 	require.NoError(t, err)
+	require.Equal(t, "", strVal)
 
-	result := conf.ToStringMap()
-
-	// Check that headers was created
-	_, ok := Get[confMap](result, "exporters::otlphttp::headers")
-	require.True(t, ok)
-}
-
-func TestCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
-	cm := loadTestData(t, "otlphttp_with_string_api_key.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+	// Int zero value
+	intVal, err := Ensure[int](cm, "int_field")
 	require.NoError(t, err)
+	require.Equal(t, 0, intVal)
 
-	result := conf.ToStringMap()
-
-	// Check that dd-api-key is preserved as string
-	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
-	require.True(t, ok)
-	require.Equal(t, "test-api-key", apiKey)
-}
-
-func TestCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
-	cm := loadTestData(t, "otlphttp_converts_non_string_api_key.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+	// Bool zero value
+	boolVal, err := Ensure[bool](cm, "bool_field")
 	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that dd-api-key was converted to string
-	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
-	require.True(t, ok)
-	require.Equal(t, "12345", apiKey)
+	require.Equal(t, false, boolVal)
 }
 
-func TestCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
-	cm := loadTestData(t, "multiple_otlphttp_exporters.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestEnsureCreatesEmptyMapForMapTypes(t *testing.T) {
+	cm := confMap{}
+
+	mapVal, err := Ensure[confMap](cm, "processors")
 	require.NoError(t, err)
+	require.NotNil(t, mapVal)
+	require.Empty(t, mapVal)
 
-	result := conf.ToStringMap()
-
-	// Check prod exporter api key was converted to string
-	prodApiKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
+	// Verify it was set in the config
+	retrieved, ok := Get[confMap](cm, "processors")
 	require.True(t, ok)
-	require.Equal(t, "11111", prodApiKey)
-
-	// Check staging exporter api key is preserved as string
-	stagingApiKey, ok := Get[string](result, "exporters::otlphttp/staging::headers::dd-api-key")
-	require.True(t, ok)
-	require.Equal(t, "staging-key", stagingApiKey)
-
-	// Check that logging exporter still exists
-	_, ok = Get[confMap](result, "exporters::logging")
-	require.True(t, ok)
+	require.NotNil(t, retrieved)
 }
 
-func TestCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
-	cm := loadTestData(t, "ignores_non_otlphttp.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+func TestEnsureReturnsExistingValue(t *testing.T) {
+	cm := confMap{
+		"field": "existing-value",
+	}
+
+	val, err := Ensure[string](cm, "field")
 	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Check that non-otlphttp exporters are preserved
-	_, ok := Get[confMap](result, "exporters::logging")
-	require.True(t, ok)
-
-	_, ok = Get[confMap](result, "exporters::debug")
-	require.True(t, ok)
+	require.Equal(t, "existing-value", val)
 }
 
-func TestCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
-	cm := loadTestData(t, "errors_when_no_otlphttp.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no otlphttp exporter configured")
-}
+func TestEnsureCreatesNestedPath(t *testing.T) {
+	cm := confMap{}
 
-// ============================================================================
-// Edge Cases & Tricky Scenarios
-// ============================================================================
-
-func TestProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
-	// Test that even if allow_hostname_override is explicitly set to false, we override it to true
-	cm := loadTestData(t, "overrides_allow_hostname_override_to_true.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
+	val, err := Ensure[int](cm, "a::b::c::d")
 	require.NoError(t, err)
+	require.Equal(t, 0, val)
 
-	result := conf.ToStringMap()
-
-	// Should be overridden to true
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
+	// Verify intermediate maps were created
+	_, ok := Get[confMap](cm, "a::b::c")
 	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
-
-	// Other config should be preserved
-	someConfig, ok := Get[string](result, "processors::infraattributes::some_config")
-	require.True(t, ok)
-	require.Equal(t, "value", someConfig)
 }
 
-func TestProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
-	// Edge case: both infraattributes and infraattributes/custom in pipeline
-	cm := loadTestData(t, "both_default_and_custom_infraattributes.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Both should have allow_hostname_override set to true
-	allowHostnameOverride1, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride1)
-
-	allowHostnameOverride2, ok := Get[bool](result, "processors::infraattributes/custom::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride2)
-}
-
-func TestProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
-	// Multiple resourcedetection processors with different names - all should be removed
-	cm := loadTestData(t, "multiple_resourcedetection_processors.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// All resourcedetection processors should be removed
-	_, ok := Get[confMap](result, "processors::resourcedetection")
-	require.False(t, ok)
-	_, ok = Get[confMap](result, "processors::resourcedetection/system")
-	require.False(t, ok)
-	_, ok = Get[confMap](result, "processors::resourcedetection/cloud")
-	require.False(t, ok)
-
-	// Batch should remain
-	_, ok = Get[confMap](result, "processors::batch")
-	require.True(t, ok)
-
-	// Pipeline should only have batch and infraattributes/default
-	processors, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.NotContains(t, processors, "resourcedetection")
-	require.NotContains(t, processors, "resourcedetection/system")
-	require.NotContains(t, processors, "resourcedetection/cloud")
-	require.Contains(t, processors, "batch")
-	require.Contains(t, processors, "infraattributes/default")
-}
-
-func TestReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
-	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
-	cm := loadTestData(t, "symbol_uploader_enabled_with_empty_endpoints.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "symbol_endpoints cannot be empty")
-}
-
-func TestEmptyPipeline(t *testing.T) {
-	// Edge case: Empty everything in pipeline
-	cm := loadTestData(t, "empty_pipeline.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should error - no otlphttp exporter
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no otlphttp exporter configured")
-}
-
-func TestNonStringProcessorNameInPipeline(t *testing.T) {
-	// Edge case: Non-string value in processors list (should be handled gracefully)
-	cm := loadTestData(t, "non_string_processor_name_in_pipeline.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should error on the first non-string processor (123)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "processor name must be a string")
-}
-
-func TestHeadersExistButWrongType(t *testing.T) {
-	// Tricky: exporter headers exist but are a string, not a map
-	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := loadTestData(t, "headers_exist_but_wrong_type.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Ensure[confMap] replaces the string with an empty map - no error
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// The invalid string should have been replaced with a map
-	headers, ok := Get[confMap](result, "exporters::otlphttp::headers")
-	require.True(t, ok)
-	require.NotNil(t, headers)
-
-	// ensureStringKey fills in dd-api-key from config when it doesn't exist
-	// So after replacement, the headers map will have the default api key from config
-	require.NotEmpty(t, headers) // Now contains dd-api-key from config
-	_, hasApiKey := headers["dd-api-key"]
-	require.True(t, hasApiKey) // Filled from config
-}
-
-func TestEmptyStringProcessorName(t *testing.T) {
-	// Tricky: processor name is an empty string
-	cm := loadTestData(t, "empty_string_processor_name.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// Empty string should be preserved, infraattributes should be added
-	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-	require.Contains(t, processorNames, "")
-	require.Contains(t, processorNames, "infraattributes/default")
-}
-
-func TestProcessorNameSimilarButNotExactMatch(t *testing.T) {
-	// Tests that similar names don't match - uses proper OTEL type/id parsing
-	// In OTEL specs, components must use type/id format (e.g., infraattributes/custom)
-	cm := loadTestData(t, "processor_name_similar_but_not_exact_match.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
-	require.True(t, ok)
-
-	// Correct behavior: myresourcedetection stays (not "resourcedetection" or "resourcedetection/*")
-	require.Contains(t, processorNames, "myresourcedetection")
-
-	// Correct behavior: infraattributes_custom stays unchanged (not "infraattributes" or "infraattributes/*")
-	require.Contains(t, processorNames, "infraattributes_custom")
-
-	// Verify it was NOT treated as infraattributes (allow_hostname_override NOT added)
-	_, ok = Get[bool](result, "processors::infraattributes_custom::allow_hostname_override")
-	require.False(t, ok)
-
-	// batch should remain
-	require.Contains(t, processorNames, "batch")
-
-	// Since no valid infraattributes found, default SHOULD be added
-	require.Contains(t, processorNames, "infraattributes/default")
-
-	// Verify infraattributes/default was configured correctly
-	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/default::allow_hostname_override")
-	require.True(t, ok)
-	require.Equal(t, true, allowHostnameOverride)
-}
-
-func TestGlobalProcessorsSectionIsNotMap(t *testing.T) {
-	// Tricky: processors section exists but is a string, not a map
-	// Ensure silently replaces wrong-typed values with correct empty types
-	cm := loadTestData(t, "global_processors_section_is_not_map.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Ensure[confMap] replaces the string with an empty map - no error
-	require.NoError(t, err)
-
-	result := conf.ToStringMap()
-
-	// The invalid string should have been replaced with a valid map
-	processors, ok := Get[confMap](result, "processors")
-	require.True(t, ok)
-	require.NotNil(t, processors)
-
-	// infraattributes/default should have been added
-	_, exists := processors["infraattributes/default"]
-	require.True(t, exists)
-}
-
-// ============================================================================
-// Ensure Function Error Handling Tests
-// ============================================================================
-
-func TestEnsureReturnsErrorWhenIntermediateElementIsString(t *testing.T) {
-	// Test that Ensure returns an error when an intermediate path element is a string
+func TestEnsureErrorWhenIntermediateNotMap(t *testing.T) {
 	cm := confMap{
 		"processors": "not-a-map",
 	}
 
-	_, err := Ensure[bool](cm, "processors::receivers::otlp")
+	_, err := Ensure[bool](cm, "processors::batch::enabled")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "path element \"processors\" is not a map")
-}
-
-func TestEnsureReturnsErrorWhenIntermediateElementIsNumber(t *testing.T) {
-	// Test that Ensure returns an error when an intermediate path element is a number
-	cm := confMap{
-		"processors": confMap{
-			"receivers": 12345,
-		},
-	}
-
-	_, err := Ensure[bool](cm, "processors::receivers::otlp")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "path element \"receivers\" is not a map")
-}
-
-func TestEnsureReturnsErrorWhenIntermediateElementIsBoolean(t *testing.T) {
-	// Test that Ensure returns an error when an intermediate path element is a boolean
-	cm := confMap{
-		"processors": confMap{
-			"receivers": true,
-		},
-	}
-
-	_, err := Ensure[confMap](cm, "processors::receivers::otlp")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "path element \"receivers\" is not a map")
-}
-
-func TestEnsureReturnsErrorWhenIntermediateElementIsArray(t *testing.T) {
-	// Test that Ensure returns an error when an intermediate path element is an array
-	cm := confMap{
-		"processors": []any{"not", "a", "map"},
-	}
-
-	_, err := Ensure[bool](cm, "processors::receivers::otlp")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "path element \"processors\" is not a map")
-}
-
-func TestEnsureSucceedsWhenIntermediateElementIsMissing(t *testing.T) {
-	// Test that Ensure succeeds when intermediate elements don't exist (creates them)
-	cm := confMap{}
-
-	result, err := Ensure[bool](cm, "processors::receivers::otlp")
-	require.NoError(t, err)
-	require.False(t, result)
-
-	// Verify the path was created
-	val, ok := Get[bool](cm, "processors::receivers::otlp")
-	require.True(t, ok)
-	require.False(t, val)
-}
-
-func TestEnsureSucceedsWhenPathExists(t *testing.T) {
-	// Test that Ensure returns existing value without error
-	cm := confMap{
-		"processors": confMap{
-			"receivers": confMap{
-				"otlp": true,
-			},
-		},
-	}
-
-	result, err := Ensure[bool](cm, "processors::receivers::otlp")
-	require.NoError(t, err)
-	require.True(t, result)
-}
-
-func TestEnsureCreatesEmptyMapForMapTypes(t *testing.T) {
-	// Test that Ensure creates an empty map instead of nil for map types
-	cm := confMap{}
-
-	result, err := Ensure[confMap](cm, "processors")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Empty(t, result)
-
-	// Verify it was actually set in the config
-	val, ok := Get[confMap](cm, "processors")
-	require.True(t, ok)
-	require.NotNil(t, val)
-}
-
-func TestConverterErrorPropagationFromEnsure(t *testing.T) {
-	// Test that converter properly propagates errors from Ensure
-	// This tests the full integration path
-	cm := loadTestData(t, "error_pipelines_not_map.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should error because service::pipelines is not a map
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "path element \"pipelines\" is not a map")
-}
-
-func TestConverterErrorPropagationFromProcessors(t *testing.T) {
-	// Test that converter propagates errors when an intermediate element in processors path is not a map
-	cm := loadTestData(t, "error_processor_config_not_map.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should error when trying to set infraattributes::allow_hostname_override
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "infraattributes")
-}
-
-func TestConverterErrorPropagationFromReceiversDeepPath(t *testing.T) {
-	// Test error propagation with a truly intermediate non-map element
-	// We need to use Set directly since the converter code may not have such deep paths
-	cm := confMap{
-		"receivers": confMap{
-			"hostprofiler": confMap{
-				"symbol_uploader": "not-a-map", // Intermediate element
-			},
-		},
-	}
-
-	// This should error because symbol_uploader is not a map
-	_, err := Ensure[bool](cm, "receivers::hostprofiler::symbol_uploader::enabled")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "symbol_uploader")
-}
-
-func TestConverterErrorPropagationFromExporters(t *testing.T) {
-	// Test that converter propagates errors when an intermediate element in exporters path is not a map
-	cm := loadTestData(t, "error_exporter_config_not_map.yaml")
-	conf := confmap.NewFromStringMap(cm)
-	converter := &converterWithAgent{}
-	err := converter.Convert(context.Background(), conf)
-
-	// Should error when trying to ensure otlphttp::headers
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "otlphttp")
+	require.Contains(t, err.Error(), "processors")
 }
