@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// The redact package is used to scrub sensitive information from Kubernetes pod manifests and CRs.
+// Package redact is used to scrub sensitive information from Kubernetes pod manifests and CRs.
 package redact
 
 import (
