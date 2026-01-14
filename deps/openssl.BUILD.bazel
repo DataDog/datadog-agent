@@ -117,7 +117,6 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    includes = ["."],
     lib_source = ":all_src",
     out_include_dir = "include",
     out_static_libs = select({
@@ -162,7 +161,7 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
-    copts = ["-O2", "-DNDEBUG"],
+    copts = ["-O2"],
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
     postfix_script = select({
