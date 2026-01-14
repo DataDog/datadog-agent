@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/etcd"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/gpu"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/mutatedbyadmissioncontroller"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/prometheus"
@@ -114,6 +115,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		if eksParams.WindowsNodeGroup {
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
+		if eksParams.GPUNodeGroup {
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithGPUMonitoring())
+		}
 
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {
@@ -191,6 +195,17 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 			if _, err := nginx.K8sRolloutAppDefinition(&awsEnv, cluster.KubeProvider, "workload-argo-rollout-nginx", dependsOnDDAgent, dependsOnArgoRollout); err != nil {
 				return err
 			}
+		}
+	}
+
+	// Deploy GPU workload if GPU node group is enabled
+	eksParams, err := NewParams(params.eksOptions...)
+	if err != nil {
+		return err
+	}
+	if eksParams.GPUNodeGroup {
+		if _, err := gpu.K8sAppDefinition(&awsEnv, cluster.KubeProvider, "workload-gpu", dependsOnDDAgent); err != nil {
+			return err
 		}
 	}
 
