@@ -108,9 +108,11 @@ git worktree remove {worktree_path}"""
     # Set outputs
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:
         if original_pr_number:
-            f.write(f"pr_number={original_pr_number}\n")
+            f.write(f"original_pr_number={original_pr_number}\n")
         if base:
             f.write(f"base={base}\n")
+        if merge_commit_sha:
+            f.write(f"merge_commit_sha={merge_commit_sha}\n")
         if original_labels:
             f.write(f"original_labels={','.join(original_labels)}\n")
         if original_title:

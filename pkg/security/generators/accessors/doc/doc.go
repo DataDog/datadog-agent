@@ -112,8 +112,8 @@ func GenerateDocJSON(module *common.Module, seclModelPath, outputPath string) er
 		var propertyKey string
 		var propertySuffix string
 		var propertyDefinition string
-		if strings.HasPrefix(field.Alias, field.AliasPrefix) {
-			propertySuffix = strings.TrimPrefix(field.Alias, field.AliasPrefix)
+		if after, ok := strings.CutPrefix(field.Alias, field.AliasPrefix); ok {
+			propertySuffix = after
 			propertyKey = field.Struct + propertySuffix
 			propertySuffix = strings.TrimPrefix(propertySuffix, ".")
 		} else {

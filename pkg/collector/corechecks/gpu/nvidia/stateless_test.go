@@ -9,6 +9,7 @@ package nvidia
 
 import (
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -403,6 +404,62 @@ func TestNVLinkCollector_Collection(t *testing.T) {
 			// Check inactive links metric
 			require.Equal(t, float64(tt.expectedInactive), allMetrics[2].Value)
 			require.Equal(t, metrics.GaugeType, allMetrics[2].Type)
+		})
+	}
+}
+
+func TestProcessDetailListArchitectureSupport(t *testing.T) {
+	tests := []struct {
+		name         string
+		architecture nvml.DeviceArchitecture
+		supported    bool
+	}{
+		{
+			name:         "Hopper",
+			architecture: nvml.DEVICE_ARCH_HOPPER,
+			supported:    true,
+		},
+		{
+			name:         "Blackwell",
+			architecture: 10,
+			supported:    true,
+		},
+		{
+			name:         "Ampere",
+			architecture: nvml.DEVICE_ARCH_AMPERE,
+			supported:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+				testutil.WithMockAllDeviceFunctions()(device)
+
+				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+					return tt.architecture, nvml.SUCCESS
+				}
+				device.GetRunningProcessDetailListFunc = func() (nvml.ProcessDetailList, nvml.Return) {
+					if tt.supported {
+						return nvml.ProcessDetailList{}, nvml.SUCCESS
+					}
+					return nvml.ProcessDetailList{}, nvml.ERROR_ARGUMENT_VERSION_MISMATCH
+				}
+				return device
+			})
+
+			wmeta := testutil.GetWorkloadMetaMockWithDefaultGPUs(t) // used only to avoid nil pointer dereferences in initialization
+			collector, err := newStatelessCollector(mockDevice, &CollectorDependencies{Workloadmeta: wmeta})
+			require.NoError(t, err)
+
+			baseColl, ok := collector.(*baseCollector)
+			require.True(t, ok)
+
+			hasProcessDetailAPICall := slices.ContainsFunc(baseColl.supportedAPIs, func(api apiCallInfo) bool {
+				return api.Name == "process_detail_list"
+			})
+			require.Equal(t, tt.supported, hasProcessDetailAPICall)
 		})
 	}
 }
