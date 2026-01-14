@@ -29,7 +29,7 @@ func newServiceExtractor(sysprobeconfig sysprobeconfig.Component) *serviceExtrac
 }
 
 func (s *serviceExtractor) process(event *process) {
-	if event.EventType != model.ExecEventType {
+	if event.EventType != model.ExecEventType && event.EventType != model.ForkEventType {
 		return
 	}
 

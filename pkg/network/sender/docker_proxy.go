@@ -57,7 +57,7 @@ func (d *dockerProxyFilter) process(event *process) {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	// TODO if we miss the exec event, we will never consider that process a docker-proxy
+	// TODO if we miss the fork/exec event, we will never consider that process a docker-proxy
 
 	if proxy, seen := d.proxyByPID[event.Pid]; seen {
 		if event.EventType == model.ExitEventType {
@@ -65,7 +65,7 @@ func (d *dockerProxyFilter) process(event *process) {
 			proxy.alive = false
 			return
 		}
-		if event.EventType != model.ExecEventType {
+		if event.EventType != model.ExecEventType && event.EventType != model.ForkEventType {
 			return
 		}
 		// we've received a new exec event with the same PID as an existing entry.

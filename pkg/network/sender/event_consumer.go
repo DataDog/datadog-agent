@@ -30,7 +30,7 @@ var directSenderConsumerInstance atomic.Pointer[directSenderConsumer]
 
 type directSenderConsumer struct {
 	log       log.Component
-	processes map[uint32]bool
+	processes map[uint32]*process
 	mtx       sync.Mutex
 
 	proxyFilter  *dockerProxyFilter
@@ -42,7 +42,7 @@ type directSenderConsumer struct {
 func NewDirectSenderConsumer(em *eventmonitor.EventMonitor, log log.Component, sysprobeconfig sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
 	dsc := &directSenderConsumer{
 		log:          log,
-		processes:    make(map[uint32]bool),
+		processes:    make(map[uint32]*process),
 		proxyFilter:  newDockerProxyFilter(log),
 		extractor:    newServiceExtractor(sysprobeconfig),
 		pidAliveFunc: ddos.PidExists,
@@ -67,6 +67,7 @@ func (d *directSenderConsumer) ChanSize() int {
 
 type process struct {
 	Pid       uint32
+	PPid      uint32
 	Cmdline   []string
 	Cwd       string
 	EventType model.EventType
@@ -77,6 +78,7 @@ func (d *directSenderConsumer) EventTypes() []model.EventType {
 	return []model.EventType{
 		model.ExecEventType,
 		model.ExitEventType,
+		model.ForkEventType,
 	}
 }
 
@@ -92,6 +94,7 @@ func (d *directSenderConsumer) Stop() {}
 func (d *directSenderConsumer) Copy(ev *model.Event) any {
 	p := &process{
 		Pid:       ev.GetProcessPid(),
+		PPid:      ev.GetProcessPpid(),
 		EventType: ev.GetEventType(),
 		Cmdline:   ev.GetExecCmdargv(),
 	}
@@ -104,12 +107,17 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 	if !ok {
 		return
 	}
-	if p.EventType == model.ExecEventType {
+	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
 		cwd, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "cwd"))
 		if err != nil {
 			d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
 		}
 		p.Cwd = cwd
+	}
+	if p.EventType == model.ForkEventType && p.PPid > 0 {
+		if parent, ok := d.processes[p.PPid]; ok && parent != nil {
+			p.Cmdline = parent.Cmdline
+		}
 	}
 	d.process(p)
 }
@@ -121,12 +129,12 @@ func (d *directSenderConsumer) process(p *process) {
 	if _, seen := d.processes[p.Pid]; seen {
 		if p.EventType == model.ExitEventType {
 			// mark process as dead so it will be removed after next set of connections are collected
-			d.processes[p.Pid] = false
+			d.processes[p.Pid] = nil
 		}
 	}
 
-	if p.EventType == model.ExecEventType {
-		d.processes[p.Pid] = true
+	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
+		d.processes[p.Pid] = p
 	}
 	d.proxyFilter.process(p)
 	d.extractor.process(p)
@@ -139,7 +147,8 @@ func (d *directSenderConsumer) cleanupProcesses() {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
 
-	for pid, alive := range d.processes {
+	for pid, p := range d.processes {
+		alive := p != nil
 		if alive {
 			alive = d.pidAliveFunc(int(pid))
 		}
