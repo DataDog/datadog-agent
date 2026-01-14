@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

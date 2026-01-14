@@ -11,8 +11,8 @@ package tailers
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 )
 
 // isEOFCorruptedOffset return true if the offset doesn't contain a

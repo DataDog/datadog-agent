@@ -573,16 +573,16 @@ linters:
     - path: comp/logs/agent/agentimpl/serverless.go
       linters:
         - pkgconfigusage
-    - path: comp/logs/agent/config/config_keys.go
+    - path: comp/logs-library/config/config_keys.go
       linters:
         - pkgconfigusage
-    - path: comp/logs/agent/config/config_test.go
+    - path: comp/logs-library/config/config_test.go
       linters:
         - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints.go
+    - path: comp/logs-library/config/endpoints.go
       linters:
         - pkgconfigusage
-    - path: comp/logs/agent/config/endpoints_test.go
+    - path: comp/logs-library/config/endpoints_test.go
       linters:
         - pkgconfigusage
     - path: comp/metadata/clusteragent/impl/cluster_agent.go

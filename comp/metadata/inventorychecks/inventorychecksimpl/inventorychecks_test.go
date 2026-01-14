@@ -26,13 +26,13 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	logsBundle "github.com/DataDog/datadog-agent/comp/logs"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -157,7 +157,6 @@ func TestGetPayload(t *testing.T) {
 		src.Status.Error(errors.New("No such file or directory"))
 		logSources.AddSource(src)
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
 		mockLogAgent := fxutil.Test[option.Option[logagent.Mock]](
 			t,
 			logsBundle.MockBundle(),

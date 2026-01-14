@@ -8,7 +8,7 @@ package file
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 // File represents a file to tail

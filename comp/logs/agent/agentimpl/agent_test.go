@@ -32,26 +32,26 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/def"
+	auditorfx "github.com/DataDog/datadog-agent/comp/logs-library/auditor/fx"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -162,9 +162,6 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 	}
 
 	agent.setupAgent()
-	suite.T().Cleanup(func() {
-		_ = agent.stop(context.TODO())
-	})
 
 	return agent, sources, services
 }

@@ -11,16 +11,16 @@ import (
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	auditornoop "github.com/DataDog/datadog-agent/comp/logs-library/auditor/impl-none"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
@@ -38,7 +38,7 @@ func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.Conf
 		return nil, nil, nil, err
 	}
 
-	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil)
+	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(nil, nil, pkgconfigsetup.Datadog().GetInt("logs_config.message_channel_size"))
 	pipelineProvider := pipeline.NewProcessorOnlyProvider(diagnosticMessageReceiver, processingRules, nil)
 
 	// setup the launchers

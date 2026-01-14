@@ -15,9 +15,9 @@ import (
 	containerutilPkg "github.com/DataDog/datadog-agent/pkg/util/containers"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	containerTailerPkg "github.com/DataDog/datadog-agent/pkg/logs/tailers/container"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )

@@ -15,12 +15,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 
-	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	auditorMock "github.com/DataDog/datadog-agent/comp/logs-library/auditor/mock"
 )
 
 func TestWhichTailer(t *testing.T) {

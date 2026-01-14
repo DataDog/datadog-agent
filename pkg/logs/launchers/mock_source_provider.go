@@ -6,7 +6,7 @@
 package launchers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 // MockSourceProvider is a fake SourceProvider that can be used to provide fake sources.

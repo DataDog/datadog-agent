@@ -12,8 +12,8 @@ import (
 	"golang.org/x/text/encoding/unicode"
 	"golang.org/x/text/transform"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Encoding specifies the encoding which should be decoded by the DecodingParser

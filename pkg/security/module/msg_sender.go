@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/common"

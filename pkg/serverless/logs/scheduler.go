@@ -9,9 +9,9 @@ package logs
 import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

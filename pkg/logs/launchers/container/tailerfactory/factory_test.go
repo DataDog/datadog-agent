@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 func TestMakeTailerFile(t *testing.T) {

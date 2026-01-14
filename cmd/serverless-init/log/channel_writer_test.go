@@ -6,7 +6,7 @@
 package log
 
 import (
-	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logConfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"io"
 	"testing"
 )

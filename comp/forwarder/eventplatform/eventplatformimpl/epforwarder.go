@@ -22,16 +22,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -573,16 +573,6 @@ func newHTTPPassthroughPipeline(
 		)
 	}
 
-	log.Debugf("Initialized event platform forwarder pipeline. eventType=%s mainHosts=%s additionalHosts=%s batch_max_concurrent_send=%d batch_max_content_size=%d batch_max_size=%d, input_chan_size=%d, compression_kind=%s, compression_level=%d",
-		desc.eventType,
-		joinHosts(endpoints.GetReliableEndpoints()),
-		joinHosts(endpoints.GetUnReliableEndpoints()),
-		endpoints.BatchMaxConcurrentSend,
-		endpoints.BatchMaxContentSize,
-		endpoints.BatchMaxSize,
-		endpoints.InputChanSize,
-		endpoints.Main.CompressionKind,
-		endpoints.Main.CompressionLevel)
 	return &passthroughPipeline{
 		sender:                senderImpl,
 		strategy:              strategy,
@@ -603,14 +593,6 @@ func (p *passthroughPipeline) Stop() {
 		p.strategy.Stop()
 		p.sender.Stop()
 	}
-}
-
-func joinHosts(endpoints []config.Endpoint) string {
-	var additionalHosts []string
-	for _, e := range endpoints {
-		additionalHosts = append(additionalHosts, e.Host)
-	}
-	return strings.Join(additionalHosts, ",")
 }
 
 func newDefaultEventPlatformForwarder(config model.Reader, eventPlatformReceiver eventplatformreceiver.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
@@ -673,7 +655,14 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression)
+	f := newDefaultEventPlatformForwarder(
+		pkgconfigsetup.Datadog(),
+		eventplatformreceiverimpl.NewReceiver(
+			hostname,
+			pkgconfigsetup.Datadog(),
+		).Comp,
+		compression,
+	)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

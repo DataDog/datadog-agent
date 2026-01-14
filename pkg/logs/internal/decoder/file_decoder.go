@@ -8,7 +8,8 @@ package decoder
 import (
 	"regexp"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 

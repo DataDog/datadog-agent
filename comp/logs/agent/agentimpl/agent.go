@@ -27,26 +27,27 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
+	validatordef "github.com/DataDog/datadog-agent/comp/logs-library/validator/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/goroutinesdump"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -81,12 +82,13 @@ type dependencies struct {
 	Config             configComponent.Component
 	InventoryAgent     inventoryagent.Component
 	Hostname           hostname.Component
-	Auditor            auditor.Component
+	Auditor            option.Option[auditor.Component]
 	WMeta              option.Option[workloadmeta.Component]
 	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	HealthPlatform     option.Option[healthplatform.Component]
+	Validator          validatordef.Component
 }
 
 type provides struct {
@@ -141,11 +143,25 @@ type logAgent struct {
 	httpRetryMutex  sync.Mutex
 }
 
+func generateDisabledProvides() provides {
+	return provides{
+		Comp:           option.None[agent.Component](),
+		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
+		LogsReciever:   option.None[integrations.Component](),
+	}
+}
+
 func newLogsAgent(deps dependencies) provides {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
+
+		if err := deps.Validator.ValidateDependencies(&deps.Auditor); err != nil {
+			return generateDisabledProvides()
+		}
+
+		auditor, _ := deps.Auditor.Get()
 
 		integrationsLogs := integrationsimpl.NewLogsIntegration()
 
@@ -155,7 +171,7 @@ func newLogsAgent(deps dependencies) provides {
 			inventoryAgent:     deps.InventoryAgent,
 			hostname:           deps.Hostname,
 			started:            atomic.NewUint32(status.StatusNotStarted),
-			auditor:            deps.Auditor,
+			auditor:            auditor,
 			sources:            sources.NewLogSources(),
 			services:           service.NewServices(),
 			tracker:            tailers.NewTailerTracker(),
@@ -185,11 +201,7 @@ func newLogsAgent(deps dependencies) provides {
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return provides{
-		Comp:           option.None[agent.Component](),
-		StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
-		LogsReciever:   option.None[integrations.Component](),
-	}
+	return generateDisabledProvides()
 }
 
 func (a *logAgent) start(context.Context) error {

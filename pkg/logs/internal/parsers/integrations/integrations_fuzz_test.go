@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 func FuzzIntegrationsParser(f *testing.F) {

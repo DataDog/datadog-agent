@@ -16,14 +16,14 @@ import (
 	"strings"
 	"time"
 
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 )
 
 // OpenFilesLimitWarningType is the key of the message generated when too many

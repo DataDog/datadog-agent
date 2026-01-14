@@ -10,7 +10,7 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // Helper to encode string to UTF-16LE

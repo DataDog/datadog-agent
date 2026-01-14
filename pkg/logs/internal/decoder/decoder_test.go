@@ -9,7 +9,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"
@@ -17,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/encodedtext"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 
 	"github.com/stretchr/testify/assert"

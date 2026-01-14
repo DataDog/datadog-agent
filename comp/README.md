@@ -332,7 +332,7 @@ Package adscheduler is glue code to connect autodiscovery to the logs agent. It 
 
 Package agent contains logs agent component.
 
-### [comp/logs/auditor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/auditor)
+### [comp/logs-library/auditor](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/auditor)
 
 Package auditor records the log files the agent is tracking. It tracks
 filename, time last updated, offset (how far into the file the agent has
@@ -343,7 +343,7 @@ read), and tailing mode for each log file.
 Package integrations adds a go interface for integrations to register and
 send logs.
 
-### [comp/logs/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/kubehealth)
+### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 

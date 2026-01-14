@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
+	auditor "github.com/DataDog/datadog-agent/comp/logs-library/auditor/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 )
