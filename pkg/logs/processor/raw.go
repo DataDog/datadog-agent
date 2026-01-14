@@ -17,7 +17,14 @@ import (
 // RawEncoder is a shared raw encoder.
 var RawEncoder Encoder = &rawEncoder{}
 
-type rawEncoder struct{}
+type rawEncoder struct {
+	useContainerTimestamp bool
+}
+
+// NewRawEncoder returns a raw encoder configured to optionally use container-provided timestamps.
+func NewRawEncoder(useContainerTimestamp bool) Encoder {
+	return &rawEncoder{useContainerTimestamp: useContainerTimestamp}
+}
 
 func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 	rendered, err := msg.Render()
@@ -40,13 +47,13 @@ func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 		extraContent = append(extraContent, ' ')
 
 		// Timestamp
-		ts := time.Now().UTC()
-
-		if !msg.ServerlessExtra.Timestamp.IsZero() {
-			ts = msg.ServerlessExtra.Timestamp
-		} else if msg.ParsingExtra.Timestamp != "" {
-			if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
-				ts = logTime
+		ts := msg.ServerlessExtra.Timestamp
+		if ts.IsZero() {
+			ts = time.Now().UTC()
+			if msg.ParsingExtra.Timestamp != "" && r.useContainerTimestamp {
+				if logTime, err := time.Parse(time.RFC3339Nano, msg.ParsingExtra.Timestamp); err == nil {
+					ts = logTime
+				}
 			}
 		}
 

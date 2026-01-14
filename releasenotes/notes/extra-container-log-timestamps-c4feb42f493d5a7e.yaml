@@ -1,7 +1,7 @@
 ---
 enhancements:
   - |
-    Use the `time` field from container log files as the log timestamp, instead of ingestion time.
+    Add `logs_config.use_container_timestamp` to optionally use the `time` field from container log files as the log timestamp instead of ingestion time.
 fixes:
   - |
-    Prevent multiple log lines from being assigned identical ingestion timestamps, and use the `time` field provided in container log files instead of discarding it.
+    When `logs_config.use_container_timestamp` is enabled, prevent multiple log lines from being assigned identical ingestion timestamps and preserve the `time` field provided in container log files.

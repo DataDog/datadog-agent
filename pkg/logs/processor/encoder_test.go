@@ -7,10 +7,8 @@ package processor
 
 import (
 	"encoding/json"
-	"testing"
-
 	"strings"
-
+	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -266,6 +264,127 @@ func TestJsonEncoder(t *testing.T) {
 
 		assert.Equal(t, message.StatusError, log.Status)
 		assert.NotEmpty(t, log.Timestamp)
+	})
+}
+
+func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
+	logsConfig := &config.LogsConfig{}
+	source := sources.NewLogSource("", logsConfig)
+
+	containerTS := "2000-01-01T00:00:00.000000000Z"
+	parsed, err := time.Parse(time.RFC3339Nano, containerTS)
+	assert.NoError(t, err)
+
+	t.Run("json", func(t *testing.T) {
+		t.Run("disabled", func(t *testing.T) {
+			encoder := NewJSONEncoder(false)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			var payload struct {
+				Timestamp int64 `json:"timestamp"`
+			}
+			assert.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+
+			expectedMillis := parsed.UnixNano() / nanoToMillis
+			assert.NotEqual(t, expectedMillis, payload.Timestamp)
+		})
+
+		t.Run("enabled", func(t *testing.T) {
+			encoder := NewJSONEncoder(true)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			var payload struct {
+				Timestamp int64 `json:"timestamp"`
+			}
+			assert.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+
+			expectedMillis := parsed.UnixNano() / nanoToMillis
+			assert.Equal(t, expectedMillis, payload.Timestamp)
+		})
+	})
+
+	t.Run("proto", func(t *testing.T) {
+		t.Run("disabled", func(t *testing.T) {
+			encoder := NewProtoEncoder(false)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			log := &pb.Log{}
+			assert.NoError(t, log.Unmarshal(msg.GetContent()))
+
+			assert.NotEqual(t, parsed.UnixNano(), log.Timestamp)
+		})
+
+		t.Run("enabled", func(t *testing.T) {
+			encoder := NewProtoEncoder(true)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			log := &pb.Log{}
+			assert.NoError(t, log.Unmarshal(msg.GetContent()))
+
+			assert.Equal(t, parsed.UnixNano(), log.Timestamp)
+		})
+	})
+
+	t.Run("raw", func(t *testing.T) {
+		t.Run("disabled", func(t *testing.T) {
+			encoder := NewRawEncoder(false)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			parts := strings.Fields(string(msg.GetContent()))
+			assert.GreaterOrEqual(t, len(parts), 2)
+			assert.NotEqual(t, containerTS, parts[1])
+		})
+
+		t.Run("enabled", func(t *testing.T) {
+			encoder := NewRawEncoder(true)
+
+			msg := newMessage([]byte("a"), source, message.StatusInfo)
+			msg.State = message.StateRendered
+			msg.Origin.LogSource = source
+			msg.ParsingExtra.Timestamp = containerTS
+
+			err := encoder.Encode(msg, "unknown")
+			assert.NoError(t, err)
+
+			parts := strings.Fields(string(msg.GetContent()))
+			assert.GreaterOrEqual(t, len(parts), 2)
+			assert.Equal(t, containerTS, parts[1])
+		})
 	})
 }
 
