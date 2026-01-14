@@ -7,15 +7,11 @@
 bazel:build-deps:linux-amd64:
   extends: [ .bazel:build-deps, .bazel:runner:linux-amd64 ]
   script:
-    - printenv
-    - echo $PATH
     - bazel build //deps/... --platforms=//bazel/platforms:linux_x86_64
 
 bazel:build-deps:linux-arm64:
   extends: [ .bazel:build-deps, .bazel:runner:linux-arm64 ]
   script:
-    - printenv
-    - echo $PATH
     - bazel build //deps/... --platforms=//bazel/platforms:linux_arm64
 
 bazel:build-deps:macos-amd64:
