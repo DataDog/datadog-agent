@@ -1,0 +1,25 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added GPU runtime discovery support for ECS EC2 environments. The Datadog Agent
+    can now detect GPU device UUIDs assigned to containers by extracting the
+    ``NVIDIA_VISIBLE_DEVICES`` environment variable from the Docker container configuration.
+    This enables GPU-to-container mapping for GPU metrics without requiring the
+    Kubernetes PodResources API, which is not available in ECS environments.
+enhancements:
+  - |
+    Added ``GPUDeviceIDs`` field to the workloadmeta Container entity to store
+    GPU device UUIDs. This field is populated by the Docker collector in ECS
+    environments from the ``NVIDIA_VISIBLE_DEVICES`` environment variable
+    (e.g., ``GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx``).
+  - |
+    The GPU collector now uses ``GPUDeviceIDs`` from workloadmeta as the primary
+    source for GPU-to-container mapping in ECS, with fallback to procfs for
+    regular Docker environments and PodResources API for Kubernetes.

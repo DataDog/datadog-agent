@@ -4,7 +4,6 @@ description "Enforce building dependencies as soon as possible so they can be ca
 
 # Linux-specific dependencies
 if linux_target?
-  dependency 'procps-ng'
   dependency 'curl'
 end
 if fips_mode?
@@ -49,14 +48,10 @@ end
 
 dependency 'datadog-agent-integrations-py3'
 
-
 # Additional software
 if windows_target?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
+  build do
+    command_on_repo_root "bazelisk run -- //packages/windows:install_drivers --destdir=#{install_dir}"
   end
 end
 

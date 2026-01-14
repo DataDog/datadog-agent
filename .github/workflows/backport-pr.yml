@@ -43,7 +43,7 @@ jobs:
         env:
             GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: dda gh cherry-pick pr
+        run: dda gh cherry-pick-pr
 
       - name: Reset cherry-pick
         if: steps.cherry-pick.outputs.base != ''

@@ -80,6 +80,9 @@ func TestAutoinstrumentation(t *testing.T) {
 		initSecurityContext *corev1.SecurityContext
 		// initResourceRequirements (optional) ensures that the init containers contain the proper resource requirements.
 		initResourceRequirements *corev1.ResourceRequirements
+		// unmutatedContainers (optional) ensures that specific containers have NO Datadog-related env vars (DD_*, LD_PRELOAD).
+		// This is useful to verify containers like istio-proxy are completely excluded from mutation.
+		unmutatedContainers []string
 	}
 
 	tests := map[string]struct {
@@ -1510,12 +1513,20 @@ func TestAutoinstrumentation(t *testing.T) {
 		"istio-proxy is not injected": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
 			},
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
 				NS:         "application",
 				ParentKind: "replicaset",
 				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
 				Containers: []corev1.Container{
 					{
 						Name: defaultTestContainer,
@@ -1534,6 +1545,8 @@ func TestAutoinstrumentation(t *testing.T) {
 				containerNames: []string{
 					defaultTestContainer,
 				},
+				// Verify istio-proxy has NO Datadog env vars at all (DD_*, LD_PRELOAD)
+				unmutatedContainers: []string{"istio-proxy"},
 			},
 		},
 		"injection does not occur in the namespace where datadog is deployed": {
@@ -2180,6 +2193,146 @@ func TestAutoinstrumentation(t *testing.T) {
 			namespaces:   defaultNamespaces,
 			shouldMutate: false,
 		},
+		"UST env vars from pod_labels_as_tags injects DD_VERSION and DD_ENV": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"application",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version": "v1.2.3",
+					"environment": "production",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+				// DD_VERSION and DD_ENV are injected with ValueFrom.FieldRef, so Value is empty
+				requiredEnvs: map[string]string{
+					"DD_VERSION": "",
+					"DD_ENV":     "",
+				},
+			},
+		},
+		"UST env vars from pod_labels_as_tags does not inject when namespace is not eligible": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled": true,
+				"apm_config.instrumentation.enabled_namespaces": []string{
+					"other-namespace",
+				},
+				"kubernetes_pod_labels_as_tags": map[string]string{
+					"app-version": "version",
+					"environment": "env",
+				},
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Labels: map[string]string{
+					"app-version":                   "v1.2.3",
+					"environment":                   "production",
+					admissioncommon.EnabledLabelKey: "true",
+				},
+				Annotations: map[string]string{
+					"admission.datadoghq.com/java-lib.version": "v1",
+				},
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			// Pod is mutated via local lib injection, but UST env vars should NOT be injected
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"java": "v1",
+				},
+				containerNames: defaultContainerNames,
+				// DD_VERSION and DD_ENV should NOT be present since namespace is not eligible
+				unsetEnvs: []string{"DD_VERSION", "DD_ENV"},
+			},
+		},
+		"lib config from annotations injects config for python language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/python-lib.version":   "v1",
+					"admission.datadoghq.com/python-lib.config.v1": `{"runtime_metrics_enabled":true,"tracing_sampling_rate":0.5}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"python": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_RUNTIME_METRICS_ENABLED": "true",
+					"DD_TRACE_SAMPLE_RATE":       "0.50",
+				},
+			},
+		},
+		"lib config from annotations injects config for js language": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         "application",
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+				Annotations: map[string]string{
+					"admission.datadoghq.com/js-lib.version":   "v1",
+					"admission.datadoghq.com/js-lib.config.v1": `{"tracing_debug":true,"log_injection_enabled":true}`,
+				},
+				Labels: map[string]string{
+					admissioncommon.EnabledLabelKey: "true",
+				},
+			}.Create(),
+			deployments:  defaultDeployments,
+			namespaces:   defaultNamespaces,
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{
+					"js": "v1",
+				},
+				containerNames: defaultContainerNames,
+				requiredEnvs: map[string]string{
+					"DD_TRACE_DEBUG":    "true",
+					"DD_LOGS_INJECTION": "true",
+				},
+			},
+		},
 		"config webhook applies to enabled namespace": {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled": true,
@@ -2278,6 +2431,9 @@ func TestAutoinstrumentation(t *testing.T) {
 			// Require environments to be set.
 			validator.RequireEnvs(t, test.expected.requiredEnvs, test.expected.containerNames)
 			validator.RequireMissingEnvs(t, test.expected.unsetEnvs, test.expected.containerNames)
+
+			// Require specific containers have NO Datadog env vars (e.g., istio-proxy should be completely excluded).
+			validator.RequireUnmutatedContainers(t, test.expected.unmutatedContainers)
 
 			// Require security context to match expected.
 			validator.RequireInitSecurityContext(t, test.expected.initSecurityContext)
@@ -2463,7 +2619,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu is skipped": {
@@ -2494,7 +2650,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m",
 			},
 		},
 		"a pod with low cpu and memory is skipped": {
@@ -2527,7 +2683,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			skipped:            true,
 			expectedContainers: defaultContainerNames,
 			expectedAnnotations: map[string]string{
-				"apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
+				"internal.apm.datadoghq.com/injection-error": "The overall pod's containers limit is too low, cpu pod_limit=25m needed=50m, memory pod_limit=50Mi needed=100Mi",
 			},
 		},
 		"a pod with low cpu and memory but with config override is not skipped": {
