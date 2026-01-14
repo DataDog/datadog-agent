@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubelet && !orchestrator
+//go:build kubelet
 
 package kubelet
 
@@ -11,11 +11,11 @@ import (
 	"context"
 	"io"
 
+	v1 "k8s.io/api/core/v1"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 )
 
 // KubeUtilInterface defines the interface for kubelet api
-// see `kubelet_orchestrator` for orchestrator-only interface
 type KubeUtilInterface interface {
 	GetNodename(ctx context.Context) (string, error)
 	GetLocalPodList(ctx context.Context) ([]*Pod, error)
@@ -23,6 +23,7 @@ type KubeUtilInterface interface {
 	QueryKubelet(ctx context.Context, path string) ([]byte, int, error)
 	GetRawConnectionInfo() map[string]string
 	GetRawMetrics(ctx context.Context) ([]byte, error)
+	GetRawLocalPodList(ctx context.Context) ([]*v1.Pod, error)
 	GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error)
 	StreamLogs(ctx context.Context, podNamespace, podName, containerName string, logOptions *StreamLogOptions) (io.ReadCloser, error)
 	GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error)

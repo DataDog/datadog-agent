@@ -370,6 +370,46 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	os.Unsetenv("KUBERNETES_SERVICE_PORT")
 }
 
+func (suite *KubeletTestSuite) TestGetRawLocalPodList() {
+	ctx := context.Background()
+	mockConfig := configmock.New(suite.T())
+
+	kubelet, err := newDummyKubelet("./testdata/podlist_1.8-2.json", "", "")
+	require.Nil(suite.T(), err)
+	ts, kubeletPort, err := kubelet.Start()
+	require.Nil(suite.T(), err)
+	defer ts.Close()
+
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "localhost")
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
+	mockConfig.SetWithoutSource("kubelet_auth_token_path", "")
+
+	kubeutil := suite.getCustomKubeUtil()
+	require.Nil(suite.T(), err)
+	require.NotNil(suite.T(), kubeutil)
+	kubelet.dropRequests() // Throwing away first GETs
+
+	pods, err := kubeutil.GetRawLocalPodList(ctx)
+	require.Nil(suite.T(), err)
+	require.Len(suite.T(), pods, 7)
+
+	expectedUIDs := []string{
+		"0a8863810b43d4d891fab0af80e28e4c",
+		"e2fdcecc-0749-11e8-a2b8-000c29dea4f6",
+		"e42b42ec-0749-11e8-a2b8-000c29dea4f6",
+		"e42e5adc-0749-11e8-a2b8-000c29dea4f6",
+		"7979cfcd-0751-11e8-a2b8-000c29dea4f6",
+		"d91aa43c-0769-11e8-afcc-000c29dea4f6",
+		"260c2b1d43b094af6d6b4ccba082c2db",
+	}
+	actualUIDs := make([]string, 0, len(expectedUIDs))
+	for _, p := range pods {
+		actualUIDs = append(actualUIDs, string(p.UID))
+	}
+	require.ElementsMatch(suite.T(), expectedUIDs, actualUIDs)
+}
+
 func (suite *KubeletTestSuite) TestGetNodename() {
 	ctx := context.Background()
 	mockConfig := configmock.New(suite.T())
