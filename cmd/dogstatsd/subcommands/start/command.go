@@ -36,6 +36,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -139,6 +140,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		metricscompressionfx.Module(),
 		logscompressionfx.Module(),
+		filterlistfx.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(
 			demultiplexerimpl.WithContinueOnMissingHostname(),
 			demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig(),

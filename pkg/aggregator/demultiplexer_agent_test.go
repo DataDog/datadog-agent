@@ -22,7 +22,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
-	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
+	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -73,7 +73,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 
 	batch := testDemuxSamples(t)
 
@@ -95,7 +95,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer.On("AreSketchesEnabled").Return(true)
 	opts.EnableNoAggregationPipeline = true
 	deps := createDemultiplexerAgentTestDeps(t)
-	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, "")
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.run()
@@ -127,7 +127,9 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 		hostnameimpl.MockModule(),
 		haagentmock.Module(),
 		logscompression.MockModule(),
-		metricscompression.MockModule())
+		metricscompression.MockModule(),
+		filterlistmock.MockModule(),
+	)
 	demux := InitAndStartAgentDemultiplexerForTest(deps, opts, "")
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
@@ -190,7 +192,7 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		haagentmock.Module(),
-		filterlistfx.Module(),
+		filterlistmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)
 }

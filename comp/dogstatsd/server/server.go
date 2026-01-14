@@ -135,6 +135,7 @@ type server struct {
 	histToDistPrefix        string
 	extraTags               []string
 	Debug                   serverdebug.Component
+	filterList              filterlist.Component
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -200,7 +201,7 @@ func initTelemetry() {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -210,15 +211,13 @@ func newServer(deps dependencies) provides {
 		})
 	}
 
-	deps.FilterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
-
 	return provides{
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *server {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -317,6 +316,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
+		filterList:              filterList,
 		tlmProcessed:            dogstatsdTelemetryCount,
 		tlmProcessedOk:          dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
 		tlmProcessedError:       dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
@@ -533,71 +533,12 @@ func (s *server) SetExtraTags(tags []string) {
 	s.extraTags = tags
 }
 
-/*
-// SetFilterList updates the metric names filter on all running worker.
-func (s *server) SetFilterList(metricNames []string, matchPrefix bool) {
-	s.log.Debugf("SetFilterList with %d metrics", len(metricNames))
-
-	// we will use two different filterlists:
-	// - one with all the metrics names, with all values from `metricNames`
-	// - one with only the metric names ending with histogram aggregates suffixes
-
-	// only histogram metric names (including their aggregates suffixes)
-	histoMetricNames := s.createHistogramsFilterList(metricNames)
-	matcher := utilstrings.NewMatcher(metricNames, matchPrefix)
-
-	// send the complete filterlist to all workers, the listening part of dogstatsd
-	for _, worker := range s.workers {
-		worker.FilterListUpdate <- matcher
-	}
-
-	// send the histogram filterlist used right before flushing to the serializer
-	histoMatcher := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
-
-	s.demultiplexer.SetSamplersFilterList(matcher, histoMatcher)
-}
-*/
-
 func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
 		worker.FilterListUpdate <- filterList
 	}
 }
-
-/*
-// create a list based on all `metricNames` but only containing metric names
-// with histogram aggregates suffixes.
-// TODO(remy): should we consider moving this in the metrics package instead?
-func (s *server) createHistogramsFilterList(metricNames []string) []string {
-	aggrs := s.config.GetStringSlice("histogram_aggregates")
-
-	percentiles := metrics.ParsePercentiles(s.config.GetStringSlice("histogram_percentiles"))
-	percentileAggrs := make([]string, len(percentiles))
-	for i, percentile := range percentiles {
-		percentileAggrs[i] = fmt.Sprintf("%dpercentile", percentile)
-	}
-
-	histoMetricNames := []string{}
-	for _, metricName := range metricNames {
-		// metric names ending with a histogram aggregates
-		for _, aggr := range aggrs {
-			if strings.HasSuffix(metricName, "."+aggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-		// metric names ending with a percentile
-		for _, percentileAggr := range percentileAggrs {
-			if strings.HasSuffix(metricName, "."+percentileAggr) {
-				histoMetricNames = append(histoMetricNames, metricName)
-			}
-		}
-	}
-
-	s.log.Debugf("SetFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
-	return histoMetricNames
-}
-*/
 
 func (s *server) handleMessages() {
 	if s.Statistics != nil {
@@ -629,6 +570,10 @@ func (s *server) handleMessages() {
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
+
+	// It is important to set this up after the workers are running so they receive
+	// the initial  filterlist and any updates.
+	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
 }
 
 func (s *server) UDPLocalAddr() string {

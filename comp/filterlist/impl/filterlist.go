@@ -9,6 +9,7 @@ package filterlistimpl
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -45,6 +46,7 @@ type FilterList struct {
 	config        config.Component
 	telemetrycomp telemetry.Component
 
+	updateMtx        sync.RWMutex
 	filterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
 	filterList       utilstrings.Matcher
 	histoFilterList  utilstrings.Matcher
@@ -133,6 +135,9 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	fl.filterList = utilstrings.NewMatcher(metricNames, matchPrefix)
 	fl.histoFilterList = utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
+	fl.updateMtx.RLock()
+	defer fl.updateMtx.RUnlock()
+
 	for _, update := range fl.filterListUpdate {
 		update(fl.filterList, fl.histoFilterList)
 	}
@@ -151,6 +156,9 @@ func (fl *FilterList) restoreFilterListFromLocalConfig() {
 }
 
 func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
+	fl.updateMtx.Lock()
+	defer fl.updateMtx.Unlock()
+
 	fl.filterListUpdate = append(fl.filterListUpdate, onUpdate)
 	onUpdate(fl.filterList, fl.histoFilterList)
 }

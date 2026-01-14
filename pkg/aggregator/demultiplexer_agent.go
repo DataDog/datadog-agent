@@ -71,6 +71,8 @@ type AgentDemultiplexer struct {
 
 	hostTagProvider *hosttags.HostTagProvider
 
+	filterList filterlist.Component
+
 	// sharded statsd time samplers
 	statsd
 }
@@ -223,6 +225,8 @@ func initAgentDemultiplexer(log log.Component,
 		hostTagProvider: hosttags.NewHostTagProvider(),
 		senders:         newSenders(agg),
 
+		filterList: filterList,
+
 		// statsd time samplers
 		statsd: statsd{
 			pipelinesCount:    statsdPipelinesCount,
@@ -232,7 +236,6 @@ func initAgentDemultiplexer(log log.Component,
 		},
 	}
 
-	filterList.OnUpdateMetricFilterList(demux.SetSamplersFilterList)
 	return demux
 }
 
@@ -293,6 +296,11 @@ func (d *AgentDemultiplexer) run() {
 	if d.noAggStreamWorker != nil {
 		go d.noAggStreamWorker.run()
 	}
+
+	// It is important to set this up after the statsd workers have been started
+	// to make sure they are running to receive the initial filter list and any
+	// updates
+	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
 
 	d.flushLoop() // this is the blocking call
 }
