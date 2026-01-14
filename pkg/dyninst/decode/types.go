@@ -1940,6 +1940,15 @@ func encodeInterface(
 		return fmt.Errorf("go interface data must be 16 bytes, got %d", len(data))
 	}
 
+	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
+	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
+	if runtimeType == 0 {
+		return writeTokens(enc,
+			jsontext.String("isNull"),
+			jsontext.Bool(true),
+		)
+	}
+
 	if err := writeTokens(enc,
 		jsontext.String("fields"),
 		jsontext.BeginObject,
@@ -1947,17 +1956,6 @@ func encodeInterface(
 		jsontext.BeginObject,
 	); err != nil {
 		return err
-	}
-
-	runtimeTypeData := data[goRuntimeTypeOffset : goRuntimeTypeOffset+8]
-	runtimeType := binary.NativeEndian.Uint64(runtimeTypeData)
-	if runtimeType == 0 {
-		return writeTokens(enc,
-			jsontext.String("isNull"),
-			jsontext.Bool(true),
-			jsontext.EndObject,
-			jsontext.EndObject,
-		)
 	}
 
 	typeID, ok := c.getTypeIDByGoRuntimeType(uint32(runtimeType))

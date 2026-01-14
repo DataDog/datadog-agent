@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -84,7 +85,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HeartbeatInterval:         heartbeatInterval,
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
-		ActionsAllowlist:          make(map[string]sets.Set[string]),
+		ActionsAllowlist:          makeActionsAllowlist(config),
 		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
 		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
 		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
@@ -95,4 +96,18 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Urn:                       urn,
 		DatadogSite:               ddSite,
 	}, nil
+}
+
+func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
+	allowlist := make(map[string]sets.Set[string])
+	actionFqns := config.GetStringSlice("privateactionrunner.actions_allowlist")
+	for _, fqn := range actionFqns {
+		bundleName, actionName := actions.SplitFQN(fqn)
+		previous, ok := allowlist[bundleName]
+		if !ok {
+			previous = sets.New[string]()
+		}
+		allowlist[bundleName] = previous.Insert(actionName)
+	}
+	return allowlist
 }

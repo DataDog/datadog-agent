@@ -33,18 +33,25 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe(in *jlex
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "filter":
-			out.Filter = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Filter = string(in.String())
+			}
 		case "policy":
-			out.Policy = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Policy = string(in.String())
+			}
 		case "status":
-			out.Status = RawPacketActionStatus(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Status = RawPacketActionStatus(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -99,20 +106,31 @@ func easyjson7cab6e30DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 	for !in.IsDelim('}') {
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
 		switch key {
 		case "type":
-			out.Type = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Type = string(in.String())
+			}
 		case "path":
-			out.Path = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Path = string(in.String())
+			}
 		case "state":
-			out.State = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.State = string(in.String())
+			}
 		case "trigger":
-			out.Trigger = string(in.String())
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Trigger = string(in.String())
+			}
 		default:
 			in.SkipRecursive()
 		}

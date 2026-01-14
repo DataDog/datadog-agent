@@ -36,7 +36,7 @@ type providerFixture struct {
 	expectedError              error
 }
 
-func (f *providerFixture) runGetExternalMetric(t *testing.T) {
+func (f *providerFixture) runGetExternalMetric(t *testing.T, testTime time.Time) {
 	t.Helper()
 
 	// Create provider and fill store
@@ -49,7 +49,7 @@ func (f *providerFixture) runGetExternalMetric(t *testing.T) {
 		datadogMetricProvider.store.Set(datadogMetric.ddm.ID, datadogMetric.ddm, "utest")
 	}
 
-	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, time.Now())
+	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, testTime)
 	if err != nil {
 		assert.Equal(t, f.expectedError, err)
 		assert.Nil(t, externalMetrics)
@@ -234,7 +234,7 @@ func TestGetExternalMetrics(t *testing.T) {
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.runGetExternalMetric(t)
+			fixture.runGetExternalMetric(t, defaultUpdateTime)
 		})
 	}
 }

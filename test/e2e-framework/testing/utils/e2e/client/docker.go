@@ -192,8 +192,8 @@ func (docker *Docker) DownloadFile(containerName, containerPath, localPath strin
 				// Skip the root directory entry itself
 				continue
 			}
-			if strings.HasPrefix(entryName, baseName+"/") {
-				entryName = strings.TrimPrefix(entryName, baseName+"/")
+			if after, ok := strings.CutPrefix(entryName, baseName+"/"); ok {
+				entryName = after
 			}
 			target = filepath.Join(localPath, entryName)
 		}

@@ -10,7 +10,7 @@ static void WINAPI RecordEventCallback(PEVENT_RECORD event)
     ddEtwCallbackC(event);
 }
 
-TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context)
+DWORD DDStartTracing(LPWSTR name, uintptr_t context, TRACEHANDLE* traceHandle)
 {
     EVENT_TRACE_LOGFILEW trace = {0};
     trace.LoggerName = name;
@@ -18,7 +18,14 @@ TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context)
     trace.ProcessTraceMode = PROCESS_TRACE_MODE_REAL_TIME | PROCESS_TRACE_MODE_EVENT_RECORD;
     trace.EventRecordCallback = RecordEventCallback;
 
-    return OpenTraceW(&trace);
+    TRACEHANDLE handle = OpenTraceW(&trace);
+    if (handle == INVALID_PROCESSTRACE_HANDLE) {
+        return GetLastError();
+    }
+    if (traceHandle != NULL) {
+        *traceHandle = handle;
+    }
+    return ERROR_SUCCESS;
 }
 
 ULONG DDEnableTrace(
