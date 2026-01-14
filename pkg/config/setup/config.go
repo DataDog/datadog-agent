@@ -2820,12 +2820,11 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
-	// Apply legacy alias: copy values from legacy key to mode-specific key
-	// Legacy `allowed_additional_checks` -> `integration.<mode>.additional`
+	// Apply legacy alias: copy values from legacy key to integration.additional
+	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
-		modeAdditionalKey := "integration." + infraMode + ".additional"
-		combined := append(config.GetStringSlice(modeAdditionalKey), legacyAdditional...)
-		config.Set(modeAdditionalKey, combined, pkgconfigmodel.SourceAgentRuntime)
+		combined := append(config.GetStringSlice("integration.additional"), legacyAdditional...)
+		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	if infraMode == "end_user_device" {
