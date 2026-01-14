@@ -29,6 +29,37 @@ func NewFactoryWithAgent() confmap.ConverterFactory {
 
 type confMap = map[string]any
 
+// Component type names for OTEL configuration
+const (
+	componentTypeInfraAttributes  = "infraattributes"
+	componentTypeResourceDetection = "resourcedetection"
+	componentTypeHostProfiler      = "hostprofiler"
+	componentTypeOtlpHTTP          = "otlphttp"
+	componentTypeDDProfiling       = "ddprofiling"
+	componentTypeHPFlare           = "hpflare"
+)
+
+// Default component names
+const (
+	defaultInfraAttributesName   = "infraattributes/default"
+	defaultResourceDetectionName = "resourcedetection/default"
+	defaultHostProfilerName      = "hostprofiler"
+)
+
+// Configuration paths used multiple times across converters
+const (
+	pathSymbolUploaderEnabled = "symbol_uploader::enabled"
+	pathSymbolEndpoints       = "symbol_uploader::symbol_endpoints"
+)
+
+// Configuration field names used multiple times
+const (
+	fieldAllowHostnameOverride = "allow_hostname_override"
+	fieldDDAPIKey              = "dd-api-key"
+	fieldAPIKey                = "api_key"
+	fieldAppKey                = "app_key"
+)
+
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
 // Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
@@ -146,11 +177,76 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	return true
 }
 
+// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
+// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
+// warnFunc is called if a default hostprofiler is added
+func fixReceiversPipeline(conf confMap, receiverNames []any, warnFunc func(...any)) ([]any, error) {
+	// Check if hostprofiler is in the pipeline
+	hasHostProfiler := false
+	for _, nameAny := range receiverNames {
+		name, ok := nameAny.(string)
+		if !ok {
+			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
+		}
+
+		if !isComponentType(name, componentTypeHostProfiler) {
+			continue
+		}
+
+		hasHostProfiler = true
+
+		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
+			if err := checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if hasHostProfiler {
+		return receiverNames, nil
+	}
+
+	// Ensure default config exists if hostprofiler receiver is not configured
+	if err := Set(conf, "receivers::"+defaultHostProfilerName+"::"+pathSymbolUploaderEnabled, false); err != nil {
+		return nil, err
+	}
+
+	warnFunc("Added minimal hostprofiler receiver to user configuration")
+	return append(receiverNames, defaultHostProfilerName), nil
+}
+
+// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
+// It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
+// and all api_key/app_key values are strings
+func checkHostProfilerReceiverConfig(hostProfiler confMap) error {
+	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
+		return nil
+	}
+
+	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
+
+	if !ok {
+		return errors.New("hostprofiler's symbol_endpoints should be a list")
+	}
+
+	if len(endpoints) == 0 {
+		return errors.New("hostprofiler's symbol_endpoints cannot be empty when symbol_uploader is enabled")
+	}
+
+	for _, epAny := range endpoints {
+		if ep, ok := epAny.(confMap); ok {
+			ensureKeyStringValue(ep, fieldAPIKey)
+			ensureKeyStringValue(ep, fieldAppKey)
+		}
+	}
+	return nil
+}
+
 func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 	// for each otlphttpexporter used, check if necessary api key is present
 	hasOtlpHTTP := false
 	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, "otlphttp") {
+		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
 			hasOtlpHTTP = true
 
 			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
@@ -158,7 +254,7 @@ func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 				return err
 			}
 
-			if !ensureKeyStringValue(headers, "dd-api-key") {
+			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter should contain a datadog API key", name)
 			}
 		}

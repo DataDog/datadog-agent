@@ -10,7 +10,6 @@ package converters
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 
@@ -62,7 +61,7 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 
 	// Ensures at least one hostprofiler is used & configured
 	// If not, create a minimal component with symbol uploading disabled
-	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
+	newReceiverNames, err := fixReceiversPipeline(confStringMap, receiverNames, func(v ...any) { log.Warn(v...) })
 	if err != nil {
 		return err
 	}
@@ -85,7 +84,7 @@ func (c *converterWithAgent) ensureGlobalProcessors(conf confMap) error {
 	}
 
 	for name := range processors {
-		if isComponentType(name, "resourcedetection") {
+		if isComponentType(name, componentTypeResourceDetection) {
 			delete(processors, name)
 		}
 	}
@@ -108,16 +107,16 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 		}
 
 		// Remove resourcedetection from pipeline and global config
-		if isComponentType(name, "resourcedetection") {
+		if isComponentType(name, componentTypeResourceDetection) {
 			delete(processors, name)
 			toDelete[name] = true
 			continue
 		}
 
 		// Track if we have infraattributes
-		if isComponentType(name, "infraattributes") {
+		if isComponentType(name, componentTypeInfraAttributes) {
 			// Make sure allow_hostname_override is true
-			if err := Set(processors, name+"::allow_hostname_override", true); err != nil {
+			if err := Set(processors, name+"::"+fieldAllowHostnameOverride, true); err != nil {
 				return nil, err
 			}
 			foundInfraattributes = true
@@ -126,11 +125,11 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 
 	// Add infraattributes/default if none found
 	if !foundInfraattributes {
-		if err := Set(processors, "infraattributes/default::allow_hostname_override", true); err != nil {
+		if err := Set(processors, defaultInfraAttributesName+"::"+fieldAllowHostnameOverride, true); err != nil {
 			return nil, err
 		}
 		log.Warn("Added minimal infraattributes processor to user configuration")
-		processorNames = append(processorNames, "infraattributes/default")
+		processorNames = append(processorNames, defaultInfraAttributesName)
 	}
 
 	// Remove processors marked for deletion
@@ -141,65 +140,4 @@ func (c *converterWithAgent) fixProcessorsPipeline(conf confMap, processorNames 
 	})
 
 	return processorNames, nil
-}
-
-func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
-	for _, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
-		}
-
-		if !isComponentType(name, "hostprofiler") {
-			continue
-		}
-
-		hasHostProfiler = true
-
-		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
-			if err := c.checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if hasHostProfiler {
-		return receiverNames, nil
-	}
-
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false); err != nil {
-		return nil, err
-	}
-
-	log.Warn("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, "hostprofiler"), nil
-}
-
-func (c *converterWithAgent) checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, "symbol_uploader::enabled"); !ok || !isEnabled {
-		return nil
-	}
-
-	endpoints, ok := Get[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
-
-	if !ok {
-		return errors.New("hostprofiler's symbol_endpoints should be a list")
-	}
-
-	if len(endpoints) == 0 {
-		return errors.New("hostprofiler's symbol_endpoints cannot be empty when symbol_uploader is enabled")
-	}
-
-	for _, epAny := range endpoints {
-		// Skip non-map endpoints - validation happens at unmarshal time, not here.
-		// Converter's job is transformation, not validation.
-		if ep, ok := epAny.(confMap); ok {
-			ensureKeyStringValue(ep, "api_key")
-			ensureKeyStringValue(ep, "app_key")
-		}
-	}
-	return nil
 }

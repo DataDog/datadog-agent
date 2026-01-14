@@ -95,7 +95,7 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 
 	// Ensures at least one hostprofiler is used & configured
 	// If not, create a minimal component with symbol uploading disabled
-	newReceiverNames, err := c.fixReceiversPipeline(confStringMap, receiverNames)
+	newReceiverNames, err := fixReceiversPipeline(confStringMap, receiverNames, standaloneLogger.Warn)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (c *converterWithoutAgent) ensureMetricsPipeline(conf confMap) error {
 			return errors.New("extensions in profiles service pipeline should be strings")
 		}
 
-		if isComponentType(processor, "infraattributes") {
+		if isComponentType(processor, componentTypeInfraAttributes) {
 			continue
 		}
 
@@ -159,7 +159,7 @@ func (c *converterWithoutAgent) ensureGlobalProcessors(conf confMap) error {
 	}
 
 	for name := range processors {
-		if isComponentType(name, "infraattributes") {
+		if isComponentType(name, componentTypeInfraAttributes) {
 			delete(processors, name)
 		}
 	}
@@ -182,14 +182,14 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 		}
 
 		// Remove infraattributes from pipeline and global config
-		if isComponentType(name, "infraattributes") {
+		if isComponentType(name, componentTypeInfraAttributes) {
 			delete(processors, name)
 			toDelete[name] = true
 			continue
 		}
 
 		// Track if we have resourcedetection
-		if isComponentType(name, "resourcedetection") {
+		if isComponentType(name, componentTypeResourceDetection) {
 			if resourceDetectionConfig, ok := Get[confMap](conf, "processors::"+name); ok {
 				c.ensureResourceDetectionConfig(resourceDetectionConfig)
 			}
@@ -199,11 +199,11 @@ func (c *converterWithoutAgent) fixProcessorsPipeline(conf confMap, processorNam
 
 	// Add resourcedetection/default if none found
 	if !foundResourcedetection {
-		if err := Set(processors, "resourcedetection/default", resourceDetectionDefaultConfig); err != nil {
+		if err := Set(processors, defaultResourceDetectionName, resourceDetectionDefaultConfig); err != nil {
 			return nil, err
 		}
 		standaloneLogger.Warn("Added minimal resourcedetection processor to user configuration")
-		processorNames = append(processorNames, "resourcedetection/default")
+		processorNames = append(processorNames, defaultResourceDetectionName)
 	}
 
 	// Remove processors marked for deletion
@@ -247,67 +247,6 @@ func (c *converterWithoutAgent) ensureResourceDetectionConfig(resourceDetection 
 	return nil
 }
 
-func (c *converterWithoutAgent) fixReceiversPipeline(conf confMap, receiverNames []any) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
-	for _, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
-		}
-
-		if !isComponentType(name, "hostprofiler") {
-			continue
-		}
-
-		hasHostProfiler = true
-
-		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
-			if err := c.checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if hasHostProfiler {
-		return receiverNames, nil
-	}
-
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, "receivers::hostprofiler::symbol_uploader::enabled", false); err != nil {
-		return nil, err
-	}
-
-	standaloneLogger.Warn("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, "hostprofiler"), nil
-}
-
-func (c *converterWithoutAgent) checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, "symbol_uploader::enabled"); !ok || !isEnabled {
-		return nil
-	}
-
-	endpoints, ok := Get[[]any](hostProfiler, "symbol_uploader::symbol_endpoints")
-
-	if !ok {
-		return errors.New("hostprofiler's symbol_endpoints should be a list")
-	}
-
-	if len(endpoints) == 0 {
-		return errors.New("hostprofiler's symbol_endpoints cannot be empty when symbol_uploader is enabled")
-	}
-
-	for _, epAny := range endpoints {
-		// Skip non-map endpoints - validation happens at unmarshal time, not here.
-		// Converter's job is transformation, not validation.
-		if ep, ok := epAny.(confMap); ok {
-			ensureKeyStringValue(ep, "api_key")
-			ensureKeyStringValue(ep, "app_key")
-		}
-	}
-	return nil
-}
-
 func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	service, err := Ensure[confMap](conf, "service")
 	if err != nil {
@@ -328,7 +267,7 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 		}
 
 		// Skip ddprofiling and hpflare extensions
-		if isComponentType(ext, "ddprofiling") || isComponentType(ext, "hpflare") {
+		if isComponentType(ext, componentTypeDDProfiling) || isComponentType(ext, componentTypeHPFlare) {
 			continue
 		}
 
@@ -341,7 +280,7 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	extensionsConf, ok := Get[confMap](conf, "extensions")
 	if ok {
 		for name := range extensionsConf {
-			if isComponentType(name, "ddprofiling") || isComponentType(name, "hpflare") {
+			if isComponentType(name, componentTypeDDProfiling) || isComponentType(name, componentTypeHPFlare) {
 				delete(extensionsConf, name)
 			}
 		}
