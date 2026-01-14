@@ -21,12 +21,10 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
     };
     switch (option) {
     case PR_SET_NAME: {
-        int n = bpf_probe_read_str(&syscall.prctl.name, MAX_PRCTL_NAME_LEN + 1, arg2);
-        if (n > 0) {
-            syscall.prctl.name_truncated = (n == (MAX_PRCTL_NAME_LEN + 1)) ? 1 : 0;
-            syscall.prctl.name_size_to_send = n - 1;
-        } else {
-            syscall.prctl.name_size_to_send = 0;
+        int n = bpf_probe_read_str(&syscall.prctl.name, MAX_PRCTL_NAME_LEN, arg2);
+        syscall.prctl.name_size_to_send = n;
+        if (n >= MAX_PRCTL_NAME_LEN) {
+            syscall.prctl.name_truncated = 1;
         }
         break;
         }
