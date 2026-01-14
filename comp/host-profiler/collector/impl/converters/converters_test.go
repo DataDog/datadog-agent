@@ -150,7 +150,7 @@ func TestGetWrongType(t *testing.T) {
 }
 
 func TestGetIntermediateNodeNotMap(t *testing.T) {
-	cm := loadTestData(t, "helper_functions/get_intermediate_nonmap.yaml")
+	cm := loadTestData(t, "helper_functions/get_inter_nonmap.yaml")
 
 	// Intermediate node is string
 	_, ok := Get[string](cm, "processors::batch::timeout")
@@ -249,7 +249,7 @@ func TestSetMapAndArray(t *testing.T) {
 }
 
 func TestSetIntermediateNodeNotMap(t *testing.T) {
-	cm := loadTestData(t, "helper_functions/set_intermediate_nonmap.yaml")
+	cm := loadTestData(t, "helper_functions/set_inter_nonmap.yaml")
 
 	// Intermediate node is string - should error
 	err := Set(cm, "processors::batch::timeout", "10s")
