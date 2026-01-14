@@ -606,6 +606,30 @@ func getScrubCases() map[string]struct {
 				Env: []v1.EnvVar{{Name: "password", Value: "********"}},
 			},
 		},
+		"sensitive env var set via ValueFrom": {
+			input: v1.Container{
+				Env: []v1.EnvVar{{
+					Name: "password",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{Name: "my-secret"},
+							Key:                  "password",
+						},
+					},
+				}},
+			},
+			expected: v1.Container{
+				Env: []v1.EnvVar{{
+					Name: "password",
+					ValueFrom: &v1.EnvVarSource{
+						SecretKeyRef: &v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{Name: "my-secret"},
+							Key:                  "password",
+						},
+					},
+				}},
+			},
+		},
 		"command with sensitive arg": {
 			input: v1.Container{
 				Command: []string{"mysql"},
