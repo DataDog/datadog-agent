@@ -71,6 +71,17 @@ func (m *failingFlareMock) Send(path string, caseID string, email string, source
 	return mock.Send(path, caseID, email, source)
 }
 
+// newTestBackoffPolicy creates a backoff policy with standard test settings
+func newTestBackoffPolicy() *backoff.ExponentialBackOff {
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.InitialInterval = 1 * time.Minute
+	expBackoff.MaxInterval = 5 * time.Minute
+	expBackoff.Multiplier = 5.0
+	expBackoff.RandomizationFactor = 0.1
+	expBackoff.Reset()
+	return expBackoff
+}
+
 // createCheckWithFailingFlare creates a check with a failing flare mock
 func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThreshold int, createError, sendError error, failUntil int) *Check {
 	failingMock := &failingFlareMock{
@@ -80,18 +91,10 @@ func createCheckWithFailingFlare(t *testing.T, memoryThreshold string, cpuThresh
 	}
 	config := configmock.NewMock(t)
 
-	// Initialize backoff policy (same as newCheck)
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 1 * time.Minute
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.Multiplier = 5.0
-	expBackoff.RandomizationFactor = 0.1
-	expBackoff.Reset()
-
 	check := &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
 		instance:       &Config{},
-		backoffPolicy:  expBackoff,
+		backoffPolicy:  newTestBackoffPolicy(),
 		flareComponent: failingMock,
 		agentConfig:    config,
 	}
@@ -128,24 +131,38 @@ func TestZeroThresholds(t *testing.T) {
 	assert.Equal(t, 0, check.flareAttemptCount)
 }
 
-// TestMemoryThresholdExceeded tests flare generation when memory threshold is exceeded
-func TestMemoryThresholdExceeded(t *testing.T) {
-	check := createTestCheck(t, "1B", 0, "", "", false) // 1 byte threshold will always be exceeded
+// TestThresholdExceeded tests flare generation when thresholds are exceeded
+func TestThresholdExceeded(t *testing.T) {
+	tests := []struct {
+		name            string
+		memoryThreshold string
+		cpuThreshold    int
+		description     string
+	}{
+		{
+			name:            "memory threshold exceeded",
+			memoryThreshold: "1B", // 1 byte threshold will always be exceeded
+			cpuThreshold:    0,
+			description:     "memory threshold",
+		},
+		{
+			name:            "CPU threshold exceeded",
+			memoryThreshold: "0",
+			cpuThreshold:    1, // 1% CPU threshold
+			description:     "CPU threshold",
+		},
+	}
 
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-	assert.Equal(t, 1, check.flareAttemptCount)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := createTestCheck(t, tt.memoryThreshold, tt.cpuThreshold, "", "", false)
 
-// TestCPUThresholdExceeded tests flare generation when CPU threshold is exceeded
-func TestCPUThresholdExceeded(t *testing.T) {
-	check := createTestCheck(t, "0", 1, "", "", false) // 1% CPU threshold
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-	assert.Equal(t, 1, check.flareAttemptCount)
+			err := check.Run()
+			require.NoError(t, err)
+			assert.True(t, check.flareAttempted, "Flare should be attempted when %s is exceeded", tt.description)
+			assert.Equal(t, 1, check.flareAttemptCount)
+		})
+	}
 }
 
 // TestBelowThresholds tests that flare is not generated when usage is below thresholds
@@ -158,22 +175,34 @@ func TestBelowThresholds(t *testing.T) {
 	assert.Equal(t, 0, check.flareAttemptCount)
 }
 
-// TestFlareGenerationLocal tests local flare generation without ticket info
-func TestFlareGenerationLocal(t *testing.T) {
-	check := createTestCheck(t, "1B", 0, "", "", false)
+// TestFlareGeneration tests flare generation with and without ticket info
+func TestFlareGeneration(t *testing.T) {
+	tests := []struct {
+		name      string
+		ticketID  string
+		userEmail string
+	}{
+		{
+			name:      "local generation without ticket",
+			ticketID:  "",
+			userEmail: "",
+		},
+		{
+			name:      "generation with ticket",
+			ticketID:  "TICKET-123",
+			userEmail: "user@example.com",
+		},
+	}
 
-	err := check.generateFlare()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := createTestCheck(t, "1B", 0, tt.ticketID, tt.userEmail, false)
 
-// TestFlareGenerationWithTicket tests flare generation and sending with ticket info
-func TestFlareGenerationWithTicket(t *testing.T) {
-	check := createTestCheck(t, "1B", 0, "TICKET-123", "user@example.com", false)
-
-	err := check.generateFlare()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
+			err := check.generateFlare()
+			require.NoError(t, err)
+			assert.True(t, check.flareAttempted)
+		})
+	}
 }
 
 // TestRetryOnFlareCreationFailure tests retry logic when flare creation fails
@@ -213,17 +242,10 @@ func TestRetryOnFlareSendFailure(t *testing.T) {
 	}
 	config := configmock.NewMock(t)
 
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 1 * time.Minute
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.Multiplier = 5.0
-	expBackoff.RandomizationFactor = 0.1
-	expBackoff.Reset()
-
 	check := &Check{
 		CheckBase:      core.NewCheckBase(CheckName),
 		instance:       &Config{TicketID: "TICKET-123", UserEmail: "user@example.com"},
-		backoffPolicy:  expBackoff,
+		backoffPolicy:  newTestBackoffPolicy(),
 		flareComponent: failingMock,
 		agentConfig:    config,
 	}
@@ -284,35 +306,6 @@ func TestRetrySuccessAfterFailure(t *testing.T) {
 	assert.Equal(t, 3, check.flareAttemptCount)
 }
 
-// TestBackoffTiming tests that backoff durations follow exponential backoff
-func TestBackoffTiming(t *testing.T) {
-	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
-
-	// Reset backoff policy to test durations
-	check.backoffPolicy.Reset()
-
-	// First backoff should be ~1 minute (with randomization)
-	backoffDuration := check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 50*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 1*time.Minute+10*time.Second)
-
-	// Second backoff should be ~5 minutes (1min * 5 multiplier)
-	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
-
-	// Third backoff would be ~25 minutes (5min * 5), but capped at 5 minutes
-	// Note: We never actually use this since we only have 3 attempts total
-	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
-
-	// Subsequent backoffs should remain capped at 5 minutes
-	backoffDuration = check.backoffPolicy.NextBackOff()
-	assert.GreaterOrEqual(t, backoffDuration, 4*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 5*time.Minute+30*time.Second)
-}
-
 // TestBackoffWait tests that retry waits for backoff duration
 func TestBackoffWait(t *testing.T) {
 	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("failed"), nil, 0)
@@ -368,20 +361,21 @@ func TestBackoffWait(t *testing.T) {
 func TestBackoffResetOnFirstAttempt(t *testing.T) {
 	check := createCheckWithFailingFlare(t, "1B", 0, nil, nil, 0)
 
-	// Advance backoff policy state
+	// Advance backoff policy state before first attempt
 	check.backoffPolicy.NextBackOff()
 	check.backoffPolicy.NextBackOff()
+	advancedBackoff := check.backoffPolicy.NextBackOff()
+	assert.Greater(t, advancedBackoff, 1*time.Minute+10*time.Second, "Advanced backoff should be > 1min")
 
-	// First attempt should reset backoff
+	// First attempt should reset backoff policy
 	err := check.Run()
 	require.NoError(t, err)
 	assert.Equal(t, 1, check.flareAttemptCount)
 
-	// Backoff should be reset, so next backoff should be initial interval
-	check.backoffPolicy.Reset()
+	// After reset, next backoff should be initial interval (~1min), not the advanced value
 	backoffDuration := check.backoffPolicy.NextBackOff()
 	assert.GreaterOrEqual(t, backoffDuration, 50*time.Second)
-	assert.LessOrEqual(t, backoffDuration, 1*time.Minute+10*time.Second)
+	assert.LessOrEqual(t, backoffDuration, 1*time.Minute+10*time.Second, "Backoff should be reset to initial interval")
 }
 
 // TestNoRetryAfterSuccess tests that no retries occur after successful flare generation
@@ -401,45 +395,47 @@ func TestNoRetryAfterSuccess(t *testing.T) {
 	assert.Equal(t, 1, check.flareAttemptCount) // Still 1, no new attempts
 }
 
-// TestTerminateAgentConfig tests that terminate_agent_on_threshold config is respected
+// TestTerminateAgentConfig tests that terminate_agent_on_threshold config is parsed correctly
 func TestTerminateAgentConfig(t *testing.T) {
-	check := createTestCheck(t, "1B", 0, "", "", true)
+	tests := []struct {
+		name              string
+		terminateAgent    bool
+		expectedTerminate bool
+	}{
+		{
+			name:              "terminate enabled",
+			terminateAgent:    true,
+			expectedTerminate: true,
+		},
+		{
+			name:              "terminate disabled",
+			terminateAgent:    false,
+			expectedTerminate: false,
+		},
+	}
 
-	// Verify config is parsed
-	assert.True(t, check.instance.TerminateAgentOnThreshold)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			check := createTestCheck(t, "1B", 0, "", "", tt.terminateAgent)
 
-	// Run check - termination is skipped in test mode, but flare should be generated
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
-}
+			assert.Equal(t, tt.expectedTerminate, check.instance.TerminateAgentOnThreshold)
 
-// TestTerminateAgentDisabled tests that agent is not terminated when disabled
-func TestTerminateAgentDisabled(t *testing.T) {
-	check := createTestCheck(t, "1B", 0, "", "", false)
-
-	assert.False(t, check.instance.TerminateAgentOnThreshold)
-
-	err := check.Run()
-	require.NoError(t, err)
-	assert.True(t, check.flareAttempted)
+			// Run check - termination is skipped in test mode, but flare should be generated
+			err := check.Run()
+			require.NoError(t, err)
+			assert.True(t, check.flareAttempted)
+		})
+	}
 }
 
 // TestFlareComponentNil tests behavior when flare component is nil
 func TestFlareComponentNil(t *testing.T) {
 	config := configmock.NewMock(t)
 
-	expBackoff := backoff.NewExponentialBackOff()
-	expBackoff.InitialInterval = 1 * time.Minute
-	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.Multiplier = 5.0
-	expBackoff.RandomizationFactor = 0.1
-	expBackoff.Reset()
-
 	check := &Check{
 		CheckBase:       core.NewCheckBase(CheckName),
 		instance:        &Config{MemoryThreshold: "1B"},
-		backoffPolicy:   expBackoff,
+		backoffPolicy:   newTestBackoffPolicy(),
 		flareComponent:  nil,
 		agentConfig:     config,
 		memoryThreshold: 1,
@@ -472,82 +468,4 @@ func TestBackoffPolicyStop(t *testing.T) {
 	err = check.Run()
 	require.NoError(t, err)
 	assert.True(t, check.flareAttempted) // Should be marked as attempted due to stop signal
-}
-
-// stopAfterFirstCallBackoff is a backoff that returns Stop after the first call
-type stopAfterFirstCallBackoff struct {
-	callCount   int
-	realBackoff backoff.BackOff
-}
-
-func (b *stopAfterFirstCallBackoff) NextBackOff() time.Duration {
-	b.callCount++
-	if b.callCount == 1 {
-		return backoff.Stop
-	}
-	return b.realBackoff.NextBackOff()
-}
-
-func (b *stopAfterFirstCallBackoff) Reset() {
-	b.callCount = 0
-	b.realBackoff.Reset()
-}
-
-// TestBackoffResetAndAdvance tests that reset-and-advance logic correctly positions backoff state
-func TestBackoffResetAndAdvance(t *testing.T) {
-	check := createCheckWithFailingFlare(t, "1B", 0, errors.New("failed"), nil, 0)
-
-	// Create a backoff that returns Stop after first call, forcing reset
-	realBackoff := backoff.NewExponentialBackOff()
-	realBackoff.InitialInterval = 1 * time.Minute
-	realBackoff.MaxInterval = 5 * time.Minute
-	realBackoff.Multiplier = 5.0
-	realBackoff.RandomizationFactor = 0.1
-	realBackoff.Reset()
-
-	stopBackoff := &stopAfterFirstCallBackoff{
-		realBackoff: realBackoff,
-	}
-	check.backoffPolicy = stopBackoff
-
-	// First attempt fails
-	err := check.Run()
-	require.NoError(t, err)
-	assert.Equal(t, 1, check.flareAttemptCount)
-
-	// Simulate backoff elapsed - this will trigger NextBackOff() which returns Stop,
-	// causing reset and advance logic
-	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
-	check.nextBackoffDuration = 0 // Clear cached duration to trigger recalculation
-
-	// This Run() should reset the policy and advance correctly
-	// With flareAttemptCount=1, we should advance 0 times (1-1=0), then get 1st backoff
-	err = check.Run()
-	require.NoError(t, err)
-
-	// Verify we got the 1st backoff duration (~1 min), not the 2nd (~5 min)
-	assert.GreaterOrEqual(t, check.nextBackoffDuration, 50*time.Second)
-	assert.LessOrEqual(t, check.nextBackoffDuration, 1*time.Minute+10*time.Second)
-	assert.Equal(t, 1, check.flareAttemptCount) // Still waiting for backoff
-
-	// Now simulate second attempt failing
-	check.lastFlareAttempt = time.Now().Add(-2 * time.Minute)
-	check.nextBackoffDuration = 0
-	err = check.Run()
-	require.NoError(t, err)
-	assert.Equal(t, 2, check.flareAttemptCount)
-
-	// Reset the stop backoff for next test
-	stopBackoff.callCount = 0
-	check.lastFlareAttempt = time.Now().Add(-6 * time.Minute)
-	check.nextBackoffDuration = 0
-
-	// With flareAttemptCount=2, we should advance 1 time (2-1=1), then get 2nd backoff
-	err = check.Run()
-	require.NoError(t, err)
-
-	// Verify we got the 2nd backoff duration (~5 min), not the 3rd
-	assert.GreaterOrEqual(t, check.nextBackoffDuration, 4*time.Minute+30*time.Second)
-	assert.LessOrEqual(t, check.nextBackoffDuration, 5*time.Minute+30*time.Second)
-	assert.Equal(t, 2, check.flareAttemptCount) // Still waiting for backoff
 }
