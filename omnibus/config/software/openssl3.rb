@@ -35,6 +35,11 @@ build do
   if !fips_mode?
     # OpenSSL on Windows now gets installed as part of the Python install, so we don't need to do anything here
     if !windows?
+      # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
+      # This messes up openssl's internal paths. So we have to hardcode the install directory
+      # so that replace_prefix and fix_openssl_paths set path correctly inside of the
+      # openssl binaries on macos
+      install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
       command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
       lib_extension = if linux_target? then ".so" else ".dylib" end
       command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
