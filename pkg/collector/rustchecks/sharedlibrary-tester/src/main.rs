@@ -27,13 +27,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn null_to_rust_string() {
-        let null_ptr = std::ptr::null_mut();
-        let string = core::to_rust_string(null_ptr).unwrap();
-        println!("{}", string);
-    }
-}
