@@ -977,7 +977,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.61.0
 	github.com/DataDog/ddtrivy v0.0.0-20260106134118-984f97198d7f
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/apache/arrow-go/v18 v18.5.0
@@ -1099,9 +1098,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils => ./comp/core/tagger/utils
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry
 	github.com/DataDog/datadog-agent/comp/def => ./comp/def
-	github.com/DataDog/datadog-agent/comp/fgm/def => ./comp/fgm/def
-	github.com/DataDog/datadog-agent/comp/fgm/fx => ./comp/fgm/fx
-	github.com/DataDog/datadog-agent/comp/fgm/impl => ./comp/fgm/impl
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ./comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ./comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ./comp/logs/agent/config
