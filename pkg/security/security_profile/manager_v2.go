@@ -9,6 +9,7 @@
 package securityprofile
 
 import (
+	"bytes"
 	"container/list"
 	"context"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -69,9 +71,17 @@ type ManagerV2 struct {
 	configuredStorageRequests map[config.StorageFormat][]config.StorageRequest
 
 	profilePendingEvents map[containerutils.CGroupID]*pendingProfile
-	pendingTimeout       *atomic.Uint64
-	queueSize            *atomic.Uint64
-	pendingProfiles      *atomic.Uint64
+
+	// Metrics counters
+	eventsReceived       *atomic.Uint64 // total events received (after filters)
+	eventsImmediate      *atomic.Uint64 // events processed immediately (tags resolved)
+	eventsQueued         *atomic.Uint64 // total events queued (count)
+	pendingTimeout       *atomic.Uint64 // events dropped due to 10s stale timeout
+	queueSize            *atomic.Uint64 // total events currently queued (gauge)
+	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
+	cgroupsExpired       *atomic.Uint64 // cgroups cleaned up after 60s timeout
+	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
+	lateInsertions       *atomic.Uint64 // events inserted after profile was sent
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
@@ -115,9 +125,15 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 		kernelVersion:             kernelVersion,
 		ipc:                       ipc,
 		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
+		eventsReceived:            atomic.NewUint64(0),
+		eventsImmediate:           atomic.NewUint64(0),
+		eventsQueued:              atomic.NewUint64(0),
 		pendingTimeout:            atomic.NewUint64(0),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
+		cgroupsExpired:            atomic.NewUint64(0),
+		eventsDroppedMaxSize:      atomic.NewUint64(0),
+		lateInsertions:            atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
 		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 		localStorage:              localStorage,
@@ -130,274 +146,502 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
-	var sendTickerChan <-chan time.Time
+	fmt.Println("========== START ManagerV2.Start")
 
-	if m.config.RuntimeSecurity.SecurityProfileEnabled {
-		sendTicker := time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout)
-		defer sendTicker.Stop()
-		sendTickerChan = sendTicker.C
-	} else {
-		sendTickerChan = make(chan time.Time)
-	}
+	sendTickerChan := m.setupPersistenceTicker()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	fmt.Println("========== START security profile manager started")
 	seclog.Infof("security profile manager started")
 
 	for {
 		select {
 		case <-ctx.Done():
+			fmt.Println("========== START ctx.Done received, returning from Start")
 			return
 		case <-sendTickerChan:
-			for _, p := range m.profiles {
-				format := config.Protobuf
-				requests := m.configuredStorageRequests[format]
-
-				// encode profile
-				data, err := p.Encode(format)
-				if err != nil {
-					seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
-					continue
-				}
-
-				for _, request := range requests {
-					var storage storage.ActivityDumpStorage
-					switch request.Type {
-					case config.LocalStorage:
-						storage = m.localStorage
-					case config.RemoteStorage:
-						storage = m.remoteStorage
-					default:
-						seclog.Errorf("couldn't persist [%s] to %s format: unknown storage type: %s", p.GetSelectorStr(), format, request.Type)
-						continue
-					}
-
-					if err := storage.Persist(request, p, data); err != nil {
-						seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
-					} else {
-						tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
-						if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
-							seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
-						}
-						if err := m.statsdClient.Count(metrics.MetricActivityDumpPersistedDumps, 1, tags, 1.0); err != nil {
-							seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpPersistedDumps, err)
-						}
-					}
-				}
-
-				p.SetHasAlreadyBeenSent()
-			}
+			fmt.Println("========== START sendTickerChan ticked, persisting profiles")
+			m.persistAllProfiles()
 		}
 	}
 }
 
-func (m *ManagerV2) ProcessEvent(event *model.Event) {
-	if !event.IsActivityDumpSample() {
+// setupPersistenceTicker creates the ticker channel for periodic profile persistence
+func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		fmt.Println("========== START SecurityProfile NOT enabled, sendTickerChan is dummy channel")
+		return make(chan time.Time)
+	}
+
+	fmt.Println("========== START SecurityProfileEnabled, setting up ticker")
+	return time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout).C
+}
+
+// persistAllProfiles encodes and persists all profiles to configured storage backends
+func (m *ManagerV2) persistAllProfiles() {
+	m.profilesLock.Lock()
+	profilesToPersist := make([]*profile.Profile, 0, len(m.profiles))
+	for _, p := range m.profiles {
+		profilesToPersist = append(profilesToPersist, p)
+	}
+	m.profilesLock.Unlock()
+
+	for _, p := range profilesToPersist {
+		m.persistProfile(p)
+	}
+}
+
+// persistProfile encodes and persists a single profile to all configured storage backends
+func (m *ManagerV2) persistProfile(p *profile.Profile) {
+	format := config.Protobuf
+	requests := m.configuredStorageRequests[format]
+
+	fmt.Printf("========== PERSIST encoding profile [%s] to format %v\n", p.GetSelectorStr(), format)
+	data, err := p.Encode(format)
+	if err != nil {
+		seclog.Errorf("couldn't encode profile [%s] to %s format: %v", p.GetSelectorStr(), format, err)
+		fmt.Printf("========== PERSIST couldn't encode profile [%s] to %v format: %v\n", p.GetSelectorStr(), format, err)
 		return
 	}
 
-	processEvent := func(event *model.Event) {
-		if profile, inserted := m.handleEvent(event); inserted && profile.HasAlreadyBeenSent() {
-			var workloadID containerutils.WorkloadID
-			var imageTag string
-			if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
-				workloadID = containerID
-				imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-			} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
-				workloadID = containerutils.CGroupID(cgroupID)
-				tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-				if err != nil {
-					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
-					return
-				}
-				imageTag = utils.GetTagValue("version", tags)
-			}
-
-			if workloadID != nil {
-				m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
-			}
-
-			if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
-				m.sendAnomalyDetection(event)
-			}
-		}
+	for _, request := range requests {
+		m.persistProfileToStorage(p, request, data)
 	}
 
-	// purge silent cgroups
+	fmt.Printf("========== PERSIST SetHasAlreadyBeenSent called for profile [%s]\n", p.GetSelectorStr())
+	p.SetHasAlreadyBeenSent()
+}
+
+// persistProfileToStorage persists profile data to a specific storage backend
+func (m *ManagerV2) persistProfileToStorage(p *profile.Profile, request config.StorageRequest, data *bytes.Buffer) {
+	fmt.Printf("========== PERSIST persisting profile [%s] to storage type %s\n", p.GetSelectorStr(), request.Type)
+
+	var storageBackend storage.ActivityDumpStorage
+	switch request.Type {
+	case config.LocalStorage:
+		storageBackend = m.localStorage
+	case config.RemoteStorage:
+		storageBackend = m.remoteStorage
+	default:
+		seclog.Errorf("couldn't persist [%s]: unknown storage type: %s", p.GetSelectorStr(), request.Type)
+		fmt.Printf("========== PERSIST unknown storage type %s for profile [%s], skipping\n", request.Type, p.GetSelectorStr())
+		return
+	}
+
+	if err := storageBackend.Persist(request, p, data); err != nil {
+		seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
+		fmt.Printf("========== PERSIST couldn't persist [%s] to %s storage: %v\n", p.GetSelectorStr(), request.Type, err)
+		return
+	}
+
+	fmt.Printf("========== PERSIST successfully persisted [%s] to %s storage\n", p.GetSelectorStr(), request.Type)
+	m.sendPersistenceMetrics(request, data.Len())
+}
+
+// sendPersistenceMetrics sends metrics after successful profile persistence
+func (m *ManagerV2) sendPersistenceMetrics(request config.StorageRequest, dataSize int) {
+	tags := []string{
+		"format:" + request.Format.String(),
+		"storage_type:" + request.Type.String(),
+		fmt.Sprintf("compression:%v", request.Compression),
+	}
+
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2SizeInBytes, int64(dataSize), tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2SizeInBytes, err)
+	}
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2PersistedProfiles, 1, tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2PersistedProfiles, err)
+	}
+}
+
+func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	fmt.Println("========== ProcessEvent called")
+	if !event.IsActivityDumpSample() {
+		fmt.Println("========== Not an ActivityDumpSample, returning")
+		return
+	}
+
+	// Filter out systemd cgroups if not configured to trace them
+	if event.ProcessContext.Process.ContainerContext.ContainerID == "" && !m.config.RuntimeSecurity.ActivityDumpTraceSystemdCgroups {
+		fmt.Println("========== Systemd cgroup filtered out, returning")
+		return
+	}
+
+	// Count events that pass initial filters
+	m.eventsReceived.Inc()
+
+	// Cleanup: purge pending entries that have been waiting too long (60s)
+	m.purgeStalePendingEvents(event.Timestamp)
+
+	// Try to resolve tags for this event
+	fmt.Println("========== Resolving container tags")
+	event.FieldHandlers.ResolveContainerTags(event, &event.ProcessContext.Process.ContainerContext)
+	fmt.Printf("========== Container tags: %v\n", event.ProcessContext.Process.ContainerContext.Tags)
+	tagsResolved := len(event.ProcessContext.Process.ContainerContext.Tags) != 0
+
+	if tagsResolved {
+		fmt.Println("========== Tags resolved, processing event")
+		m.eventsImmediate.Inc()
+		m.processEventWithResolvedTags(event)
+	} else {
+		fmt.Println("========== Tags not resolved, queueing event")
+		m.queueEventForTagResolution(event)
+	}
+}
+
+// purgeStalePendingEvents removes pending entries that have been waiting for tags for more than 60 seconds
+func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
+	fmt.Println("========== Purging stale pending events")
 	for cgroupID, pendingEvents := range m.profilePendingEvents {
-		if event.Timestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
+		fmt.Printf("========== Checking pendingEvent for cgroupID: %v\n", cgroupID)
+		if currentTimestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
+			fmt.Printf("========== Purging pending event for cgroupID: %v (older than 60s)\n", cgroupID)
 			delete(m.profilePendingEvents, cgroupID)
 			m.pendingProfiles.Dec()
+			m.cgroupsExpired.Inc()
 		}
 	}
+}
 
-	pendingEvents := m.profilePendingEvents[event.ProcessContext.Process.CGroup.CGroupID]
+// processEventWithResolvedTags handles events that have their tags resolved.
+// It also dequeues and processes any pending events for the same cgroup.
+func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
-	// tags already resolved, no need to queue the event
-	event.FieldHandlers.ResolveContainerTags(event, &event.ProcessContext.Process.ContainerContext)
-	if len(event.ProcessContext.Process.ContainerContext.Tags) != 0 {
-		// dequeue the events
-		if pendingEvents != nil {
+	// Dequeue and process pending events if any exist for this cgroup
+	if pendingEvents := m.profilePendingEvents[cgroupID]; pendingEvents != nil {
+		fmt.Println("========== Pending events found, dequeueing and processing them")
 
-			l := pendingEvents.events.Len()
-			for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
-				processEvent(e.Value.(*model.Event))
-				l--
-			}
-			m.queueSize.Sub(uint64(l))
-
-			delete(m.profilePendingEvents, event.ProcessContext.Process.CGroup.CGroupID)
+		// Track tag resolution latency (time from first event to successful resolution)
+		latency := time.Since(pendingEvents.firstSeen)
+		if err := m.statsdClient.Distribution(metrics.MetricSecurityProfileV2TagResolutionLatency, latency.Seconds(), []string{}, 1.0); err != nil {
+			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionLatency, err)
 		}
 
-		processEvent(event)
-
-		return
+		for e := pendingEvents.events.Front(); e != nil; e = e.Next() {
+			queuedEvent := e.Value.(*model.Event)
+			// Copy resolved tags to queued event since it was queued before tags were available
+			queuedEvent.ProcessContext.Process.ContainerContext.Tags = event.ProcessContext.Process.ContainerContext.Tags
+			fmt.Println("========== Processing dequeued event")
+			fmt.Printf("========== Dequeued event tags: %v\n", queuedEvent.ProcessContext.Process.ContainerContext.Tags)
+			m.onEventTagsResolved(queuedEvent)
+		}
+		m.queueSize.Sub(uint64(pendingEvents.events.Len()))
+		m.pendingProfiles.Dec()
+		fmt.Println("========== Deleting pendingEvents entry from profilePendingEvents")
+		delete(m.profilePendingEvents, cgroupID)
 	}
 
+	// Process the current event
+	fmt.Println("========== Processing main event")
+	m.onEventTagsResolved(event)
+}
+
+// queueEventForTagResolution queues an event while waiting for tag resolution
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event) {
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	pendingEvents := m.profilePendingEvents[cgroupID]
+
+	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
+		fmt.Println("========== No pendingEvents, creating new pendingProfile entry")
 		pendingEvents = &pendingProfile{
 			firstSeen: event.Timestamp,
 			events:    list.New(),
 		}
-		m.profilePendingEvents[event.ProcessContext.Process.CGroup.CGroupID] = pendingEvents
-
+		m.profilePendingEvents[cgroupID] = pendingEvents
 		m.pendingProfiles.Inc()
 	}
 
+	// Check if event is too old (>10s since first event for this cgroup)
+	// If so, drop this event and clear the queue - stale events won't be processed
+	fmt.Println("========== Calling ResolveEventTime")
 	event.ResolveEventTime()
-
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
-		// ignore the event, it is already too late.
-		// keep the pending struct entry a bit to avoid reintroducing late events in the queue
-
+		fmt.Println("========== Event older than 10s since firstSeen, ignoring")
 		if pendingEvents.events.Len() > 0 {
+			fmt.Println("========== Pending events not empty, initializing and incrementing pendingTimeout")
 			pendingEvents.events.Init()
 			m.pendingTimeout.Inc()
 		}
 		return
 	}
 
-	// resolve the fields to prepare the copy, required to put the event in the queue
+	// Queue the event (deep copy to preserve state)
+	fmt.Println("========== Resolving fields for AD")
 	event.ResolveFieldsForAD()
-
-	// marshal the event in JSON
+	fmt.Println("========== Creating DeepCopy of event")
 	cpy := event.DeepCopy()
-
+	fmt.Println("========== Pushing back event to pendingEvents queue")
 	pendingEvents.events.PushBack(cpy)
-
 	m.queueSize.Inc()
+	m.eventsQueued.Inc()
+}
+
+// onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
+func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
+	fmt.Println("========== Inside onEventTagsResolved")
+	profile, inserted := m.insertEventIntoProfile(event)
+	if !inserted || !profile.HasAlreadyBeenSent() {
+		return
+	}
+
+	// Profile was updated after being sent - this is a late insertion (potential anomaly)
+	fmt.Println("========== Inserted profile and has already been sent")
+	m.lateInsertions.Inc()
+
+	var workloadID containerutils.WorkloadID
+	var imageTag string
+
+	if containerID := event.ProcessContext.Process.ContainerContext.ContainerID; containerID != "" {
+		fmt.Printf("========== Using containerID: %s\n", containerID)
+		workloadID = containerutils.ContainerID(containerID)
+		imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+		fmt.Printf("========== imageTag from container context: %s\n", imageTag)
+	} else if cgroupID := event.ProcessContext.Process.CGroup.CGroupID; cgroupID != "" {
+		fmt.Printf("========== Using cgroupID: %s\n", cgroupID)
+		workloadID = cgroupID
+		tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+		if err != nil {
+			seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+			fmt.Printf("========== Failed to resolve tags for cgroup %v: %v\n", workloadID, err)
+			return
+		}
+		imageTag = utils.GetTagValue("version", tags)
+		fmt.Printf("========== imageTag from tags: %s\n", imageTag)
+	}
+
+	if workloadID != nil {
+		fmt.Printf("========== Filling ProfileContext from WorkloadID: %v, imageTag: %s\n", workloadID, imageTag)
+		m.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+	}
+
+	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
+		fmt.Println("========== AnomalyDetectionEnabled, sending anomaly detection")
+		m.sendAnomalyDetection(event)
+	}
 }
 
 func (m *ManagerV2) SendStats() error {
-	valuePendingTimeout := m.pendingTimeout.Swap(0)
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionTimeout, int64(valuePendingTimeout), []string{}, 1.0); err != nil {
+	// Event processing counts (swap to 0 after reading)
+	if value := m.eventsReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.eventsImmediate.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalImmediate, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.eventsQueued.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalQueued, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+
+	// Tag resolution gauges
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
+		return err
+	}
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsPending, float64(m.pendingProfiles.Load()), []string{}, 1.0); err != nil {
 		return err
 	}
 
-	valuePendingProfiles := m.pendingProfiles.Load()
-	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2ProfilePending, float64(valuePendingProfiles), []string{}, 1.0); err != nil {
-		return err
+	// Tag resolution counts (swap to 0 after reading)
+	if value := m.pendingTimeout.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.cgroupsExpired.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
 	}
 
-	valueQueueSize := m.queueSize.Load()
-	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2QueueSize, float64(valueQueueSize), []string{}, 1.0); err != nil {
-		return err
+	// Event processing counts (swap to 0 after reading)
+	if value := m.eventsDroppedMaxSize.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsDroppedMaxSize, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
+	}
+	if value := m.lateInsertions.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2ProfileLateInsertions, int64(value), []string{}, 1.0); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (m *ManagerV2) handleEvent(event *model.Event) (*profile.Profile, bool) {
+// insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
+// Returns the profile and whether the event was actually inserted (new data added).
+func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile, bool) {
+	fmt.Println("===== INSERT_EVENT: entered insertEventIntoProfile")
+
 	if !m.config.RuntimeSecurity.SecurityProfileEnabled {
+		fmt.Println("===== INSERT_EVENT: security profiles not enabled")
 		return nil, false
 	}
 
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags), "*")
+	// Build selector from event tags
+	selector, err := m.buildWorkloadSelector(event)
 	if err != nil {
+		fmt.Println("===== INSERT_EVENT: error building selector:", err)
 		return nil, false
 	}
 
-	m.profilesLock.Lock()
-
-	secprof := m.profiles[selector]
-	if secprof == nil {
-		secprof = profile.New(
-			profile.WithPathsReducer(m.pathsReducer),
-			profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
-			profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
-			profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
-			profile.WithWorkloadSelector(selector),
-		)
-		secprof.SetTreeType(secprof, "security_profile")
-
-		secprof.Metadata = mtdt.Metadata{
-			AgentVersion:      version.AgentVersion,
-			AgentCommit:       version.Commit,
-			KernelVersion:     m.kernelVersion.Code.String(),
-			LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
-			Arch:              utils.RuntimeArch(),
-
-			Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
-			ProtobufVersion:   profile.ProtobufVersion,
-			DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
-			ContainerID:       event.ProcessContext.Process.ContainerContext.ContainerID,
-			CGroupContext:     *&event.ProcessContext.Process.CGroup,
-			Start:             event.ResolveEventTime(),
-			End:               event.ResolveEventTime(),
-		}
-		secprof.Header.Host = m.hostname
-		secprof.Header.Source = ActivityDumpSource
-
-		var workloadID any
-		if len(secprof.Metadata.ContainerID) > 0 {
-			workloadID = containerutils.ContainerID(secprof.Metadata.ContainerID)
-		} else if len(secprof.Metadata.CGroupContext.CGroupID) > 0 {
-			workloadID = secprof.Metadata.CGroupContext.CGroupID
-		}
-
-		if workloadID != nil {
-			tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-			if err != nil {
-				return nil, false
-
-			}
-			secprof.AddTags(tags)
-		}
-
-		m.profiles[selector] = secprof
+	// Get or create the profile for this workload
+	secprof, err := m.getOrCreateProfile(selector, event)
+	if err != nil {
+		fmt.Println("===== INSERT_EVENT: error getting/creating profile:", err)
+		return nil, false
 	}
 
-	m.profilesLock.Unlock()
-
+	// Check if profile has reached max size
 	if secprof.ActivityTree.Stats.ApproximateSize() >= int64(m.config.RuntimeSecurity.ActivityDumpMaxDumpSize()) {
+		fmt.Println("===== INSERT_EVENT: profile at max size, filtering event")
 		m.incrementEventFilteringStat(event.GetEventType(), model.ProfileAtMaxSize, NA)
+		m.eventsDroppedMaxSize.Inc()
 		return nil, false
 	}
 
-	if _, ok := secprof.GetVersionContext(selector.Tag); !ok {
-		now := time.Now()
-		nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
-		tags := secprof.GetTags()
-		vCtx := &profile.VersionContext{
-			FirstSeenNano:  nowNano,
-			LastSeenNano:   nowNano,
-			EventTypeState: make(map[model.EventType]*profile.EventTypeState),
-			Syscalls:       secprof.ComputeSyscallsList(),
-			Tags:           make([]string, len(tags)),
-		}
-		copy(vCtx.Tags, tags)
+	// Ensure version context exists for this selector
+	m.ensureVersionContext(secprof, selector.Tag)
 
-		secprof.AddVersionContext(selector.Tag, vCtx)
-	}
-
+	// Insert the event into the profile's activity tree
 	imageTag := secprof.GetTagValue("image_tag")
+	fmt.Println("===== INSERT_EVENT: inserting event into profile")
 	inserted, err := secprof.Insert(event, true, imageTag, activity_tree.Runtime, m.resolvers)
 	if err != nil {
+		fmt.Println("===== INSERT_EVENT: error inserting event:", err)
 		return nil, false
 	}
 
+	fmt.Println("===== INSERT_EVENT: event handled successfully")
 	return secprof, inserted
+}
+
+// buildWorkloadSelector creates a workload selector from the event's container tags
+func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.WorkloadSelector, error) {
+	fmt.Println("===== INSERT_EVENT: building workload selector")
+	imageName := utils.GetTagValue("image_name", event.ProcessContext.Process.ContainerContext.Tags)
+	return cgroupModel.NewWorkloadSelector(imageName, "*")
+}
+
+// getOrCreateProfile retrieves an existing profile or creates a new one for the given selector
+func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
+	m.profilesLock.Lock()
+	defer m.profilesLock.Unlock()
+
+	secprof := m.profiles[selector]
+	if secprof != nil {
+		fmt.Println("===== INSERT_EVENT: found existing profile")
+		return secprof, nil
+	}
+
+	fmt.Println("===== INSERT_EVENT: creating new profile for selector")
+	secprof, err := m.createNewProfile(selector, event)
+	if err != nil {
+		return nil, err
+	}
+
+	m.profiles[selector] = secprof
+	return secprof, nil
+}
+
+// createNewProfile initializes a new profile with all required metadata and tags
+func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
+	secprof := profile.New(
+		profile.WithPathsReducer(m.pathsReducer),
+		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+		profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
+		profile.WithWorkloadSelector(selector),
+	)
+	secprof.SetTreeType(secprof, "security_profile")
+
+	eventTime := event.Timestamp
+	if eventTime.IsZero() {
+		eventTime = time.Now()
+	}
+
+	// Initialize metadata
+	fmt.Println("===== INSERT_EVENT: initializing profile metadata")
+	secprof.Metadata = mtdt.Metadata{
+		AgentVersion:      version.AgentVersion,
+		AgentCommit:       version.Commit,
+		KernelVersion:     m.kernelVersion.Code.String(),
+		LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
+		Arch:              utils.RuntimeArch(),
+		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+		ProtobufVersion:   profile.ProtobufVersion,
+		DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
+		ContainerID:       event.ProcessContext.Process.ContainerContext.ContainerID,
+		CGroupContext:     event.ProcessContext.Process.CGroup,
+		Start:             eventTime,
+		End:               eventTime,
+	}
+	secprof.Header.Host = m.hostname
+	secprof.Header.Source = ActivityDumpSource
+
+	// Resolve and add tags
+	if err := m.resolveAndAddProfileTags(secprof); err != nil {
+		return nil, err
+	}
+
+	return secprof, nil
+}
+
+// resolveAndAddProfileTags resolves tags for the profile's workload and adds them to the profile
+func (m *ManagerV2) resolveAndAddProfileTags(secprof *profile.Profile) error {
+	fmt.Println("===== INSERT_EVENT: resolving workloadID for tags")
+
+	var workloadID any
+	if len(secprof.Metadata.ContainerID) > 0 {
+		workloadID = containerutils.ContainerID(secprof.Metadata.ContainerID)
+	} else if len(secprof.Metadata.CGroupContext.CGroupID) > 0 {
+		workloadID = secprof.Metadata.CGroupContext.CGroupID
+	}
+
+	if workloadID == nil {
+		return nil
+	}
+
+	fmt.Println("===== INSERT_EVENT: resolving tags")
+	tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+	if err != nil {
+		fmt.Println("===== INSERT_EVENT: error resolving tags:", err)
+		return err
+	}
+	secprof.AddTags(tags)
+	return nil
+}
+
+// ensureVersionContext creates a version context for the given tag if it doesn't exist
+func (m *ManagerV2) ensureVersionContext(secprof *profile.Profile, tag string) {
+	if _, ok := secprof.GetVersionContext(tag); ok {
+		return
+	}
+
+	fmt.Println("===== INSERT_EVENT: creating version context")
+	now := time.Now()
+	nowNano := uint64(m.resolvers.TimeResolver.ComputeMonotonicTimestamp(now))
+	profileTags := secprof.GetTags()
+
+	vCtx := &profile.VersionContext{
+		FirstSeenNano:  nowNano,
+		LastSeenNano:   nowNano,
+		EventTypeState: make(map[model.EventType]*profile.EventTypeState),
+		Syscalls:       secprof.ComputeSyscallsList(),
+		Tags:           make([]string, len(profileTags)),
+	}
+	copy(vCtx.Tags, profileTags)
+
+	secprof.AddVersionContext(tag, vCtx)
 }
 
 // FillProfileContextFromWorkloadID fills the given ctx with workload id infos
@@ -430,36 +674,6 @@ func (m *ManagerV2) incrementEventFilteringStat(eventType model.EventType, state
 	if entry, ok := m.eventFiltering[eventFilteringEntry{eventType, state, result}]; ok {
 		entry.Inc()
 	}
-}
-
-// LookupEventInProfiles lookups event in profiles
-// In V2, this is a no-op as event filtering is handled differently through ProcessEvent
-func (m *ManagerV2) LookupEventInProfiles(_ *model.Event) {
-	// V2 handles event processing differently - events are processed through ProcessEvent
-	// which builds profiles from activity dump samples. The profile lookup/filtering
-	// logic from V1 is not applicable to the V2 lifecycle.
-}
-
-// HasActiveActivityDump returns true if the given event has an active dump
-// In V2, we don't manage activity dumps the traditional way, so always return false
-func (m *ManagerV2) HasActiveActivityDump(_ *model.Event) bool {
-	// V2 doesn't use the traditional activity dump mechanism with kernel-space traced cgroups.
-	// Instead, it builds profiles directly from activity dump samples.
-	return false
-}
-
-// HandleCGroupTracingEvent handles a cgroup tracing event
-// In V2, this is a no-op as we don't manage cgroup tracing the traditional way
-func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {
-	// V2 doesn't use cgroup tracing events from kernel space.
-	// Profiles are built from activity dump samples instead.
-}
-
-// SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups
-// In V2, this is a no-op as we don't manage traced cgroups maps
-func (m *ManagerV2) SyncTracedCgroups() {
-	// V2 doesn't manage kernel-space traced cgroups maps.
-	// This method is kept for interface compatibility with V1.
 }
 
 // evictUnusedNodes performs periodic eviction of non-touched nodes from all active profiles
@@ -522,15 +736,15 @@ func (m *ManagerV2) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]b
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerID)
+		if cgce.ContainerContext.ContainerID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerContext.ContainerID)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupID)
+		} else if cgce.CGroupContext.CGroupID != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupContext.CGroupID)
 			if err != nil {
 				return false
 			}
@@ -577,4 +791,59 @@ func (m *ManagerV2) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]b
 	}
 
 	return result
+}
+
+// ============================================================================
+// NO-OP METHODS - ProfileManager Interface Compatibility
+// ============================================================================
+//
+// The following methods are no-ops in ManagerV2. They exist solely to satisfy
+// the ProfileManager interface, allowing V1 and V2 managers to be used
+// interchangeably through the same interface.
+//
+// These methods will be removed once V2 is fully validated and V1 is deprecated.
+// ============================================================================
+
+// LookupEventInProfiles lookups event in profiles.
+// NO-OP in V2: Event filtering is handled differently through ProcessEvent which builds
+// profiles from activity dump samples. The profile lookup/filtering logic from V1 is not
+// applicable to the V2 lifecycle.
+func (m *ManagerV2) LookupEventInProfiles(_ *model.Event) {}
+
+// HasActiveActivityDump returns true if the given event has an active dump.
+// NO-OP in V2: Always returns false. V2 doesn't use the traditional activity dump mechanism
+// with kernel-space traced cgroups. Instead, it builds profiles directly from activity dump samples.
+func (m *ManagerV2) HasActiveActivityDump(_ *model.Event) bool { return false }
+
+// HandleCGroupTracingEvent handles a cgroup tracing event.
+// NO-OP in V2: V2 doesn't use cgroup tracing events from kernel space. Profiles are built
+// from activity dump samples instead.
+func (m *ManagerV2) HandleCGroupTracingEvent(_ *model.CgroupTracingEvent) {}
+
+// SyncTracedCgroups recovers lost CGroup tracing events by going through the kernel space map of cgroups.
+// NO-OP in V2: V2 doesn't manage kernel-space traced cgroups maps.
+func (m *ManagerV2) SyncTracedCgroups() {}
+
+// ListActivityDumps lists the activity dumps.
+// NO-OP in V2: V2 doesn't expose individual activity dumps through this API.
+func (m *ManagerV2) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+	return nil, nil
+}
+
+// StopActivityDump stops an active activity dump.
+// NO-OP in V2: V2 doesn't manage activity dumps the traditional way.
+func (m *ManagerV2) StopActivityDump(_ *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
+	return nil, nil
+}
+
+// DumpActivity dumps the activity.
+// NO-OP in V2: V2 doesn't support on-demand activity dumping through this API.
+func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	return nil, nil
+}
+
+// GenerateTranscoding generates a transcoding request for the given activity dump.
+// NO-OP in V2: V2 doesn't support transcoding through this API.
+func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
+	return nil, nil
 }

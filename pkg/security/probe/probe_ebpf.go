@@ -122,14 +122,13 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	event            *model.Event
-	dnsLayer         *layers.DNS
-	monitors         *EBPFMonitors
-	profileManager   *securityprofile.Manager
-	profileManagerV2 *securityprofile.ManagerV2
-	fieldHandlers    *EBPFFieldHandlers
-	eventPool        *ddsync.TypedPool[model.Event]
-	numCPU           int
+	event          *model.Event
+	dnsLayer       *layers.DNS
+	monitors       *EBPFMonitors
+	profileManager securityprofile.ProfileManager
+	fieldHandlers  *EBPFFieldHandlers
+	eventPool      *ddsync.TypedPool[model.Event]
+	numCPU         int
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -569,7 +568,7 @@ func (p *EBPFProbe) Init() error {
 	}
 
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManagerV2, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc, p.sendAnomalyDetection)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc, p.sendAnomalyDetection)
 		if err != nil {
 			return err
 		}
@@ -593,9 +592,7 @@ func (p *EBPFProbe) Init() error {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
-			if p.profileManagerV2 != nil {
-				p.profileManagerV2.Start(p.ctx)
-			} else if p.profileManager != nil {
+			if p.profileManager != nil {
 				p.profileManager.Start(p.ctx)
 			}
 		}()
@@ -898,7 +895,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		}
 	} else {
 		if event.Error == nil {
-			p.profileManagerV2.ProcessEvent(event)
+			p.profileManager.ProcessEvent(event)
 		}
 	}
 
@@ -949,11 +946,7 @@ func (p *EBPFProbe) SendStats() error {
 
 	p.processKiller.SendStats(p.statsdClient)
 
-	if p.profileManagerV2 != nil {
-		if err := p.profileManagerV2.SendStats(); err != nil {
-			return err
-		}
-	} else if p.profileManager != nil {
+	if p.profileManager != nil {
 		if err := p.profileManager.SendStats(); err != nil {
 			return err
 		}
@@ -1038,9 +1031,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext mo
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		if p.profileManagerV2 != nil {
-			p.profileManagerV2.SyncTracedCgroups()
-		} else if p.profileManager != nil {
+		if p.profileManager != nil {
 			p.profileManager.SyncTracedCgroups()
 		}
 	}
@@ -1718,9 +1709,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
 			}
 
-			if p.profileManagerV2 != nil {
-				p.profileManagerV2.HandleCGroupTracingEvent(&event.CgroupTracing)
-			} else if p.profileManager != nil {
+			if p.profileManager != nil {
 				p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
 			}
 		}
@@ -3082,8 +3071,8 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 	return uint64(argc)
 }
 
-// GetProfileManager returns the security profile manager
-func (p *EBPFProbe) GetProfileManager() *securityprofile.Manager {
+// GetProfileManager returns the V1 security profile manager.
+func (p *EBPFProbe) GetProfileManager() securityprofile.ProfileManager {
 	return p.profileManager
 }
 
