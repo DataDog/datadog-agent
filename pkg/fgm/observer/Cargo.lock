@@ -133,6 +133,7 @@ checksum = "92ecc6618181def0457392ccd0ee51198e065e016d1d527a7ac1b6dc7c1f09d2"
 [[package]]
 name = "lading-observer"
 version = "0.1.0"
+source = "git+https://github.com/DataDog/lading?branch=dd%2Fextract-lading-observer-crate#985ed215da4eaa3ff3e073df60b6462054a45662"
 dependencies = [
  "heck",
  "lading-signal",
@@ -152,6 +153,7 @@ dependencies = [
 [[package]]
 name = "lading-signal"
 version = "0.1.0"
+source = "git+https://github.com/DataDog/lading?branch=dd%2Fextract-lading-observer-crate#985ed215da4eaa3ff3e073df60b6462054a45662"
 dependencies = [
  "loom",
  "thiserror",
