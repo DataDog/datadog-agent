@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/file"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +61,7 @@ func TestOldInstallerUnitPaths(t *testing.T) {
 	assert.NotEmpty(t, oldInstallerUnitPaths)
 
 	// Verify expected old installer units are in the list
-	expectedPaths := []string{
+	expectedPaths := []file.Path{
 		"datadog-installer-exp.service",
 		"datadog-installer.service",
 	}
