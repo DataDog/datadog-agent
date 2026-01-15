@@ -4,6 +4,8 @@ http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl
 
 http_file = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_file")
 
+dd_http = use_extension("//deps:dd_http.bzl", "dd_http")
+
 sqlite_ver = ("3", "50", "04")
 
 # TODO(agent-build): switch to "bare" `sqlite-amalgamation` when we drop the need for .pc files
@@ -25,9 +27,7 @@ http_file(
     url = "https://raw.githubusercontent.com/sqlite/sqlite/version-{}/LICENSE.md".format(".".join([v.lstrip("0") for v in sqlite_ver])),
 )
 
-dd_http_archive = use_repo_rule("//deps:dd_http.bzl", "dd_http_archive")
-
-dd_http_archive(
+dd_http.archive(
     name = "xz",
     build_file = "//deps:xz.BUILD.bazel",
     files = {
@@ -38,11 +38,13 @@ dd_http_archive(
         "config.lzma-windows.h": "//deps/xz:config.lzma-windows.h",
     },
 )
+use_repo(dd_http, "xz")
 
-dd_http_archive(
+dd_http.archive(
     name = "zlib",
     build_file = "//deps:zlib.BUILD.bazel",
 )
+use_repo(dd_http, "zlib")
 
 http_archive(
     name = "bzip2",
