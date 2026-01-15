@@ -17,10 +17,11 @@ type Server struct {
 	mcpServer  *mcp.Server
 	httpServer *http.Server
 	port       int
+	mode       string
 }
 
 // New creates a new MCP server
-func New(port int) *Server {
+func New(port int, mode string) *Server {
 	// Create MCP server with implementation metadata
 	mcpServer := mcp.NewServer(
 		&mcp.Implementation{
@@ -33,22 +34,40 @@ func New(port int) *Server {
 	s := &Server{
 		mcpServer: mcpServer,
 		port:      port,
+		mode:      mode,
 	}
 
-	// Register tools
-	bashTool := tools.NewBashTool(30 * time.Second)
-	if err := bashTool.Register(mcpServer); err != nil {
-		log.Printf("Failed to register bash tool: %v", err)
-	}
+	// Register tools based on mode
+	log.Printf("Starting MCP server in %s mode", mode)
 
-	safeShellTool, err := tools.NewSafeShellTool(30 * time.Second)
-	if err != nil {
-		log.Printf("Warning: Failed to create safe-shell tool: %v", err)
-		log.Printf("Safe-shell tool will not be available (safe-shell binary not found)")
-	} else {
+	switch mode {
+	case "bash":
+		// Only register bash tool
+		bashTool := tools.NewBashTool(30 * time.Second)
+		if err := bashTool.Register(mcpServer); err != nil {
+			log.Printf("Failed to register bash tool: %v", err)
+		} else {
+			log.Printf("Registered tool: bash_execute")
+		}
+
+	case "safe-shell":
+		// Only register safe-shell tool
+		safeShellTool, err := tools.NewSafeShellTool(30 * time.Second)
+		if err != nil {
+			log.Fatalf("Failed to create safe-shell tool: %v", err)
+		}
 		if err := safeShellTool.Register(mcpServer); err != nil {
 			log.Printf("Failed to register safe-shell tool: %v", err)
+		} else {
+			log.Printf("Registered tool: safe_shell_execute")
 		}
+
+	case "tools":
+		// Register traditional MCP tools (none for now)
+		log.Printf("Tools mode: no traditional tools registered yet")
+
+	default:
+		log.Fatalf("Invalid mode: %s (this should not happen - validation failed)", mode)
 	}
 
 	return s

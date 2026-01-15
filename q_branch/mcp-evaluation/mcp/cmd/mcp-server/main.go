@@ -21,9 +21,10 @@ func main() {
 	log.Printf("Configuration loaded:")
 	log.Printf("  Port: %d", cfg.Port)
 	log.Printf("  Log Level: %s", cfg.LogLevel)
+	log.Printf("  Mode: %s", cfg.Mode)
 
 	// Create MCP server
-	mcpServer := server.New(cfg.Port)
+	mcpServer := server.New(cfg.Port, cfg.Mode)
 
 	// Setup graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

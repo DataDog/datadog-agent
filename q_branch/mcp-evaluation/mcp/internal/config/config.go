@@ -10,6 +10,7 @@ import (
 type Config struct {
 	Port     int
 	LogLevel string
+	Mode     string
 }
 
 // Load loads configuration from command-line flags, environment variables, and defaults
@@ -19,6 +20,7 @@ func Load() (*Config, error) {
 	// Define command-line flags
 	flag.IntVar(&cfg.Port, "port", getEnvInt("MCP_EVAL_PORT", 8080), "Port to listen on")
 	flag.StringVar(&cfg.LogLevel, "loglevel", getEnvString("MCP_EVAL_LOGLEVEL", "info"), "Log level (debug, info, warn, error)")
+	flag.StringVar(&cfg.Mode, "mode", getEnvString("MCP_EVAL_MODE", "bash"), "Server mode: bash, safe-shell, or tools")
 
 	flag.Parse()
 
@@ -40,6 +42,16 @@ func (c *Config) validate() error {
 	}
 	if !validLogLevels[c.LogLevel] {
 		return fmt.Errorf("invalid log level: %s (must be one of: debug, info, warn, error)", c.LogLevel)
+	}
+
+	// Validate mode
+	validModes := map[string]bool{
+		"bash":       true,
+		"safe-shell": true,
+		"tools":      true,
+	}
+	if !validModes[c.Mode] {
+		return fmt.Errorf("invalid mode: %s (must be one of: bash, safe-shell, tools)", c.Mode)
 	}
 
 	return nil
