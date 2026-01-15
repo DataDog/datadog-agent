@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
@@ -46,8 +47,9 @@ func GetListener(address string) (net.Listener, error) {
 		return listener, err
 	}
 
-	if pkgconfigsetup.Datadog().GetBool("agent_ipc.use_socket") {
-		// currently only unix sockets are supported with npipes planned for windows
+	// this is used by both the CMDServer as well as the IPCServer so we cannot rely on the config value
+	if strings.Contains(address, "/") {
+		// currently only unix sockets are supported
 		return platformSpecificListener(address)
 	}
 
