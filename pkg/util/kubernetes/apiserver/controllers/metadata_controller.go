@@ -208,11 +208,23 @@ func (m *metadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
-func (m *metadataController) updateEndpoints(_, cur interface{}) {
+func (m *metadataController) updateEndpoints(old, cur interface{}) {
+	oldEndpoints, ok := old.(*corev1.Endpoints)
+	if !ok {
+		return
+	}
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
 		return
 	}
+
+	// Skip processing if the pod-to-node mapping hasn't changed.
+	// We only care about which pods are on which nodes for service tagging.
+	// Other endpoint changes (IPs, ports, etc.) are irrelevant for our purposes.
+	if endpointsPodNodeMappingEqual(oldEndpoints, newEndpoints) {
+		return
+	}
+
 	log.Tracef("Updating endpoints %s/%s", newEndpoints.Namespace, newEndpoints.Name)
 	m.enqueue(cur)
 }
@@ -564,4 +576,60 @@ func (m *metadataController) deleteService(namespace, svc string) error {
 		m.store.set(node.Name, newMetaBundle)
 	}
 	return nil
+}
+
+// podNodeIdentity represents the fields we care about from an endpoint address
+// for service-to-pod mapping: which pod from which namespace on which node.
+type podNodeIdentity struct {
+	nodeName  string
+	namespace string
+	podName   string
+}
+
+// endpointsPodNodeMappingEqual checks if two Endpoints have the same pod-to-node mapping.
+// We only care about (nodeName, namespace, podName) tuples - other fields like IPs and ports
+// are irrelevant for service tagging.
+func endpointsPodNodeMappingEqual(old, new *corev1.Endpoints) bool {
+	oldSet := extractPodNodeIdentities(old)
+	newSet := extractPodNodeIdentities(new)
+
+	if len(oldSet) != len(newSet) {
+		return false
+	}
+	for key := range oldSet {
+		if _, exists := newSet[key]; !exists {
+			return false
+		}
+	}
+	return true
+}
+
+// extractPodNodeIdentities extracts the set of (node, namespace, pod) tuples from an Endpoints object.
+func extractPodNodeIdentities(endpoints *corev1.Endpoints) map[podNodeIdentity]struct{} {
+	result := make(map[podNodeIdentity]struct{})
+	for _, subset := range endpoints.Subsets {
+		addPodNodeIdentities(subset.Addresses, result)
+		addPodNodeIdentities(subset.NotReadyAddresses, result)
+	}
+	return result
+}
+
+// addPodNodeIdentities extracts pod-node identities from a list of endpoint addresses.
+func addPodNodeIdentities(addresses []corev1.EndpointAddress, result map[podNodeIdentity]struct{}) {
+	for _, addr := range addresses {
+		if addr.TargetRef == nil || addr.TargetRef.Kind != "Pod" {
+			continue
+		}
+		if addr.NodeName == nil {
+			continue
+		}
+		if addr.TargetRef.Name == "" || addr.TargetRef.Namespace == "" {
+			continue
+		}
+		result[podNodeIdentity{
+			nodeName:  *addr.NodeName,
+			namespace: addr.TargetRef.Namespace,
+			podName:   addr.TargetRef.Name,
+		}] = struct{}{}
+	}
 }
