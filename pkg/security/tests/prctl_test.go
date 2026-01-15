@@ -11,16 +11,13 @@ package tests
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"golang.org/x/sys/unix"
-	"syscall"
-	"testing"
-	"time"
-	"unsafe"
-
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/stretchr/testify/assert"
+	"syscall"
+	"testing"
+	"time"
 )
 
 func TestPrCtl(t *testing.T) {
@@ -106,11 +103,6 @@ func TestPrCtlTruncated(t *testing.T) {
 	})
 }
 
-func sendPrName(s string) error {
-	ptr := unsafe.Pointer(&[]byte(s + "\x00")[0])
-	return unix.Prctl(syscall.PR_SET_NAME, uintptr(ptr), 0, 0, 0)
-}
-
 func TestPrCtlDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 
@@ -127,11 +119,16 @@ func TestPrCtlDiscarder(t *testing.T) {
 	}
 	defer test.Close()
 
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	t.Run("prctl-set-name-discarder", func(t *testing.T) {
 		// 1. send first event not matching the rule to create a discarder.
 		// it's expected that we receive the event
 		err = test.GetProbeEvent(func() error {
-			err = sendPrName("bidule")
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "bidule")
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -150,7 +147,7 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 		// 2. make sure that we're still receiving non-discarded messages
 		test.WaitSignalFromRule(t, func() error {
-			err = sendPrName("my_thread")
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
@@ -161,7 +158,7 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 		// 3. trigger prctl again with the event that shall be discarded and check that we don't receive anything
 		err = test.GetProbeEvent(func() error {
-			err = sendPrName("bidule")
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "bidule")
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
