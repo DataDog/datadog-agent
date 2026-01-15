@@ -1056,6 +1056,33 @@ new-e2e-gpu:
       - EXTRA_PARAMS: "--run TestGPUHostSuiteUbuntu1804Driver430" # This driver is not supported by the agent, but we can check that the agent does not crash. No need to test in k8s this one.
   retry: !reference [.retry_only_infra_failure, retry]
 
+new-e2e-gpu-mig:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.manual] # Manual-only trigger due to high cost (~$32/hour for p4d.24xlarge)
+  variables:
+    TARGETS: ./tests/gpu
+    TEAM: ebpf-platform
+    EXTRA_PARAMS: "--run TestGPUK8sSuiteMIG$"
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - agent_deb-x64-a7
+
+new-e2e-gpu-mig-mixed:
+  extends: .new_e2e_template_needs_container_deploy
+  rules:
+    - !reference [.except_disable_e2e_tests]
+    - !reference [.manual] # Manual-only trigger due to high cost (~$32/hour for p4d.24xlarge)
+  variables:
+    TARGETS: ./tests/gpu
+    TEAM: ebpf-platform
+    EXTRA_PARAMS: "--run TestGPUK8sSuiteMIGMixed"
+  needs:
+    - !reference [.new_e2e_template_needs_container_deploy, needs]
+    - agent_deb-x64-a7
+  retry: !reference [.retry_only_infra_failure, retry]
+
 all-artifacts: # This job is used to collect all artifacts needed in the flake finder pipeline, because we are limited to 5 cross pipelines needs: https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731
   stage: e2e
   tags: ["arch:amd64", "specific:true"]
