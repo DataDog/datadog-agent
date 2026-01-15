@@ -316,6 +316,8 @@ func NewCluster(e aws.Environment, name string, opts ...Option) (*kubecomp.Clust
 
 			// Deploy NVIDIA device plugin for GPU support AFTER the GPU node group is created
 			// The EKS GPU AMI already has NVIDIA drivers pre-installed, so we only need the device plugin
+			// We set nvidia.com/gpu.present=true on GPU nodes to mimic NFD (Node Feature Discovery)
+			// This allows the device plugin to schedule on GPU nodes using standard GPU labels
 			_, err = helmv4.NewChart(e.Ctx(), e.Namer.ResourceName("nvidia-device-plugin"), &helmv4.ChartArgs{
 				Chart:     pulumi.String("nvidia-device-plugin"),
 				Namespace: pulumi.String("kube-system"),
@@ -339,7 +341,25 @@ flags:
 `),
 						},
 					},
-					"affinity": pulumi.Map{},
+					"affinity": pulumi.Map{
+						"nodeAffinity": pulumi.Map{
+							"requiredDuringSchedulingIgnoredDuringExecution": pulumi.Map{
+								"nodeSelectorTerms": pulumi.Array{
+									pulumi.Map{
+										"matchExpressions": pulumi.Array{
+											pulumi.Map{
+												"key":      pulumi.String("nvidia.com/gpu.present"),
+												"operator": pulumi.String("In"),
+												"values": pulumi.Array{
+													pulumi.String("true"),
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			}, pulumi.Provider(eksKubeProvider), utils.PulumiDependsOn(gpuNodeGroup), pulumi.Parent(comp))
 			if err != nil {

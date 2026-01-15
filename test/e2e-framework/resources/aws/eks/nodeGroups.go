@@ -66,7 +66,12 @@ func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *aws
 	if err != nil {
 		return nil, err
 	}
-	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023NVIDIAGPUAmiType, instanceType, lt, opts...)
+	labels := map[string]string{
+		// Mimic NFD (Node Feature Discovery) label for GPU nodes
+		// This allows the NVIDIA device plugin to use its default affinity
+		"nvidia.com/gpu.present": "true",
+	}
+	return newManagedNodeGroupWithLabels(e, name, cluster, nodeRole, amazonLinux2023NVIDIAGPUAmiType, instanceType, lt, labels, opts...)
 }
 
 func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
@@ -131,6 +136,11 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 }
 
 func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+	return newManagedNodeGroupWithLabels(e, name, cluster, nodeRole, amiType, instanceType, launchTemplate, nil, opts...)
+}
+
+// newManagedNodeGroupWithLabels creates a managed node group with optional node labels.
+func newManagedNodeGroupWithLabels(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, labels map[string]string, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	taints := awsEks.NodeGroupTaintArray{}
 	if strings.Contains(amiType, "WINDOWS") {
 		taints = append(taints,
@@ -145,6 +155,12 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 	releaseVersion, err := GetNodesVersion(amiType, e.KubernetesVersion())
 	if err != nil {
 		return nil, err
+	}
+
+	// Convert labels to pulumi.StringMap
+	pulumiLabels := pulumi.StringMap{}
+	for k, v := range labels {
+		pulumiLabels[k] = pulumi.String(v)
 	}
 
 	// common args
@@ -162,6 +178,7 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 		},
 		NodeRole: nodeRole,
 		Taints:   taints,
+		Labels:   pulumiLabels,
 	}
 
 	if launchTemplate != nil {
