@@ -988,11 +988,6 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		// Full classification: everything else (actual protocol detection work)
 		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
 		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
-		if fullClassificationCalls < 0 {
-			// This can happen on the first interval after deployment when "last" values are 0
-			// but counters have accumulated values from before
-			fullClassificationCalls = 0
-		}
 		avgFullClassificationTime := float64(0)
 		if fullClassificationCalls > 0 {
 			totalTimeNs := float64(socketClassifierCalls) * avgSocketClassifierTime
@@ -1191,124 +1186,47 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
 
 	// TCP recv timing metrics
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls
-	EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs
-	EbpfTracerTelemetry.lastTCPRecvmsgKprobeArgsTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls
-	EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateCalls = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs
-	EbpfTracerTelemetry.lastTCPRecvmsgKprobeMapUpdateTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapLookupTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeMapDeleteTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvCalls = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns) - EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs
-	EbpfTracerTelemetry.lastTCPRecvmsgKretprobeHandleRecvTimeNs = int64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvTimeNs, prometheus.CounterValue, float64(delta))
+	// Note: We emit cumulative values here. The "last" values are only updated in logTelemetryMetrics()
+	// to avoid interference between Prometheus scraping and logging intervals.
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsCalls, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeArgsTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kprobe_args_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateCalls, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKprobeMapUpdateTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kprobe_map_update_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupCalls, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapLookupTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_lookup_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteCalls, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeMapDeleteTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_map_delete_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvCalls, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpRecvmsgKretprobeHandleRecvTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Tcp_recvmsg_kretprobe_handle_recv_time_ns))
 
 	// net_dev_queue timing metrics
-	delta = int64(ebpfTelemetry.Net_dev_queue_calls) - EbpfTracerTelemetry.lastNetDevQueueCalls
-	EbpfTracerTelemetry.lastNetDevQueueCalls = int64(ebpfTelemetry.Net_dev_queue_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls
-	EbpfTracerTelemetry.lastNetDevQueueSkbToTupleCalls = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns) - EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs
-	EbpfTracerTelemetry.lastNetDevQueueSkbToTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls) - EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls
-	EbpfTracerTelemetry.lastNetDevQueueReadConnTupleCalls = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns) - EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs
-	EbpfTracerTelemetry.lastNetDevQueueReadConnTupleTimeNs = int64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_is_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls
-	EbpfTracerTelemetry.lastNetDevQueueIsEqualCalls = int64(ebpfTelemetry.Net_dev_queue_is_equal_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns) - EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs
-	EbpfTracerTelemetry.lastNetDevQueueIsEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_not_equal_calls) - EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls
-	EbpfTracerTelemetry.lastNetDevQueueNotEqualCalls = int64(ebpfTelemetry.Net_dev_queue_not_equal_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns) - EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs
-	EbpfTracerTelemetry.lastNetDevQueueNotEqualTimeNs = int64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualTimeNs, prometheus.CounterValue, float64(delta))
+	// Note: We emit cumulative values here. The "last" values are only updated in logTelemetryMetrics()
+	// to avoid interference between Prometheus scraping and logging intervals.
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueCalls, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleCalls, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueSkbToTupleTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_skb_to_tuple_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleCalls, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueReadConnTupleTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_read_conn_tuple_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualCalls, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_is_equal_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueIsEqualTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_is_equal_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualCalls, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_not_equal_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.netDevQueueNotEqualTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Net_dev_queue_not_equal_time_ns))
 
 	// protocol classifier timing metrics
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls
-	EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs
-	EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls
-	EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs
-	EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls) - EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls
-	EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs
-	EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls) - EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls
-	EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns) - EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs
-	EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedTimeNs, prometheus.CounterValue, float64(delta))
+	// Note: We emit cumulative values here. The "last" values are only updated in logTelemetryMetrics()
+	// to avoid interference between Prometheus scraping and logging intervals.
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns))
 
 	// socket classifier entry timing metrics
-	delta = int64(ebpfTelemetry.Socket_classifier_entry_calls) - EbpfTracerTelemetry.lastSocketClassifierEntryCalls
-	EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.socketClassifierEntryCalls, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Socket_classifier_entry_time_ns) - EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs
-	EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs = int64(ebpfTelemetry.Socket_classifier_entry_time_ns)
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.socketClassifierEntryTimeNs, prometheus.CounterValue, float64(delta))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.socketClassifierEntryCalls, prometheus.CounterValue, float64(ebpfTelemetry.Socket_classifier_entry_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.socketClassifierEntryTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Socket_classifier_entry_time_ns))
 
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
