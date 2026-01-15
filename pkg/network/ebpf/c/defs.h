@@ -3,7 +3,7 @@
 
 #include "compiler.h"
 
-__maybe_unused static const __u64 ENABLED = 1;
+#define ENABLED 1
 
 #ifdef COMPILE_CORE
 #define MAX_ERRNO 4095
