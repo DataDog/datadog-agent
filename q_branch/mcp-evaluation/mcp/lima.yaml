@@ -1,0 +1,157 @@
+# Lima VM configuration for MCP evaluation server
+# Start with: limactl start lima.yaml --name mcp-eval
+# Shell into VM: limactl shell mcp-eval
+
+vmType: vz
+
+images:
+  # Fedora 42 (ships with kernel 6.14+)
+  - location: "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+    arch: "x86_64"
+  - location: "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-42-1.1.aarch64.qcow2"
+    arch: "aarch64"
+
+# CPUs and Memory
+cpus: 4
+memory: "8GiB"
+disk: "50GiB"
+
+# Mounts
+mounts:
+  - location: "/Users/matthew.deguzman/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp"
+    mountPoint: "/mcp"
+    writable: true
+  - location: "~"
+    writable: false
+
+mountType: virtiofs
+
+# SSH settings
+ssh:
+  localPort: 0
+  loadDotSSHPubKeys: true
+  forwardAgent: true
+
+# Network (user-v2 mode doesn't require socket_vmnet)
+networks:
+  - lima: user-v2
+
+# Provision scripts
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Update package list
+      dnf update -y
+
+      # Install basic tools (excluding golang - we'll install specific version)
+      dnf install -y \
+        @development-tools \
+        gcc \
+        make \
+        pkg-config \
+        libseccomp-devel \
+        procps-ng \
+        iproute \
+        util-linux \
+        strace \
+        curl \
+        git \
+        wget \
+        vim \
+        htop \
+        net-tools \
+        bind-utils
+
+      # Install Go 1.25.5
+      GO_VERSION="1.25.5"
+      GO_ARCH="arm64"  # aarch64 for Lima on Apple Silicon
+      GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+      GO_URL="https://go.dev/dl/${GO_TARBALL}"
+
+      echo "Downloading Go ${GO_VERSION} for linux-${GO_ARCH}..."
+      wget -q "${GO_URL}" -O "/tmp/${GO_TARBALL}"
+
+      echo "Installing Go to /usr/local/go..."
+      rm -rf /usr/local/go
+      tar -C /usr/local -xzf "/tmp/${GO_TARBALL}"
+      rm "/tmp/${GO_TARBALL}"
+
+      # Add Go to system-wide PATH
+      echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/golang.sh
+      chmod +x /etc/profile.d/golang.sh
+
+      # Verify Go installation
+      /usr/local/go/bin/go version
+
+      # Fix systemd-binfmt.service failures
+      # Fedora ships with QEMU binfmt configs but without qemu-user-static installed
+      # Since we don't need cross-architecture support, mask the service
+      systemctl mask systemd-binfmt.service
+
+      # Check kernel version
+      echo "Kernel version: $(uname -r)"
+
+      # Verify kernel is 6.14+
+      KERNEL_VERSION=$(uname -r | cut -d. -f1,2)
+      echo "Running kernel $KERNEL_VERSION"
+
+      echo "VM provisioning complete"
+      echo "MCP directory mounted at: /mcp"
+
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Set up user environment
+      # Add Go paths (system Go and user's Go bin directory)
+      echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+
+      # Change to /mcp directory on interactive shell login
+      echo 'cd /mcp 2>/dev/null || true' >> ~/.bashrc
+
+      # Create symlink for convenience
+      ln -sf /mcp ~/mcp
+
+      # Verify Go is accessible (directly from /usr/local/go/bin)
+      /usr/local/go/bin/go version
+
+      # Install Rust via rustup
+      if ! command -v rustc &> /dev/null; then
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source "$HOME/.cargo/env"
+      fi
+
+      # Verify installation
+      rustc --version
+      cargo --version
+
+      git clone https://github.com/scottopell/safe-shell.git ~/safe-shell
+      cd ~/safe-shell/sandbox && cargo build --release && sudo mv ./target/release/safe-shell /usr/local/bin/safe-shell
+      rm -rf ~/safe-shell
+      safe-shell --version
+
+      echo "User environment setup complete"
+      echo "To build MCP server: cd /mcp && go build -o ./bin/mcp-server ./cmd/mcp-server"
+
+# Port forwarding (for MCP server)
+portForwards:
+  - guestPort: 8080
+    hostPort: 8080
+    proto: tcp
+
+# Message to display when VM starts
+message: |
+  ┌──────────────────────────────────────────────────────────────────┐
+  │ MCP Evaluation VM (Fedora 42)                                    │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ MCP directory: /mcp                                              │
+  │ Build server:  cd /mcp && go build -o ./bin/mcp-server ./cmd/... │
+  │ Run server:    ./bin/mcp-server                                  │
+  │ Port forward:  8080 (host) -> 8080 (guest)                       │
+  ├──────────────────────────────────────────────────────────────────┤
+  │ Kernel: 6.14+ (Fedora 42)                                        │
+  └──────────────────────────────────────────────────────────────────┘
