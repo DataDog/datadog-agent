@@ -974,12 +974,12 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
-		log.Infof("JMW   early_exits: read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns)",
+		log.Infof("JMW   early_exit taken: read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns)",
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
 			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,
 			alreadyClassifiedCalls, avgAlreadyClassifiedTime)
-		log.Infof("JMW   full_classification: calls=%d (%.1f%%) (avg %.2fns)",
+		log.Infof("JMW   full_classification path taken: calls=%d (%.1f%%) (avg %.2fns)",
 			fullClassificationCalls,
 			float64(fullClassificationCalls)*100/float64(socketClassifierCalls),
 			avgFullClassificationTime)
@@ -996,14 +996,12 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		log.Infof("JMW   debug2 (cumulative): flag_set_but_not_classified=%d, has_app_layer_no_flag=%d",
 			flagSetButNotClassified, hasAppLayerNoFlag)
 
-		// Stack creation and protocol detection (cumulative)
-		stackCreatedEmpty := int64(ebpfTelemetry.Protocol_stack_created_empty_calls)
+		// Protocol detection (cumulative)
 		detectedHTTP := int64(ebpfTelemetry.Protocol_classifier_detected_http_calls)
 		detectedHTTP2 := int64(ebpfTelemetry.Protocol_classifier_detected_http2_calls)
 		detectedTLS := int64(ebpfTelemetry.Protocol_classifier_detected_tls_calls)
 		detectedUnknown := int64(ebpfTelemetry.Protocol_classifier_detected_unknown_calls)
 		markFullyClassified := int64(ebpfTelemetry.Protocol_classifier_mark_fully_classified_calls)
-		log.Infof("JMW   stack_creation (cumulative): created_empty=%d", stackCreatedEmpty)
 		log.Infof("JMW   protocol_detection (cumulative): http=%d, http2=%d, tls=%d, unknown=%d, mark_fully_classified=%d",
 			detectedHTTP, detectedHTTP2, detectedTLS, detectedUnknown, markFullyClassified)
 

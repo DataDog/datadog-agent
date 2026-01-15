@@ -67,6 +67,42 @@ static __always_inline void update_protocol_information(classification_context_t
     classification_ctx->routing_skip_layers |= proto;
 }
 
+// Helper to record classification attempt histogram when a connection becomes fully classified
+static __always_inline void record_classification_attempt_histogram(__u32 attempts) {
+    if (attempts == 0) {
+        return;
+    }
+    if (attempts == 1) {
+        increment_telemetry_count(protocol_classifier_classified_after_1_attempt);
+    } else if (attempts == 2) {
+        increment_telemetry_count(protocol_classifier_classified_after_2_attempts);
+    } else if (attempts == 3) {
+        increment_telemetry_count(protocol_classifier_classified_after_3_attempts);
+    } else {
+        increment_telemetry_count(protocol_classifier_classified_after_4_plus_attempts);
+    }
+}
+
+// Helper to track when mark_as_fully_classified is called and record the attempt histogram
+static __always_inline void mark_as_fully_classified_with_telemetry(protocol_stack_t *stack, conn_tuple_t *tuple) {
+    if (!stack) {
+        return;
+    }
+    
+    // Only record telemetry if this is the first time we're marking as fully classified
+    if (!(stack->flags & FLAG_FULLY_CLASSIFIED)) {
+        increment_telemetry_count(protocol_classifier_mark_fully_classified_calls);
+        
+        // Record the histogram of classification attempts
+        protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(tuple);
+        if (wrapper) {
+            record_classification_attempt_histogram(wrapper->classification_attempts);
+        }
+    }
+    
+    stack->flags |= FLAG_FULLY_CLASSIFIED;
+}
+
 // Check if the connections is used for gRPC traffic.
 static __always_inline void classify_grpc(classification_context_t *classification_ctx, protocol_stack_t *protocol_stack, struct __sk_buff *skb, skb_info_t *skb_info) {
     grpc_status_t status = is_grpc(skb, skb_info);
@@ -140,42 +176,6 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
         } \
     } while(0)
 
-// Helper to record classification attempt histogram when a connection becomes fully classified
-static __always_inline void record_classification_attempt_histogram(__u16 attempts) {
-    if (attempts == 0) {
-        return;
-    }
-    if (attempts == 1) {
-        increment_telemetry_count(protocol_classifier_classified_after_1_attempt);
-    } else if (attempts == 2) {
-        increment_telemetry_count(protocol_classifier_classified_after_2_attempts);
-    } else if (attempts == 3) {
-        increment_telemetry_count(protocol_classifier_classified_after_3_attempts);
-    } else {
-        increment_telemetry_count(protocol_classifier_classified_after_4_plus_attempts);
-    }
-}
-
-// Helper to track when mark_as_fully_classified is called and record the attempt histogram
-static __always_inline void mark_as_fully_classified_with_telemetry(protocol_stack_t *stack, conn_tuple_t *tuple) {
-    if (!stack) {
-        return;
-    }
-    
-    // Only record telemetry if this is the first time we're marking as fully classified
-    if (!(stack->flags & FLAG_FULLY_CLASSIFIED)) {
-        increment_telemetry_count(protocol_classifier_mark_fully_classified_calls);
-        
-        // Record the histogram of classification attempts
-        protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(tuple);
-        if (wrapper) {
-            record_classification_attempt_histogram(wrapper->classification_attempts);
-        }
-    }
-    
-    stack->flags |= FLAG_FULLY_CLASSIFIED;
-}
-
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
     // Capture start time for timing metrics
@@ -237,7 +237,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // Increment classification attempts for this connection (only if we're doing actual classification work)
-    __u16 attempts = increment_classification_attempts(&classification_ctx->tuple);
+    __u32 attempts = increment_classification_attempts(&classification_ctx->tuple);
 
     // Check if we've exceeded max classification attempts - if so, give up and mark as fully classified
     // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)

@@ -175,8 +175,6 @@ typedef struct {
     // socket classifier entry timing metrics
     __u64 socket_classifier_entry_calls;
     __u64 socket_classifier_entry_time_ns;
-    // Stack creation tracking
-    __u64 protocol_stack_created_empty_calls;
     // Classification outcome tracking
     __u64 protocol_classifier_detected_http_calls;
     __u64 protocol_classifier_detected_http2_calls;

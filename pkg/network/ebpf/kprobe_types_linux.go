@@ -107,7 +107,6 @@ type Telemetry struct {
 	Protocol_classifier_entrypoint_empty_stack_calls                 uint64
 	Socket_classifier_entry_calls                                    uint64
 	Socket_classifier_entry_time_ns                                  uint64
-	Protocol_stack_created_empty_calls                               uint64
 	Protocol_classifier_detected_http_calls                          uint64
 	Protocol_classifier_detected_http2_calls                         uint64
 	Protocol_classifier_detected_tls_calls                           uint64
@@ -145,6 +144,8 @@ type ProtocolStack struct {
 type ProtocolStackWrapper struct {
 	Updated   uint64
 	Stack     ProtocolStack
+	Attempts  uint32
+	X_pad     uint32
 	Pad_cgo_0 [4]byte
 }
 type TLSTags struct {

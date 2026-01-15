@@ -4,7 +4,6 @@
 #include "map-defs.h"
 #include "port_range.h"
 #include "protocols/classification/stack-helpers.h"
-#include "tracer/telemetry.h"
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
@@ -60,13 +59,15 @@ static __always_inline protocol_stack_wrapper_t* get_protocol_stack_wrapper_if_e
 }
 
 // Increment classification attempts for a connection and return the new count
-static __always_inline __u16 increment_classification_attempts(conn_tuple_t* tuple) {
+static __always_inline __u32 increment_classification_attempts(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(tuple);
     if (!wrapper) {
         return 0;
     }
-    // Use atomic increment to handle concurrent access
-    return __sync_fetch_and_add(&wrapper->classification_attempts, 1) + 1;
+    // Atomic add (older BPF doesn't support using the return value of XADD directly)
+    __sync_fetch_and_add(&wrapper->classification_attempts, 1);
+    // Read the value after increment
+    return wrapper->classification_attempts;
 }
 
 // Returns the protocol_stack_t associated with the given connection tuple.
@@ -89,9 +90,6 @@ static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple
 
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
-
-    // Track that we're creating an empty stack
-    increment_telemetry_count(protocol_stack_created_empty_calls);
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
