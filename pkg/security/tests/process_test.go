@@ -538,7 +538,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, argv[i], "expected arg not found")
+					if !assert.Equal(t, expected, argv[i], "expected arg not found") {
+						fmt.Printf("got args: %s, expected args: %s\n", argv, expected)
+					}
 				}
 			} else {
 				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
@@ -547,7 +549,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = args[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, argv[i], "expected arg not found")
+					if !assert.Equal(t, expected, argv[i], "expected arg not found") {
+						fmt.Printf("got args: %s, expected args: %s\n", argv, expected)
+					}
 				}
 			}
 
@@ -642,7 +646,9 @@ func TestProcessContext(t *testing.T) {
 			if ebpfLessEnabled {
 				assert.Equal(t, sharedconsts.MaxArgsEnvsSize, len(envp), "incorrect number of envs: %s", envp)
 				for i := 0; i != sharedconsts.MaxArgsEnvsSize; i++ {
-					assert.Equal(t, envs[i], envp[i], "expected env not found")
+					if !assert.Equal(t, envs[i], envp[i], "expected env not found") {
+						fmt.Printf("got env: %s, expected env: %s\n", envp, envs)
+					}
 				}
 			} else {
 				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
@@ -705,7 +711,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, envp[i], "expected env not found")
+					if !assert.Equal(t, expected, envp[i], "expected env not found") {
+						fmt.Printf("got envs : %s, expected env: %s\n", envp, envs)
+					}
 				}
 			} else {
 				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
@@ -714,7 +722,9 @@ func TestProcessContext(t *testing.T) {
 					if len(expected) > sharedconsts.MaxArgEnvSize {
 						expected = envs[i][:sharedconsts.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
 					}
-					assert.Equal(t, expected, envp[i], "expected env not found")
+					if !assert.Equal(t, expected, envp[i], "expected env not found") {
+						fmt.Printf("got envs : %s, expected env: %s\n", envp, envs)
+					}
 				}
 			}
 
