@@ -452,6 +452,132 @@ func TestApproversSetSockOpt(t *testing.T) {
 	}
 }
 
+func TestApproverFlagsRdOnlyScalar(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags == O_RDONLY`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_RDONLY, valueInt, "expected O_RDONLY, got %d", valueInt)
+	assert.Equal(t, eval.ScalarValueType, approvers["open.flags"][0].Type)
+}
+
+func TestApproverFlagsRdOnlyWithMask(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags & O_ACCMODE == O_RDONLY`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_RDONLY, valueInt, "expected O_RDONLY, got %d", valueInt)
+	assert.Equal(t, eval.ScalarValueType, approvers["open.flags"][0].Type)
+}
+
+func TestApproverFlagsMixedScalarAndMask(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `(open.flags & O_CREAT > 0)`, `(open.flags & O_ACCMODE == O_RDONLY)`)
+
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 2 {
+		t.Fatalf("expected 2 approvers, found: %v", values)
+	}
+
+	// Should have both a bitmask approver for O_CREAT and a scalar approver for O_RDONLY
+	var hasBitmaskApprover, hasScalarApprover bool
+	for _, value := range approvers["open.flags"] {
+		if value.Type == eval.BitmaskValueType {
+			hasBitmaskApprover = true
+			if value.Value.(int) != unix.O_CREAT {
+				t.Fatalf("expected O_CREAT bitmask approver, got %v", value.Value)
+			}
+		}
+		if value.Type == eval.ScalarValueType {
+			hasScalarApprover = true
+			if value.Value != unix.O_RDONLY {
+				t.Fatalf("expected O_RDONLY scalar approver, got %v", value.Value)
+			}
+		}
+	}
+
+	assert.Truef(t, hasBitmaskApprover, "expected bitmask approver for O_CREAT")
+	assert.Truef(t, hasScalarApprover, "expected scalar approver for O_RDONLY")
+}
+
+func TestApproverFlagsZeroValueFlag(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.flags & (O_CREAT|O_RDONLY) > 0`)
+	capabilities, exists := allCapabilities["open"]
+	if !exists {
+		t.Fatal("no capabilities for open")
+	}
+	approvers, _, _, err := rs.GetEventTypeApprovers("open", capabilities)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values, exists := approvers["open.flags"]; !exists || len(values) != 1 {
+		t.Fatalf("expected approver not found: %v", values)
+	}
+
+	valueInt, ok := approvers["open.flags"][0].Value.(int)
+	if !ok {
+		t.Fatalf("expected int value, got %v", approvers["open.flags"][0].Value)
+	}
+
+	assert.Equal(t, unix.O_CREAT, valueInt, "expected O_CREAT, got %d", valueInt)
+	assert.Equal(t, eval.BitmaskValueType, approvers["open.flags"][0].Type)
+}
+
 func TestLastApproverEventType(t *testing.T) {
 	approversCopy := maps.Clone(KFilterGetters)
 
