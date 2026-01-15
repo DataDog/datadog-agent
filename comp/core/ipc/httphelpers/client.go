@@ -9,7 +9,6 @@ package httphelpers
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -68,36 +67,18 @@ func NewClient(authToken string, clientTLSConfig *tls.Config, config pkgconfigmo
 		}
 	} else {
 		clone := tr.Clone()
-		clone.DialContext = udsDialContext()
+		clone.DialContext = func(_ context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial("unix", config.GetString("agent_ipc.socket_path"))
+		}
 		udsRoundTripper := roundTripAdapter(clone)
 
-		tr.RegisterProtocol("http+unix", udsRoundTripper)
+		tr.RegisterProtocol("https+unix", udsRoundTripper)
 	}
 
 	return &ipcClient{
 		innerClient: http.Client{Transport: tr},
 		authToken:   authToken,
 		config:      config,
-	}
-}
-
-type dialContextWrapper (func(ctx context.Context, network, address string) (net.Conn, error))
-
-func udsDialContext() dialContextWrapper {
-	return func(ctx context.Context, network, address string) (net.Conn, error) {
-		defaultDialContext := (&net.Dialer{}).DialContext
-
-		host, _, err := net.SplitHostPort(address)
-		if err != nil {
-			host = address
-		}
-
-		filepath, err := base64.RawURLEncoding.DecodeString(host)
-		if err == nil {
-			network, address = "unix", string(filepath)
-		}
-
-		return defaultDialContext(ctx, network, address)
 	}
 }
 
@@ -118,13 +99,8 @@ func roundTripAdapter(next http.RoundTripper) http.RoundTripper {
 			return nil, fmt.Errorf("ipc client: unix socket: : missing '+unix' suffix in scheme %s", req.URL.Scheme)
 		}
 
-		socketPath, requestPath, _ := strings.Cut(req.URL.Path, ":")
-		encodedHost := base64.RawURLEncoding.EncodeToString([]byte(socketPath))
-
 		req = req.Clone(req.Context())
 		req.URL.Scheme = scheme
-		req.URL.Host = encodedHost
-		req.URL.Path = requestPath
 
 		return next.RoundTrip(req)
 	})
