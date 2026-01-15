@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package listener supports platform specific net.Listener implementations for IPC Server creation
 package listener
 
 import (
