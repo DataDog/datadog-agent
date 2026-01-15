@@ -30,6 +30,7 @@ var (
 		"NOMAD_JOB_NAME",
 		"NOMAD_NAMESPACE",
 		"NOMAD_TASK_NAME",
+		"NVIDIA_VISIBLE_DEVICES", // included for GPU device extraction
 		"OTEL_RESOURCE_ATTRIBUTES",
 		"OTEL_SERVICE_NAME",
 		"TEST_ENV", // Included to ease unit tests without requiring a mock
