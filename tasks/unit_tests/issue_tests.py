@@ -1,9 +1,10 @@
+import types
 import unittest
 from unittest.mock import MagicMock, patch
 
 from invoke.context import MockContext, Result
 
-from tasks.issue import add_reviewers
+from tasks.issue import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_REVIEW_MAP, add_reviewers, ask_reviews
 
 
 class TestAddReviewers(unittest.TestCase):
@@ -134,3 +135,137 @@ tasks/unit_tests/testdata/add_reviewers/new-e2e/fake.go""")
                 'agent-e2e-testing',
             ],
         )
+
+
+class TestAskReviews(unittest.TestCase):
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.ask_review_actor')
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    def test_ask_reviews_nominal(self, slack_mock, gh_mock, ask_review_actor_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.title = "This is a feature"
+        pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
+        pr_mock.user.login = "someuser"
+        pr_mock.html_url = "https://github.com/foo/bar/pull/1"
+        pr_mock.title = "Nominal PR"
+
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+        ask_review_actor_mock.return_value = "actor"
+
+        emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2', 'microwave': 'urlx'}}
+        slack_client = MagicMock()
+        slack_client.emoji_list.return_value = types.SimpleNamespace(data=emoji_list)
+        slack_mock.return_value = slack_client
+
+        # Fill GITHUB_SLACK_REVIEW_MAP to have separate channels for each team
+        GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
+        GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
+
+        ask_reviews(MockContext(), 5)
+        channels = [call.kwargs['channel'] for call in slack_client.chat_postMessage.mock_calls]
+        self.assertIn('channel1', channels)
+        self.assertIn('channel2', channels)
+        self.assertEqual(len(slack_client.chat_postMessage.mock_calls), 2)  # 2 teams
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.ask_review_actor')
+    @patch('tasks.issue.GithubAPI')
+    def test_ask_reviews_backport(self, gh_mock, ask_review_actor_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.title = "Backport: fix issue 123"
+        pr_mock.get_labels.return_value = [MagicMock(name='ask-review')]
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+
+        ask_review_actor_mock.return_value = "actor"
+
+        ask_reviews(MockContext(), 6)
+        print_mock.assert_any_call("This is a backport PR, we don't need to ask for reviews.")
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {
+            'PR_REQUESTED_TEAMS': '[{"slug": "newteam1"}, {"slug": "newteam2"}]',
+            'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token',
+        },
+    )
+    @patch('tasks.issue.ask_review_actor')
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    def test_ask_reviews_default_channel(self, slack_mock, gh_mock, ask_review_actor_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.title = "Title"
+        pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
+        pr_mock.user.login = "frank"
+        pr_mock.html_url = "http://foo"
+        pr_mock.title = "PR with reviewers on DEFAULT_SLACK_CHANNEL"
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+        ask_review_actor_mock.return_value = "actor"
+
+        emoji_list = {'emoji': {'wave': 'url1'}}
+        slack_client = MagicMock()
+        slack_client.emoji_list.return_value = types.SimpleNamespace(data=emoji_list)
+        slack_mock.return_value = slack_client
+
+        # Remove mapping so both go to default
+        from tasks.issue import GITHUB_SLACK_REVIEW_MAP
+
+        GITHUB_SLACK_REVIEW_MAP.clear()
+
+        ask_reviews(MockContext(), 7)
+
+        slack_client.chat_postMessage.assert_called_once()
+        args, kwargs = slack_client.chat_postMessage.call_args
+        assert kwargs['channel'] == DEFAULT_SLACK_CHANNEL
+        assert "A review channel is missing" in kwargs['text']
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'PR_REQUESTED_TEAMS': '[{"slug": "teamx"}, {"slug": "teamy"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.ask_review_actor')
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    def test_ask_reviews_same_slack_channel(self, slack_mock, gh_mock, ask_review_actor_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.title = "Some PR"
+        pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
+        pr_mock.user.login = "integrationbot"
+        pr_mock.html_url = "http://foo"
+        pr_mock.title = "Test"
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+        ask_review_actor_mock.return_value = "actor"
+
+        emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2'}}
+        slack_client = MagicMock()
+        slack_client.emoji_list.return_value = types.SimpleNamespace(data=emoji_list)
+        slack_mock.return_value = slack_client
+
+        # Map both teams to the same channel
+        GITHUB_SLACK_REVIEW_MAP['@datadog/teamx'] = 'chan-shared'
+        GITHUB_SLACK_REVIEW_MAP['@datadog/teamy'] = 'chan-shared'
+
+        ask_reviews(MockContext(), 8)
+
+        # Only one message for the shared channel, mentioning both reviewers
+        slack_client.chat_postMessage.assert_called_once()
+        args, kwargs = slack_client.chat_postMessage.call_args
+        self.assertEqual(kwargs['channel'], 'chan-shared')

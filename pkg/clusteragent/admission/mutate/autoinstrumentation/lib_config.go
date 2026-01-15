@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -56,7 +57,7 @@ type libConfigInjector struct{}
 
 func (l *libConfigInjector) podMutator(lang language) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		config, found := GetAnnotation(pod, AnnotationLibraryConfigV1.Format(string(lang)))
+		config, found := annotation.Get(pod, annotation.LibraryConfigV1.Format(string(lang)))
 		if !found {
 			return nil
 		}

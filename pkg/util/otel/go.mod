@@ -16,7 +16,7 @@ require (
 
 require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
-	go.opentelemetry.io/collector/featuregate v1.48.0 // indirect
+	go.opentelemetry.io/collector/featuregate v1.49.0 // indirect
 )
 
 require (
@@ -25,8 +25,8 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	go.opentelemetry.io/collector/component v1.48.0 // indirect
-	go.opentelemetry.io/collector/pdata v1.48.0 // indirect
+	go.opentelemetry.io/collector/component v1.49.0 // indirect
+	go.opentelemetry.io/collector/pdata v1.49.0 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
