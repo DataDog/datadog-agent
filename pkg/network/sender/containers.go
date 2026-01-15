@@ -17,6 +17,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,6 +26,16 @@ import (
 const (
 	cacheValidityNoRT = 2 * time.Second
 )
+
+const containerResolverSubsystem = "sender__container_resolver"
+
+var containerResolverTelemetry = struct {
+	addressCount telemetry.Gauge
+	pidCount     telemetry.Gauge
+}{
+	telemetry.NewGauge(containerResolverSubsystem, "address_count", nil, ""),
+	telemetry.NewGauge(containerResolverSubsystem, "pid_count", nil, ""),
+}
 
 type connKey struct {
 	laddr, raddr netip.AddrPort
@@ -127,6 +138,9 @@ func (r *containerResolver) process(eventBundle workloadmeta.EventBundle) {
 			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
 		}
 	}
+
+	containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
+	containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 }
 
 func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connections) {
@@ -139,6 +153,8 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		maps.DeleteFunc(r.pidToContainerID, func(_ uint32, id containerID) bool {
 			return !id.alive
 		})
+		containerResolverTelemetry.addressCount.Set(float64(len(r.addrToContainerID)))
+		containerResolverTelemetry.pidCount.Set(float64(len(r.pidToContainerID)))
 	}()
 
 	containerIDByConnection := make(map[connKey]*intern.Value, len(conns.Conns))
