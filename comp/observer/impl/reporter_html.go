@@ -24,9 +24,14 @@ func parseInt64(s string) (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-// sanitizeFloat replaces Inf and NaN with 0 for JSON compatibility.
+// sanitizeFloat replaces Inf, NaN, and extremely large values with 0 for JSON compatibility.
+// Extremely large values (> 1e15) can cause Chart.js to crash.
 func sanitizeFloat(v float64) float64 {
 	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return 0
+	}
+	// Cap extremely large values to prevent Chart.js crashes
+	if v > 1e15 || v < -1e15 {
 		return 0
 	}
 	return v
@@ -110,12 +115,15 @@ func (r *HTMLReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
 func (r *HTMLReporter) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", r.handleDashboard)
+	mux.HandleFunc("/graph", r.handleGraphPage)
 	mux.HandleFunc("/api/reports", r.handleAPIReports)
 	mux.HandleFunc("/api/series", r.handleAPISeries)
 	mux.HandleFunc("/api/series/list", r.handleAPISeriesList)
 	mux.HandleFunc("/api/series/batch", r.handleAPISeriesBatch)
 	mux.HandleFunc("/api/correlations", r.handleAPICorrelations)
 	mux.HandleFunc("/api/raw-anomalies", r.handleAPIRawAnomalies)
+	mux.HandleFunc("/api/graphsketch/edges", r.handleAPIGraphSketchEdges)
+	mux.HandleFunc("/api/graphsketch/stats", r.handleAPIGraphSketchStats)
 
 	r.server = &http.Server{
 		Addr:    addr,
@@ -1186,3 +1194,288 @@ func (r *HTMLReporter) handleAPIRawAnomalies(w http.ResponseWriter, req *http.Re
 		return
 	}
 }
+
+// handleGraphPage serves the dedicated GraphSketch visualization page.
+func (r *HTMLReporter) handleGraphPage(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(graphPageHTML))
+}
+
+// handleAPIGraphSketchEdges returns learned edges from GraphSketchCorrelator.
+func (r *HTMLReporter) handleAPIGraphSketchEdges(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
+	correlationState := r.correlationState
+	r.mu.RUnlock()
+
+	var edges []map[string]interface{}
+
+	// Type-assert to GraphSketchCorrelator to access edges
+	if gsCorrelator, ok := correlationState.(*GraphSketchCorrelator); ok {
+		learnedEdges := gsCorrelator.GetLearnedEdges()
+		edges = make([]map[string]interface{}, 0, len(learnedEdges))
+		for _, e := range learnedEdges {
+			edges = append(edges, map[string]interface{}{
+				"source1":      e.Source1,
+				"source2":      e.Source2,
+				"observations": e.Observations,
+				"frequency":    e.Frequency,
+			})
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(edges); err != nil {
+		log.Printf("[500] /api/graphsketch/edges: failed to encode: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// handleAPIGraphSketchStats returns statistics from GraphSketchCorrelator.
+func (r *HTMLReporter) handleAPIGraphSketchStats(w http.ResponseWriter, req *http.Request) {
+	r.mu.RLock()
+	correlationState := r.correlationState
+	r.mu.RUnlock()
+
+	stats := map[string]interface{}{
+		"correlator_type": "unknown",
+		"available":       false,
+	}
+
+	// Type-assert to GraphSketchCorrelator to access stats
+	if gsCorrelator, ok := correlationState.(*GraphSketchCorrelator); ok {
+		stats = gsCorrelator.GetStats()
+		stats["correlator_type"] = "graphsketch"
+		stats["available"] = true
+	} else if correlationState != nil {
+		stats["correlator_type"] = "other"
+		stats["available"] = false
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		log.Printf("[500] /api/graphsketch/stats: failed to encode: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// graphPageHTML is the dedicated graph visualization page.
+const graphPageHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>GraphSketch Correlation Graph</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            background: #0f172a; 
+            color: #e2e8f0; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        a { color: #8b5cf6; text-decoration: none; font-size: 0.85em; }
+        a:hover { text-decoration: underline; }
+        h1 { color: #c4b5fd; font-size: 1.4em; margin: 8px 0 4px 0; }
+        #stats { color: #6b7280; font-size: 0.85em; margin-bottom: 15px; }
+        #graph-svg { 
+            width: 100%; 
+            height: 600px; 
+            background: #1e293b; 
+            border-radius: 8px;
+        }
+        .legend {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 10px 0;
+            font-size: 0.8em;
+            color: #9ca3af;
+        }
+        .legend-item { display: flex; align-items: center; gap: 5px; }
+        .legend-line { width: 30px; height: 3px; }
+        h2 { color: #f87171; font-size: 1.1em; margin: 20px 0 10px 0; }
+        .edge-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 2px 15px;
+            font-size: 0.8em;
+        }
+        .edge-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+        .edge-src { color: #9ca3af; max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+        .edge-arrow { color: #6b7280; flex-shrink: 0; }
+        .edge-freq { font-weight: bold; flex-shrink: 0; }
+        .edge-raw { color: #4b5563; font-size: 0.9em; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <a href="/">← Back to Dashboard</a>
+    <h1>GraphSketch Correlation Graph</h1>
+    <div id="stats">Loading...</div>
+    <svg id="graph-svg"></svg>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-line" style="background: #fbbf24;"></div> Weak</div>
+        <div class="legend-item"><div class="legend-line" style="background: #f97316;"></div> Medium</div>
+        <div class="legend-item"><div class="legend-line" style="background: #dc2626;"></div> Strong</div>
+    </div>
+    <h2>All Edges (sorted by strength)</h2>
+    <div id="edge-grid" class="edge-grid"></div>
+
+    <script>
+        let edges = [];
+        let stats = {};
+
+        async function fetchData() {
+            try {
+                const [edgesResp, statsResp] = await Promise.all([
+                    fetch('/api/graphsketch/edges'),
+                    fetch('/api/graphsketch/stats')
+                ]);
+                edges = await edgesResp.json() || [];
+                stats = await statsResp.json() || {};
+                render();
+            } catch (e) {
+                console.error('Failed to fetch:', e);
+            }
+        }
+
+        function render() {
+            if (!stats.available) {
+                document.getElementById('stats').textContent = 'GraphSketch Correlator not active. Use -graphsketch-correlator flag.';
+                return;
+            }
+            
+            document.getElementById('stats').textContent = 
+                edges.length + ' edges, ' + (stats.unique_sources || 0) + ' sources, ' +
+                (stats.total_observations || 0) + ' observations';
+            
+            renderGraph();
+            renderEdgeGrid();
+        }
+
+        function renderGraph() {
+            const svg = document.getElementById('graph-svg');
+            if (!edges || edges.length === 0) {
+                svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#6b7280">Waiting for co-occurring anomalies...</text>';
+                return;
+            }
+
+            const rect = svg.getBoundingClientRect();
+            const width = rect.width || 800;
+            const height = 600;
+
+            const nodeSet = new Set();
+            edges.forEach(e => { nodeSet.add(e.source1); nodeSet.add(e.source2); });
+            const nodes = Array.from(nodeSet);
+
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const radius = Math.min(width, height) * 0.38;
+            const positions = {};
+            nodes.forEach((node, i) => {
+                const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+                positions[node] = {
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle),
+                    label: node.split(':')[0]
+                };
+            });
+
+            let maxFreq = 1;
+            edges.forEach(e => { if (e.frequency > maxFreq) maxFreq = e.frequency; });
+
+            const sortedEdges = [...edges].sort((a, b) => a.frequency - b.frequency);
+
+            let svgContent = '';
+
+            sortedEdges.forEach(edge => {
+                const p1 = positions[edge.source1];
+                const p2 = positions[edge.source2];
+                if (!p1 || !p2) return;
+
+                const ratio = edge.frequency / maxFreq;
+                const thickness = 1 + ratio * ratio * 10;
+                const opacity = 0.3 + ratio * ratio * 0.7;
+
+                let r, g, b;
+                if (ratio < 0.5) {
+                    r = 251; g = Math.round(191 - ratio * 2 * 80); b = Math.round(36 - ratio * 2 * 19);
+                } else {
+                    const t = (ratio - 0.5) * 2;
+                    r = Math.round(251 - t * 31); g = Math.round(111 - t * 73); b = Math.round(17 + t * 21);
+                }
+
+                svgContent += '<line x1="' + p1.x + '" y1="' + p1.y + '" x2="' + p2.x + '" y2="' + p2.y + '" ' +
+                    'stroke="rgb(' + r + ',' + g + ',' + b + ')" stroke-width="' + thickness + '" stroke-opacity="' + opacity + '"/>';
+            });
+
+            nodes.forEach((node, i) => {
+                const pos = positions[node];
+                const angle = (2 * Math.PI * i) / nodes.length - Math.PI / 2;
+                svgContent += '<circle cx="' + pos.x + '" cy="' + pos.y + '" r="12" fill="#8b5cf6" stroke="#fff" stroke-width="2"/>';
+                
+                const lx = centerX + (radius + 22) * Math.cos(angle);
+                const ly = centerY + (radius + 22) * Math.sin(angle);
+                const anchor = Math.cos(angle) > 0.3 ? 'start' : (Math.cos(angle) < -0.3 ? 'end' : 'middle');
+                svgContent += '<text x="' + lx + '" y="' + ly + '" fill="#9ca3af" font-size="10" text-anchor="' + anchor + '" dominant-baseline="middle">' + pos.label + '</text>';
+            });
+
+            svg.innerHTML = svgContent;
+        }
+
+        function renderEdgeGrid() {
+            const grid = document.getElementById('edge-grid');
+            if (!edges || edges.length === 0) {
+                grid.innerHTML = '';
+                return;
+            }
+
+            const sortedEdges = [...edges].sort((a, b) => b.frequency - a.frequency);
+
+            let maxFreq = 1;
+            sortedEdges.forEach(e => { if (e.frequency > maxFreq) maxFreq = e.frequency; });
+
+            // Shorten source names - get last meaningful part
+            function shorten(s) {
+                const parts = s.split(':');
+                const name = parts[0];
+                // Remove common prefixes
+                return name.replace(/^(cgroup\.v2\.|smaps_rollup\.|smaps\.)/, '');
+            }
+
+            let html = '';
+            sortedEdges.forEach(edge => {
+                const pct = Math.min(100, (edge.frequency / maxFreq) * 100);
+                const color = pct < 50 ? '#fbbf24' : (pct < 75 ? '#f97316' : '#dc2626');
+                const s1 = shorten(edge.source1);
+                const s2 = shorten(edge.source2);
+                // Format frequency with appropriate precision
+                const freqStr = edge.frequency >= 1000 ? edge.frequency.toFixed(1) : 
+                               edge.frequency >= 100 ? edge.frequency.toFixed(2) : 
+                               edge.frequency.toFixed(3);
+                html += '<div class="edge-row">' +
+                    '<span class="edge-src" title="' + edge.source1 + '">' + s1 + '</span>' +
+                    '<span class="edge-arrow">—</span>' +
+                    '<span class="edge-src" title="' + edge.source2 + '">' + s2 + '</span>' +
+                    '<span class="edge-freq" style="color:' + color + '">' + freqStr + '</span>' +
+                    '<span class="edge-raw">(' + edge.observations + 'x)</span>' +
+                    '</div>';
+            });
+            grid.innerHTML = html;
+        }
+
+        fetchData();
+        setInterval(fetchData, 3000);
+    </script>
+</body>
+</html>
+`
