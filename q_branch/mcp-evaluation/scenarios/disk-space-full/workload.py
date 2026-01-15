@@ -26,7 +26,7 @@ def main():
     log("Archive manager started")
 
     # Create output directory
-    output_dir = "/tmp/scenario_logs"
+    output_dir = "/tmp/data_archives"
     os.makedirs(output_dir, exist_ok=True)
 
     file_count = 0
