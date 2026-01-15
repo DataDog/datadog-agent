@@ -42,7 +42,7 @@ type globalStreamKey struct {
 type streamCollection struct {
 	streams       sync.Map // map[streamKey]*StreamHandler
 	globalStreams sync.Map // map[globalStreamKey]*StreamHandler
-	sysCtx        *SystemContext
+	sysCtx        *systemContext
 	telemetry     *streamTelemetry
 	streamConfig  config.StreamConfig
 }
@@ -62,7 +62,7 @@ type streamTelemetry struct {
 	rejectedSpans            telemetry.Counter
 }
 
-func newStreamCollection(sysCtx *SystemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
+func newStreamCollection(sysCtx *systemContext, telemetry telemetry.Component, config *config.Config) *streamCollection {
 	return &streamCollection{
 		sysCtx:       sysCtx,
 		telemetry:    newStreamTelemetry(telemetry),
@@ -107,7 +107,7 @@ func (sc *streamCollection) getGlobalStream(header *gpuebpf.CudaEventHeader) (*S
 	// Global streams depend on which GPU is active when they are used, so we need to get the current active GPU device
 	// The expensive step here is the container ID parsing, but we don't always need to do it so we pass a function
 	// that can be called to retrieve it only when needed
-	device, err := sc.sysCtx.GetCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
+	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
 	if err != nil {
 		sc.telemetry.missingDevices.Inc()
 		return nil, err
@@ -178,7 +178,7 @@ func (sc *streamCollection) getActiveDeviceStreams(header *gpuebpf.CudaEventHead
 	pid, tid := getPidTidFromHeader(header)
 	cacher := sc.getHeaderContainerCache(header)
 
-	device, err := sc.sysCtx.GetCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
+	device, err := sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), cacher.containerID)
 	if err != nil {
 		sc.telemetry.missingDevices.Inc()
 		return nil, err
@@ -225,7 +225,7 @@ func (sc *streamCollection) createStreamHandler(header *gpuebpf.CudaEventHeader,
 
 	if device == nil {
 		var err error
-		device, err = sc.sysCtx.GetCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
+		device, err = sc.sysCtx.getCurrentActiveGpuDevice(int(pid), int(tid), containerIDFunc)
 		if err != nil {
 			if logLimitProbe.ShouldLog() {
 				log.Warnf("error getting GPU device for process %d: %s", pid, err)

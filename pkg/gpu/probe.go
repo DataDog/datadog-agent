@@ -117,7 +117,7 @@ type Probe struct {
 	attacher           *uprobes.UprobeAttacher
 	statsGenerator     *statsGenerator
 	deps               ProbeDependencies
-	sysCtx             *SystemContext
+	sysCtx             *systemContext
 	eventHandler       ddebpf.EventHandler
 	telemetry          *probeTelemetry
 	mapCleanerEvents   *ddebpf.MapCleaner[gpuebpf.CudaEventKey, gpuebpf.CudaEventValue]
@@ -152,10 +152,10 @@ func NewProbe(cfg *config.Config, deps ProbeDependencies) (*Probe, error) {
 		return nil, fmt.Errorf("%s probe supports CO-RE or Runtime Compilation modes, but none of them are enabled", sysconfig.GPUMonitoringModule)
 	}
 
-	sysCtx, err := GetSystemContext(
-		WithProcRoot(cfg.ProcRoot),
-		WithWorkloadMeta(deps.WorkloadMeta),
-		WithTelemetry(deps.Telemetry),
+	sysCtx, err := getSystemContext(
+		withProcRoot(cfg.ProcRoot),
+		withWorkloadMeta(deps.WorkloadMeta),
+		withTelemetry(deps.Telemetry),
 		withFatbinParsingEnabled(cfg.EnableFatbinParsing),
 		withConfig(cfg),
 	)

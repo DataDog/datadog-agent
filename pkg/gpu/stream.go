@@ -37,7 +37,7 @@ type StreamHandler struct {
 	pendingKernelSpans  chan *kernelSpan                       // holds already finalized kernel spans that still need to be collected
 	pendingMemorySpans  chan *memorySpan                       // holds already finalized memory allocations that still need to be collected
 	ended               bool                                   // A marker to indicate that the stream has ended, and this handler should be flushed
-	sysCtx              *SystemContext
+	sysCtx              *systemContext
 	config              config.StreamConfig
 	telemetry           *streamTelemetry // shared telemetry objects for stream-specific telemetry
 	lastEventKtimeNs    uint64           // The kernel-time timestamp of the last event processed by this handler
@@ -186,7 +186,7 @@ func (e *enrichedKernelLaunch) getKernelData() (*cuda.CubinKernel, error) {
 	return e.kernel, e.err
 }
 
-func newStreamHandler(metadata streamMetadata, sysCtx *SystemContext, config config.StreamConfig, telemetry *streamTelemetry) (*StreamHandler, error) {
+func newStreamHandler(metadata streamMetadata, sysCtx *systemContext, config config.StreamConfig, telemetry *streamTelemetry) (*StreamHandler, error) {
 	sh := &StreamHandler{
 		sysCtx:    sysCtx,
 		metadata:  metadata,

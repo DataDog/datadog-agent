@@ -65,7 +65,7 @@ func withTelemetryMock(tm telemetry.Component) testConsumerOpt {
 }
 
 // newTestCudaEventConsumer creates a cudaEventConsumer with test mocks for ProcessMonitor and RingFlusher.
-func newTestCudaEventConsumer(t testing.TB, ctx *SystemContext, cfg *config.Config, handlers *streamCollection, opts ...testConsumerOpt) *cudaEventConsumer {
+func newTestCudaEventConsumer(t testing.TB, ctx *systemContext, cfg *config.Config, handlers *streamCollection, opts ...testConsumerOpt) *cudaEventConsumer {
 	options := &testConsumerOpts{
 		telemetry: testutil.GetTelemetryMock(t),
 	}
@@ -184,10 +184,10 @@ func BenchmarkConsumer(b *testing.B) {
 		}
 		b.Run(name, func(b *testing.B) {
 			ddnvml.WithMockNVML(b, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
-			ctx, err := GetSystemContext(
-				WithProcRoot(kernel.ProcFSRoot()),
-				WithWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
-				WithTelemetry(testutil.GetTelemetryMock(b)),
+			ctx, err := getSystemContext(
+				withProcRoot(kernel.ProcFSRoot()),
+				withWorkloadMeta(testutil.GetWorkloadMetaMock(b)),
+				withTelemetry(testutil.GetTelemetryMock(b)),
 				withFatbinParsingEnabled(fatbinParsingEnabled),
 			)
 			require.NoError(b, err)

@@ -24,7 +24,7 @@ type statsGenerator struct {
 	lastGenerationKTime int64                          // lastGenerationTime is the kernel time of the last stats generation.
 	currGenerationKTime int64                          // currGenerationTime is the kernel time of the current stats generation.
 	aggregators         map[model.StatsKey]*aggregator // aggregators contains the map of aggregators
-	sysCtx              *SystemContext                 // sysCtx is the system context with global GPU-system data
+	sysCtx              *systemContext                 // sysCtx is the system context with global GPU-system data
 	telemetry           *statsGeneratorTelemetry       // telemetry contains the telemetry component for the stats generator
 }
 
@@ -32,7 +32,7 @@ type statsGeneratorTelemetry struct {
 	aggregators telemetry.Gauge
 }
 
-func newStatsGenerator(sysCtx *SystemContext, streamHandlers *streamCollection, tm telemetry.Component) *statsGenerator {
+func newStatsGenerator(sysCtx *systemContext, streamHandlers *streamCollection, tm telemetry.Component) *statsGenerator {
 	currKTime, _ := ddebpf.NowNanoseconds()
 	return &statsGenerator{
 		streamHandlers:      streamHandlers,

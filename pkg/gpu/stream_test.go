@@ -349,7 +349,7 @@ func TestKernelLaunchEnrichment(t *testing.T) {
 			}
 
 			ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
-			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), WithProcRoot(proc))
+			sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(fatbinParsingEnabled), withProcRoot(proc))
 
 			if fatbinParsingEnabled {
 				// Ensure the kernel cache is running so we can load the kernel data
@@ -1247,7 +1247,7 @@ func TestGetKernelDataReturnsUnwrappedErrors(t *testing.T) {
 
 	t.Run("cuda.ErrKernelNotProcessedYet when kernel not in cache", func(t *testing.T) {
 		proc := t.TempDir()
-		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), WithProcRoot(proc))
+		sysCtx := getTestSystemContext(t, withFatbinParsingEnabled(true), withProcRoot(proc))
 		sysCtx.cudaKernelCache.Start()
 		t.Cleanup(sysCtx.cudaKernelCache.Stop)
 

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
@@ -130,9 +129,7 @@ func TestDeviceAssignment(t *testing.T) {
 
 				// Use real procfs and workloadmeta (no container)
 				wmeta := testutil.GetWorkloadMetaMock(t)
-				sysCtx, err := gpu.GetSystemContext(gpu.WithProcRoot(kernel.ProcFSRoot()), gpu.WithWorkloadMeta(wmeta), gpu.WithTelemetry(testutil.GetTelemetryMock(t)))
-				require.NoError(t, err)
-
+				sysCtx := gpu.GetTestSystemContext(t, wmeta, testutil.GetTelemetryMock(t))
 				sysCtx.SetDeviceSelection(pid, pid, tc.selectedDeviceIndex)
 
 				// Empty container ID for bare metal
@@ -194,9 +191,7 @@ func TestDeviceAssignment(t *testing.T) {
 					return err == nil && container != nil
 				}, 30*time.Second, 500*time.Millisecond, "container %s not found in workloadmeta", containerID)
 
-				sysCtx, err := gpu.GetSystemContext(gpu.WithProcRoot(kernel.ProcFSRoot()), gpu.WithWorkloadMeta(wmeta), gpu.WithTelemetry(testutil.GetTelemetryMock(t)))
-				require.NoError(t, err)
-
+				sysCtx := gpu.GetTestSystemContext(t, wmeta, testutil.GetTelemetryMock(t))
 				sysCtx.SetDeviceSelection(pid, pid, tc.selectedDeviceIndex)
 
 				device, err := sysCtx.GetCurrentActiveGpuDevice(pid, pid, func() string { return containerID })
