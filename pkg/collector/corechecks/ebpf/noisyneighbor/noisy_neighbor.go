@@ -29,10 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// NoisyNeighborConfig is the config of the noisy neighbor check
 type NoisyNeighborConfig struct{}
 
-// NoisyNeighborCheck grabs noisy neighbor metrics
 type NoisyNeighborCheck struct {
 	core.CheckBase
 	config         *NoisyNeighborConfig
@@ -40,7 +38,6 @@ type NoisyNeighborCheck struct {
 	sysProbeClient *sysprobeclient.CheckClient
 }
 
-// Factory creates a new check factory
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(tagger)
@@ -55,17 +52,14 @@ func newCheck(tagger tagger.Component) check.Check {
 	}
 }
 
-// Interval returns the interval time for the check
 func (n *NoisyNeighborCheck) Interval() time.Duration {
 	return 5 * time.Second
 }
 
-// Parse parses the check configuration
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
-// Configure parses the check configuration and init the check
 func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if err := n.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
@@ -77,9 +71,7 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 	return nil
 }
 
-// Run executes the check
 func (n *NoisyNeighborCheck) Run() error {
-	// TODO noisy: use the stats returned here
 	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
 		return fmt.Errorf("get noisy neighbor check: %s", err)
@@ -90,56 +82,125 @@ func (n *NoisyNeighborCheck) Run() error {
 		return fmt.Errorf("get metric sender: %s", err)
 	}
 
-	// TODO noisy: emit your metrics here using `sender`
+	var totalCgroups, starvedCgroups uint64
+
 	for _, stat := range stats {
-		containerID := getContainerID(stat.CgroupName)
-		prevContainerID := getContainerID(stat.PrevCgroupName)
-
-		var tags []string
-		if containerID != "host" {
-			entityID := types.NewEntityID(types.ContainerID, containerID)
-			if !entityID.Empty() {
-				tags, err = n.tagger.Tag(entityID, types.ChecksConfigCardinality)
-				if err != nil {
-					log.Errorf("Error collecting tags for container %s: %s", containerID, err)
-				}
-			}
+		if stat.EventCount == 0 && stat.PreemptionCount > 0 {
+			starvedCgroups++
+			continue
 		}
 
-		tags = append(tags, "container_id:"+containerID)
-		sender.Distribution("noisy_neighbor.runq.latency", float64(stat.RunqLatencyNs), "", tags)
-		tags = append(tags, "prev_container_id:"+prevContainerID)
+		totalCgroups++
+		tags := n.buildTags(stat)
+		n.submitPrimaryMetrics(sender, stat, tags)
+		n.submitRawCounters(sender, stat, tags)
+		n.submitLegacyMetrics(sender, stat, tags)
+	}
 
-		if prevContainerID != "host" {
-			entityID := types.NewEntityID(types.ContainerID, prevContainerID)
-			if !entityID.Empty() {
-				prevTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
-				if err != nil {
-					log.Errorf("Error collecting tags for prev container %s: %s", prevContainerID, err)
-				} else {
-					for _, tag := range prevTags {
-						tags = append(tags, "prev_"+tag)
-					}
-				}
-			}
-		}
-
-		sender.Count("noisy_neighbor.sched.switch.out", 1, "", tags)
+	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
+	if starvedCgroups > 0 {
+		sender.Gauge("noisy_neighbor.system.cgroups_starved", float64(starvedCgroups), "", nil)
+		log.Warnf("[noisy_neighbor] Detected %d starved cgroups (preempted but never scheduled)", starvedCgroups)
 	}
 
 	sender.Commit()
 	return nil
 }
 
-// getContainerID attempts to get container id using the cgroup name.
-// If no match is found, container id is set to `host`.
+func (n *NoisyNeighborCheck) buildTags(stat model.NoisyNeighborStats) []string {
+	cgroupName := stat.CgroupName
+	if cgroupName == "" {
+		cgroupName = "unknown"
+	}
+
+	var tags []string
+	containerID := getContainerID(cgroupName)
+
+	if containerID != "" {
+		entityID := types.NewEntityID(types.ContainerID, containerID)
+		if !entityID.Empty() {
+			containerTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
+			if err != nil {
+				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
+			} else {
+				tags = containerTags
+			}
+		}
+	}
+
+	tags = append(tags, "cgroup_name:"+cgroupName)
+	tags = append(tags, fmt.Sprintf("cgroup_id:%d", stat.CgroupID))
+
+	if containerID != "" && containerID != "host" {
+		tags = append(tags, "container_id:"+containerID)
+	}
+
+	return tags
+}
+
+// submitPrimaryMetrics sends the main PSL and PSP metrics
+// Note: "process" in metric names follows kernel convention, but these are thread-level measurements
+func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	if stat.UniquePidCount == 0 {
+		return
+	}
+
+	psl := float64(stat.SumLatenciesNs) / float64(stat.UniquePidCount)
+	sender.Gauge("noisy_neighbor.process_scheduling_latency.per_process", psl, "", tags)
+
+	psp := float64(stat.PreemptionCount) / float64(stat.UniquePidCount)
+	sender.Gauge("noisy_neighbor.process_scheduler_preemptions.per_process", psp, "", tags)
+
+	eventsPerProcess := float64(stat.EventCount) / float64(stat.UniquePidCount)
+	sender.Gauge("noisy_neighbor.events.per_process", eventsPerProcess, "", tags)
+}
+
+func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
+	sender.Count("noisy_neighbor.process_scheduler_preemptions.total", float64(stat.PreemptionCount), "", tags)
+	sender.Count("noisy_neighbor.process_scheduling_latency.total", float64(stat.SumLatenciesNs), "", tags)
+	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+}
+
+func (n *NoisyNeighborCheck) submitLegacyMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	if stat.RunqLatencyNs == 0 {
+		return
+	}
+
+	sender.Distribution("noisy_neighbor.runq.latency", float64(stat.RunqLatencyNs), "", tags)
+
+	prevCgroupName := stat.PrevCgroupName
+	if prevCgroupName == "" {
+		prevCgroupName = "unknown"
+	}
+	prevContainerID := getContainerID(prevCgroupName)
+
+	switchTags := append(tags, "prev_cgroup_name:"+prevCgroupName)
+	switchTags = append(switchTags, fmt.Sprintf("prev_cgroup_id:%d", stat.PrevCgroupID))
+
+	if prevContainerID != "" && prevContainerID != "host" {
+		switchTags = append(switchTags, "prev_container_id:"+prevContainerID)
+
+		entityID := types.NewEntityID(types.ContainerID, prevContainerID)
+		if !entityID.Empty() {
+			prevTags, err := n.tagger.Tag(entityID, types.ChecksConfigCardinality)
+			if err != nil {
+				log.Errorf("Error collecting tags for prev container %s: %s", prevContainerID, err)
+			} else {
+				for _, tag := range prevTags {
+					switchTags = append(switchTags, "prev_"+tag)
+				}
+			}
+		}
+	}
+
+	sender.Count("noisy_neighbor.sched.switch.out", 1, "", switchTags)
+}
+
 func getContainerID(cgroupName string) string {
 	containerID, err := cgroups.ContainerFilter("", cgroupName)
 	if err != nil {
 		log.Debugf("Unable to extract containerID from cgroup name: %s, err: %v", cgroupName, err)
-	}
-	if containerID == "" {
-		containerID = "host"
 	}
 	return containerID
 }
