@@ -5,7 +5,8 @@ description "Generate and configure DDOT init scripts packaging"
 always_build true
 
 build do
-  destdir = ENV["OMNIBUS_BASE_DIR"] || "/"
+  # This is horrible.
+  destdir = "/"
   output_config_dir = ENV["OUTPUT_CONFIG_DIR"] || ""
   if linux_target?
     if debian_target?
