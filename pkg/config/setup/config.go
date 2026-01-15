@@ -1336,14 +1336,26 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
+	config.BindEnvAndSetDefault("integration.enabled", true)
+
+	// integration.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.additional", []string{})
+	// integration.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.excluded", []string{})
+
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
 	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
-	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{
+	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+	config.BindEnvAndSetDefault("integration.basic.allowed", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
@@ -1368,11 +1380,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-
-	// Infrastructure basic mode - additional checks
-	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
-	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1943,6 +1950,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	// Tag logs with their auto multiline detection label without aggregating them
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
@@ -2812,6 +2821,13 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
+
+	// Apply legacy alias: copy values from legacy key to integration.additional
+	// Legacy `allowed_additional_checks` -> `integration.additional`
+	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
+		combined := append(config.GetStringSlice("integration.additional"), legacyAdditional...)
+		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
+	}
 
 	if infraMode == "end_user_device" {
 		// Enable features for end_user_device mode
