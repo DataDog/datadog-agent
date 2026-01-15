@@ -10,7 +10,6 @@ package gops
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/process"
@@ -85,12 +84,9 @@ func newProcessInfo(p *process.Process, totalMem float64) (*ProcessInfo, error) 
 
 	pctMem := 100. * float64(memInfo.RSS) / totalMem
 
-	var username string
-	if runtime.GOOS != "android" {
-		username, err = p.Username()
-		if err != nil {
-			return nil, err
-		}
+	username, err := p.Username()
+	if err != nil {
+		return nil, err
 	}
 
 	return &ProcessInfo{pid, ppid, name, memInfo.RSS, pctMem, memInfo.VMS, username}, nil

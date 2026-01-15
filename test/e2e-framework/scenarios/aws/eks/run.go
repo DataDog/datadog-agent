@@ -114,6 +114,9 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *envir
 		if eksParams.WindowsNodeGroup {
 			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithDeployWindows())
 		}
+		if eksParams.GPUNodeGroup {
+			params.agentOptions = append(params.agentOptions, kubernetesagentparams.WithGPUMonitoring())
+		}
 
 		kubernetesAgent, err = helm.NewKubernetesAgent(&awsEnv, "eks", cluster.KubeProvider, params.agentOptions...)
 		if err != nil {

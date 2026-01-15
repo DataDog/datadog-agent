@@ -62,6 +62,18 @@ from tasks.static_quality_gates.gates import (
 )
 
 
+class MockPoint:
+    """Mock Point object matching datadog_api_client.v1.model.point.Point structure."""
+
+    def __init__(self, timestamp, metric_value):
+        self.value = [timestamp, metric_value]
+
+
+def make_pointlist(points: list) -> list:
+    """Convert [[timestamp, value], ...] to [MockPoint, ...] for tests."""
+    return [MockPoint(p[0], p[1]) for p in points]
+
+
 class TestDataClasses(unittest.TestCase):
     def test_artifact_measurement_validation(self):
         # Valid measurement should work
@@ -1718,19 +1730,19 @@ class TestExceptionThresholdBumpHelpers(unittest.TestCase):
 
     def test_get_latest_value_from_pointlist_valid(self):
         """Should get the latest non-null value from pointlist."""
-        pointlist = [[1704067200, 100.0], [1704153600, 150.0], [1704240000, 200.0]]
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, 200.0]])
         result = _get_latest_value_from_pointlist(pointlist)
         self.assertEqual(result, 200.0)
 
     def test_get_latest_value_from_pointlist_with_nulls(self):
         """Should skip null values and get the latest non-null value."""
-        pointlist = [[1704067200, 100.0], [1704153600, 150.0], [1704240000, None]]
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, None]])
         result = _get_latest_value_from_pointlist(pointlist)
         self.assertEqual(result, 150.0)
 
     def test_get_latest_value_from_pointlist_all_nulls(self):
         """Should return None if all values are null."""
-        pointlist = [[1704067200, None], [1704153600, None]]
+        pointlist = make_pointlist([[1704067200, None], [1704153600, None]])
         result = _get_latest_value_from_pointlist(pointlist)
         self.assertIsNone(result)
 
@@ -1850,22 +1862,22 @@ class TestFetchPrMetrics(unittest.TestCase):
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
-                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
-                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
-                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
-                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
             },
         ]
 
@@ -1898,22 +1910,22 @@ class TestFetchPrMetrics(unittest.TestCase):
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
-                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_docker_agent_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
-                "pointlist": [[1704240000, 200 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
-                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_docker_agent_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
-                "pointlist": [[1704240000, 80 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 80 * 1024 * 1024]]),
             },
         ]
 
@@ -1937,22 +1949,22 @@ class TestFetchMainHeadroom(unittest.TestCase):
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
-                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
-                "pointlist": [[1704240000, 50 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
-                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
-                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
             },
         ]
 
@@ -1974,22 +1986,22 @@ class TestFetchMainHeadroom(unittest.TestCase):
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
-                "pointlist": [[1704240000, 200 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
-                "pointlist": [[1704240000, 100 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
-                "pointlist": [[1704240000, 150 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
             },
             {
                 "scope": "gate_name:static_quality_gate_agent_deb_amd64",
                 "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
-                "pointlist": [[1704240000, 75 * 1024 * 1024]],
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
             },
         ]
 

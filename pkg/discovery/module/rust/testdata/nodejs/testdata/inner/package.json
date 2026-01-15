@@ -1,0 +1,13 @@
+{
+  "author": "Your Name <email@example.com>",
+  "inner": [
+    {
+      "name": "wrong"
+    },
+    {
+      "another": {
+        "name": "wrong"
+      }
+    }
+  ]
+}

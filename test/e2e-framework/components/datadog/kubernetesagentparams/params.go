@@ -284,3 +284,17 @@ datadog:
 		return WithHelmValues(tagsHelmValues)(p)
 	}
 }
+
+// WithGPUMonitoring enables GPU monitoring in the agent.
+func WithGPUMonitoring() func(*Params) error {
+	return func(p *Params) error {
+		gpuMonitoringValues := `
+datadog:
+  gpuMonitoring:
+    enabled: true
+    runtimeClassName: ""
+`
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(gpuMonitoringValues))
+		return nil
+	}
+}
