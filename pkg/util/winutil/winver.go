@@ -11,6 +11,7 @@ package winutil
 import (
 	"fmt"
 	"unsafe"
+	"syscall"
 
 	"golang.org/x/sys/windows"
 )
@@ -127,4 +128,79 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 
 	return ver, nil
 
+}
+
+// FileVersionInfo contains common version resource strings for a file.
+type FileVersionInfo struct {
+	CompanyName      string
+	ProductName      string
+	FileVersion      string
+	ProductVersion   string
+	OriginalFilename string
+	InternalName     string
+}
+
+// GetFileVersionInfoStrings returns common version resource strings for the specified file.
+// Missing fields are returned as empty strings. An error is returned only if the version
+// information block cannot be retrieved at all.
+func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
+	var info FileVersionInfo
+
+	data, err := getFileVersionInfo(executablePath)
+	if err != nil {
+		return info, err
+	}
+
+	// Get the first language/codepage from the translation table
+	translationPtr, err := syscall.UTF16PtrFromString("\\VarFileInfo\\Translation")
+	if err != nil {
+		return info, err
+	}
+
+	var langCodePagePtr *uint16
+	var langCodePageLen uint32
+	ret, _, err := procVerQueryValue.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(translationPtr)),
+		uintptr(unsafe.Pointer(&langCodePagePtr)),
+		uintptr(unsafe.Pointer(&langCodePageLen)),
+	)
+	if ret == 0 || langCodePageLen < 4 {
+		return info, err
+	}
+
+	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))
+	langCode := pair[0]
+	codePage := pair[1]
+	langCodePage := fmt.Sprintf("%04x%04x", langCode, codePage)
+
+	// Helper to read a specific string value
+	readString := func(key string) string {
+		query := fmt.Sprintf("\\StringFileInfo\\%s\\%s", langCodePage, key)
+		queryPtr, qerr := syscall.UTF16PtrFromString(query)
+		if qerr != nil {
+			return ""
+		}
+		var valuePtr *uint16
+		var valueLen uint32
+		ret, _, _ := procVerQueryValue.Call(
+			uintptr(unsafe.Pointer(&data[0])),
+			uintptr(unsafe.Pointer(queryPtr)),
+			uintptr(unsafe.Pointer(&valuePtr)),
+			uintptr(unsafe.Pointer(&valueLen)),
+		)
+		if ret == 0 || valueLen == 0 || valuePtr == nil {
+			return ""
+		}
+		return windows.UTF16PtrToString(valuePtr)
+	}
+
+	info.CompanyName = readString("CompanyName")
+	info.ProductName = readString("ProductName")
+	info.FileVersion = readString("FileVersion")
+	info.ProductVersion = readString("ProductVersion")
+	info.OriginalFilename = readString("OriginalFilename")
+	info.InternalName = readString("InternalName")
+
+	return info, nil
 }
