@@ -117,6 +117,7 @@ type Telemetry struct {
 	Protocol_classifier_classified_after_3_attempts                  uint64
 	Protocol_classifier_classified_after_4_plus_attempts             uint64
 	Protocol_classifier_gave_up_classification_calls                 uint64
+	Protocol_classifier_gave_up_classification_time_ns               uint64
 }
 type PortBinding struct {
 	Netns     uint32

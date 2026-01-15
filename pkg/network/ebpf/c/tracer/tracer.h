@@ -188,6 +188,7 @@ typedef struct {
     __u64 protocol_classifier_classified_after_4_plus_attempts;
     // Gave up classification after max attempts
     __u64 protocol_classifier_gave_up_classification_calls;
+    __u64 protocol_classifier_gave_up_classification_time_ns;
 } telemetry_t;
 
 typedef struct {

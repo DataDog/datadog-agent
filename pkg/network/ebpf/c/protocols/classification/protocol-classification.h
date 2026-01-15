@@ -250,8 +250,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     // Check if we've exceeded max classification attempts - if so, give up and mark as fully classified
     // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)
     if (should_give_up_classification(attempts)) {
-        increment_telemetry_count(protocol_classifier_gave_up_classification_calls);
         mark_as_fully_classified(protocol_stack);
+        RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_gave_up_classification_calls,
+                                     protocol_classifier_gave_up_classification_time_ns,
+                                     entrypoint_start_ns);
         return;
     }
 
