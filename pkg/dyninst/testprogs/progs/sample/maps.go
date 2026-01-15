@@ -93,6 +93,18 @@ func testMapLargeKeySmallValue(m map[[4]int]uint8) {}
 //go:noinline
 func testMapLargeKeyLargeValue(m map[[4]int][4]int) {}
 
+//nolint:all
+//go:noinline
+func testMapEmptyKey(m map[struct{}]int) {}
+
+//nolint:all
+//go:noinline
+func testMapEmptyValue(m map[int]struct{}) {}
+
+//nolint:all
+//go:noinline
+func testMapEmptyKeyAndValue(m map[struct{}]struct{}) {}
+
 // generateEmbeddedMaps creates a map for testMapEmbeddedMaps programmatically
 func generateEmbeddedMaps(entriesCount int) map[string][]structWithMap {
 	result := make(map[string][]structWithMap)
@@ -149,9 +161,9 @@ func executeMapFuncs() {
 		},
 	)
 	testMapArrayToArray(map[[4]string][2]int{
-		[4]string{"foo", "bar", "baz", "qux"}:        {1, 2},
-		[4]string{"quux", "quuz", "corge", "grault"}: {3, 4},
-		[4]string{"bluh", "blur", "baw23", "aaaa"}:   {5, 6},
+		{"foo", "bar", "baz", "qux"}:        {1, 2},
+		{"quux", "quuz", "corge", "grault"}: {3, 4},
+		{"bluh", "blur", "baw23", "aaaa"}:   {5, 6},
 	})
 
 	testMapEmbeddedMaps(generateEmbeddedMaps(5))
@@ -201,4 +213,7 @@ func executeMapFuncs() {
 	}
 	testMapLargeKeySmallValue(largeKeySmallValueMap)
 
+	testMapEmptyKey(map[struct{}]int{{}: 1})
+	testMapEmptyValue(map[int]struct{}{1: {}})
+	testMapEmptyKeyAndValue(map[struct{}]struct{}{{}: {}})
 }

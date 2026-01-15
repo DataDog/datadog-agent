@@ -8,7 +8,7 @@
 package kubelet
 
 import (
-	"fmt"
+	"errors"
 	"strconv"
 	"testing"
 
@@ -286,7 +286,9 @@ func (suite *ProviderTestSuite) TestPVCMetricsExcludedByNamespace() {
 
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetWithoutSource("container_exclude", "kube_namespace:default")
-	suite.provider.filterStore = workloadfilterfxmock.SetupMockFilter(suite.T())
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
+	suite.provider.containerFilter = mockFilterStore.GetContainerSharedMetricFilters()
+	suite.provider.podFilter = mockFilterStore.GetPodSharedMetricFilters()
 
 	err = suite.provider.Provide(kubeletMock, suite.mockSender)
 	if err != nil {
@@ -410,7 +412,7 @@ func (suite *ProviderTestSuite) TestSendAlwaysCounterSubsequentRuns() {
 
 func (suite *ProviderTestSuite) TestFirstRunRemainsOnError() {
 	// Create a mock that returns an error
-	testError := fmt.Errorf("kubelet connection failed")
+	testError := errors.New("kubelet connection failed")
 	errorResponse := commontesting.NewEndpointResponse(
 		"", 500, testError)
 

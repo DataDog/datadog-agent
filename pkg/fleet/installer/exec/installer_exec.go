@@ -46,18 +46,38 @@ type installerCmd struct {
 	ctx  context.Context
 }
 
+func (i *InstallerExec) newInstallerCmdCustomPathDetached(ctx context.Context, command string, path string, args ...string) *installerCmd {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer."+command)
+	span.SetTag("args", strings.Join(args, " "))
+	// NOTE: We very intentionally don't provide ctx to exec.Command.
+	//       exec.Command will kill the process if the context is cancelled. We don't want that here since
+	//       it is supposed to be a detached process that may live longer than the current process.
+	cmd := exec.Command(path, append([]string{command}, args...)...)
+	// We're running this process in the background, so we don't intend to collect any output from it.
+	// We set channels to nil here because os/exec waits on these pipes to close even after
+	// the process terminates which can cause us (or our parent) to be forever blocked
+	// by this child process or any children it creates, which may inherit any of these handles
+	// and keep them open.
+	cmd.Stdin = nil
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	return i.setupInstallerCmd(ctx, span, cmd)
+}
+
 func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command string, path string, args ...string) *installerCmd {
-	env := i.env.ToEnv()
-	// Enforce the use of the installer when it is bundled with the agent.
-	env = append(env, "DD_BUNDLED_AGENT=installer")
-	span, ctx := telemetry.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
+	span, ctx := telemetry.StartSpanFromContext(ctx, "installer."+command)
 	span.SetTag("args", strings.Join(args, " "))
 	cmd := exec.CommandContext(ctx, path, append([]string{command}, args...)...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return i.setupInstallerCmd(ctx, span, cmd)
+}
+
+func (i *InstallerExec) setupInstallerCmd(ctx context.Context, span *telemetry.Span, cmd *exec.Cmd) *installerCmd {
+	env := i.env.ToEnv()
 	env = append(os.Environ(), env...)
 	env = append(env, telemetry.EnvFromContext(ctx)...)
 	cmd.Env = env
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
 	cmd = i.newInstallerCmdPlatform(cmd)
 	return &installerCmd{
 		Cmd:  cmd,
@@ -68,6 +88,10 @@ func (i *InstallerExec) newInstallerCmdCustomPath(ctx context.Context, command s
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
 	return i.newInstallerCmdCustomPath(ctx, command, i.installerBinPath, args...)
+}
+
+func (i *InstallerExec) newInstallerCmdDetached(ctx context.Context, command string, args ...string) *installerCmd {
+	return i.newInstallerCmdCustomPathDetached(ctx, command, i.installerBinPath, args...)
 }
 
 // Install installs a package.
@@ -155,7 +179,7 @@ func (i *InstallerExec) PromoteExperiment(ctx context.Context, pkg string) (err 
 
 // InstallConfigExperiment installs an experiment.
 func (i *InstallerExec) InstallConfigExperiment(
-	ctx context.Context, pkg string, operations config.Operations,
+	ctx context.Context, pkg string, operations config.Operations, secrets map[string]string,
 ) (err error) {
 	operationsBytes, err := json.Marshal(operations)
 	if err != nil {
@@ -163,8 +187,33 @@ func (i *InstallerExec) InstallConfigExperiment(
 	}
 	cmdLineArgs := []string{pkg, string(operationsBytes)}
 	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
+
+	if secrets == nil {
+		secrets = make(map[string]string)
+	}
+	secretsBytes, err := json.Marshal(secrets)
+	if err != nil {
+		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
+	}
+
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("error creating stdin pipe: %w", err)
+	}
+
 	defer func() { cmd.span.Finish(err) }()
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("error starting command: %w", err)
+	}
+
+	// Write secrets to stdin
+	if _, err := stdinPipe.Write(secretsBytes); err != nil {
+		stdinPipe.Close()
+		return fmt.Errorf("error writing secrets to stdin: %w", err)
+	}
+	stdinPipe.Close()
+	return cmd.Wait()
 }
 
 // RemoveConfigExperiment removes an experiment.
@@ -229,7 +278,7 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
 	}
 	var defaultPackages []string
-	for _, line := range strings.Split(stdout.String(), "\n") {
+	for line := range strings.SplitSeq(stdout.String(), "\n") {
 		if line == "" {
 			continue
 		}
@@ -280,38 +329,29 @@ func (i *InstallerExec) getStates(ctx context.Context) (repo *repository.Package
 
 // State returns the state of a package.
 func (i *InstallerExec) State(ctx context.Context, pkg string) (repository.State, error) {
-	states, err := i.States(ctx)
+	allStates, err := i.ConfigAndPackageStates(ctx)
 	if err != nil {
 		return repository.State{}, err
 	}
-	return states[pkg], nil
-}
-
-// States returns the states of all packages.
-func (i *InstallerExec) States(ctx context.Context) (map[string]repository.State, error) {
-	allStates, err := i.getStates(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return allStates.States, nil
+	return allStates.States[pkg], nil
 }
 
 // ConfigState returns the state of a package's configuration.
 func (i *InstallerExec) ConfigState(ctx context.Context, pkg string) (repository.State, error) {
-	configStates, err := i.ConfigStates(ctx)
+	allStates, err := i.ConfigAndPackageStates(ctx)
 	if err != nil {
 		return repository.State{}, err
 	}
-	return configStates[pkg], nil
+	return allStates.ConfigStates[pkg], nil
 }
 
-// ConfigStates returns the states of all packages' configurations.
-func (i *InstallerExec) ConfigStates(ctx context.Context) (map[string]repository.State, error) {
+// ConfigAndPackageStates returns the states of all packages' configurations and packages.
+func (i *InstallerExec) ConfigAndPackageStates(ctx context.Context) (*repository.PackageStates, error) {
 	allStates, err := i.getStates(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return allStates.ConfigStates, nil
+	return allStates, nil
 }
 
 // Close cleans up any resources.
@@ -344,15 +384,7 @@ func (i *InstallerExec) RunHook(ctx context.Context, hookContext string) (err er
 
 // StartPackageCommandDetached starts a package-specific command for a given package in the background with detached standard IO.
 func (i *InstallerExec) StartPackageCommandDetached(ctx context.Context, packageName string, command string) (err error) {
-	cmd := i.newInstallerCmd(ctx, "package-command", packageName, command)
+	cmd := i.newInstallerCmdDetached(ctx, "package-command", packageName, command)
 	defer func() { cmd.span.Finish(err) }()
-	// We're running this process in the background, so we don't intend to collect any output from it.
-	// We set channels to nil here because os/exec waits on these pipes to close even after
-	// the process terminates which can cause us (or our parent) to be forever blocked
-	// by this child process or any children it creates, which may inherit any of these handles
-	// and keep them open.
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
 	return cmd.Start()
 }

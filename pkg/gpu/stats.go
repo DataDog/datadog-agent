@@ -179,9 +179,9 @@ func (g *statsGenerator) getNormalizationFactors(stats []model.StatsTuple) (map[
 
 	normFactors := make(map[string]normalizationFactors)
 	for uuid, usage := range usages {
-		device, ok := g.sysCtx.deviceCache.GetByUUID(uuid)
-		if !ok {
-			return nil, fmt.Errorf("cannot find device for UUID %s", uuid)
+		device, err := g.sysCtx.deviceCache.GetByUUID(uuid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get device for UUID %s: %w", uuid, err)
 		}
 
 		var deviceFactors normalizationFactors

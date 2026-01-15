@@ -9,10 +9,15 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -22,39 +27,38 @@ import (
 )
 
 func TestSBOM(t *testing.T) {
-	t.Run("with v1 collector", func(t *testing.T) {
-		testSBOMWithCollector(t, false)
-	})
-
-	t.Run("with v2 collector", func(t *testing.T) {
-		testSBOMWithCollector(t, true)
-	})
-}
-
-func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 	SkipIfNotAvailable(t)
-
-	if _, err := whichNonFatal("docker"); err != nil {
-		t.Skip("Skip test where docker is unavailable")
-	}
 
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		t.Fatalf("failed to get kernel version: %s", err)
+	}
+
+	if _, err := whichNonFatal("docker"); err != nil {
+		t.Skip("Skip test where docker is unavailable")
+	}
+
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID: "test_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id != "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id != "") ` +
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 		{
 			ID: "test_host_file_package",
-			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (container.id == "") ` +
+			Expression: `open.file.path == "/usr/lib/os-release" && (open.flags & O_CREAT != 0) && (process.container.id == "") ` +
 				`&& process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true, sbomUseV2Collector: useV2collector}))
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true, enableHostSBOM: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +75,7 @@ func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 	}
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
 				if sbom == nil {
@@ -88,26 +92,73 @@ func testSBOMWithCollector(t *testing.T, useV2collector bool) {
 			assertTriggeredRule(t, rule, "test_file_package")
 			assertFieldEqual(t, event, "open.file.package.name", "base-files")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldNotEmpty(t, event, "container.id", "container id shouldn't be empty")
+			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_file_package")
 	})
 
 	t.Run("host", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
-				return fmt.Errorf("failed to find host SBOM for host")
+				return errors.New("failed to find host SBOM for host")
 			}
 			cmd := exec.Command("/bin/touch", "/usr/lib/os-release")
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_host_file_package")
 			assertFieldEqual(t, event, "process.file.package.name", "coreutils")
-			assertFieldEqual(t, event, "container.id", "", "container id should be empty")
+			assertFieldEqual(t, event, "process.container.id", "", "container id should be empty")
+
+			if kv.IsUbuntuKernel() || kv.IsDebianKernel() {
+				checkVersionAgainstApt(t, event, "coreutils")
+			}
+			if kv.IsRH7Kernel() || kv.IsRH8Kernel() || kv.IsRH9Kernel() || kv.IsAmazonLinuxKernel() || kv.IsSuseKernel() {
+				checkVersionAgainstRpm(t, event, "coreutils")
+			}
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_host_file_package")
 	})
+}
+
+func checkVersionAgainstApt(tb testing.TB, event *model.Event, pkgName string) {
+	version, _ := event.GetFieldValue("process.file.package.version")
+	release, _ := event.GetFieldValue("process.file.package.release")
+	epoch, _ := event.GetFieldValue("process.file.package.epoch")
+	v := buildDebianVersion(version.(string), release.(string), epoch.(int))
+
+	out, err := exec.Command("apt-cache", "policy", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+
+	assert.Contains(tb, string(out), "Installed: "+v, "package version doesn't match")
+}
+
+func buildDebianVersion(version, release string, epoch int) string {
+	v := version + "-" + release
+	if epoch > 0 {
+		v = fmt.Sprintf("%d:%s", epoch, v)
+	}
+	return v
+}
+
+func checkVersionAgainstRpm(tb testing.TB, event *model.Event, pkgName string) {
+	version, _ := event.GetFieldValue("process.file.package.version")
+	release, _ := event.GetFieldValue("process.file.package.release")
+	epoch, _ := event.GetFieldValue("process.file.package.epoch")
+
+	out, err := exec.Command("rpm", "-q", "--queryformat", "%{VERSION}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), version, "package version doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{RELEASE}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	assert.Equal(tb, string(out), release, "package release doesn't match")
+
+	out, err = exec.Command("rpm", "-q", "--queryformat", "%{EPOCH}", pkgName).CombinedOutput()
+	require.NoError(tb, err, "failed to get package version: %s", string(out))
+	if string(out) != "(none)" {
+		assert.Equal(tb, string(out), fmt.Sprintf("%d", epoch), "package epoch doesn't match")
+	}
 }

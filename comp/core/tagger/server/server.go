@@ -8,7 +8,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -105,7 +105,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	if streamingID == "" {
 		streamingID = uuid.New().String()
 	}
-	subscriptionID := fmt.Sprintf("streaming-client-%s", streamingID)
+	subscriptionID := "streaming-client-" + streamingID
 
 	// initBurst is a flag indicating if the initial sync is still in progress or not
 	// true means the sync hasn't yet been finalised
@@ -116,7 +116,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	defer s.throttler.Release(tk)
 
 	subscription, err := s.taggerComponent.Subscribe(subscriptionID, filter)
-	log.Debugf("cluster tagger has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
+	log.Debugf("tagger server has just initiated subscription for %q at time %v", subscriptionID, time.Now().Unix())
 	if err != nil {
 		log.Errorf("Failed to subscribe to tagger for subscription %q", subscriptionID)
 		return err
@@ -137,7 +137,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 		case events, ok := <-subscription.EventsChan():
 			if !ok {
 				log.Warnf("subscriber channel closed, client will reconnect")
-				return fmt.Errorf("subscriber channel closed")
+				return errors.New("subscriber channel closed")
 			}
 
 			ticker.Reset(streamKeepAliveInterval)
@@ -162,7 +162,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 			if initBurst {
 				initBurst = false
 				s.throttler.Release(tk)
-				log.Infof("cluster tagger has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
+				log.Infof("tagger server has just finished initialization for subscription %q at time %v", subscriptionID, time.Now().Unix())
 			}
 
 		case <-out.Context().Done():

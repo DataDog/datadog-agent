@@ -140,7 +140,9 @@ type ObfuscationConfig struct {
 
 func obfuscationMode(conf *AgentConfig, sqllexerEnabled bool) obfuscate.ObfuscationMode {
 	if conf.SQLObfuscationMode != "" {
-		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) || conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
+		if conf.SQLObfuscationMode == string(obfuscate.ObfuscateOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.NormalizeOnly) ||
+			conf.SQLObfuscationMode == string(obfuscate.ObfuscateAndNormalize) {
 			return obfuscate.ObfuscationMode(conf.SQLObfuscationMode)
 		}
 		log.Warnf("Invalid SQL obfuscator mode %s, falling back to default", conf.SQLObfuscationMode)
@@ -415,8 +417,6 @@ type AgentConfig struct {
 	// case, the sender will drop failed payloads when it is unable to enqueue
 	// them for another retry.
 	MaxSenderRetries int
-	// HTTP client used in writer connections. If nil, default client values will be used.
-	HTTPClientFunc func() *http.Client `json:"-"`
 	// HTTP Transport used in writer connections. If nil, default transport values will be used.
 	HTTPTransportFunc func() *http.Transport `json:"-"`
 	// ClientStatsFlushInterval specifies the frequency at which the client stats aggregator will flush its buffer.
@@ -518,6 +518,8 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
+	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
@@ -530,9 +532,6 @@ type AgentConfig struct {
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig
-
-	// Lambda function name
-	LambdaFunctionName string
 
 	// Azure serverless apps tags, in the form of a comma-separated list of
 	// key-value pairs, starting with a comma
@@ -549,6 +548,18 @@ type AgentConfig struct {
 
 	MRFFailoverAPMDefault bool
 	MRFFailoverAPMRC      *bool // failover_apm set by remoteconfig. `nil` if not configured
+
+	// DebugV1Payloads enables debug logging for V1 payloads when they fail to decode
+	DebugV1Payloads bool
+
+	// EnableV1TraceEndpoint enables the V1 trace endpoint, it is hidden by default
+	EnableV1TraceEndpoint bool
+
+	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
+	SendAllInternalStats bool
+
+	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
+	APMMode string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -614,8 +625,6 @@ func New() *AgentConfig {
 		StatsdPort:    8125,
 		StatsdEnabled: true,
 
-		LambdaFunctionName: os.Getenv("AWS_LAMBDA_FUNCTION_NAME"),
-
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%
 		WatchdogInterval: 10 * time.Second,
@@ -632,13 +641,14 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
 		},
 		EVPProxy: EVPProxy{
 			Enabled:        true,
-			MaxPayloadSize: 5 * 1024 * 1024,
+			MaxPayloadSize: 10 * 1024 * 1024,
 		},
 		OpenLineageProxy: OpenLineageProxy{
 			Enabled:    true,
@@ -655,7 +665,12 @@ func computeGlobalTags() map[string]string {
 	if inAzureAppServices() {
 		return traceutil.GetAppServicesTags()
 	}
-	return make(map[string]string)
+
+	tags := make(map[string]string)
+	if inECSManagedInstancesSidecar() {
+		tags["_dd.origin"] = "ecs_managed_instances"
+	}
+	return tags
 }
 
 // ErrContainerTagsFuncNotDefined is returned when the containerTags function is not defined.
@@ -692,10 +707,6 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 // NewHTTPClient returns a new http.Client to be used for outgoing connections to the
 // Datadog API.
 func (c *AgentConfig) NewHTTPClient() *ResetClient {
-	// If a custom HTTPClientFunc been set, use it. Otherwise use default client values
-	if c.HTTPClientFunc != nil {
-		return NewResetClient(c.ConnectionResetInterval, c.HTTPClientFunc)
-	}
 	return NewResetClient(c.ConnectionResetInterval, func() *http.Client {
 		return &http.Client{
 			Timeout:   10 * time.Second,
@@ -763,4 +774,8 @@ func inAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv("WEBSITE_STACK")
 	_, existsWin := os.LookupEnv("WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED")
 	return existsLinux || existsWin
+}
+
+func inECSManagedInstancesSidecar() bool {
+	return os.Getenv("DD_ECS_DEPLOYMENT_MODE") == "sidecar" && os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_MANAGED_INSTANCES"
 }

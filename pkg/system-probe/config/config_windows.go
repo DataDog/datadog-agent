@@ -8,7 +8,7 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -34,14 +34,29 @@ func init() {
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
 func ValidateSocketAddress(sockAddress string) error {
 	if !strings.HasPrefix(sockAddress, `\\.\pipe\`) {
-		return fmt.Errorf(`named pipe must be of the form '\\.\pipe\<pipename>'`)
+		return errors.New(`named pipe must be of the form '\\.\pipe\<pipename>'`)
 	}
 	return nil
+}
+
+// eBPFMapPreallocationSupported returns false on non linux_bpf systems.
+func eBPFMapPreallocationSupported() bool {
+	return false
 }
 
 // ProcessEventDataStreamSupported returns true if process event data stream is supported
 func ProcessEventDataStreamSupported() bool {
 	return true
+}
+
+// RedisMonitoringSupported returns false on windows as eBPF is not supported
+func RedisMonitoringSupported() bool {
+	return false
+}
+
+// HTTP2MonitoringSupported returns false on windows as eBPF is not supported
+func HTTP2MonitoringSupported() bool {
+	return false
 }
 
 func allowPrebuiltEbpfFallback(_ model.Config) {

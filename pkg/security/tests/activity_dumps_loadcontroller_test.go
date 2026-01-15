@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,13 +160,14 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 	}()
 
 	for activeEventTypes := securityprofile.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
-		testName := ""
+		var testNameBuilder strings.Builder
 		for i, activeEventType := range activeEventTypes {
 			if i > 0 {
-				testName += "-"
+				testNameBuilder.WriteString("-")
 			}
-			testName += activeEventType.String()
+			testNameBuilder.WriteString(activeEventType.String())
 		}
+		testName := testNameBuilder.String()
 		if testName == "" {
 			testName = "none"
 		}

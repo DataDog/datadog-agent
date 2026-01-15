@@ -14,11 +14,9 @@ import (
 	"runtime"
 	"strings"
 
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
@@ -43,6 +41,7 @@ const (
 	DiscoveryModule              types.ModuleName = "discovery"
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
+	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -69,7 +68,7 @@ func newSysprobeConfig(configPath string, fleetPoliciesDirPath string) (*types.C
 	}
 	// load the configuration
 	ddcfg := pkgconfigsetup.Datadog()
-	err := pkgconfigsetup.LoadCustom(cfg, ddcfg.GetEnvVars())
+	err := pkgconfigsetup.LoadSystemProbe(cfg, ddcfg.GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -143,7 +142,7 @@ func load() (*types.Config, error) {
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := cfg.GetBool(compNS("enabled")) ||
+	complianceEnabled := cfg.GetBool(compNS("database_benchmarks.enabled")) ||
 		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")))
 	if complianceEnabled {
 		c.EnabledModules[ComplianceModule] = struct{}{}
@@ -172,6 +171,9 @@ func load() (*types.Config, error) {
 	if gpuEnabled {
 		c.EnabledModules[GPUMonitoringModule] = struct{}{}
 	}
+	if cfg.GetBool(privilegedLogsNS("enabled")) {
+		c.EnabledModules[PrivilegedLogsModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
@@ -187,38 +189,20 @@ func load() (*types.Config, error) {
 		}
 	}
 
+	// Enable discovery by default if system-probe has any modules enabled,
+	// unless the user has explicitly configured the discovery.enabled config
+	// key.
+	if len(c.EnabledModules) > 0 &&
+		!c.ModuleIsEnabled(DiscoveryModule) &&
+		applyDefault(cfg, discoveryNS("enabled"), true) {
+		c.EnabledModules[DiscoveryModule] = struct{}{}
+	}
+
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
 	cfg.Set(spNS("enabled"), c.Enabled, pkgconfigmodel.SourceAgentRuntime)
 
 	return c, nil
-}
-
-// SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
-func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	cfg := pkgconfigsetup.GlobalConfigBuilder()
-
-	cfg.AddConfigPath(configDir)
-	if configFile != "" {
-		cfg.SetConfigFile(configFile)
-	}
-	// load the configuration
-	_, err := pkgconfigsetup.LoadDatadogCustom(cfg, "datadog.yaml", option.None[secrets.Component](), pkgconfigsetup.SystemProbe().GetEnvVars())
-	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
-	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
-		// special-case permission-denied with a clearer error message
-		if errors.Is(err, fs.ErrPermission) {
-			if runtime.GOOS == "windows" {
-				err = fmt.Errorf(`cannot access the Datadog config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
-				err = fmt.Errorf("cannot access the Datadog config file (%w); try running the command under the same user as the Datadog Agent", err)
-			}
-		} else {
-			err = fmt.Errorf("unable to load Datadog config file: %w", err)
-		}
-		return err
-	}
-	return nil
 }
 
 func applyFleetPolicy(cfg pkgconfigmodel.Config) error {

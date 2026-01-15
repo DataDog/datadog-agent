@@ -238,93 +238,55 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		return s.Forwarder.SubmitV1Series(seriesBytesPayloads, extraHeaders)
 	}
 
-	failoverActiveForMRF, allowlistForMRF := s.getFailoverAllowlist()
-	failoverActiveForAutoscaling, allowlistForAutoscaling := s.getAutoscalingFailoverMetrics()
-	failoverActive := (failoverActiveForMRF && len(allowlistForMRF) > 0) || (failoverActiveForAutoscaling && len(allowlistForAutoscaling) > 0)
-	pipelines := []metricsserializer.Pipeline{}
-	if failoverActive {
-		// Default behavior, primary region only
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.PrimaryOnly,
-		})
-
-		// Filter for MRF
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForMRF[s.Name]
-				return allowed
-			},
-			Destination: transaction.SecondaryOnly,
-		})
-
-		// Filter for Autoscaling
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				_, allowed := allowlistForAutoscaling[s.Name]
-				return allowed
-			},
-			Destination: transaction.LocalOnly,
-		})
-	} else {
-		// Default behavior, all regions
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc:  func(series *metrics.Serie) bool { return true },
-			Destination: transaction.AllRegions,
-		})
-	}
-
-	if s.config.GetBool("preaggregation.enabled") {
-		pipelines = append(pipelines, metricsserializer.Pipeline{
-			FilterFunc: func(s *metrics.Serie) bool {
-				return true
-			},
-			Destination: transaction.PreaggrOnly,
-		})
-	}
-
-	seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
-	extraHeaders = s.protobufExtraHeadersWithCompression
-
+	pipelines := s.buildPipelines(metricsKindSeries)
+	err = seriesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines)
 	if err != nil {
 		return fmt.Errorf("dropping series payload: %s", err)
 	}
 
-	return s.Forwarder.SubmitSeries(seriesBytesPayloads, extraHeaders)
+	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
 }
 
-func (s *Serializer) getFailoverAllowlist() (bool, map[string]struct{}) {
+func (s *Serializer) getFailoverAllowlist() metricsserializer.Filter {
 	failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+	if !failoverActive {
+		return nil
+	}
+
 	var allowlist map[string]struct{}
-	if failoverActive && s.config.IsSet("multi_region_failover.metric_allowlist") {
+	if s.config.IsSet("multi_region_failover.metric_allowlist") {
 		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
 			allowlist[allowed] = struct{}{}
 		}
 	}
-	return failoverActive, allowlist
+
+	if len(allowlist) == 0 {
+		return metricsserializer.AllowAllFilter{}
+	}
+
+	return metricsserializer.NewMapFilter(allowlist)
 }
 
-func (s *Serializer) getAutoscalingFailoverMetrics() (bool, map[string]struct{}) {
+func (s *Serializer) getAutoscalingFailoverMetrics() metricsserializer.Filter {
 	autoscalingFailoverEnabled := s.config.GetBool("autoscaling.failover.enabled") && s.config.GetBool("cluster_agent.enabled")
-	var allowlist map[string]struct{}
-	if autoscalingFailoverEnabled {
-		if s.config.IsConfigured("autoscaling.failover.metrics") {
-			rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
-			allowlist = make(map[string]struct{}, len(rawList))
-			for _, allowed := range rawList {
-				allowlist[allowed] = struct{}{}
-			}
-		} else {
-			s.logger.Info("Local autoscaling.failover.enabled is set but no metrics are configured. Defaulting to container.memory.usage and container.cpu.usage")
-			allowlist = map[string]struct{}{
-				"container.memory.usage": {},
-				"container.cpu.usage":    {},
-			}
-		}
+	if !autoscalingFailoverEnabled {
+		return nil
 	}
-	return autoscalingFailoverEnabled, allowlist
+
+	var allowlist map[string]struct{}
+	rawList := s.config.GetStringSlice("autoscaling.failover.metrics")
+	allowlist = make(map[string]struct{}, len(rawList))
+	for _, allowed := range rawList {
+		allowlist[allowed] = struct{}{}
+	}
+
+	if len(allowlist) == 0 {
+		return nil
+	}
+
+	return metricsserializer.NewMapFilter(allowlist)
 }
 
 // AreSketchesEnabled returns whether sketches are enabled for serialization
@@ -340,32 +302,13 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	}
 	sketchesSerializer := metricsserializer.SketchSeriesList{SketchesSource: sketches}
 
-	failoverActive, allowlist := s.getFailoverAllowlist()
-	if failoverActive && len(allowlist) > 0 {
-		payloads, filteredPayloads, err := sketchesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(ss *metrics.SketchSeries) bool {
-			_, allowed := allowlist[ss.Name]
-			return allowed
-		}, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-		for _, payload := range payloads {
-			payload.Destination = transaction.PrimaryOnly
-		}
-		for _, payload := range filteredPayloads {
-			payload.Destination = transaction.SecondaryOnly
-		}
-		payloads = append(payloads, filteredPayloads...)
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
-	} else {
-		payloads, err := sketchesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy, s.logger)
-		if err != nil {
-			return fmt.Errorf("dropping sketch payload: %v", err)
-		}
-
-		return s.Forwarder.SubmitSketchSeries(payloads, s.protobufExtraHeadersWithCompression)
+	pipelines := s.buildPipelines(metricsKindSketches)
+	err := sketchesSerializer.MarshalSplitCompressPipelines(s.config, s.Strategy, pipelines, s.logger)
+	if err != nil {
+		return fmt.Errorf("dropping sketch payload: %v", err)
 	}
+
+	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
 }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder
@@ -441,15 +384,9 @@ func (s *Serializer) SendOrchestratorMetadata(msgs []types.ProcessMessageBody, h
 			return s.logger.Errorf("Unable to encode message: %s", err)
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
+		err = orchestratorForwarder.SubmitOrchestratorChecks(payloads, extraHeaders, payloadType)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil
@@ -468,15 +405,9 @@ func (s *Serializer) SendOrchestratorManifests(msgs []types.ProcessMessageBody, 
 			continue
 		}
 
-		responses, err := orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
+		err = orchestratorForwarder.SubmitOrchestratorManifests(payloads, extraHeaders)
 		if err != nil {
 			return s.logger.Errorf("Unable to submit payload: %s", err)
-		}
-
-		// Consume the responses so that writers to the channel do not become blocked
-		// we don't need the bodies here though
-		//nolint:revive // TODO(AML) Fix revive linter
-		for range responses {
 		}
 	}
 	return nil

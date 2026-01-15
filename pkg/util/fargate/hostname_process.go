@@ -10,7 +10,6 @@ package fargate
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,11 +20,11 @@ import (
 // - ECS: fargate_task:<TaskARN>
 // - EKS: value of kubernetes_kubelet_nodename
 func GetFargateHost(ctx context.Context) (string, error) {
-	return getFargateHost(ctx, GetOrchestrator(), getECSHost, getEKSHost)
+	return getFargateHost(ctx, GetOrchestrator(), getECSHost, getEKSHost, getECSManagedInstancesHost)
 }
 
 // getFargateHost is separated from GetFargateHost for testing purpose
-func getFargateHost(ctx context.Context, orchestrator OrchestratorName, ecsFunc, eksFunc func(context.Context) (string, error)) (string, error) {
+func getFargateHost(ctx context.Context, orchestrator OrchestratorName, ecsFunc, eksFunc, ecsManagedInstancesFunc func(context.Context) (string, error)) (string, error) {
 	// Fargate should have no concept of host names
 	// we set the hostname depending on the orchestrator
 	switch orchestrator {
@@ -33,6 +32,8 @@ func getFargateHost(ctx context.Context, orchestrator OrchestratorName, ecsFunc,
 		return ecsFunc(ctx)
 	case EKS:
 		return eksFunc(ctx)
+	case ECSManagedInstances:
+		return ecsManagedInstancesFunc(ctx)
 	}
 	return "", errors.New("unknown Fargate orchestrator")
 }
@@ -49,10 +50,24 @@ func getECSHost(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("fargate_task:%s", taskMeta.TaskARN), nil
+	return "fargate_task:" + taskMeta.TaskARN, nil
 }
 
 func getEKSHost(context.Context) (string, error) {
 	// Use the node name as hostname
 	return GetEKSFargateNodename()
+}
+
+func getECSManagedInstancesHost(ctx context.Context) (string, error) {
+	client, err := ecsmeta.V4FromCurrentTask()
+	if err != nil {
+		log.Debugf("error while initializing ECS metadata V4 client: %s", err)
+		return "", err
+	}
+
+	taskMeta, err := client.GetTask(ctx)
+	if err != nil {
+		return "", err
+	}
+	return "sidecar_host:" + taskMeta.TaskARN, nil
 }

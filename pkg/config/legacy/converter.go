@@ -8,6 +8,7 @@ package legacy
 
 import (
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"net/url"
 	"slices"
@@ -244,7 +245,7 @@ func extractTraceAgentConfig(agentConfig Config, converter *ConfigConverter) err
 
 func isAffirmative(value string) (bool, error) {
 	if value == "" {
-		return false, fmt.Errorf("value is empty")
+		return false, errors.New("value is empty")
 	}
 
 	v := strings.ToLower(value)
@@ -256,7 +257,7 @@ func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	keys := strings.Split(agentConfig["api_key"], ",")
 
 	if len(urls) != len(keys) {
-		return fmt.Errorf("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
+		return errors.New("Invalid number of 'dd_url'/'api_key': please provide one api_key for each url")
 	}
 
 	if urls[0] != "https://app.datadoghq.com" {
@@ -275,7 +276,7 @@ func extractURLAPIKeys(agentConfig Config, converter *ConfigConverter) error {
 	additionalEndpoints := map[string][]string{}
 	for idx, url := range urls {
 		if url == "" || keys[idx] == "" {
-			return fmt.Errorf("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
+			return errors.New("Found empty additional 'dd_url' or 'api_key'. Please check that you don't have any misplaced commas")
 		}
 		keys[idx] = configUtils.SanitizeAPIKey(keys[idx])
 		additionalEndpoints[url] = append(additionalEndpoints[url], keys[idx])
@@ -390,9 +391,9 @@ func buildHistogramAggregates(agentConfig Config) []string {
 		return nil
 	}
 	configValue = strings.ReplaceAll(configValue, " ", "")
-	result := strings.Split(configValue, ",")
+	result := strings.SplitSeq(configValue, ",")
 
-	for _, res := range result {
+	for res := range result {
 		found := false
 		if slices.Contains(validValues, res) {
 			histogramBuild = append(histogramBuild, res)
@@ -418,8 +419,8 @@ func buildHistogramPercentiles(agentConfig Config) []string {
 
 	// percentiles are rounded down to 2 digits and (0:1)
 	configList = strings.ReplaceAll(configList, " ", "")
-	result := strings.Split(configList, ",")
-	for _, res := range result {
+	result := strings.SplitSeq(configList, ",")
+	for res := range result {
 		num, err := strconv.ParseFloat(res, 64)
 		if num < 1 && num > 0 && err == nil {
 			fixed := strconv.FormatFloat(num, 'f', 2, 64)

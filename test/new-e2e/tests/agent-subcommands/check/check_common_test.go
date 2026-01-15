@@ -8,14 +8,14 @@ package check
 
 import (
 	_ "embed"
-	"fmt"
+	"strconv"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	checkutils "github.com/DataDog/datadog-agent/test/new-e2e/pkg/testcommon/check"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	checkutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 type baseCheckSuite struct {
@@ -64,7 +64,7 @@ func (v *baseCheckSuite) TestCheckRate() {
 
 func (v *baseCheckSuite) TestCheckTimes() {
 	times := 10
-	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-times", fmt.Sprint(times), "--json"}))
+	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"hello", "--check-times", strconv.Itoa(times), "--json"}))
 
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
 

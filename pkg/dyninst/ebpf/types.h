@@ -9,14 +9,25 @@ typedef struct probe_params {
   uint32_t pointer_chasing_limit;
   uint32_t collection_size_limit;
   uint32_t string_size_limit;
+  uint32_t probe_id;
   bool frameless;
-  bool __padding[3];
+  bool has_associated_return;
+  char kind; // actually an event_kind_t
+  char top_pc_offset;
+  char no_return_reason;
+  char __padding[3];
 } probe_params_t;
 
 typedef struct throttler_params {
   uint64_t period_ns;
   int64_t budget;
 } throttler_params_t;
+
+typedef struct stats {
+  uint64_t cpu_ns;
+  uint64_t hit_cnt;
+  uint64_t throttled_cnt;
+} stats_t;
 
 typedef enum dynamic_size_class {
   DYNAMIC_SIZE_CLASS_STATIC = 0,
@@ -31,6 +42,23 @@ typedef struct type_info {
   uint32_t enqueue_pc;
   uint32_t __padding;
 } type_info_t;
+
+// To be kept in sync with the ir/event_kind.go file.
+typedef enum event_kind {
+  EVENT_KIND_INVALID = 0,
+  EVENT_KIND_ENTRY = 1,
+  EVENT_KIND_RETURN = 2,
+} event_kind_t;
+
+// To be kept in sync with the ir.NoReturnReason enum in the ir/program.go file.
+typedef enum no_return_reason {
+  NO_RETURN_REASON_NONE = 0,
+  NO_RETURN_REASON_RETURNS_DISABLED = 1,
+  NO_RETURN_REASON_LINE_PROBE = 2,
+  NO_RETURN_REASON_INLINED = 3,
+  NO_RETURN_REASON_NO_BODY = 4,
+  NO_RETURN_REASON_IS_RETURN = 5,
+} no_return_reason_t;
 
 typedef enum sm_opcode {
   SM_OP_INVALID = 0,

@@ -8,12 +8,12 @@
 package setup
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Variables that are overridden at init
@@ -30,8 +30,6 @@ var (
 var (
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
-	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
-	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
 )
@@ -48,10 +46,14 @@ const (
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
 	// DefaultOTelAgentLogFile is the default otel-agent log file
 	DefaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
+	// DefaultHostProfilerLogFile is the default host-profiler log file
+	DefaultHostProfilerLogFile = "/var/log/datadog/host-profiler.log"
 	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 	// defaultStatsdSocket is the default Unix Domain Socket path on which statsd will listen
 	defaultStatsdSocket = "/var/run/datadog/dsd.socket"
+	// defaultReceiverSocket is the default Unix Domain Socket path on which Trace agent will listen
+	defaultReceiverSocket = "/var/run/datadog/apm.socket"
 	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )
@@ -62,13 +64,13 @@ func osinit() {
 	// Agent binary
 	_here, err := executable.Folder()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to get executable path: %v", err))
+		log.Errorf("Failed to get executable path: %v", err)
+		return
 	}
 	InstallPath = getInstallPathFromExecutable(_here)
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
-	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
 
 	if defaultRunPath == "" {

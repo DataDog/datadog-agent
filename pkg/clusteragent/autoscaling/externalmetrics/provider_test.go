@@ -8,6 +8,7 @@
 package externalmetrics
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -35,7 +36,7 @@ type providerFixture struct {
 	expectedError              error
 }
 
-func (f *providerFixture) runGetExternalMetric(t *testing.T) {
+func (f *providerFixture) runGetExternalMetric(t *testing.T, testTime time.Time) {
 	t.Helper()
 
 	// Create provider and fill store
@@ -48,7 +49,7 @@ func (f *providerFixture) runGetExternalMetric(t *testing.T) {
 		datadogMetricProvider.store.Set(datadogMetric.ddm.ID, datadogMetric.ddm, "utest")
 	}
 
-	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, time.Now())
+	externalMetrics, err := datadogMetricProvider.getExternalMetric(f.queryNamespace, labels.Set(f.querySelector).AsSelector(), provider.ExternalMetricInfo{Metric: f.queryMetricName}, testTime)
 	if err != nil {
 		assert.Equal(t, f.expectedError, err)
 		assert.Nil(t, externalMetrics)
@@ -130,7 +131,7 @@ func TestGetExternalMetrics(t *testing.T) {
 						ID:       "ns/metric0",
 						DataTime: defaultUpdateTime,
 						Valid:    false,
-						Error:    fmt.Errorf("Some error"),
+						Error:    errors.New("Some error"),
 						Value:    42.0,
 					},
 					query: "query-metric0",
@@ -138,7 +139,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("Some error"),
+			expectedError:           errors.New("Some error"),
 		},
 		{
 			desc: "Test DatadogMetric is invalid, no error",
@@ -155,7 +156,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric0",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric is invalid, missing error details"),
+			expectedError:           errors.New("DatadogMetric is invalid, missing error details"),
 		},
 		{
 			desc: "Test DatadogMetric not found",
@@ -173,7 +174,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
+			expectedError:           errors.New("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
 		},
 		{
 			desc: "Test DatadogMetric not found",
@@ -191,7 +192,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@ns:metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
+			expectedError:           errors.New("DatadogMetric not found for metric name: datadogmetric@ns:metric1, datadogmetricid: ns/metric1"),
 		},
 		{
 			desc: "Test ExternalMetric use wrong DatadogMetric format",
@@ -209,7 +210,7 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "datadogmetric@metric1",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric1"),
+			expectedError:           errors.New("ExternalMetric does not follow DatadogMetric format: datadogmetric@metric1"),
 		},
 		{
 			desc: "Test ExternalMetric does not use DatadogMetric format",
@@ -227,13 +228,13 @@ func TestGetExternalMetrics(t *testing.T) {
 			},
 			queryMetricName:         "nginx.net.request_per_s",
 			expectedExternalMetrics: nil,
-			expectedError:           fmt.Errorf("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f7"),
+			expectedError:           errors.New("DatadogMetric not found for metric name: nginx.net.request_per_s, datadogmetricid: default/dcaautogen-32402d8dfc05cf540928a606d78ed68c0607f7"),
 		},
 	}
 
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
-			fixture.runGetExternalMetric(t)
+			fixture.runGetExternalMetric(t, defaultUpdateTime)
 		})
 	}
 }

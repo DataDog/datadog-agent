@@ -64,6 +64,7 @@ type context struct {
 	APMInjection                     bool
 	NetworkPath                      bool
 	ApplicationMonitoring            bool
+	Synthetics                       bool
 }
 
 func mkContext(buildType string) context {
@@ -97,6 +98,7 @@ func mkContext(buildType string) context {
 		PrometheusScrape:  true,
 		OTLP:              true,
 		NetworkPath:       true,
+		Synthetics:        true,
 	}
 
 	switch buildType {
@@ -260,7 +262,7 @@ func lint(destFile string) error {
 			Context:  3,
 		}
 		diff, _ := difflib.GetContextDiffString(ud)
-		return fmt.Errorf("lint: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", diff)
+		return fmt.Errorf("linting %s: re-encoding YAML changed the content; please verify template correctness\n\nDiff:\n%s", destFile, diff)
 	}
 	return nil
 }

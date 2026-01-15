@@ -227,7 +227,7 @@ func (suite *ProviderTestSuite) TestPrometheusFiltering() {
 				suite.T().Fatalf("error created kubelet mock: %v", err)
 			}
 
-			prometheus.ParseMetricsWithFilterFunc = func(data []byte, filter []string) ([]*prom.MetricFamily, error) {
+			prometheus.ParseMetricsWithFilterFunc = func(data []byte, filter []string) ([]prom.MetricFamily, error) {
 				// We are going to intercept the parsed prometheus metric family data to determine if the configured provider
 				// has the expected text blacklist settings by default, and that this functionality still works
 				metrics, err := prom.ParseMetricsWithFilter(data, filter)
@@ -267,7 +267,7 @@ func (suite *ProviderTestSuite) TestIgnoreMetrics() {
 		ignoreMetrics = oldIgnore
 	})
 	// since we updated ignoreMetrics, we need to recreate the provider
-	suite.provider, _ = NewProvider(suite.provider.filterStore, suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
+	suite.provider, _ = NewProvider(workloadfilterfxmock.SetupMockFilter(suite.T()), suite.provider.Config, suite.provider.store, suite.provider.podUtils, suite.tagger)
 
 	response := commontesting.NewEndpointResponse(
 		"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil)

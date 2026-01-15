@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"strings"
 
-	infraCommon "github.com/DataDog/test-infra-definitions/common"
+	infraCommon "github.com/DataDog/datadog-agent/test/e2e-framework/common"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
@@ -132,17 +132,17 @@ func (t *Tester) ExpectedServiceConfig() (windowsCommon.ServiceConfigMap, error)
 	m["ddprocmon"].DisplayName = "Datadog Process Monitor"
 
 	// ImagePath
-	exePath := quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent.exe`, t.expectedInstallPath))
+	exePath := quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent.exe")
 	m["datadogagent"].ImagePath = exePath
 	// TODO: double slash is intentional, must fix the path in the installer
-	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\trace-agent.exe`, t.expectedInstallPath))
+	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\trace-agent.exe")
 	m["datadog-trace-agent"].ImagePath = fmt.Sprintf(`%s --config="%s\\datadog.yaml"`, exePath, t.expectedConfigRoot)
 	// TODO: double slash is intentional, must fix the path in the installer
-	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\process-agent.exe`, t.expectedInstallPath))
+	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\process-agent.exe")
 	m["datadog-process-agent"].ImagePath = fmt.Sprintf(`%s --cfgpath="%s\\datadog.yaml"`, exePath, t.expectedConfigRoot)
-	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\security-agent.exe`, t.expectedInstallPath))
+	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\security-agent.exe")
 	m["datadog-security-agent"].ImagePath = exePath
-	exePath = quotePathIfContainsSpaces(fmt.Sprintf(`%s\bin\agent\system-probe.exe`, t.expectedInstallPath))
+	exePath = quotePathIfContainsSpaces(t.expectedInstallPath + "\\bin\\agent\\system-probe.exe")
 	m["datadog-system-probe"].ImagePath = exePath
 	// drivers use the kernel path syntax and aren't quoted since they are file paths rather than command lines
 	m["ddnpm"].ImagePath = fmt.Sprintf(`\??\%s\bin\agent\driver\ddnpm.sys`, t.expectedInstallPath)

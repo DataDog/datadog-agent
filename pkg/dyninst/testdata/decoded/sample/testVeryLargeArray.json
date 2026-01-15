@@ -18,12 +18,12 @@
           {
             "function": "main.testVeryLargeArray",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 95
+            "lineNumber": 99
           },
           {
             "function": "main.executeArrayFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go",
-            "lineNumber": 99
+            "lineNumber": 103
           },
           {
             "function": "main.main",
@@ -459,8 +459,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "[1, 2, 3, ...]"
   }
 ]

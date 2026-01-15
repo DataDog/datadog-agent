@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -36,7 +37,7 @@ func (fpk *FakeProcessKillerOS) getProcesses(scope string, ev *model.Event, entr
 			path: ev.ProcessContext.FileEvent.PathnameStr,
 		},
 	}
-	if entry.ContainerID != "" && scope == "container" {
+	if entry.Process.ContainerContext.ContainerID != "" && scope == "container" {
 		kcs = append(kcs, []killContext{
 			{
 				pid:  int(ev.ProcessContext.Pid + 1),
@@ -116,11 +117,12 @@ func TestProcessKillerExclusion(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func craftKillRule(id, scope string) *rules.Rule {
-	return &rules.Rule{
+func craftKillRule(t *testing.T, id, scope string) (*rules.Rule, *rules.RuleSet) {
+	rule := &rules.Rule{
 		PolicyRule: &rules.PolicyRule{
 			Def: &rules.RuleDefinition{
-				ID: id,
+				ID:         id,
+				Expression: `exec.file.path == "/tmp/malware"`,
 				Actions: []*rules.ActionDefinition{
 					{
 						Kill: &rules.KillDefinition{
@@ -148,17 +150,23 @@ func craftKillRule(id, scope string) *rules.Rule {
 			ID: id,
 		},
 	}
+
+	opts := rules.NewRuleOpts(map[eval.EventType]bool{"*": true})
+	ruleSet := rules.NewRuleSet(&model.Model{}, nil, opts, &eval.Opts{})
+	_, err := ruleSet.AddRule(ast.NewParsingContext(false), rule.PolicyRule)
+	assert.NoError(t, err)
+
+	return rule, ruleSet
 }
 
 func craftFakeEvent(containerID, executable string, pid uint32) *model.Event {
 	event := model.NewFakeEvent()
-	event.ContainerContext = &model.ContainerContext{
-		ContainerID: containerutils.ContainerID(containerID),
-	}
 	event.ProcessCacheEntry = &model.ProcessCacheEntry{
 		ProcessContext: model.ProcessContext{
 			Process: model.Process{
-				ContainerID: containerutils.ContainerID(containerID),
+				ContainerContext: model.ContainerContext{
+					ContainerID: containerutils.ContainerID(containerID),
+				},
 				FileEvent: model.FileEvent{
 					PathnameStr: executable,
 				},
@@ -199,8 +207,7 @@ func TestProcessKillerDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("dismantle-rule-kill-action-by-executable", func(t *testing.T) {
 		pk.Reset(ruleSet)
@@ -317,8 +324,7 @@ func TestProcessKillerNoDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("no-executable-disarmer-rule-to-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)
@@ -471,8 +477,7 @@ func TestProcessKillerNoEnforcement(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 
 	t.Run("no-enforcement-rule-kill-action-by-executable", func(t *testing.T) {
 		pk.Reset(ruleSet)
@@ -547,9 +552,8 @@ func TestProcessKillerRuleNoDisarmers(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "process")
+	rule, ruleSet := craftKillRule(t, "test-rule", "process")
 	rule.PolicyRule.Def.Actions[0].Kill.DisableExecutableDisarmer = true
-	ruleSet := rules.NewFakeRuleSet(rule)
 
 	t.Run("no-executable-disarmer-by-rule-to-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)
@@ -702,8 +706,7 @@ func TestProcessKillerRuleScopeContainer(t *testing.T) {
 
 	pk, err := NewProcessKiller(cfg, &FakeProcessKillerOS{})
 	assert.NoError(t, err)
-	rule := craftKillRule("test-rule", "container")
-	ruleSet := rules.NewFakeRuleSet(rule)
+	rule, ruleSet := craftKillRule(t, "test-rule", "container")
 
 	t.Run("kill-container-rule-to-executable-disarm", func(t *testing.T) {
 		pk.Reset(ruleSet)

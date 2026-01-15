@@ -6,6 +6,7 @@
 #include "queue.h"
 #include "scratch.h"
 #include "chased_pointers_trie.h"
+#include "chased_slices.h"
 
 typedef uint32_t type_t;
 
@@ -50,6 +51,7 @@ typedef struct stack_machine {
 
   pointers_queue_t pointers_queue;
   chased_pointers_trie_t chased;
+  chased_slices_t chased_slices;
   // Remaining pointer chasing limit, given currently processed data item.
   // Maybe 0, in which case data might still be processed (i.e. interface type rewrite),
   // but no further pointers will be chased.
@@ -97,6 +99,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->pc_stack_pointer = 0;
   stack_machine->data_stack_pointer = 0;
   chased_pointers_trie_init(&stack_machine->chased);
+  chased_slices_init(&stack_machine->chased_slices);
   stack_machine->pointer_chasing_ttl = probe_params->pointer_chasing_limit;
   stack_machine->collection_size_limit = probe_params->collection_size_limit;
   stack_machine->string_size_limit = probe_params->string_size_limit;
@@ -148,5 +151,53 @@ typedef struct global_ctx {
   // Declared here, as pointers in maps are treated as scalars by verifier.
   struct pt_regs* regs;
 } global_ctx_t;
+
+typedef struct call_depths_entry {
+  uint32_t depth;
+  uint32_t probe_id;
+} call_depths_entry_t;
+
+#define CALL_DEPTHS_SIZE 8
+
+// Call depths is a set of call depths at entry that are used to track
+// the in-progress calls. It is unsorted. Zero-valued entries are considered
+// available for insertion.
+typedef struct call_depths {
+  call_depths_entry_t depths[CALL_DEPTHS_SIZE];
+} call_depths_t;
+
+struct {
+  __uint(type, BPF_MAP_TYPE_HASH);
+  __uint(max_entries, 8192);
+  __type(key, uint64_t); // goid
+  __type(value, call_depths_t);
+} in_progress_calls SEC(".maps");
+
+static inline __attribute__((always_inline)) bool call_depths_insert(
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id) {
+  for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
+    if (depths->depths[i].depth == 0 && depths->depths[i].probe_id == 0) {
+      depths->depths[i].depth = depth;
+      depths->depths[i].probe_id = probe_id;
+      return true;
+    }
+  }
+  return false;
+}
+
+static inline __attribute__((always_inline)) bool call_depths_delete(
+    call_depths_t* depths, uint32_t depth, uint32_t probe_id, int* remaining) {
+  bool found = false;
+  for (int i = 0; i < CALL_DEPTHS_SIZE; i++) {
+    if (depths->depths[i].depth == depth && depths->depths[i].probe_id == probe_id) {
+      depths->depths[i].depth = 0;
+      depths->depths[i].probe_id = 0;
+      found = true;
+    } else if (depths->depths[i].depth != 0 || depths->depths[i].probe_id != 0) {
+      (*remaining)++;
+    }
+  }
+  return found;
+}
 
 #endif // __CONTEXT_H__

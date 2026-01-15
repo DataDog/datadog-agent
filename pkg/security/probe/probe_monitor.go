@@ -18,10 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/dns"
-	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // EBPFMonitors regroups all the work we want to do to monitor the probes we pushed in the kernel
@@ -29,7 +29,6 @@ type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 
 	eventStreamMonitor *eventstream.Monitor
-	runtimeMonitor     *runtime.Monitor
 	discarderMonitor   *discarder.Monitor
 	cgroupsMonitor     *cgroups.Monitor
 	approverMonitor    *approver.Monitor
@@ -53,10 +52,6 @@ func (m *EBPFMonitors) Init() error {
 	m.eventStreamMonitor, err = eventstream.NewEventStreamMonitor(p.config.Probe, p.Erpc, p.Manager, p.statsdClient, p.onEventLost, p.useRingBuffers)
 	if err != nil {
 		return fmt.Errorf("couldn't create the events statistics monitor: %w", err)
-	}
-
-	if p.config.Probe.RuntimeMonitor {
-		m.runtimeMonitor = runtime.NewRuntimeMonitor(p.statsdClient)
 	}
 
 	m.discarderMonitor, err = discarder.NewDiscarderMonitor(p.Manager, p.statsdClient)
@@ -148,12 +143,6 @@ func (m *EBPFMonitors) SendStats() error {
 		return fmt.Errorf("failed to send events stats: %w", err)
 	}
 
-	if m.ebpfProbe.config.Probe.RuntimeMonitor {
-		if err := m.runtimeMonitor.SendStats(); err != nil {
-			return fmt.Errorf("failed to send runtime monitor stats: %w", err)
-		}
-	}
-
 	if err := m.discarderMonitor.SendStats(); err != nil {
 		return fmt.Errorf("failed to send discarder stats: %w", err)
 	}
@@ -176,7 +165,7 @@ func (m *EBPFMonitors) SendStats() error {
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
+func (m *EBPFMonitors) ProcessEvent(event *model.Event, scrubber *utils.Scrubber) {
 	if !m.ebpfProbe.config.RuntimeSecurity.InternalMonitoringEnabled {
 		return
 	}
@@ -191,23 +180,29 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	if errors.Is(event.Error, model.ErrFailedDNSPacketDecoding) {
+		m.ebpfProbe.probe.DispatchCustomEvent(
+			NewFailedDNSEvent(m.ebpfProbe.GetAgentContainerContext(), events.FailedDNSRuleID, events.AbnormalPathRuleDesc, event),
+		)
+	}
+
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, scrubber, pathErr.Err),
 		)
 	}
 
 	if errors.Is(event.Error, model.ErrNoProcessContext) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, scrubber, event.Error),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
+			NewAbnormalEvent(m.ebpfProbe.GetAgentContainerContext(), events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, scrubber, event.Error),
 		)
 	}
 }

@@ -206,7 +206,7 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 			podContainer.Image.ID = container.ImageID
 
 			podContainers = append(podContainers, podContainer)
-			store.Set(&workloadmeta.Container{
+			store.Set(&workloadmeta.Container{ // Not all fields are set. Just the ones needed for testing.
 				EntityID: workloadmeta.EntityID{
 					Kind: workloadmeta.KindContainer,
 					ID:   containerID,
@@ -221,7 +221,25 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 			})
 		}
 
-		store.Set(&workloadmeta.KubernetesPod{
+		volumes := make([]workloadmeta.KubernetesPodVolume, len(pod.Spec.Volumes))
+		for i, volume := range pod.Spec.Volumes {
+			volumes[i] = workloadmeta.KubernetesPodVolume{
+				Name: volume.Name,
+			}
+			if volume.PersistentVolumeClaim != nil {
+				volumes[i].PersistentVolumeClaim = &workloadmeta.KubernetesPersistentVolumeClaim{
+					ClaimName: volume.PersistentVolumeClaim.ClaimName,
+				}
+			}
+			if volume.Ephemeral != nil && volume.Ephemeral.VolumeClaimTemplate != nil {
+				volumes[i].Ephemeral = &workloadmeta.KubernetesEphemeralVolume{
+					Name: volume.Ephemeral.VolumeClaimTemplate.Metadata.Name,
+				}
+			}
+		}
+
+		// Not all fields are set. Just the ones needed for testing.
+		wmetaPod := &workloadmeta.KubernetesPod{
 			EntityID: workloadmeta.EntityID{
 				Kind: workloadmeta.KindKubernetesPod,
 				ID:   pod.Metadata.UID,
@@ -233,8 +251,12 @@ func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUti
 				Labels:      pod.Metadata.Labels,
 			},
 			Containers: podContainers,
-		})
-		podUtils.PopulateForPod(pod)
+			Phase:      pod.Status.Phase,
+			Volumes:    volumes,
+		}
+
+		store.Set(wmetaPod)
+		podUtils.PopulateForPod(wmetaPod)
 	}
 	return err
 }

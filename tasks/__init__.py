@@ -32,6 +32,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     fips,
+    full_host_profiler,
     git,
     github_tasks,
     gitlab_helpers,
@@ -40,8 +41,10 @@ from tasks import (
     installer,
     invoke_unit_tests,
     issue,
+    k8s_versions,
     kmt,
     linter,
+    loader,
     macos,
     modules,
     msi,
@@ -58,11 +61,11 @@ from tasks import (
     pre_commit,
     process_agent,
     protobuf,
+    python_version,
     quality_gates,
     release,
     rtloader,
     sbomgen,
-    sds,
     security_agent,
     selinux,
     setup,
@@ -199,15 +202,17 @@ ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
+ns.add_collection(loader)
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(quality_gates)
 ns.add_collection(protobuf)
+ns.add_collection(python_version, "python-version")
 ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
-ns.add_collection(sds)
+ns.add_collection(full_host_profiler)
 ns.add_collection(selinux)
 ns.add_collection(setup)
 ns.add_collection(systray)
@@ -222,6 +227,7 @@ ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
+ns.add_collection(k8s_versions)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)

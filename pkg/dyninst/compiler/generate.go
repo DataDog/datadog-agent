@@ -9,6 +9,7 @@ package compiler
 
 import (
 	"cmp"
+	stderrors "errors"
 	"fmt"
 	"math"
 	"slices"
@@ -74,14 +75,16 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		return Program{}, err
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
-	for _, probe := range program.Probes {
+	for idx, probe := range program.Probes {
 		for _, event := range probe.Events {
 			for _, injectionPoint := range event.InjectionPoints {
 				err := g.addEventHandler(
 					injectionPoint,
 					len(throttlers),
 					probe.GetCaptureConfig(),
+					uint32(idx),
 					event.Type,
+					event.Kind,
 				)
 				if err != nil {
 					return Program{}, err
@@ -154,7 +157,9 @@ func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
 	captureConfig ir.CaptureConfig,
+	probeID uint32,
 	rootType *ir.EventRootType,
+	eventKind ir.EventKind,
 ) error {
 	id := ProcessEvent{
 		InjectionPC:         injectionPoint.PC,
@@ -163,6 +168,11 @@ func (g *generator) addEventHandler(
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
+		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
+		NoReturnReason:      injectionPoint.NoReturnReason,
+		TopPCOffset:         injectionPoint.TopPCOffset,
+		ProbeID:             probeID,
+		EventKind:           eventKind,
 		EventRootType:       rootType,
 	}
 	ops := make([]Op, 0, 2+len(rootType.Expressions))
@@ -194,14 +204,29 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 	// Approximated capacity, location ops may require more than one instruction.
 	ops := make([]Op, 0, 4+len(expr.Operations))
 	ops = append(ops, ExprPrepareOp{})
+
+	// Track the size of the last operation to sanity check that we are
+	// dereferencing a pointer with the correct size.
+	var lastOpSize uint32
 	for _, op := range expr.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
+			lastOpSize = op.ByteSize
 			var err error
 			ops, err = g.EncodeLocationOp(injectionPC, op, ops)
 			if err != nil {
 				return nil, err
 			}
+		case *ir.DereferenceOp:
+			const pointerSize = 8
+			if lastOpSize != pointerSize {
+				return nil, fmt.Errorf("unexpected pointer size: %d", lastOpSize)
+			}
+			lastOpSize = op.ByteSize
+			ops = append(ops, ExprDereferencePtrOp{
+				Bias: op.Bias,
+				Len:  op.ByteSize,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -622,6 +647,11 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		// in different registers and/or stack (represented with multiple loclist pieces) are not padded.
 		// Consecutive pieces of data stored in the same loclist piece are padded (this only happens when
 		// the location is a stack, Go never packs multiple data pieces into same register).
+
+		if op.Variable.Type.GetByteSize() == 0 {
+			// Nothing needs to be read.
+			return ops, nil
+		}
 		layoutPieces, err := g.typeMemoryLayout(op.Variable.Type)
 		if err != nil {
 			return nil, err
@@ -633,7 +663,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 		}
 		for _, piece := range loclist.Pieces {
 			if layoutIdx >= len(layoutPieces) {
-				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout")
+				return nil, fmt.Errorf("mismatch between loclist pieces and type memory layout for %s : %s", op.Variable.Name, op.Variable.Type.GetName())
 			}
 			paddedOffset := layoutPieces[layoutIdx].PaddedOffset
 			nextLayoutIdx := layoutIdx
@@ -660,7 +690,7 @@ func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]
 						OutputOffset: paddedOffset - op.Offset,
 					})
 				case ir.Addr:
-					return nil, fmt.Errorf("unsupported addr location op")
+					return nil, stderrors.New("unsupported addr location op")
 				}
 			}
 		}

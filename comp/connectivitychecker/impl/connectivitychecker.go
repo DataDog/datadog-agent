@@ -67,6 +67,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 }
 
 func (c *inventoryImpl) startTimer(delay time.Duration) {
+	if !c.config.GetBool("inventories_diagnostics_enabled") {
+		c.log.Debug("Connectivity check disabled: inventories_diagnostics_enabled is false")
+		return
+	}
 	go func() {
 		// Initial delay before first run
 		select {

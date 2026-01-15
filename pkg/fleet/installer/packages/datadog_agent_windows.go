@@ -307,7 +307,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("Datadog Installer is not running")
+			return errors.New("Datadog Installer is not running")
 		}
 
 		// check the Agent service
@@ -319,7 +319,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 			// the service has died
 			// we need to restore the stable Agent
 			// return an error to signal the caller to restore the stable Agent
-			return fmt.Errorf("Datadog Agent is not running")
+			return errors.New("Datadog Agent is not running")
 		}
 
 		// wait for the events to be signaled with a timeout
@@ -336,7 +336,7 @@ func startWatchdog(_ context.Context, timeout time.Time) error {
 
 	}
 
-	return fmt.Errorf("watchdog timeout")
+	return errors.New("watchdog timeout")
 
 }
 
@@ -563,7 +563,7 @@ func getenv() *env.Env {
 }
 
 func newInstallerExec(env *env.Env) (*exec.InstallerExec, error) {
-	installerBin, err := os.Executable()
+	installerBin, err := exec.GetExecutable()
 	if err != nil {
 		return nil, fmt.Errorf("could not get installer executable path: %w", err)
 	}

@@ -14,7 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // HostInfo contains information about a Windows host, such as the hostname and version

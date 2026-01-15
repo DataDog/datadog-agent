@@ -7,6 +7,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -18,6 +19,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -53,6 +55,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 				process.Bundle(),
 				fx.Supply(params),
 				ipcfx.ModuleReadOnly(),
@@ -70,6 +73,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -86,6 +90,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -101,6 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
+					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -149,7 +155,7 @@ func setConfigValue(deps dependencies, args []string) error {
 	}
 
 	if len(args) != 2 {
-		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
+		return errors.New("exactly two parameters are required: the setting name and its value")
 	}
 
 	hidden, err := c.Set(args[0], args[1])
@@ -173,7 +179,7 @@ func getConfigValue(deps dependencies, args []string) error {
 	}
 
 	if len(args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+		return errors.New("a single setting name must be specified")
 	}
 
 	value, err := c.Get(args[0])
@@ -198,6 +204,6 @@ func getClient(deps dependencies) (settings.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	settingsClient := settingshttp.NewHTTPSClient(deps.Client, ipcAddressWithPort, "process-agent", ipchttp.WithLeaveConnectionOpen)
+	settingsClient := settingshttp.NewSecureClient(deps.Client, ipcAddressWithPort, "process-agent", ipchttp.WithLeaveConnectionOpen)
 	return settingsClient, nil
 }

@@ -1,0 +1,33 @@
+.bazel:build-deps:
+  rules:
+    - !reference [ .except_mergequeue ]
+    - when: on_success
+  stage: deps_build
+
+bazel:build-deps:linux-amd64:
+  extends: [ .bazel:build-deps, .bazel:runner:linux-amd64 ]
+  script:
+    - bazel build //deps/... --platforms=//bazel/platforms:linux_x86_64
+
+bazel:build-deps:linux-arm64:
+  extends: [ .bazel:build-deps, .bazel:runner:linux-arm64 ]
+  script:
+    - bazel build //deps/... --platforms=//bazel/platforms:linux_arm64
+
+bazel:build-deps:macos-amd64:
+  extends: [ .bazel:build-deps, .bazel:runner:macos-amd64 ]
+  script:
+    - bazel build //deps/... --platforms=//bazel/platforms:macos_x86_64
+
+bazel:build-deps:macos-arm64:
+  extends: [ .bazel:build-deps, .bazel:runner:macos-arm64 ]
+  script:
+    - bazel build //deps/... --platforms=//bazel/platforms:macos_arm64
+
+bazel:build-deps:windows-amd64:
+  extends: [ .bazel:build-deps, .bazel:runner:windows-amd64 ]
+  variables:
+    POWERSHELL_SCRIPT: |-
+      [Console]::WriteLine("🟡 TODO(regis): compilation errors remain - limiting to a working subset for the time being")
+      bazel build '@zlib//...' '@libffi//:ffi' '@xz//...' '@cpython//...' '@openssl//...' --platforms=//bazel/platforms:windows_x86_64
+      # bazel build @bzip2//...

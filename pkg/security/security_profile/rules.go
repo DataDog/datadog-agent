@@ -209,7 +209,7 @@ func LoadActivityDumpsFromFiles(path string) ([]*profile.Profile, error) {
 		defer dir.Close()
 
 		// Read the directory contents
-		files, err := dir.Readdir(-1)
+		files, err := dir.ReadDir(-1)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read directory: %s", err)
 		}

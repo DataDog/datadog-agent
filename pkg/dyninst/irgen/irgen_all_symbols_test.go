@@ -130,5 +130,17 @@ func testAllProbes(t *testing.T, binPath string) {
 	v, err := irgen.GenerateIR(1, obj, probes)
 	require.NoError(t, err)
 	require.NotNil(t, v)
-	// TODO: Validate more properties of the IR.
+	verifyIR(t, v)
+}
+
+func verifyIR(t *testing.T, ir *ir.Program) {
+	for _, s := range ir.Subprograms {
+		varNames := make(map[string]struct{})
+		for _, v := range s.Variables {
+			if _, ok := varNames[v.Name]; ok {
+				t.Fatalf("variable %s appears multiple times in subprogram %s", v.Name, s.Name)
+			}
+			varNames[v.Name] = struct{}{}
+		}
+	}
 }

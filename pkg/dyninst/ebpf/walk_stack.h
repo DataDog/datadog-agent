@@ -40,8 +40,9 @@ bool check_stack_hash(uint64_t stack_hash) {
 }
 
 // From
-// https://github.com/torvalds/linux/blob/5a6a09e9/include/uapi/asm-generic/errno-base.h#L21
+// https://github.com/torvalds/linux/blob/5a6a09e9/include/uapi/asm-generic/errno-base.h#L11-L21
 // TODO: Include a header that defines these.
+#define E2BIG 7 /* Argument list too long */
 #define EEXIST 17 /* File exists */
 
 // Check if the stack hash is in the set, and add it if it is not.

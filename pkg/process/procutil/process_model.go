@@ -6,12 +6,25 @@
 package procutil
 
 import (
+	"github.com/DataDog/gopsutil/cpu"
+
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/gopsutil/cpu"
 
 	// using process.FilledProcess
 	"github.com/DataDog/gopsutil/process"
+)
+
+// InjectionState represents the APM injection state of a process
+type InjectionState int
+
+const (
+	// InjectionUnknown means we haven't determined the injection status yet
+	InjectionUnknown InjectionState = 0
+	// InjectionInjected means the process has APM auto-injection enabled
+	InjectionInjected InjectionState = 1
+	// InjectionNotInjected means the process does not have APM auto-injection
+	InjectionNotInjected InjectionState = 2
 )
 
 // Process holds all relevant metadata and metrics for a process
@@ -35,8 +48,9 @@ type Process struct {
 	TCPPorts       []uint16
 	UDPPorts       []uint16
 
-	Stats   *Stats
-	Service *Service
+	Stats          *Stats
+	Service        *Service
+	InjectionState InjectionState // APM auto-injector detection status
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -64,6 +78,7 @@ func (p *Process) DeepCopy() *Process {
 		Name:           p.Name,
 		Cwd:            p.Cwd,
 		Exe:            p.Exe,
+		Comm:           p.Comm,
 		Username:       p.Username,
 		PortsCollected: p.PortsCollected,
 	}
@@ -137,7 +152,10 @@ type Service struct {
 	DDService string
 
 	// APMInstrumentation indicates the APM instrumentation status
-	APMInstrumentation string
+	APMInstrumentation bool
+
+	// LogFiles contains paths to log files associated with this service
+	LogFiles []string
 }
 
 // DeepCopy creates a deep copy of Stats

@@ -11,6 +11,7 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -37,7 +38,7 @@ import (
 var (
 	// ErrNoNetworkNamespaceHandle is used to indicate that we haven't resolved a handle for the requested network
 	// namespace yet.
-	ErrNoNetworkNamespaceHandle = fmt.Errorf("no network namespace handle")
+	ErrNoNetworkNamespaceHandle = errors.New("no network namespace handle")
 
 	// lonelyNamespaceTimeout is the timeout past which a lonely network namespace is expired
 	lonelyNamespaceTimeout = 30 * time.Second
@@ -133,7 +134,7 @@ func (nn *NetworkNamespace) getNamespaceHandleDup() (*os.File, error) {
 	}
 
 	// duplicate the file descriptor to avoid race conditions with the resync
-	dup, err := unix.Dup(int(nn.handle.Fd()))
+	dup, err := unix.FcntlInt(uintptr(nn.handle.Fd()), unix.F_DUPFD_CLOEXEC, 0)
 	if err != nil {
 		return nil, err
 	}

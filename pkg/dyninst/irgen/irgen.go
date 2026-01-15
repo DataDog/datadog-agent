@@ -35,28 +35,31 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	pkgerrors "github.com/pkg/errors"
+	"golang.org/x/arch/arm64/arm64asm"
+	"golang.org/x/arch/x86/x86asm"
 	"golang.org/x/time/rate"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/dwarfutil"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dwarf/loclist"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
 
-var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 1)
+var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
+var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
 // objects are going to be the same.
-
-// TODO: Handle creating return events.
 
 // Generator is used to generate IR programs from binary files and probe
 // configurations.
@@ -107,12 +110,26 @@ func GenerateIR(
 	return generateIR(cfg, programID, objFile, probeDefs)
 }
 
+type section struct {
+	header *safeelf.SectionHeader
+	data   object.SectionData
+}
+
 func generateIR(
 	cfg config,
 	programID ir.ProgramID,
 	objFile object.FileWithDwarf,
 	probeDefs []ir.ProbeDefinition,
-) (_ *ir.Program, retErr error) {
+) (ret *ir.Program, retErr error) {
+	defer func() {
+		if retErr != nil {
+			return
+		}
+		if len(ret.Probes) == 0 {
+			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
+		}
+	}()
+
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
@@ -177,29 +194,6 @@ func generateIR(
 	if err != nil {
 		return nil, err
 	}
-	// Find prologues need to determine injection points. We make an assumption
-	// that prologue, if function has a frame, should be contained within the
-	// first pc range of a subprogram. This simplifies the logic slightly.
-	prologueSearch := make([]prologueSeachParams, 0, len(processed.pendingSubprograms))
-	for _, sp := range processed.pendingSubprograms {
-		if len(sp.outOfLinePCRanges) > 0 {
-			prologueSearch = append(prologueSearch, prologueSeachParams{
-				unit:    sp.unit,
-				pcRange: sp.outOfLinePCRanges[0],
-			})
-		}
-		for _, inlined := range sp.inlinePCRanges {
-			prologueSearch = append(prologueSearch, prologueSeachParams{
-				unit:    sp.unit,
-				pcRange: inlined.RootRanges[0],
-			})
-		}
-	}
-
-	prologueLocs, err := findProloguesEnds(objFile, prologueSearch)
-	if err != nil {
-		return nil, err
-	}
 
 	typeCatalog := newTypeCatalog(d, ptrSize)
 	var commonTypes ir.CommonTypes
@@ -220,10 +214,10 @@ func generateIR(
 		}
 	}
 	if commonTypes.G == nil {
-		return nil, fmt.Errorf("runtime.g not found")
+		return nil, errors.New("runtime.g not found")
 	}
 	if commonTypes.M == nil {
-		return nil, fmt.Errorf("runtime.m not found")
+		return nil, errors.New("runtime.m not found")
 	}
 
 	// Materialize before creating probes so IR subprograms and vars exist.
@@ -250,7 +244,22 @@ func generateIR(
 	for tid := range typeIndex.allGoTypes() {
 		goType, err := typeTab.ParseGoType(tid)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse go type: %w", err)
+			if !invalidGoRuntimeTypeLogLimiter.Allow() {
+				continue
+			}
+			// We've seen situations where the GoRuntimeType values are bogus.
+			// That shouldn't prevent us from generating IR.
+			dwarfOffset, offsetOk := typeIndex.resolveDwarfOffset(tid)
+			irTypeID, idOk := typeCatalog.typesByDwarfType[dwarfOffset]
+			var typeName string
+			if t, ok := typeCatalog.typesByID[irTypeID]; offsetOk && idOk && ok {
+				typeName = t.GetName()
+			}
+			log.Warnf(
+				"invalid go runtime type id for %q (%d) (dwarf offset: %#x): %v",
+				typeName, irTypeID, dwarfOffset, err,
+			)
+			continue
 		}
 		methodBuf, err = goType.Methods(methodBuf[:0])
 		if err != nil {
@@ -268,33 +277,107 @@ func generateIR(
 	}
 	defer cleanupCloser(methodIndex, "method index")()
 
-	// Resolve placeholder types by a unified, budgeted expansion from
-	// subprogram parameter roots. Container internals are zero-cost.
-	{
-		budgets := computeDepthBudgets(processed.pendingSubprograms)
-		// Specialize any already-added container types before traversal.
-		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
-			return nil, err
+	// Collect line information about subprograms. It's important for
+	// performance to batch analysis of each compilation unit, and do it in
+	// incremental pc order for each compilation unit.
+	lineSearchRanges := make([]lineSearchRange, 0, len(processed.pendingSubprograms))
+	for _, sp := range processed.pendingSubprograms {
+		for _, pcRange := range sp.outOfLinePCRanges {
+			lineSearchRanges = append(lineSearchRanges, lineSearchRange{
+				unit:    sp.unit,
+				pcRange: pcRange,
+			})
 		}
-		if err := expandTypesWithBudgets(
-			typeCatalog, typeTab, methodIndex, typeIndex, materializedSubprograms, budgets,
-		); err != nil {
-			return nil, err
+		for _, inlined := range sp.inlinePCRanges {
+			for _, pcRange := range inlined.RootRanges {
+				lineSearchRanges = append(lineSearchRanges, lineSearchRange{
+					unit:    sp.unit,
+					pcRange: pcRange,
+				})
+			}
 		}
+	}
+
+	lineData, err := collectLineData(d, lineSearchRanges)
+	if err != nil {
+		return nil, err
 	}
 
 	idToSub := make(map[ir.SubprogramID]*ir.Subprogram, len(materializedSubprograms))
 	for _, sp := range materializedSubprograms {
 		idToSub[sp.ID] = sp
 	}
+
+	textSection := section{header: objFile.Section(".text")}
+	if textSection.header == nil {
+		return nil, errors.New("failed to find text section")
+	}
+	textSection.data, err = objFile.SectionData(textSection.header)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load text section: %w", err)
+	}
+	defer textSection.data.Close()
+
 	// Instantiate probes and gather any probe-related issues.
+	// This must happen before type expansion so we have Events and
+	// InjectionPoints for expression analysis.
 	probes, subprograms, probeIssues, err := createProbes(
-		arch, processed.pendingSubprograms, prologueLocs, idToSub,
+		arch, processed.pendingSubprograms, lineData, idToSub, &textSection,
+		cfg.skipReturnEvents,
 	)
 	if err != nil {
 		return nil, err
 	}
 	issues = append(issues, probeIssues...)
+
+	// Augment return variable locations with ABI-derived information.
+	subprogrProbeMap := make(map[ir.SubprogramID][]*ir.Probe)
+	for _, probe := range probes {
+		subprogrProbeMap[probe.Subprogram.ID] = append(
+			subprogrProbeMap[probe.Subprogram.ID], probe,
+		)
+	}
+	for _, sp := range subprograms {
+		probesForSubprogram := subprogrProbeMap[sp.ID]
+		if err := augmentReturnLocationsFromABI(
+			arch, sp, probesForSubprogram,
+		); err != nil {
+			return nil, fmt.Errorf(
+				"failed to augment return locations for %q: %w", sp.Name, err,
+			)
+		}
+	}
+
+	// Analyze all probe expressions in one pass. This parses expressions once,
+	// matches them to variables, checks availability, and computes exploration
+	// roots. Must happen before type expansion.
+	budgets := computeDepthBudgets(processed.pendingSubprograms)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets)
+
+	// Populate probe templates from analysis.
+	for i, ap := range analyzedProbes {
+		probes[i].Template = ap.template
+	}
+
+	// Resolve placeholder types by a unified, budgeted expansion from
+	// exploration roots. Container internals are zero-cost.
+	{
+		// Specialize any already-added container types before traversal.
+		if err := completeGoTypes(typeCatalog, 1, typeCatalog.idAlloc.alloc); err != nil {
+			return nil, err
+		}
+		if err := expandTypesWithBudgets(
+			typeCatalog, typeTab, methodIndex, typeIndex,
+			explorationRoots, analyzedProbes,
+		); err != nil {
+			return nil, err
+		}
+	}
+
+	// Validate that all expression types were properly explored during
+	// expandTypesWithBudgets. This marks invalid segments for expressions
+	// that fail to resolve (e.g., type mismatches, missing fields).
+	exploreTypesForExpressions(typeCatalog, analyzedProbes)
 
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
@@ -302,7 +385,9 @@ func generateIR(
 	}
 
 	// Populate event root expressions for every probe.
-	probes, eventIssues := populateProbeEventsExpressions(probes, typeCatalog)
+	probes, eventIssues := populateProbeEventsExpressions(
+		probes, analyzedProbes, typeCatalog,
+	)
 	issues = append(issues, eventIssues...)
 
 	// Detect probe definitions that did not match any symbol in the binary.
@@ -330,6 +415,297 @@ func generateIR(
 	}, nil
 }
 
+// analyzedExpression holds all information about a parsed expression.
+// Expressions are parsed once during analysis and reused throughout.
+type analyzedExpression struct {
+	// The parsed expression AST (parsed once, used many times).
+	expr exprlang.Expr
+
+	// The DSL string for error messages.
+	dsl string
+
+	// The root variable matched from the subprogram (nil if not found).
+	rootVariable *ir.Variable
+
+	// The kind of event at which this expression is evaluated.
+	eventKind ir.EventKind
+
+	// The kind of expression for deserialization.
+	exprKind ir.RootExpressionKind
+
+	// For template segments, the segment reference and index.
+	segment    *ir.JSONSegment
+	segmentIdx int // -1 if not a segment
+}
+
+// analyzedProbe holds all analyzed expressions for a single probe.
+type analyzedProbe struct {
+	probe       *ir.Probe
+	expressions []analyzedExpression
+	template    *ir.Template
+
+	// Budget for type exploration.
+	budget uint32
+
+	// Whether this is a snapshot probe (affects exploration strategy).
+	isSnapshot bool
+}
+
+// extractRootVariableName extracts the root variable name from an expression.
+func extractRootVariableName(expr exprlang.Expr) (string, bool) {
+	const maxDepth = 30
+	for range maxDepth {
+		switch e := expr.(type) {
+		case *exprlang.RefExpr:
+			return e.Ref, true
+		case *exprlang.GetMemberExpr:
+			expr = e.Base
+		default:
+			return "", false
+		}
+	}
+	return "", false
+}
+
+// analyzeAllProbes performs a single pass through all probes, parsing
+// expressions once and matching them to variables. This must be called after
+// probes are created (so we have Events and InjectionPoints) but before type
+// expansion. Returns analyzed probes and exploration roots for type expansion.
+func analyzeAllProbes(
+	probes []*ir.Probe,
+	budgets map[ir.SubprogramID]uint32,
+) ([]analyzedProbe, []explorationRoot) {
+	analyzed := make([]analyzedProbe, 0, len(probes))
+
+	// Track exploration roots (typeID -> max budget).
+	rootBudgets := make(map[ir.TypeID]uint32)
+	addRoot := func(typeID ir.TypeID, budget uint32) {
+		if existing, ok := rootBudgets[typeID]; !ok || budget > existing {
+			rootBudgets[typeID] = budget
+		}
+	}
+
+	for _, probe := range probes {
+		budget := budgets[probe.Subprogram.ID]
+		isSnapshot := probe.GetKind() == ir.ProbeKindSnapshot
+
+		ap := analyzedProbe{
+			probe:      probe,
+			budget:     budget,
+			isSnapshot: isSnapshot,
+		}
+
+		// Build variable lookup for this probe's subprogram.
+		varByName := make(map[string]*ir.Variable, len(probe.Subprogram.Variables))
+		for _, v := range probe.Subprogram.Variables {
+			varByName[v.Name] = v
+		}
+
+		// Parse template and create template segments.
+		if td := probe.ProbeDefinition.GetTemplate(); td != nil {
+			ap.template = newTemplate(td)
+		}
+
+		// Determine event kinds for this probe.
+		isKind := func(kind ir.EventKind) func(*ir.Event) bool {
+			return func(ev *ir.Event) bool { return ev.Kind == kind }
+		}
+		haveEntry := slices.ContainsFunc(probe.Events, isKind(ir.EventKindEntry))
+		haveReturn := slices.ContainsFunc(probe.Events, isKind(ir.EventKindReturn))
+
+		// Check variable availability at injection points.
+		variableIsAvailable := func(ips []ir.InjectionPoint, v *ir.Variable) bool {
+			locIdx := 0
+			for _, ip := range ips {
+				for locIdx < len(v.Locations) &&
+					v.Locations[locIdx].Range[1] <= ip.PC {
+					locIdx++
+				}
+				if locIdx < len(v.Locations) &&
+					ip.PC >= v.Locations[locIdx].Range[0] {
+					return true
+				}
+			}
+			return false
+		}
+
+		// Build segment references for matching.
+		type segmentRef struct {
+			segment *ir.JSONSegment
+			index   int
+		}
+		segmentRefs := make(map[string][]segmentRef)
+		if ap.template != nil {
+			for i, s := range ap.template.Segments {
+				if seg, ok := s.(*ir.JSONSegment); ok {
+					if rootVar, ok := extractRootVariableName(seg.JSON); ok {
+						segmentRefs[rootVar] = append(segmentRefs[rootVar],
+							segmentRef{segment: seg, index: i})
+					}
+				}
+			}
+		}
+
+		// Process each variable.
+		for _, v := range probe.Subprogram.Variables {
+			var evKind ir.EventKind
+			var exprKind ir.RootExpressionKind
+
+			switch {
+			case haveEntry && v.Role == ir.VariableRoleParameter:
+				// The entry event for a method probe.
+				evKind = ir.EventKindEntry
+				exprKind = ir.RootExpressionKindArgument
+
+			case haveReturn && v.Role == ir.VariableRoleReturn:
+				// The return event for a method probe.
+				//
+				// TODO: We should return available locals from return probes,
+				// which would just require extending the next case to also be
+				// triggered for return variables.
+				evKind = ir.EventKindReturn
+				exprKind = ir.RootExpressionKindLocal
+
+			case len(probe.Events) == 1 &&
+				probe.Events[0].Kind == ir.EventKindLine:
+				// The line-probe case.
+				ips := probe.Events[0].InjectionPoints
+				if !variableIsAvailable(ips, v) {
+					continue
+				}
+				// TODO: the exprKind should be argument for available arguments.
+				evKind = ir.EventKindLine
+				exprKind = ir.RootExpressionKindLocal
+
+			default:
+				continue
+			}
+
+			// For snapshot probes, add variable itself as an expression.
+			if isSnapshot {
+				ap.expressions = append(ap.expressions, analyzedExpression{
+					expr:         &exprlang.RefExpr{Ref: v.Name},
+					dsl:          v.Name,
+					rootVariable: v,
+					eventKind:    evKind,
+					exprKind:     exprKind,
+					segmentIdx:   -1,
+				})
+				// Snapshot: add all variable types to exploration roots.
+				addRoot(v.Type.GetID(), budget)
+			}
+
+			// Match template segments to this variable.
+			//
+			// Note: there's no risk of picking the wrong variable due to
+			// shadowing, but there should be! In materializePending we ensure
+			// that we only track a single variable with a given name. This is
+			// incorrect in cases of shadowing. Instead we could record all
+			// shadowed variables and handle ambiguity of template resolution
+			// based on the specific return point (as that's all that matters
+			// for scoping in the case of shadowing) and come up with a naming
+			// scheme to describe the shadowed variables in snapshots.
+			segs, ok := segmentRefs[v.Name]
+			if !ok {
+				continue
+			}
+			for _, seg := range segs {
+				ap.expressions = append(ap.expressions, analyzedExpression{
+					expr:         seg.segment.JSON,
+					dsl:          seg.segment.DSL,
+					rootVariable: v,
+					eventKind:    evKind,
+					exprKind:     ir.RootExpressionKindTemplateSegment,
+					segment:      seg.segment,
+					segmentIdx:   seg.index,
+				})
+				// Log probe: add root variable type to exploration roots.
+				if !isSnapshot {
+					addRoot(v.Type.GetID(), budget)
+				}
+			}
+			delete(segmentRefs, v.Name)
+		}
+
+		// Mark unmatched segments as invalid.
+		for name, segs := range segmentRefs {
+			for _, seg := range segs {
+				ap.template.Segments[seg.index] = ir.InvalidSegment{
+					Error: fmt.Sprintf("failed to resolve reference %q", name),
+					DSL:   seg.segment.DSL,
+				}
+			}
+		}
+
+		analyzed = append(analyzed, ap)
+	}
+
+	// Convert root budgets to slice.
+	roots := make([]explorationRoot, 0, len(rootBudgets))
+	for typeID, budget := range rootBudgets {
+		roots = append(roots, explorationRoot{typeID: typeID, budget: budget})
+	}
+
+	return analyzed, roots
+}
+
+// newTemplate creates a new template from a template definition.
+//
+// Note that the JSONSegment EventKind and EventExpressionIndex will be left
+// with zero values to be filled in later.
+func newTemplate(td ir.TemplateDefinition) *ir.Template {
+	var segments []ir.TemplateSegment
+	addSegment := func(s ir.TemplateSegment) {
+		segments = append(segments, s)
+	}
+	addInvalid := func(s ir.TemplateSegmentExpression, msg string) {
+		addSegment(ir.InvalidSegment{DSL: s.GetDSL(), Error: msg})
+	}
+	var i int
+	for segment := range td.GetSegments() {
+		switch segment := segment.(type) {
+		case ir.TemplateSegmentString:
+			addSegment(ir.StringSegment(segment.GetString()))
+		case ir.TemplateSegmentExpression:
+			expr, err := exprlang.Parse(segment.GetJSON())
+			if err != nil {
+				addInvalid(segment, err.Error())
+			} else {
+				switch expr := expr.(type) {
+				case *exprlang.RefExpr:
+					if expr.Ref == "@duration" {
+						addSegment(&ir.DurationSegment{})
+						continue
+					}
+				case *exprlang.GetMemberExpr:
+				case *exprlang.UnsupportedExpr:
+					msg := "unsupported operation: " + expr.Operation
+					addInvalid(segment, msg)
+					continue
+				default:
+					msg := fmt.Sprintf("unsupported expression: %T", expr)
+					addInvalid(segment, msg)
+					continue
+				}
+				addSegment(&ir.JSONSegment{
+					DSL:  segment.GetDSL(),
+					JSON: expr,
+
+					// These will be filled in by populateProbeExpressions.
+					EventKind:            0,
+					EventExpressionIndex: 0,
+				})
+			}
+		}
+		i++
+	}
+	t := &ir.Template{
+		TemplateString: td.GetTemplateString(),
+		Segments:       segments,
+	}
+	return t
+}
+
 // computeDepthBudgets returns the maximum reference depth per subprogram ID
 // across all probes configured for that subprogram.
 func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint32 {
@@ -342,6 +718,12 @@ func computeDepthBudgets(pending []*pendingSubprogram) map[ir.SubprogramID]uint3
 		budgets[p.id] = maxDepth
 	}
 	return budgets
+}
+
+// explorationRoot represents a type that should be explored with a budget.
+type explorationRoot struct {
+	typeID ir.TypeID
+	budget uint32
 }
 
 type typeQueueEntry struct {
@@ -394,71 +776,64 @@ func newTypeQueue() *typeQueue {
 	}
 }
 
-// expandTypesWithBudgets performs a unified graph expansion starting from all
-// subprogram parameter roots, observing per-subprogram depth budgets. Only
-// pointer dereferences consume depth; container internals (strings, slices,
-// maps) are zero-cost. Newly materialized types are immediately completed to
-// ensure correct container specialization.
-func expandTypesWithBudgets(
-	tc *typeCatalog,
-	goTypes *gotype.Table,
-	methodIndex methodToGoTypeIndex,
-	gotypeTypeIndex goTypeToOffsetIndex,
-	subprograms []*ir.Subprogram,
-	budgets map[ir.SubprogramID]uint32,
-) error {
-	// Track the best (maximum) processed remaining depth per type.
-	processedBest := make(map[ir.TypeID]uint32)
+// typeQueueProcessor encapsulates the state needed for processing the type
+// exploration queue. It handles budget-based type graph traversal.
+type typeQueueProcessor struct {
+	q               *typeQueue
+	processedBest   map[ir.TypeID]uint32
+	tc              *typeCatalog
+	goTypes         *gotype.Table
+	gotypeTypeIndex goTypeToOffsetIndex
+	methodIndex     methodToGoTypeIndex
 
-	q := newTypeQueue()
-	// push enqueues (or improves) only if strictly better than any
-	// already processed or enqueued remaining budget.
-	push := func(t ir.Type, remaining uint32) {
-		id := t.GetID()
-		if r, ok := processedBest[id]; ok && remaining <= r {
+	// Reusable buffers.
+	methodBuf   []gotype.IMethod
+	ii          implementorIterator
+	iiInitiated bool
+}
+
+// push enqueues (or improves) a type only if strictly better than any
+// already processed or enqueued remaining budget.
+func (p *typeQueueProcessor) push(t ir.Type, remaining uint32) {
+	id := t.GetID()
+	if r, ok := p.processedBest[id]; ok && remaining <= r {
+		return
+	}
+	if idx, ok := p.q.pos[id]; ok {
+		if remaining <= p.q.items[idx].remaining {
 			return
 		}
-		if idx, ok := q.pos[id]; ok {
-			if remaining <= q.items[idx].remaining {
-				return
-			}
-			q.items[idx].remaining = remaining
-			heap.Fix(q, int(idx))
-			return
-		}
-		q.push(typeQueueEntry{id: id, remaining: remaining})
+		p.q.items[idx].remaining = remaining
+		heap.Fix(p.q, int(idx))
+		return
+	}
+	p.q.push(typeQueueEntry{id: id, remaining: remaining})
+}
+
+// ensureCompleted completes a type by ID.
+func (p *typeQueueProcessor) ensureCompleted(id ir.TypeID) error {
+	return completeGoTypes(p.tc, id, id)
+}
+
+// drainQueue processes all items in the queue until empty.
+func (p *typeQueueProcessor) drainQueue() error {
+	if !p.iiInitiated {
+		p.ii = makeImplementorIterator(p.methodIndex)
+		p.iiInitiated = true
 	}
 
-	// Seed from all parameter variables of all subprograms.
-	for _, sp := range subprograms {
-		budget := budgets[sp.ID]
-		for _, v := range sp.Variables {
-			if !v.IsParameter || v.IsReturn || v.Type == nil {
-				continue
-			}
-			push(v.Type, budget)
-		}
-	}
-
-	// Local helper to complete a just-added type ID.
-	ensureCompleted := func(id ir.TypeID) error {
-		return completeGoTypes(tc, id, id)
-	}
-
-	var methodBuf []gotype.IMethod
-	ii := makeImplementorIterator(methodIndex)
-	for q.Len() > 0 {
-		wi := q.pop()
-		if r, ok := processedBest[wi.id]; ok && wi.remaining <= r {
+	for p.q.Len() > 0 {
+		wi := p.q.pop()
+		if r, ok := p.processedBest[wi.id]; ok && wi.remaining <= r {
 			continue
 		}
 
 		// Ensure the current type is specialized before visiting.
-		if err := ensureCompleted(wi.id); err != nil {
+		if err := p.ensureCompleted(wi.id); err != nil {
 			return err
 		}
 
-		t := tc.typesByID[wi.id]
+		t := p.tc.typesByID[wi.id]
 
 		switch tt := t.(type) {
 
@@ -476,89 +851,37 @@ func expandTypesWithBudgets(
 			if wi.remaining <= 0 {
 				break
 			}
-			// Now we need to iterate through the implementations of the
-			// interface.
-			grtID, ok := tt.GetGoRuntimeType()
-			if !ok {
-				break
-			}
-			grt, err := goTypes.ParseGoType(gotype.TypeID(grtID))
-			if err != nil {
-				return fmt.Errorf("failed to parse go type for interface %q: %w", tt.GetName(), err)
-			}
-			iface, ok := grt.Interface()
-			if !ok {
-				return fmt.Errorf("go type for interface %q is not an interface: %v", tt.GetName(), grt.Kind())
-			}
-			methods, err := iface.Methods(methodBuf[:0])
-			if err != nil {
-				return fmt.Errorf("failed to get methods for interface %q: %w", tt.GetName(), err)
-			}
-			for ii.seek(methods); ii.valid(); ii.next() {
-				impl := ii.cur()
-				var t ir.Type
-				if tid, ok := tc.typesByGoRuntimeType[impl]; ok {
-					t = tc.typesByID[tid]
-				} else {
-					implOffset, ok := gotypeTypeIndex.resolveDwarfOffset(impl)
-					if !ok {
-						// This is suspicious, but not obviously worth failing out
-						// over.
-						continue
-					}
-					if tid, ok := tc.typesByDwarfType[implOffset]; ok {
-						t = tc.typesByID[tid]
-					} else {
-						var err error
-						t, err = tc.addType(implOffset)
-						if err != nil {
-							return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
-						}
-						if err := ensureCompleted(t.GetID()); err != nil {
-							return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
-						}
-					}
-				}
-				if ppt, ok := t.(*pointeePlaceholderType); ok {
-					var err error
-					t, err = tc.addType(ppt.offset)
-					if err != nil {
-						return fmt.Errorf("failed to add type for implementation of %q: %w", tt.GetName(), err)
-					}
-					if err := ensureCompleted(t.GetID()); err != nil {
-						return fmt.Errorf("failed to complete type for implementation of %q: %w", tt.GetName(), err)
-					}
-				}
-				push(t, wi.remaining-1)
+			if err := p.processInterface(tt, wi.remaining); err != nil {
+				return err
 			}
 
 		// Zero-cost neighbors (do not dereference pointers here).
 		case *ir.StructureType:
 			for i := range tt.RawFields {
-				push(tt.RawFields[i].Type, wi.remaining)
+				p.push(tt.RawFields[i].Type, wi.remaining)
 			}
 		case *ir.GoSliceHeaderType:
-			push(tt.Data, wi.remaining)
+			p.push(tt.Data, wi.remaining)
 		case *ir.GoStringHeaderType:
-			push(tt.Data, wi.remaining)
+			p.push(tt.Data, wi.remaining)
 		case *ir.ArrayType:
-			push(tt.Element, wi.remaining)
+			p.push(tt.Element, wi.remaining)
 		case *ir.GoMapType:
-			push(tt.HeaderType, wi.remaining)
+			p.push(tt.HeaderType, wi.remaining)
 		case *ir.GoHMapHeaderType:
-			push(tt.BucketsType, wi.remaining)
-			push(tt.BucketType, wi.remaining)
+			p.push(tt.BucketsType, wi.remaining)
+			p.push(tt.BucketType, wi.remaining)
 		case *ir.GoSwissMapHeaderType:
-			push(tt.TablePtrSliceType, wi.remaining)
-			push(tt.GroupType, wi.remaining)
+			p.push(tt.TablePtrSliceType, wi.remaining)
+			p.push(tt.GroupType, wi.remaining)
 		case *ir.GoSliceDataType:
-			push(tt.Element, wi.remaining)
+			p.push(tt.Element, wi.remaining)
 		case *ir.GoHMapBucketType:
-			push(tt.KeyType, wi.remaining)
-			push(tt.ValueType, wi.remaining)
+			p.push(tt.KeyType, wi.remaining)
+			p.push(tt.ValueType, wi.remaining)
 		case *ir.GoSwissMapGroupsType:
-			push(tt.GroupType, wi.remaining)
-			push(tt.GroupSliceType, wi.remaining)
+			p.push(tt.GroupType, wi.remaining)
+			p.push(tt.GroupSliceType, wi.remaining)
 
 		// Depth-cost step: pointer dereference.
 		case *ir.PointerType:
@@ -566,23 +889,178 @@ func expandTypesWithBudgets(
 				break
 			}
 			if placeholder, ok := tt.Pointee.(*pointeePlaceholderType); ok {
-				newT, err := tc.addType(placeholder.offset)
+				newT, err := p.tc.addType(placeholder.offset)
 				if err != nil {
 					return err
 				}
 				tt.Pointee = newT
-				if err := ensureCompleted(newT.GetID()); err != nil {
+				if err := p.ensureCompleted(newT.GetID()); err != nil {
 					return err
 				}
 			}
-			push(tt.Pointee, wi.remaining-1)
+			p.push(tt.Pointee, wi.remaining-1)
 
 		default:
 			return fmt.Errorf("unexpected ir.Type %[1]T: %#[1]v", tt)
 		}
 
 		// Mark processed with this best remaining.
-		processedBest[wi.id] = wi.remaining
+		p.processedBest[wi.id] = wi.remaining
+	}
+	return nil
+}
+
+// processInterface handles interface type exploration by iterating through
+// implementations.
+func (p *typeQueueProcessor) processInterface(
+	tt *ir.GoInterfaceType,
+	remaining uint32,
+) error {
+	grtID, ok := tt.GetGoRuntimeType()
+	if !ok {
+		return nil
+	}
+	grt, err := p.goTypes.ParseGoType(gotype.TypeID(grtID))
+	if err != nil {
+		return fmt.Errorf(
+			"failed to parse go type for interface %q: %w", tt.GetName(), err,
+		)
+	}
+	iface, ok := grt.Interface()
+	if !ok {
+		return fmt.Errorf(
+			"go type for interface %q is not an interface: %v",
+			tt.GetName(), grt.Kind(),
+		)
+	}
+	clear(p.methodBuf)
+	methods, err := iface.Methods(p.methodBuf[:0])
+	if err != nil {
+		return fmt.Errorf(
+			"failed to get methods for interface %q: %w", tt.GetName(), err,
+		)
+	}
+	for p.ii.seek(methods); p.ii.valid(); p.ii.next() {
+		impl := p.ii.cur()
+		var t ir.Type
+		if tid, ok := p.tc.typesByGoRuntimeType[impl]; ok {
+			t = p.tc.typesByID[tid]
+		} else {
+			implOffset, ok := p.gotypeTypeIndex.resolveDwarfOffset(impl)
+			if !ok {
+				// This is suspicious, but not obviously worth failing out over.
+				continue
+			}
+			if tid, ok := p.tc.typesByDwarfType[implOffset]; ok {
+				t = p.tc.typesByID[tid]
+			} else {
+				var err error
+				t, err = p.tc.addType(implOffset)
+				if err != nil {
+					return fmt.Errorf(
+						"failed to add type for implementation of %q: %w",
+						tt.GetName(), err,
+					)
+				}
+				if err := p.ensureCompleted(t.GetID()); err != nil {
+					return fmt.Errorf(
+						"failed to complete type for implementation of %q: %w",
+						tt.GetName(), err,
+					)
+				}
+			}
+		}
+		if ppt, ok := t.(*pointeePlaceholderType); ok {
+			var err error
+			t, err = p.tc.addType(ppt.offset)
+			if err != nil {
+				return fmt.Errorf(
+					"failed to add type for implementation of %q: %w",
+					tt.GetName(), err,
+				)
+			}
+			if err := p.ensureCompleted(t.GetID()); err != nil {
+				return fmt.Errorf(
+					"failed to complete type for implementation of %q: %w",
+					tt.GetName(), err,
+				)
+			}
+		}
+		p.push(t, remaining-1)
+	}
+	return nil
+}
+
+// expandTypesWithBudgets performs a unified graph expansion starting from
+// pre-computed exploration roots, observing depth budgets. Only pointer
+// dereferences consume depth; container internals (strings, slices, maps) are
+// zero-cost. Newly materialized types are immediately completed to ensure
+// correct container specialization.
+//
+// After budget-based exploration, expression paths from analyzed probes are
+// walked to ensure all types needed for expression evaluation are resolved.
+// This happens before placeholders are converted to UnresolvedPointeeType.
+func expandTypesWithBudgets(
+	tc *typeCatalog,
+	goTypes *gotype.Table,
+	methodIndex methodToGoTypeIndex,
+	gotypeTypeIndex goTypeToOffsetIndex,
+	explorationRoots []explorationRoot,
+	analyzedProbes []analyzedProbe,
+) error {
+	// Track the best (maximum) processed remaining depth per type.
+	processedBest := make(map[ir.TypeID]uint32)
+
+	q := newTypeQueue()
+
+	// Initialize the type queue with all types with a depth budget of 0 to make
+	// sure we properly explore every type. In general there's an invariant that
+	// every non-placeholder type be explored, and this ensures that.
+	for id, t := range tc.typesByID {
+		if _, ok := t.(*pointeePlaceholderType); ok {
+			continue
+		}
+		q.pos[id] = uint32(len(q.items))
+		q.items = append(q.items, typeQueueEntry{id: id, remaining: 0})
+	}
+
+	// Update budgets for the pre-computed exploration roots.
+	for _, root := range explorationRoots {
+		pos := q.pos[root.typeID]
+		item := &q.items[pos]
+		item.remaining = max(item.remaining, root.budget)
+	}
+
+	// Initialize the heap now that everything has been updated.
+	heap.Init(q)
+
+	// Create the queue processor with all necessary state.
+	proc := &typeQueueProcessor{
+		q:               q,
+		processedBest:   processedBest,
+		tc:              tc,
+		goTypes:         goTypes,
+		gotypeTypeIndex: gotypeTypeIndex,
+		methodIndex:     methodIndex,
+	}
+
+	// Process initial exploration roots.
+	if err := proc.drainQueue(); err != nil {
+		return err
+	}
+
+	// Explore types needed by expression paths and push leaf types to the
+	// queue with their budgets. This ensures expression results are explored
+	// to the full depth.
+	if err := exploreExpressionPathTypesFromAnalysis(
+		tc, analyzedProbes, proc.push,
+	); err != nil {
+		return err
+	}
+
+	// Process any newly added expression leaf types.
+	if err := proc.drainQueue(); err != nil {
+		return err
 	}
 
 	// Rewrite placeholders to unresolved pointee types.
@@ -601,7 +1079,7 @@ func expandTypesWithBudgets(
 			return fmt.Errorf("failed to get next entry: %w", err)
 		}
 		if entry == nil {
-			return fmt.Errorf("unexpected EOF while reading type")
+			return errors.New("unexpected EOF while reading type")
 		}
 		name, err := getAttr[string](entry, dwarf.AttrName)
 		if err != nil {
@@ -615,6 +1093,214 @@ func expandTypesWithBudgets(
 			},
 		}
 	}
+	return nil
+}
+
+// exploreExpressionPathTypesFromAnalysis walks pre-parsed expression paths
+// from analyzed probes, ensures all types along the path are resolved, and
+// pushes the leaf types to the exploration queue with the probe's budget.
+// This ensures that expression results are explored to the full depth
+// configured for the probe.
+func exploreExpressionPathTypesFromAnalysis(
+	tc *typeCatalog,
+	analyzedProbes []analyzedProbe,
+	push func(ir.Type, uint32),
+) error {
+	for _, ap := range analyzedProbes {
+		// Build variable lookup for this probe's subprogram.
+		varByName := make(map[string]*ir.Variable, len(ap.probe.Subprogram.Variables))
+		for _, v := range ap.probe.Subprogram.Variables {
+			varByName[v.Name] = v
+		}
+
+		// Walk each pre-parsed expression.
+		for _, expr := range ap.expressions {
+			if expr.rootVariable == nil {
+				continue
+			}
+
+			// Walk the expression path, resolving types.
+			leafType, err := walkExpressionPathTypes(tc, expr.expr, varByName)
+			if err != nil {
+				// Error will be reported later during expression resolution.
+				continue
+			}
+
+			// Push the leaf type to the queue with the probe's budget.
+			// This ensures the expression result is explored to full depth.
+			if leafType != nil {
+				push(leafType, ap.budget)
+			}
+		}
+	}
+	return nil
+}
+
+// walkExpressionPathTypes walks an expression and resolves any placeholder
+// types encountered along the path. Returns the leaf type of the expression.
+func walkExpressionPathTypes(
+	tc *typeCatalog,
+	expr exprlang.Expr,
+	varByName map[string]*ir.Variable,
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		v, ok := varByName[e.Ref]
+		if !ok {
+			return nil, nil // Variable not found, will error later.
+		}
+		if err := ensureTypeExplored(tc, v.Type); err != nil {
+			return nil, err
+		}
+		return v.Type, nil
+
+	case *exprlang.GetMemberExpr:
+		// First walk the base expression.
+		if _, err := walkExpressionPathTypes(tc, e.Base, varByName); err != nil {
+			return nil, err
+		}
+
+		// Get the base type.
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+
+		// Walk to the member and get the field type.
+		return walkMemberPathTypes(tc, baseType, e.Member)
+
+	default:
+		return nil, nil
+	}
+}
+
+// getExprType returns the type of an expression.
+func getExprType(
+	tc *typeCatalog,
+	expr exprlang.Expr,
+	varByName map[string]*ir.Variable,
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		v, ok := varByName[e.Ref]
+		if !ok {
+			return nil, fmt.Errorf("variable %q not found", e.Ref)
+		}
+		return v.Type, nil
+
+	case *exprlang.GetMemberExpr:
+		baseType, err := getExprType(tc, e.Base, varByName)
+		if err != nil {
+			return nil, err
+		}
+
+		// Dereference pointer if needed.
+		curType := baseType
+		if ptrType, ok := curType.(*ir.PointerType); ok {
+			pointee := tc.typesByID[ptrType.Pointee.GetID()]
+			curType = pointee
+		}
+
+		// Get struct field.
+		structType, ok := curType.(*ir.StructureType)
+		if !ok {
+			return nil, fmt.Errorf("cannot access member on non-struct type %T", curType)
+		}
+
+		f, err := field(tc, structType, e.Member)
+		if err != nil {
+			return nil, err
+		}
+		return f.Type, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported expression type %T", expr)
+	}
+}
+
+// walkMemberPathTypes walks from a type to a member, resolving placeholders.
+// Returns the field's type.
+func walkMemberPathTypes(
+	tc *typeCatalog,
+	t ir.Type,
+	memberName string,
+) (ir.Type, error) {
+	curType := t
+
+	// Dereference pointer if needed.
+	if ptrType, ok := curType.(*ir.PointerType); ok {
+		if err := resolvePointerPlaceholder(tc, ptrType); err != nil {
+			return nil, err
+		}
+		pointee := tc.typesByID[ptrType.Pointee.GetID()]
+		curType = pointee
+	}
+
+	// Access struct field.
+	structType, ok := curType.(*ir.StructureType)
+	if !ok {
+		return nil, fmt.Errorf(
+			"cannot access member %q on non-struct type %T", memberName, curType,
+		)
+	}
+
+	// Ensure struct is completed.
+	if err := completeGoTypes(tc, structType.GetID(), structType.GetID()); err != nil {
+		return nil, err
+	}
+
+	// Find and explore the field type.
+	f, err := field(tc, structType, memberName)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := ensureTypeExplored(tc, f.Type); err != nil {
+		return nil, err
+	}
+
+	return f.Type, nil
+}
+
+// ensureTypeExplored ensures a type and its immediate dependencies are
+// explored, resolving placeholders as needed. For pointers, this also explores
+// the pointee since expressions dereference their final pointer result.
+func ensureTypeExplored(tc *typeCatalog, t ir.Type) error {
+	switch tt := t.(type) {
+	case *ir.PointerType:
+		if err := resolvePointerPlaceholder(tc, tt); err != nil {
+			return err
+		}
+		// Also explore pointee for final dereference.
+		pointee := tc.typesByID[tt.Pointee.GetID()]
+		return ensureTypeExplored(tc, pointee)
+	case *ir.StructureType:
+		return completeGoTypes(tc, tt.GetID(), tt.GetID())
+	default:
+		return nil
+	}
+}
+
+// resolvePointerPlaceholder resolves a pointer's placeholder pointee if needed.
+func resolvePointerPlaceholder(tc *typeCatalog, ptrType *ir.PointerType) error {
+	pointee := tc.typesByID[ptrType.Pointee.GetID()]
+	ppt, ok := pointee.(*pointeePlaceholderType)
+	if !ok {
+		return nil // Not a placeholder.
+	}
+
+	// Resolve the placeholder.
+	newT, err := tc.addType(ppt.offset)
+	if err != nil {
+		return fmt.Errorf("failed to resolve pointee placeholder: %w", err)
+	}
+	ptrType.Pointee = newT
+
+	// Complete the new type.
+	if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+		return fmt.Errorf("failed to complete pointee type: %w", err)
+	}
+
 	return nil
 }
 
@@ -635,6 +1321,9 @@ func materializePending(
 		}
 		// First, create variables defined directly under the subprogram/abstract DIEs.
 		variableByOffset := make(map[dwarf.Offset]*ir.Variable, len(p.variables))
+		// TODO: In the future we should track variables by lexical block scope
+		// to be able to differentiate shadowing from malformed DWARF.
+		variableByName := make(map[string]*ir.Variable, len(p.variables))
 		for _, die := range p.variables {
 			parseLocs := !p.abstract
 			var ranges []ir.PCRange
@@ -642,15 +1331,25 @@ func materializePending(
 				ranges = p.outOfLinePCRanges
 			}
 			v, err := processVariable(
-				p.unit, die, die.Tag == dwarf.TagFormalParameter,
+				p.unit, die,
 				parseLocs, ranges,
 				loclistReader, pointerSize, tc,
 			)
 			if err != nil {
 				return nil, err
 			}
-			sp.Variables = append(sp.Variables, v)
-			variableByOffset[die.Offset] = v
+			if v != nil {
+				if pv, ok := variableByName[v.Name]; ok {
+					// Dwarf sometimes contains same variable repeated, incorrectly,
+					// which causes trouble in further probe processing.
+					// Ignore repeated entries.
+					variableByOffset[die.Offset] = pv
+					continue
+				}
+				sp.Variables = append(sp.Variables, v)
+				variableByOffset[die.Offset] = v
+				variableByName[v.Name] = v
+			}
 		}
 		// Then, propagate locations and define additional vars from inlined instances.
 		for _, inl := range p.inlined {
@@ -670,7 +1369,7 @@ func materializePending(
 				if ok {
 					baseVar, found := variableByOffset[abstractOrigin]
 					if !found {
-						return nil, fmt.Errorf("abstract variable not found for inlined variable")
+						return nil, fmt.Errorf("abstract variable not found for inlined variable @%#x", inlVar.Offset)
 					}
 					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
 						locs := computeLocations(
@@ -682,16 +1381,29 @@ func materializePending(
 				} else {
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar, inlVar.Tag == dwarf.TagFormalParameter,
+						p.unit, inlVar,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
 					if err != nil {
 						return nil, err
 					}
-					sp.Variables = append(sp.Variables, v)
+					if v != nil {
+						if pv, ok := variableByName[v.Name]; ok {
+							// We only need to merge locations.
+							pv.Locations = append(pv.Locations, v.Locations...)
+						} else {
+							variableByName[v.Name] = v
+							sp.Variables = append(sp.Variables, v)
+						}
+					}
 				}
 			}
+		}
+		for _, v := range sp.Variables {
+			slices.SortFunc(v.Locations, func(a, b ir.Location) int {
+				return cmp.Compare(a.Range[0], b.Range[0])
+			})
 		}
 		subprograms = append(subprograms, sp)
 	}
@@ -699,70 +1411,68 @@ func materializePending(
 	return subprograms, nil
 }
 
-type prologueSeachParams struct {
+type lineSearchRange struct {
 	unit    *dwarf.Entry
 	pcRange ir.PCRange
 }
 
-type prologueEndLocation struct {
-	err       error
-	frameless bool
-	// If not frameless, the pc of the prologue end, otherwise the first pc
-	// of the subprogram.
-	pc uint64
+type line struct {
+	pc          uint64
+	line        uint32
+	isStatement bool
 }
 
-// findPrologues searches for prologue for each given search param. Results
-// are indexed by the start of the pc range. Provided ranges must be non-overlapping
-// but may contain duplicates.
-func findProloguesEnds(
-	objFile object.Dwarf,
-	searchParams []prologueSeachParams,
-) (map[uint64]prologueEndLocation, error) {
-	if len(searchParams) == 0 {
-		return make(map[uint64]prologueEndLocation), nil
+type lineData struct {
+	err error
+	// PC of prologue end or 0 if no prologue end statement is found.
+	prologueEnd uint64
+	lines       []line
+}
+
+// collectLineData evaluates DWARF line programs to aggregate line data for given ranges.
+func collectLineData(
+	dwarfData *dwarf.Data,
+	searchRanges []lineSearchRange,
+) (map[ir.PCRange]lineData, error) {
+	if len(searchRanges) == 0 {
+		return make(map[ir.PCRange]lineData), nil
 	}
-	slices.SortFunc(searchParams, func(a, b prologueSeachParams) int {
-		return cmp.Compare(a.pcRange[0], b.pcRange[0])
+	slices.SortFunc(searchRanges, func(a, b lineSearchRange) int {
+		return cmp.Or(
+			cmp.Compare(a.pcRange[0], b.pcRange[0]),
+			cmp.Compare(a.pcRange[1], b.pcRange[1]),
+		)
 	})
 	// Remove duplicates.
 	i := 1
-	for j := 1; j < len(searchParams); j++ {
-		if searchParams[i-1].pcRange != searchParams[j].pcRange {
-			searchParams[i] = searchParams[j]
+	for j := 1; j < len(searchRanges); j++ {
+		if searchRanges[i-1].pcRange != searchRanges[j].pcRange {
+			if searchRanges[i-1].unit == searchRanges[j].unit &&
+				searchRanges[i-1].pcRange[1] > searchRanges[j].pcRange[0] {
+				return nil, fmt.Errorf("overlapping line search ranges in unit %#x: %#x and %#x",
+					searchRanges[i-1].unit.Offset,
+					searchRanges[i-1].pcRange,
+					searchRanges[j].pcRange)
+			}
+			searchRanges[i] = searchRanges[j]
 			i++
 		}
 	}
-	searchParams = searchParams[:i]
+	searchRanges = searchRanges[:i]
 
-	res := make(map[uint64]prologueEndLocation, len(searchParams))
+	res := make(map[ir.PCRange]lineData, len(searchRanges))
 	var prevUnit *dwarf.Entry
 	var lineReader *dwarf.LineReader
-	for _, sp := range searchParams {
+	for _, sp := range searchRanges {
 		if prevUnit != sp.unit {
 			prevUnit = sp.unit
-			lr, err := objFile.DwarfData().LineReader(prevUnit)
+			lr, err := dwarfData.LineReader(prevUnit)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get line reader: %w", err)
 			}
 			lineReader = lr
 		}
-
-		pc, ok, err := findPrologueEnd(lineReader, sp.pcRange)
-		switch {
-		case err != nil:
-			res[sp.pcRange[0]] = prologueEndLocation{err: err}
-		case ok:
-			res[sp.pcRange[0]] = prologueEndLocation{
-				frameless: false,
-				pc:        pc,
-			}
-		default:
-			res[sp.pcRange[0]] = prologueEndLocation{
-				frameless: true,
-				pc:        sp.pcRange[0],
-			}
-		}
+		res[sp.pcRange] = collectLineDataForRange(lineReader, sp.pcRange)
 	}
 	return res, nil
 }
@@ -772,14 +1482,15 @@ func findProloguesEnds(
 func createProbes(
 	arch object.Architecture,
 	pending []*pendingSubprogram,
-	prologueLocs map[uint64]prologueEndLocation,
+	lineData map[ir.PCRange]lineData,
 	idToSubprogram map[ir.SubprogramID]*ir.Subprogram,
+	textSection *section,
+	skipReturnEvents bool,
 ) ([]*ir.Probe, []*ir.Subprogram, []ir.ProbeIssue, error) {
 	var (
-		probes       []*ir.Probe
-		subprograms  []*ir.Subprogram
-		issues       []ir.ProbeIssue
-		eventIDAlloc idAllocator[ir.EventID]
+		probes      []*ir.Probe
+		subprograms []*ir.Subprogram
+		issues      []ir.ProbeIssue
 	)
 
 	for _, p := range pending {
@@ -793,7 +1504,9 @@ func createProbes(
 		sp := idToSubprogram[p.id]
 		var haveProbe bool
 		for _, cfg := range p.probesCfgs {
-			probe, iss, err := newProbe(arch, cfg, sp, &eventIDAlloc, prologueLocs)
+			probe, iss, err := newProbe(
+				arch, cfg, sp, lineData, textSection, skipReturnEvents,
+			)
 			if err != nil {
 				return nil, nil, nil, err
 			}
@@ -858,7 +1571,6 @@ func processDwarf(
 		dwarf:               d,
 		subprogramIDAlloc:   idAllocator[ir.SubprogramID]{},
 		abstractSubprograms: make(map[dwarf.Offset]*abstractSubprogram),
-		inlinedSubprograms:  make(map[*dwarf.Entry][]*inlinedSubprogram),
 		pointerSize:         uint8(arch.PointerSize()),
 		typeIndexBuilder:    typeIndexBuilder,
 	}
@@ -868,501 +1580,27 @@ func processDwarf(
 		return processedDwarf{}, err
 	}
 
-	// Concrete subprograms are already in v.pendingSubprograms.
-	pending := v.subprograms
-
-	// Propagate details from each inlined instance to its abstract origin.
-	inlinedByUnit := iterMapSorted(v.inlinedSubprograms, cmpEntry)
-	for _, inlinedSubs := range inlinedByUnit {
-		for _, inlined := range inlinedSubs {
-			abs, ok := v.abstractSubprograms[inlined.abstractOrigin]
-			if !ok || !abs.issue.IsNone() {
-				continue
-			}
-
-			if inlined.outOfLinePCRanges != nil {
-				// Out-of-line instance.
-				if len(abs.outOfLinePCRanges) != 0 {
-					abs.issue = ir.Issue{
-						Kind:    ir.IssueKindMalformedExecutable,
-						Message: "multiple out-of-line instances of abstract subprogram",
-					}
-				} else {
-					abs.outOfLinePCRanges = inlined.outOfLinePCRanges
-				}
-			} else {
-				// Inlined instance.
-				abs.inlinePCRanges = append(abs.inlinePCRanges, inlined.inlinedPCRanges)
-			}
-			abs.inlined = append(abs.inlined, inlined)
-		}
-	}
-
-	// Append the abstract sub-programs in deterministic order.
-	abstractSubs := iterMapSorted(v.abstractSubprograms, cmp.Compare)
-	for _, abs := range abstractSubs {
-		// Collect abstract variable DIEs in deterministic order.
-		varVars := make([]*dwarf.Entry, 0, len(abs.variables))
-		if len(abs.variables) > 0 {
-			keys := make([]dwarf.Offset, 0, len(abs.variables))
-			for k := range abs.variables {
-				keys = append(keys, k)
-			}
-			slices.SortFunc(keys, func(a, b dwarf.Offset) int { return cmp.Compare(a, b) })
-			for _, k := range keys {
-				varVars = append(varVars, abs.variables[k])
-			}
-		}
-		pending = append(pending, &pendingSubprogram{
-			unit:              abs.unit,
-			subprogramEntry:   nil,
-			name:              abs.name,
-			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlinePCRanges:    abs.inlinePCRanges,
-			inlined:           abs.inlined,
-			variables:         varVars,
-			probesCfgs:        abs.probesCfgs,
-			issue:             abs.issue,
-			id:                v.subprogramIDAlloc.next(),
-			abstract:          true,
-		})
+	inlinedSubprograms, err := convertAbstractSubprogramsToPending(
+		v.dwarf,
+		v.abstractSubprograms,
+		v.unitOffsets,
+		v.outOfLineSubprogramOffsets,
+		v.inlineInstances,
+		v.outOfLineInstances,
+		&v.subprogramIDAlloc,
+	)
+	if err != nil {
+		return processedDwarf{}, err
 	}
 
 	if v.goRuntimeInformation == (ir.GoModuledataInfo{}) {
-		return processedDwarf{}, fmt.Errorf("runtime.firstmoduledata not found")
+		return processedDwarf{}, errors.New("runtime.firstmoduledata not found")
 	}
 	return processedDwarf{
-		pendingSubprograms: pending,
+		pendingSubprograms: append(v.subprograms, inlinedSubprograms...),
 		goModuledataInfo:   v.goRuntimeInformation,
 		interestingTypes:   v.interestingTypes,
 	}, nil
-}
-
-func findUnusedConfigs(
-	successes []*ir.Probe,
-	failures []ir.ProbeIssue,
-	configs []ir.ProbeDefinition,
-) (unused []ir.ProbeDefinition) {
-	slices.SortFunc(successes, ir.CompareProbeIDs)
-	slices.SortFunc(failures, ir.CompareProbeIDs)
-	slices.SortFunc(configs, ir.CompareProbeIDs)
-	for _, config := range configs {
-		var inSuccesses, inFailures bool
-		successes, inSuccesses = skipPast(successes, config)
-		failures, inFailures = skipPast(failures, config)
-		if !inSuccesses && !inFailures {
-			unused = append(unused, config)
-		}
-	}
-	return unused
-}
-
-func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
-	idx, found := slices.BinarySearchFunc(items, target, ir.CompareProbeIDs)
-	if found {
-		idx++
-	}
-	return items[idx:], found
-}
-
-func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
-	for i := minID; i <= maxID; i++ {
-		switch t := tc.typesByID[i].(type) {
-		case *ir.StructureType:
-			switch t.GoTypeAttributes.GoKind {
-			case reflect.String:
-				if err := completeGoStringType(tc, t); err != nil {
-					return err
-				}
-			case reflect.Slice:
-				if err := completeGoSliceType(tc, t); err != nil {
-					return err
-				}
-			case reflect.Struct:
-				// Nothing to do.
-			default:
-				return fmt.Errorf(
-					"unexpected Go kind for structure type %q: %v",
-					t.Name, t.GoTypeAttributes.GoKind,
-				)
-			}
-		case *ir.GoMapType:
-			if err := completeGoMapType(tc, t); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// iterMapSorted is a helper function that iterates over a map and yields
-// the keys and values in sorted order using the provided comparator.
-func iterMapSorted[
-	K comparable, V any, M ~map[K]V,
-](m M, f func(K, K) int) iter.Seq2[K, V] {
-	keys := make([]K, 0, len(m))
-	keys = slices.AppendSeq(keys, maps.Keys(m))
-	slices.SortFunc(keys, f)
-	return func(yield func(K, V) bool) {
-		for _, k := range keys {
-			if !yield(k, m[k]) {
-				return
-			}
-		}
-	}
-}
-
-func cmpEntry(a, b *dwarf.Entry) int {
-	return cmp.Compare(a.Offset, b.Offset)
-}
-
-func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
-	// Convert the header type from a structure type to the appropriate
-	// Go-specific type.
-	headerType := tc.typesByID[t.HeaderType.GetID()]
-	var headerStructureType *ir.StructureType
-	switch headerType := headerType.(type) {
-	case *ir.StructureType:
-		headerStructureType = headerType
-	case *ir.GoHMapHeaderType:
-		return nil
-	case *ir.GoSwissMapHeaderType:
-		return nil
-	default:
-		return fmt.Errorf(
-			"header type for map type %q has been completed to %T, expected %T",
-			t.Name, headerType, headerStructureType,
-		)
-	}
-	// Convert the header type from a structure type to the appropriate
-	// Go-specific type.
-	//
-	// Use the type name to determine whether this is an hmap or a swiss map.
-	// We could alternatively use the go version or the structure field layout.
-	// This works for now.
-	switch {
-	case strings.HasPrefix(headerStructureType.Name, "map<"):
-		return completeSwissMapHeaderType(tc, headerStructureType)
-	case strings.HasPrefix(headerStructureType.Name, "hash<"):
-		return completeHMapHeaderType(tc, headerStructureType)
-	default:
-		return fmt.Errorf(
-			"unexpected header type for map type %q: %q %T",
-			t.Name, t.HeaderType.GetName(), t.HeaderType,
-		)
-	}
-}
-
-func field(st *ir.StructureType, name string) (*ir.Field, error) {
-	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
-		return f.Name == name
-	})
-	if offset == -1 {
-		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
-	}
-	return &st.RawFields[offset], nil
-}
-
-func fieldType[T ir.Type](st *ir.StructureType, name string) (T, error) {
-	f, err := field(st, name)
-	if err != nil {
-		return *new(T), err
-	}
-	fieldType, ok := f.Type.(T)
-	if !ok {
-		ret := *new(T)
-		err := fmt.Errorf(
-			"field %q of type %q is not a %T, got %T",
-			name, st.Name, ret, f.Type,
-		)
-		return ret, err
-	}
-	return fieldType, nil
-}
-
-func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
-	ptrType, ok := t.(*ir.PointerType)
-	if !ok {
-		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
-	}
-	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
-		pointee, err := tc.addType(ppt.offset)
-		if err != nil {
-			return *new(T), err
-		}
-		ptrType.Pointee = pointee
-	}
-	pointee, ok := ptrType.Pointee.(T)
-	if !ok {
-		return *new(T), fmt.Errorf(
-			"pointee type %q is not a %T, got %T",
-			ptrType.Pointee.GetName(), new(T), ptrType.Pointee,
-		)
-	}
-	return pointee, nil
-}
-
-func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
-	var tablePtrType *ir.PointerType
-	var groupReferenceType *ir.StructureType
-	var groupType *ir.StructureType
-	{
-		dirPtrType, err := fieldType[*ir.PointerType](st, "dirPtr")
-		if err != nil {
-			return err
-		}
-		tablePtrType, err = resolvePointeeType[*ir.PointerType](tc, dirPtrType)
-		if err != nil {
-			return err
-		}
-		tableType, err := resolvePointeeType[*ir.StructureType](tc, tablePtrType)
-		if err != nil {
-			return err
-		}
-		groupReferenceType, err = fieldType[*ir.StructureType](tableType, "groups")
-		if err != nil {
-			return err
-		}
-		groupPtrType, err := fieldType[*ir.PointerType](groupReferenceType, "data")
-		if err != nil {
-			return err
-		}
-		groupType, err = resolvePointeeType[*ir.StructureType](tc, groupPtrType)
-		if err != nil {
-			return err
-		}
-	}
-
-	tablePtrSliceDataType := &ir.GoSliceDataType{
-		TypeCommon: ir.TypeCommon{
-			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
-			DynamicSizeClass: ir.DynamicSizeHashmap,
-			ByteSize:         tablePtrType.GetByteSize(),
-		},
-		Element: tablePtrType,
-	}
-	tc.typesByID[tablePtrSliceDataType.ID] = tablePtrSliceDataType
-
-	groupSliceType := &ir.GoSliceDataType{
-		TypeCommon: ir.TypeCommon{
-			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
-			DynamicSizeClass: ir.DynamicSizeSlice,
-			ByteSize:         groupType.GetByteSize(),
-		},
-		Element: groupType,
-	}
-	tc.typesByID[groupSliceType.ID] = groupSliceType
-
-	mapHeaderType := &ir.GoSwissMapHeaderType{
-		StructureType:     st,
-		TablePtrSliceType: tablePtrSliceDataType,
-		GroupType:         groupType,
-	}
-	tc.typesByID[mapHeaderType.ID] = mapHeaderType
-
-	groupsType := &ir.GoSwissMapGroupsType{
-		StructureType:  groupReferenceType,
-		GroupType:      groupType,
-		GroupSliceType: groupSliceType,
-	}
-	tc.typesByID[groupsType.ID] = groupsType
-	return nil
-}
-
-func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
-	bucketsField, err := field(st, "buckets")
-	if err != nil {
-		return err
-	}
-	bucketsStructType, err := resolvePointeeType[*ir.StructureType](tc, bucketsField.Type)
-	if err != nil {
-		return err
-	}
-	keysArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "keys")
-	if err != nil {
-		return err
-	}
-	keyType := keysArrayType.Element
-	valuesArrayType, err := fieldType[*ir.ArrayType](bucketsStructType, "values")
-	if err != nil {
-		return err
-	}
-	valueType := valuesArrayType.Element
-	bucketsType := &ir.GoHMapBucketType{
-		StructureType: bucketsStructType,
-		KeyType:       keyType,
-		ValueType:     valueType,
-	}
-	bucketsSliceDataType := &ir.GoSliceDataType{
-		TypeCommon: ir.TypeCommon{
-			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
-			DynamicSizeClass: ir.DynamicSizeHashmap,
-			ByteSize:         bucketsType.GetByteSize(),
-		},
-		Element: bucketsType,
-	}
-	headerType := &ir.GoHMapHeaderType{
-		StructureType: st,
-		BucketType:    bucketsType,
-		BucketsType:   bucketsSliceDataType,
-	}
-	tc.typesByID[bucketsSliceDataType.ID] = bucketsSliceDataType
-	tc.typesByID[headerType.ID] = headerType
-	tc.typesByID[bucketsType.ID] = bucketsType
-	return nil
-}
-
-func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
-	strField, err := field(st, "str")
-	if err != nil {
-		return err
-	}
-	strDataType := &ir.GoStringDataType{
-		TypeCommon: ir.TypeCommon{
-			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("%s.str", st.Name),
-			DynamicSizeClass: ir.DynamicSizeString,
-			ByteSize:         1,
-		},
-	}
-	tc.typesByID[strDataType.ID] = strDataType
-	strDataPtrType := &ir.PointerType{
-		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("*%s.str", st.Name),
-			ByteSize: uint32(tc.ptrSize),
-		},
-		Pointee: strDataType,
-	}
-	tc.typesByID[strDataPtrType.ID] = strDataPtrType
-	strField.Type = strDataPtrType
-	tc.typesByID[st.ID] = &ir.GoStringHeaderType{
-		StructureType: st,
-		Data:          strDataType,
-	}
-
-	return nil
-}
-
-func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
-	arrayField, err := field(st, "array")
-	if err != nil {
-		return err
-	}
-	elementType, err := resolvePointeeType[ir.Type](tc, arrayField.Type)
-	if err != nil {
-		return err
-	}
-	arrayDataType := &ir.GoSliceDataType{
-		TypeCommon: ir.TypeCommon{
-			ID:               tc.idAlloc.next(),
-			Name:             fmt.Sprintf("%s.array", st.Name),
-			DynamicSizeClass: ir.DynamicSizeSlice,
-			ByteSize:         elementType.GetByteSize(),
-		},
-		Element: elementType,
-	}
-	tc.typesByID[arrayDataType.ID] = arrayDataType
-	arrayDataPtrType := &ir.PointerType{
-		TypeCommon: ir.TypeCommon{
-			ID:       tc.idAlloc.next(),
-			Name:     fmt.Sprintf("*%s.array", st.Name),
-			ByteSize: uint32(tc.ptrSize),
-		},
-		Pointee: arrayDataType,
-	}
-	tc.typesByID[arrayDataPtrType.ID] = arrayDataPtrType
-	tc.typesByID[st.ID] = &ir.GoSliceHeaderType{
-		StructureType: st,
-		Data:          arrayDataType,
-	}
-	return nil
-}
-
-func populateProbeEventsExpressions(
-	probes []*ir.Probe,
-	typeCatalog *typeCatalog,
-) (successful []*ir.Probe, failed []ir.ProbeIssue) {
-	for _, probe := range probes {
-		if issue := populateProbeExpressions(probe, typeCatalog); !issue.IsNone() {
-			failed = append(failed, ir.ProbeIssue{
-				ProbeDefinition: probe.ProbeDefinition,
-				Issue:           issue,
-			})
-		} else {
-			successful = append(successful, probe)
-		}
-	}
-	return successful, failed
-}
-
-func populateProbeExpressions(
-	probe *ir.Probe,
-	typeCatalog *typeCatalog,
-) ir.Issue {
-	for _, event := range probe.Events {
-		issue := populateEventExpressions(probe, event, typeCatalog)
-		if !issue.IsNone() {
-			return issue
-		}
-	}
-	return ir.Issue{}
-}
-
-func populateEventExpressions(
-	probe *ir.Probe,
-	event *ir.Event,
-	typeCatalog *typeCatalog,
-) ir.Issue {
-	id := typeCatalog.idAlloc.next()
-	var expressions []*ir.RootExpression
-	for _, variable := range probe.Subprogram.Variables {
-		if !variable.IsParameter || variable.IsReturn {
-			continue
-		}
-		variableSize := variable.Type.GetByteSize()
-		expr := &ir.RootExpression{
-			Name:   variable.Name,
-			Offset: uint32(0),
-			Expression: ir.Expression{
-				Type: variable.Type,
-				Operations: []ir.ExpressionOp{
-					&ir.LocationOp{
-						Variable: variable,
-						Offset:   0,
-						ByteSize: uint32(variableSize),
-					},
-				},
-			},
-		}
-		expressions = append(expressions, expr)
-	}
-	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
-	byteSize := uint64(presenceBitsetSize)
-	for _, e := range expressions {
-		e.Offset = uint32(byteSize)
-		byteSize += uint64(e.Expression.Type.GetByteSize())
-	}
-	if byteSize > math.MaxUint32 {
-		return ir.Issue{
-			Kind:    ir.IssueKindUnsupportedFeature,
-			Message: fmt.Sprintf("root data type too large: %d bytes", byteSize),
-		}
-	}
-	event.Type = &ir.EventRootType{
-		TypeCommon: ir.TypeCommon{
-			ID:       id,
-			Name:     fmt.Sprintf("Probe[%s]", probe.Subprogram.Name),
-			ByteSize: uint32(byteSize),
-		},
-		PresenceBitsetSize: presenceBitsetSize,
-		Expressions:        expressions,
-	}
-	typeCatalog.typesByID[event.Type.ID] = event.Type
-	return ir.Issue{}
 }
 
 type rootVisitor struct {
@@ -1372,16 +1610,57 @@ type rootVisitor struct {
 	subprogramIDAlloc   idAllocator[ir.SubprogramID]
 	subprograms         []*pendingSubprogram
 	abstractSubprograms map[dwarf.Offset]*abstractSubprogram
-	// InlinedSubprograms grouped by the compilation unit entry.
-	inlinedSubprograms map[*dwarf.Entry][]*inlinedSubprogram
-	interestingTypes   []dwarf.Offset
-	typeIndexBuilder   goTypeToOffsetIndexBuilder
+
+	// Unit offsets are used to track the offsets of the top-level compile
+	// units nodes in dwarf.
+	//
+	// This is needed to properly construct DWARF readers in a way that avoids
+	// https://github.com/golang/go/issues/72778 in go 1.24 (where it is still
+	// present).
+	unitOffsets []dwarf.Offset
+
+	// Dwarf offsets of all out-of-line subprograms that contain inlined
+	// subprograms. These may either be non-inlined subprograms or out-of-line
+	// instances of inlined subprograms.
+	//
+	// This is used to find the root PC ranges for inlined instances of inlined
+	// subprograms.
+	outOfLineSubprogramOffsets []dwarf.Offset
+
+	// All concrete inlined subprogram instances. Note that there can be quite
+	// a large number of these, so we intentionally store just the offsets and
+	// the abstract origin.
+	//
+	// We need to store these because we may not yet have visited the abstract
+	// origin by the time we visit the concrete instance, and without visiting
+	// the abstract origin, we do not know the name, or whether we're interested
+	// in the instance.
+	inlineInstances []concreteSubprogramRef
+	// Similar to inlineInstances, but for out-of-line instances of inlined
+	// subprograms.
+	outOfLineInstances []concreteSubprogramRef
+
+	interestingTypes []dwarf.Offset
+	typeIndexBuilder goTypeToOffsetIndexBuilder
 
 	goRuntimeInformation ir.GoModuledataInfo
 
 	// This is used to avoid allocations of unitChildVisitor for each
 	// compile unit.
 	freeUnitChildVisitor *unitChildVisitor
+}
+
+// couldBeInteresting could possibly be interesting. If we've already visited
+// the abstract origin and we didn't put it in our map of abstract subprograms,
+// then we know this is not interesting and we don't need to index it.
+func (v *rootVisitor) couldBeInteresting(ref concreteSubprogramRef) bool {
+	return ref.abstractOrigin > ref.offset ||
+		mapContains(v.abstractSubprograms, ref.abstractOrigin)
+}
+
+func mapContains[K comparable, V any](m map[K]V, key K) bool {
+	_, ok := m[key]
+	return ok
 }
 
 // pendingSubprogram collects DWARF discovery for a subprogram without building
@@ -1425,6 +1704,7 @@ func (v *rootVisitor) getUnitVisitor(entry *dwarf.Entry) (unitVisitor *unitChild
 			root: v,
 		}
 	}
+	v.unitOffsets = append(v.unitOffsets, entry.Offset)
 	unitVisitor.unit = entry
 	return unitVisitor
 }
@@ -1464,11 +1744,21 @@ func (v *unitChildVisitor) push(
 		}
 		if !ok {
 			// This is expected to be an out-of-line instance of an abstract program.
-			childVisitor, err = processInlinedSubroutineEntry(v.root, v.unit, true /* outOfLineInstance */, nil, entry)
+			abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
 			if err != nil {
-				return nil, fmt.Errorf("unnamed, non-inline subprogram: %w", err)
+				return nil, fmt.Errorf("failed to get abstract origin for out-of-line instance: %w", err)
 			}
-			return childVisitor, nil
+			if ref := (concreteSubprogramRef{
+				offset:         entry.Offset,
+				abstractOrigin: abstractOrigin,
+			}); v.root.couldBeInteresting(ref) {
+				v.root.outOfLineInstances = append(v.root.outOfLineInstances, ref)
+			}
+
+			return &inlinedSubroutineChildVisitor{
+				root:      v.root,
+				outOfLine: true,
+			}, nil
 		}
 		probesCfgs := v.root.interests.subprograms[name]
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
@@ -1493,20 +1783,11 @@ func (v *unitChildVisitor) push(
 			return nil, nil
 		}
 
-		var subprogramPCRanges []ir.PCRange
-		if len(probesCfgs) > 0 {
-			var err error
-			subprogramPCRanges, err = v.root.dwarf.Ranges(entry)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
-			}
-		}
 		return &subprogramChildVisitor{
-			root:                     v.root,
-			subprogramEntry:          entry,
-			unit:                     v.unit,
-			cachedSubprogramPCRanges: subprogramPCRanges,
-			probesCfgs:               probesCfgs,
+			root:            v.root,
+			subprogramEntry: entry,
+			unit:            v.unit,
+			probesCfgs:      probesCfgs,
 		}, nil
 
 	case dwarf.TagUnspecifiedType:
@@ -1638,7 +1919,7 @@ func findStructSizeAndMemberOffset(
 		return 0, 0, fmt.Errorf("expected struct type, got %s", entry.Tag)
 	}
 	if !entry.Children {
-		return 0, 0, fmt.Errorf("struct type has no children")
+		return 0, 0, errors.New("struct type has no children")
 	}
 	structSize, err := getAttr[int64](entry, dwarf.AttrByteSize)
 	if err != nil {
@@ -1654,7 +1935,7 @@ func findStructSizeAndMemberOffset(
 			return 0, 0, fmt.Errorf("failed to get next child: %w", err)
 		}
 		if child == nil {
-			return 0, 0, fmt.Errorf("unexpected EOF while reading struct type")
+			return 0, 0, errors.New("unexpected EOF while reading struct type")
 		}
 		if child.Tag == 0 {
 			break
@@ -1683,29 +1964,56 @@ func findStructSizeAndMemberOffset(
 	return 0, 0, fmt.Errorf("member %q not found", memberName)
 }
 
-func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
+func (v *unitChildVisitor) pop(entry *dwarf.Entry, childVisitor visitor) error {
 	switch t := childVisitor.(type) {
 	case nil:
 		return nil
 	case *subprogramChildVisitor:
+		if t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, t.subprogramEntry.Offset)
+		}
 		if len(t.probesCfgs) > 0 {
 			var spName string
 			if n, ok, _ := maybeGetAttr[string](t.subprogramEntry, dwarf.AttrName); ok {
 				spName = n
+			}
+			ranges, err := v.root.dwarf.Ranges(t.subprogramEntry)
+			var issue ir.Issue
+			if err != nil {
+				issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: err.Error(),
+				}
+			} else {
+				slices.SortFunc(ranges, cmpRange)
+				if err := validateNonOverlappingPCRanges(
+					ranges, t.subprogramEntry.Offset, "subprogram",
+				); err != nil {
+					issue = ir.Issue{
+						Kind:    ir.IssueKindInvalidDWARF,
+						Message: err.Error(),
+					}
+				}
 			}
 			spID := v.root.subprogramIDAlloc.next()
 			v.root.subprograms = append(v.root.subprograms, &pendingSubprogram{
 				unit:              t.unit,
 				subprogramEntry:   t.subprogramEntry,
 				name:              spName,
-				outOfLinePCRanges: t.cachedSubprogramPCRanges,
+				outOfLinePCRanges: ranges,
 				variables:         t.variableEntries,
 				probesCfgs:        t.probesCfgs,
 				id:                spID,
+				issue:             issue,
 			})
 		}
 		return nil
 	case *inlinedSubroutineChildVisitor:
+		if t.outOfLine && t.hasInlinedSubprograms {
+			v.root.outOfLineSubprogramOffsets = append(
+				v.root.outOfLineSubprogramOffsets, entry.Offset)
+		}
 		return nil
 	case *abstractSubprogramVisitor:
 		return nil
@@ -1714,166 +2022,14 @@ func (v *unitChildVisitor) pop(_ *dwarf.Entry, childVisitor visitor) error {
 	}
 }
 
-func newProbe(
-	arch object.Architecture,
-	probeCfg ir.ProbeDefinition,
-	subprogram *ir.Subprogram,
-	eventIDAlloc *idAllocator[ir.EventID],
-	prologueLocs map[uint64]prologueEndLocation,
-) (*ir.Probe, ir.Issue, error) {
-	kind := probeCfg.GetKind()
-	if !kind.IsValid() {
-		return nil, ir.Issue{
-			Kind:    ir.IssueKindInvalidProbeDefinition,
-			Message: fmt.Sprintf("invalid probe kind: %v", kind),
-		}, nil
-	}
-
-	var injectionPoints []ir.InjectionPoint
-	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
-		return nil, ir.Issue{
-			Kind:    ir.IssueKindMalformedExecutable,
-			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
-		}, nil
-	}
-	if subprogram.OutOfLinePCRanges != nil {
-		pc := subprogram.OutOfLinePCRanges[0][0]
-		loc, ok := prologueLocs[pc]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
-		}
-		if loc.err != nil {
-			return nil, ir.Issue{
-				Kind:    ir.IssueKindInvalidDWARF,
-				Message: loc.err.Error(),
-			}, nil
-		}
-		switch arch {
-		case "amd64":
-			// Do nothing
-		case "arm64":
-			// On arm, the prologue end is marked before the stack allocation.
-			loc.frameless = true
-		default:
-			return nil, ir.Issue{}, fmt.Errorf("unsupported architecture: %s", arch)
-		}
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        loc.pc,
-			Frameless: loc.frameless,
-		})
-	}
-	for _, inlined := range subprogram.InlinePCRanges {
-		pc := inlined.RootRanges[0][0]
-		loc, ok := prologueLocs[pc]
-		if !ok {
-			return nil, ir.Issue{}, fmt.Errorf("missing prologue loc for: %d", pc)
-		}
-		injectionPoints = append(injectionPoints, ir.InjectionPoint{
-			PC:        inlined.Ranges[0][0],
-			Frameless: loc.frameless,
-		})
-	}
-
-	// TODO: Find the return locations and add a return event.
-	events := []*ir.Event{
-		{
-			ID:              eventIDAlloc.next(),
-			InjectionPoints: injectionPoints,
-			Condition:       nil,
-			// Will be populated after all the types have been resolved
-			// and placeholders have been filled in.
-			Type: nil,
-		},
-	}
-	probe := &ir.Probe{
-		ProbeDefinition: probeCfg,
-		Subprogram:      subprogram,
-		Events:          events,
-	}
-	return probe, ir.Issue{}, nil
-}
-
-func findPrologueEnd(
-	lineReader *dwarf.LineReader, r ir.PCRange,
-) (injectionPC uint64, ok bool, err error) {
-	var lineEntry dwarf.LineEntry
-	prevPos := lineReader.Tell()
-	// In general, SeekPC is not the function we're looking for.  We
-	// want to seek to the next line entry that's in the range but
-	// not necessarily the first one. We add some hacks here that
-	// work unless we're at the beginning of a sequence.
-	//
-	// TODO: Find a way to seek to the first entry in a range rather
-	// than just
-	err = lineReader.SeekPC(r[0], &lineEntry)
-	// If we find that we have a hole, then we'll have our hands on
-	// a reader that's positioned after our PC. We can then seek to
-	// the instruction prior to that which should be in range of a
-	// real sequence. This is grossly inefficient.
-	if err != nil &&
-		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address < r[0] {
-		nextErr := lineReader.Next(&lineEntry)
-		if nextErr == nil {
-			lineReader.Seek(prevPos)
-			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
-		}
-		if nextErr == nil && lineEntry.Address >= r[0] {
-			err = nil
-		}
-	}
-	if err != nil {
-		// Reset the reader to the previous position which is more efficient
-		// than starting from 0 for the next seek given the caller is exploring
-		// in PC order.
-		lineReader.Seek(prevPos)
-		return 0, false, err
-	}
-	// For whatever reason the entrypoint of a function is marked as a
-	// statement and then should come the prologue end. If we see two
-	// statements in a row then we're not going to find the prologue end.
-	stmtsSeen := 0
-	for lineEntry.Address < r[1] && stmtsSeen < 2 {
-		if lineEntry.PrologueEnd {
-			return lineEntry.Address, true, nil
-		}
-		if lineEntry.IsStmt {
-			stmtsSeen++
-		}
-		if err := lineReader.Next(&lineEntry); err != nil {
-			// Should this return an error?
-			//
-			// In general, if we don't have the proper prologue end
-			// and it's not a frameless subprogram, then we're going
-			// to have a problem on x86 because we won't know the
-			// real cfa. On ARM things may be better.
-			break
-		}
-	}
-	return 0, false, nil
-}
-
 type subprogramChildVisitor struct {
 	root            *rootVisitor
 	unit            *dwarf.Entry
 	subprogramEntry *dwarf.Entry
-	// Cached pc ranges of the subprogram. Calculated on demand from subprogramEntry.
-	cachedSubprogramPCRanges []ir.PCRange
-	probesCfgs               []ir.ProbeDefinition
+	probesCfgs      []ir.ProbeDefinition
 	// Discovery: collect variable DIEs for later materialization.
-	variableEntries []*dwarf.Entry
-}
-
-func (v *subprogramChildVisitor) subprogramPCRanges() ([]ir.PCRange, error) {
-	if v.cachedSubprogramPCRanges != nil {
-		return v.cachedSubprogramPCRanges, nil
-	}
-	ranges, err := v.root.dwarf.Ranges(v.subprogramEntry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pc ranges: %w", err)
-	}
-	v.cachedSubprogramPCRanges = ranges
-	return ranges, nil
+	variableEntries       []*dwarf.Entry
+	hasInlinedSubprograms bool
 }
 
 func (v *subprogramChildVisitor) push(
@@ -1881,11 +2037,9 @@ func (v *subprogramChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		rootPCRanges, err := v.subprogramPCRanges()
-		if err != nil {
-			return nil, err
-		}
-		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, rootPCRanges, entry)
+		v.hasInlinedSubprograms = true
+		v := &inlinedSubroutineChildVisitor{root: v.root}
+		return v.push(entry)
 	case dwarf.TagFormalParameter:
 		fallthrough
 	case dwarf.TagVariable:
@@ -1909,94 +2063,10 @@ func (v *subprogramChildVisitor) push(
 
 func (v *subprogramChildVisitor) pop(_ *dwarf.Entry, _ visitor) error { return nil }
 
-func processInlinedSubroutineEntry(
-	root *rootVisitor,
-	unit *dwarf.Entry,
-	outOfLineInstance bool,
-	rootPCRanges []ir.PCRange,
-	subroutine *dwarf.Entry,
-) (childVisitor visitor, err error) {
-	abstractOrigin, err := getAttr[dwarf.Offset](subroutine, dwarf.AttrAbstractOrigin)
-	if err != nil {
-		return nil, err
-	}
-	ranges, err := root.dwarf.Ranges(subroutine)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse pc ranges %w", err)
-	}
-	sp := &inlinedSubprogram{
-		abstractOrigin: abstractOrigin,
-		rootPCRanges:   rootPCRanges,
-	}
-	if outOfLineInstance {
-		sp.outOfLinePCRanges = ranges
-		rootPCRanges = ranges
-	} else {
-		sp.inlinedPCRanges = ir.InlinePCRanges{
-			Ranges:     ranges,
-			RootRanges: rootPCRanges,
-		}
-	}
-	root.inlinedSubprograms[unit] = append(root.inlinedSubprograms[unit], sp)
-	return &inlinedSubroutineChildVisitor{
-		root:         root,
-		unit:         unit,
-		rootPCRanges: rootPCRanges,
-		sp:           sp,
-	}, nil
-}
-
-func processVariable(
-	unit, entry *dwarf.Entry,
-	isParameter, parseLocations bool,
-	subprogramPCRanges []ir.PCRange,
-	loclistReader *loclist.Reader,
-	pointerSize uint8,
-	typeCatalog *typeCatalog,
-) (*ir.Variable, error) {
-	name, err := getAttr[string](entry, dwarf.AttrName)
-	if err != nil {
-		return nil, err
-	}
-	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
-	if err != nil {
-		return nil, err
-	}
-	typ, err := typeCatalog.addType(typeOffset)
-	if err != nil {
-		return nil, err
-	}
-	var locations []ir.Location
-	if parseLocations {
-		if locField := entry.AttrField(dwarf.AttrLocation); locField != nil {
-			// Note that it's a bit wasteful to compute all the locations
-			// here: we only really need to locations for some specific
-			// PCs (such as the prologue end), but we don't know what
-			// those PCs are here, and figuring them out can be expensive.
-			locations = computeLocations(
-				unit, entry.Offset, subprogramPCRanges, typ, locField, loclistReader,
-				pointerSize,
-			)
-		}
-	}
-	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
-	if err != nil {
-		return nil, err
-	}
-	return &ir.Variable{
-		Name:        name,
-		Type:        typ,
-		Locations:   locations,
-		IsParameter: isParameter,
-		IsReturn:    isReturn,
-	}, nil
-}
-
 type abstractSubprogram struct {
 	unit       *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
 	name       string
-	id         ir.SubprogramID
 	// Aggregated ranges from out-of-line and inlined instances.
 	outOfLinePCRanges []ir.PCRange
 	inlinePCRanges    []ir.InlinePCRanges
@@ -2036,15 +2106,13 @@ type inlinedSubprogram struct {
 	// outOfLinePCRanges are set. Otherwise, inlinedPCRanges are set.
 	outOfLinePCRanges []ir.PCRange
 	inlinedPCRanges   ir.InlinePCRanges
-	rootPCRanges      []ir.PCRange
 	variables         []*dwarf.Entry
 }
 
 type inlinedSubroutineChildVisitor struct {
-	root         *rootVisitor
-	unit         *dwarf.Entry
-	rootPCRanges []ir.PCRange
-	sp           *inlinedSubprogram
+	root                  *rootVisitor
+	outOfLine             bool
+	hasInlinedSubprograms bool
 }
 
 func (v *inlinedSubroutineChildVisitor) push(
@@ -2052,22 +2120,1927 @@ func (v *inlinedSubroutineChildVisitor) push(
 ) (childVisitor visitor, err error) {
 	switch entry.Tag {
 	case dwarf.TagInlinedSubroutine:
-		return processInlinedSubroutineEntry(v.root, v.unit, false /* outOfLineInstance */, v.rootPCRanges, entry)
-	case dwarf.TagFormalParameter:
+		v.hasInlinedSubprograms = true
+		abstractOrigin, err := getAttr[dwarf.Offset](entry, dwarf.AttrAbstractOrigin)
+		if err != nil {
+			return nil, err
+		}
+		if ref := (concreteSubprogramRef{
+			offset:         entry.Offset,
+			abstractOrigin: abstractOrigin,
+		}); v.root.couldBeInteresting(ref) {
+			v.root.inlineInstances = append(v.root.inlineInstances, ref)
+		}
 		fallthrough
-	case dwarf.TagVariable:
-		v.sp.variables = append(v.sp.variables, entry)
-		return nil, nil
 	case dwarf.TagLexDwarfBlock:
 		return v, nil
-	case dwarf.TagTypedef:
-		return v, nil
+	case dwarf.TagFormalParameter, dwarf.TagVariable, dwarf.TagTypedef, dwarf.TagLabel:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 	}
-	return nil, fmt.Errorf("unexpected tag for inlined subroutine child: %s", entry.Tag)
 }
 
 func (v *inlinedSubroutineChildVisitor) pop(_ *dwarf.Entry, _ visitor) error {
 	return nil
+}
+
+// convertAbstractSubprogramsToPending constructs the pending subprograms for the inlined
+// subprograms stored in the abstractSubprograms map.
+func convertAbstractSubprogramsToPending(
+	d *dwarf.Data,
+	abstractSubprograms map[dwarf.Offset]*abstractSubprogram,
+	unitOffsets []dwarf.Offset,
+	outOfLineSubprogramOffsets []dwarf.Offset,
+	inlineInstances []concreteSubprogramRef,
+	outOfLineInstances []concreteSubprogramRef,
+	idAllocator *idAllocator[ir.SubprogramID],
+) ([]*pendingSubprogram, error) {
+	// Prepare data for enrichment: filter refs without abstract origins and
+	// sort all data by offset to enable incremental advancement through the
+	// DWARF tree.
+	slices.Sort(unitOffsets)
+	slices.Sort(outOfLineSubprogramOffsets)
+	noAbstractOrigin := func(a concreteSubprogramRef) bool {
+		_, ok := abstractSubprograms[a.abstractOrigin]
+		return !ok
+	}
+	inlineInstances = slices.DeleteFunc(inlineInstances, noAbstractOrigin)
+	outOfLineInstances = slices.DeleteFunc(outOfLineInstances, noAbstractOrigin)
+	slices.SortFunc(inlineInstances, concreteSubprogramRef.cmpByOffset)
+	slices.SortFunc(outOfLineInstances, concreteSubprogramRef.cmpByOffset)
+
+	var inlinedInstanceError *inlinedInstanceError
+	for ctx, err := range iterConcreteSubprograms(
+		d, inlineInstances, unitOffsets, outOfLineSubprogramOffsets,
+	) {
+		switch {
+		case errors.As(err, &inlinedInstanceError):
+			abs := abstractSubprograms[inlinedInstanceError.abstractOrigin]
+			if abs.issue.IsNone() {
+				abs.issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: inlinedInstanceError.err.Error(),
+				}
+			}
+			continue
+		case err != nil:
+			return nil, err
+		}
+		abs := abstractSubprograms[ctx.abstractOrigin]
+		if !abs.issue.IsNone() {
+			continue
+		}
+		ranges := ir.InlinePCRanges{
+			Ranges:     ctx.entryRanges,
+			RootRanges: ctx.rootRanges,
+		}
+		abs.inlined = append(abs.inlined, &inlinedSubprogram{
+			abstractOrigin:  ctx.abstractOrigin,
+			inlinedPCRanges: ranges,
+			variables:       ctx.variables,
+		})
+		abs.inlinePCRanges = append(abs.inlinePCRanges, ranges)
+	}
+
+	for ctx, err := range iterConcreteSubprograms(
+		d, outOfLineInstances, unitOffsets, nil, /* no ranges needed */
+	) {
+		switch {
+		case errors.As(err, &inlinedInstanceError):
+			abs := abstractSubprograms[inlinedInstanceError.abstractOrigin]
+			if abs.issue.IsNone() {
+				abs.issue = ir.Issue{
+					Kind:    ir.IssueKindInvalidDWARF,
+					Message: inlinedInstanceError.err.Error(),
+				}
+			}
+			continue
+		case err != nil:
+			return nil, err
+		}
+		abs := abstractSubprograms[ctx.abstractOrigin]
+		if !abs.issue.IsNone() {
+			continue
+		}
+		if len(abs.outOfLinePCRanges) != 0 {
+			abs.issue = ir.Issue{
+				Kind:    ir.IssueKindMalformedExecutable,
+				Message: "multiple out-of-line instances of abstract subprogram",
+			}
+			continue
+		}
+		outOfLine := &inlinedSubprogram{
+			abstractOrigin:    ctx.abstractOrigin,
+			outOfLinePCRanges: ctx.entryRanges,
+			variables:         ctx.variables,
+		}
+		abs.outOfLinePCRanges = append(abs.outOfLinePCRanges, ctx.entryRanges...)
+		abs.inlined = append(abs.inlined, outOfLine)
+	}
+
+	// Append the abstract sub-programs in deterministic order.
+	var ret []*pendingSubprogram
+	abstractSubs := iterMapSorted(abstractSubprograms, cmp.Compare)
+	for _, abs := range abstractSubs {
+		// Collect abstract variable DIEs in deterministic order.
+		varVars := make([]*dwarf.Entry, 0, len(abs.variables))
+		if len(abs.variables) > 0 {
+			keys := make([]dwarf.Offset, 0, len(abs.variables))
+			for k := range abs.variables {
+				keys = append(keys, k)
+			}
+			slices.SortFunc(keys, func(a, b dwarf.Offset) int { return cmp.Compare(a, b) })
+			for _, k := range keys {
+				varVars = append(varVars, abs.variables[k])
+			}
+		}
+		ret = append(ret, &pendingSubprogram{
+			unit:              abs.unit,
+			subprogramEntry:   nil,
+			name:              abs.name,
+			outOfLinePCRanges: abs.outOfLinePCRanges,
+			inlinePCRanges:    abs.inlinePCRanges,
+			inlined:           abs.inlined,
+			variables:         varVars,
+			probesCfgs:        abs.probesCfgs,
+			issue:             abs.issue,
+			id:                idAllocator.next(),
+			abstract:          true,
+		})
+	}
+
+	return ret, nil
+}
+
+// concreteSubprogramContext is a dwarf entry corresponding to a concrete
+// instance of an inlined subprogram, along with a reader positioned at that
+// entry, the corresponding abstractOrigin, and, if the entry corresponds to
+// an inlined instance, the root pc ranges of the out-of-line subprogram that
+// contains it.
+type concreteSubprogramContext struct {
+	abstractOrigin dwarf.Offset
+	entry          *dwarf.Entry
+	entryRanges    []ir.PCRange
+	reader         *dwarf.Reader
+	rootRanges     [][2]uint64 // nil if entry is an out-of-line instance
+	variables      []*dwarf.Entry
+}
+
+func cmpRange(a, b [2]uint64) int { return cmp.Compare(a[0], b[0]) }
+
+// validateNonOverlappingPCRanges checks that sorted PC ranges do not overlap.
+// Returns an error if any ranges overlap.
+func validateNonOverlappingPCRanges(
+	ranges []ir.PCRange, offset dwarf.Offset, context string,
+) error {
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i-1][1] > ranges[i][0] {
+			return fmt.Errorf(
+				"overlapping pc ranges for %s at %#x: [%#x, %#x) and [%#x, %#x)",
+				context, offset,
+				ranges[i-1][0], ranges[i-1][1], ranges[i][0], ranges[i][1],
+			)
+		}
+	}
+	return nil
+}
+
+type inlinedInstanceError struct {
+	abstractOrigin dwarf.Offset
+	concreteOffset dwarf.Offset
+	err            error
+}
+
+func (e *inlinedInstanceError) Error() string {
+	return fmt.Sprintf(
+		"inlined instance error for abstract origin %#x at offset %#x: %v",
+		e.abstractOrigin, e.concreteOffset, e.err,
+	)
+}
+
+// iterConcreteSubprograms yields concrete subprogram contexts for each
+// element of refs.
+//
+// The function incrementally advances through sorted compile units and concrete
+// subprograms (if any), positioning DWARF readers and loading ranges as needed.
+//
+// Parameters must be sorted by offset:
+//   - refs: sorted by offset, then abstractOrigin
+//   - units: sorted by offset
+//   - concreteSubprograms: sorted by offset (or nil to skip range tracking)
+func iterConcreteSubprograms(
+	d *dwarf.Data,
+	refs []concreteSubprogramRef,
+	units []dwarf.Offset,
+	concreteSubprograms []dwarf.Offset,
+) iter.Seq2[concreteSubprogramContext, error] {
+	var (
+		unitIdx               int
+		concreteSubprogramIdx int
+		currentSubprogram     struct {
+			offset dwarf.Offset
+			entry  *dwarf.Entry
+			ranges [][2]uint64
+		}
+		reader          *dwarf.Reader
+		variableVisitor concreteSubprogramVariableCollector
+	)
+
+	trackConcreteSubprograms := len(concreteSubprograms) > 0
+	if trackConcreteSubprograms {
+		currentSubprogram.offset = concreteSubprograms[0]
+	}
+
+	maybeAdvanceUnitAndReader := func(refOffset dwarf.Offset) error {
+		if reader != nil &&
+			(unitIdx+1 >= len(units) || units[unitIdx+1] > refOffset) {
+			return nil // no advancement needed
+		}
+		found, _ := slices.BinarySearch(units[unitIdx:], refOffset)
+		if found == 0 {
+			return fmt.Errorf("ref %#x precedes first unit", refOffset)
+		}
+		unitIdx += found - 1
+		reader = d.Reader()
+		reader.Seek(units[unitIdx])
+		if _, err := reader.Next(); err != nil {
+			return fmt.Errorf("failed to get next entry: %w", err)
+		}
+		return nil
+	}
+
+	maybeAdvanceRootRanges := func(refOffset dwarf.Offset) error {
+		if !trackConcreteSubprograms {
+			return nil
+		}
+
+		if concreteSubprogramIdx+1 < len(concreteSubprograms) &&
+			concreteSubprograms[concreteSubprogramIdx+1] <= refOffset {
+			found, _ := slices.BinarySearch(
+				concreteSubprograms[concreteSubprogramIdx:], refOffset,
+			)
+			if found == 0 {
+				return fmt.Errorf(
+					"ref %#x precedes first concrete subprogram",
+					refOffset,
+				)
+			}
+			concreteSubprogramIdx += found - 1
+			currentSubprogram.offset = concreteSubprograms[concreteSubprogramIdx]
+			currentSubprogram.entry = nil
+			currentSubprogram.ranges = nil
+		}
+
+		if currentSubprogram.entry == nil {
+			reader.Seek(currentSubprogram.offset)
+			var err error
+			currentSubprogram.entry, err = reader.Next()
+			if err != nil {
+				return fmt.Errorf(
+					"failed to get next concrete subprogram entry: %w",
+					err,
+				)
+			}
+			if currentSubprogram.ranges, err = d.Ranges(
+				currentSubprogram.entry,
+			); err != nil {
+				return fmt.Errorf(
+					"failed to get ranges for concrete subprogram entry: %w",
+					err,
+				)
+			}
+			if len(currentSubprogram.ranges) == 0 {
+				return errors.New("no ranges for concrete subprogram entry")
+			}
+
+			slices.SortFunc(currentSubprogram.ranges, cmpRange)
+			if err := validateNonOverlappingPCRanges(
+				currentSubprogram.ranges,
+				currentSubprogram.offset,
+				"concrete subprogram",
+			); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	return func(yield func(concreteSubprogramContext, error) bool) {
+		for _, ref := range refs {
+			if err := maybeAdvanceUnitAndReader(ref.offset); err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+			if err := maybeAdvanceRootRanges(ref.offset); err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+			reader.Seek(ref.offset)
+			entry, err := reader.Next()
+			if err != nil {
+				yield(concreteSubprogramContext{}, err)
+				return
+			}
+
+			inlinedPCRanges, err := d.Ranges(entry)
+			if err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+			slices.SortFunc(inlinedPCRanges, func(a, b ir.PCRange) int {
+				return cmp.Compare(a[0], b[0])
+			})
+			if err := validateNonOverlappingPCRanges(
+				inlinedPCRanges, entry.Offset, "inlined subroutine",
+			); err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+
+			variableVisitor = concreteSubprogramVariableCollector{me: entry}
+			if err := visitReader(entry, reader, &variableVisitor); err != nil {
+				if !yield(concreteSubprogramContext{}, &inlinedInstanceError{
+					abstractOrigin: ref.abstractOrigin,
+					concreteOffset: ref.offset,
+					err:            err,
+				}) {
+					return
+				}
+				continue
+			}
+			if !yield(concreteSubprogramContext{
+				reader:         reader,
+				rootRanges:     currentSubprogram.ranges,
+				abstractOrigin: ref.abstractOrigin,
+				entry:          entry,
+				entryRanges:    inlinedPCRanges,
+				variables:      variableVisitor.variableEntries,
+			}, nil) {
+				return
+			}
+		}
+	}
+}
+
+// concreteSubprogramVariableCollector is a visitor that collects variable DIEs
+// for a concrete instance of an inlined subprogram.
+type concreteSubprogramVariableCollector struct {
+	me              *dwarf.Entry
+	variableEntries []*dwarf.Entry
+}
+
+func (v *concreteSubprogramVariableCollector) push(
+	entry *dwarf.Entry,
+) (childVisitor visitor, err error) {
+	if entry == v.me {
+		return v, nil
+	}
+	switch entry.Tag {
+	case dwarf.TagFormalParameter, dwarf.TagVariable:
+		v.variableEntries = append(v.variableEntries, entry)
+		return nil, nil
+	case dwarf.TagLexDwarfBlock:
+		return v, nil
+	case dwarf.TagInlinedSubroutine:
+		return nil, nil
+	case dwarf.TagTypedef:
+		return nil, nil
+	default:
+		return v, nil
+	}
+}
+
+func (v *concreteSubprogramVariableCollector) pop(_ *dwarf.Entry, _ visitor) error {
+	return nil
+}
+
+func findUnusedConfigs(
+	successes []*ir.Probe,
+	failures []ir.ProbeIssue,
+	configs []ir.ProbeDefinition,
+) (unused []ir.ProbeDefinition) {
+	slices.SortFunc(successes, ir.CompareProbeIDs)
+	slices.SortFunc(failures, ir.CompareProbeIDs)
+	slices.SortFunc(configs, ir.CompareProbeIDs)
+	for _, config := range configs {
+		var inSuccesses, inFailures bool
+		successes, inSuccesses = skipPast(successes, config)
+		failures, inFailures = skipPast(failures, config)
+		if !inSuccesses && !inFailures {
+			unused = append(unused, config)
+		}
+	}
+	return unused
+}
+
+func skipPast[A, B ir.ProbeIDer](items []A, target B) (_ []A, found bool) {
+	idx, found := slices.BinarySearchFunc(items, target, ir.CompareProbeIDs)
+	if found {
+		idx++
+	}
+	return items[idx:], found
+}
+
+func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
+	for i := minID; i <= maxID; i++ {
+		switch t := tc.typesByID[i].(type) {
+		case *ir.StructureType:
+			switch t.GoTypeAttributes.GoKind {
+			case reflect.String:
+				if err := completeGoStringType(tc, t); err != nil {
+					return err
+				}
+			case reflect.Slice:
+				if err := completeGoSliceType(tc, t); err != nil {
+					return err
+				}
+			case reflect.Struct:
+				// Nothing to do.
+			default:
+				return fmt.Errorf(
+					"unexpected Go kind for structure type %q: %v",
+					t.Name, t.GoTypeAttributes.GoKind,
+				)
+			}
+		case *ir.GoMapType:
+			if err := completeGoMapType(tc, t); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// iterMapSorted is a helper function that iterates over a map and yields
+// the keys and values in sorted order using the provided comparator.
+func iterMapSorted[
+	K comparable, V any, M ~map[K]V,
+](m M, f func(K, K) int) iter.Seq2[K, V] {
+	keys := make([]K, 0, len(m))
+	keys = slices.AppendSeq(keys, maps.Keys(m))
+	slices.SortFunc(keys, f)
+	return func(yield func(K, V) bool) {
+		for _, k := range keys {
+			if !yield(k, m[k]) {
+				return
+			}
+		}
+	}
+}
+
+func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
+	// Convert the header type from a structure type to the appropriate
+	// Go-specific type.
+	headerType := tc.typesByID[t.HeaderType.GetID()]
+	var headerStructureType *ir.StructureType
+	switch headerType := headerType.(type) {
+	case *ir.StructureType:
+		headerStructureType = headerType
+	case *ir.GoHMapHeaderType:
+		return nil
+	case *ir.GoSwissMapHeaderType:
+		return nil
+	default:
+		return fmt.Errorf(
+			"header type for map type %q has been completed to %T, expected %T",
+			t.Name, headerType, headerStructureType,
+		)
+	}
+	// Convert the header type from a structure type to the appropriate
+	// Go-specific type.
+	//
+	// Use the type name to determine whether this is an hmap or a swiss map.
+	// We could alternatively use the go version or the structure field layout.
+	// This works for now.
+	switch {
+	case strings.HasPrefix(headerStructureType.Name, "map<"):
+		return completeSwissMapHeaderType(tc, headerStructureType)
+	case strings.HasPrefix(headerStructureType.Name, "hash<"):
+		return completeHMapHeaderType(tc, headerStructureType)
+	default:
+		return fmt.Errorf(
+			"unexpected header type for map type %q: %q %T",
+			t.Name, t.HeaderType.GetName(), t.HeaderType,
+		)
+	}
+}
+
+func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
+	var tablePtrType *ir.PointerType
+	var groupReferenceType *ir.StructureType
+	var groupType *ir.StructureType
+	{
+		dirPtrType, err := fieldType[*ir.PointerType](tc, st, "dirPtr")
+		if err != nil {
+			return err
+		}
+		tablePtrType, err = resolvePointeeType[*ir.PointerType](tc, dirPtrType)
+		if err != nil {
+			return err
+		}
+		tableType, err := resolvePointeeType[*ir.StructureType](tc, tablePtrType)
+		if err != nil {
+			return err
+		}
+		groupReferenceType, err = fieldType[*ir.StructureType](tc, tableType, "groups")
+		if err != nil {
+			return err
+		}
+		groupPtrType, err := fieldType[*ir.PointerType](tc, groupReferenceType, "data")
+		if err != nil {
+			return err
+		}
+		groupType, err = resolvePointeeType[*ir.StructureType](tc, groupPtrType)
+		if err != nil {
+			return err
+		}
+	}
+
+	tablePtrSliceDataType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", tablePtrType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         tablePtrType.GetByteSize(),
+		},
+		Element: tablePtrType,
+	}
+	tc.typesByID[tablePtrSliceDataType.ID] = tablePtrSliceDataType
+
+	groupSliceType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", groupType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         groupType.GetByteSize(),
+		},
+		Element: groupType,
+	}
+	tc.typesByID[groupSliceType.ID] = groupSliceType
+
+	mapHeaderType := &ir.GoSwissMapHeaderType{
+		StructureType:     st,
+		TablePtrSliceType: tablePtrSliceDataType,
+		GroupType:         groupType,
+	}
+	tc.typesByID[mapHeaderType.ID] = mapHeaderType
+
+	groupsType := &ir.GoSwissMapGroupsType{
+		StructureType:  groupReferenceType,
+		GroupType:      groupType,
+		GroupSliceType: groupSliceType,
+	}
+	tc.typesByID[groupsType.ID] = groupsType
+	return nil
+}
+
+func completeHMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
+	bucketsField, err := field(tc, st, "buckets")
+	if err != nil {
+		return err
+	}
+	bucketsStructType, err := resolvePointeeType[*ir.StructureType](tc, bucketsField.Type)
+	if err != nil {
+		return err
+	}
+	keysArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "keys")
+	if err != nil {
+		return err
+	}
+	keyType := keysArrayType.Element
+	valuesArrayType, err := fieldType[*ir.ArrayType](tc, bucketsStructType, "values")
+	if err != nil {
+		return err
+	}
+	valueType := valuesArrayType.Element
+	bucketsType := &ir.GoHMapBucketType{
+		StructureType: bucketsStructType,
+		KeyType:       keyType,
+		ValueType:     valueType,
+	}
+	bucketsSliceDataType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               tc.idAlloc.next(),
+			Name:             fmt.Sprintf("[]%s.array", bucketsType.GetName()),
+			DynamicSizeClass: ir.DynamicSizeHashmap,
+			ByteSize:         bucketsType.GetByteSize(),
+		},
+		Element: bucketsType,
+	}
+	headerType := &ir.GoHMapHeaderType{
+		StructureType: st,
+		BucketType:    bucketsType,
+		BucketsType:   bucketsSliceDataType,
+	}
+	tc.typesByID[bucketsSliceDataType.ID] = bucketsSliceDataType
+	tc.typesByID[headerType.ID] = headerType
+	tc.typesByID[bucketsType.ID] = bucketsType
+	return nil
+}
+
+func completeGoStringType(tc *typeCatalog, st *ir.StructureType) error {
+	strField, err := field(tc, st, "str")
+	if err != nil {
+		return err
+	}
+	strDataType := &ir.GoStringDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               tc.idAlloc.next(),
+			Name:             st.Name + ".str",
+			DynamicSizeClass: ir.DynamicSizeString,
+			ByteSize:         1,
+		},
+	}
+	tc.typesByID[strDataType.ID] = strDataType
+	strDataPtrType := &ir.PointerType{
+		TypeCommon: ir.TypeCommon{
+			ID:       tc.idAlloc.next(),
+			Name:     fmt.Sprintf("*%s.str", st.Name),
+			ByteSize: uint32(tc.ptrSize),
+		},
+		Pointee: strDataType,
+	}
+	tc.typesByID[strDataPtrType.ID] = strDataPtrType
+	strField.Type = strDataPtrType
+	tc.typesByID[st.ID] = &ir.GoStringHeaderType{
+		StructureType: st,
+		Data:          strDataType,
+	}
+
+	return nil
+}
+
+func completeGoSliceType(tc *typeCatalog, st *ir.StructureType) error {
+	arrayField, err := field(tc, st, "array")
+	if err != nil {
+		return err
+	}
+	elementType, err := resolvePointeeType[ir.Type](tc, arrayField.Type)
+	if err != nil {
+		return err
+	}
+	arrayDataType := &ir.GoSliceDataType{
+		TypeCommon: ir.TypeCommon{
+			ID:               tc.idAlloc.next(),
+			Name:             st.Name + ".array",
+			DynamicSizeClass: ir.DynamicSizeSlice,
+			ByteSize:         elementType.GetByteSize(),
+		},
+		Element: elementType,
+	}
+	tc.typesByID[arrayDataType.ID] = arrayDataType
+	arrayDataPtrType := &ir.PointerType{
+		TypeCommon: ir.TypeCommon{
+			ID:       tc.idAlloc.next(),
+			Name:     fmt.Sprintf("*%s.array", st.Name),
+			ByteSize: uint32(tc.ptrSize),
+		},
+		Pointee: arrayDataType,
+	}
+	tc.typesByID[arrayDataPtrType.ID] = arrayDataPtrType
+	tc.typesByID[st.ID] = &ir.GoSliceHeaderType{
+		StructureType: st,
+		Data:          arrayDataType,
+	}
+	return nil
+}
+
+func field(tc *typeCatalog, st *ir.StructureType, name string) (*ir.Field, error) {
+	offset := slices.IndexFunc(st.RawFields, func(f ir.Field) bool {
+		return f.Name == name
+	})
+	if offset == -1 {
+		return nil, fmt.Errorf("type %q has no %s field", st.Name, name)
+	}
+	f := &st.RawFields[offset]
+	f.Type = tc.typesByID[f.Type.GetID()]
+	return &st.RawFields[offset], nil
+}
+
+func fieldType[T ir.Type](tc *typeCatalog, st *ir.StructureType, name string) (T, error) {
+	f, err := field(tc, st, name)
+	if err != nil {
+		return *new(T), err
+	}
+	fieldType, ok := f.Type.(T)
+	if !ok {
+		ret := *new(T)
+		err := fmt.Errorf(
+			"field %q of type %q is not a %T, got %T",
+			name, st.Name, ret, f.Type,
+		)
+		return ret, err
+	}
+	return fieldType, nil
+}
+
+func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
+	ptrType, ok := t.(*ir.PointerType)
+	if !ok {
+		return *new(T), fmt.Errorf("type %q is not a pointer type, got %T", t.GetName(), t)
+	}
+	ptrType.Pointee = tc.typesByID[ptrType.Pointee.GetID()]
+	if ppt, ok := ptrType.Pointee.(*pointeePlaceholderType); ok {
+		pointee, err := tc.addType(ppt.offset)
+		if err != nil {
+			return *new(T), err
+		}
+		ptrType.Pointee = pointee
+	}
+	pointee, ok := ptrType.Pointee.(T)
+	if !ok {
+		return *new(T), fmt.Errorf(
+			"pointee type %d %q of %d (%q) is not a %T, got %T",
+			ptrType.ID, ptrType.Pointee.GetName(), ptrType.ID, ptrType.Name, new(T), ptrType.Pointee,
+		)
+	}
+	return pointee, nil
+}
+
+// exploreTypesForExpressions validates that all types needed for expressions
+// are available and marks invalid segments for expressions that fail to resolve
+// (e.g., type mismatches, missing fields). Expressions that fail are cleared
+// so they won't be processed by populateProbeEventsExpressions.
+func exploreTypesForExpressions(
+	tc *typeCatalog,
+	analyzedProbes []analyzedProbe,
+) {
+	for i := range analyzedProbes {
+		ap := &analyzedProbes[i]
+		for j := range ap.expressions {
+			expr := &ap.expressions[j]
+			if expr.rootVariable == nil {
+				continue
+			}
+			exprPath := ""
+			if ref, ok := expr.expr.(*exprlang.RefExpr); ok {
+				exprPath = ref.Ref
+			}
+			if _, err := exploreExpressionTypes(
+				expr.expr, expr.rootVariable.Type, tc, exprPath,
+			); err != nil {
+				// Mark segment as invalid instead of failing.
+				if expr.segment != nil && ap.template != nil {
+					ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
+						Error: err.Error(),
+						DSL:   expr.dsl,
+					}
+				}
+				// Clear the expression so it won't be processed later.
+				expr.rootVariable = nil
+			}
+		}
+	}
+}
+
+// exploreExpressionTypes walks an expression tree and eagerly resolves types
+// when encountering placeholders or unresolved pointees. This reuses the same
+// traversal logic as resolveExpression but focuses on type resolution.
+// Returns the resolved type after exploration.
+func exploreExpressionTypes(
+	expr exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string, // Path for error messages (e.g., "a.b.c")
+) (ir.Type, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		// Base case: nothing to do for simple refs.
+		return currentType, nil
+
+	case *exprlang.GetMemberExpr:
+		// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
+		var members []string
+		var base exprlang.Expr = e
+		for {
+			if gm, ok := base.(*exprlang.GetMemberExpr); ok {
+				members = append(members, gm.Member)
+				base = gm.Base
+			} else {
+				break
+			}
+		}
+		// Reverse to get correct order (a.b.c).
+		slices.Reverse(members)
+
+		// Build expression path for error messages.
+		basePath := exprPath
+		if basePath == "" {
+			if ref, ok := base.(*exprlang.RefExpr); ok {
+				basePath = ref.Ref
+			}
+		}
+		memberPath := basePath
+		for _, m := range members {
+			if memberPath != "" {
+				memberPath += "." + m
+			} else {
+				memberPath = m
+			}
+		}
+
+		// Explore base expression first and get its resolved type.
+		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath)
+		if err != nil {
+			return nil, err
+		}
+
+		// Now traverse the member chain, resolving types as we go.
+		curType := baseType
+		for i, memberName := range members {
+			// Build current expression path for error messages.
+			currentPath := basePath
+			for j := 0; j <= i; j++ {
+				if currentPath != "" {
+					currentPath += "." + members[j]
+				} else {
+					currentPath = members[j]
+				}
+			}
+
+			// Handle pointer dereference if needed.
+			if ptrType, ok := curType.(*ir.PointerType); ok {
+				// Check for void pointer.
+				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+					return nil, fmt.Errorf(
+						"cannot dereference void pointer in expression %q",
+						currentPath,
+					)
+				}
+
+				// Check for unresolved pointee or placeholder.
+				pointee := ptrType.Pointee
+				pointee = tc.typesByID[pointee.GetID()]
+				if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+					// Eagerly resolve the placeholder.
+					newT, err := tc.addType(ppt.offset)
+					if err != nil {
+						return nil, fmt.Errorf(
+							"failed to resolve pointee placeholder in expression %q: %w",
+							currentPath, err,
+						)
+					}
+					if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+						return nil, fmt.Errorf(
+							"failed to complete pointee type in expression %q: %w",
+							currentPath, err,
+						)
+					}
+					ptrType.Pointee = newT
+					curType = newT
+				} else if _, isUnresolved := pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+					// Unresolved pointee means it wasn't explored. We can't resolve it here
+					// since we don't have the DWARF offset. This should have been handled
+					// during initial type exploration, but if it wasn't, we'll fail during
+					// expression resolution.
+					return nil, fmt.Errorf(
+						"cannot resolve expression %q: pointee type %q not explored",
+						currentPath, pointee.GetName(),
+					)
+				} else {
+					curType = pointee
+				}
+			}
+
+			// Handle structure field access.
+			structType, ok := curType.(*ir.StructureType)
+			if !ok {
+				return nil, fmt.Errorf(
+					"cannot access member %q on type %T (%q) in expression %q",
+					memberName, curType, curType.GetName(), currentPath,
+				)
+			}
+
+			// Ensure struct type is completed (fields are populated).
+			if err := completeGoTypes(tc, structType.GetID(), structType.GetID()); err != nil {
+				return nil, fmt.Errorf(
+					"failed to complete struct type in expression %q: %w",
+					currentPath, err,
+				)
+			}
+
+			// Find field.
+			field, err := field(tc, structType, memberName)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"failed to resolve field %q in expression %q: %w",
+					memberName, currentPath, err,
+				)
+			}
+
+			curType = field.Type
+			// Recursively explore field type if it's a pointer or struct.
+			if _, err := exploreExpressionTypes(
+				&exprlang.RefExpr{}, curType, tc, currentPath,
+			); err != nil {
+				return nil, err
+			}
+		}
+
+		// Final dereference if result is a pointer.
+		if ptrType, ok := curType.(*ir.PointerType); ok {
+			// Check for void pointer.
+			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+				return nil, fmt.Errorf(
+					"cannot dereference void pointer in expression %q",
+					memberPath,
+				)
+			}
+
+			pointee := ptrType.Pointee
+			pointee = tc.typesByID[pointee.GetID()]
+			if ppt, ok := pointee.(*pointeePlaceholderType); ok {
+				// Eagerly resolve the placeholder.
+				newT, err := tc.addType(ppt.offset)
+				if err != nil {
+					return nil, fmt.Errorf(
+						"failed to resolve final pointee placeholder in expression %q: %w",
+						memberPath, err,
+					)
+				}
+				if err := completeGoTypes(tc, newT.GetID(), newT.GetID()); err != nil {
+					return nil, fmt.Errorf(
+						"failed to complete final pointee type in expression %q: %w",
+						memberPath, err,
+					)
+				}
+				ptrType.Pointee = newT
+				curType = newT
+			} else if _, isUnresolved := pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+				return nil, fmt.Errorf(
+					"cannot resolve expression %q: final pointee type %q not explored",
+					memberPath, pointee.GetName(),
+				)
+			} else {
+				curType = pointee
+			}
+		}
+
+		return curType, nil
+
+	default:
+		// Unknown expression type - nothing to explore.
+		return currentType, nil
+	}
+}
+
+// resolveExpression resolves an expression AST to an IR Expression.
+func resolveExpression(
+	expr exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	switch e := expr.(type) {
+	case *exprlang.RefExpr:
+		variableSize := rootVar.Type.GetByteSize()
+		return ir.Expression{
+			Type: rootVar.Type,
+			Operations: []ir.ExpressionOp{
+				&ir.LocationOp{
+					Variable: rootVar,
+					Offset:   0,
+					ByteSize: uint32(variableSize),
+				},
+			},
+		}, nil
+
+	case *exprlang.GetMemberExpr:
+		// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
+		var members []string
+		var base exprlang.Expr = e
+		for {
+			if gm, ok := base.(*exprlang.GetMemberExpr); ok {
+				members = append(members, gm.Member)
+				base = gm.Base
+			} else {
+				break
+			}
+		}
+		// Reverse to get correct order (a.b.c).
+		slices.Reverse(members)
+
+		// Resolve base expression (RefExpr or other).
+		baseExpr, err := resolveExpression(base, rootVar, tc)
+		if err != nil {
+			return ir.Expression{}, fmt.Errorf(
+				"failed to resolve base expression: %w", err,
+			)
+		}
+
+		currentType := baseExpr.Type
+		operations := baseExpr.Operations
+		bias := uint32(0)
+		hasDereferenced := false
+		// Track the index of the last DereferenceOp we added, so we can update
+		// the correct one when we encounter field accesses after dereferences.
+		lastDerefOpIdx := -1
+
+		// Process each member in the chain.
+		for _, memberName := range members {
+			// Handle pointer dereference if needed.
+			if ptrType, ok := currentType.(*ir.PointerType); ok {
+				// Check for void pointer.
+				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+					return ir.Expression{}, errors.New(
+						"cannot dereference void pointer",
+					)
+				}
+
+				// Check for unresolved pointee.
+				if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+					return ir.Expression{}, fmt.Errorf(
+						"cannot resolve expression: pointee type %q not explored",
+						ptrType.Pointee.GetName(),
+					)
+				}
+
+				// Resolve pointee type (handles placeholders lazily).
+				pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+				if err != nil {
+					return ir.Expression{}, fmt.Errorf(
+						"failed to resolve pointee type: %w", err,
+					)
+				}
+
+				pointeeSize := pointee.GetByteSize()
+				operations = append(operations, &ir.DereferenceOp{
+					Bias:     bias,
+					ByteSize: pointeeSize,
+				})
+				lastDerefOpIdx = len(operations) - 1
+
+				currentType = pointee
+				bias = 0 // Reset bias after dereference.
+				hasDereferenced = true
+			}
+
+			// Handle structure field access.
+			structType, ok := currentType.(*ir.StructureType)
+			if !ok {
+				return ir.Expression{}, fmt.Errorf(
+					"cannot access member %q on type %T (%q)",
+					memberName, currentType, currentType.GetName(),
+				)
+			}
+
+			// Find field.
+			field, err := field(tc, structType, memberName)
+			if err != nil {
+				return ir.Expression{}, fmt.Errorf(
+					"field %q not found in type %q",
+					memberName, structType.Name,
+				)
+			}
+
+			if !hasDereferenced {
+				// Direct struct access: update LocationOp offset directly.
+				if len(operations) == 1 {
+					if locOp, ok := operations[0].(*ir.LocationOp); ok {
+						// Update the LocationOp offset to point to the field.
+						locOp.Offset += field.Offset
+						// Update the byte size to match the field size.
+						locOp.ByteSize = field.Type.GetByteSize()
+					}
+				}
+			} else {
+				// After dereference: update the DereferenceOp that corresponds to
+				// the current pointer being dereferenced (tracked by lastDerefOpIdx).
+				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
+					if derefOp, ok := operations[lastDerefOpIdx].(*ir.DereferenceOp); ok {
+						// Update the DereferenceOp's bias to include this field offset.
+						derefOp.Bias += field.Offset
+						// Update the byte size to match the field size.
+						derefOp.ByteSize = field.Type.GetByteSize()
+					} else {
+						// Should not happen, but accumulate bias for safety.
+						bias += field.Offset
+					}
+				} else {
+					// Fallback: accumulate bias if we can't find the deref op.
+					bias += field.Offset
+				}
+			}
+
+			currentType = field.Type
+		}
+
+		// Final dereference if result is a pointer.
+		if ptrType, ok := currentType.(*ir.PointerType); ok {
+			// Check for void pointer.
+			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+				return ir.Expression{}, errors.New(
+					"cannot dereference void pointer",
+				)
+			}
+
+			// Check for unresolved pointee.
+			if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+				return ir.Expression{}, fmt.Errorf(
+					"cannot resolve expression: pointee type %q not explored",
+					ptrType.Pointee.GetName(),
+				)
+			}
+
+			// Final dereference.
+			pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+			if err != nil {
+				return ir.Expression{}, fmt.Errorf(
+					"failed to resolve final pointee type: %w", err,
+				)
+			}
+
+			pointeeSize := pointee.GetByteSize()
+			operations = append(operations, &ir.DereferenceOp{
+				Bias:     bias,
+				ByteSize: pointeeSize,
+			})
+
+			currentType = pointee
+		}
+
+		return ir.Expression{
+			Type:       currentType,
+			Operations: operations,
+		}, nil
+
+	default:
+		return ir.Expression{}, fmt.Errorf(
+			"unsupported expression type: %T", expr,
+		)
+	}
+}
+
+func populateProbeEventsExpressions(
+	probes []*ir.Probe,
+	analyzedProbes []analyzedProbe,
+	typeCatalog *typeCatalog,
+) (successful []*ir.Probe, failed []ir.ProbeIssue) {
+	for i, probe := range probes {
+		ap := &analyzedProbes[i]
+		if issue := populateProbeExpressions(probe, ap, typeCatalog); !issue.IsNone() {
+			failed = append(failed, ir.ProbeIssue{
+				ProbeDefinition: probe.ProbeDefinition,
+				Issue:           issue,
+			})
+		} else {
+			successful = append(successful, probe)
+		}
+	}
+	return successful, failed
+}
+
+func populateProbeExpressions(
+	probe *ir.Probe,
+	ap *analyzedProbe,
+	typeCatalog *typeCatalog,
+) ir.Issue {
+	for _, event := range probe.Events {
+		issue := populateEventExpressions(probe, event, ap, typeCatalog)
+		if !issue.IsNone() {
+			return issue
+		}
+	}
+	return ir.Issue{}
+}
+
+func populateEventExpressions(
+	probe *ir.Probe,
+	event *ir.Event,
+	ap *analyzedProbe,
+	typeCatalog *typeCatalog,
+) ir.Issue {
+	id := typeCatalog.idAlloc.next()
+	var expressions []*ir.RootExpression
+	for _, expr := range ap.expressions {
+		if expr.eventKind != event.Kind {
+			continue
+		}
+		v := expr.rootVariable
+		if v == nil {
+			// Expression was already marked invalid by exploreTypesForExpressions.
+			continue
+		}
+
+		// Resolve expression to IR.
+		resolvedExpr, err := resolveExpression(expr.expr, v, typeCatalog)
+		if err != nil {
+			// For template segments, mark as invalid instead of failing probe.
+			if expr.segment != nil && ap.template != nil {
+				ap.template.Segments[expr.segmentIdx] = ir.InvalidSegment{
+					Error: fmt.Sprintf("failed to resolve expression: %v", err),
+					DSL:   expr.dsl,
+				}
+				continue
+			}
+			// For snapshot expressions (no segment), skip silently.
+			continue
+		}
+
+		// Update segment with expression index after successful resolution.
+		if seg := expr.segment; seg != nil {
+			seg.EventKind = expr.eventKind
+			seg.EventExpressionIndex = len(expressions)
+		}
+
+		expressions = append(expressions, &ir.RootExpression{
+			Name:       expr.dsl,
+			Offset:     uint32(0),
+			Kind:       expr.exprKind,
+			Expression: resolvedExpr,
+		})
+	}
+	presenceBitsetSize := uint32((len(expressions) + 7) / 8)
+	byteSize := uint64(presenceBitsetSize)
+	for _, e := range expressions {
+		e.Offset = uint32(byteSize)
+		byteSize += uint64(e.Expression.Type.GetByteSize())
+	}
+	if byteSize > math.MaxUint32 {
+		return ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: fmt.Sprintf("root data type too large: %d bytes", byteSize),
+		}
+	}
+	var eventKind string
+	if event.Kind != ir.EventKindEntry {
+		eventKind = event.Kind.String()
+	}
+	event.Type = &ir.EventRootType{
+		TypeCommon: ir.TypeCommon{
+			ID:       id,
+			Name:     fmt.Sprintf("Probe[%s]%s", probe.Subprogram.Name, eventKind),
+			ByteSize: uint32(byteSize),
+		},
+		PresenceBitsetSize: presenceBitsetSize,
+		Expressions:        expressions,
+	}
+	typeCatalog.typesByID[event.Type.ID] = event.Type
+	return ir.Issue{}
+}
+
+// concreteSubprogramRef is a reference to a concrete instance of an inlined
+// subprogram. It can reference either an inlined instance or an out-of-line
+// instance of the inlined subprogram referenced by the abstract origin.
+type concreteSubprogramRef struct {
+	offset         dwarf.Offset
+	abstractOrigin dwarf.Offset
+}
+
+func (c concreteSubprogramRef) cmpByOffset(b concreteSubprogramRef) int {
+	return cmp.Or(
+		cmp.Compare(c.offset, b.offset),
+		cmp.Compare(c.abstractOrigin, b.abstractOrigin),
+	)
+}
+
+func newProbe(
+	arch object.Architecture,
+	probeCfg ir.ProbeDefinition,
+	subprogram *ir.Subprogram,
+	lineData map[ir.PCRange]lineData,
+	textSection *section,
+	skipReturnEvents bool,
+) (*ir.Probe, ir.Issue, error) {
+	kind := probeCfg.GetKind()
+	if !kind.IsValid() {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("invalid probe kind: %v", kind),
+		}, nil
+	}
+
+	if subprogram.OutOfLinePCRanges == nil && len(subprogram.InlinePCRanges) == 0 {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindMalformedExecutable,
+			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
+		}, nil
+	}
+	var injectionPoints []ir.InjectionPoint
+	var returnEvent *ir.Event
+	if subprogram.OutOfLinePCRanges != nil {
+		var issue ir.Issue
+		var err error
+		injectionPoints, returnEvent, issue, err = pickInjectionPoint(
+			subprogram.OutOfLinePCRanges,
+			subprogram.OutOfLinePCRanges,
+			false, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
+		)
+		if issue != (ir.Issue{}) || err != nil {
+			return nil, issue, err
+		}
+	}
+	for _, inlined := range subprogram.InlinePCRanges {
+		ips, _, issue, err := pickInjectionPoint(
+			inlined.Ranges,
+			inlined.RootRanges,
+			true, /* inlined */
+			probeCfg.GetWhere(),
+			arch,
+			lineData,
+			textSection,
+			injectionPoints,
+			skipReturnEvents,
+		)
+		if !issue.IsNone() || err != nil {
+			return nil, issue, err
+		}
+		injectionPoints = ips
+	}
+	slices.SortFunc(injectionPoints, func(a, b ir.InjectionPoint) int {
+		return cmp.Compare(a.PC, b.PC)
+	})
+	var eventKind ir.EventKind
+	var sourceLine string
+	switch where := probeCfg.GetWhere().(type) {
+	case ir.FunctionWhere:
+		eventKind = ir.EventKindEntry
+	case ir.LineWhere:
+		eventKind = ir.EventKindLine
+		_, _, sourceLine = where.Line()
+	}
+	events := []*ir.Event{
+		{
+			InjectionPoints: injectionPoints,
+			Condition:       nil,
+			Kind:            eventKind,
+			SourceLine:      sourceLine,
+			// Will be populated after all the types have been resolved
+			// and placeholders have been filled in.
+			Type: nil,
+		},
+	}
+	if returnEvent != nil {
+		events = append(events, returnEvent)
+	}
+
+	probe := &ir.Probe{
+		ProbeDefinition: probeCfg,
+		Subprogram:      subprogram,
+		Events:          events,
+	}
+	return probe, ir.Issue{}, nil
+}
+
+// Returns a list of injection points for a given probe, as well as optional
+// return event, if required.
+func pickInjectionPoint(
+	ranges []ir.PCRange,
+	rootRanges []ir.PCRange,
+	inlined bool,
+	where ir.Where,
+	arch object.Architecture,
+	lineData map[ir.PCRange]lineData,
+	textSection *section,
+	buf []ir.InjectionPoint,
+	skipReturnEvents bool,
+) ([]ir.InjectionPoint, *ir.Event, ir.Issue, error) {
+	lines, ok := lineData[rootRanges[0]]
+	if !ok {
+		return buf, nil, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+			rootRanges[0][0], rootRanges[0][1])
+	}
+	if lines.err != nil {
+		return buf, nil, ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: lines.err.Error(),
+		}, nil
+	}
+	addr := rootRanges[0][0]
+	funcByteLen := rootRanges[0][1] - addr
+	frameless := lines.prologueEnd == 0
+	data := textSection.data.Data()
+	offset := (addr - textSection.header.Addr)
+	if offset+funcByteLen > uint64(len(data)) {
+		return buf, nil, ir.Issue{
+			Kind:    ir.IssueKindInvalidDWARF,
+			Message: fmt.Sprintf("function body is too large: %d > %d", offset+funcByteLen, len(data)),
+		}, nil
+	}
+	body := data[offset : offset+funcByteLen]
+	var returnEvent *ir.Event
+	switch where := where.(type) {
+	case ir.FunctionWhere:
+		if inlined {
+			injectionPC := ranges[0][0]
+			// Disassemble the function to validate injection pc, for resiliance
+			// against corrupted DWARF and line tables.
+			_, issue := disassembleFunction(
+				arch,
+				addr,
+				injectionPC,
+				frameless,
+				body,
+				false, /* collectReturnLocations */
+			)
+			if !issue.IsNone() {
+				return buf, nil, issue, nil
+			}
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  ranges[0][0],
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonInlined,
+			})
+		} else {
+			call, err := pickCallInjectionPoint(arch, addr, frameless, lines)
+			if err != nil {
+				return nil, nil, ir.Issue{}, err
+			}
+
+			// Disassemble the function to find return locations and validate the
+			// injection PC.
+			returnLocations, issue := disassembleFunction(
+				arch,
+				addr,
+				call.pc,
+				call.frameless,
+				body,
+				!skipReturnEvents,
+			)
+			if !issue.IsNone() {
+				return buf, nil, issue, nil
+			}
+
+			var hasAssociatedReturn bool
+			var noReturnReason ir.NoReturnReason
+			if skipReturnEvents {
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonReturnsDisabled
+			} else if len(returnLocations) == 1 && returnLocations[0].PC == call.pc {
+				// Add a workaround for the fact that single-instruction
+				// functions would have the same entry and exit probes, but the
+				// ordering between them would not be well-defined, so in this
+				// extremely uncommon case the user doesn't get to see the
+				// return probe. It's okay because there literally cannot be a
+				// return value.
+				hasAssociatedReturn = false
+				noReturnReason = ir.NoReturnReasonNoBody
+				returnLocations = returnLocations[:0]
+			} else {
+				hasAssociatedReturn = true
+			}
+
+			buf = append(buf, ir.InjectionPoint{
+				PC:                  call.pc,
+				Frameless:           call.frameless,
+				HasAssociatedReturn: hasAssociatedReturn,
+				NoReturnReason:      noReturnReason,
+				TopPCOffset:         call.topPCOffset,
+			})
+			if hasAssociatedReturn {
+				returnEvent = &ir.Event{
+					InjectionPoints: returnLocations,
+					Kind:            ir.EventKindReturn,
+					Type:            nil,
+				}
+			}
+		}
+	case ir.LineWhere:
+		_, _, lineStr := where.Line()
+		line, err := strconv.Atoi(lineStr)
+		if err != nil {
+			return buf, nil, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: fmt.Sprintf("invalid line number: %v", lineStr),
+			}, nil
+		}
+		injectionPC, issue, err := pickLineInjectionPC(line, ranges, rootRanges, lineData)
+		if !issue.IsNone() || err != nil {
+			return buf, nil, issue, err
+		}
+		frameless := lines.prologueEnd == 0
+		// Disassemble the function to validate injection PC.
+		_, issue = disassembleFunction(
+			arch,
+			addr,
+			injectionPC,
+			frameless,
+			body,
+			false, /* collectReturnLocations */
+		)
+		if !issue.IsNone() {
+			return buf, nil, issue, nil
+		}
+		buf = append(buf, ir.InjectionPoint{
+			PC:                  injectionPC,
+			Frameless:           frameless,
+			HasAssociatedReturn: false,
+			NoReturnReason:      ir.NoReturnReasonLineProbe,
+		})
+	}
+	return buf, returnEvent, ir.Issue{}, nil
+}
+
+func pickLineInjectionPC(
+	line int, ranges []ir.PCRange, rootRanges []ir.PCRange, lineData map[ir.PCRange]lineData,
+) (uint64, ir.Issue, error) {
+	nonStmtPc := uint64(0)
+	rootIdx := 0
+	for _, r := range ranges {
+		for rootIdx < len(rootRanges) && rootRanges[rootIdx][1] < r[1] {
+			rootIdx++
+		}
+		if rootIdx >= len(rootRanges) || rootRanges[rootIdx][0] > r[0] {
+			return 0, ir.Issue{}, fmt.Errorf("no root range found for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		lines, ok := lineData[rootRanges[rootIdx]]
+		if !ok {
+			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
+				r[0], r[1])
+		}
+		for _, l := range lines.lines {
+			if l.pc < r[0] {
+				continue
+			}
+			if l.pc >= r[1] {
+				break
+			}
+			if l.line == uint32(line) {
+				if l.isStatement {
+					// Statements are preferred as injection points.
+					return l.pc, ir.Issue{}, nil
+				}
+				if nonStmtPc == 0 {
+					nonStmtPc = l.pc
+				}
+			}
+		}
+	}
+	if nonStmtPc == 0 {
+		return 0, ir.Issue{
+			Kind:    ir.IssueKindInvalidProbeDefinition,
+			Message: fmt.Sprintf("no suitable injection point found for line: %v", line),
+		}, nil
+	}
+	return nonStmtPc, ir.Issue{}, nil
+}
+
+type injectionPoint struct {
+	frameless   bool
+	pc          uint64
+	topPCOffset int8
+}
+
+func pickCallInjectionPoint(arch object.Architecture, addr uint64, frameless bool, loc lineData) (injectionPoint, error) {
+	switch arch {
+	case "amd64":
+		pc := loc.prologueEnd
+		if pc == 0 {
+			pc = addr
+		}
+		return injectionPoint{
+			frameless:   frameless,
+			pc:          pc,
+			topPCOffset: 0,
+		}, nil
+	case "arm64":
+		// This is a heuristics to work around the fact that the prologue end
+		// marker is not placed after the stack frame has been setup.
+		//
+		// Instead we recognize that the line table entry following the entry
+		// marked as prologue end actually represents the end of the prologue.
+		// We also track the topPCOffset to adjust the pc we report in the
+		// stack trace because the line we are actually probing may correspond
+		// to a different source line than the entrypoint.
+		pc := loc.prologueEnd
+		if pc == 0 {
+			pc = addr
+		}
+		var topPCOffset int8
+		if !frameless {
+			idx := slices.IndexFunc(loc.lines, func(line line) bool {
+				return line.pc == loc.prologueEnd
+			})
+			if idx != -1 && idx+1 < len(loc.lines) {
+				nextLine := loc.lines[idx+1]
+				topPCOffset = int8(pc - nextLine.pc)
+				pc = nextLine.pc
+			}
+		}
+		return injectionPoint{
+			frameless:   frameless,
+			pc:          pc,
+			topPCOffset: topPCOffset,
+		}, nil
+	default:
+		return injectionPoint{}, fmt.Errorf("unsupported architecture: %s", arch)
+	}
+}
+
+// disassembleFunction analyzes a function body to find return locations and
+// determine the correct injection point, dispatching to architecture-specific
+// implementations.
+func disassembleFunction(
+	arch object.Architecture,
+	addr uint64,
+	injectionPC uint64,
+	frameless bool,
+	body []byte,
+	collectReturnLocations bool,
+) ([]ir.InjectionPoint, ir.Issue) {
+	switch arch {
+	case "amd64":
+		return disassembleAmd64Function(addr, injectionPC, frameless, body, collectReturnLocations)
+	case "arm64":
+		return disassembleArm64Function(addr, injectionPC, frameless, body, collectReturnLocations)
+	default:
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindDisassemblyFailed,
+			Message: fmt.Sprintf("unsupported architecture: %s", arch),
+		}
+	}
+}
+
+// disassembleAmd64Function implemented disassembleFunction for amd64.
+func disassembleAmd64Function(
+	addr uint64,
+	injectionPC uint64,
+	frameless bool,
+	body []byte,
+	collectReturnLocations bool,
+) ([]ir.InjectionPoint, ir.Issue) {
+	var returnLocations []ir.InjectionPoint
+	var prevInst x86asm.Inst
+	validInjectionPC := false
+	for offset := 0; offset < len(body); {
+		instruction, err := x86asm.Decode(body[offset:], 64)
+		if err != nil {
+			return nil, ir.Issue{
+				Kind: ir.IssueKindDisassemblyFailed,
+				Message: fmt.Sprintf(
+					"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+					offset, addr+uint64(offset), body[offset:min(offset+15, len(body))], err,
+				),
+			}
+		}
+		if offset == int(injectionPC)-int(addr) {
+			validInjectionPC = true
+		}
+		if !frameless &&
+			instruction.Op == x86asm.POP && instruction.Args[0] == x86asm.RBP &&
+			prevInst.Op == x86asm.ADD && prevInst.Args[0] == x86asm.RSP {
+
+			epilogueStart := addr + uint64(offset) - uint64(prevInst.Len)
+			maybeRet, err := x86asm.Decode(body[offset+instruction.Len:], 64)
+			if err != nil {
+				offset := offset + instruction.Len
+				return nil, ir.Issue{
+					Kind: ir.IssueKindDisassemblyFailed,
+					Message: fmt.Sprintf(
+						"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+						offset, addr+uint64(offset), body[offset:min(offset+15, len(body))], err,
+					),
+				}
+			}
+
+			// Sometimes there's nops for inline markers, consume them.
+			var nopLen int
+			for maybeRet.Op == x86asm.NOP {
+				nopLen += maybeRet.Len
+				maybeRet, err = x86asm.Decode(body[offset+instruction.Len+nopLen:], 64)
+				if err != nil {
+					offset := offset + instruction.Len + nopLen
+					return nil, ir.Issue{
+						Kind: ir.IssueKindDisassemblyFailed,
+						Message: fmt.Sprintf(
+							"failed to decode x86-64 instruction: at offset %d of %#x %#x: %v",
+							offset, addr+uint64(offset), body[offset:min(offset+15, len(body))], err,
+						),
+					}
+				}
+			}
+			offset += nopLen + instruction.Len
+			instruction = maybeRet
+			if instruction.Op == x86asm.RET && collectReturnLocations {
+				returnLocations = append(returnLocations, ir.InjectionPoint{
+					PC:                  epilogueStart,
+					Frameless:           frameless,
+					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonIsReturn,
+				})
+			}
+		}
+		if frameless && instruction.Op == x86asm.RET && collectReturnLocations {
+			returnLocations = append(returnLocations, ir.InjectionPoint{
+				PC:                  addr + uint64(offset),
+				Frameless:           frameless,
+				HasAssociatedReturn: false,
+				NoReturnReason:      ir.NoReturnReasonIsReturn,
+			})
+		}
+		offset += instruction.Len
+		prevInst = instruction
+	}
+	if !validInjectionPC {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindDisassemblyFailed,
+			Message: fmt.Sprintf("injection PC not on any instruction boundary: %#x", injectionPC),
+		}
+	}
+	return returnLocations, ir.Issue{}
+}
+
+const Arm64InstructionByteLength = 4
+
+// disassembleArm64Function implements disassembleFunction for arm64.
+func disassembleArm64Function(
+	addr uint64,
+	injectionPC uint64,
+	frameless bool,
+	body []byte,
+	collectReturnLocations bool,
+) ([]ir.InjectionPoint, ir.Issue) {
+	var returnLocations []ir.InjectionPoint
+	const instLen = 4
+	validInjectionPC := false
+	if len(body)%4 != 0 {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindDisassemblyFailed,
+			Message: fmt.Sprintf("function body %d is not aligned to 4 bytes at %#x", len(body), addr),
+		}
+	}
+	for offset := 0; offset < len(body); {
+		instBytes := body[offset : offset+4]
+		instruction, err := arm64asm.Decode(instBytes)
+		if offset == int(injectionPC)-int(addr) {
+			validInjectionPC = true
+		}
+		if err != nil {
+			// Skip instructions we can't decode. The arm64asm package doesn't
+			// support all instructions (e.g. arm LSE atomics)
+			// Since we only care about the epilouge, unknown instructions
+			// or padding are skipped. Every instruction is exactly 4 bytes
+			// so we can do this safely, unlike x86.
+			offset += Arm64InstructionByteLength
+			continue
+		}
+		if instruction.Op == arm64asm.RET {
+			retPC := addr + uint64(offset)
+			// NB: it's crude to hard-code that the epilogue is two
+			// instructions long but that's what it has been for as long
+			// as I've cared to look, and the change coming down the pipe
+			// to do something about it also intends to keep it that way.
+			//
+			// See https://go-review.googlesource.com/c/go/+/674615
+			const epilogueByteLen = 2 * instLen
+			if !frameless && offset > epilogueByteLen {
+				retPC -= epilogueByteLen
+			}
+			if collectReturnLocations {
+				returnLocations = append(returnLocations, ir.InjectionPoint{
+					PC:                  retPC,
+					Frameless:           frameless,
+					HasAssociatedReturn: false,
+				})
+			}
+		}
+		offset += 4 // Each instruction is 4 bytes long
+	}
+	if !validInjectionPC {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindDisassemblyFailed,
+			Message: fmt.Sprintf("injection PC not on any instruction boundary: %#x", injectionPC),
+		}
+	}
+	return returnLocations, ir.Issue{}
+}
+
+func collectLineDataForRange(
+	lineReader *dwarf.LineReader, r ir.PCRange,
+) lineData {
+	var lineEntry dwarf.LineEntry
+	prevPos := lineReader.Tell()
+	// In general, SeekPC is not the function we're looking for.  We
+	// want to seek to the next line entry that's in the range but
+	// not necessarily the first one. We add some hacks here that
+	// work unless we're at the beginning of a sequence.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather
+	// than just
+	err := lineReader.SeekPC(r[0], &lineEntry)
+	// If we find that we have a hole, then we'll have our hands on
+	// a reader that's positioned after our PC. We can then seek to
+	// the instruction prior to that which should be in range of a
+	// real sequence. This is grossly inefficient.
+	if err != nil &&
+		errors.Is(err, dwarf.ErrUnknownPC) &&
+		lineEntry.Address < r[0] {
+		nextErr := lineReader.Next(&lineEntry)
+		if nextErr == nil {
+			lineReader.Seek(prevPos)
+			nextErr = lineReader.SeekPC(lineEntry.Address-1, &lineEntry)
+		}
+		if nextErr == nil && lineEntry.Address >= r[0] {
+			err = nil
+		}
+	}
+	if err != nil {
+		// Reset the reader to the previous position which is more efficient
+		// than starting from 0 for the next seek given the caller is exploring
+		// in PC order.
+		lineReader.Seek(prevPos)
+		return lineData{err: err}
+	}
+	prologueEnd := uint64(0)
+	lines := []line{}
+	for lineEntry.Address < r[1] {
+		if lineEntry.PrologueEnd {
+			prologueEnd = lineEntry.Address
+		}
+		lines = append(lines, line{
+			pc:          lineEntry.Address,
+			line:        uint32(lineEntry.Line),
+			isStatement: lineEntry.IsStmt,
+		})
+		if err := lineReader.Next(&lineEntry); err != nil {
+			return lineData{err: err}
+		}
+	}
+	return lineData{
+		prologueEnd: prologueEnd,
+		lines:       lines,
+	}
+}
+
+func processVariable(
+	unit, entry *dwarf.Entry,
+	parseLocations bool,
+	subprogramPCRanges []ir.PCRange,
+	loclistReader *loclist.Reader,
+	pointerSize uint8,
+	typeCatalog *typeCatalog,
+) (*ir.Variable, error) {
+	name, err := getAttr[string](entry, dwarf.AttrName)
+	if err != nil {
+		return nil, err
+	}
+	if strings.HasPrefix(name, ".") {
+		return nil, nil
+	}
+	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)
+	if err != nil {
+		return nil, err
+	}
+	typ, err := typeCatalog.addType(typeOffset)
+	if err != nil {
+		return nil, err
+	}
+	var locations []ir.Location
+	if parseLocations {
+		if locField := entry.AttrField(dwarf.AttrLocation); locField != nil {
+			// Note that it's a bit wasteful to compute all the locations
+			// here: we only really need to locations for some specific
+			// PCs (such as the prologue end), but we don't know what
+			// those PCs are here, and figuring them out can be expensive.
+			locations = computeLocations(
+				unit, entry.Offset, subprogramPCRanges, typ, locField, loclistReader,
+				pointerSize,
+			)
+		}
+		slices.SortFunc(locations, func(a, b ir.Location) int {
+			return cmp.Compare(a.Range[0], b.Range[0])
+		})
+	}
+	isParameter := entry.Tag == dwarf.TagFormalParameter
+	isVariable := entry.Tag == dwarf.TagVariable
+	isReturn, _, err := maybeGetAttr[bool](entry, dwarf.AttrVarParam)
+	if err != nil {
+		return nil, err
+	}
+	var role ir.VariableRole
+	if isVariable {
+		role = ir.VariableRoleLocal
+	} else if isReturn {
+		role = ir.VariableRoleReturn
+	} else if isParameter {
+		role = ir.VariableRoleParameter
+	}
+	return &ir.Variable{
+		Name:      name,
+		Type:      typ,
+		Locations: locations,
+		Role:      role,
+	}, nil
 }
 
 func computeLocations(
@@ -2082,7 +4055,7 @@ func computeLocations(
 	// BUG: We shouldn't pass subprogramRanges below; we should take into
 	// consideration the ranges of the current block, not necessarily the ranges
 	// of the subprogram.
-	locations, err := dwarfutil.ProcessLocations(
+	locations, err := loclist.ProcessLocations(
 		locField, unit, loclistReader, subprogramRanges, typ.GetByteSize(), pointerSize)
 	if err != nil {
 		if loclistErrorLogLimiter.Allow() {
@@ -2146,9 +4119,26 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 	}
 	var issues []ir.ProbeIssue
 	for _, probe := range cfg {
+		switch probe.GetKind() {
+		case ir.ProbeKindSnapshot:
+		case ir.ProbeKindLog:
+		default:
+			issues = append(issues, ir.ProbeIssue{
+				ProbeDefinition: probe,
+				Issue: ir.Issue{
+					Kind:    ir.IssueKindUnsupportedFeature,
+					Message: fmt.Sprintf("probe kind %v is not supported", probe.GetKind()),
+				},
+			})
+			continue
+		}
 		switch where := probe.GetWhere().(type) {
 		case ir.FunctionWhere:
 			methodName := where.Location()
+			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
+			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
+		case ir.LineWhere:
+			methodName, _, _ := where.Line()
 			i.compileUnits[compileUnitFromName(methodName)] = struct{}{}
 			i.subprograms[methodName] = append(i.subprograms[methodName], probe)
 		default:

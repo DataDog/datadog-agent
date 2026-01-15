@@ -29,6 +29,12 @@
             ]
         },
         {
+            "name": "Debug by PID",
+            "type": "go",
+            "request": "attach",
+            "mode": "local"
+        },
+        {
             "name": "Build Run Debug Otel agent",
             "preLaunchTask": "build debug otel-agent",
             "type": "go",
@@ -88,7 +94,8 @@
             "skaffoldConfig": "${workspaceFolder}/skaffold.yaml",
             "watch": false,
             "cleanUp": true,
-            "portForward": true
+            "portForward": true,
+            "autoStop": false
         }
     ]
 }

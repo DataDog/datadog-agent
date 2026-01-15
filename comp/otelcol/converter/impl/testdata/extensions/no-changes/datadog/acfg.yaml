@@ -1,0 +1,4 @@
+api_key: ggggg77777
+otelcollector:
+  converter:
+    features: [pprof, zpages, health_check, datadog]

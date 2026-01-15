@@ -6,8 +6,8 @@
 package timing
 
 import (
-	"fmt"
 	"math/rand"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -63,7 +63,7 @@ func TestTiming(t *testing.T) {
 			go func() {
 				defer wg.Done()
 				set.Since("counter1", time.Now().Add(-time.Second))
-				set.Since(fmt.Sprintf("%d", rand.Int()), time.Now().Add(-time.Second))
+				set.Since(strconv.Itoa(rand.Int()), time.Now().Add(-time.Second))
 			}()
 		}
 		for i := 0; i < 150; i++ {

@@ -12,12 +12,21 @@ import (
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// TrackType represents the type of track for event routing
+type TrackType = logsconfig.IntakeTrackType
+
 const (
 	cwsIntakeOrigin logsconfig.IntakeOrigin = "cloud-workload-security"
+
+	// SecRuntime is the track type for secruntime events
+	SecRuntime TrackType = "secruntime"
+	// Logs is the track type for logs events
+	Logs TrackType = "logs"
+	// SecInfo is the track type for secinfo events
+	SecInfo TrackType = "secinfo"
 )
 
 // NewLogContextCompliance returns the context fields to send compliance events to the intake
@@ -29,31 +38,27 @@ func NewLogContextCompliance() (*logsconfig.Endpoints, *client.DestinationsConte
 // NewLogContextRuntime returns the context fields to send runtime (CWS) events to the intake
 // This function will only be used on Linux. The only platforms where the runtime agent runs
 func NewLogContextRuntime(useSecRuntimeTrack bool) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
-	var (
-		trackType logsconfig.IntakeTrackType
-	)
+	var trackType TrackType
 
 	if useSecRuntimeTrack {
-		trackType = "secruntime"
+		trackType = SecRuntime
 	} else {
-		trackType = "logs"
+		trackType = Logs
 	}
 
 	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfigsetup.Datadog())
 	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", trackType, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
 }
 
+// NewLogContextSecInfo returns the context fields to send remediation events to the intake
+func NewLogContextSecInfo() (*logsconfig.Endpoints, *client.DestinationsContext, error) {
+	logsRuntimeConfigKeys := logsconfig.NewLogsConfigKeys("runtime_security_config.endpoints.", pkgconfigsetup.Datadog())
+	return NewLogContext(logsRuntimeConfigKeys, "runtime-security-http-intake.logs.", SecInfo, cwsIntakeOrigin, logsconfig.DefaultIntakeProtocol)
+}
+
 // NewLogContext returns the context fields to send events to the intake
 func NewLogContext(logsConfig *logsconfig.LogsConfigKeys, endpointPrefix string, intakeTrackType logsconfig.IntakeTrackType, intakeOrigin logsconfig.IntakeOrigin, intakeProtocol logsconfig.IntakeProtocol) (*logsconfig.Endpoints, *client.DestinationsContext, error) {
 	endpoints, err := logsconfig.BuildHTTPEndpointsWithConfig(pkgconfigsetup.Datadog(), logsConfig, endpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
-	if err != nil {
-		endpoints, err = logsconfig.BuildHTTPEndpoints(pkgconfigsetup.Datadog(), intakeTrackType, intakeProtocol, intakeOrigin)
-		if err == nil {
-			httpConnectivity := logshttp.CheckConnectivity(endpoints.Main, pkgconfigsetup.Datadog())
-			endpoints, err = logsconfig.BuildEndpoints(pkgconfigsetup.Datadog(), httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
-		}
-	}
-
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid endpoints: %w", err)
 	}

@@ -8,6 +8,7 @@ package jmx
 
 import "sync"
 
+// TODO: jmx should move to a component, instead of staying global state
 var (
 	lastJMXStatus            Status
 	lastJMXStatusMutex       sync.RWMutex
@@ -21,6 +22,13 @@ func SetStatus(s Status) {
 	defer lastJMXStatusMutex.Unlock()
 
 	lastJMXStatus = s
+}
+
+// ClearStatus reinitializes the JMX Status, only used by tests
+func ClearStatus() {
+	lastJMXStatusMutex.Lock()
+	defer lastJMXStatusMutex.Unlock()
+	lastJMXStatus = Status{}
 }
 
 // SetStartupError sets the last JMX startup error

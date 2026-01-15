@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 )
@@ -26,9 +27,8 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
-	// TODO: should be moved out
-	Regex       *regexp.Regexp
-	Placeholder []byte
+	Regex              *regexp.Regexp
+	Placeholder        []byte
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -39,7 +39,7 @@ type ProcessingRule struct {
 func ValidateProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
-			return fmt.Errorf("all processing rules must have a name")
+			return errors.New("all processing rules must have a name")
 		}
 
 		switch rule.Type {

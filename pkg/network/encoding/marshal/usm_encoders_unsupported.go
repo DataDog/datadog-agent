@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
-func initializeUSMEncoders(*network.Connections) []usmEncoder {
+// InitializeUSMEncoders creates a slice of encoders that apply to the data in conns
+func InitializeUSMEncoders(*network.Connections) []USMEncoder {
 	return nil
 }

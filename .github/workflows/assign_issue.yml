@@ -1,13 +1,19 @@
 ---
-name: "Assign issue to a team"
+name: "Assign issue to a team - Prepare"
 
 on:
   issues:
     types: [opened, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage'
+        required: true
+        type: number
 
 jobs:
   set_pending_label:
-    if: github.event.issue.state == 'open'
+    if: github.event_name == 'issues' && github.event.issue.state == 'open'
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -21,38 +27,75 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              labels: ["pending"]
+              labels: ["pending", "oss/0"]
             });
 
-  auto_assign_issue:
+  prepare-triage:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/datadog/agent-issue-auto-assign:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
-        packages: read
-        issues: write
-    environment:
-      name: main
+      contents: read
+      issues: read
     steps:
     - name: Checkout repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-    - name: Install yq
-      run: |
-        add-apt-repository ppa:rmescandon/yq
-        apt update
-        apt install yq -y
-    - name: Install dda
-      uses: ./.github/actions/install-dda
+
+    - name: Get issue details
+      id: get-issue
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
       with:
-        features: legacy-tasks
-    - name: Assign issue
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-      run: >-
-        dda inv --dep torch --dep transformers
-        --
-        -e issue.assign-owner -i ${{ github.event.issue.number }}
+        script: |
+          let issue;
+          if (context.eventName === 'workflow_dispatch') {
+            // Fetch issue details when manually triggered
+            const issueNumber = ${{ github.event.inputs.issue_number || 'null' }};
+            const response = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber
+            });
+            issue = response.data;
+          } else {
+            // Use issue from event payload
+            issue = context.payload.issue;
+          }
+
+          // Save issue details into a local JSON file for later steps
+          const fs = require('fs');
+          const path = './issue_details.json';
+          const issueDetails = {
+            title: issue.title,
+            number: issue.number,
+            author: issue.user.login,
+            url: issue.html_url,
+            body: issue.body || ''
+          };
+          fs.writeFileSync(path, JSON.stringify(issueDetails, null, 2));
+
+    - name: Check for secrets mentions
+      id: check-secret
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+      with:
+        script: |
+          const fs = require('fs');
+          const issue = JSON.parse(fs.readFileSync('./issue_details.json', 'utf-8'));
+          const secretRegex = /(anthropic[_-]?api[_-]?key|github[_-]?token)/i;
+          const found = (
+            secretRegex.test(issue.title || '') ||
+            secretRegex.test(issue.body || '') ||
+            secretRegex.test(issue.author || '')
+          );
+          core.setOutput('found', found);
+
+    - name: Fail the workflow if secrets are found
+      if: steps.check-secret.outputs.found == 'true'
+      run: |
+        echo "❌ Secrets found in the issue. Workflow failed."
+        exit 1
+
+    - name: Upload artifacts for the triage workflow
+      uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+      with:
+        name: triage-data
+        path: |
+          issue_details.json
+        retention-days: 1

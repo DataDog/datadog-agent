@@ -8,14 +8,14 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	json "github.com/json-iterator/go"
 
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,7 +50,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := checkRightsFunc(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return nil, err
 		}
 	}
@@ -111,15 +111,9 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 		return r.versionHookFunc()
 	}
 
-	// check if binary likely supports --version
-	content, err := os.ReadFile(r.backendCommand)
-	if err != nil {
-		log.Debugf("Could not read binary %s to check for --version support: %v", r.backendCommand, err)
-		return "", fmt.Errorf("could not read binary to check version support")
-	}
-
-	if !bytes.Contains(content, []byte("--version")) {
-		return "", fmt.Errorf("binary does not appear to support --version")
+	// Only get version when secret_backend_type is used
+	if r.backendType == "" {
+		return "", errors.New("version only supported when secret_backend_type is configured")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
@@ -156,7 +150,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	if err != nil {
 		log.Debugf("secret_backend_command --version stderr: %s", stderr.buf.String())
 		if ctx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("version command timeout")
+			return "", errors.New("version command timeout")
 		}
 		return "", fmt.Errorf("version command failed: %w", err)
 	}
@@ -168,8 +162,9 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 // executable to fetch the actual secrets and returns them.
 func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": secrets.PayloadVersion,
-		"secrets": secretsHandle,
+		"version":                secrets.PayloadVersion,
+		"secrets":                secretsHandle,
+		"secret_backend_timeout": r.backendTimeout,
 	}
 	if r.backendType != "" {
 		payload["type"] = r.backendType

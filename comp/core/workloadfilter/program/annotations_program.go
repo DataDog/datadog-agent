@@ -20,12 +20,12 @@ type AnnotationsProgram struct {
 var _ FilterProgram = &AnnotationsProgram{}
 
 // Evaluate evaluates the filter program for a Result (Included, Excluded, or Unknown)
-func (p AnnotationsProgram) Evaluate(entity filterdef.Filterable) (filterdef.Result, []error) {
+func (p AnnotationsProgram) Evaluate(entity filterdef.Filterable) filterdef.Result {
 	isExcluded := containers.IsExcludedByAnnotationInner(entity.GetAnnotations(), entity.GetName(), p.ExcludePrefix)
 	if isExcluded {
-		return filterdef.Excluded, nil
+		return filterdef.Excluded
 	}
-	return filterdef.Unknown, nil
+	return filterdef.Unknown
 }
 
 // GetInitializationErrors returns any errors that occurred during the creation/initialization of the program

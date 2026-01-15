@@ -6,6 +6,7 @@
 package subscriber
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -262,4 +263,107 @@ func TestUnsubscribe(t *testing.T) {
 	sm := NewSubscriptionManager(telemetryStore)
 
 	assert.NotPanics(t, func() { sm.Unsubscribe("non-existing-id") })
+}
+
+func TestConcurrentSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	sm := NewSubscriptionManager(telemetryStore)
+
+	// Create concurrent subscriptions to trigger potential race condition
+	const numGoroutines = 100
+	errChan := make(chan error, numGoroutines)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func(id int) {
+			subID := fmt.Sprintf("sub-%d", id)
+			filter := types.NewFilterBuilder().Include(types.ContainerID).Build(types.LowCardinality)
+			_, err := sm.Subscribe(subID, filter, nil)
+			errChan <- err
+		}(i)
+	}
+
+	// Collect all errors
+	for i := 0; i < numGoroutines; i++ {
+		err := <-errChan
+		require.NoError(t, err, "Concurrent subscription should not fail")
+	}
+}
+
+func TestInspectChannel(t *testing.T) {
+	tests := []struct {
+		name           string
+		channelBatches [][]types.EntityEvent
+		expected       subscriberChannelContent
+	}{
+		{
+			name:           "empty channel",
+			channelBatches: [][]types.EntityEvent{},
+			expected: subscriberChannelContent{
+				batches:        0,
+				totalEvents:    0,
+				eventsByPrefix: map[types.EntityIDPrefix]int{},
+				eventsByType:   map[string]int{},
+			},
+		},
+		{
+			name: "multiple batches",
+			channelBatches: [][]types.EntityEvent{
+				{
+					{
+						EventType: types.EventTypeAdded,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ContainerID, "container-1"),
+						},
+					},
+					{
+						EventType: types.EventTypeModified,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.Process, "process-1"),
+						},
+					},
+				},
+				{
+					{
+						EventType: types.EventTypeAdded,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ECSTask, "ecs-task-1"),
+						},
+					},
+					{
+						EventType: types.EventTypeDeleted,
+						Entity: types.Entity{
+							ID: types.NewEntityID(types.ContainerID, "container-2"),
+						},
+					},
+				},
+			},
+			expected: subscriberChannelContent{
+				batches:     2,
+				totalEvents: 4,
+				eventsByPrefix: map[types.EntityIDPrefix]int{
+					types.ContainerID: 2,
+					types.Process:     1,
+					types.ECSTask:     1,
+				},
+				eventsByType: map[string]int{
+					"Added":    2,
+					"Modified": 1,
+					"Deleted":  1,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ch := make(chan []types.EntityEvent, len(test.channelBatches))
+			for _, batch := range test.channelBatches {
+				ch <- batch
+			}
+
+			content := inspectChannel(ch)
+			assert.Equal(t, test.expected, content)
+		})
+	}
 }

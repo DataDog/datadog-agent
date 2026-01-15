@@ -309,11 +309,11 @@ func tokenToString(token tokens.Token) string {
 
 // tokensToString converts a list of tokens to a debug string.
 func tokensToString(tokens []tokens.Token) string {
-	str := ""
+	var builder strings.Builder
 	for _, t := range tokens {
-		str += tokenToString(t)
+		builder.WriteString(tokenToString(t))
 	}
-	return str
+	return builder.String()
 }
 
 // isMatch compares two sequences of tokens and returns true if they match within the

@@ -54,7 +54,7 @@ func TestNewSampleCollector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockDevice := setupMockDevice(t, tt.customSetup)
 
-			collector, err := newSamplingCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -130,7 +130,7 @@ func TestCollectProcessUtilization(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -190,7 +190,7 @@ func TestCollectProcessUtilization_Error(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()
@@ -267,15 +267,15 @@ func TestProcessUtilizationTimestampUpdate(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			bc := collector.(*baseCollector)
 			bc.lastTimestamps["process_utilization"] = tt.initialTimestamp
 
-			timeBefore := uint64(time.Now().Unix())
+			timeBefore := uint64(time.Now().UnixMicro())
 			_, err = collector.Collect()
-			timeAfter := uint64(time.Now().Unix())
+			timeAfter := uint64(time.Now().UnixMicro())
 
 			// Timestamp should be updated to current time regardless of API success/failure
 			newTimestamp := bc.lastTimestamps["process_utilization"]
@@ -374,7 +374,7 @@ func TestProcessUtilization_SmActiveCalculation(t *testing.T) {
 				return device
 			})
 
-			collector, err := newSamplingCollector(mockDevice)
+			collector, err := newSamplingCollector(mockDevice, &CollectorDependencies{})
 			require.NoError(t, err)
 
 			processMetrics, err := collector.Collect()

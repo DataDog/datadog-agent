@@ -8,6 +8,7 @@
 package ksm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -441,6 +442,45 @@ func Test_labelJoiner(t *testing.T) {
 			for _, expected := range tt.expected {
 				assert.ElementsMatch(t, labelJoiner.getLabelsToAdd(expected.inputLabels), expected.labelsToAdd)
 			}
+		})
+	}
+}
+
+func Test_resolveTag(t *testing.T) {
+	testCases := []struct {
+		tmpl, label, expected string
+	}{
+		{
+			"kube_%%label%%", "label_app", "kube_app",
+		},
+		{
+			"foo_%%label%%_bar", "label_app", "foo_app_bar",
+		},
+		{
+			"%%label%%%%label%%", "label_app", "appapp",
+		},
+		{
+			"kube_%%annotation%%", "annotation_app", "kube_app",
+		},
+		{
+			"foo_%%annotation%%_bar", "annotation_app", "foo_app_bar",
+		},
+		{
+			"%%annotation%%%%annotation%%", "annotation_app", "appapp",
+		},
+		{
+			"kube_", "label_app", "kube_", // no template variable
+		},
+		{
+			"kube_%%foo%%", "label_app", "kube_%%foo%%", // unsupported template variable
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
+			cfg := &joinsConfig{wildcardTemplate: testCase.tmpl}
+			tagName := resolveTag(testCase.label, cfg)
+			assert.Equal(t, testCase.expected, tagName)
 		})
 	}
 }

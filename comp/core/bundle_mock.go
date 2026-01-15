@@ -21,7 +21,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -31,8 +30,8 @@ import (
 
 // team: agent-runtimes
 
-// MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
-func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
+// makeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
+func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		logParams,
@@ -40,13 +39,12 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule(),
 		telemetryimpl.MockModule(),
-		hostnameimpl.MockModule(),
 	)
 }
 
 // MockBundle defines the mock fx options for this bundle.
 func MockBundle() fxutil.BundleOptions {
-	return MakeMockBundle(
+	return makeMockBundle(
 		fx.Supply(log.Params{}),
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 	)

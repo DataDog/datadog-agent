@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from invoke.exceptions import Exit
 
@@ -56,8 +56,7 @@ def send_metrics(series):
     from datadog_api_client.v2.api.metrics_api import MetricsApi
     from datadog_api_client.v2.model.metric_payload import MetricPayload
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = MetricsApi(api_client)
         response = api_instance.submit_metrics(body=MetricPayload(series=series))
 
@@ -85,8 +84,7 @@ def send_event(title: str, text: str, tags: list[str] = None):
         tags=tags or [],
     )
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = EventsApi(api_client)
         try:
             response = api_instance.create_event(body=body)
@@ -110,8 +108,7 @@ def get_ci_pipeline_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_pipelines_api import CIVisibilityPipelinesApi
 
-    configuration = Configuration()
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api_instance = CIVisibilityPipelinesApi(api_client)
         response = api_instance.list_ci_app_pipeline_events(
             filter_query=query,
@@ -130,11 +127,10 @@ def get_ci_test_events(query, days):
     from datadog_api_client import ApiClient, Configuration
     from datadog_api_client.v2.api.ci_visibility_tests_api import CIVisibilityTestsApi
 
-    configuration = Configuration()
     all_events = []
     page_cursor = None
 
-    with ApiClient(configuration) as api_client:
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
         api = CIVisibilityTestsApi(api_client)
 
         while True:
@@ -163,3 +159,61 @@ def get_ci_test_events(query, days):
                 break  # No pagination metadata, assume single page
 
     return all_events
+
+
+def query_metrics(query, from_time, to_time):
+    """
+    Query Datadog metrics timeseries.
+
+    Args:
+        query: Metrics query string (e.g., "avg:metric.name{tag:value} by {group}")
+        from_time: Start time as Unix timestamp (seconds) or relative string like "now-1d"
+        to_time: End time as Unix timestamp (seconds) or relative string like "now"
+
+    Returns:
+        List of series data with scope, values, etc.
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v1.api.metrics_api import MetricsApi
+
+    # Parse relative time strings to Unix timestamps
+    def parse_time(time_str):
+        if isinstance(time_str, int):
+            return time_str
+        if time_str == "now":
+            return int(datetime.now(timezone.utc).timestamp())
+        if time_str.startswith("now-"):
+            duration = time_str[4:]
+            if duration.endswith("d"):
+                delta = timedelta(days=int(duration[:-1]))
+            elif duration.endswith("h"):
+                delta = timedelta(hours=int(duration[:-1]))
+            elif duration.endswith("m"):
+                delta = timedelta(minutes=int(duration[:-1]))
+            else:
+                raise ValueError(f"Unknown time format: {time_str}")
+            return int((datetime.now(timezone.utc) - delta).timestamp())
+        raise ValueError(f"Unknown time format: {time_str}")
+
+    start = parse_time(from_time)
+    end = parse_time(to_time)
+
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
+        api_instance = MetricsApi(api_client)
+        response = api_instance.query_metrics(
+            _from=start,
+            to=end,
+            query=query,
+        )
+
+        # Extract series data from response
+        series_list = []
+        if hasattr(response, 'series') and response.series:
+            for series in response.series:
+                series_data = {
+                    "scope": series.scope if hasattr(series, 'scope') else "",
+                    "pointlist": series.pointlist if hasattr(series, 'pointlist') else [],
+                }
+                series_list.append(series_data)
+
+        return series_list

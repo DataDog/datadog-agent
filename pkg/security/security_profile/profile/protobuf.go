@@ -63,8 +63,8 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
 func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	pad := profileToSecDumpProto(p)
 	defer pad.ReturnToVTPool()
@@ -78,8 +78,8 @@ func (p *Profile) EncodeSecDumpProtobuf() (*bytes.Buffer, error) {
 
 // DecodeSecDumpProtobuf decodes a SecDump binary representation
 func (p *Profile) DecodeSecDumpProtobuf(reader io.Reader) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	raw, err := io.ReadAll(reader)
 	if err != nil {
@@ -177,8 +177,8 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 
 // EncodeSecurityProfileProtobuf encodes a Profile to its SecurityProfile protobuf binary representation
 func (p *Profile) EncodeSecurityProfileProtobuf() (*bytes.Buffer, error) {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	profileProto, err := profileToSecurityProfileProto(p)
 	if err != nil {
@@ -239,8 +239,8 @@ func LoadProtoFromFile(filepath string) (*adprotov1.SecurityProfile, error) {
 
 // DecodeSecurityProfileProtobuf decodes a SecurityProfile binary representation
 func (p *Profile) DecodeSecurityProfileProtobuf(reader io.Reader) error {
-	p.m.Lock()
-	defer p.m.Unlock()
+	p.Lock()
+	defer p.Unlock()
 
 	raw, err := io.ReadAll(reader)
 	if err != nil {

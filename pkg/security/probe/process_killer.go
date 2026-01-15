@@ -10,6 +10,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -79,7 +80,7 @@ type processKillerStats struct {
 // NewProcessKiller returns a new ProcessKiller
 func NewProcessKiller(cfg *config.Config, pkos ProcessKillerOS) (*ProcessKiller, error) {
 	if pkos == nil {
-		pkos = NewProcessKillerOS(nil)
+		pkos = NewProcessKillerOS(nil, nil)
 	}
 	p := &ProcessKiller{
 		cfg:             cfg,
@@ -252,7 +253,7 @@ func (p *ProcessKiller) isKillAllowed(kcs []killContext) (bool, error) {
 	p.Lock()
 	if !p.enabled {
 		p.Unlock()
-		return false, fmt.Errorf("the enforcement capability is disabled")
+		return false, errors.New("the enforcement capability is disabled")
 	}
 	p.Unlock()
 
@@ -298,7 +299,7 @@ func (p *ProcessKiller) KillAndReport(kill *rules.KillDefinition, rule *rules.Ru
 
 	// if a rule with a kill container scope is triggered outside a container,
 	// don't kill anything
-	containerID := ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
+	containerID := ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	if containerID == "" && scope == "container" {
 		return false
 	}

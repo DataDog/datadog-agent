@@ -8,6 +8,7 @@
 package oracle
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -31,7 +32,7 @@ type metricSender func(string, float64, string, []string)
 
 func getMetricFunction(sender sender.Sender, method metricType) (metricSender, error) {
 	if sender == nil {
-		return nil, fmt.Errorf("sender is nil")
+		return nil, errors.New("sender is nil")
 	}
 	methods := map[metricType]metricSender{
 		gauge:          sender.Gauge,

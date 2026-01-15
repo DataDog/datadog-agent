@@ -11,6 +11,7 @@ package apiserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -60,12 +61,12 @@ func (c *APIClient) RunEventCollection(resVer string, lastListTime time.Time, ev
 		select {
 		case rcv, ok := <-evWatcher.ResultChan():
 			if !ok {
-				return added, resVer, lastListTime, fmt.Errorf("Unexpected watch close")
+				return added, resVer, lastListTime, errors.New("Unexpected watch close")
 			}
 			if rcv.Type == watch.Error {
 				status, ok := rcv.Object.(*metav1.Status)
 				if !ok {
-					return added, resVer, lastListTime, fmt.Errorf("Could not unmarshall the status of the event")
+					return added, resVer, lastListTime, errors.New("Could not unmarshall the status of the event")
 				}
 				switch status.Reason {
 				// Using a switch as there are a lot of different types and we might want to explore adapting the behaviour for certain ones in the future.

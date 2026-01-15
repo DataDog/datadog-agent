@@ -32,7 +32,7 @@ type protocol struct {
 	telemetry          *Telemetry
 	statkeeper         *StatKeeper
 	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
-	eventsConsumer     *events.Consumer[EbpfTx]
+	eventsConsumer     *events.BatchConsumer[EbpfTx]
 
 	kernelTelemetry            *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
@@ -298,7 +298,7 @@ func (p *protocol) ConfigureOptions(opts *manager.Options) {
 // PreStart creates the kafka events consumer and starts it.
 func (p *protocol) PreStart() error {
 	var err error
-	p.eventsConsumer, err = events.NewConsumer(
+	p.eventsConsumer, err = events.NewBatchConsumer(
 		eventStreamName,
 		p.mgr,
 		p.processKafka,

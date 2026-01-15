@@ -16,6 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	// import the full compliance code in the system-probe (including the rego evaluator)
+	// this allows us to reserve the package size while we work on pluging things out
+	_ "github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -26,6 +29,8 @@ import (
 
 func init() { registerModule(ComplianceModule) }
 
+var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
+
 // ComplianceModule is a system-probe module that exposes an HTTP api to
 // perform compliance checks that require more privileges than security-agent
 // can offer.
@@ -34,7 +39,7 @@ func init() { registerModule(ComplianceModule) }
 // accessing the /proc/<pid>/root mount point.
 var ComplianceModule = &module.Factory{
 	Name:             config.ComplianceModule,
-	ConfigNamespaces: []string{},
+	ConfigNamespaces: complianceConfigNamespaces,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &complianceModule{}, nil
 	},

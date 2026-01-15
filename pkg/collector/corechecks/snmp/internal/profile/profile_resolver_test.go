@@ -444,6 +444,73 @@ func Test_mergeProfileDefinition(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "blank metadata fields",
+			baseDefinition: profiledefinition.ProfileDefinition{
+				Metadata: profiledefinition.MetadataConfig{
+					"device": {
+						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {
+								Value: "f5",
+							},
+							"description": {
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.1.0",
+									Name: "sysDescr",
+								},
+							},
+							"sys_object_id": {
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.2.0",
+									Name: "sysObjectID",
+								},
+							},
+						},
+					},
+				},
+			},
+			targetDefinition: profiledefinition.ProfileDefinition{
+				Metadata: profiledefinition.MetadataConfig{
+					"device": {
+						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {},
+							"description": {
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "100.100.100.100",
+									Name: "customDescription",
+								},
+							},
+							"sys_object_id": {
+								Symbol: profiledefinition.SymbolConfig{},
+							},
+						},
+					},
+				},
+			},
+			expectedDefinition: profiledefinition.ProfileDefinition{
+				Metadata: profiledefinition.MetadataConfig{
+					"device": {
+						Fields: map[string]profiledefinition.MetadataField{
+							"vendor": {
+								Value: "f5",
+							},
+							"description": {
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "100.100.100.100",
+									Name: "customDescription",
+								},
+							},
+							"sys_object_id": {
+								Symbol: profiledefinition.SymbolConfig{
+									OID:  "1.3.6.1.2.1.1.2.0",
+									Name: "sysObjectID",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

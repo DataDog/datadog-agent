@@ -12,14 +12,34 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"time"
+
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"golang.org/x/exp/constraints"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"golang.org/x/exp/constraints"
 )
+
+var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+
+var eccErrorTypeToName = map[nvml.MemoryErrorType]string{
+	nvml.MEMORY_ERROR_TYPE_CORRECTED:   "corrected",
+	nvml.MEMORY_ERROR_TYPE_UNCORRECTED: "uncorrected",
+}
+
+var memoryLocationToName = map[nvml.MemoryLocation]string{
+	nvml.MEMORY_LOCATION_L1_CACHE:       "l1_cache",
+	nvml.MEMORY_LOCATION_L2_CACHE:       "l2_cache",
+	nvml.MEMORY_LOCATION_DEVICE_MEMORY:  "device_memory",
+	nvml.MEMORY_LOCATION_REGISTER_FILE:  "register_file",
+	nvml.MEMORY_LOCATION_TEXTURE_MEMORY: "texture_memory",
+	nvml.MEMORY_LOCATION_TEXTURE_SHM:    "texture_shm",
+	nvml.MEMORY_LOCATION_CBU:            "cbu",
+	nvml.MEMORY_LOCATION_SRAM:           "sram",
+}
 
 // boolToFloat converts a boolean value to float64 (1.0 for true, 0.0 for false)
 func boolToFloat(val bool) float64 {
@@ -65,11 +85,10 @@ func fieldValueToNumber[V number](valueType nvml.ValueType, value [8]byte) (V, e
 // filterSupportedAPIs tests each API call against the device and returns only the supported ones
 func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCallInfo {
 	var supportedAPIs []apiCallInfo
-
 	for _, apiCall := range apiCalls {
 		// Test API support by calling the handler with timestamp=0 and ignoring results
 		_, _, err := apiCall.Handler(device, 0)
-		if err == nil || !ddnvml.IsUnsupported(err) {
+		if err == nil || !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
 			supportedAPIs = append(supportedAPIs, apiCall)
 		}
 	}
@@ -79,14 +98,27 @@ func filterSupportedAPIs(device ddnvml.Device, apiCalls []apiCallInfo) []apiCall
 
 // GetDeviceTagsMapping returns the mapping of tags per GPU device.
 func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Component) map[string][]string {
-	devCount := deviceCache.Count()
+	devCount, err := deviceCache.Count()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("Error getting device count: %s", err)
+		}
+		return nil
+	}
 	if devCount == 0 {
 		return nil
 	}
 
 	tagsMapping := make(map[string][]string, devCount)
 
-	for _, dev := range deviceCache.AllPhysicalDevices() {
+	allDevices, err := deviceCache.All()
+	if err != nil {
+		if logLimiter.ShouldLog() {
+			log.Warnf("Error getting all physical devices: %s", err)
+		}
+		return nil
+	}
+	for _, dev := range allDevices {
 		uuid := dev.GetDeviceInfo().UUID
 		entityID := taggertypes.NewEntityID(taggertypes.GPU, uuid)
 		tags, err := tagger.Tag(entityID, taggertypes.ChecksConfigCardinality)
@@ -97,7 +129,7 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 		if len(tags) == 0 {
 			// If we get no tags (either WMS hasn't collected GPUs yet, or we are running the check standalone with 'agent check')
 			// add at least the UUID as a tag to distinguish the values.
-			tags = []string{fmt.Sprintf("gpu_uuid:%s", uuid)}
+			tags = []string{"gpu_uuid:" + uuid}
 		}
 
 		tagsMapping[uuid] = tags

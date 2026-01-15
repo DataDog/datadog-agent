@@ -7,14 +7,11 @@ package npcollectorimpl
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
-func convertProtocol(connType model.ConnectionType) payload.Protocol {
-	if connType == model.ConnectionType_tcp {
-		return payload.ProtocolTCP
-	} else if connType == model.ConnectionType_udp {
-		return payload.ProtocolUDP
-	}
-	return ""
+var modelProtocolToPayload = map[model.ConnectionType]payload.Protocol{
+	model.ConnectionType_tcp: payload.ProtocolTCP,
+	model.ConnectionType_udp: payload.ProtocolUDP,
 }

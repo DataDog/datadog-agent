@@ -7,6 +7,7 @@
 package bomconvert
 
 import (
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -17,6 +18,62 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// ConvertBOM converts a CycloneDX BOM to a CycloneDX v1.4 BOM.
+func ConvertBOM(in *cyclonedx.BOM, simplifyBomRefs bool) *cyclonedx_v1_4.Bom {
+	if in == nil {
+		return nil
+	}
+
+	b := newBomConvertor(simplifyBomRefs)
+
+	return &cyclonedx_v1_4.Bom{
+		SpecVersion:        cyclonedx.SpecVersion1_4.String(),
+		Version:            pointer.Ptr(int32(in.Version)),
+		SerialNumber:       stringPtr(in.SerialNumber),
+		Metadata:           b.convertMetadata(in.Metadata),
+		Components:         convertArray(in.Components, b.convertComponent),
+		Services:           convertArray(in.Services, b.convertService),
+		ExternalReferences: convertArray(in.ExternalReferences, convertExternalReference),
+		Dependencies:       convertArray(in.Dependencies, b.convertDependency),
+		Compositions:       convertArray(in.Compositions, convertComposition),
+		Vulnerabilities:    convertArray(in.Vulnerabilities, b.convertVulnerability),
+	}
+}
+
+type bomConvertor struct {
+	simplifyMapping bool
+
+	bomRefMapper  map[string]string
+	bomRefCounter int
+}
+
+func newBomConvertor(simplifyMapping bool) *bomConvertor {
+	return &bomConvertor{
+		simplifyMapping: simplifyMapping,
+		bomRefMapper:    make(map[string]string),
+		bomRefCounter:   0,
+	}
+}
+
+func (b *bomConvertor) getOrCreateBOMRef(in string) string {
+	if !b.simplifyMapping {
+		return in
+	}
+
+	if in == "" {
+		return ""
+	}
+
+	if ref, exists := b.bomRefMapper[in]; exists {
+		return ref
+	}
+
+	b.bomRefCounter++
+	mappedRef := strconv.Itoa(b.bomRefCounter)
+	b.bomRefMapper[in] = mappedRef
+	return mappedRef
+}
 
 func stringPtr(in string) *string {
 	if in == "" {
@@ -123,26 +180,6 @@ func convertAttachedText(in *cyclonedx.AttachedText) *cyclonedx_v1_4.AttachedTex
 	}
 }
 
-// ConvertBOM converts a CycloneDX BOM to a CycloneDX v1.4 BOM.
-func ConvertBOM(in *cyclonedx.BOM) *cyclonedx_v1_4.Bom {
-	if in == nil {
-		return nil
-	}
-
-	return &cyclonedx_v1_4.Bom{
-		SpecVersion:        cyclonedx.SpecVersion1_4.String(),
-		Version:            pointer.Ptr(int32(in.Version)),
-		SerialNumber:       stringPtr(in.SerialNumber),
-		Metadata:           convertMetadata(in.Metadata),
-		Components:         convertArray(in.Components, convertComponent),
-		Services:           convertArray(in.Services, convertService),
-		ExternalReferences: convertArray(in.ExternalReferences, convertExternalReference),
-		Dependencies:       convertArray(in.Dependencies, convertDependency),
-		Compositions:       convertArray(in.Compositions, convertComposition),
-		Vulnerabilities:    convertArray(in.Vulnerabilities, convertVulnerability),
-	}
-}
-
 func convertCommit(in *cyclonedx.Commit) *cyclonedx_v1_4.Commit {
 	if in == nil {
 		return nil
@@ -157,7 +194,7 @@ func convertCommit(in *cyclonedx.Commit) *cyclonedx_v1_4.Commit {
 	}
 }
 
-func convertComponent(in *cyclonedx.Component) *cyclonedx_v1_4.Component {
+func (b *bomConvertor) convertComponent(in *cyclonedx.Component) *cyclonedx_v1_4.Component {
 	if in == nil {
 		return nil
 	}
@@ -170,7 +207,7 @@ func convertComponent(in *cyclonedx.Component) *cyclonedx_v1_4.Component {
 	return &cyclonedx_v1_4.Component{
 		Type:               convertComponentType(in.Type),
 		MimeType:           stringPtr(in.MIMEType),
-		BomRef:             stringPtr(in.BOMRef),
+		BomRef:             stringPtr(b.getOrCreateBOMRef(in.BOMRef)),
 		Supplier:           convertOrganizationalEntity(in.Supplier),
 		Author:             stringPtr(in.Author),
 		Publisher:          stringPtr(in.Publisher),
@@ -186,9 +223,9 @@ func convertComponent(in *cyclonedx.Component) *cyclonedx_v1_4.Component {
 		Purl:               stringPtr(in.PackageURL),
 		Swid:               convertSwid(in.SWID),
 		Modified:           in.Modified,
-		Pedigree:           convertPedigree(in.Pedigree),
+		Pedigree:           b.convertPedigree(in.Pedigree),
 		ExternalReferences: convertArray(in.ExternalReferences, convertExternalReference),
-		Components:         convertArray(in.Components, convertComponent),
+		Components:         convertArray(in.Components, b.convertComponent),
 		Properties:         convertArray(in.Properties, convertProperty),
 		Evidence:           evidence,
 		ReleaseNotes:       convertReleaseNotes(in.ReleaseNotes),
@@ -293,24 +330,24 @@ func convertDataFlow(in cyclonedx.DataFlow) cyclonedx_v1_4.DataFlow {
 	}
 }
 
-func convertDependency(in *cyclonedx.Dependency) *cyclonedx_v1_4.Dependency {
+func (b *bomConvertor) convertDependency(in *cyclonedx.Dependency) *cyclonedx_v1_4.Dependency {
 	if in == nil {
 		return nil
 	}
 
 	return &cyclonedx_v1_4.Dependency{
-		Ref:          in.Ref,
-		Dependencies: convertArray(in.Dependencies, convertDependencyString),
+		Ref:          b.getOrCreateBOMRef(in.Ref),
+		Dependencies: convertArray(in.Dependencies, b.convertDependencyString),
 	}
 }
 
-func convertDependencyString(in *string) *cyclonedx_v1_4.Dependency {
+func (b *bomConvertor) convertDependencyString(in *string) *cyclonedx_v1_4.Dependency {
 	if in == nil {
 		return nil
 	}
 
 	return &cyclonedx_v1_4.Dependency{
-		Ref: *in,
+		Ref: b.getOrCreateBOMRef(*in),
 	}
 }
 
@@ -595,7 +632,7 @@ func convertLicenseChoice(in *cyclonedx.LicenseChoice) *cyclonedx_v1_4.LicenseCh
 	return nil
 }
 
-func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
+func (b *bomConvertor) convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 	if in == nil {
 		return nil
 	}
@@ -614,7 +651,7 @@ func convertMetadata(in *cyclonedx.Metadata) *cyclonedx_v1_4.Metadata {
 		Timestamp:   convertTimestamp(in.Timestamp),
 		Tools:       tools,
 		Authors:     convertArray(in.Authors, convertOrganizationalContact),
-		Component:   convertComponent(in.Component),
+		Component:   b.convertComponent(in.Component),
 		Manufacture: convertOrganizationalEntity(in.Manufacture),
 		Supplier:    convertOrganizationalEntity(in.Supplier),
 		Licenses:    licenses,
@@ -684,15 +721,15 @@ func convertPatchType(in cyclonedx.PatchType) cyclonedx_v1_4.PatchClassification
 	}
 }
 
-func convertPedigree(in *cyclonedx.Pedigree) *cyclonedx_v1_4.Pedigree {
+func (b *bomConvertor) convertPedigree(in *cyclonedx.Pedigree) *cyclonedx_v1_4.Pedigree {
 	if in == nil {
 		return nil
 	}
 
 	return &cyclonedx_v1_4.Pedigree{
-		Ancestors:   convertArray(in.Ancestors, convertComponent),
-		Descendants: convertArray(in.Descendants, convertComponent),
-		Variants:    convertArray(in.Variants, convertComponent),
+		Ancestors:   convertArray(in.Ancestors, b.convertComponent),
+		Descendants: convertArray(in.Descendants, b.convertComponent),
+		Variants:    convertArray(in.Variants, b.convertComponent),
 		Commits:     convertArray(in.Commits, convertCommit),
 		Patches:     convertArray(in.Patches, convertPatch),
 		Notes:       stringPtr(in.Notes),
@@ -768,13 +805,13 @@ func convertScoringMethod(in cyclonedx.ScoringMethod) *cyclonedx_v1_4.ScoreMetho
 	}
 }
 
-func convertService(in *cyclonedx.Service) *cyclonedx_v1_4.Service {
+func (b *bomConvertor) convertService(in *cyclonedx.Service) *cyclonedx_v1_4.Service {
 	if in == nil {
 		return nil
 	}
 
 	return &cyclonedx_v1_4.Service{
-		BomRef:             stringPtr(in.BOMRef),
+		BomRef:             stringPtr(b.getOrCreateBOMRef(in.BOMRef)),
 		Provider:           convertOrganizationalEntity(in.Provider),
 		Group:              stringPtr(in.Group),
 		Name:               in.Name,
@@ -786,7 +823,7 @@ func convertService(in *cyclonedx.Service) *cyclonedx_v1_4.Service {
 		Data:               convertArray(in.Data, convertDataClassification),
 		Licenses:           convertArray(castLicenses(in.Licenses), convertLicenseChoice),
 		ExternalReferences: convertArray(in.ExternalReferences, convertExternalReference),
-		Services:           convertArray(in.Services, convertService),
+		Services:           convertArray(in.Services, b.convertService),
 		Properties:         convertArray(in.Properties, convertProperty),
 		ReleaseNotes:       convertReleaseNotes(in.ReleaseNotes),
 	}
@@ -877,7 +914,7 @@ func convertTool(in *cyclonedx.Tool) *cyclonedx_v1_4.Tool { //nolint:staticcheck
 	}
 }
 
-func convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerability {
+func (b *bomConvertor) convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerability {
 	if in == nil {
 		return nil
 	}
@@ -896,7 +933,7 @@ func convertVulnerability(in *cyclonedx.Vulnerability) *cyclonedx_v1_4.Vulnerabi
 	}
 
 	return &cyclonedx_v1_4.Vulnerability{
-		BomRef:         stringPtr(in.BOMRef),
+		BomRef:         stringPtr(b.getOrCreateBOMRef(in.BOMRef)),
 		Id:             stringPtr(in.ID),
 		Source:         convertSource(in.Source),
 		References:     convertArray(in.References, convertVulnerabilityReference),

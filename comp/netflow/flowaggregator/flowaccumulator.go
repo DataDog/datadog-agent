@@ -32,8 +32,9 @@ type flowAccumulator struct {
 	// are called by different routines.
 	flowsMutex sync.Mutex
 
-	flowFlushInterval time.Duration
-	flowContextTTL    time.Duration
+	FlushConfig    common.FlushConfig
+	flowContextTTL time.Duration
+	scheduler      FlowScheduler
 
 	portRollup          *portrollup.EndpointPairPortRollupStore
 	portRollupThreshold int
@@ -45,23 +46,16 @@ type flowAccumulator struct {
 	rdnsQuerier rdnsquerier.Component
 }
 
-func newFlowContext(flow *common.Flow) flowContext {
-	now := timeNow()
-	return flowContext{
-		flow:      flow,
-		nextFlush: now,
-	}
-}
-
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
+func newFlowAccumulator(flushConfig common.FlushConfig, flowScheduler FlowScheduler, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
-		flowFlushInterval:      aggregatorFlushInterval,
+		FlushConfig:            flushConfig,
 		flowContextTTL:         aggregatorFlowContextTTL,
 		portRollup:             portrollup.NewEndpointPairPortRollupStore(portRollupThreshold),
 		portRollupThreshold:    portRollupThreshold,
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
+		scheduler:              flowScheduler,
 		logger:                 logger,
 		rdnsQuerier:            rdnsQuerier,
 	}
@@ -77,31 +71,53 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 // We need to keep flowContext (contains `nextFlush` and `lastSuccessfulFlush`) after flush
 // to be able to flush at regular interval (`flowFlushInterval`).
 // Example, after a flush, flowContext will have a new nextFlush, that will be the next flush time for new flows being added.
-func (f *flowAccumulator) flush() []*common.Flow {
+func (f *flowAccumulator) flush(flushContext common.FlushContext) []*common.Flow {
 	f.flowsMutex.Lock()
 	defer f.flowsMutex.Unlock()
 
+	now := flushContext.FlushTime
 	var flowsToFlush []*common.Flow
+	var expiredFlowKeys []uint64
+
 	for key, flowCtx := range f.flows {
-		now := timeNow()
-		if flowCtx.flow == nil && (flowCtx.lastSuccessfulFlush.Add(f.flowContextTTL).Before(now)) {
-			f.logger.Tracef("Delete flow context (key=%d, lastSuccessfulFlush=%s, nextFlush=%s)", key, flowCtx.lastSuccessfulFlush.String(), flowCtx.nextFlush.String())
-			// delete flowCtx wrapper if there is no successful flushes since `flowContextTTL`
-			delete(f.flows, key)
+		if flowCtx.flow == nil {
+			// nil means there's no data for this flow context. Check if it's expired
+			// since we're iterating through the map anyways.
+			if isFlowCtxExpired(flowCtx, f.flowContextTTL, now) {
+				expiredFlowKeys = append(expiredFlowKeys, key)
+			}
+
+			// Added to support legacy behavior. Keep the same cadence for flushes.
+			if !flowCtx.nextFlush.After(now) {
+				flowCtx.nextFlush = f.scheduler.RefreshFlushTime(flowCtx)
+				f.flows[key] = flowCtx
+			}
+
 			continue
 		}
+
 		if flowCtx.nextFlush.After(now) {
 			continue
 		}
-		if flowCtx.flow != nil {
-			flowsToFlush = append(flowsToFlush, flowCtx.flow)
-			flowCtx.lastSuccessfulFlush = now
-			flowCtx.flow = nil
-		}
-		flowCtx.nextFlush = flowCtx.nextFlush.Add(f.flowFlushInterval)
+
+		flowsToFlush = append(flowsToFlush, flowCtx.flow)
+
+		flowCtx.lastSuccessfulFlush = now
+		flowCtx.flow = nil
+		flowCtx.nextFlush = f.scheduler.RefreshFlushTime(flowCtx)
 		f.flows[key] = flowCtx
 	}
+
+	for _, key := range expiredFlowKeys {
+		delete(f.flows, key)
+	}
+
 	return flowsToFlush
+}
+
+func isFlowCtxExpired(flowCtx flowContext, flowTTL time.Duration, now time.Time) bool {
+	flowExpiresAt := flowCtx.lastSuccessfulFlush.Add(flowTTL)
+	return now.After(flowExpiresAt)
 }
 
 func (f *flowAccumulator) add(flowToAdd *common.Flow) {
@@ -125,7 +141,11 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
-		f.flows[aggHash] = newFlowContext(flowToAdd)
+		nextFlush := f.scheduler.ScheduleNewFlowFlush(timeNow())
+		f.flows[aggHash] = flowContext{
+			flow:      flowToAdd,
+			nextFlush: nextFlush,
+		}
 		f.addRDNSEnrichment(aggHash, flowToAdd.SrcAddr, flowToAdd.DstAddr)
 		return
 	}

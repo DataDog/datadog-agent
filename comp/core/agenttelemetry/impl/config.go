@@ -12,7 +12,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 const (
@@ -206,6 +206,9 @@ var defaultProfiles = `
             - check_name
             - state
         - name: pymem.inuse
+        - name: health_platform.issues_detected
+          aggregate_tags:
+            - health_check_id
     schedule:
       start_after: 30
       iterations: 0
@@ -224,6 +227,16 @@ var defaultProfiles = `
         - name: logs.encoded_bytes_sent
           aggregate_tags:
             - compression_kind
+        - name: logs.http_connectivity_check
+          aggregate_tags:
+            - status
+        - name: logs.http_connectivity_retry_attempt
+          aggregate_tags:
+            - status
+        - name: logs.restart_attempt
+          aggregate_tags:
+            - status
+            - transport
         - name: logs.sender_latency
         - name: logs.truncated
           aggregate_tags:
@@ -372,8 +385,49 @@ var defaultProfiles = `
             - version
             - command
             - host
+        - name: runtime.datadog_agent_ddot_gateway_usage
+          aggregate_tags:
+            - version
+            - command
+        - name: runtime.datadog_agent_ddot_gateway_configured
+          aggregate_tags:
+            - version
+            - command
+        - name: runtime.datadog_agent_otlp_logs_requests
+        - name: runtime.datadog_agent_otlp_logs_events
+        - name: runtime.datadog_agent_otlp_metrics_requests
+        - name: runtime.datadog_agent_otlp_metrics_events
+        - name: runtime.datadog_agent_otlp_traces_requests
+        - name: runtime.datadog_agent_otlp_traces_events
+        - name: runtime.ddot_otlp_logs_requests
+        - name: runtime.ddot_otlp_logs_events
+        - name: runtime.ddot_otlp_metrics_requests
+        - name: runtime.ddot_otlp_metrics_events
+        - name: runtime.ddot_otlp_traces_requests
+        - name: runtime.ddot_otlp_traces_events
     schedule:
       start_after: 30
+      iterations: 0
+      period: 900
+  - name: trace-agent
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: trace.enabled
+        - name: trace.working
+    schedule:
+      start_after: 60
+      iterations: 0
+      period: 900
+  - name: gpu
+    metric:
+      exclude:
+        zero_metric: true
+      metrics:
+        - name: gpu.device_total
+    schedule:
+      start_after: 60
       iterations: 0
       period: 900
 `
@@ -568,7 +622,7 @@ func compileConfig(cfg *Config) error {
 // Parse agent telemetry config
 func parseConfig(cfg config.Component) (*Config, error) {
 	// Is it enabled?
-	if !pkgconfigsetup.IsAgentTelemetryEnabled(cfg) {
+	if !configutils.IsAgentTelemetryEnabled(cfg) {
 		return &Config{
 			Enabled: false,
 		}, nil
@@ -580,7 +634,7 @@ func parseConfig(cfg config.Component) (*Config, error) {
 	atCfgMap := cfg.GetStringMap("agent_telemetry")
 	if len(atCfgMap) > 0 {
 		// Reconvert to string and back to object.
-		// Config.UnmarshalKey() is better but it did not work in some cases
+		// structure.UnmarshalKey() is better but it did not work in some cases
 		atCfgBytes, err := yaml.Marshal(atCfgMap)
 		if err != nil {
 			return nil, err

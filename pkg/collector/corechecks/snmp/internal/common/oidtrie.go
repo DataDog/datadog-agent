@@ -6,6 +6,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -67,12 +68,12 @@ func oidToNumbers(oid string) ([]int, error) {
 
 func (o *OIDTrie) getNode(oid string) (*OIDTrie, error) {
 	if oid == "" {
-		return nil, fmt.Errorf("invalid empty OID")
+		return nil, errors.New("invalid empty OID")
 	}
 	current := o
 	oid = strings.TrimLeft(oid, ".")
-	digits := strings.Split(oid, ".")
-	for _, digit := range digits {
+	digits := strings.SplitSeq(oid, ".")
+	for digit := range digits {
 		num, err := strconv.Atoi(digit)
 		if err != nil {
 			return nil, fmt.Errorf("invalid OID: %s", err)

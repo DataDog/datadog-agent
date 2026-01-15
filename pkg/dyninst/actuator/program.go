@@ -8,23 +8,16 @@
 package actuator
 
 import (
-	"github.com/cilium/ebpf/link"
-
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 )
 
 type loadedProgram struct {
-	tenantID tenantID
-	program  loader.Program
-	ir       *ir.Program
-	sink     Sink
+	programID ir.ProgramID
+	loaded    LoadedProgram
 }
 
 type attachedProgram struct {
-	ir             *ir.Program
-	procID         ProcessID
-	tenantID       tenantID
-	executableLink *link.Executable
-	attachedLinks  []link.Link
+	*loadedProgram
+	processID       ProcessID
+	attachedProgram AttachedProgram
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 const (
@@ -23,6 +24,9 @@ const (
 	tracerTopLevelKey = "_dd.top_level"
 	// partialVersionKey is a metric carrying the snapshot seq number in the case the span is a partial snapshot
 	partialVersionKey = "_dd.partial_version"
+	// metaTraceIDHigh is the meta tag key for the high 64 bits of a 128-bit trace ID.
+	// This is used by Datadog tracers to propagate the upper bits of the trace ID.
+	metaTraceIDHigh = "_dd.p.tid"
 )
 
 // HasTopLevel returns true if span is top-level.
@@ -35,10 +39,28 @@ func HasTopLevelMetrics(metrics map[string]float64) bool {
 	return metrics[topLevelKey] == 1 || metrics[tracerTopLevelKey] == 1
 }
 
+// HasTopLevelMetricsV1 returns true if the provided metrics map indicates the span is top-level.
+func HasTopLevelMetricsV1(s *idx.InternalSpan) bool {
+	topLevel, ok := s.GetAttributeAsFloat64(topLevelKey)
+	if ok && topLevel == 1 {
+		return true
+	}
+	tracerTopLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
+	return ok && tracerTopLevel == 1
+}
+
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
 func UpdateTracerTopLevel(s *pb.Span) {
 	if s.Metrics[tracerTopLevelKey] == 1 {
 		SetMetric(s, topLevelKey, 1)
+	}
+}
+
+// UpdateTracerTopLevelV1 sets _top_level tag on spans flagged by the tracer
+func UpdateTracerTopLevelV1(s *idx.InternalSpan) {
+	topLevel, ok := s.GetAttributeAsFloat64(tracerTopLevelKey)
+	if ok && topLevel == 1 {
+		s.SetFloat64Attribute(topLevelKey, 1)
 	}
 }
 
@@ -50,6 +72,12 @@ func IsMeasured(s *pb.Span) bool {
 // IsMeasuredMetrics returns true if a span should be measured (i.e., it should get trace metrics calculated).
 func IsMeasuredMetrics(metrics map[string]float64) bool {
 	return metrics[measuredKey] == 1
+}
+
+// IsMeasuredMetricsV1 returns true if a span should be measured (i.e., it should get trace metrics calculated).
+func IsMeasuredMetricsV1(s *idx.InternalSpan) bool {
+	measured, ok := s.GetAttributeAsFloat64(measuredKey)
+	return ok && measured == 1
 }
 
 // IsPartialSnapshot returns true if the span is a partial snapshot.
@@ -67,6 +95,15 @@ func IsPartialSnapshot(s *pb.Span) bool {
 func IsPartialSnapshotMetrics(metrics map[string]float64) bool {
 	v, ok := metrics[partialVersionKey]
 	return ok && v >= 0
+}
+
+// IsPartialSnapshotMetricsV1 returns true if the span is a partial snapshot.
+// These kinds of spans are partial images of long-running spans.
+// When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
+// The metric usually increases each time a new version of the same span is sent by the tracer
+func IsPartialSnapshotMetricsV1(s *idx.InternalSpan) bool {
+	partialVersion, ok := s.GetAttributeAsFloat64(partialVersionKey)
+	return ok && partialVersion >= 0
 }
 
 // SetTopLevel sets the top-level attribute of the span.
@@ -172,4 +209,36 @@ func GetMetric(s *pb.Span, key string) (float64, bool) {
 	}
 	val, ok := s.Metrics[key]
 	return val, ok
+}
+
+// CopyTraceID copies the full trace ID (both low and high 64 bits) from src to dst.
+// This handles both 64-bit trace IDs (just the TraceID field) and 128-bit trace IDs
+// by copying the TraceID field and the _dd.p.tid meta tag (if present).
+//
+// For 128-bit trace IDs:
+//   - Low 64 bits: span.TraceID field
+//   - High 64 bits: span.Meta["_dd.p.tid"] (hex-encoded string)
+//
+// This is essential for maintaining trace identity during span manipulation,
+// particularly for log-trace correlation and trace propagation.
+func CopyTraceID(dst, src *pb.Span) {
+	dst.TraceID = src.TraceID
+	if tidHigh, ok := GetMeta(src, metaTraceIDHigh); ok {
+		SetMeta(dst, metaTraceIDHigh, tidHigh)
+	}
+}
+
+// SameTraceID returns true if both spans have the same full trace ID.
+// This compares both the low 64 bits (TraceID field) and the high 64 bits
+// (_dd.p.tid meta tag) to properly handle 128-bit trace IDs.
+func SameTraceID(a, b *pb.Span) bool {
+	if a.TraceID != b.TraceID {
+		return false
+	}
+	aHigh, aHasHigh := GetMeta(a, metaTraceIDHigh)
+	bHigh, bHasHigh := GetMeta(b, metaTraceIDHigh)
+	if aHasHigh != bHasHigh {
+		return false
+	}
+	return aHigh == bHigh
 }

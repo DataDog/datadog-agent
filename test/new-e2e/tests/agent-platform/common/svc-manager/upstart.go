@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Upstart is a service manager for upstart
@@ -31,7 +31,7 @@ func (s *Upstart) Status(service string) (string, error) {
 		return status, err
 	}
 	// upstart status returns 0 even if the service is not running
-	if strings.Contains(status, fmt.Sprintf("%s stop", service)) {
+	if strings.Contains(status, service+" stop") {
 		return status, fmt.Errorf("service %s is not running", service)
 	}
 	return status, nil

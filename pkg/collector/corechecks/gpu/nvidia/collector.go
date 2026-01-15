@@ -14,7 +14,11 @@ package nvidia
 
 import (
 	"errors"
+	"slices"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,8 +33,10 @@ type MetricPriority int
 const (
 	// Low priority is the default priority level (0)
 	Low MetricPriority = 0
-	// High priority level (10)
-	High MetricPriority = 10
+	// Medium priority level (10)
+	Medium MetricPriority = 10
+	// High priority level (20)
+	High MetricPriority = 20
 )
 
 // CollectorName is the name of the nvml sub-collectors
@@ -42,18 +48,20 @@ const (
 	sampling  CollectorName = "sampling"  // Consolidates process, samples
 
 	// Specialized collectors (kept separate)
-	field CollectorName = "fields"
-	gpm   CollectorName = "gpm"
-	ebpf  CollectorName = "ebpf"
+	field        CollectorName = "fields"
+	gpm          CollectorName = "gpm"
+	ebpf         CollectorName = "ebpf"
+	deviceEvents CollectorName = "device_events"
 )
 
 // Metric represents a single metric collected from the NVML library.
 type Metric struct {
-	Name     string  // Name holds the name of the metric.
-	Value    float64 // Value holds the value of the metric.
-	Type     metrics.MetricType
-	Priority MetricPriority // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
-	Tags     []string       // Tags holds optional metric-specific tags (e.g., process ID).
+	Name                string  // Name holds the name of the metric.
+	Value               float64 // Value holds the value of the metric.
+	Type                metrics.MetricType
+	Priority            MetricPriority          // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
+	Tags                []string                // Tags holds optional metric-specific tags (e.g., "error type").
+	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
 }
 
 // Collector defines a collector that gets metric from a specific NVML subsystem and device
@@ -71,7 +79,7 @@ type Collector interface {
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
-type subsystemBuilder func(device ddnvml.Device) (Collector, error)
+type subsystemBuilder func(device ddnvml.Device, deps *CollectorDependencies) (Collector, error)
 
 // factory is a map of all the subsystems that can be used to collect metrics from NVML.
 var factory = map[CollectorName]subsystemBuilder{
@@ -80,54 +88,119 @@ var factory = map[CollectorName]subsystemBuilder{
 	sampling:  newSamplingCollector,  // Consolidates process, samples
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
-	field: newFieldsCollector,
-	gpm:   newGPMCollector,
+	field:        newFieldsCollector,
+	gpm:          newGPMCollector,
+	deviceEvents: newDeviceEventsCollector,
 }
 
 // CollectorDependencies holds the dependencies needed to create a set of collectors.
 type CollectorDependencies struct {
-	// DeviceCache is a cache of GPU devices.
-	DeviceCache ddnvml.DeviceCache
+	// DeviceEventsGatherer acts like a cache for the most recent device events
+	DeviceEventsGatherer *DeviceEventsGatherer
+	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
+	SystemProbeCache *SystemProbeCache
+	// Telemetry is the telemetry component to use for collecting metrics
+	Telemetry *CollectorTelemetry
+	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
+	Workloadmeta workloadmeta.Component
 }
 
 // BuildCollectors returns a set of collectors that can be used to collect metrics from NVML.
-// If spCache is provided, additional system-probe virtual collectors will be created for all devices.
-func BuildCollectors(deps *CollectorDependencies, spCache *SystemProbeCache) ([]Collector, error) {
-	return buildCollectors(deps, factory, spCache)
+// If SystemProbeCache is provided, additional system-probe virtual collectors will be created for all devices.
+// disabledCollectors is a list of collector names that should not be created.
+func BuildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, disabledCollectors []string) ([]Collector, error) {
+	return buildCollectors(devices, deps, factory, disabledCollectors)
 }
 
-func buildCollectors(deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, spCache *SystemProbeCache) ([]Collector, error) {
+func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, builders map[CollectorName]subsystemBuilder, disabledCollectors []string) ([]Collector, error) {
+	if len(devices) == 0 {
+		return nil, nil
+	}
+
 	var collectors []Collector
+
+	// Check that the disabled collectors are valid
+	for _, disabled := range disabledCollectors {
+		if _, ok := builders[CollectorName(disabled)]; !ok {
+			log.Warnf("invalid disabled collector: %s", disabled)
+			continue
+		}
+	}
 
 	// Step 1: Build NVML collectors for physical devices only,
 	// (since most of NVML API doesn't support MIG devices)
-	for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
+	for _, dev := range devices {
 		for name, builder := range builders {
-			c, err := builder(dev)
-			if errors.Is(err, errUnsupportedDevice) {
-				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
-				continue
-			} else if err != nil {
-				log.Warnf("failed to create collector %s: %s", name, err)
+			// Skip disabled collectors
+			if slices.Contains(disabledCollectors, string(name)) {
+				log.Debugf("Skipping disabled collector %s for device %s", name, dev.GetDeviceInfo().UUID)
+				deps.Telemetry.addCollectorCreation(name, "disabled")
 				continue
 			}
 
+			c, err := builder(dev, deps)
+			if errors.Is(err, errUnsupportedDevice) {
+				log.Warnf("device %s does not support collector %s", dev.GetDeviceInfo().UUID, name)
+				deps.Telemetry.addCollectorCreation(name, "unsupported")
+				continue
+			} else if err != nil {
+				log.Warnf("failed to create collector %s for device %s: %s", name, dev.GetDeviceInfo().UUID, err)
+				deps.Telemetry.addCollectorCreation(name, "error")
+				continue
+			}
+
+			deps.Telemetry.addCollectorCreation(name, "success")
 			collectors = append(collectors, c)
 		}
 	}
 
 	// Step 2: Build system-probe virtual collectors for ALL devices (if cache provided)
-	if spCache != nil {
-		log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
-		for _, dev := range deps.DeviceCache.AllPhysicalDevices() {
-			spCollector, err := newEbpfCollector(dev, spCache)
-			if err != nil {
-				log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
-				continue
+	if deps.SystemProbeCache != nil {
+		// Check if ebpf collector is disabled
+		if slices.Contains(disabledCollectors, string(ebpf)) {
+			log.Debug("Skipping disabled ebpf collector")
+			deps.Telemetry.addCollectorCreation(ebpf, "disabled")
+		} else {
+			log.Info("GPU monitoring probe is enabled in system-probe, creating ebpf collectors for all devices")
+			for _, dev := range devices {
+				spCollector, err := newEbpfCollector(dev, deps.SystemProbeCache)
+				if err != nil {
+					log.Warnf("failed to create system-probe collector for device %s: %s", dev.GetDeviceInfo().UUID, err)
+					deps.Telemetry.addCollectorCreation(ebpf, "error")
+					continue
+				}
+
+				deps.Telemetry.addCollectorCreation(ebpf, "success")
+				collectors = append(collectors, spCollector)
 			}
-			collectors = append(collectors, spCollector)
 		}
 	}
 
 	return collectors, nil
+}
+
+// CollectorTelemetry holds telemetry metrics for the collector data
+type CollectorTelemetry struct {
+	Created          telemetry.Counter
+	CollectionErrors telemetry.Counter
+	Time             telemetry.Histogram
+}
+
+// NewCollectorTelemetry creates a new CollectorTelemetry with the given telemetry component
+func NewCollectorTelemetry(tm telemetry.Component) *CollectorTelemetry {
+	subsystem := consts.GpuTelemetryModule + "__collectors"
+
+	return &CollectorTelemetry{
+		Created:          tm.NewCounter(subsystem, "created", []string{"collector", "status"}, "Number of collectors and their creation result"),
+		CollectionErrors: tm.NewCounter(subsystem, "collection_errors", []string{"collector"}, "Number of errors from NVML collectors"),
+		Time:             tm.NewHistogram(subsystem, "time_ms", []string{"collector"}, "Time taken to collect metrics from NVML collectors, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
+	}
+}
+
+// addCollector adds a collector to the telemetry, checking that the telemetry is not nil
+func (t *CollectorTelemetry) addCollectorCreation(name CollectorName, status string) {
+	if t == nil {
+		return
+	}
+	t.Created.Add(1, string(name), status)
 }

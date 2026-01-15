@@ -15,6 +15,12 @@ var (
 	pProfName         = "pprof"
 	pProfEnhancedName = pProfName + "/" + ddAutoconfiguredSuffix
 	pProfConfig       any
+	pProfComponent    = component{
+		Name:         pProfName,
+		EnhancedName: pProfEnhancedName,
+		Type:         "extensions",
+		Config:       pProfConfig,
+	}
 
 	// zpages
 	zpagesName         = "zpages"
@@ -22,45 +28,71 @@ var (
 	zpagesConfig       = map[string]any{
 		"endpoint": "localhost:55679",
 	}
+	zpagesComponent = component{
+		Name:         zpagesName,
+		EnhancedName: zpagesEnhancedName,
+		Type:         "extensions",
+		Config:       zpagesConfig,
+	}
 
 	// healthcheck
 	healthCheckName         = "health_check"
 	healthCheckEnhancedName = healthCheckName + "/" + ddAutoconfiguredSuffix
 	healthCheckConfig       any
+	healthCheckComponent    = component{
+		Name:         healthCheckName,
+		EnhancedName: healthCheckEnhancedName,
+		Type:         "extensions",
+		Config:       healthCheckConfig,
+	}
 
 	// datadog
-	datadogName         = "ddflare"
+	ddflareName         = "ddflare"
+	ddflareEnhancedName = ddflareName + "/" + ddAutoconfiguredSuffix
+	ddflareConfig       any
+	ddflareComponent    = component{
+		Name:         ddflareName,
+		EnhancedName: ddflareEnhancedName,
+		Type:         "extensions",
+		Config:       ddflareConfig,
+	}
+
+	// datadog OSS
+	datadogName         = "datadog"
 	datadogEnhancedName = datadogName + "/" + ddAutoconfiguredSuffix
 	datadogConfig       any
-
-	// components
-	extensions = []component{
-		{
-			Name:         pProfName,
-			EnhancedName: pProfEnhancedName,
-			Type:         "extensions",
-			Config:       pProfConfig,
-		},
-		{
-			Name:         zpagesName,
-			EnhancedName: zpagesEnhancedName,
-			Type:         "extensions",
-			Config:       zpagesConfig,
-		},
-		{
-			Name:         healthCheckName,
-			EnhancedName: healthCheckEnhancedName,
-			Type:         "extensions",
-			Config:       healthCheckConfig,
-		},
-		{
-			Name:         datadogName,
-			EnhancedName: datadogEnhancedName,
-			Type:         "extensions",
-			Config:       datadogConfig,
-		},
+	datadogComponent    = component{
+		Name:         datadogName,
+		EnhancedName: datadogEnhancedName,
+		Type:         "extensions",
+		Config:       datadogConfig,
 	}
 )
+
+func createExtensions(enabledFeatures []string) []component {
+	components := []component{
+		pProfComponent,
+		zpagesComponent,
+		healthCheckComponent,
+	}
+
+	result := make([]component, 0, 2)
+	for _, feature := range enabledFeatures {
+		if feature == "ddflare" {
+			result = append(result, ddflareComponent)
+		} else if feature == "datadog" {
+			result = append(result, datadogComponent)
+		}
+	}
+
+	if len(result) == 2 {
+		components = append(components, ddflareComponent)
+	} else if len(result) > 0 {
+		components = append(components, result[0])
+	}
+
+	return components
+}
 
 func extensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
 	pipelineExtensions := conf.Get("service::extensions")

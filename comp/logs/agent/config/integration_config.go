@@ -7,6 +7,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -98,9 +99,8 @@ type LogsConfig struct {
 	AutoMultiLineOptions *SourceAutoMultiLineOptions `mapstructure:"auto_multi_line" json:"auto_multi_line" yaml:"auto_multi_line"`
 	// CustomSamples holds the raw string content of the 'auto_multi_line_detection_custom_samples' YAML block.
 	// Downstream code will be responsible for parsing this string.
-	AutoMultiLineSamples           []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
-	FingerprintConfig              *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
-	ExperimentalFingerprintEnabled bool                     `mapstructure:"fingerprint_enabled_experimental" json:"fingerprint_enabled_experimental" yaml:"fingerprint_enabled_experimental"`
+	AutoMultiLineSamples []*AutoMultilineSample   `mapstructure:"auto_multi_line_detection_custom_samples" json:"auto_multi_line_detection_custom_samples" yaml:"auto_multi_line_detection_custom_samples"`
+	FingerprintConfig    *types.FingerprintConfig `mapstructure:"fingerprint_config" json:"fingerprint_config" yaml:"fingerprint_config"`
 
 	// IntegrationSource is the source of the integration file that contains this source.
 	IntegrationSource string `mapstructure:"integration_source" json:"integration_source" yaml:"integration_source"`
@@ -177,7 +177,7 @@ func (t *StringSliceField) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		}
 		return nil
 	}
-	return fmt.Errorf("could not parse YAML config, please double check the yaml files")
+	return errors.New("could not parse YAML config, please double check the yaml files")
 }
 
 // Dump dumps the contents of this struct to a string, for debugging purposes.
@@ -249,7 +249,11 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	}
 	fmt.Fprintf(&b, ws("AutoMultiLineSampleSize: %d,"), c.AutoMultiLineSampleSize)
 	fmt.Fprintf(&b, ws("AutoMultiLineMatchThreshold: %f,"), c.AutoMultiLineMatchThreshold)
-	fmt.Fprintf(&b, ws("ExperimentalFingerprintEnabled: %t}"), c.ExperimentalFingerprintEnabled)
+	if c.FingerprintConfig != nil {
+		fmt.Fprintf(&b, ws("FingerprintConfig: %+v}"), c.FingerprintConfig)
+	} else {
+		fmt.Fprint(&b, ws("FingerprintConfig: nil}"))
+	}
 	return b.String()
 }
 
@@ -267,6 +271,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
 		Service           string                   `json:"service,omitempty"`
 		Source            string                   `json:"source,omitempty"`
+		SourceCategory    string                   `json:"source_category,omitempty"`
 		Tags              []string                 `json:"tags,omitempty"`
 		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
 		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
@@ -281,6 +286,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath:       c.ChannelPath,
 		Service:           c.Service,
 		Source:            c.Source,
+		SourceCategory:    c.SourceCategory,
 		Tags:              c.Tags,
 		ProcessingRules:   c.ProcessingRules,
 		AutoMultiLine:     c.AutoMultiLine,
@@ -336,19 +342,19 @@ func (c *LogsConfig) Validate() error {
 		// user don't have to specify a logs-config type when defining
 		// an autodiscovery label because so we must override it at some point,
 		// this check is mostly used for sanity purposed to detect an override miss.
-		return fmt.Errorf("a config must have a type")
+		return errors.New("a config must have a type")
 	case c.Type == FileType:
 		if c.Path == "" {
-			return fmt.Errorf("file source must have a path")
+			return errors.New("file source must have a path")
 		}
 		err := c.validateTailingMode()
 		if err != nil {
 			return err
 		}
 	case c.Type == TCPType && c.Port == 0:
-		return fmt.Errorf("tcp source must have a port")
+		return errors.New("tcp source must have a port")
 	case c.Type == UDPType && c.Port == 0:
-		return fmt.Errorf("udp source must have a port")
+		return errors.New("udp source must have a port")
 	}
 
 	// Validate fingerprint configuration

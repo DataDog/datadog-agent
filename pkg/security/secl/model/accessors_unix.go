@@ -36,6 +36,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
+		eval.EventType("failed_dns"),
 		eval.EventType("imds"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
@@ -67,6 +68,10 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 	}
 }
 func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	case "network.destination.ip":
 		return []eval.EventType{"dns", "imds", "packet"}
@@ -75,6 +80,8 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	case "network.destination.port":
 		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.device.ifname":
+		return []eval.EventType{"dns", "imds", "packet"}
+	case "network.device.netns":
 		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.l3_protocol":
 		return []eval.EventType{"dns", "imds", "packet"}
@@ -96,6 +103,21 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -376,50 +398,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
-	case "cgroup.file.inode":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.CGroupContext.CGroupFile.Inode)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "cgroup.file.mount_id":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.CGroupContext.CGroupFile.MountID)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-			Offset: offset,
-		}, nil
-	case "cgroup.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupID(ev, ev.CGroupContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "cgroup.version":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveCGroupVersion(ev, ev.CGroupContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "cgroup_write.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -587,12 +565,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "cgroup_write.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "cgroup_write.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.CgroupWrite.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "cgroup_write.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.CgroupWrite.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -855,12 +877,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1156,12 +1222,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chmod.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chmod.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chmod.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chmod.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chmod.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1490,12 +1600,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "chown.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "chown.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Chown.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "chown.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Chown.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1701,39 +1855,6 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
-	case "container.created_at":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext))
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "container.id":
-		return &eval.StringEvaluator{
-			EvalFnc: func(ctx *eval.Context) string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: eval.HandlerWeight,
-			Offset: offset,
-		}, nil
-	case "container.tags":
-		return &eval.StringArrayEvaluator{
-			EvalFnc: func(ctx *eval.Context) []string {
-				ctx.AppendResolvedField(field)
-				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-			},
-			Field:  field,
-			Weight: 9999 * eval.HandlerWeight,
-			Offset: offset,
-		}, nil
 	case "dns.id":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1891,6 +2012,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "event.signature":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSignature(ev)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "event.source":
@@ -2091,15 +2223,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exec.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exec.created_at":
@@ -2487,6 +2641,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2496,6 +2664,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exec.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exec.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -2873,6 +3083,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -2882,6 +3106,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3017,6 +3283,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exec.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -3094,15 +3371,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exec.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.user_session.k8s_uid":
@@ -3110,7 +3420,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3121,10 +3431,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exec.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.args":
@@ -3325,15 +3701,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Exit.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "exit.created_at":
@@ -3633,6 +4031,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exit.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3642,6 +4054,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exit.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exit.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4019,6 +4473,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exit.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -4028,6 +4496,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4163,6 +4673,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "exit.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exit.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4229,15 +4750,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exit.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "exit.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.user_session.k8s_uid":
@@ -4245,7 +4799,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4256,10 +4810,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Exit.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "imds.aws.is_imds_v2":
@@ -4528,12 +5148,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.destination.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.destination.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Link.Target)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.destination.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Link.Target)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -4774,12 +5438,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "link.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "link.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Link.Source)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "link.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Link.Source)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5097,12 +5805,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "load_module.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "load_module.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.LoadModule.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "load_module.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.LoadModule.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5409,12 +6161,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "mkdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "mkdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Mkdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mkdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Mkdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -5699,12 +6495,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "mmap.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "mmap.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.MMap.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "mmap.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.MMap.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6009,6 +6849,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "network.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.NetworkContext.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "network.l3_protocol":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6106,6 +6957,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "network_flow_monitor.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.NetworkFlowMonitor.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.destination.ip":
@@ -6777,12 +7639,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "open.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "open.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Open.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "open.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Open.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -6964,6 +7870,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "packet.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "packet.filter":
@@ -7553,6 +8470,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.container.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -7564,20 +8508,47 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
+					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveProcessContainerID(ev, &current.ProcessContext.Process)
+					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
 				})
 				ctx.StringCache[field] = results
 				return results
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveContainerTags(ev, &element.ProcessContext.Process.ContainerContext)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveContainerTags(ev, &current.ProcessContext.Process.ContainerContext)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 9999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "process.ancestors.created_at":
@@ -8287,6 +9258,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -8312,6 +9316,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -9200,6 +10303,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -9225,6 +10361,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -9552,6 +10787,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -9714,6 +10976,60 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.user_session.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionID(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionID(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.identity":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionIdentity(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionIdentity(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -9725,16 +11041,43 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return result
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIteratorArray(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.k8s_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -9752,14 +11095,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -9779,16 +11122,178 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.session_type":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveSessionType(ev, &element.ProcessContext.Process.UserSession))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveSessionType(ev, &current.ProcessContext.Process.UserSession))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_auth_method":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_client_ip":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+					return []net.IPNet{result}
+				}
+				if result, ok := ctx.IPNetCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+				})
+				ctx.IPNetCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_client_port":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_public_key":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.user_session.ssh_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -9971,15 +11476,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.BaseEvent.ProcessContext.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.created_at":
@@ -10279,6 +11806,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10288,6 +11829,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10665,6 +12248,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -10674,6 +12271,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -10807,6 +12446,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.args":
@@ -11033,6 +12683,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11041,10 +12705,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.BaseEvent.ProcessContext.Parent)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.created_at":
@@ -11410,6 +13088,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11422,6 +13117,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -11877,6 +13623,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -11889,6 +13652,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -12051,6 +13865,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -12135,6 +13963,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.parent.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -12143,10 +13999,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.user_session.k8s_uid":
@@ -12157,7 +14027,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -12171,10 +14041,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return net.IPNet{}
+				}
+				return ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.pid":
@@ -12243,15 +14197,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "process.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.user_session.k8s_uid":
@@ -12259,7 +14246,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -12270,10 +14257,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.request":
@@ -12730,6 +14783,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.container.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -12741,20 +14821,47 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
+					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveProcessContainerID(ev, &current.ProcessContext.Process)
+					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
 				})
 				ctx.StringCache[field] = results
 				return results
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveContainerTags(ev, &element.ProcessContext.Process.ContainerContext)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveContainerTags(ev, &current.ProcessContext.Process.ContainerContext)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 9999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.ancestors.created_at":
@@ -13464,6 +15571,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -13489,6 +15629,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -14377,6 +16616,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -14402,6 +16674,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -14729,6 +17100,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -14891,6 +17289,60 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.user_session.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionID(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionID(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.identity":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionIdentity(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionIdentity(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -14902,16 +17354,43 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return result
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIteratorArray(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -14929,14 +17408,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -14956,16 +17435,178 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.session_type":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveSessionType(ev, &element.ProcessContext.Process.UserSession))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveSessionType(ev, &current.ProcessContext.Process.UserSession))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_auth_method":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_client_ip":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+					return []net.IPNet{result}
+				}
+				if result, ok := ctx.IPNetCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+				})
+				ctx.IPNetCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_client_port":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_public_key":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -15148,15 +17789,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.PTrace.Tracee.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.PTrace.Tracee.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.created_at":
@@ -15456,6 +18119,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15465,6 +18142,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -15842,6 +18561,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -15851,6 +18584,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -15984,6 +18759,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.args":
@@ -16210,6 +18996,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.PTrace.Tracee.Parent.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16218,10 +19018,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.PTrace.Tracee.Parent)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.PTrace.Tracee.Parent.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.created_at":
@@ -16587,6 +19401,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -16599,6 +19430,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17054,6 +19936,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -17066,6 +19965,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				if !ev.PTrace.Tracee.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17228,6 +20178,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -17312,6 +20276,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.parent.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -17320,10 +20312,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.user_session.k8s_uid":
@@ -17334,7 +20340,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17348,10 +20354,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.PTrace.Tracee.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return net.IPNet{}
+				}
+				return ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.pid":
@@ -17420,15 +20510,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.user_session.k8s_uid":
@@ -17436,7 +20559,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17447,10 +20570,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "removexattr.file.change_time":
@@ -17642,12 +20831,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "removexattr.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "removexattr.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.RemoveXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "removexattr.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.RemoveXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -17921,12 +21154,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.destination.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.destination.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rename.New)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.destination.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rename.New)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18167,12 +21444,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rename.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rename.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rename.Old)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rename.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rename.Old)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -18457,12 +21778,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "rmdir.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "rmdir.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Rmdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "rmdir.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Rmdir.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -19155,6 +22520,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.container.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -19166,20 +22558,47 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
+					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveProcessContainerID(ev, &current.ProcessContext.Process)
+					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
 				})
 				ctx.StringCache[field] = results
 				return results
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveContainerTags(ev, &element.ProcessContext.Process.ContainerContext)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveContainerTags(ev, &current.ProcessContext.Process.ContainerContext)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 9999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.ancestors.created_at":
@@ -19889,6 +23308,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -19914,6 +23366,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -20802,6 +24353,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -20827,6 +24411,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -21154,6 +24837,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -21316,6 +25026,60 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.user_session.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionID(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionID(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.identity":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionIdentity(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionIdentity(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -21327,16 +25091,43 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return result
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIteratorArray(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.k8s_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -21354,14 +25145,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -21381,16 +25172,178 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.session_type":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveSessionType(ev, &element.ProcessContext.Process.UserSession))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveSessionType(ev, &current.ProcessContext.Process.UserSession))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_auth_method":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_client_ip":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+					return []net.IPNet{result}
+				}
+				if result, ok := ctx.IPNetCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+				})
+				ctx.IPNetCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_client_port":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_public_key":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.user_session.ssh_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -21573,15 +25526,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Setrlimit.Target.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Setrlimit.Target.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.created_at":
@@ -21881,6 +25856,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -21890,6 +25879,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -22267,6 +26298,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -22276,6 +26321,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -22409,6 +26496,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.args":
@@ -22635,6 +26733,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Setrlimit.Target.Parent.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -22643,10 +26755,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Setrlimit.Target.Parent)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Setrlimit.Target.Parent.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.created_at":
@@ -23012,6 +27138,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -23024,6 +27167,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23479,6 +27673,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -23491,6 +27702,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				if !ev.Setrlimit.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23653,6 +27915,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -23737,6 +28013,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.parent.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -23745,10 +28049,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.user_session.k8s_uid":
@@ -23759,7 +28077,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23773,10 +28091,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Setrlimit.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return net.IPNet{}
+				}
+				return ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return ""
+				}
+				return ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.pid":
@@ -23845,15 +28247,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.user_session.k8s_uid":
@@ -23861,7 +28296,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -23872,10 +28307,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Setrlimit.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setsockopt.filter_hash":
@@ -24254,12 +28755,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setxattr.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "setxattr.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.SetXAttr.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setxattr.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -24809,6 +29354,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.container.created_at":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.container.id":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -24820,20 +29392,47 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveProcessContainerID(ev, &element.ProcessContext.Process)
+					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveProcessContainerID(ev, &current.ProcessContext.Process)
+					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
 				})
 				ctx.StringCache[field] = results
 				return results
 			},
 			Field:  field,
 			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveContainerTags(ev, &element.ProcessContext.Process.ContainerContext)
+					return result
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIteratorArray(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
+					return ev.FieldHandlers.ResolveContainerTags(ev, &current.ProcessContext.Process.ContainerContext)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: 9999 * eval.IteratorWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.ancestors.created_at":
@@ -25543,6 +30142,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -25568,6 +30200,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -26456,6 +31187,39 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.interpreter.file.package.name":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -26481,6 +31245,105 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 						return ""
 					}
 					return ev.FieldHandlers.ResolvePackageName(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []int{0}
+					}
+					result := int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return 0
+					}
+					return int(ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.interpreter.file.package.source_release":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.HasInterpreter() {
+						return []string{""}
+					}
+					result := ev.FieldHandlers.ResolvePackageSourceRelease(ev, &element.ProcessContext.Process.LinuxBinprm.FileEvent)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					if !current.ProcessContext.Process.HasInterpreter() {
+						return ""
+					}
+					return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &current.ProcessContext.Process.LinuxBinprm.FileEvent)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -26808,6 +31671,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -26970,6 +31860,60 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.user_session.id":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionID(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionID(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.identity":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := ev.FieldHandlers.ResolveSessionIdentity(ev, &element.ProcessContext.Process.UserSession)
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
+					return ev.FieldHandlers.ResolveSessionIdentity(ev, &current.ProcessContext.Process.UserSession)
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -26981,16 +31925,43 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return result
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIteratorArray(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) []string {
-					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SGroups(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.k8s_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -27008,14 +31979,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUID(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -27035,16 +32006,178 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession.K8SSessionContext)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
 				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession)
+					return ev.FieldHandlers.ResolveK8SUsername(ev, &current.ProcessContext.Process.UserSession.K8SSessionContext)
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.session_type":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(ev.FieldHandlers.ResolveSessionType(ev, &element.ProcessContext.Process.UserSession))
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(ev.FieldHandlers.ResolveSessionType(ev, &current.ProcessContext.Process.UserSession))
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_auth_method":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_client_ip":
+		return &eval.CIDRArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+					return []net.IPNet{result}
+				}
+				if result, ok := ctx.IPNetCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) net.IPNet {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP
+				})
+				ctx.IPNetCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_client_port":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_public_key":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := element.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+					return []string{result}
+				}
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return current.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey
+				})
+				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.user_session.ssh_session_id":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -27227,15 +32360,37 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Process.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, &ev.Signal.Target.Process)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Process.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Signal.Target.Process.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.created_at":
@@ -27535,6 +32690,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27544,6 +32713,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Process.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Process.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -27921,6 +33132,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27930,6 +33155,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -28063,6 +33330,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.args":
@@ -28289,6 +33567,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.container.created_at":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Signal.Target.Parent.ContainerContext))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.container.id":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28297,10 +33589,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveProcessContainerID(ev, ev.Signal.Target.Parent)
+				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Signal.Target.Parent.ContainerContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.container.tags":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveContainerTags(ev, &ev.Signal.Target.Parent.ContainerContext)
+			},
+			Field:  field,
+			Weight: 9999 * eval.HandlerWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.created_at":
@@ -28666,6 +33972,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -28678,6 +34001,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Parent.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Parent.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29133,6 +34507,23 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.interpreter.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.interpreter.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -29145,6 +34536,57 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.interpreter.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				if !ev.Signal.Target.Parent.HasInterpreter() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29307,6 +34749,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -29391,6 +34847,34 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.parent.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -29399,10 +34883,24 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return []string{}
 				}
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.user_session.k8s_uid":
@@ -29413,7 +34911,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29427,10 +34925,94 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.Signal.Target.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return net.IPNet{}
+				}
+				return ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.pid":
@@ -29499,15 +35081,48 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.user_session.id":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionID(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.identity":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.user_session.k8s_groups":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.k8s_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.UserSession.K8SSessionContext.K8SSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.user_session.k8s_uid":
@@ -29515,7 +35130,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -29526,10 +35141,76 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.session_type":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSessionType(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_auth_method":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHAuthMethod
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_client_ip":
+		return &eval.CIDREvaluator{
+			EvalFnc: func(ctx *eval.Context) net.IPNet {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHClientIP
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_client_port":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHClientPort
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_public_key":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHPublicKey
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.user_session.ssh_session_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHSessionID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.type":
@@ -29710,12 +35391,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "splice.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "splice.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Splice.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "splice.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Splice.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -30088,12 +35813,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "unlink.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "unlink.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Unlink.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "unlink.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Unlink.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -30422,12 +36191,56 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "utimes.file.package.epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageEpoch(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "utimes.file.package.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageRelease(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.source_epoch":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceEpoch(ev, &ev.Utimes.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "utimes.file.package.source_release":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceRelease(ev, &ev.Utimes.File)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -30538,7 +36351,7 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 	return nil, &eval.ErrFieldNotFound{Field: field}
 }
 func (ev *Event) GetFields() []eval.Field {
-	return []eval.Field{
+	fields := []eval.Field{
 		"accept.addr.family",
 		"accept.addr.hostname",
 		"accept.addr.ip",
@@ -30564,10 +36377,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"capabilities.used",
 		"capset.cap_effective",
 		"capset.cap_permitted",
-		"cgroup.file.inode",
-		"cgroup.file.mount_id",
-		"cgroup.id",
-		"cgroup.version",
 		"cgroup_write.file.change_time",
 		"cgroup_write.file.extension",
 		"cgroup_write.file.filesystem",
@@ -30583,7 +36392,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"cgroup_write.file.mount_visible",
 		"cgroup_write.file.name",
 		"cgroup_write.file.name.length",
+		"cgroup_write.file.package.epoch",
 		"cgroup_write.file.package.name",
+		"cgroup_write.file.package.release",
+		"cgroup_write.file.package.source_epoch",
+		"cgroup_write.file.package.source_release",
 		"cgroup_write.file.package.source_version",
 		"cgroup_write.file.package.version",
 		"cgroup_write.file.path",
@@ -30607,7 +36420,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chdir.file.mount_visible",
 		"chdir.file.name",
 		"chdir.file.name.length",
+		"chdir.file.package.epoch",
 		"chdir.file.package.name",
+		"chdir.file.package.release",
+		"chdir.file.package.source_epoch",
+		"chdir.file.package.source_release",
 		"chdir.file.package.source_version",
 		"chdir.file.package.version",
 		"chdir.file.path",
@@ -30634,7 +36451,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.mount_visible",
 		"chmod.file.name",
 		"chmod.file.name.length",
+		"chmod.file.package.epoch",
 		"chmod.file.package.name",
+		"chmod.file.package.release",
+		"chmod.file.package.source_epoch",
+		"chmod.file.package.source_release",
 		"chmod.file.package.source_version",
 		"chmod.file.package.version",
 		"chmod.file.path",
@@ -30664,7 +36485,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"chown.file.mount_visible",
 		"chown.file.name",
 		"chown.file.name.length",
+		"chown.file.package.epoch",
 		"chown.file.package.name",
+		"chown.file.package.release",
+		"chown.file.package.source_epoch",
+		"chown.file.package.source_release",
 		"chown.file.package.source_version",
 		"chown.file.package.version",
 		"chown.file.path",
@@ -30683,9 +36508,6 @@ func (ev *Event) GetFields() []eval.Field {
 		"connect.addr.port",
 		"connect.protocol",
 		"connect.retval",
-		"container.created_at",
-		"container.id",
-		"container.tags",
 		"dns.id",
 		"dns.question.class",
 		"dns.question.count",
@@ -30700,6 +36522,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.os",
 		"event.rule.tags",
 		"event.service",
+		"event.signature",
 		"event.source",
 		"event.timestamp",
 		"exec.args",
@@ -30718,7 +36541,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.cgroup.id",
 		"exec.cgroup.version",
 		"exec.comm",
+		"exec.container.created_at",
 		"exec.container.id",
+		"exec.container.tags",
 		"exec.created_at",
 		"exec.egid",
 		"exec.egroup",
@@ -30750,7 +36575,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.file.mount_visible",
 		"exec.file.name",
 		"exec.file.name.length",
+		"exec.file.package.epoch",
 		"exec.file.package.name",
+		"exec.file.package.release",
+		"exec.file.package.source_epoch",
+		"exec.file.package.source_release",
 		"exec.file.package.source_version",
 		"exec.file.package.version",
 		"exec.file.path",
@@ -30779,7 +36608,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.interpreter.file.mount_visible",
 		"exec.interpreter.file.name",
 		"exec.interpreter.file.name.length",
+		"exec.interpreter.file.package.epoch",
 		"exec.interpreter.file.package.name",
+		"exec.interpreter.file.package.release",
+		"exec.interpreter.file.package.source_epoch",
+		"exec.interpreter.file.package.source_release",
 		"exec.interpreter.file.package.source_version",
 		"exec.interpreter.file.package.version",
 		"exec.interpreter.file.path",
@@ -30790,6 +36623,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.is_exec",
 		"exec.is_kworker",
 		"exec.is_thread",
+		"exec.netns",
 		"exec.pid",
 		"exec.ppid",
 		"exec.syscall.path",
@@ -30797,9 +36631,18 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.tty_name",
 		"exec.uid",
 		"exec.user",
+		"exec.user_session.id",
+		"exec.user_session.identity",
 		"exec.user_session.k8s_groups",
+		"exec.user_session.k8s_session_id",
 		"exec.user_session.k8s_uid",
 		"exec.user_session.k8s_username",
+		"exec.user_session.session_type",
+		"exec.user_session.ssh_auth_method",
+		"exec.user_session.ssh_client_ip",
+		"exec.user_session.ssh_client_port",
+		"exec.user_session.ssh_public_key",
+		"exec.user_session.ssh_session_id",
 		"exit.args",
 		"exit.args_flags",
 		"exit.args_options",
@@ -30818,7 +36661,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.cgroup.version",
 		"exit.code",
 		"exit.comm",
+		"exit.container.created_at",
 		"exit.container.id",
+		"exit.container.tags",
 		"exit.created_at",
 		"exit.egid",
 		"exit.egroup",
@@ -30842,7 +36687,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.file.mount_visible",
 		"exit.file.name",
 		"exit.file.name.length",
+		"exit.file.package.epoch",
 		"exit.file.package.name",
+		"exit.file.package.release",
+		"exit.file.package.source_epoch",
+		"exit.file.package.source_release",
 		"exit.file.package.source_version",
 		"exit.file.package.version",
 		"exit.file.path",
@@ -30871,7 +36720,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.interpreter.file.mount_visible",
 		"exit.interpreter.file.name",
 		"exit.interpreter.file.name.length",
+		"exit.interpreter.file.package.epoch",
 		"exit.interpreter.file.package.name",
+		"exit.interpreter.file.package.release",
+		"exit.interpreter.file.package.source_epoch",
+		"exit.interpreter.file.package.source_release",
 		"exit.interpreter.file.package.source_version",
 		"exit.interpreter.file.package.version",
 		"exit.interpreter.file.path",
@@ -30882,15 +36735,25 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.is_exec",
 		"exit.is_kworker",
 		"exit.is_thread",
+		"exit.netns",
 		"exit.pid",
 		"exit.ppid",
 		"exit.tid",
 		"exit.tty_name",
 		"exit.uid",
 		"exit.user",
+		"exit.user_session.id",
+		"exit.user_session.identity",
 		"exit.user_session.k8s_groups",
+		"exit.user_session.k8s_session_id",
 		"exit.user_session.k8s_uid",
 		"exit.user_session.k8s_username",
+		"exit.user_session.session_type",
+		"exit.user_session.ssh_auth_method",
+		"exit.user_session.ssh_client_ip",
+		"exit.user_session.ssh_client_port",
+		"exit.user_session.ssh_public_key",
+		"exit.user_session.ssh_session_id",
 		"imds.aws.is_imds_v2",
 		"imds.aws.security_credentials.type",
 		"imds.cloud_provider",
@@ -30915,7 +36778,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.destination.mount_visible",
 		"link.file.destination.name",
 		"link.file.destination.name.length",
+		"link.file.destination.package.epoch",
 		"link.file.destination.package.name",
+		"link.file.destination.package.release",
+		"link.file.destination.package.source_epoch",
+		"link.file.destination.package.source_release",
 		"link.file.destination.package.source_version",
 		"link.file.destination.package.version",
 		"link.file.destination.path",
@@ -30937,7 +36804,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"link.file.mount_visible",
 		"link.file.name",
 		"link.file.name.length",
+		"link.file.package.epoch",
 		"link.file.package.name",
+		"link.file.package.release",
+		"link.file.package.source_epoch",
+		"link.file.package.source_release",
 		"link.file.package.source_version",
 		"link.file.package.version",
 		"link.file.path",
@@ -30966,7 +36837,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"load_module.file.mount_visible",
 		"load_module.file.name",
 		"load_module.file.name.length",
+		"load_module.file.package.epoch",
 		"load_module.file.package.name",
+		"load_module.file.package.release",
+		"load_module.file.package.source_epoch",
+		"load_module.file.package.source_release",
 		"load_module.file.package.source_version",
 		"load_module.file.package.version",
 		"load_module.file.path",
@@ -30994,7 +36869,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"mkdir.file.mount_visible",
 		"mkdir.file.name",
 		"mkdir.file.name.length",
+		"mkdir.file.package.epoch",
 		"mkdir.file.package.name",
+		"mkdir.file.package.release",
+		"mkdir.file.package.source_epoch",
+		"mkdir.file.package.source_release",
 		"mkdir.file.package.source_version",
 		"mkdir.file.package.version",
 		"mkdir.file.path",
@@ -31020,7 +36899,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"mmap.file.mount_visible",
 		"mmap.file.name",
 		"mmap.file.name.length",
+		"mmap.file.package.epoch",
 		"mmap.file.package.name",
+		"mmap.file.package.release",
+		"mmap.file.package.source_epoch",
+		"mmap.file.package.source_release",
 		"mmap.file.package.source_version",
 		"mmap.file.package.version",
 		"mmap.file.path",
@@ -31048,6 +36931,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.destination.is_public",
 		"network.destination.port",
 		"network.device.ifname",
+		"network.device.netns",
 		"network.l3_protocol",
 		"network.l4_protocol",
 		"network.network_direction",
@@ -31057,6 +36941,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.source.port",
 		"network.type",
 		"network_flow_monitor.device.ifname",
+		"network_flow_monitor.device.netns",
 		"network_flow_monitor.flows.destination.ip",
 		"network_flow_monitor.flows.destination.is_public",
 		"network_flow_monitor.flows.destination.port",
@@ -31099,7 +36984,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.mount_visible",
 		"open.file.name",
 		"open.file.name.length",
+		"open.file.package.epoch",
 		"open.file.package.name",
+		"open.file.package.release",
+		"open.file.package.source_epoch",
+		"open.file.package.source_release",
 		"open.file.package.source_version",
 		"open.file.package.version",
 		"open.file.path",
@@ -31116,6 +37005,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.destination.is_public",
 		"packet.destination.port",
 		"packet.device.ifname",
+		"packet.device.netns",
 		"packet.filter",
 		"packet.l3_protocol",
 		"packet.l4_protocol",
@@ -31146,7 +37036,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.cgroup.id",
 		"process.ancestors.cgroup.version",
 		"process.ancestors.comm",
+		"process.ancestors.container.created_at",
 		"process.ancestors.container.id",
+		"process.ancestors.container.tags",
 		"process.ancestors.created_at",
 		"process.ancestors.egid",
 		"process.ancestors.egroup",
@@ -31170,7 +37062,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.file.mount_visible",
 		"process.ancestors.file.name",
 		"process.ancestors.file.name.length",
+		"process.ancestors.file.package.epoch",
 		"process.ancestors.file.package.name",
+		"process.ancestors.file.package.release",
+		"process.ancestors.file.package.source_epoch",
+		"process.ancestors.file.package.source_release",
 		"process.ancestors.file.package.source_version",
 		"process.ancestors.file.package.version",
 		"process.ancestors.file.path",
@@ -31199,7 +37095,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.interpreter.file.mount_visible",
 		"process.ancestors.interpreter.file.name",
 		"process.ancestors.interpreter.file.name.length",
+		"process.ancestors.interpreter.file.package.epoch",
 		"process.ancestors.interpreter.file.package.name",
+		"process.ancestors.interpreter.file.package.release",
+		"process.ancestors.interpreter.file.package.source_epoch",
+		"process.ancestors.interpreter.file.package.source_release",
 		"process.ancestors.interpreter.file.package.source_version",
 		"process.ancestors.interpreter.file.package.version",
 		"process.ancestors.interpreter.file.path",
@@ -31211,15 +37111,25 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.length",
+		"process.ancestors.netns",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.ancestors.tid",
 		"process.ancestors.tty_name",
 		"process.ancestors.uid",
 		"process.ancestors.user",
+		"process.ancestors.user_session.id",
+		"process.ancestors.user_session.identity",
 		"process.ancestors.user_session.k8s_groups",
+		"process.ancestors.user_session.k8s_session_id",
 		"process.ancestors.user_session.k8s_uid",
 		"process.ancestors.user_session.k8s_username",
+		"process.ancestors.user_session.session_type",
+		"process.ancestors.user_session.ssh_auth_method",
+		"process.ancestors.user_session.ssh_client_ip",
+		"process.ancestors.user_session.ssh_client_port",
+		"process.ancestors.user_session.ssh_public_key",
+		"process.ancestors.user_session.ssh_session_id",
 		"process.args",
 		"process.args_flags",
 		"process.args_options",
@@ -31236,7 +37146,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.cgroup.id",
 		"process.cgroup.version",
 		"process.comm",
+		"process.container.created_at",
 		"process.container.id",
+		"process.container.tags",
 		"process.created_at",
 		"process.egid",
 		"process.egroup",
@@ -31260,7 +37172,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.mount_visible",
 		"process.file.name",
 		"process.file.name.length",
+		"process.file.package.epoch",
 		"process.file.package.name",
+		"process.file.package.release",
+		"process.file.package.source_epoch",
+		"process.file.package.source_release",
 		"process.file.package.source_version",
 		"process.file.package.version",
 		"process.file.path",
@@ -31289,7 +37205,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.interpreter.file.mount_visible",
 		"process.interpreter.file.name",
 		"process.interpreter.file.name.length",
+		"process.interpreter.file.package.epoch",
 		"process.interpreter.file.package.name",
+		"process.interpreter.file.package.release",
+		"process.interpreter.file.package.source_epoch",
+		"process.interpreter.file.package.source_release",
 		"process.interpreter.file.package.source_version",
 		"process.interpreter.file.package.version",
 		"process.interpreter.file.path",
@@ -31300,6 +37220,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.is_exec",
 		"process.is_kworker",
 		"process.is_thread",
+		"process.netns",
 		"process.parent.args",
 		"process.parent.args_flags",
 		"process.parent.args_options",
@@ -31316,7 +37237,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.cgroup.id",
 		"process.parent.cgroup.version",
 		"process.parent.comm",
+		"process.parent.container.created_at",
 		"process.parent.container.id",
+		"process.parent.container.tags",
 		"process.parent.created_at",
 		"process.parent.egid",
 		"process.parent.egroup",
@@ -31340,7 +37263,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.file.mount_visible",
 		"process.parent.file.name",
 		"process.parent.file.name.length",
+		"process.parent.file.package.epoch",
 		"process.parent.file.package.name",
+		"process.parent.file.package.release",
+		"process.parent.file.package.source_epoch",
+		"process.parent.file.package.source_release",
 		"process.parent.file.package.source_version",
 		"process.parent.file.package.version",
 		"process.parent.file.path",
@@ -31369,7 +37296,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.interpreter.file.mount_visible",
 		"process.parent.interpreter.file.name",
 		"process.parent.interpreter.file.name.length",
+		"process.parent.interpreter.file.package.epoch",
 		"process.parent.interpreter.file.package.name",
+		"process.parent.interpreter.file.package.release",
+		"process.parent.interpreter.file.package.source_epoch",
+		"process.parent.interpreter.file.package.source_release",
 		"process.parent.interpreter.file.package.source_version",
 		"process.parent.interpreter.file.package.version",
 		"process.parent.interpreter.file.path",
@@ -31380,24 +37311,43 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.is_exec",
 		"process.parent.is_kworker",
 		"process.parent.is_thread",
+		"process.parent.netns",
 		"process.parent.pid",
 		"process.parent.ppid",
 		"process.parent.tid",
 		"process.parent.tty_name",
 		"process.parent.uid",
 		"process.parent.user",
+		"process.parent.user_session.id",
+		"process.parent.user_session.identity",
 		"process.parent.user_session.k8s_groups",
+		"process.parent.user_session.k8s_session_id",
 		"process.parent.user_session.k8s_uid",
 		"process.parent.user_session.k8s_username",
+		"process.parent.user_session.session_type",
+		"process.parent.user_session.ssh_auth_method",
+		"process.parent.user_session.ssh_client_ip",
+		"process.parent.user_session.ssh_client_port",
+		"process.parent.user_session.ssh_public_key",
+		"process.parent.user_session.ssh_session_id",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
 		"process.tty_name",
 		"process.uid",
 		"process.user",
+		"process.user_session.id",
+		"process.user_session.identity",
 		"process.user_session.k8s_groups",
+		"process.user_session.k8s_session_id",
 		"process.user_session.k8s_uid",
 		"process.user_session.k8s_username",
+		"process.user_session.session_type",
+		"process.user_session.ssh_auth_method",
+		"process.user_session.ssh_client_ip",
+		"process.user_session.ssh_client_port",
+		"process.user_session.ssh_public_key",
+		"process.user_session.ssh_session_id",
 		"ptrace.request",
 		"ptrace.retval",
 		"ptrace.tracee.ancestors.args",
@@ -31416,7 +37366,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.cgroup.id",
 		"ptrace.tracee.ancestors.cgroup.version",
 		"ptrace.tracee.ancestors.comm",
+		"ptrace.tracee.ancestors.container.created_at",
 		"ptrace.tracee.ancestors.container.id",
+		"ptrace.tracee.ancestors.container.tags",
 		"ptrace.tracee.ancestors.created_at",
 		"ptrace.tracee.ancestors.egid",
 		"ptrace.tracee.ancestors.egroup",
@@ -31440,7 +37392,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.file.mount_visible",
 		"ptrace.tracee.ancestors.file.name",
 		"ptrace.tracee.ancestors.file.name.length",
+		"ptrace.tracee.ancestors.file.package.epoch",
 		"ptrace.tracee.ancestors.file.package.name",
+		"ptrace.tracee.ancestors.file.package.release",
+		"ptrace.tracee.ancestors.file.package.source_epoch",
+		"ptrace.tracee.ancestors.file.package.source_release",
 		"ptrace.tracee.ancestors.file.package.source_version",
 		"ptrace.tracee.ancestors.file.package.version",
 		"ptrace.tracee.ancestors.file.path",
@@ -31469,7 +37425,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.interpreter.file.mount_visible",
 		"ptrace.tracee.ancestors.interpreter.file.name",
 		"ptrace.tracee.ancestors.interpreter.file.name.length",
+		"ptrace.tracee.ancestors.interpreter.file.package.epoch",
 		"ptrace.tracee.ancestors.interpreter.file.package.name",
+		"ptrace.tracee.ancestors.interpreter.file.package.release",
+		"ptrace.tracee.ancestors.interpreter.file.package.source_epoch",
+		"ptrace.tracee.ancestors.interpreter.file.package.source_release",
 		"ptrace.tracee.ancestors.interpreter.file.package.source_version",
 		"ptrace.tracee.ancestors.interpreter.file.package.version",
 		"ptrace.tracee.ancestors.interpreter.file.path",
@@ -31481,15 +37441,25 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.length",
+		"ptrace.tracee.ancestors.netns",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
 		"ptrace.tracee.ancestors.tid",
 		"ptrace.tracee.ancestors.tty_name",
 		"ptrace.tracee.ancestors.uid",
 		"ptrace.tracee.ancestors.user",
+		"ptrace.tracee.ancestors.user_session.id",
+		"ptrace.tracee.ancestors.user_session.identity",
 		"ptrace.tracee.ancestors.user_session.k8s_groups",
+		"ptrace.tracee.ancestors.user_session.k8s_session_id",
 		"ptrace.tracee.ancestors.user_session.k8s_uid",
 		"ptrace.tracee.ancestors.user_session.k8s_username",
+		"ptrace.tracee.ancestors.user_session.session_type",
+		"ptrace.tracee.ancestors.user_session.ssh_auth_method",
+		"ptrace.tracee.ancestors.user_session.ssh_client_ip",
+		"ptrace.tracee.ancestors.user_session.ssh_client_port",
+		"ptrace.tracee.ancestors.user_session.ssh_public_key",
+		"ptrace.tracee.ancestors.user_session.ssh_session_id",
 		"ptrace.tracee.args",
 		"ptrace.tracee.args_flags",
 		"ptrace.tracee.args_options",
@@ -31506,7 +37476,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.cgroup.id",
 		"ptrace.tracee.cgroup.version",
 		"ptrace.tracee.comm",
+		"ptrace.tracee.container.created_at",
 		"ptrace.tracee.container.id",
+		"ptrace.tracee.container.tags",
 		"ptrace.tracee.created_at",
 		"ptrace.tracee.egid",
 		"ptrace.tracee.egroup",
@@ -31530,7 +37502,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.file.mount_visible",
 		"ptrace.tracee.file.name",
 		"ptrace.tracee.file.name.length",
+		"ptrace.tracee.file.package.epoch",
 		"ptrace.tracee.file.package.name",
+		"ptrace.tracee.file.package.release",
+		"ptrace.tracee.file.package.source_epoch",
+		"ptrace.tracee.file.package.source_release",
 		"ptrace.tracee.file.package.source_version",
 		"ptrace.tracee.file.package.version",
 		"ptrace.tracee.file.path",
@@ -31559,7 +37535,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.interpreter.file.mount_visible",
 		"ptrace.tracee.interpreter.file.name",
 		"ptrace.tracee.interpreter.file.name.length",
+		"ptrace.tracee.interpreter.file.package.epoch",
 		"ptrace.tracee.interpreter.file.package.name",
+		"ptrace.tracee.interpreter.file.package.release",
+		"ptrace.tracee.interpreter.file.package.source_epoch",
+		"ptrace.tracee.interpreter.file.package.source_release",
 		"ptrace.tracee.interpreter.file.package.source_version",
 		"ptrace.tracee.interpreter.file.package.version",
 		"ptrace.tracee.interpreter.file.path",
@@ -31570,6 +37550,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.is_exec",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
+		"ptrace.tracee.netns",
 		"ptrace.tracee.parent.args",
 		"ptrace.tracee.parent.args_flags",
 		"ptrace.tracee.parent.args_options",
@@ -31586,7 +37567,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.cgroup.id",
 		"ptrace.tracee.parent.cgroup.version",
 		"ptrace.tracee.parent.comm",
+		"ptrace.tracee.parent.container.created_at",
 		"ptrace.tracee.parent.container.id",
+		"ptrace.tracee.parent.container.tags",
 		"ptrace.tracee.parent.created_at",
 		"ptrace.tracee.parent.egid",
 		"ptrace.tracee.parent.egroup",
@@ -31610,7 +37593,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.file.mount_visible",
 		"ptrace.tracee.parent.file.name",
 		"ptrace.tracee.parent.file.name.length",
+		"ptrace.tracee.parent.file.package.epoch",
 		"ptrace.tracee.parent.file.package.name",
+		"ptrace.tracee.parent.file.package.release",
+		"ptrace.tracee.parent.file.package.source_epoch",
+		"ptrace.tracee.parent.file.package.source_release",
 		"ptrace.tracee.parent.file.package.source_version",
 		"ptrace.tracee.parent.file.package.version",
 		"ptrace.tracee.parent.file.path",
@@ -31639,7 +37626,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.interpreter.file.mount_visible",
 		"ptrace.tracee.parent.interpreter.file.name",
 		"ptrace.tracee.parent.interpreter.file.name.length",
+		"ptrace.tracee.parent.interpreter.file.package.epoch",
 		"ptrace.tracee.parent.interpreter.file.package.name",
+		"ptrace.tracee.parent.interpreter.file.package.release",
+		"ptrace.tracee.parent.interpreter.file.package.source_epoch",
+		"ptrace.tracee.parent.interpreter.file.package.source_release",
 		"ptrace.tracee.parent.interpreter.file.package.source_version",
 		"ptrace.tracee.parent.interpreter.file.package.version",
 		"ptrace.tracee.parent.interpreter.file.path",
@@ -31650,24 +37641,43 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.is_exec",
 		"ptrace.tracee.parent.is_kworker",
 		"ptrace.tracee.parent.is_thread",
+		"ptrace.tracee.parent.netns",
 		"ptrace.tracee.parent.pid",
 		"ptrace.tracee.parent.ppid",
 		"ptrace.tracee.parent.tid",
 		"ptrace.tracee.parent.tty_name",
 		"ptrace.tracee.parent.uid",
 		"ptrace.tracee.parent.user",
+		"ptrace.tracee.parent.user_session.id",
+		"ptrace.tracee.parent.user_session.identity",
 		"ptrace.tracee.parent.user_session.k8s_groups",
+		"ptrace.tracee.parent.user_session.k8s_session_id",
 		"ptrace.tracee.parent.user_session.k8s_uid",
 		"ptrace.tracee.parent.user_session.k8s_username",
+		"ptrace.tracee.parent.user_session.session_type",
+		"ptrace.tracee.parent.user_session.ssh_auth_method",
+		"ptrace.tracee.parent.user_session.ssh_client_ip",
+		"ptrace.tracee.parent.user_session.ssh_client_port",
+		"ptrace.tracee.parent.user_session.ssh_public_key",
+		"ptrace.tracee.parent.user_session.ssh_session_id",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
 		"ptrace.tracee.tty_name",
 		"ptrace.tracee.uid",
 		"ptrace.tracee.user",
+		"ptrace.tracee.user_session.id",
+		"ptrace.tracee.user_session.identity",
 		"ptrace.tracee.user_session.k8s_groups",
+		"ptrace.tracee.user_session.k8s_session_id",
 		"ptrace.tracee.user_session.k8s_uid",
 		"ptrace.tracee.user_session.k8s_username",
+		"ptrace.tracee.user_session.session_type",
+		"ptrace.tracee.user_session.ssh_auth_method",
+		"ptrace.tracee.user_session.ssh_client_ip",
+		"ptrace.tracee.user_session.ssh_client_port",
+		"ptrace.tracee.user_session.ssh_public_key",
+		"ptrace.tracee.user_session.ssh_session_id",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
@@ -31685,7 +37695,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"removexattr.file.mount_visible",
 		"removexattr.file.name",
 		"removexattr.file.name.length",
+		"removexattr.file.package.epoch",
 		"removexattr.file.package.name",
+		"removexattr.file.package.release",
+		"removexattr.file.package.source_epoch",
+		"removexattr.file.package.source_release",
 		"removexattr.file.package.source_version",
 		"removexattr.file.package.version",
 		"removexattr.file.path",
@@ -31710,7 +37724,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.destination.mount_visible",
 		"rename.file.destination.name",
 		"rename.file.destination.name.length",
+		"rename.file.destination.package.epoch",
 		"rename.file.destination.package.name",
+		"rename.file.destination.package.release",
+		"rename.file.destination.package.source_epoch",
+		"rename.file.destination.package.source_release",
 		"rename.file.destination.package.source_version",
 		"rename.file.destination.package.version",
 		"rename.file.destination.path",
@@ -31732,7 +37750,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rename.file.mount_visible",
 		"rename.file.name",
 		"rename.file.name.length",
+		"rename.file.package.epoch",
 		"rename.file.package.name",
+		"rename.file.package.release",
+		"rename.file.package.source_epoch",
+		"rename.file.package.source_release",
 		"rename.file.package.source_version",
 		"rename.file.package.version",
 		"rename.file.path",
@@ -31758,7 +37780,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"rmdir.file.mount_visible",
 		"rmdir.file.name",
 		"rmdir.file.name.length",
+		"rmdir.file.package.epoch",
 		"rmdir.file.package.name",
+		"rmdir.file.package.release",
+		"rmdir.file.package.source_epoch",
+		"rmdir.file.package.source_release",
 		"rmdir.file.package.source_version",
 		"rmdir.file.package.version",
 		"rmdir.file.path",
@@ -31798,7 +37824,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.cgroup.id",
 		"setrlimit.target.ancestors.cgroup.version",
 		"setrlimit.target.ancestors.comm",
+		"setrlimit.target.ancestors.container.created_at",
 		"setrlimit.target.ancestors.container.id",
+		"setrlimit.target.ancestors.container.tags",
 		"setrlimit.target.ancestors.created_at",
 		"setrlimit.target.ancestors.egid",
 		"setrlimit.target.ancestors.egroup",
@@ -31822,7 +37850,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.file.mount_visible",
 		"setrlimit.target.ancestors.file.name",
 		"setrlimit.target.ancestors.file.name.length",
+		"setrlimit.target.ancestors.file.package.epoch",
 		"setrlimit.target.ancestors.file.package.name",
+		"setrlimit.target.ancestors.file.package.release",
+		"setrlimit.target.ancestors.file.package.source_epoch",
+		"setrlimit.target.ancestors.file.package.source_release",
 		"setrlimit.target.ancestors.file.package.source_version",
 		"setrlimit.target.ancestors.file.package.version",
 		"setrlimit.target.ancestors.file.path",
@@ -31851,7 +37883,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.interpreter.file.mount_visible",
 		"setrlimit.target.ancestors.interpreter.file.name",
 		"setrlimit.target.ancestors.interpreter.file.name.length",
+		"setrlimit.target.ancestors.interpreter.file.package.epoch",
 		"setrlimit.target.ancestors.interpreter.file.package.name",
+		"setrlimit.target.ancestors.interpreter.file.package.release",
+		"setrlimit.target.ancestors.interpreter.file.package.source_epoch",
+		"setrlimit.target.ancestors.interpreter.file.package.source_release",
 		"setrlimit.target.ancestors.interpreter.file.package.source_version",
 		"setrlimit.target.ancestors.interpreter.file.package.version",
 		"setrlimit.target.ancestors.interpreter.file.path",
@@ -31863,15 +37899,25 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.is_kworker",
 		"setrlimit.target.ancestors.is_thread",
 		"setrlimit.target.ancestors.length",
+		"setrlimit.target.ancestors.netns",
 		"setrlimit.target.ancestors.pid",
 		"setrlimit.target.ancestors.ppid",
 		"setrlimit.target.ancestors.tid",
 		"setrlimit.target.ancestors.tty_name",
 		"setrlimit.target.ancestors.uid",
 		"setrlimit.target.ancestors.user",
+		"setrlimit.target.ancestors.user_session.id",
+		"setrlimit.target.ancestors.user_session.identity",
 		"setrlimit.target.ancestors.user_session.k8s_groups",
+		"setrlimit.target.ancestors.user_session.k8s_session_id",
 		"setrlimit.target.ancestors.user_session.k8s_uid",
 		"setrlimit.target.ancestors.user_session.k8s_username",
+		"setrlimit.target.ancestors.user_session.session_type",
+		"setrlimit.target.ancestors.user_session.ssh_auth_method",
+		"setrlimit.target.ancestors.user_session.ssh_client_ip",
+		"setrlimit.target.ancestors.user_session.ssh_client_port",
+		"setrlimit.target.ancestors.user_session.ssh_public_key",
+		"setrlimit.target.ancestors.user_session.ssh_session_id",
 		"setrlimit.target.args",
 		"setrlimit.target.args_flags",
 		"setrlimit.target.args_options",
@@ -31888,7 +37934,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.cgroup.id",
 		"setrlimit.target.cgroup.version",
 		"setrlimit.target.comm",
+		"setrlimit.target.container.created_at",
 		"setrlimit.target.container.id",
+		"setrlimit.target.container.tags",
 		"setrlimit.target.created_at",
 		"setrlimit.target.egid",
 		"setrlimit.target.egroup",
@@ -31912,7 +37960,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.file.mount_visible",
 		"setrlimit.target.file.name",
 		"setrlimit.target.file.name.length",
+		"setrlimit.target.file.package.epoch",
 		"setrlimit.target.file.package.name",
+		"setrlimit.target.file.package.release",
+		"setrlimit.target.file.package.source_epoch",
+		"setrlimit.target.file.package.source_release",
 		"setrlimit.target.file.package.source_version",
 		"setrlimit.target.file.package.version",
 		"setrlimit.target.file.path",
@@ -31941,7 +37993,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.interpreter.file.mount_visible",
 		"setrlimit.target.interpreter.file.name",
 		"setrlimit.target.interpreter.file.name.length",
+		"setrlimit.target.interpreter.file.package.epoch",
 		"setrlimit.target.interpreter.file.package.name",
+		"setrlimit.target.interpreter.file.package.release",
+		"setrlimit.target.interpreter.file.package.source_epoch",
+		"setrlimit.target.interpreter.file.package.source_release",
 		"setrlimit.target.interpreter.file.package.source_version",
 		"setrlimit.target.interpreter.file.package.version",
 		"setrlimit.target.interpreter.file.path",
@@ -31952,6 +38008,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.is_exec",
 		"setrlimit.target.is_kworker",
 		"setrlimit.target.is_thread",
+		"setrlimit.target.netns",
 		"setrlimit.target.parent.args",
 		"setrlimit.target.parent.args_flags",
 		"setrlimit.target.parent.args_options",
@@ -31968,7 +38025,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.cgroup.id",
 		"setrlimit.target.parent.cgroup.version",
 		"setrlimit.target.parent.comm",
+		"setrlimit.target.parent.container.created_at",
 		"setrlimit.target.parent.container.id",
+		"setrlimit.target.parent.container.tags",
 		"setrlimit.target.parent.created_at",
 		"setrlimit.target.parent.egid",
 		"setrlimit.target.parent.egroup",
@@ -31992,7 +38051,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.file.mount_visible",
 		"setrlimit.target.parent.file.name",
 		"setrlimit.target.parent.file.name.length",
+		"setrlimit.target.parent.file.package.epoch",
 		"setrlimit.target.parent.file.package.name",
+		"setrlimit.target.parent.file.package.release",
+		"setrlimit.target.parent.file.package.source_epoch",
+		"setrlimit.target.parent.file.package.source_release",
 		"setrlimit.target.parent.file.package.source_version",
 		"setrlimit.target.parent.file.package.version",
 		"setrlimit.target.parent.file.path",
@@ -32021,7 +38084,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.interpreter.file.mount_visible",
 		"setrlimit.target.parent.interpreter.file.name",
 		"setrlimit.target.parent.interpreter.file.name.length",
+		"setrlimit.target.parent.interpreter.file.package.epoch",
 		"setrlimit.target.parent.interpreter.file.package.name",
+		"setrlimit.target.parent.interpreter.file.package.release",
+		"setrlimit.target.parent.interpreter.file.package.source_epoch",
+		"setrlimit.target.parent.interpreter.file.package.source_release",
 		"setrlimit.target.parent.interpreter.file.package.source_version",
 		"setrlimit.target.parent.interpreter.file.package.version",
 		"setrlimit.target.parent.interpreter.file.path",
@@ -32032,24 +38099,43 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.is_exec",
 		"setrlimit.target.parent.is_kworker",
 		"setrlimit.target.parent.is_thread",
+		"setrlimit.target.parent.netns",
 		"setrlimit.target.parent.pid",
 		"setrlimit.target.parent.ppid",
 		"setrlimit.target.parent.tid",
 		"setrlimit.target.parent.tty_name",
 		"setrlimit.target.parent.uid",
 		"setrlimit.target.parent.user",
+		"setrlimit.target.parent.user_session.id",
+		"setrlimit.target.parent.user_session.identity",
 		"setrlimit.target.parent.user_session.k8s_groups",
+		"setrlimit.target.parent.user_session.k8s_session_id",
 		"setrlimit.target.parent.user_session.k8s_uid",
 		"setrlimit.target.parent.user_session.k8s_username",
+		"setrlimit.target.parent.user_session.session_type",
+		"setrlimit.target.parent.user_session.ssh_auth_method",
+		"setrlimit.target.parent.user_session.ssh_client_ip",
+		"setrlimit.target.parent.user_session.ssh_client_port",
+		"setrlimit.target.parent.user_session.ssh_public_key",
+		"setrlimit.target.parent.user_session.ssh_session_id",
 		"setrlimit.target.pid",
 		"setrlimit.target.ppid",
 		"setrlimit.target.tid",
 		"setrlimit.target.tty_name",
 		"setrlimit.target.uid",
 		"setrlimit.target.user",
+		"setrlimit.target.user_session.id",
+		"setrlimit.target.user_session.identity",
 		"setrlimit.target.user_session.k8s_groups",
+		"setrlimit.target.user_session.k8s_session_id",
 		"setrlimit.target.user_session.k8s_uid",
 		"setrlimit.target.user_session.k8s_username",
+		"setrlimit.target.user_session.session_type",
+		"setrlimit.target.user_session.ssh_auth_method",
+		"setrlimit.target.user_session.ssh_client_ip",
+		"setrlimit.target.user_session.ssh_client_port",
+		"setrlimit.target.user_session.ssh_public_key",
+		"setrlimit.target.user_session.ssh_session_id",
 		"setsockopt.filter_hash",
 		"setsockopt.filter_instructions",
 		"setsockopt.filter_len",
@@ -32084,7 +38170,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"setxattr.file.mount_visible",
 		"setxattr.file.name",
 		"setxattr.file.name.length",
+		"setxattr.file.package.epoch",
 		"setxattr.file.package.name",
+		"setxattr.file.package.release",
+		"setxattr.file.package.source_epoch",
+		"setxattr.file.package.source_release",
 		"setxattr.file.package.source_version",
 		"setxattr.file.package.version",
 		"setxattr.file.path",
@@ -32111,7 +38201,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.cgroup.id",
 		"signal.target.ancestors.cgroup.version",
 		"signal.target.ancestors.comm",
+		"signal.target.ancestors.container.created_at",
 		"signal.target.ancestors.container.id",
+		"signal.target.ancestors.container.tags",
 		"signal.target.ancestors.created_at",
 		"signal.target.ancestors.egid",
 		"signal.target.ancestors.egroup",
@@ -32135,7 +38227,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.file.mount_visible",
 		"signal.target.ancestors.file.name",
 		"signal.target.ancestors.file.name.length",
+		"signal.target.ancestors.file.package.epoch",
 		"signal.target.ancestors.file.package.name",
+		"signal.target.ancestors.file.package.release",
+		"signal.target.ancestors.file.package.source_epoch",
+		"signal.target.ancestors.file.package.source_release",
 		"signal.target.ancestors.file.package.source_version",
 		"signal.target.ancestors.file.package.version",
 		"signal.target.ancestors.file.path",
@@ -32164,7 +38260,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.interpreter.file.mount_visible",
 		"signal.target.ancestors.interpreter.file.name",
 		"signal.target.ancestors.interpreter.file.name.length",
+		"signal.target.ancestors.interpreter.file.package.epoch",
 		"signal.target.ancestors.interpreter.file.package.name",
+		"signal.target.ancestors.interpreter.file.package.release",
+		"signal.target.ancestors.interpreter.file.package.source_epoch",
+		"signal.target.ancestors.interpreter.file.package.source_release",
 		"signal.target.ancestors.interpreter.file.package.source_version",
 		"signal.target.ancestors.interpreter.file.package.version",
 		"signal.target.ancestors.interpreter.file.path",
@@ -32176,15 +38276,25 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.length",
+		"signal.target.ancestors.netns",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
 		"signal.target.ancestors.tid",
 		"signal.target.ancestors.tty_name",
 		"signal.target.ancestors.uid",
 		"signal.target.ancestors.user",
+		"signal.target.ancestors.user_session.id",
+		"signal.target.ancestors.user_session.identity",
 		"signal.target.ancestors.user_session.k8s_groups",
+		"signal.target.ancestors.user_session.k8s_session_id",
 		"signal.target.ancestors.user_session.k8s_uid",
 		"signal.target.ancestors.user_session.k8s_username",
+		"signal.target.ancestors.user_session.session_type",
+		"signal.target.ancestors.user_session.ssh_auth_method",
+		"signal.target.ancestors.user_session.ssh_client_ip",
+		"signal.target.ancestors.user_session.ssh_client_port",
+		"signal.target.ancestors.user_session.ssh_public_key",
+		"signal.target.ancestors.user_session.ssh_session_id",
 		"signal.target.args",
 		"signal.target.args_flags",
 		"signal.target.args_options",
@@ -32201,7 +38311,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.cgroup.id",
 		"signal.target.cgroup.version",
 		"signal.target.comm",
+		"signal.target.container.created_at",
 		"signal.target.container.id",
+		"signal.target.container.tags",
 		"signal.target.created_at",
 		"signal.target.egid",
 		"signal.target.egroup",
@@ -32225,7 +38337,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.file.mount_visible",
 		"signal.target.file.name",
 		"signal.target.file.name.length",
+		"signal.target.file.package.epoch",
 		"signal.target.file.package.name",
+		"signal.target.file.package.release",
+		"signal.target.file.package.source_epoch",
+		"signal.target.file.package.source_release",
 		"signal.target.file.package.source_version",
 		"signal.target.file.package.version",
 		"signal.target.file.path",
@@ -32254,7 +38370,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.interpreter.file.mount_visible",
 		"signal.target.interpreter.file.name",
 		"signal.target.interpreter.file.name.length",
+		"signal.target.interpreter.file.package.epoch",
 		"signal.target.interpreter.file.package.name",
+		"signal.target.interpreter.file.package.release",
+		"signal.target.interpreter.file.package.source_epoch",
+		"signal.target.interpreter.file.package.source_release",
 		"signal.target.interpreter.file.package.source_version",
 		"signal.target.interpreter.file.package.version",
 		"signal.target.interpreter.file.path",
@@ -32265,6 +38385,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.is_exec",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
+		"signal.target.netns",
 		"signal.target.parent.args",
 		"signal.target.parent.args_flags",
 		"signal.target.parent.args_options",
@@ -32281,7 +38402,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.cgroup.id",
 		"signal.target.parent.cgroup.version",
 		"signal.target.parent.comm",
+		"signal.target.parent.container.created_at",
 		"signal.target.parent.container.id",
+		"signal.target.parent.container.tags",
 		"signal.target.parent.created_at",
 		"signal.target.parent.egid",
 		"signal.target.parent.egroup",
@@ -32305,7 +38428,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.file.mount_visible",
 		"signal.target.parent.file.name",
 		"signal.target.parent.file.name.length",
+		"signal.target.parent.file.package.epoch",
 		"signal.target.parent.file.package.name",
+		"signal.target.parent.file.package.release",
+		"signal.target.parent.file.package.source_epoch",
+		"signal.target.parent.file.package.source_release",
 		"signal.target.parent.file.package.source_version",
 		"signal.target.parent.file.package.version",
 		"signal.target.parent.file.path",
@@ -32334,7 +38461,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.interpreter.file.mount_visible",
 		"signal.target.parent.interpreter.file.name",
 		"signal.target.parent.interpreter.file.name.length",
+		"signal.target.parent.interpreter.file.package.epoch",
 		"signal.target.parent.interpreter.file.package.name",
+		"signal.target.parent.interpreter.file.package.release",
+		"signal.target.parent.interpreter.file.package.source_epoch",
+		"signal.target.parent.interpreter.file.package.source_release",
 		"signal.target.parent.interpreter.file.package.source_version",
 		"signal.target.parent.interpreter.file.package.version",
 		"signal.target.parent.interpreter.file.path",
@@ -32345,24 +38476,43 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.is_exec",
 		"signal.target.parent.is_kworker",
 		"signal.target.parent.is_thread",
+		"signal.target.parent.netns",
 		"signal.target.parent.pid",
 		"signal.target.parent.ppid",
 		"signal.target.parent.tid",
 		"signal.target.parent.tty_name",
 		"signal.target.parent.uid",
 		"signal.target.parent.user",
+		"signal.target.parent.user_session.id",
+		"signal.target.parent.user_session.identity",
 		"signal.target.parent.user_session.k8s_groups",
+		"signal.target.parent.user_session.k8s_session_id",
 		"signal.target.parent.user_session.k8s_uid",
 		"signal.target.parent.user_session.k8s_username",
+		"signal.target.parent.user_session.session_type",
+		"signal.target.parent.user_session.ssh_auth_method",
+		"signal.target.parent.user_session.ssh_client_ip",
+		"signal.target.parent.user_session.ssh_client_port",
+		"signal.target.parent.user_session.ssh_public_key",
+		"signal.target.parent.user_session.ssh_session_id",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
 		"signal.target.tty_name",
 		"signal.target.uid",
 		"signal.target.user",
+		"signal.target.user_session.id",
+		"signal.target.user_session.identity",
 		"signal.target.user_session.k8s_groups",
+		"signal.target.user_session.k8s_session_id",
 		"signal.target.user_session.k8s_uid",
 		"signal.target.user_session.k8s_username",
+		"signal.target.user_session.session_type",
+		"signal.target.user_session.ssh_auth_method",
+		"signal.target.user_session.ssh_client_ip",
+		"signal.target.user_session.ssh_client_port",
+		"signal.target.user_session.ssh_public_key",
+		"signal.target.user_session.ssh_session_id",
 		"signal.type",
 		"splice.file.change_time",
 		"splice.file.extension",
@@ -32379,7 +38529,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"splice.file.mount_visible",
 		"splice.file.name",
 		"splice.file.name.length",
+		"splice.file.package.epoch",
 		"splice.file.package.name",
+		"splice.file.package.release",
+		"splice.file.package.source_epoch",
+		"splice.file.package.source_release",
 		"splice.file.package.source_version",
 		"splice.file.package.version",
 		"splice.file.path",
@@ -32413,7 +38567,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"unlink.file.mount_visible",
 		"unlink.file.name",
 		"unlink.file.name.length",
+		"unlink.file.package.epoch",
 		"unlink.file.package.name",
+		"unlink.file.package.release",
+		"unlink.file.package.source_epoch",
+		"unlink.file.package.source_release",
 		"unlink.file.package.source_version",
 		"unlink.file.package.version",
 		"unlink.file.path",
@@ -32443,7 +38601,11 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.file.mount_visible",
 		"utimes.file.name",
 		"utimes.file.name.length",
+		"utimes.file.package.epoch",
 		"utimes.file.package.name",
+		"utimes.file.package.release",
+		"utimes.file.package.source_epoch",
+		"utimes.file.package.source_release",
 		"utimes.file.package.source_version",
 		"utimes.file.package.version",
 		"utimes.file.path",
@@ -32454,3845 +38616,4561 @@ func (ev *Event) GetFields() []eval.Field {
 		"utimes.retval",
 		"utimes.syscall.path",
 	}
+	// Add legacy field names if mapping is available
+	legacyKeys := GetDefaultLegacyFieldsKeys()
+	if legacyKeys != nil {
+		fields = append(fields, legacyKeys...)
+	}
+	return fields
 }
-func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, error) {
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
+func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
+	originalField := field
+	// handle legacy field mapping
+	if newField, found := GetDefaultLegacyFields(field); found {
+		field = newField
+	}
 	switch field {
 	case "accept.addr.family":
-		return "accept", reflect.Int, "int", nil
+		return "accept", reflect.Int, "int", false, nil
 	case "accept.addr.hostname":
-		return "accept", reflect.String, "string", nil
+		return "accept", reflect.String, "string", true, nil
 	case "accept.addr.ip":
-		return "accept", reflect.Struct, "net.IPNet", nil
+		return "accept", reflect.Struct, "net.IPNet", false, nil
 	case "accept.addr.is_public":
-		return "accept", reflect.Bool, "bool", nil
+		return "accept", reflect.Bool, "bool", false, nil
 	case "accept.addr.port":
-		return "accept", reflect.Int, "int", nil
+		return "accept", reflect.Int, "int", false, nil
 	case "accept.retval":
-		return "accept", reflect.Int, "int", nil
+		return "accept", reflect.Int, "int", false, nil
 	case "bind.addr.family":
-		return "bind", reflect.Int, "int", nil
+		return "bind", reflect.Int, "int", false, nil
 	case "bind.addr.ip":
-		return "bind", reflect.Struct, "net.IPNet", nil
+		return "bind", reflect.Struct, "net.IPNet", false, nil
 	case "bind.addr.is_public":
-		return "bind", reflect.Bool, "bool", nil
+		return "bind", reflect.Bool, "bool", false, nil
 	case "bind.addr.port":
-		return "bind", reflect.Int, "int", nil
+		return "bind", reflect.Int, "int", false, nil
 	case "bind.protocol":
-		return "bind", reflect.Int, "int", nil
+		return "bind", reflect.Int, "int", false, nil
 	case "bind.retval":
-		return "bind", reflect.Int, "int", nil
+		return "bind", reflect.Int, "int", false, nil
 	case "bpf.cmd":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", false, nil
 	case "bpf.map.name":
-		return "bpf", reflect.String, "string", nil
+		return "bpf", reflect.String, "string", false, nil
 	case "bpf.map.type":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", false, nil
 	case "bpf.prog.attach_type":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", false, nil
 	case "bpf.prog.helpers":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", true, nil
 	case "bpf.prog.name":
-		return "bpf", reflect.String, "string", nil
+		return "bpf", reflect.String, "string", false, nil
 	case "bpf.prog.tag":
-		return "bpf", reflect.String, "string", nil
+		return "bpf", reflect.String, "string", false, nil
 	case "bpf.prog.type":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", false, nil
 	case "bpf.retval":
-		return "bpf", reflect.Int, "int", nil
+		return "bpf", reflect.Int, "int", false, nil
 	case "capabilities.attempted":
-		return "capabilities", reflect.Int, "int", nil
+		return "capabilities", reflect.Int, "int", false, nil
 	case "capabilities.used":
-		return "capabilities", reflect.Int, "int", nil
+		return "capabilities", reflect.Int, "int", false, nil
 	case "capset.cap_effective":
-		return "capset", reflect.Int, "int", nil
+		return "capset", reflect.Int, "int", false, nil
 	case "capset.cap_permitted":
-		return "capset", reflect.Int, "int", nil
-	case "cgroup.file.inode":
-		return "", reflect.Int, "int", nil
-	case "cgroup.file.mount_id":
-		return "", reflect.Int, "int", nil
-	case "cgroup.id":
-		return "", reflect.String, "string", nil
-	case "cgroup.version":
-		return "", reflect.Int, "int", nil
+		return "capset", reflect.Int, "int", false, nil
 	case "cgroup_write.file.change_time":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.extension":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.filesystem":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.gid":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.group":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.hashes":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", true, nil
 	case "cgroup_write.file.in_upper_layer":
-		return "cgroup_write", reflect.Bool, "bool", nil
+		return "cgroup_write", reflect.Bool, "bool", false, nil
 	case "cgroup_write.file.inode":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.mode":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.modification_time":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.mount_detached":
-		return "cgroup_write", reflect.Bool, "bool", nil
+		return "cgroup_write", reflect.Bool, "bool", false, nil
 	case "cgroup_write.file.mount_id":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.mount_visible":
-		return "cgroup_write", reflect.Bool, "bool", nil
+		return "cgroup_write", reflect.Bool, "bool", false, nil
 	case "cgroup_write.file.name":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.name.length":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
+	case "cgroup_write.file.package.epoch":
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.package.name":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
+	case "cgroup_write.file.package.release":
+		return "cgroup_write", reflect.String, "string", false, nil
+	case "cgroup_write.file.package.source_epoch":
+		return "cgroup_write", reflect.Int, "int", false, nil
+	case "cgroup_write.file.package.source_release":
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.package.source_version":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.package.version":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.path":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.file.path.length":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.rights":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.uid":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "cgroup_write.file.user":
-		return "cgroup_write", reflect.String, "string", nil
+		return "cgroup_write", reflect.String, "string", false, nil
 	case "cgroup_write.pid":
-		return "cgroup_write", reflect.Int, "int", nil
+		return "cgroup_write", reflect.Int, "int", false, nil
 	case "chdir.file.change_time":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.extension":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.filesystem":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.gid":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.group":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.hashes":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", true, nil
 	case "chdir.file.in_upper_layer":
-		return "chdir", reflect.Bool, "bool", nil
+		return "chdir", reflect.Bool, "bool", false, nil
 	case "chdir.file.inode":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.mode":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.modification_time":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.mount_detached":
-		return "chdir", reflect.Bool, "bool", nil
+		return "chdir", reflect.Bool, "bool", false, nil
 	case "chdir.file.mount_id":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.mount_visible":
-		return "chdir", reflect.Bool, "bool", nil
+		return "chdir", reflect.Bool, "bool", false, nil
 	case "chdir.file.name":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.name.length":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
+	case "chdir.file.package.epoch":
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.package.name":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
+	case "chdir.file.package.release":
+		return "chdir", reflect.String, "string", false, nil
+	case "chdir.file.package.source_epoch":
+		return "chdir", reflect.Int, "int", false, nil
+	case "chdir.file.package.source_release":
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.package.source_version":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.package.version":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.path":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.file.path.length":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.rights":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.uid":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.file.user":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chdir.retval":
-		return "chdir", reflect.Int, "int", nil
+		return "chdir", reflect.Int, "int", false, nil
 	case "chdir.syscall.path":
-		return "chdir", reflect.String, "string", nil
+		return "chdir", reflect.String, "string", false, nil
 	case "chmod.file.change_time":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.destination.mode":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.destination.rights":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.extension":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.filesystem":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.gid":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.group":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.hashes":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", true, nil
 	case "chmod.file.in_upper_layer":
-		return "chmod", reflect.Bool, "bool", nil
+		return "chmod", reflect.Bool, "bool", false, nil
 	case "chmod.file.inode":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.mode":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.modification_time":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.mount_detached":
-		return "chmod", reflect.Bool, "bool", nil
+		return "chmod", reflect.Bool, "bool", false, nil
 	case "chmod.file.mount_id":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.mount_visible":
-		return "chmod", reflect.Bool, "bool", nil
+		return "chmod", reflect.Bool, "bool", false, nil
 	case "chmod.file.name":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.name.length":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
+	case "chmod.file.package.epoch":
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.package.name":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
+	case "chmod.file.package.release":
+		return "chmod", reflect.String, "string", false, nil
+	case "chmod.file.package.source_epoch":
+		return "chmod", reflect.Int, "int", false, nil
+	case "chmod.file.package.source_release":
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.package.source_version":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.package.version":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.path":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.file.path.length":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.rights":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.uid":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.file.user":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chmod.retval":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.syscall.mode":
-		return "chmod", reflect.Int, "int", nil
+		return "chmod", reflect.Int, "int", false, nil
 	case "chmod.syscall.path":
-		return "chmod", reflect.String, "string", nil
+		return "chmod", reflect.String, "string", false, nil
 	case "chown.file.change_time":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.destination.gid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.destination.group":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.destination.uid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.destination.user":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.extension":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.filesystem":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.gid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.group":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.hashes":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", true, nil
 	case "chown.file.in_upper_layer":
-		return "chown", reflect.Bool, "bool", nil
+		return "chown", reflect.Bool, "bool", false, nil
 	case "chown.file.inode":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.mode":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.modification_time":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.mount_detached":
-		return "chown", reflect.Bool, "bool", nil
+		return "chown", reflect.Bool, "bool", false, nil
 	case "chown.file.mount_id":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.mount_visible":
-		return "chown", reflect.Bool, "bool", nil
+		return "chown", reflect.Bool, "bool", false, nil
 	case "chown.file.name":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.name.length":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
+	case "chown.file.package.epoch":
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.package.name":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
+	case "chown.file.package.release":
+		return "chown", reflect.String, "string", false, nil
+	case "chown.file.package.source_epoch":
+		return "chown", reflect.Int, "int", false, nil
+	case "chown.file.package.source_release":
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.package.source_version":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.package.version":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.path":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.file.path.length":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.rights":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.uid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.file.user":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.retval":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.syscall.gid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "chown.syscall.path":
-		return "chown", reflect.String, "string", nil
+		return "chown", reflect.String, "string", false, nil
 	case "chown.syscall.uid":
-		return "chown", reflect.Int, "int", nil
+		return "chown", reflect.Int, "int", false, nil
 	case "connect.addr.family":
-		return "connect", reflect.Int, "int", nil
+		return "connect", reflect.Int, "int", false, nil
 	case "connect.addr.hostname":
-		return "connect", reflect.String, "string", nil
+		return "connect", reflect.String, "string", true, nil
 	case "connect.addr.ip":
-		return "connect", reflect.Struct, "net.IPNet", nil
+		return "connect", reflect.Struct, "net.IPNet", false, nil
 	case "connect.addr.is_public":
-		return "connect", reflect.Bool, "bool", nil
+		return "connect", reflect.Bool, "bool", false, nil
 	case "connect.addr.port":
-		return "connect", reflect.Int, "int", nil
+		return "connect", reflect.Int, "int", false, nil
 	case "connect.protocol":
-		return "connect", reflect.Int, "int", nil
+		return "connect", reflect.Int, "int", false, nil
 	case "connect.retval":
-		return "connect", reflect.Int, "int", nil
-	case "container.created_at":
-		return "", reflect.Int, "int", nil
-	case "container.id":
-		return "", reflect.String, "string", nil
-	case "container.tags":
-		return "", reflect.String, "string", nil
+		return "connect", reflect.Int, "int", false, nil
 	case "dns.id":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.question.class":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.question.count":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.question.length":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.question.name":
-		return "dns", reflect.String, "string", nil
+		return "dns", reflect.String, "string", false, nil
 	case "dns.question.name.length":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.question.type":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "dns.response.code":
-		return "dns", reflect.Int, "int", nil
+		return "dns", reflect.Int, "int", false, nil
 	case "event.async":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "event.hostname":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.origin":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.os":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.rule.tags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "event.service":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "event.signature":
+		return "", reflect.String, "string", false, nil
 	case "event.source":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "event.timestamp":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "exec.args":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.args_flags":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.args_options":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.args_truncated":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.argv":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.argv0":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.auid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.cap_effective":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.cap_permitted":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.caps_attempted":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.caps_used":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.cgroup.file.inode":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.cgroup.file.mount_id":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.cgroup.id":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.cgroup.version":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.comm":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.created_at":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.container.id":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.container.tags":
+		return "exec", reflect.String, "string", true, nil
 	case "exec.created_at":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.egid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.egroup":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.envp":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.envs":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.envs_truncated":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.euid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.euser":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.change_time":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.extension":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.filesystem":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.gid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.group":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.hashes":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.file.in_upper_layer":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.inode":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.metadata.abi":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.metadata.architecture":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.metadata.compression":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.metadata.is_executable":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.metadata.is_garble_obfuscated":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.metadata.is_upx_packed":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.metadata.size":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.metadata.type":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.mode":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.modification_time":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.mount_detached":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.mount_id":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.mount_visible":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.file.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.name.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.file.package.epoch":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.package.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.file.package.release":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.file.package.source_epoch":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.file.package.source_release":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.package.source_version":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.package.version":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.path":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.file.path.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.rights":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.uid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.user":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.fsgid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.fsgroup":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.fsuid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.fsuser":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.gid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.group":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.change_time":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.extension":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.filesystem":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.gid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.group":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.hashes":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
 	case "exec.interpreter.file.in_upper_layer":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.interpreter.file.inode":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.mode":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.modification_time":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.mount_detached":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.interpreter.file.mount_id":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.mount_visible":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.interpreter.file.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.name.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.interpreter.file.package.epoch":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.package.name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.interpreter.file.package.release":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.interpreter.file.package.source_epoch":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.interpreter.file.package.source_release":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.package.source_version":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.package.version":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.path":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.interpreter.file.path.length":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.rights":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.uid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.interpreter.file.user":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.is_exec":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_kworker":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_thread":
-		return "exec", reflect.Bool, "bool", nil
+		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.netns":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.pid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.ppid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.syscall.path":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.tid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.tty_name":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.uid":
-		return "exec", reflect.Int, "int", nil
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.user":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.user_session.id":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.user_session.identity":
+		return "exec", reflect.String, "string", false, nil
 	case "exec.user_session.k8s_groups":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", true, nil
+	case "exec.user_session.k8s_session_id":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.user_session.k8s_uid":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
 	case "exec.user_session.k8s_username":
-		return "exec", reflect.String, "string", nil
+		return "exec", reflect.String, "string", false, nil
+	case "exec.user_session.session_type":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.user_session.ssh_auth_method":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.user_session.ssh_client_ip":
+		return "exec", reflect.Struct, "net.IPNet", false, nil
+	case "exec.user_session.ssh_client_port":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.user_session.ssh_public_key":
+		return "exec", reflect.String, "string", false, nil
+	case "exec.user_session.ssh_session_id":
+		return "exec", reflect.Int, "int", false, nil
 	case "exit.args":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.args_flags":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.args_options":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.args_truncated":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.argv":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.argv0":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.auid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cap_effective":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cap_permitted":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.caps_attempted":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.caps_used":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cause":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cgroup.file.inode":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cgroup.file.mount_id":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.cgroup.id":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.cgroup.version":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.code":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.comm":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.container.created_at":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.container.id":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.container.tags":
+		return "exit", reflect.String, "string", true, nil
 	case "exit.created_at":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.egid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.egroup":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.envp":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.envs":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.envs_truncated":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.euid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.euser":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.change_time":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.extension":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.filesystem":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.gid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.group":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.hashes":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.file.in_upper_layer":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.file.inode":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.mode":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.modification_time":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.mount_detached":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.file.mount_id":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.mount_visible":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.file.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.name.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.file.package.epoch":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.package.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.file.package.release":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.file.package.source_epoch":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.file.package.source_release":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.package.source_version":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.package.version":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.path":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.file.path.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.rights":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.uid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.user":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.fsgid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.fsgroup":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.fsuid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.fsuser":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.gid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.group":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.change_time":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.extension":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.filesystem":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.gid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.group":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.hashes":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
 	case "exit.interpreter.file.in_upper_layer":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.interpreter.file.inode":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.mode":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.modification_time":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.mount_detached":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.interpreter.file.mount_id":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.mount_visible":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.interpreter.file.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.name.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.interpreter.file.package.epoch":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.package.name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.interpreter.file.package.release":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.interpreter.file.package.source_epoch":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.interpreter.file.package.source_release":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.package.source_version":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.package.version":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.path":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.interpreter.file.path.length":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.rights":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.uid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.interpreter.file.user":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.is_exec":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_kworker":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_thread":
-		return "exit", reflect.Bool, "bool", nil
+		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.netns":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.pid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.ppid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.tid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.tty_name":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.uid":
-		return "exit", reflect.Int, "int", nil
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.user":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.user_session.id":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.user_session.identity":
+		return "exit", reflect.String, "string", false, nil
 	case "exit.user_session.k8s_groups":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", true, nil
+	case "exit.user_session.k8s_session_id":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.user_session.k8s_uid":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
 	case "exit.user_session.k8s_username":
-		return "exit", reflect.String, "string", nil
+		return "exit", reflect.String, "string", false, nil
+	case "exit.user_session.session_type":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.user_session.ssh_auth_method":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.user_session.ssh_client_ip":
+		return "exit", reflect.Struct, "net.IPNet", false, nil
+	case "exit.user_session.ssh_client_port":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.user_session.ssh_public_key":
+		return "exit", reflect.String, "string", false, nil
+	case "exit.user_session.ssh_session_id":
+		return "exit", reflect.Int, "int", false, nil
 	case "imds.aws.is_imds_v2":
-		return "imds", reflect.Bool, "bool", nil
+		return "imds", reflect.Bool, "bool", false, nil
 	case "imds.aws.security_credentials.type":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.cloud_provider":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.host":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.server":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.type":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.url":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "imds.user_agent":
-		return "imds", reflect.String, "string", nil
+		return "imds", reflect.String, "string", false, nil
 	case "link.file.change_time":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.change_time":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.extension":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.filesystem":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.gid":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.group":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.hashes":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", true, nil
 	case "link.file.destination.in_upper_layer":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.destination.inode":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.mode":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.modification_time":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.mount_detached":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.destination.mount_id":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.mount_visible":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.destination.name":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.name.length":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
+	case "link.file.destination.package.epoch":
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.package.name":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
+	case "link.file.destination.package.release":
+		return "link", reflect.String, "string", false, nil
+	case "link.file.destination.package.source_epoch":
+		return "link", reflect.Int, "int", false, nil
+	case "link.file.destination.package.source_release":
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.package.source_version":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.package.version":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.path":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.destination.path.length":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.rights":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.uid":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.destination.user":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.extension":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.filesystem":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.gid":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.group":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.hashes":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", true, nil
 	case "link.file.in_upper_layer":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.inode":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.mode":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.modification_time":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.mount_detached":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.mount_id":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.mount_visible":
-		return "link", reflect.Bool, "bool", nil
+		return "link", reflect.Bool, "bool", false, nil
 	case "link.file.name":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.name.length":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
+	case "link.file.package.epoch":
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.package.name":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
+	case "link.file.package.release":
+		return "link", reflect.String, "string", false, nil
+	case "link.file.package.source_epoch":
+		return "link", reflect.Int, "int", false, nil
+	case "link.file.package.source_release":
+		return "link", reflect.String, "string", false, nil
 	case "link.file.package.source_version":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.package.version":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.path":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.file.path.length":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.rights":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.uid":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.file.user":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.retval":
-		return "link", reflect.Int, "int", nil
+		return "link", reflect.Int, "int", false, nil
 	case "link.syscall.destination.path":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "link.syscall.path":
-		return "link", reflect.String, "string", nil
+		return "link", reflect.String, "string", false, nil
 	case "load_module.args":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.args_truncated":
-		return "load_module", reflect.Bool, "bool", nil
+		return "load_module", reflect.Bool, "bool", false, nil
 	case "load_module.argv":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", true, nil
 	case "load_module.file.change_time":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.extension":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.filesystem":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.gid":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.group":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.hashes":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", true, nil
 	case "load_module.file.in_upper_layer":
-		return "load_module", reflect.Bool, "bool", nil
+		return "load_module", reflect.Bool, "bool", false, nil
 	case "load_module.file.inode":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.mode":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.modification_time":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.mount_detached":
-		return "load_module", reflect.Bool, "bool", nil
+		return "load_module", reflect.Bool, "bool", false, nil
 	case "load_module.file.mount_id":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.mount_visible":
-		return "load_module", reflect.Bool, "bool", nil
+		return "load_module", reflect.Bool, "bool", false, nil
 	case "load_module.file.name":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.name.length":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
+	case "load_module.file.package.epoch":
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.package.name":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
+	case "load_module.file.package.release":
+		return "load_module", reflect.String, "string", false, nil
+	case "load_module.file.package.source_epoch":
+		return "load_module", reflect.Int, "int", false, nil
+	case "load_module.file.package.source_release":
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.package.source_version":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.package.version":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.path":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.file.path.length":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.rights":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.uid":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "load_module.file.user":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.loaded_from_memory":
-		return "load_module", reflect.Bool, "bool", nil
+		return "load_module", reflect.Bool, "bool", false, nil
 	case "load_module.name":
-		return "load_module", reflect.String, "string", nil
+		return "load_module", reflect.String, "string", false, nil
 	case "load_module.retval":
-		return "load_module", reflect.Int, "int", nil
+		return "load_module", reflect.Int, "int", false, nil
 	case "mkdir.file.change_time":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.destination.mode":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.destination.rights":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.extension":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.filesystem":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.gid":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.group":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.hashes":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", true, nil
 	case "mkdir.file.in_upper_layer":
-		return "mkdir", reflect.Bool, "bool", nil
+		return "mkdir", reflect.Bool, "bool", false, nil
 	case "mkdir.file.inode":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.mode":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.modification_time":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.mount_detached":
-		return "mkdir", reflect.Bool, "bool", nil
+		return "mkdir", reflect.Bool, "bool", false, nil
 	case "mkdir.file.mount_id":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.mount_visible":
-		return "mkdir", reflect.Bool, "bool", nil
+		return "mkdir", reflect.Bool, "bool", false, nil
 	case "mkdir.file.name":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.name.length":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
+	case "mkdir.file.package.epoch":
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.package.name":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
+	case "mkdir.file.package.release":
+		return "mkdir", reflect.String, "string", false, nil
+	case "mkdir.file.package.source_epoch":
+		return "mkdir", reflect.Int, "int", false, nil
+	case "mkdir.file.package.source_release":
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.package.source_version":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.package.version":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.path":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.file.path.length":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.rights":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.uid":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.file.user":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mkdir.retval":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.syscall.mode":
-		return "mkdir", reflect.Int, "int", nil
+		return "mkdir", reflect.Int, "int", false, nil
 	case "mkdir.syscall.path":
-		return "mkdir", reflect.String, "string", nil
+		return "mkdir", reflect.String, "string", false, nil
 	case "mmap.file.change_time":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.extension":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.filesystem":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.gid":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.group":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.hashes":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", true, nil
 	case "mmap.file.in_upper_layer":
-		return "mmap", reflect.Bool, "bool", nil
+		return "mmap", reflect.Bool, "bool", false, nil
 	case "mmap.file.inode":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.mode":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.modification_time":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.mount_detached":
-		return "mmap", reflect.Bool, "bool", nil
+		return "mmap", reflect.Bool, "bool", false, nil
 	case "mmap.file.mount_id":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.mount_visible":
-		return "mmap", reflect.Bool, "bool", nil
+		return "mmap", reflect.Bool, "bool", false, nil
 	case "mmap.file.name":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.name.length":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
+	case "mmap.file.package.epoch":
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.package.name":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
+	case "mmap.file.package.release":
+		return "mmap", reflect.String, "string", false, nil
+	case "mmap.file.package.source_epoch":
+		return "mmap", reflect.Int, "int", false, nil
+	case "mmap.file.package.source_release":
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.package.source_version":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.package.version":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.path":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.file.path.length":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.rights":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.uid":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.file.user":
-		return "mmap", reflect.String, "string", nil
+		return "mmap", reflect.String, "string", false, nil
 	case "mmap.flags":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.protection":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mmap.retval":
-		return "mmap", reflect.Int, "int", nil
+		return "mmap", reflect.Int, "int", false, nil
 	case "mount.detached":
-		return "mount", reflect.Bool, "bool", nil
+		return "mount", reflect.Bool, "bool", false, nil
 	case "mount.fs_type":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.mountpoint.path":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.retval":
-		return "mount", reflect.Int, "int", nil
+		return "mount", reflect.Int, "int", false, nil
 	case "mount.root.path":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.source.path":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.syscall.fs_type":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.syscall.mountpoint.path":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.syscall.source.path":
-		return "mount", reflect.String, "string", nil
+		return "mount", reflect.String, "string", false, nil
 	case "mount.visible":
-		return "mount", reflect.Bool, "bool", nil
+		return "mount", reflect.Bool, "bool", false, nil
 	case "mprotect.req_protection":
-		return "mprotect", reflect.Int, "int", nil
+		return "mprotect", reflect.Int, "int", false, nil
 	case "mprotect.retval":
-		return "mprotect", reflect.Int, "int", nil
+		return "mprotect", reflect.Int, "int", false, nil
 	case "mprotect.vm_protection":
-		return "mprotect", reflect.Int, "int", nil
+		return "mprotect", reflect.Int, "int", false, nil
 	case "network.destination.ip":
-		return "", reflect.Struct, "net.IPNet", nil
+		return "", reflect.Struct, "net.IPNet", false, nil
 	case "network.destination.is_public":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "network.destination.port":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.device.ifname":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "network.device.netns":
+		return "", reflect.Int, "int", false, nil
 	case "network.l3_protocol":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.l4_protocol":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.network_direction":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.size":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.source.ip":
-		return "", reflect.Struct, "net.IPNet", nil
+		return "", reflect.Struct, "net.IPNet", false, nil
 	case "network.source.is_public":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "network.source.port":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network.type":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "network_flow_monitor.device.ifname":
-		return "network_flow_monitor", reflect.String, "string", nil
+		return "network_flow_monitor", reflect.String, "string", false, nil
+	case "network_flow_monitor.device.netns":
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.destination.ip":
-		return "network_flow_monitor", reflect.Struct, "net.IPNet", nil
+		return "network_flow_monitor", reflect.Struct, "net.IPNet", false, nil
 	case "network_flow_monitor.flows.destination.is_public":
-		return "network_flow_monitor", reflect.Bool, "bool", nil
+		return "network_flow_monitor", reflect.Bool, "bool", false, nil
 	case "network_flow_monitor.flows.destination.port":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.egress.data_size":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.egress.packet_count":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.ingress.data_size":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.ingress.packet_count":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.l3_protocol":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.l4_protocol":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.length":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", true, nil
 	case "network_flow_monitor.flows.source.ip":
-		return "network_flow_monitor", reflect.Struct, "net.IPNet", nil
+		return "network_flow_monitor", reflect.Struct, "net.IPNet", false, nil
 	case "network_flow_monitor.flows.source.is_public":
-		return "network_flow_monitor", reflect.Bool, "bool", nil
+		return "network_flow_monitor", reflect.Bool, "bool", false, nil
 	case "network_flow_monitor.flows.source.port":
-		return "network_flow_monitor", reflect.Int, "int", nil
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "ondemand.arg1.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg1.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.arg2.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg2.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.arg3.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg3.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.arg4.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg4.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.arg5.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg5.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.arg6.str":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "ondemand.arg6.uint":
-		return "ondemand", reflect.Int, "int", nil
+		return "ondemand", reflect.Int, "int", false, nil
 	case "ondemand.name":
-		return "ondemand", reflect.String, "string", nil
+		return "ondemand", reflect.String, "string", false, nil
 	case "open.file.change_time":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.destination.mode":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.extension":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.filesystem":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.gid":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.group":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.hashes":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", true, nil
 	case "open.file.in_upper_layer":
-		return "open", reflect.Bool, "bool", nil
+		return "open", reflect.Bool, "bool", false, nil
 	case "open.file.inode":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.mode":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.modification_time":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.mount_detached":
-		return "open", reflect.Bool, "bool", nil
+		return "open", reflect.Bool, "bool", false, nil
 	case "open.file.mount_id":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.mount_visible":
-		return "open", reflect.Bool, "bool", nil
+		return "open", reflect.Bool, "bool", false, nil
 	case "open.file.name":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.name.length":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
+	case "open.file.package.epoch":
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.package.name":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
+	case "open.file.package.release":
+		return "open", reflect.String, "string", false, nil
+	case "open.file.package.source_epoch":
+		return "open", reflect.Int, "int", false, nil
+	case "open.file.package.source_release":
+		return "open", reflect.String, "string", false, nil
 	case "open.file.package.source_version":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.package.version":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.path":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.file.path.length":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.rights":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.uid":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.file.user":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "open.flags":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.retval":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.syscall.flags":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.syscall.mode":
-		return "open", reflect.Int, "int", nil
+		return "open", reflect.Int, "int", false, nil
 	case "open.syscall.path":
-		return "open", reflect.String, "string", nil
+		return "open", reflect.String, "string", false, nil
 	case "packet.destination.ip":
-		return "packet", reflect.Struct, "net.IPNet", nil
+		return "packet", reflect.Struct, "net.IPNet", false, nil
 	case "packet.destination.is_public":
-		return "packet", reflect.Bool, "bool", nil
+		return "packet", reflect.Bool, "bool", false, nil
 	case "packet.destination.port":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.device.ifname":
-		return "packet", reflect.String, "string", nil
+		return "packet", reflect.String, "string", false, nil
+	case "packet.device.netns":
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.filter":
-		return "packet", reflect.String, "string", nil
+		return "packet", reflect.String, "string", false, nil
 	case "packet.l3_protocol":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.l4_protocol":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.network_direction":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.size":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.source.ip":
-		return "packet", reflect.Struct, "net.IPNet", nil
+		return "packet", reflect.Struct, "net.IPNet", false, nil
 	case "packet.source.is_public":
-		return "packet", reflect.Bool, "bool", nil
+		return "packet", reflect.Bool, "bool", false, nil
 	case "packet.source.port":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.tls.version":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.type":
-		return "packet", reflect.Int, "int", nil
+		return "packet", reflect.Int, "int", false, nil
 	case "prctl.is_name_truncated":
-		return "prctl", reflect.Bool, "bool", nil
+		return "prctl", reflect.Bool, "bool", false, nil
 	case "prctl.new_name":
-		return "prctl", reflect.String, "string", nil
+		return "prctl", reflect.String, "string", false, nil
 	case "prctl.option":
-		return "prctl", reflect.Int, "int", nil
+		return "prctl", reflect.Int, "int", false, nil
 	case "prctl.retval":
-		return "prctl", reflect.Int, "int", nil
+		return "prctl", reflect.Int, "int", false, nil
 	case "process.ancestors.args":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.args_flags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.args_options":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.args_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.argv":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.argv0":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.auid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cap_effective":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cap_permitted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.caps_attempted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.caps_used":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cgroup.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cgroup.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.cgroup.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.cgroup.version":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.comm":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.egid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.egroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.envs_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.euid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.euser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.fsgid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.fsgroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.fsuid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.fsuser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.interpreter.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.interpreter.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.interpreter.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.interpreter.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.interpreter.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.interpreter.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.interpreter.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.is_exec":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.is_kworker":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.is_thread":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.netns":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.tid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.tty_name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.user_session.id":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.user_session.identity":
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.user_session.k8s_groups":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
+	case "process.ancestors.user_session.k8s_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.user_session.k8s_uid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.ancestors.user_session.k8s_username":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.user_session.session_type":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.user_session.ssh_auth_method":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.user_session.ssh_client_ip":
+		return "", reflect.Struct, "net.IPNet", false, nil
+	case "process.ancestors.user_session.ssh_client_port":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.user_session.ssh_public_key":
+		return "", reflect.String, "string", false, nil
+	case "process.ancestors.user_session.ssh_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "process.args":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.args_flags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.args_options":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.args_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.argv":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.argv0":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.auid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.cap_effective":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.cap_permitted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.caps_attempted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.caps_used":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.cgroup.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.cgroup.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.cgroup.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.cgroup.version":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.comm":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.egid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.egroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.envs_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.euid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.euser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.fsgid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.fsgroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.fsuid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.fsuser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.interpreter.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.interpreter.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.interpreter.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.interpreter.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.interpreter.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.interpreter.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.interpreter.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.interpreter.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.is_exec":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.is_kworker":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.is_thread":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
+	case "process.netns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.args":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.args_flags":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.args_options":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.args_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.argv":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.argv0":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.auid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cap_effective":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cap_permitted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.caps_attempted":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.caps_used":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cgroup.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cgroup.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.cgroup.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.cgroup.version":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.comm":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.created_at":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.container.id":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.container.tags":
+		return "", reflect.String, "string", true, nil
 	case "process.parent.created_at":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.egid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.egroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.envp":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.envs":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.envs_truncated":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.euid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.euser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.fsgid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.fsgroup":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.fsuid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.fsuser":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.change_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.extension":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.filesystem":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.gid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.group":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.hashes":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
 	case "process.parent.interpreter.file.in_upper_layer":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.interpreter.file.inode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.mode":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.modification_time":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.mount_detached":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.interpreter.file.mount_id":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.mount_visible":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.interpreter.file.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.name.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.interpreter.file.package.epoch":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.package.name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.interpreter.file.package.release":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.interpreter.file.package.source_epoch":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.interpreter.file.package.source_release":
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.package.source_version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.package.version":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.path":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.interpreter.file.path.length":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.rights":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.interpreter.file.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.is_exec":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_kworker":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_thread":
-		return "", reflect.Bool, "bool", nil
+		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.netns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.tid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.tty_name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.user_session.id":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.user_session.identity":
+		return "", reflect.String, "string", false, nil
 	case "process.parent.user_session.k8s_groups":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
+	case "process.parent.user_session.k8s_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.user_session.k8s_uid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.parent.user_session.k8s_username":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.parent.user_session.session_type":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.user_session.ssh_auth_method":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.user_session.ssh_client_ip":
+		return "", reflect.Struct, "net.IPNet", false, nil
+	case "process.parent.user_session.ssh_client_port":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.user_session.ssh_public_key":
+		return "", reflect.String, "string", false, nil
+	case "process.parent.user_session.ssh_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "process.pid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.ppid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.tid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.tty_name":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.uid":
-		return "", reflect.Int, "int", nil
+		return "", reflect.Int, "int", false, nil
 	case "process.user":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.user_session.id":
+		return "", reflect.String, "string", false, nil
+	case "process.user_session.identity":
+		return "", reflect.String, "string", false, nil
 	case "process.user_session.k8s_groups":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", true, nil
+	case "process.user_session.k8s_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "process.user_session.k8s_uid":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
 	case "process.user_session.k8s_username":
-		return "", reflect.String, "string", nil
+		return "", reflect.String, "string", false, nil
+	case "process.user_session.session_type":
+		return "", reflect.Int, "int", false, nil
+	case "process.user_session.ssh_auth_method":
+		return "", reflect.Int, "int", false, nil
+	case "process.user_session.ssh_client_ip":
+		return "", reflect.Struct, "net.IPNet", false, nil
+	case "process.user_session.ssh_client_port":
+		return "", reflect.Int, "int", false, nil
+	case "process.user_session.ssh_public_key":
+		return "", reflect.String, "string", false, nil
+	case "process.user_session.ssh_session_id":
+		return "", reflect.Int, "int", false, nil
 	case "ptrace.request":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.retval":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.args":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.args_flags":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.args_options":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.args_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.argv":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.argv0":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.auid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cap_effective":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cap_permitted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.caps_attempted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.caps_used":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cgroup.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cgroup.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.cgroup.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.cgroup.version":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.comm":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.container.created_at":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.container.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.container.tags":
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.created_at":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.egid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.egroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.envp":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.envs":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.envs_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.euid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.euser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.fsgid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.fsgroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.fsuid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.fsuser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.interpreter.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.is_exec":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.is_kworker":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.is_thread":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.pid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.ppid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.tid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.tty_name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.user_session.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.user_session.identity":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_uid":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.user_session.session_type":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_auth_method":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_client_ip":
+		return "ptrace", reflect.Struct, "net.IPNet", false, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_client_port":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_public_key":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.user_session.ssh_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.args":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.args_flags":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.args_options":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.args_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.argv":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.argv0":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.auid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cap_effective":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cap_permitted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.caps_attempted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.caps_used":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cgroup.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cgroup.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.cgroup.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.cgroup.version":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.comm":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.container.created_at":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.container.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.container.tags":
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.created_at":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.egid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.egroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.envp":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.envs":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.envs_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.euid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.euser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.fsgid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.fsgroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.fsuid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.fsuser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.interpreter.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.interpreter.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.interpreter.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.interpreter.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.interpreter.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.interpreter.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.is_exec":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_kworker":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_thread":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.args":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.args_flags":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.args_options":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.args_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.argv":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.argv0":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.auid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cap_effective":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cap_permitted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.caps_attempted":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.caps_used":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cgroup.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cgroup.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.cgroup.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.cgroup.version":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.comm":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.container.created_at":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.container.id":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.container.tags":
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.created_at":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.egid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.egroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.envp":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.envs":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.envs_truncated":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.euid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.euser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.fsgid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.fsgroup":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.fsuid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.fsuser":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.change_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.extension":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.filesystem":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.gid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.group":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.hashes":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.interpreter.file.inode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.mode":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.modification_time":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_detached":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_id":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.mount_visible":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.interpreter.file.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.name.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.package.name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.package.version":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.path":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.interpreter.file.path.length":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.rights":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.interpreter.file.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.is_exec":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_kworker":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_thread":
-		return "ptrace", reflect.Bool, "bool", nil
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.pid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.ppid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.tid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.tty_name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.user_session.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.user_session.identity":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.user_session.k8s_groups":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
+	case "ptrace.tracee.parent.user_session.k8s_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.user_session.k8s_uid":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.user_session.k8s_username":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.user_session.session_type":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.user_session.ssh_auth_method":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.user_session.ssh_client_ip":
+		return "ptrace", reflect.Struct, "net.IPNet", false, nil
+	case "ptrace.tracee.parent.user_session.ssh_client_port":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.user_session.ssh_public_key":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.user_session.ssh_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.pid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ppid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.tid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.tty_name":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.uid":
-		return "ptrace", reflect.Int, "int", nil
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.user":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.user_session.id":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.user_session.identity":
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.user_session.k8s_groups":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", true, nil
+	case "ptrace.tracee.user_session.k8s_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.user_session.k8s_uid":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.user_session.k8s_username":
-		return "ptrace", reflect.String, "string", nil
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.user_session.session_type":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.user_session.ssh_auth_method":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.user_session.ssh_client_ip":
+		return "ptrace", reflect.Struct, "net.IPNet", false, nil
+	case "ptrace.tracee.user_session.ssh_client_port":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.user_session.ssh_public_key":
+		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.user_session.ssh_session_id":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "removexattr.file.change_time":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.destination.name":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.destination.namespace":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.extension":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.filesystem":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.gid":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.group":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.hashes":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", true, nil
 	case "removexattr.file.in_upper_layer":
-		return "removexattr", reflect.Bool, "bool", nil
+		return "removexattr", reflect.Bool, "bool", false, nil
 	case "removexattr.file.inode":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.mode":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.modification_time":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.mount_detached":
-		return "removexattr", reflect.Bool, "bool", nil
+		return "removexattr", reflect.Bool, "bool", false, nil
 	case "removexattr.file.mount_id":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.mount_visible":
-		return "removexattr", reflect.Bool, "bool", nil
+		return "removexattr", reflect.Bool, "bool", false, nil
 	case "removexattr.file.name":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.name.length":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
+	case "removexattr.file.package.epoch":
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.package.name":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
+	case "removexattr.file.package.release":
+		return "removexattr", reflect.String, "string", false, nil
+	case "removexattr.file.package.source_epoch":
+		return "removexattr", reflect.Int, "int", false, nil
+	case "removexattr.file.package.source_release":
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.package.source_version":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.package.version":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.path":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.file.path.length":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.rights":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.uid":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "removexattr.file.user":
-		return "removexattr", reflect.String, "string", nil
+		return "removexattr", reflect.String, "string", false, nil
 	case "removexattr.retval":
-		return "removexattr", reflect.Int, "int", nil
+		return "removexattr", reflect.Int, "int", false, nil
 	case "rename.file.change_time":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.change_time":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.filesystem":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.gid":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.group":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.hashes":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", true, nil
 	case "rename.file.destination.in_upper_layer":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.destination.inode":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.mode":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.modification_time":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.mount_detached":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.destination.mount_id":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.mount_visible":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.destination.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
+	case "rename.file.destination.package.epoch":
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.package.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
+	case "rename.file.destination.package.release":
+		return "rename", reflect.String, "string", false, nil
+	case "rename.file.destination.package.source_epoch":
+		return "rename", reflect.Int, "int", false, nil
+	case "rename.file.destination.package.source_release":
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.package.source_version":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.package.version":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.destination.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.rights":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.uid":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.destination.user":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.extension":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.filesystem":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.gid":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.group":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.hashes":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", true, nil
 	case "rename.file.in_upper_layer":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.inode":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.mode":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.modification_time":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.mount_detached":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.mount_id":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.mount_visible":
-		return "rename", reflect.Bool, "bool", nil
+		return "rename", reflect.Bool, "bool", false, nil
 	case "rename.file.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.name.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
+	case "rename.file.package.epoch":
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.package.name":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
+	case "rename.file.package.release":
+		return "rename", reflect.String, "string", false, nil
+	case "rename.file.package.source_epoch":
+		return "rename", reflect.Int, "int", false, nil
+	case "rename.file.package.source_release":
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.package.source_version":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.package.version":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.file.path.length":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.rights":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.uid":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.file.user":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.retval":
-		return "rename", reflect.Int, "int", nil
+		return "rename", reflect.Int, "int", false, nil
 	case "rename.syscall.destination.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rename.syscall.path":
-		return "rename", reflect.String, "string", nil
+		return "rename", reflect.String, "string", false, nil
 	case "rmdir.file.change_time":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.extension":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.filesystem":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.gid":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.group":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.hashes":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", true, nil
 	case "rmdir.file.in_upper_layer":
-		return "rmdir", reflect.Bool, "bool", nil
+		return "rmdir", reflect.Bool, "bool", false, nil
 	case "rmdir.file.inode":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.mode":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.modification_time":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.mount_detached":
-		return "rmdir", reflect.Bool, "bool", nil
+		return "rmdir", reflect.Bool, "bool", false, nil
 	case "rmdir.file.mount_id":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.mount_visible":
-		return "rmdir", reflect.Bool, "bool", nil
+		return "rmdir", reflect.Bool, "bool", false, nil
 	case "rmdir.file.name":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.name.length":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
+	case "rmdir.file.package.epoch":
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.package.name":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
+	case "rmdir.file.package.release":
+		return "rmdir", reflect.String, "string", false, nil
+	case "rmdir.file.package.source_epoch":
+		return "rmdir", reflect.Int, "int", false, nil
+	case "rmdir.file.package.source_release":
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.package.source_version":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.package.version":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.path":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.file.path.length":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.rights":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.uid":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.file.user":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "rmdir.retval":
-		return "rmdir", reflect.Int, "int", nil
+		return "rmdir", reflect.Int, "int", false, nil
 	case "rmdir.syscall.path":
-		return "rmdir", reflect.String, "string", nil
+		return "rmdir", reflect.String, "string", false, nil
 	case "selinux.bool.name":
-		return "selinux", reflect.String, "string", nil
+		return "selinux", reflect.String, "string", false, nil
 	case "selinux.bool.state":
-		return "selinux", reflect.String, "string", nil
+		return "selinux", reflect.String, "string", false, nil
 	case "selinux.bool_commit.state":
-		return "selinux", reflect.Bool, "bool", nil
+		return "selinux", reflect.Bool, "bool", false, nil
 	case "selinux.enforce.status":
-		return "selinux", reflect.String, "string", nil
+		return "selinux", reflect.String, "string", false, nil
 	case "setgid.egid":
-		return "setgid", reflect.Int, "int", nil
+		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.egroup":
-		return "setgid", reflect.String, "string", nil
+		return "setgid", reflect.String, "string", false, nil
 	case "setgid.fsgid":
-		return "setgid", reflect.Int, "int", nil
+		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.fsgroup":
-		return "setgid", reflect.String, "string", nil
+		return "setgid", reflect.String, "string", false, nil
 	case "setgid.gid":
-		return "setgid", reflect.Int, "int", nil
+		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.group":
-		return "setgid", reflect.String, "string", nil
+		return "setgid", reflect.String, "string", false, nil
 	case "setrlimit.resource":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.retval":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.rlim_cur":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.rlim_max":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.args":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.args_flags":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.args_options":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.args_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.argv":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.argv0":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.auid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cap_effective":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cap_permitted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.caps_attempted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.caps_used":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cgroup.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cgroup.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.cgroup.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.cgroup.version":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.comm":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.container.created_at":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.container.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.container.tags":
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.created_at":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.egid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.egroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.envp":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.envs":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.envs_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.euid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.euser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.fsgid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.fsgroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.fsuid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.fsuser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.ancestors.interpreter.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.interpreter.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.is_exec":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.is_kworker":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.is_thread":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.pid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.ppid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.tid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.tty_name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.user_session.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.user_session.identity":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.user_session.k8s_groups":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
+	case "setrlimit.target.ancestors.user_session.k8s_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.user_session.k8s_uid":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.ancestors.user_session.k8s_username":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.user_session.ssh_auth_method":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.user_session.ssh_client_ip":
+		return "setrlimit", reflect.Struct, "net.IPNet", false, nil
+	case "setrlimit.target.ancestors.user_session.ssh_client_port":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.user_session.ssh_public_key":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.user_session.ssh_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.args":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.args_flags":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.args_options":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.args_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.argv":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.argv0":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.auid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cap_effective":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cap_permitted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.caps_attempted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.caps_used":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cgroup.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cgroup.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.cgroup.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.cgroup.version":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.comm":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.container.created_at":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.container.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.container.tags":
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.created_at":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.egid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.egroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.envp":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.envs":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.envs_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.euid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.euser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.fsgid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.fsgroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.fsuid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.fsuser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.interpreter.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.interpreter.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.interpreter.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.interpreter.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.interpreter.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.interpreter.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.interpreter.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.is_exec":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_kworker":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_thread":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.args":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.args_flags":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.args_options":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.args_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.argv":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.argv0":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.auid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cap_effective":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cap_permitted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.caps_attempted":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.caps_used":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cgroup.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cgroup.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.cgroup.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.cgroup.version":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.comm":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.container.created_at":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.container.id":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.container.tags":
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.created_at":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.egid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.egroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.envp":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.envs":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.envs_truncated":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.euid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.euser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.fsgid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.fsgroup":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.fsuid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.fsuser":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.change_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.extension":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.filesystem":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.gid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.group":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.hashes":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
 	case "setrlimit.target.parent.interpreter.file.in_upper_layer":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.interpreter.file.inode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.mode":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.modification_time":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.mount_detached":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.interpreter.file.mount_id":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.mount_visible":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.interpreter.file.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.name.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.package.name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.package.source_version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.package.version":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.path":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.interpreter.file.path.length":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.rights":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.interpreter.file.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.is_exec":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_kworker":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_thread":
-		return "setrlimit", reflect.Bool, "bool", nil
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.pid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.ppid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.tid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.tty_name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.user_session.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.user_session.identity":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.user_session.k8s_groups":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
+	case "setrlimit.target.parent.user_session.k8s_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.user_session.k8s_uid":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.user_session.k8s_username":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.user_session.ssh_auth_method":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.user_session.ssh_client_ip":
+		return "setrlimit", reflect.Struct, "net.IPNet", false, nil
+	case "setrlimit.target.parent.user_session.ssh_client_port":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.user_session.ssh_public_key":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.user_session.ssh_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.pid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ppid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.tid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.tty_name":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.uid":
-		return "setrlimit", reflect.Int, "int", nil
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.user":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.user_session.id":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.user_session.identity":
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.user_session.k8s_groups":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", true, nil
+	case "setrlimit.target.user_session.k8s_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.user_session.k8s_uid":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.user_session.k8s_username":
-		return "setrlimit", reflect.String, "string", nil
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.user_session.session_type":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.user_session.ssh_auth_method":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.user_session.ssh_client_ip":
+		return "setrlimit", reflect.Struct, "net.IPNet", false, nil
+	case "setrlimit.target.user_session.ssh_client_port":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.user_session.ssh_public_key":
+		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.user_session.ssh_session_id":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setsockopt.filter_hash":
-		return "setsockopt", reflect.String, "string", nil
+		return "setsockopt", reflect.String, "string", false, nil
 	case "setsockopt.filter_instructions":
-		return "setsockopt", reflect.String, "string", nil
+		return "setsockopt", reflect.String, "string", false, nil
 	case "setsockopt.filter_len":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.is_filter_truncated":
-		return "setsockopt", reflect.Bool, "bool", nil
+		return "setsockopt", reflect.Bool, "bool", false, nil
 	case "setsockopt.level":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.optname":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.retval":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.socket_family":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.socket_protocol":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.socket_type":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", false, nil
 	case "setsockopt.used_immediates":
-		return "setsockopt", reflect.Int, "int", nil
+		return "setsockopt", reflect.Int, "int", true, nil
 	case "setuid.euid":
-		return "setuid", reflect.Int, "int", nil
+		return "setuid", reflect.Int, "int", false, nil
 	case "setuid.euser":
-		return "setuid", reflect.String, "string", nil
+		return "setuid", reflect.String, "string", false, nil
 	case "setuid.fsuid":
-		return "setuid", reflect.Int, "int", nil
+		return "setuid", reflect.Int, "int", false, nil
 	case "setuid.fsuser":
-		return "setuid", reflect.String, "string", nil
+		return "setuid", reflect.String, "string", false, nil
 	case "setuid.uid":
-		return "setuid", reflect.Int, "int", nil
+		return "setuid", reflect.Int, "int", false, nil
 	case "setuid.user":
-		return "setuid", reflect.String, "string", nil
+		return "setuid", reflect.String, "string", false, nil
 	case "setxattr.file.change_time":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.destination.name":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.destination.namespace":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.extension":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.filesystem":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.gid":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.group":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.hashes":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", true, nil
 	case "setxattr.file.in_upper_layer":
-		return "setxattr", reflect.Bool, "bool", nil
+		return "setxattr", reflect.Bool, "bool", false, nil
 	case "setxattr.file.inode":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.mode":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.modification_time":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.mount_detached":
-		return "setxattr", reflect.Bool, "bool", nil
+		return "setxattr", reflect.Bool, "bool", false, nil
 	case "setxattr.file.mount_id":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.mount_visible":
-		return "setxattr", reflect.Bool, "bool", nil
+		return "setxattr", reflect.Bool, "bool", false, nil
 	case "setxattr.file.name":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.name.length":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
+	case "setxattr.file.package.epoch":
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.package.name":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
+	case "setxattr.file.package.release":
+		return "setxattr", reflect.String, "string", false, nil
+	case "setxattr.file.package.source_epoch":
+		return "setxattr", reflect.Int, "int", false, nil
+	case "setxattr.file.package.source_release":
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.package.source_version":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.package.version":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.path":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.file.path.length":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.rights":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.uid":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "setxattr.file.user":
-		return "setxattr", reflect.String, "string", nil
+		return "setxattr", reflect.String, "string", false, nil
 	case "setxattr.retval":
-		return "setxattr", reflect.Int, "int", nil
+		return "setxattr", reflect.Int, "int", false, nil
 	case "signal.pid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.retval":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.args":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.args_flags":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.args_options":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.args_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.argv":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.argv0":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.auid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cap_effective":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cap_permitted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.caps_attempted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.caps_used":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cgroup.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cgroup.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.cgroup.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.cgroup.version":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.comm":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.container.created_at":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.container.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.container.tags":
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.created_at":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.egid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.egroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.envp":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.envs":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.envs_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.euid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.euser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.fsgid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.fsgroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.fsuid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.fsuser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.interpreter.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.interpreter.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.interpreter.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.interpreter.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.interpreter.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.interpreter.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.interpreter.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.is_exec":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.is_kworker":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.is_thread":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.pid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.ppid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.tid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.tty_name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.user_session.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.user_session.identity":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.user_session.k8s_groups":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
+	case "signal.target.ancestors.user_session.k8s_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.user_session.k8s_uid":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.ancestors.user_session.k8s_username":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.user_session.session_type":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.user_session.ssh_auth_method":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.user_session.ssh_client_ip":
+		return "signal", reflect.Struct, "net.IPNet", false, nil
+	case "signal.target.ancestors.user_session.ssh_client_port":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.user_session.ssh_public_key":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.user_session.ssh_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.args":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.args_flags":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.args_options":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.args_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.argv":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.argv0":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.auid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cap_effective":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cap_permitted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.caps_attempted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.caps_used":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cgroup.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cgroup.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.cgroup.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.cgroup.version":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.comm":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.container.created_at":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.container.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.container.tags":
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.created_at":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.egid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.egroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.envp":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.envs":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.envs_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.euid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.euser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.fsgid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.fsgroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.fsuid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.fsuser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.interpreter.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.interpreter.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.interpreter.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.interpreter.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.interpreter.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.interpreter.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.interpreter.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.interpreter.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.is_exec":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_kworker":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_thread":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.args":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.args_flags":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.args_options":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.args_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.argv":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.argv0":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.auid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cap_effective":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cap_permitted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.caps_attempted":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.caps_used":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cgroup.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cgroup.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.cgroup.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.cgroup.version":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.comm":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.container.created_at":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.container.id":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.container.tags":
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.created_at":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.egid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.egroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.envp":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.envs":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.envs_truncated":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.euid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.euser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.fsgid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.fsgroup":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.fsuid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.fsuser":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.change_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.extension":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.filesystem":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.gid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.group":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.hashes":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.interpreter.file.inode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.mode":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.modification_time":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.mount_detached":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.interpreter.file.mount_id":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.mount_visible":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.interpreter.file.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.name.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.interpreter.file.package.epoch":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.package.name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.interpreter.file.package.release":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.interpreter.file.package.source_release":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.package.source_version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.package.version":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.path":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.interpreter.file.path.length":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.rights":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.interpreter.file.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.is_exec":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_kworker":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_thread":
-		return "signal", reflect.Bool, "bool", nil
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.pid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.ppid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.tid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.tty_name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.user_session.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.user_session.identity":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.user_session.k8s_groups":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
+	case "signal.target.parent.user_session.k8s_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.user_session.k8s_uid":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.user_session.k8s_username":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.user_session.session_type":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.user_session.ssh_auth_method":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.user_session.ssh_client_ip":
+		return "signal", reflect.Struct, "net.IPNet", false, nil
+	case "signal.target.parent.user_session.ssh_client_port":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.user_session.ssh_public_key":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.user_session.ssh_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.pid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ppid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.tid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.tty_name":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.uid":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.user":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.user_session.id":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.user_session.identity":
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.user_session.k8s_groups":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", true, nil
+	case "signal.target.user_session.k8s_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.user_session.k8s_uid":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
 	case "signal.target.user_session.k8s_username":
-		return "signal", reflect.String, "string", nil
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.user_session.session_type":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.user_session.ssh_auth_method":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.user_session.ssh_client_ip":
+		return "signal", reflect.Struct, "net.IPNet", false, nil
+	case "signal.target.user_session.ssh_client_port":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.user_session.ssh_public_key":
+		return "signal", reflect.String, "string", false, nil
+	case "signal.target.user_session.ssh_session_id":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.type":
-		return "signal", reflect.Int, "int", nil
+		return "signal", reflect.Int, "int", false, nil
 	case "splice.file.change_time":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.extension":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.filesystem":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.gid":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.group":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.hashes":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", true, nil
 	case "splice.file.in_upper_layer":
-		return "splice", reflect.Bool, "bool", nil
+		return "splice", reflect.Bool, "bool", false, nil
 	case "splice.file.inode":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.mode":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.modification_time":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.mount_detached":
-		return "splice", reflect.Bool, "bool", nil
+		return "splice", reflect.Bool, "bool", false, nil
 	case "splice.file.mount_id":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.mount_visible":
-		return "splice", reflect.Bool, "bool", nil
+		return "splice", reflect.Bool, "bool", false, nil
 	case "splice.file.name":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.name.length":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
+	case "splice.file.package.epoch":
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.package.name":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
+	case "splice.file.package.release":
+		return "splice", reflect.String, "string", false, nil
+	case "splice.file.package.source_epoch":
+		return "splice", reflect.Int, "int", false, nil
+	case "splice.file.package.source_release":
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.package.source_version":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.package.version":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.path":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.file.path.length":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.rights":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.uid":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.file.user":
-		return "splice", reflect.String, "string", nil
+		return "splice", reflect.String, "string", false, nil
 	case "splice.pipe_entry_flag":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.pipe_exit_flag":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "splice.retval":
-		return "splice", reflect.Int, "int", nil
+		return "splice", reflect.Int, "int", false, nil
 	case "sysctl.action":
-		return "sysctl", reflect.Int, "int", nil
+		return "sysctl", reflect.Int, "int", false, nil
 	case "sysctl.file_position":
-		return "sysctl", reflect.Int, "int", nil
+		return "sysctl", reflect.Int, "int", false, nil
 	case "sysctl.name":
-		return "sysctl", reflect.String, "string", nil
+		return "sysctl", reflect.String, "string", false, nil
 	case "sysctl.name_truncated":
-		return "sysctl", reflect.Bool, "bool", nil
+		return "sysctl", reflect.Bool, "bool", false, nil
 	case "sysctl.old_value":
-		return "sysctl", reflect.String, "string", nil
+		return "sysctl", reflect.String, "string", false, nil
 	case "sysctl.old_value_truncated":
-		return "sysctl", reflect.Bool, "bool", nil
+		return "sysctl", reflect.Bool, "bool", false, nil
 	case "sysctl.value":
-		return "sysctl", reflect.String, "string", nil
+		return "sysctl", reflect.String, "string", false, nil
 	case "sysctl.value_truncated":
-		return "sysctl", reflect.Bool, "bool", nil
+		return "sysctl", reflect.Bool, "bool", false, nil
 	case "unlink.file.change_time":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.extension":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.filesystem":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.gid":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.group":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.hashes":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", true, nil
 	case "unlink.file.in_upper_layer":
-		return "unlink", reflect.Bool, "bool", nil
+		return "unlink", reflect.Bool, "bool", false, nil
 	case "unlink.file.inode":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.mode":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.modification_time":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.mount_detached":
-		return "unlink", reflect.Bool, "bool", nil
+		return "unlink", reflect.Bool, "bool", false, nil
 	case "unlink.file.mount_id":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.mount_visible":
-		return "unlink", reflect.Bool, "bool", nil
+		return "unlink", reflect.Bool, "bool", false, nil
 	case "unlink.file.name":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.name.length":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
+	case "unlink.file.package.epoch":
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.package.name":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
+	case "unlink.file.package.release":
+		return "unlink", reflect.String, "string", false, nil
+	case "unlink.file.package.source_epoch":
+		return "unlink", reflect.Int, "int", false, nil
+	case "unlink.file.package.source_release":
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.package.source_version":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.package.version":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.path":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.file.path.length":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.rights":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.uid":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.file.user":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unlink.flags":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.retval":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.syscall.dirfd":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.syscall.flags":
-		return "unlink", reflect.Int, "int", nil
+		return "unlink", reflect.Int, "int", false, nil
 	case "unlink.syscall.path":
-		return "unlink", reflect.String, "string", nil
+		return "unlink", reflect.String, "string", false, nil
 	case "unload_module.name":
-		return "unload_module", reflect.String, "string", nil
+		return "unload_module", reflect.String, "string", false, nil
 	case "unload_module.retval":
-		return "unload_module", reflect.Int, "int", nil
+		return "unload_module", reflect.Int, "int", false, nil
 	case "utimes.file.change_time":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.extension":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.filesystem":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.gid":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.group":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.hashes":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", true, nil
 	case "utimes.file.in_upper_layer":
-		return "utimes", reflect.Bool, "bool", nil
+		return "utimes", reflect.Bool, "bool", false, nil
 	case "utimes.file.inode":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.mode":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.modification_time":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.mount_detached":
-		return "utimes", reflect.Bool, "bool", nil
+		return "utimes", reflect.Bool, "bool", false, nil
 	case "utimes.file.mount_id":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.mount_visible":
-		return "utimes", reflect.Bool, "bool", nil
+		return "utimes", reflect.Bool, "bool", false, nil
 	case "utimes.file.name":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.name.length":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
+	case "utimes.file.package.epoch":
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.package.name":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
+	case "utimes.file.package.release":
+		return "utimes", reflect.String, "string", false, nil
+	case "utimes.file.package.source_epoch":
+		return "utimes", reflect.Int, "int", false, nil
+	case "utimes.file.package.source_release":
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.package.source_version":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.package.version":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.path":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.file.path.length":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.rights":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.uid":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.file.user":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	case "utimes.retval":
-		return "utimes", reflect.Int, "int", nil
+		return "utimes", reflect.Int, "int", false, nil
 	case "utimes.syscall.path":
-		return "utimes", reflect.String, "string", nil
+		return "utimes", reflect.String, "string", false, nil
 	}
-	return "", reflect.Invalid, "", &eval.ErrFieldNotFound{Field: field}
+	return "", reflect.Invalid, "", false, &eval.ErrFieldNotFound{Field: originalField}
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
-	if strings.HasPrefix(field, "process.") || strings.HasPrefix(field, "exec.") {
+	// handle legacy field mapping
+	mappedField := field
+	if newField, found := GetDefaultLegacyFields(field); found {
+		mappedField = newField
+	}
+	if strings.HasPrefix(mappedField, "process.") || strings.HasPrefix(mappedField, "exec.") || strings.HasPrefix(mappedField, "exit.") {
 		ev.initProcess()
 	}
-	switch field {
+	switch mappedField {
 	case "accept.addr.family":
 		return ev.setUint16FieldValue("accept.addr.family", &ev.Accept.AddrFamily, value)
 	case "accept.addr.hostname":
@@ -36363,31 +43241,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint64FieldValue("capset.cap_effective", &ev.Capset.CapEffective, value)
 	case "capset.cap_permitted":
 		return ev.setUint64FieldValue("capset.cap_permitted", &ev.Capset.CapPermitted, value)
-	case "cgroup.file.inode":
-		if ev.CGroupContext == nil {
-			ev.CGroupContext = &CGroupContext{}
-		}
-		return ev.setUint64FieldValue("cgroup.file.inode", &ev.CGroupContext.CGroupFile.Inode, value)
-	case "cgroup.file.mount_id":
-		if ev.CGroupContext == nil {
-			ev.CGroupContext = &CGroupContext{}
-		}
-		return ev.setUint32FieldValue("cgroup.file.mount_id", &ev.CGroupContext.CGroupFile.MountID, value)
-	case "cgroup.id":
-		if ev.CGroupContext == nil {
-			ev.CGroupContext = &CGroupContext{}
-		}
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "cgroup.id"}
-		}
-		ev.CGroupContext.CGroupID = containerutils.CGroupID(rv)
-		return nil
-	case "cgroup.version":
-		if ev.CGroupContext == nil {
-			ev.CGroupContext = &CGroupContext{}
-		}
-		return ev.setIntFieldValue("cgroup.version", &ev.CGroupContext.CGroupVersion, value)
 	case "cgroup_write.file.change_time":
 		return ev.setUint64FieldValue("cgroup_write.file.change_time", &ev.CgroupWrite.File.FileFields.CTime, value)
 	case "cgroup_write.file.extension":
@@ -36418,8 +43271,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("cgroup_write.file.name", &ev.CgroupWrite.File.BasenameStr, value)
 	case "cgroup_write.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "cgroup_write.file.name.length"}
+	case "cgroup_write.file.package.epoch":
+		return ev.setIntFieldValue("cgroup_write.file.package.epoch", &ev.CgroupWrite.File.PkgEpoch, value)
 	case "cgroup_write.file.package.name":
 		return ev.setStringFieldValue("cgroup_write.file.package.name", &ev.CgroupWrite.File.PkgName, value)
+	case "cgroup_write.file.package.release":
+		return ev.setStringFieldValue("cgroup_write.file.package.release", &ev.CgroupWrite.File.PkgRelease, value)
+	case "cgroup_write.file.package.source_epoch":
+		return ev.setIntFieldValue("cgroup_write.file.package.source_epoch", &ev.CgroupWrite.File.PkgSrcEpoch, value)
+	case "cgroup_write.file.package.source_release":
+		return ev.setStringFieldValue("cgroup_write.file.package.source_release", &ev.CgroupWrite.File.PkgSrcRelease, value)
 	case "cgroup_write.file.package.source_version":
 		return ev.setStringFieldValue("cgroup_write.file.package.source_version", &ev.CgroupWrite.File.PkgSrcVersion, value)
 	case "cgroup_write.file.package.version":
@@ -36466,8 +43327,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chdir.file.name", &ev.Chdir.File.BasenameStr, value)
 	case "chdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chdir.file.name.length"}
+	case "chdir.file.package.epoch":
+		return ev.setIntFieldValue("chdir.file.package.epoch", &ev.Chdir.File.PkgEpoch, value)
 	case "chdir.file.package.name":
 		return ev.setStringFieldValue("chdir.file.package.name", &ev.Chdir.File.PkgName, value)
+	case "chdir.file.package.release":
+		return ev.setStringFieldValue("chdir.file.package.release", &ev.Chdir.File.PkgRelease, value)
+	case "chdir.file.package.source_epoch":
+		return ev.setIntFieldValue("chdir.file.package.source_epoch", &ev.Chdir.File.PkgSrcEpoch, value)
+	case "chdir.file.package.source_release":
+		return ev.setStringFieldValue("chdir.file.package.source_release", &ev.Chdir.File.PkgSrcRelease, value)
 	case "chdir.file.package.source_version":
 		return ev.setStringFieldValue("chdir.file.package.source_version", &ev.Chdir.File.PkgSrcVersion, value)
 	case "chdir.file.package.version":
@@ -36520,8 +43389,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chmod.file.name", &ev.Chmod.File.BasenameStr, value)
 	case "chmod.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chmod.file.name.length"}
+	case "chmod.file.package.epoch":
+		return ev.setIntFieldValue("chmod.file.package.epoch", &ev.Chmod.File.PkgEpoch, value)
 	case "chmod.file.package.name":
 		return ev.setStringFieldValue("chmod.file.package.name", &ev.Chmod.File.PkgName, value)
+	case "chmod.file.package.release":
+		return ev.setStringFieldValue("chmod.file.package.release", &ev.Chmod.File.PkgRelease, value)
+	case "chmod.file.package.source_epoch":
+		return ev.setIntFieldValue("chmod.file.package.source_epoch", &ev.Chmod.File.PkgSrcEpoch, value)
+	case "chmod.file.package.source_release":
+		return ev.setStringFieldValue("chmod.file.package.source_release", &ev.Chmod.File.PkgSrcRelease, value)
 	case "chmod.file.package.source_version":
 		return ev.setStringFieldValue("chmod.file.package.source_version", &ev.Chmod.File.PkgSrcVersion, value)
 	case "chmod.file.package.version":
@@ -36580,8 +43457,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("chown.file.name", &ev.Chown.File.BasenameStr, value)
 	case "chown.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "chown.file.name.length"}
+	case "chown.file.package.epoch":
+		return ev.setIntFieldValue("chown.file.package.epoch", &ev.Chown.File.PkgEpoch, value)
 	case "chown.file.package.name":
 		return ev.setStringFieldValue("chown.file.package.name", &ev.Chown.File.PkgName, value)
+	case "chown.file.package.release":
+		return ev.setStringFieldValue("chown.file.package.release", &ev.Chown.File.PkgRelease, value)
+	case "chown.file.package.source_epoch":
+		return ev.setIntFieldValue("chown.file.package.source_epoch", &ev.Chown.File.PkgSrcEpoch, value)
+	case "chown.file.package.source_release":
+		return ev.setStringFieldValue("chown.file.package.source_release", &ev.Chown.File.PkgSrcRelease, value)
 	case "chown.file.package.source_version":
 		return ev.setStringFieldValue("chown.file.package.source_version", &ev.Chown.File.PkgSrcVersion, value)
 	case "chown.file.package.version":
@@ -36623,26 +43508,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("connect.protocol", &ev.Connect.Protocol, value)
 	case "connect.retval":
 		return ev.setInt64FieldValue("connect.retval", &ev.Connect.SyscallEvent.Retval, value)
-	case "container.created_at":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setUint64FieldValue("container.created_at", &ev.BaseEvent.ContainerContext.CreatedAt, value)
-	case "container.id":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		rv, ok := value.(string)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "container.id"}
-		}
-		ev.BaseEvent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
-		return nil
-	case "container.tags":
-		if ev.BaseEvent.ContainerContext == nil {
-			ev.BaseEvent.ContainerContext = &ContainerContext{}
-		}
-		return ev.setStringArrayFieldValue("container.tags", &ev.BaseEvent.ContainerContext.Tags, value)
 	case "dns.id":
 		return ev.setUint16FieldValue("dns.id", &ev.DNS.ID, value)
 	case "dns.question.class":
@@ -36674,6 +43539,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("event.rule.tags", &ev.BaseEvent.RuleTags, value)
 	case "event.service":
 		return ev.setStringFieldValue("event.service", &ev.BaseEvent.Service, value)
+	case "event.signature":
+		return ev.setStringFieldValue("event.signature", &ev.Signature, value)
 	case "event.source":
 		return ev.setStringFieldValue("event.source", &ev.BaseEvent.Source, value)
 	case "event.timestamp":
@@ -36715,13 +43582,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("exec.cgroup.version", &ev.Exec.Process.CGroup.CGroupVersion, value)
 	case "exec.comm":
 		return ev.setStringFieldValue("exec.comm", &ev.Exec.Process.Comm, value)
+	case "exec.container.created_at":
+		return ev.setUint64FieldValue("exec.container.created_at", &ev.Exec.Process.ContainerContext.CreatedAt, value)
 	case "exec.container.id":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exec.container.id"}
 		}
-		ev.Exec.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Exec.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exec.container.tags":
+		return ev.setStringArrayFieldValue("exec.container.tags", &ev.Exec.Process.ContainerContext.Tags, value)
 	case "exec.created_at":
 		return ev.setUint64FieldValue("exec.created_at", &ev.Exec.Process.CreatedAt, value)
 	case "exec.egid":
@@ -36784,8 +43655,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.file.name", &ev.Exec.Process.FileEvent.BasenameStr, value)
 	case "exec.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "exec.file.name.length"}
+	case "exec.file.package.epoch":
+		return ev.setIntFieldValue("exec.file.package.epoch", &ev.Exec.Process.FileEvent.PkgEpoch, value)
 	case "exec.file.package.name":
 		return ev.setStringFieldValue("exec.file.package.name", &ev.Exec.Process.FileEvent.PkgName, value)
+	case "exec.file.package.release":
+		return ev.setStringFieldValue("exec.file.package.release", &ev.Exec.Process.FileEvent.PkgRelease, value)
+	case "exec.file.package.source_epoch":
+		return ev.setIntFieldValue("exec.file.package.source_epoch", &ev.Exec.Process.FileEvent.PkgSrcEpoch, value)
+	case "exec.file.package.source_release":
+		return ev.setStringFieldValue("exec.file.package.source_release", &ev.Exec.Process.FileEvent.PkgSrcRelease, value)
 	case "exec.file.package.source_version":
 		return ev.setStringFieldValue("exec.file.package.source_version", &ev.Exec.Process.FileEvent.PkgSrcVersion, value)
 	case "exec.file.package.version":
@@ -36898,12 +43777,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("exec.interpreter.file.name", &ev.Exec.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "exec.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "exec.interpreter.file.name.length"}
+	case "exec.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exec.interpreter.file.package.epoch", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "exec.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exec.interpreter.file.package.name", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "exec.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exec.interpreter.file.package.release", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "exec.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exec.interpreter.file.package.source_epoch", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "exec.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exec.interpreter.file.package.source_release", &ev.Exec.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "exec.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.Exec.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -36948,6 +43851,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exec.is_kworker", &ev.Exec.Process.PIDContext.IsKworker, value)
 	case "exec.is_thread":
 		return ev.setBoolFieldValue("exec.is_thread", &ev.Exec.Process.IsThread, value)
+	case "exec.netns":
+		return ev.setUint32FieldValue("exec.netns", &ev.Exec.Process.PIDContext.NetNS, value)
 	case "exec.pid":
 		return ev.setUint32FieldValue("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
 	case "exec.ppid":
@@ -36962,83 +43867,64 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exec.uid", &ev.Exec.Process.Credentials.UID, value)
 	case "exec.user":
 		return ev.setStringFieldValue("exec.user", &ev.Exec.Process.Credentials.User, value)
+	case "exec.user_session.id":
+		return ev.setStringFieldValue("exec.user_session.id", &ev.Exec.Process.UserSession.ID, value)
+	case "exec.user_session.identity":
+		return ev.setStringFieldValue("exec.user_session.identity", &ev.Exec.Process.UserSession.Identity, value)
 	case "exec.user_session.k8s_groups":
-		return ev.setStringArrayFieldValue("exec.user_session.k8s_groups", &ev.Exec.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("exec.user_session.k8s_groups", &ev.Exec.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "exec.user_session.k8s_session_id":
+		return ev.setUint64FieldValue("exec.user_session.k8s_session_id", &ev.Exec.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "exec.user_session.k8s_uid":
-		return ev.setStringFieldValue("exec.user_session.k8s_uid", &ev.Exec.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("exec.user_session.k8s_uid", &ev.Exec.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "exec.user_session.k8s_username":
-		return ev.setStringFieldValue("exec.user_session.k8s_username", &ev.Exec.Process.UserSession.K8SUsername, value)
-	case "exit.args":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
+		return ev.setStringFieldValue("exec.user_session.k8s_username", &ev.Exec.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "exec.user_session.session_type":
+		return ev.setIntFieldValue("exec.user_session.session_type", &ev.Exec.Process.UserSession.SessionType, value)
+	case "exec.user_session.ssh_auth_method":
+		return ev.setIntFieldValue("exec.user_session.ssh_auth_method", &ev.Exec.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "exec.user_session.ssh_client_ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exec.user_session.ssh_client_ip"}
 		}
+		ev.Exec.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "exec.user_session.ssh_client_port":
+		return ev.setIntFieldValue("exec.user_session.ssh_client_port", &ev.Exec.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "exec.user_session.ssh_public_key":
+		return ev.setStringFieldValue("exec.user_session.ssh_public_key", &ev.Exec.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "exec.user_session.ssh_session_id":
+		return ev.setUint64FieldValue("exec.user_session.ssh_session_id", &ev.Exec.Process.UserSession.SSHSessionContext.SSHSessionID, value)
+	case "exit.args":
 		return ev.setStringFieldValue("exit.args", &ev.Exit.Process.Args, value)
 	case "exit.args_flags":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.args_flags", &ev.Exit.Process.Argv, value)
 	case "exit.args_options":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.args_options", &ev.Exit.Process.Argv, value)
 	case "exit.args_truncated":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.args_truncated", &ev.Exit.Process.ArgsTruncated, value)
 	case "exit.argv":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.argv", &ev.Exit.Process.Argv, value)
 	case "exit.argv0":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.argv0", &ev.Exit.Process.Argv0, value)
 	case "exit.auid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.auid", &ev.Exit.Process.Credentials.AUID, value)
 	case "exit.cap_effective":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cap_effective", &ev.Exit.Process.Credentials.CapEffective, value)
 	case "exit.cap_permitted":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cap_permitted", &ev.Exit.Process.Credentials.CapPermitted, value)
 	case "exit.caps_attempted":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.caps_attempted", &ev.Exit.Process.CapsAttempted, value)
 	case "exit.caps_used":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.caps_used", &ev.Exit.Process.CapsUsed, value)
 	case "exit.cause":
 		return ev.setUint32FieldValue("exit.cause", &ev.Exit.Cause, value)
 	case "exit.cgroup.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cgroup.file.inode", &ev.Exit.Process.CGroup.CGroupFile.Inode, value)
 	case "exit.cgroup.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.cgroup.file.mount_id", &ev.Exit.Process.CGroup.CGroupFile.MountID, value)
 	case "exit.cgroup.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.cgroup.id"}
@@ -37046,471 +43932,307 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Exit.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "exit.cgroup.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.cgroup.version", &ev.Exit.Process.CGroup.CGroupVersion, value)
 	case "exit.code":
 		return ev.setUint32FieldValue("exit.code", &ev.Exit.Code, value)
 	case "exit.comm":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.comm", &ev.Exit.Process.Comm, value)
+	case "exit.container.created_at":
+		return ev.setUint64FieldValue("exit.container.created_at", &ev.Exit.Process.ContainerContext.CreatedAt, value)
 	case "exit.container.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.container.id"}
 		}
-		ev.Exit.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "exit.container.tags":
+		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.created_at", &ev.Exit.Process.CreatedAt, value)
 	case "exit.egid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.egid", &ev.Exit.Process.Credentials.EGID, value)
 	case "exit.egroup":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.egroup", &ev.Exit.Process.Credentials.EGroup, value)
 	case "exit.envp":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envp", &ev.Exit.Process.Envp, value)
 	case "exit.envs":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envs", &ev.Exit.Process.Envs, value)
 	case "exit.envs_truncated":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.envs_truncated", &ev.Exit.Process.EnvsTruncated, value)
 	case "exit.euid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.euid", &ev.Exit.Process.Credentials.EUID, value)
 	case "exit.euser":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.euser", &ev.Exit.Process.Credentials.EUser, value)
 	case "exit.file.change_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.change_time", &ev.Exit.Process.FileEvent.FileFields.CTime, value)
 	case "exit.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.filesystem":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.filesystem", &ev.Exit.Process.FileEvent.Filesystem, value)
 	case "exit.file.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.gid", &ev.Exit.Process.FileEvent.FileFields.GID, value)
 	case "exit.file.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.group", &ev.Exit.Process.FileEvent.FileFields.Group, value)
 	case "exit.file.hashes":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.file.hashes", &ev.Exit.Process.FileEvent.Hashes, value)
 	case "exit.file.in_upper_layer":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.in_upper_layer", &ev.Exit.Process.FileEvent.FileFields.InUpperLayer, value)
 	case "exit.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.inode", &ev.Exit.Process.FileEvent.FileFields.PathKey.Inode, value)
 	case "exit.file.mode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint16FieldValue("exit.file.mode", &ev.Exit.Process.FileEvent.FileFields.Mode, value)
 	case "exit.file.modification_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.modification_time", &ev.Exit.Process.FileEvent.FileFields.MTime, value)
 	case "exit.file.mount_detached":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.mount_detached", &ev.Exit.Process.FileEvent.MountDetached, value)
 	case "exit.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.mount_id", &ev.Exit.Process.FileEvent.FileFields.PathKey.MountID, value)
 	case "exit.file.mount_visible":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.mount_visible", &ev.Exit.Process.FileEvent.MountVisible, value)
 	case "exit.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.name", &ev.Exit.Process.FileEvent.BasenameStr, value)
 	case "exit.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
+	case "exit.file.package.epoch":
+		return ev.setIntFieldValue("exit.file.package.epoch", &ev.Exit.Process.FileEvent.PkgEpoch, value)
 	case "exit.file.package.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.name", &ev.Exit.Process.FileEvent.PkgName, value)
+	case "exit.file.package.release":
+		return ev.setStringFieldValue("exit.file.package.release", &ev.Exit.Process.FileEvent.PkgRelease, value)
+	case "exit.file.package.source_epoch":
+		return ev.setIntFieldValue("exit.file.package.source_epoch", &ev.Exit.Process.FileEvent.PkgSrcEpoch, value)
+	case "exit.file.package.source_release":
+		return ev.setStringFieldValue("exit.file.package.source_release", &ev.Exit.Process.FileEvent.PkgSrcRelease, value)
 	case "exit.file.package.source_version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.source_version", &ev.Exit.Process.FileEvent.PkgSrcVersion, value)
 	case "exit.file.package.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.version", &ev.Exit.Process.FileEvent.PkgVersion, value)
 	case "exit.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.path", &ev.Exit.Process.FileEvent.PathnameStr, value)
 	case "exit.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.file.rights":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint16FieldValue("exit.file.rights", &ev.Exit.Process.FileEvent.FileFields.Mode, value)
 	case "exit.file.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.uid", &ev.Exit.Process.FileEvent.FileFields.UID, value)
 	case "exit.file.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.user", &ev.Exit.Process.FileEvent.FileFields.User, value)
 	case "exit.fsgid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.fsgid", &ev.Exit.Process.Credentials.FSGID, value)
 	case "exit.fsgroup":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.fsgroup", &ev.Exit.Process.Credentials.FSGroup, value)
 	case "exit.fsuid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.fsuid", &ev.Exit.Process.Credentials.FSUID, value)
 	case "exit.fsuser":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.fsuser", &ev.Exit.Process.Credentials.FSUser, value)
 	case "exit.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.gid", &ev.Exit.Process.Credentials.GID, value)
 	case "exit.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.group", &ev.Exit.Process.Credentials.Group, value)
 	case "exit.interpreter.file.change_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.change_time", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.change_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
 	case "exit.interpreter.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.extension", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.extension", &ev.Exit.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "exit.interpreter.file.filesystem":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.filesystem", &ev.Exit.Process.LinuxBinprm.FileEvent.Filesystem, value)
 	case "exit.interpreter.file.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.gid", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.gid", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID, value)
 	case "exit.interpreter.file.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.group", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.group", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group, value)
 	case "exit.interpreter.file.hashes":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.hashes", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringArrayFieldValue("exit.interpreter.file.hashes", &ev.Exit.Process.LinuxBinprm.FileEvent.Hashes, value)
 	case "exit.interpreter.file.in_upper_layer":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.in_upper_layer", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.in_upper_layer", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, value)
 	case "exit.interpreter.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.inode", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.inode", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode, value)
 	case "exit.interpreter.file.mode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mode", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint16FieldValue("exit.interpreter.file.mode", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
 	case "exit.interpreter.file.modification_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.modification_time", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.modification_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
 	case "exit.interpreter.file.mount_detached":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_detached", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.mount_detached", &ev.Exit.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "exit.interpreter.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.mount_id", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
 	case "exit.interpreter.file.mount_visible":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_visible", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.mount_visible", &ev.Exit.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "exit.interpreter.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.name", &ev.Exit.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "exit.interpreter.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.name.length"}
-	case "exit.interpreter.file.package.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
+	case "exit.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
 		}
+		return ev.setIntFieldValue("exit.interpreter.file.package.epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
+	case "exit.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.name", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgName, value)
-	case "exit.interpreter.file.package.source_version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
+	case "exit.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
 		}
+		return ev.setStringFieldValue("exit.interpreter.file.package.release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "exit.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("exit.interpreter.file.package.source_epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "exit.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("exit.interpreter.file.package.source_release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
+	case "exit.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.source_version", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcVersion, value)
 	case "exit.interpreter.file.package.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.version", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.version", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgVersion, value)
 	case "exit.interpreter.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.path", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.path", &ev.Exit.Process.LinuxBinprm.FileEvent.PathnameStr, value)
 	case "exit.interpreter.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.path.length"}
 	case "exit.interpreter.file.rights":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.rights", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint16FieldValue("exit.interpreter.file.rights", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
 	case "exit.interpreter.file.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.uid", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.uid", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.UID, value)
 	case "exit.interpreter.file.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.user", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.user", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.User, value)
 	case "exit.is_exec":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_exec", &ev.Exit.Process.IsExec, value)
 	case "exit.is_kworker":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_kworker", &ev.Exit.Process.PIDContext.IsKworker, value)
 	case "exit.is_thread":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_thread", &ev.Exit.Process.IsThread, value)
+	case "exit.netns":
+		return ev.setUint32FieldValue("exit.netns", &ev.Exit.Process.PIDContext.NetNS, value)
 	case "exit.pid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
 	case "exit.tid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.tid", &ev.Exit.Process.PIDContext.Tid, value)
 	case "exit.tty_name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.tty_name", &ev.Exit.Process.TTYName, value)
 	case "exit.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.uid", &ev.Exit.Process.Credentials.UID, value)
 	case "exit.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user", &ev.Exit.Process.Credentials.User, value)
+	case "exit.user_session.id":
+		return ev.setStringFieldValue("exit.user_session.id", &ev.Exit.Process.UserSession.ID, value)
+	case "exit.user_session.identity":
+		return ev.setStringFieldValue("exit.user_session.identity", &ev.Exit.Process.UserSession.Identity, value)
 	case "exit.user_session.k8s_groups":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		return ev.setStringArrayFieldValue("exit.user_session.k8s_groups", &ev.Exit.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("exit.user_session.k8s_groups", &ev.Exit.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "exit.user_session.k8s_session_id":
+		return ev.setUint64FieldValue("exit.user_session.k8s_session_id", &ev.Exit.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "exit.user_session.k8s_uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
-		return ev.setStringFieldValue("exit.user_session.k8s_uid", &ev.Exit.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("exit.user_session.k8s_uid", &ev.Exit.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "exit.user_session.k8s_username":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
+		return ev.setStringFieldValue("exit.user_session.k8s_username", &ev.Exit.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "exit.user_session.session_type":
+		return ev.setIntFieldValue("exit.user_session.session_type", &ev.Exit.Process.UserSession.SessionType, value)
+	case "exit.user_session.ssh_auth_method":
+		return ev.setIntFieldValue("exit.user_session.ssh_auth_method", &ev.Exit.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "exit.user_session.ssh_client_ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "exit.user_session.ssh_client_ip"}
 		}
-		return ev.setStringFieldValue("exit.user_session.k8s_username", &ev.Exit.Process.UserSession.K8SUsername, value)
+		ev.Exit.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "exit.user_session.ssh_client_port":
+		return ev.setIntFieldValue("exit.user_session.ssh_client_port", &ev.Exit.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "exit.user_session.ssh_public_key":
+		return ev.setStringFieldValue("exit.user_session.ssh_public_key", &ev.Exit.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "exit.user_session.ssh_session_id":
+		return ev.setUint64FieldValue("exit.user_session.ssh_session_id", &ev.Exit.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
 	case "imds.aws.security_credentials.type":
@@ -37559,8 +44281,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("link.file.destination.name", &ev.Link.Target.BasenameStr, value)
 	case "link.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.destination.name.length"}
+	case "link.file.destination.package.epoch":
+		return ev.setIntFieldValue("link.file.destination.package.epoch", &ev.Link.Target.PkgEpoch, value)
 	case "link.file.destination.package.name":
 		return ev.setStringFieldValue("link.file.destination.package.name", &ev.Link.Target.PkgName, value)
+	case "link.file.destination.package.release":
+		return ev.setStringFieldValue("link.file.destination.package.release", &ev.Link.Target.PkgRelease, value)
+	case "link.file.destination.package.source_epoch":
+		return ev.setIntFieldValue("link.file.destination.package.source_epoch", &ev.Link.Target.PkgSrcEpoch, value)
+	case "link.file.destination.package.source_release":
+		return ev.setStringFieldValue("link.file.destination.package.source_release", &ev.Link.Target.PkgSrcRelease, value)
 	case "link.file.destination.package.source_version":
 		return ev.setStringFieldValue("link.file.destination.package.source_version", &ev.Link.Target.PkgSrcVersion, value)
 	case "link.file.destination.package.version":
@@ -37603,8 +44333,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("link.file.name", &ev.Link.Source.BasenameStr, value)
 	case "link.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "link.file.name.length"}
+	case "link.file.package.epoch":
+		return ev.setIntFieldValue("link.file.package.epoch", &ev.Link.Source.PkgEpoch, value)
 	case "link.file.package.name":
 		return ev.setStringFieldValue("link.file.package.name", &ev.Link.Source.PkgName, value)
+	case "link.file.package.release":
+		return ev.setStringFieldValue("link.file.package.release", &ev.Link.Source.PkgRelease, value)
+	case "link.file.package.source_epoch":
+		return ev.setIntFieldValue("link.file.package.source_epoch", &ev.Link.Source.PkgSrcEpoch, value)
+	case "link.file.package.source_release":
+		return ev.setStringFieldValue("link.file.package.source_release", &ev.Link.Source.PkgSrcRelease, value)
 	case "link.file.package.source_version":
 		return ev.setStringFieldValue("link.file.package.source_version", &ev.Link.Source.PkgSrcVersion, value)
 	case "link.file.package.version":
@@ -37661,8 +44399,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("load_module.file.name", &ev.LoadModule.File.BasenameStr, value)
 	case "load_module.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "load_module.file.name.length"}
+	case "load_module.file.package.epoch":
+		return ev.setIntFieldValue("load_module.file.package.epoch", &ev.LoadModule.File.PkgEpoch, value)
 	case "load_module.file.package.name":
 		return ev.setStringFieldValue("load_module.file.package.name", &ev.LoadModule.File.PkgName, value)
+	case "load_module.file.package.release":
+		return ev.setStringFieldValue("load_module.file.package.release", &ev.LoadModule.File.PkgRelease, value)
+	case "load_module.file.package.source_epoch":
+		return ev.setIntFieldValue("load_module.file.package.source_epoch", &ev.LoadModule.File.PkgSrcEpoch, value)
+	case "load_module.file.package.source_release":
+		return ev.setStringFieldValue("load_module.file.package.source_release", &ev.LoadModule.File.PkgSrcRelease, value)
 	case "load_module.file.package.source_version":
 		return ev.setStringFieldValue("load_module.file.package.source_version", &ev.LoadModule.File.PkgSrcVersion, value)
 	case "load_module.file.package.version":
@@ -37717,8 +44463,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("mkdir.file.name", &ev.Mkdir.File.BasenameStr, value)
 	case "mkdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mkdir.file.name.length"}
+	case "mkdir.file.package.epoch":
+		return ev.setIntFieldValue("mkdir.file.package.epoch", &ev.Mkdir.File.PkgEpoch, value)
 	case "mkdir.file.package.name":
 		return ev.setStringFieldValue("mkdir.file.package.name", &ev.Mkdir.File.PkgName, value)
+	case "mkdir.file.package.release":
+		return ev.setStringFieldValue("mkdir.file.package.release", &ev.Mkdir.File.PkgRelease, value)
+	case "mkdir.file.package.source_epoch":
+		return ev.setIntFieldValue("mkdir.file.package.source_epoch", &ev.Mkdir.File.PkgSrcEpoch, value)
+	case "mkdir.file.package.source_release":
+		return ev.setStringFieldValue("mkdir.file.package.source_release", &ev.Mkdir.File.PkgSrcRelease, value)
 	case "mkdir.file.package.source_version":
 		return ev.setStringFieldValue("mkdir.file.package.source_version", &ev.Mkdir.File.PkgSrcVersion, value)
 	case "mkdir.file.package.version":
@@ -37769,8 +44523,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("mmap.file.name", &ev.MMap.File.BasenameStr, value)
 	case "mmap.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "mmap.file.name.length"}
+	case "mmap.file.package.epoch":
+		return ev.setIntFieldValue("mmap.file.package.epoch", &ev.MMap.File.PkgEpoch, value)
 	case "mmap.file.package.name":
 		return ev.setStringFieldValue("mmap.file.package.name", &ev.MMap.File.PkgName, value)
+	case "mmap.file.package.release":
+		return ev.setStringFieldValue("mmap.file.package.release", &ev.MMap.File.PkgRelease, value)
+	case "mmap.file.package.source_epoch":
+		return ev.setIntFieldValue("mmap.file.package.source_epoch", &ev.MMap.File.PkgSrcEpoch, value)
+	case "mmap.file.package.source_release":
+		return ev.setStringFieldValue("mmap.file.package.source_release", &ev.MMap.File.PkgSrcRelease, value)
 	case "mmap.file.package.source_version":
 		return ev.setStringFieldValue("mmap.file.package.source_version", &ev.MMap.File.PkgSrcVersion, value)
 	case "mmap.file.package.version":
@@ -37830,6 +44592,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("network.destination.port", &ev.NetworkContext.Destination.Port, value)
 	case "network.device.ifname":
 		return ev.setStringFieldValue("network.device.ifname", &ev.NetworkContext.Device.IfName, value)
+	case "network.device.netns":
+		return ev.setUint32FieldValue("network.device.netns", &ev.NetworkContext.Device.NetNS, value)
 	case "network.l3_protocol":
 		return ev.setUint16FieldValue("network.l3_protocol", &ev.NetworkContext.L3Protocol, value)
 	case "network.l4_protocol":
@@ -37853,6 +44617,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("network.type", &ev.NetworkContext.Type, value)
 	case "network_flow_monitor.device.ifname":
 		return ev.setStringFieldValue("network_flow_monitor.device.ifname", &ev.NetworkFlowMonitor.Device.IfName, value)
+	case "network_flow_monitor.device.netns":
+		return ev.setUint32FieldValue("network_flow_monitor.device.netns", &ev.NetworkFlowMonitor.Device.NetNS, value)
 	case "network_flow_monitor.flows.destination.ip":
 		if len(ev.NetworkFlowMonitor.Flows) == 0 {
 			ev.NetworkFlowMonitor.Flows = append(ev.NetworkFlowMonitor.Flows, Flow{})
@@ -37986,8 +44752,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("open.file.name", &ev.Open.File.BasenameStr, value)
 	case "open.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "open.file.name.length"}
+	case "open.file.package.epoch":
+		return ev.setIntFieldValue("open.file.package.epoch", &ev.Open.File.PkgEpoch, value)
 	case "open.file.package.name":
 		return ev.setStringFieldValue("open.file.package.name", &ev.Open.File.PkgName, value)
+	case "open.file.package.release":
+		return ev.setStringFieldValue("open.file.package.release", &ev.Open.File.PkgRelease, value)
+	case "open.file.package.source_epoch":
+		return ev.setIntFieldValue("open.file.package.source_epoch", &ev.Open.File.PkgSrcEpoch, value)
+	case "open.file.package.source_release":
+		return ev.setStringFieldValue("open.file.package.source_release", &ev.Open.File.PkgSrcRelease, value)
 	case "open.file.package.source_version":
 		return ev.setStringFieldValue("open.file.package.source_version", &ev.Open.File.PkgSrcVersion, value)
 	case "open.file.package.version":
@@ -38025,6 +44799,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.destination.port", &ev.RawPacket.NetworkContext.Destination.Port, value)
 	case "packet.device.ifname":
 		return ev.setStringFieldValue("packet.device.ifname", &ev.RawPacket.NetworkContext.Device.IfName, value)
+	case "packet.device.netns":
+		return ev.setUint32FieldValue("packet.device.netns", &ev.RawPacket.NetworkContext.Device.NetNS, value)
 	case "packet.filter":
 		return ev.setStringFieldValue("packet.filter", &ev.RawPacket.Filter, value)
 	case "packet.l3_protocol":
@@ -38095,13 +44871,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.ancestors.cgroup.version", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.ancestors.comm":
 		return ev.setStringFieldValue("process.ancestors.comm", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Comm, value)
+	case "process.ancestors.container.created_at":
+		return ev.setUint64FieldValue("process.ancestors.container.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "process.ancestors.container.id":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.container.id"}
 		}
-		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.ancestors.container.tags":
+		return ev.setStringArrayFieldValue("process.ancestors.container.tags", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.ancestors.created_at":
 		return ev.setUint64FieldValue("process.ancestors.created_at", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CreatedAt, value)
 	case "process.ancestors.egid":
@@ -38148,8 +44928,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.ancestors.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.file.name.length"}
+	case "process.ancestors.file.package.epoch":
+		return ev.setIntFieldValue("process.ancestors.file.package.epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "process.ancestors.file.package.name":
 		return ev.setStringFieldValue("process.ancestors.file.package.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "process.ancestors.file.package.release":
+		return ev.setStringFieldValue("process.ancestors.file.package.release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "process.ancestors.file.package.source_epoch":
+		return ev.setIntFieldValue("process.ancestors.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "process.ancestors.file.package.source_release":
+		return ev.setStringFieldValue("process.ancestors.file.package.source_release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "process.ancestors.file.package.source_version":
 		return ev.setStringFieldValue("process.ancestors.file.package.source_version", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.PkgSrcVersion, value)
 	case "process.ancestors.file.package.version":
@@ -38262,12 +45050,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.ancestors.interpreter.file.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.ancestors.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.interpreter.file.name.length"}
+	case "process.ancestors.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.ancestors.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.ancestors.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.ancestors.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.ancestors.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.ancestors.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.ancestors.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.ancestors.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.ancestors.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38314,6 +45126,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.ancestors.is_thread", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread, value)
 	case "process.ancestors.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
+	case "process.ancestors.netns":
+		return ev.setUint32FieldValue("process.ancestors.netns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.ancestors.pid":
 		return ev.setUint32FieldValue("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ancestors.ppid":
@@ -38326,12 +45140,35 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.ancestors.uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.UID, value)
 	case "process.ancestors.user":
 		return ev.setStringFieldValue("process.ancestors.user", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User, value)
+	case "process.ancestors.user_session.id":
+		return ev.setStringFieldValue("process.ancestors.user_session.id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.ID, value)
+	case "process.ancestors.user_session.identity":
+		return ev.setStringFieldValue("process.ancestors.user_session.identity", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.Identity, value)
 	case "process.ancestors.user_session.k8s_groups":
-		return ev.setStringArrayFieldValue("process.ancestors.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("process.ancestors.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "process.ancestors.user_session.k8s_session_id":
+		return ev.setUint64FieldValue("process.ancestors.user_session.k8s_session_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "process.ancestors.user_session.k8s_uid":
-		return ev.setStringFieldValue("process.ancestors.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("process.ancestors.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "process.ancestors.user_session.k8s_username":
-		return ev.setStringFieldValue("process.ancestors.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("process.ancestors.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "process.ancestors.user_session.session_type":
+		return ev.setIntFieldValue("process.ancestors.user_session.session_type", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SessionType, value)
+	case "process.ancestors.user_session.ssh_auth_method":
+		return ev.setIntFieldValue("process.ancestors.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "process.ancestors.user_session.ssh_client_ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "process.ancestors.user_session.ssh_client_port":
+		return ev.setIntFieldValue("process.ancestors.user_session.ssh_client_port", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "process.ancestors.user_session.ssh_public_key":
+		return ev.setStringFieldValue("process.ancestors.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "process.ancestors.user_session.ssh_session_id":
+		return ev.setUint64FieldValue("process.ancestors.user_session.ssh_session_id", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "process.args":
 		return ev.setStringFieldValue("process.args", &ev.BaseEvent.ProcessContext.Process.Args, value)
 	case "process.args_flags":
@@ -38369,13 +45206,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.cgroup.version", &ev.BaseEvent.ProcessContext.Process.CGroup.CGroupVersion, value)
 	case "process.comm":
 		return ev.setStringFieldValue("process.comm", &ev.BaseEvent.ProcessContext.Process.Comm, value)
+	case "process.container.created_at":
+		return ev.setUint64FieldValue("process.container.created_at", &ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "process.container.id":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.container.id"}
 		}
-		ev.BaseEvent.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.container.tags":
+		return ev.setStringArrayFieldValue("process.container.tags", &ev.BaseEvent.ProcessContext.Process.ContainerContext.Tags, value)
 	case "process.created_at":
 		return ev.setUint64FieldValue("process.created_at", &ev.BaseEvent.ProcessContext.Process.CreatedAt, value)
 	case "process.egid":
@@ -38422,8 +45263,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.file.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.BasenameStr, value)
 	case "process.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.file.name.length"}
+	case "process.file.package.epoch":
+		return ev.setIntFieldValue("process.file.package.epoch", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "process.file.package.name":
 		return ev.setStringFieldValue("process.file.package.name", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgName, value)
+	case "process.file.package.release":
+		return ev.setStringFieldValue("process.file.package.release", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "process.file.package.source_epoch":
+		return ev.setIntFieldValue("process.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "process.file.package.source_release":
+		return ev.setStringFieldValue("process.file.package.source_release", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "process.file.package.source_version":
 		return ev.setStringFieldValue("process.file.package.source_version", &ev.BaseEvent.ProcessContext.Process.FileEvent.PkgSrcVersion, value)
 	case "process.file.package.version":
@@ -38536,12 +45385,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.interpreter.file.name", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.interpreter.file.name.length"}
+	case "process.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38586,6 +45459,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.is_kworker", &ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, value)
 	case "process.is_thread":
 		return ev.setBoolFieldValue("process.is_thread", &ev.BaseEvent.ProcessContext.Process.IsThread, value)
+	case "process.netns":
+		return ev.setUint32FieldValue("process.netns", &ev.BaseEvent.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.parent.args":
 		return ev.setStringFieldValue("process.parent.args", &ev.BaseEvent.ProcessContext.Parent.Args, value)
 	case "process.parent.args_flags":
@@ -38623,13 +45498,17 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setIntFieldValue("process.parent.cgroup.version", &ev.BaseEvent.ProcessContext.Parent.CGroup.CGroupVersion, value)
 	case "process.parent.comm":
 		return ev.setStringFieldValue("process.parent.comm", &ev.BaseEvent.ProcessContext.Parent.Comm, value)
+	case "process.parent.container.created_at":
+		return ev.setUint64FieldValue("process.parent.container.created_at", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt, value)
 	case "process.parent.container.id":
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "process.parent.container.id"}
 		}
-		ev.BaseEvent.ProcessContext.Parent.ContainerID = containerutils.ContainerID(rv)
+		ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "process.parent.container.tags":
+		return ev.setStringArrayFieldValue("process.parent.container.tags", &ev.BaseEvent.ProcessContext.Parent.ContainerContext.Tags, value)
 	case "process.parent.created_at":
 		return ev.setUint64FieldValue("process.parent.created_at", &ev.BaseEvent.ProcessContext.Parent.CreatedAt, value)
 	case "process.parent.egid":
@@ -38676,8 +45555,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.file.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.BasenameStr, value)
 	case "process.parent.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.parent.file.name.length"}
+	case "process.parent.file.package.epoch":
+		return ev.setIntFieldValue("process.parent.file.package.epoch", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgEpoch, value)
 	case "process.parent.file.package.name":
 		return ev.setStringFieldValue("process.parent.file.package.name", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgName, value)
+	case "process.parent.file.package.release":
+		return ev.setStringFieldValue("process.parent.file.package.release", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgRelease, value)
+	case "process.parent.file.package.source_epoch":
+		return ev.setIntFieldValue("process.parent.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcEpoch, value)
+	case "process.parent.file.package.source_release":
+		return ev.setStringFieldValue("process.parent.file.package.source_release", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcRelease, value)
 	case "process.parent.file.package.source_version":
 		return ev.setStringFieldValue("process.parent.file.package.source_version", &ev.BaseEvent.ProcessContext.Parent.FileEvent.PkgSrcVersion, value)
 	case "process.parent.file.package.version":
@@ -38790,12 +45677,36 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("process.parent.interpreter.file.name", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "process.parent.interpreter.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "process.parent.interpreter.file.name.length"}
+	case "process.parent.interpreter.file.package.epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.parent.interpreter.file.package.epoch", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "process.parent.interpreter.file.package.name":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("process.parent.interpreter.file.package.name", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "process.parent.interpreter.file.package.release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.parent.interpreter.file.package.release", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "process.parent.interpreter.file.package.source_epoch":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("process.parent.interpreter.file.package.source_epoch", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "process.parent.interpreter.file.package.source_release":
+		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("process.parent.interpreter.file.package.source_release", &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "process.parent.interpreter.file.package.source_version":
 		cont, err := SetInterpreterFields(&ev.BaseEvent.ProcessContext.Parent.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
@@ -38840,6 +45751,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.parent.is_kworker", &ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker, value)
 	case "process.parent.is_thread":
 		return ev.setBoolFieldValue("process.parent.is_thread", &ev.BaseEvent.ProcessContext.Parent.IsThread, value)
+	case "process.parent.netns":
+		return ev.setUint32FieldValue("process.parent.netns", &ev.BaseEvent.ProcessContext.Parent.PIDContext.NetNS, value)
 	case "process.parent.pid":
 		return ev.setUint32FieldValue("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
 	case "process.parent.ppid":
@@ -38852,12 +45765,35 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.parent.uid", &ev.BaseEvent.ProcessContext.Parent.Credentials.UID, value)
 	case "process.parent.user":
 		return ev.setStringFieldValue("process.parent.user", &ev.BaseEvent.ProcessContext.Parent.Credentials.User, value)
+	case "process.parent.user_session.id":
+		return ev.setStringFieldValue("process.parent.user_session.id", &ev.BaseEvent.ProcessContext.Parent.UserSession.ID, value)
+	case "process.parent.user_session.identity":
+		return ev.setStringFieldValue("process.parent.user_session.identity", &ev.BaseEvent.ProcessContext.Parent.UserSession.Identity, value)
 	case "process.parent.user_session.k8s_groups":
-		return ev.setStringArrayFieldValue("process.parent.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("process.parent.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext.K8SGroups, value)
+	case "process.parent.user_session.k8s_session_id":
+		return ev.setUint64FieldValue("process.parent.user_session.k8s_session_id", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "process.parent.user_session.k8s_uid":
-		return ev.setStringFieldValue("process.parent.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("process.parent.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext.K8SUID, value)
 	case "process.parent.user_session.k8s_username":
-		return ev.setStringFieldValue("process.parent.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("process.parent.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext.K8SUsername, value)
+	case "process.parent.user_session.session_type":
+		return ev.setIntFieldValue("process.parent.user_session.session_type", &ev.BaseEvent.ProcessContext.Parent.UserSession.SessionType, value)
+	case "process.parent.user_session.ssh_auth_method":
+		return ev.setIntFieldValue("process.parent.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "process.parent.user_session.ssh_client_ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.parent.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "process.parent.user_session.ssh_client_port":
+		return ev.setIntFieldValue("process.parent.user_session.ssh_client_port", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "process.parent.user_session.ssh_public_key":
+		return ev.setStringFieldValue("process.parent.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "process.parent.user_session.ssh_session_id":
+		return ev.setUint64FieldValue("process.parent.user_session.ssh_session_id", &ev.BaseEvent.ProcessContext.Parent.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "process.pid":
 		return ev.setUint32FieldValue("process.pid", &ev.BaseEvent.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ppid":
@@ -38870,12 +45806,35 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.uid", &ev.BaseEvent.ProcessContext.Process.Credentials.UID, value)
 	case "process.user":
 		return ev.setStringFieldValue("process.user", &ev.BaseEvent.ProcessContext.Process.Credentials.User, value)
+	case "process.user_session.id":
+		return ev.setStringFieldValue("process.user_session.id", &ev.BaseEvent.ProcessContext.Process.UserSession.ID, value)
+	case "process.user_session.identity":
+		return ev.setStringFieldValue("process.user_session.identity", &ev.BaseEvent.ProcessContext.Process.UserSession.Identity, value)
 	case "process.user_session.k8s_groups":
-		return ev.setStringArrayFieldValue("process.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("process.user_session.k8s_groups", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "process.user_session.k8s_session_id":
+		return ev.setUint64FieldValue("process.user_session.k8s_session_id", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "process.user_session.k8s_uid":
-		return ev.setStringFieldValue("process.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("process.user_session.k8s_uid", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "process.user_session.k8s_username":
-		return ev.setStringFieldValue("process.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("process.user_session.k8s_username", &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "process.user_session.session_type":
+		return ev.setIntFieldValue("process.user_session.session_type", &ev.BaseEvent.ProcessContext.Process.UserSession.SessionType, value)
+	case "process.user_session.ssh_auth_method":
+		return ev.setIntFieldValue("process.user_session.ssh_auth_method", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "process.user_session.ssh_client_ip":
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "process.user_session.ssh_client_ip"}
+		}
+		ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "process.user_session.ssh_client_port":
+		return ev.setIntFieldValue("process.user_session.ssh_client_port", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "process.user_session.ssh_public_key":
+		return ev.setStringFieldValue("process.user_session.ssh_public_key", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "process.user_session.ssh_session_id":
+		return ev.setUint64FieldValue("process.user_session.ssh_session_id", &ev.BaseEvent.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "ptrace.request":
 		return ev.setUint32FieldValue("ptrace.request", &ev.PTrace.Request, value)
 	case "ptrace.retval":
@@ -39013,6 +45972,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.comm", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Comm, value)
+	case "ptrace.tracee.ancestors.container.created_at":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.container.created_at", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "ptrace.tracee.ancestors.container.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39024,8 +45991,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.container.id"}
 		}
-		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.ancestors.container.tags":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringArrayFieldValue("ptrace.tracee.ancestors.container.tags", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "ptrace.tracee.ancestors.created_at":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39210,6 +46185,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.file.name.length"}
+	case "ptrace.tracee.ancestors.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.file.package.epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.ancestors.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39218,6 +46201,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.name", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "ptrace.tracee.ancestors.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.ancestors.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.file.package.source_epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.ancestors.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.file.package.source_release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.ancestors.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39498,6 +46505,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.interpreter.file.name.length"}
+	case "ptrace.tracee.ancestors.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.interpreter.file.package.epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.ancestors.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39510,6 +46529,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.name", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.ancestors.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.interpreter.file.package.source_release", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.ancestors.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39622,6 +46677,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.length"}
+	case "ptrace.tracee.ancestors.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.netns", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "ptrace.tracee.ancestors.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39670,6 +46733,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.user", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User, value)
+	case "ptrace.tracee.ancestors.user_session.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.ID, value)
+	case "ptrace.tracee.ancestors.user_session.identity":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.identity", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.Identity, value)
 	case "ptrace.tracee.ancestors.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39677,7 +46756,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringArrayFieldValue("ptrace.tracee.ancestors.user_session.k8s_groups", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("ptrace.tracee.ancestors.user_session.k8s_groups", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "ptrace.tracee.ancestors.user_session.k8s_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.user_session.k8s_session_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "ptrace.tracee.ancestors.user_session.k8s_uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39685,7 +46772,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.k8s_uid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.k8s_uid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39693,7 +46780,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Ancestor == nil {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.k8s_username", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.k8s_username", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "ptrace.tracee.ancestors.user_session.session_type":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.user_session.session_type", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SessionType, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_auth_method":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.user_session.ssh_auth_method", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_client_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "ptrace.tracee.ancestors.user_session.ssh_client_port":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.ancestors.user_session.ssh_client_port", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_public_key":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.ancestors.user_session.ssh_public_key", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "ptrace.tracee.ancestors.user_session.ssh_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.user_session.ssh_session_id", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "ptrace.tracee.args":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39779,6 +46919,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.comm", &ev.PTrace.Tracee.Process.Comm, value)
+	case "ptrace.tracee.container.created_at":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.container.created_at", &ev.PTrace.Tracee.Process.ContainerContext.CreatedAt, value)
 	case "ptrace.tracee.container.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39787,8 +46932,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.container.id"}
 		}
-		ev.PTrace.Tracee.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.PTrace.Tracee.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.container.tags":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringArrayFieldValue("ptrace.tracee.container.tags", &ev.PTrace.Tracee.Process.ContainerContext.Tags, value)
 	case "ptrace.tracee.created_at":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -39904,11 +47054,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.file.name.length"}
+	case "ptrace.tracee.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.file.package.epoch", &ev.PTrace.Tracee.Process.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.file.package.name", &ev.PTrace.Tracee.Process.FileEvent.PkgName, value)
+	case "ptrace.tracee.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.file.package.release", &ev.PTrace.Tracee.Process.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.file.package.source_epoch", &ev.PTrace.Tracee.Process.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.file.package.source_release", &ev.PTrace.Tracee.Process.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40105,6 +47275,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.interpreter.file.name.length"}
+	case "ptrace.tracee.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.interpreter.file.package.epoch", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40114,6 +47293,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.name", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.release", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.interpreter.file.package.source_release", &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40188,6 +47394,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.is_thread", &ev.PTrace.Tracee.Process.IsThread, value)
+	case "ptrace.tracee.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.netns", &ev.PTrace.Tracee.Process.PIDContext.NetNS, value)
 	case "ptrace.tracee.parent.args":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40321,6 +47532,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.comm", &ev.PTrace.Tracee.Parent.Comm, value)
+	case "ptrace.tracee.parent.container.created_at":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.parent.container.created_at", &ev.PTrace.Tracee.Parent.ContainerContext.CreatedAt, value)
 	case "ptrace.tracee.parent.container.id":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40332,8 +47551,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.container.id"}
 		}
-		ev.PTrace.Tracee.Parent.ContainerID = containerutils.ContainerID(rv)
+		ev.PTrace.Tracee.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "ptrace.tracee.parent.container.tags":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringArrayFieldValue("ptrace.tracee.parent.container.tags", &ev.PTrace.Tracee.Parent.ContainerContext.Tags, value)
 	case "ptrace.tracee.parent.created_at":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40518,6 +47745,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.file.name.length"}
+	case "ptrace.tracee.parent.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.file.package.epoch", &ev.PTrace.Tracee.Parent.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.parent.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40526,6 +47761,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.name", &ev.PTrace.Tracee.Parent.FileEvent.PkgName, value)
+	case "ptrace.tracee.parent.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.release", &ev.PTrace.Tracee.Parent.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.parent.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.file.package.source_epoch", &ev.PTrace.Tracee.Parent.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.parent.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.file.package.source_release", &ev.PTrace.Tracee.Parent.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.parent.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40806,6 +48065,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.parent.interpreter.file.name.length"}
+	case "ptrace.tracee.parent.interpreter.file.package.epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.interpreter.file.package.epoch", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "ptrace.tracee.parent.interpreter.file.package.name":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40818,6 +48089,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.name", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "ptrace.tracee.parent.interpreter.file.package.release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.release", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "ptrace.tracee.parent.interpreter.file.package.source_epoch":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.interpreter.file.package.source_epoch", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "ptrace.tracee.parent.interpreter.file.package.source_release":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.PTrace.Tracee.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.interpreter.file.package.source_release", &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "ptrace.tracee.parent.interpreter.file.package.source_version":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40922,6 +48229,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_thread", &ev.PTrace.Tracee.Parent.IsThread, value)
+	case "ptrace.tracee.parent.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.parent.netns", &ev.PTrace.Tracee.Parent.PIDContext.NetNS, value)
 	case "ptrace.tracee.parent.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40970,6 +48285,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.parent.user", &ev.PTrace.Tracee.Parent.Credentials.User, value)
+	case "ptrace.tracee.parent.user_session.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.id", &ev.PTrace.Tracee.Parent.UserSession.ID, value)
+	case "ptrace.tracee.parent.user_session.identity":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.identity", &ev.PTrace.Tracee.Parent.UserSession.Identity, value)
 	case "ptrace.tracee.parent.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40977,7 +48308,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setStringArrayFieldValue("ptrace.tracee.parent.user_session.k8s_groups", &ev.PTrace.Tracee.Parent.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("ptrace.tracee.parent.user_session.k8s_groups", &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext.K8SGroups, value)
+	case "ptrace.tracee.parent.user_session.k8s_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.parent.user_session.k8s_session_id", &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "ptrace.tracee.parent.user_session.k8s_uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40985,7 +48324,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.k8s_uid", &ev.PTrace.Tracee.Parent.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.k8s_uid", &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext.K8SUID, value)
 	case "ptrace.tracee.parent.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -40993,7 +48332,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.PTrace.Tracee.Parent == nil {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.k8s_username", &ev.PTrace.Tracee.Parent.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.k8s_username", &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext.K8SUsername, value)
+	case "ptrace.tracee.parent.user_session.session_type":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.user_session.session_type", &ev.PTrace.Tracee.Parent.UserSession.SessionType, value)
+	case "ptrace.tracee.parent.user_session.ssh_auth_method":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.user_session.ssh_auth_method", &ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "ptrace.tracee.parent.user_session.ssh_client_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.parent.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "ptrace.tracee.parent.user_session.ssh_client_port":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.parent.user_session.ssh_client_port", &ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "ptrace.tracee.parent.user_session.ssh_public_key":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.parent.user_session.ssh_public_key", &ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "ptrace.tracee.parent.user_session.ssh_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.parent.user_session.ssh_session_id", &ev.PTrace.Tracee.Parent.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "ptrace.tracee.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -41024,21 +48416,71 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("ptrace.tracee.user", &ev.PTrace.Tracee.Process.Credentials.User, value)
+	case "ptrace.tracee.user_session.id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.id", &ev.PTrace.Tracee.Process.UserSession.ID, value)
+	case "ptrace.tracee.user_session.identity":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.identity", &ev.PTrace.Tracee.Process.UserSession.Identity, value)
 	case "ptrace.tracee.user_session.k8s_groups":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setStringArrayFieldValue("ptrace.tracee.user_session.k8s_groups", &ev.PTrace.Tracee.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("ptrace.tracee.user_session.k8s_groups", &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "ptrace.tracee.user_session.k8s_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.user_session.k8s_session_id", &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "ptrace.tracee.user_session.k8s_uid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.user_session.k8s_uid", &ev.PTrace.Tracee.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("ptrace.tracee.user_session.k8s_uid", &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "ptrace.tracee.user_session.k8s_username":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("ptrace.tracee.user_session.k8s_username", &ev.PTrace.Tracee.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("ptrace.tracee.user_session.k8s_username", &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "ptrace.tracee.user_session.session_type":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.user_session.session_type", &ev.PTrace.Tracee.Process.UserSession.SessionType, value)
+	case "ptrace.tracee.user_session.ssh_auth_method":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.user_session.ssh_auth_method", &ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "ptrace.tracee.user_session.ssh_client_ip":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ptrace.tracee.user_session.ssh_client_ip"}
+		}
+		ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "ptrace.tracee.user_session.ssh_client_port":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("ptrace.tracee.user_session.ssh_client_port", &ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "ptrace.tracee.user_session.ssh_public_key":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("ptrace.tracee.user_session.ssh_public_key", &ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "ptrace.tracee.user_session.ssh_session_id":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("ptrace.tracee.user_session.ssh_session_id", &ev.PTrace.Tracee.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "removexattr.file.change_time":
 		return ev.setUint64FieldValue("removexattr.file.change_time", &ev.RemoveXAttr.File.FileFields.CTime, value)
 	case "removexattr.file.destination.name":
@@ -41073,8 +48515,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("removexattr.file.name", &ev.RemoveXAttr.File.BasenameStr, value)
 	case "removexattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "removexattr.file.name.length"}
+	case "removexattr.file.package.epoch":
+		return ev.setIntFieldValue("removexattr.file.package.epoch", &ev.RemoveXAttr.File.PkgEpoch, value)
 	case "removexattr.file.package.name":
 		return ev.setStringFieldValue("removexattr.file.package.name", &ev.RemoveXAttr.File.PkgName, value)
+	case "removexattr.file.package.release":
+		return ev.setStringFieldValue("removexattr.file.package.release", &ev.RemoveXAttr.File.PkgRelease, value)
+	case "removexattr.file.package.source_epoch":
+		return ev.setIntFieldValue("removexattr.file.package.source_epoch", &ev.RemoveXAttr.File.PkgSrcEpoch, value)
+	case "removexattr.file.package.source_release":
+		return ev.setStringFieldValue("removexattr.file.package.source_release", &ev.RemoveXAttr.File.PkgSrcRelease, value)
 	case "removexattr.file.package.source_version":
 		return ev.setStringFieldValue("removexattr.file.package.source_version", &ev.RemoveXAttr.File.PkgSrcVersion, value)
 	case "removexattr.file.package.version":
@@ -41123,8 +48573,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.destination.name", &ev.Rename.New.BasenameStr, value)
 	case "rename.file.destination.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.destination.name.length"}
+	case "rename.file.destination.package.epoch":
+		return ev.setIntFieldValue("rename.file.destination.package.epoch", &ev.Rename.New.PkgEpoch, value)
 	case "rename.file.destination.package.name":
 		return ev.setStringFieldValue("rename.file.destination.package.name", &ev.Rename.New.PkgName, value)
+	case "rename.file.destination.package.release":
+		return ev.setStringFieldValue("rename.file.destination.package.release", &ev.Rename.New.PkgRelease, value)
+	case "rename.file.destination.package.source_epoch":
+		return ev.setIntFieldValue("rename.file.destination.package.source_epoch", &ev.Rename.New.PkgSrcEpoch, value)
+	case "rename.file.destination.package.source_release":
+		return ev.setStringFieldValue("rename.file.destination.package.source_release", &ev.Rename.New.PkgSrcRelease, value)
 	case "rename.file.destination.package.source_version":
 		return ev.setStringFieldValue("rename.file.destination.package.source_version", &ev.Rename.New.PkgSrcVersion, value)
 	case "rename.file.destination.package.version":
@@ -41167,8 +48625,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rename.file.name", &ev.Rename.Old.BasenameStr, value)
 	case "rename.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rename.file.name.length"}
+	case "rename.file.package.epoch":
+		return ev.setIntFieldValue("rename.file.package.epoch", &ev.Rename.Old.PkgEpoch, value)
 	case "rename.file.package.name":
 		return ev.setStringFieldValue("rename.file.package.name", &ev.Rename.Old.PkgName, value)
+	case "rename.file.package.release":
+		return ev.setStringFieldValue("rename.file.package.release", &ev.Rename.Old.PkgRelease, value)
+	case "rename.file.package.source_epoch":
+		return ev.setIntFieldValue("rename.file.package.source_epoch", &ev.Rename.Old.PkgSrcEpoch, value)
+	case "rename.file.package.source_release":
+		return ev.setStringFieldValue("rename.file.package.source_release", &ev.Rename.Old.PkgSrcRelease, value)
 	case "rename.file.package.source_version":
 		return ev.setStringFieldValue("rename.file.package.source_version", &ev.Rename.Old.PkgSrcVersion, value)
 	case "rename.file.package.version":
@@ -41219,8 +48685,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("rmdir.file.name", &ev.Rmdir.File.BasenameStr, value)
 	case "rmdir.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "rmdir.file.name.length"}
+	case "rmdir.file.package.epoch":
+		return ev.setIntFieldValue("rmdir.file.package.epoch", &ev.Rmdir.File.PkgEpoch, value)
 	case "rmdir.file.package.name":
 		return ev.setStringFieldValue("rmdir.file.package.name", &ev.Rmdir.File.PkgName, value)
+	case "rmdir.file.package.release":
+		return ev.setStringFieldValue("rmdir.file.package.release", &ev.Rmdir.File.PkgRelease, value)
+	case "rmdir.file.package.source_epoch":
+		return ev.setIntFieldValue("rmdir.file.package.source_epoch", &ev.Rmdir.File.PkgSrcEpoch, value)
+	case "rmdir.file.package.source_release":
+		return ev.setStringFieldValue("rmdir.file.package.source_release", &ev.Rmdir.File.PkgSrcRelease, value)
 	case "rmdir.file.package.source_version":
 		return ev.setStringFieldValue("rmdir.file.package.source_version", &ev.Rmdir.File.PkgSrcVersion, value)
 	case "rmdir.file.package.version":
@@ -41400,6 +48874,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.comm", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Comm, value)
+	case "setrlimit.target.ancestors.container.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.container.created_at", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "setrlimit.target.ancestors.container.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41411,8 +48893,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.container.id"}
 		}
-		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.ancestors.container.tags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringArrayFieldValue("setrlimit.target.ancestors.container.tags", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "setrlimit.target.ancestors.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41597,6 +49087,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.file.name.length"}
+	case "setrlimit.target.ancestors.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.file.package.epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.ancestors.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41605,6 +49103,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.name", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "setrlimit.target.ancestors.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "setrlimit.target.ancestors.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.file.package.source_epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.ancestors.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.file.package.source_release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.ancestors.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41885,6 +49407,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.interpreter.file.name.length"}
+	case "setrlimit.target.ancestors.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.interpreter.file.package.epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.ancestors.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -41897,6 +49431,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.name", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.ancestors.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.interpreter.file.package.source_release", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.ancestors.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42009,6 +49579,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.length"}
+	case "setrlimit.target.ancestors.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.netns", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "setrlimit.target.ancestors.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42057,6 +49635,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.user", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.User, value)
+	case "setrlimit.target.ancestors.user_session.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.ID, value)
+	case "setrlimit.target.ancestors.user_session.identity":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.identity", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.Identity, value)
 	case "setrlimit.target.ancestors.user_session.k8s_groups":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42064,7 +49658,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringArrayFieldValue("setrlimit.target.ancestors.user_session.k8s_groups", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("setrlimit.target.ancestors.user_session.k8s_groups", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "setrlimit.target.ancestors.user_session.k8s_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.user_session.k8s_session_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "setrlimit.target.ancestors.user_session.k8s_uid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42072,7 +49674,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.k8s_uid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.k8s_uid", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "setrlimit.target.ancestors.user_session.k8s_username":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42080,7 +49682,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Ancestor == nil {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.k8s_username", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.k8s_username", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "setrlimit.target.ancestors.user_session.session_type":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.user_session.session_type", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SessionType, value)
+	case "setrlimit.target.ancestors.user_session.ssh_auth_method":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.user_session.ssh_auth_method", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "setrlimit.target.ancestors.user_session.ssh_client_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "setrlimit.target.ancestors.user_session.ssh_client_port":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.ancestors.user_session.ssh_client_port", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "setrlimit.target.ancestors.user_session.ssh_public_key":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.ancestors.user_session.ssh_public_key", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "setrlimit.target.ancestors.user_session.ssh_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.user_session.ssh_session_id", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "setrlimit.target.args":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42166,6 +49821,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.comm", &ev.Setrlimit.Target.Process.Comm, value)
+	case "setrlimit.target.container.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.container.created_at", &ev.Setrlimit.Target.Process.ContainerContext.CreatedAt, value)
 	case "setrlimit.target.container.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42174,8 +49834,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.container.id"}
 		}
-		ev.Setrlimit.Target.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Setrlimit.Target.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.container.tags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringArrayFieldValue("setrlimit.target.container.tags", &ev.Setrlimit.Target.Process.ContainerContext.Tags, value)
 	case "setrlimit.target.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42291,11 +49956,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.file.name.length"}
+	case "setrlimit.target.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.file.package.epoch", &ev.Setrlimit.Target.Process.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.file.package.name", &ev.Setrlimit.Target.Process.FileEvent.PkgName, value)
+	case "setrlimit.target.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.file.package.release", &ev.Setrlimit.Target.Process.FileEvent.PkgRelease, value)
+	case "setrlimit.target.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.file.package.source_epoch", &ev.Setrlimit.Target.Process.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.file.package.source_release", &ev.Setrlimit.Target.Process.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42492,6 +50177,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.interpreter.file.name.length"}
+	case "setrlimit.target.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.interpreter.file.package.epoch", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42501,6 +50195,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.name", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.release", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.interpreter.file.package.source_release", &ev.Setrlimit.Target.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42575,6 +50296,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.is_thread", &ev.Setrlimit.Target.Process.IsThread, value)
+	case "setrlimit.target.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.netns", &ev.Setrlimit.Target.Process.PIDContext.NetNS, value)
 	case "setrlimit.target.parent.args":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42708,6 +50434,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.comm", &ev.Setrlimit.Target.Parent.Comm, value)
+	case "setrlimit.target.parent.container.created_at":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.container.created_at", &ev.Setrlimit.Target.Parent.ContainerContext.CreatedAt, value)
 	case "setrlimit.target.parent.container.id":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42719,8 +50453,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.container.id"}
 		}
-		ev.Setrlimit.Target.Parent.ContainerID = containerutils.ContainerID(rv)
+		ev.Setrlimit.Target.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "setrlimit.target.parent.container.tags":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringArrayFieldValue("setrlimit.target.parent.container.tags", &ev.Setrlimit.Target.Parent.ContainerContext.Tags, value)
 	case "setrlimit.target.parent.created_at":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42905,6 +50647,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.file.name.length"}
+	case "setrlimit.target.parent.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.file.package.epoch", &ev.Setrlimit.Target.Parent.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.parent.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -42913,6 +50663,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.file.package.name", &ev.Setrlimit.Target.Parent.FileEvent.PkgName, value)
+	case "setrlimit.target.parent.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.file.package.release", &ev.Setrlimit.Target.Parent.FileEvent.PkgRelease, value)
+	case "setrlimit.target.parent.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.file.package.source_epoch", &ev.Setrlimit.Target.Parent.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.parent.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.file.package.source_release", &ev.Setrlimit.Target.Parent.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.parent.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43193,6 +50967,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.parent.interpreter.file.name.length"}
+	case "setrlimit.target.parent.interpreter.file.package.epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.interpreter.file.package.epoch", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "setrlimit.target.parent.interpreter.file.package.name":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43205,6 +50991,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.name", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "setrlimit.target.parent.interpreter.file.package.release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.release", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "setrlimit.target.parent.interpreter.file.package.source_epoch":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.interpreter.file.package.source_epoch", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "setrlimit.target.parent.interpreter.file.package.source_release":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Setrlimit.Target.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.interpreter.file.package.source_release", &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "setrlimit.target.parent.interpreter.file.package.source_version":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43309,6 +51131,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.parent.is_thread", &ev.Setrlimit.Target.Parent.IsThread, value)
+	case "setrlimit.target.parent.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.parent.netns", &ev.Setrlimit.Target.Parent.PIDContext.NetNS, value)
 	case "setrlimit.target.parent.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43357,6 +51187,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.user", &ev.Setrlimit.Target.Parent.Credentials.User, value)
+	case "setrlimit.target.parent.user_session.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.id", &ev.Setrlimit.Target.Parent.UserSession.ID, value)
+	case "setrlimit.target.parent.user_session.identity":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.identity", &ev.Setrlimit.Target.Parent.UserSession.Identity, value)
 	case "setrlimit.target.parent.user_session.k8s_groups":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43364,7 +51210,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setStringArrayFieldValue("setrlimit.target.parent.user_session.k8s_groups", &ev.Setrlimit.Target.Parent.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("setrlimit.target.parent.user_session.k8s_groups", &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext.K8SGroups, value)
+	case "setrlimit.target.parent.user_session.k8s_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.user_session.k8s_session_id", &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "setrlimit.target.parent.user_session.k8s_uid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43372,7 +51226,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.parent.user_session.k8s_uid", &ev.Setrlimit.Target.Parent.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.k8s_uid", &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext.K8SUID, value)
 	case "setrlimit.target.parent.user_session.k8s_username":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43380,7 +51234,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Setrlimit.Target.Parent == nil {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.parent.user_session.k8s_username", &ev.Setrlimit.Target.Parent.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.k8s_username", &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext.K8SUsername, value)
+	case "setrlimit.target.parent.user_session.session_type":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.user_session.session_type", &ev.Setrlimit.Target.Parent.UserSession.SessionType, value)
+	case "setrlimit.target.parent.user_session.ssh_auth_method":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.user_session.ssh_auth_method", &ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "setrlimit.target.parent.user_session.ssh_client_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.parent.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "setrlimit.target.parent.user_session.ssh_client_port":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.parent.user_session.ssh_client_port", &ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "setrlimit.target.parent.user_session.ssh_public_key":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.parent.user_session.ssh_public_key", &ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "setrlimit.target.parent.user_session.ssh_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.user_session.ssh_session_id", &ev.Setrlimit.Target.Parent.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "setrlimit.target.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -43411,21 +51318,71 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.user", &ev.Setrlimit.Target.Process.Credentials.User, value)
+	case "setrlimit.target.user_session.id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.id", &ev.Setrlimit.Target.Process.UserSession.ID, value)
+	case "setrlimit.target.user_session.identity":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.identity", &ev.Setrlimit.Target.Process.UserSession.Identity, value)
 	case "setrlimit.target.user_session.k8s_groups":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setStringArrayFieldValue("setrlimit.target.user_session.k8s_groups", &ev.Setrlimit.Target.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("setrlimit.target.user_session.k8s_groups", &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "setrlimit.target.user_session.k8s_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.user_session.k8s_session_id", &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "setrlimit.target.user_session.k8s_uid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_uid", &ev.Setrlimit.Target.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_uid", &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "setrlimit.target.user_session.k8s_username":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_username", &ev.Setrlimit.Target.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("setrlimit.target.user_session.k8s_username", &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "setrlimit.target.user_session.session_type":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.user_session.session_type", &ev.Setrlimit.Target.Process.UserSession.SessionType, value)
+	case "setrlimit.target.user_session.ssh_auth_method":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.user_session.ssh_auth_method", &ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "setrlimit.target.user_session.ssh_client_ip":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "setrlimit.target.user_session.ssh_client_ip"}
+		}
+		ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "setrlimit.target.user_session.ssh_client_port":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("setrlimit.target.user_session.ssh_client_port", &ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "setrlimit.target.user_session.ssh_public_key":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("setrlimit.target.user_session.ssh_public_key", &ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "setrlimit.target.user_session.ssh_session_id":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.user_session.ssh_session_id", &ev.Setrlimit.Target.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "setsockopt.filter_hash":
 		return ev.setStringFieldValue("setsockopt.filter_hash", &ev.SetSockOpt.FilterHash, value)
 	case "setsockopt.filter_instructions":
@@ -43504,8 +51461,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("setxattr.file.name", &ev.SetXAttr.File.BasenameStr, value)
 	case "setxattr.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "setxattr.file.name.length"}
+	case "setxattr.file.package.epoch":
+		return ev.setIntFieldValue("setxattr.file.package.epoch", &ev.SetXAttr.File.PkgEpoch, value)
 	case "setxattr.file.package.name":
 		return ev.setStringFieldValue("setxattr.file.package.name", &ev.SetXAttr.File.PkgName, value)
+	case "setxattr.file.package.release":
+		return ev.setStringFieldValue("setxattr.file.package.release", &ev.SetXAttr.File.PkgRelease, value)
+	case "setxattr.file.package.source_epoch":
+		return ev.setIntFieldValue("setxattr.file.package.source_epoch", &ev.SetXAttr.File.PkgSrcEpoch, value)
+	case "setxattr.file.package.source_release":
+		return ev.setStringFieldValue("setxattr.file.package.source_release", &ev.SetXAttr.File.PkgSrcRelease, value)
 	case "setxattr.file.package.source_version":
 		return ev.setStringFieldValue("setxattr.file.package.source_version", &ev.SetXAttr.File.PkgSrcVersion, value)
 	case "setxattr.file.package.version":
@@ -43659,6 +51624,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.comm", &ev.Signal.Target.Ancestor.ProcessContext.Process.Comm, value)
+	case "signal.target.ancestors.container.created_at":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.container.created_at", &ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerContext.CreatedAt, value)
 	case "signal.target.ancestors.container.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43670,8 +51643,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.container.id"}
 		}
-		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.ancestors.container.tags":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringArrayFieldValue("signal.target.ancestors.container.tags", &ev.Signal.Target.Ancestor.ProcessContext.Process.ContainerContext.Tags, value)
 	case "signal.target.ancestors.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43856,6 +51837,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.file.name.length"}
+	case "signal.target.ancestors.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.file.package.epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgEpoch, value)
 	case "signal.target.ancestors.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -43864,6 +51853,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.file.package.name", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgName, value)
+	case "signal.target.ancestors.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.file.package.release", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgRelease, value)
+	case "signal.target.ancestors.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.file.package.source_epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.ancestors.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.file.package.source_release", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileEvent.PkgSrcRelease, value)
 	case "signal.target.ancestors.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44144,6 +52157,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.interpreter.file.name.length"}
+	case "signal.target.ancestors.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.interpreter.file.package.epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.ancestors.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44156,6 +52181,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.name", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.ancestors.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.release", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.ancestors.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.interpreter.file.package.source_epoch", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.ancestors.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.interpreter.file.package.source_release", &ev.Signal.Target.Ancestor.ProcessContext.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.ancestors.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44268,6 +52329,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.length"}
+	case "signal.target.ancestors.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("signal.target.ancestors.netns", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "signal.target.ancestors.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44316,6 +52385,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.user", &ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User, value)
+	case "signal.target.ancestors.user_session.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.id", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.ID, value)
+	case "signal.target.ancestors.user_session.identity":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.identity", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.Identity, value)
 	case "signal.target.ancestors.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44323,7 +52408,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringArrayFieldValue("signal.target.ancestors.user_session.k8s_groups", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("signal.target.ancestors.user_session.k8s_groups", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "signal.target.ancestors.user_session.k8s_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.user_session.k8s_session_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "signal.target.ancestors.user_session.k8s_uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44331,7 +52424,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("signal.target.ancestors.user_session.k8s_uid", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.k8s_uid", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "signal.target.ancestors.user_session.k8s_username":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44339,7 +52432,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Ancestor == nil {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
-		return ev.setStringFieldValue("signal.target.ancestors.user_session.k8s_username", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.k8s_username", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "signal.target.ancestors.user_session.session_type":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.user_session.session_type", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SessionType, value)
+	case "signal.target.ancestors.user_session.ssh_auth_method":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.user_session.ssh_auth_method", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "signal.target.ancestors.user_session.ssh_client_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.ancestors.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "signal.target.ancestors.user_session.ssh_client_port":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setIntFieldValue("signal.target.ancestors.user_session.ssh_client_port", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "signal.target.ancestors.user_session.ssh_public_key":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setStringFieldValue("signal.target.ancestors.user_session.ssh_public_key", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "signal.target.ancestors.user_session.ssh_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.user_session.ssh_session_id", &ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "signal.target.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44425,6 +52571,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.comm", &ev.Signal.Target.Process.Comm, value)
+	case "signal.target.container.created_at":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.container.created_at", &ev.Signal.Target.Process.ContainerContext.CreatedAt, value)
 	case "signal.target.container.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44433,8 +52584,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "signal.target.container.id"}
 		}
-		ev.Signal.Target.Process.ContainerID = containerutils.ContainerID(rv)
+		ev.Signal.Target.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.container.tags":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringArrayFieldValue("signal.target.container.tags", &ev.Signal.Target.Process.ContainerContext.Tags, value)
 	case "signal.target.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44550,11 +52706,31 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.file.name.length"}
+	case "signal.target.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.file.package.epoch", &ev.Signal.Target.Process.FileEvent.PkgEpoch, value)
 	case "signal.target.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.file.package.name", &ev.Signal.Target.Process.FileEvent.PkgName, value)
+	case "signal.target.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.file.package.release", &ev.Signal.Target.Process.FileEvent.PkgRelease, value)
+	case "signal.target.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.file.package.source_epoch", &ev.Signal.Target.Process.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.file.package.source_release", &ev.Signal.Target.Process.FileEvent.PkgSrcRelease, value)
 	case "signal.target.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44751,6 +52927,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.interpreter.file.name.length"}
+	case "signal.target.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.interpreter.file.package.epoch", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44760,6 +52945,33 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.interpreter.file.package.name", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.interpreter.file.package.release", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.interpreter.file.package.source_epoch", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Process.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.interpreter.file.package.source_release", &ev.Signal.Target.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44834,6 +53046,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("signal.target.is_thread", &ev.Signal.Target.Process.IsThread, value)
+	case "signal.target.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("signal.target.netns", &ev.Signal.Target.Process.PIDContext.NetNS, value)
 	case "signal.target.parent.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44967,6 +53184,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.comm", &ev.Signal.Target.Parent.Comm, value)
+	case "signal.target.parent.container.created_at":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.container.created_at", &ev.Signal.Target.Parent.ContainerContext.CreatedAt, value)
 	case "signal.target.parent.container.id":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -44978,8 +53203,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.container.id"}
 		}
-		ev.Signal.Target.Parent.ContainerID = containerutils.ContainerID(rv)
+		ev.Signal.Target.Parent.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
+	case "signal.target.parent.container.tags":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringArrayFieldValue("signal.target.parent.container.tags", &ev.Signal.Target.Parent.ContainerContext.Tags, value)
 	case "signal.target.parent.created_at":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45164,6 +53397,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.file.name.length"}
+	case "signal.target.parent.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.file.package.epoch", &ev.Signal.Target.Parent.FileEvent.PkgEpoch, value)
 	case "signal.target.parent.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45172,6 +53413,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.file.package.name", &ev.Signal.Target.Parent.FileEvent.PkgName, value)
+	case "signal.target.parent.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.file.package.release", &ev.Signal.Target.Parent.FileEvent.PkgRelease, value)
+	case "signal.target.parent.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.file.package.source_epoch", &ev.Signal.Target.Parent.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.parent.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.file.package.source_release", &ev.Signal.Target.Parent.FileEvent.PkgSrcRelease, value)
 	case "signal.target.parent.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45452,6 +53717,18 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.parent.interpreter.file.name.length"}
+	case "signal.target.parent.interpreter.file.package.epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.parent.interpreter.file.package.epoch", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "signal.target.parent.interpreter.file.package.name":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45464,6 +53741,42 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return err
 		}
 		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.name", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgName, value)
+	case "signal.target.parent.interpreter.file.package.release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.release", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgRelease, value)
+	case "signal.target.parent.interpreter.file.package.source_epoch":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.source_epoch", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setIntFieldValue("signal.target.parent.interpreter.file.package.source_epoch", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
+	case "signal.target.parent.interpreter.file.package.source_release":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		cont, err := SetInterpreterFields(&ev.Signal.Target.Parent.LinuxBinprm, "file.package.source_release", value)
+		if err != nil || !cont {
+			return err
+		}
+		return ev.setStringFieldValue("signal.target.parent.interpreter.file.package.source_release", &ev.Signal.Target.Parent.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "signal.target.parent.interpreter.file.package.source_version":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45568,6 +53881,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("signal.target.parent.is_thread", &ev.Signal.Target.Parent.IsThread, value)
+	case "signal.target.parent.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("signal.target.parent.netns", &ev.Signal.Target.Parent.PIDContext.NetNS, value)
 	case "signal.target.parent.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45616,6 +53937,22 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.user", &ev.Signal.Target.Parent.Credentials.User, value)
+	case "signal.target.parent.user_session.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.id", &ev.Signal.Target.Parent.UserSession.ID, value)
+	case "signal.target.parent.user_session.identity":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.identity", &ev.Signal.Target.Parent.UserSession.Identity, value)
 	case "signal.target.parent.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45623,7 +53960,15 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setStringArrayFieldValue("signal.target.parent.user_session.k8s_groups", &ev.Signal.Target.Parent.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("signal.target.parent.user_session.k8s_groups", &ev.Signal.Target.Parent.UserSession.K8SSessionContext.K8SGroups, value)
+	case "signal.target.parent.user_session.k8s_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.user_session.k8s_session_id", &ev.Signal.Target.Parent.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "signal.target.parent.user_session.k8s_uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45631,7 +53976,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("signal.target.parent.user_session.k8s_uid", &ev.Signal.Target.Parent.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("signal.target.parent.user_session.k8s_uid", &ev.Signal.Target.Parent.UserSession.K8SSessionContext.K8SUID, value)
 	case "signal.target.parent.user_session.k8s_username":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45639,7 +53984,60 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if ev.Signal.Target.Parent == nil {
 			ev.Signal.Target.Parent = &Process{}
 		}
-		return ev.setStringFieldValue("signal.target.parent.user_session.k8s_username", &ev.Signal.Target.Parent.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("signal.target.parent.user_session.k8s_username", &ev.Signal.Target.Parent.UserSession.K8SSessionContext.K8SUsername, value)
+	case "signal.target.parent.user_session.session_type":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.user_session.session_type", &ev.Signal.Target.Parent.UserSession.SessionType, value)
+	case "signal.target.parent.user_session.ssh_auth_method":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.user_session.ssh_auth_method", &ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "signal.target.parent.user_session.ssh_client_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.parent.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "signal.target.parent.user_session.ssh_client_port":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setIntFieldValue("signal.target.parent.user_session.ssh_client_port", &ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "signal.target.parent.user_session.ssh_public_key":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setStringFieldValue("signal.target.parent.user_session.ssh_public_key", &ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "signal.target.parent.user_session.ssh_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.user_session.ssh_session_id", &ev.Signal.Target.Parent.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "signal.target.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -45670,21 +54068,71 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.user", &ev.Signal.Target.Process.Credentials.User, value)
+	case "signal.target.user_session.id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.id", &ev.Signal.Target.Process.UserSession.ID, value)
+	case "signal.target.user_session.identity":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.identity", &ev.Signal.Target.Process.UserSession.Identity, value)
 	case "signal.target.user_session.k8s_groups":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setStringArrayFieldValue("signal.target.user_session.k8s_groups", &ev.Signal.Target.Process.UserSession.K8SGroups, value)
+		return ev.setStringArrayFieldValue("signal.target.user_session.k8s_groups", &ev.Signal.Target.Process.UserSession.K8SSessionContext.K8SGroups, value)
+	case "signal.target.user_session.k8s_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.user_session.k8s_session_id", &ev.Signal.Target.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "signal.target.user_session.k8s_uid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("signal.target.user_session.k8s_uid", &ev.Signal.Target.Process.UserSession.K8SUID, value)
+		return ev.setStringFieldValue("signal.target.user_session.k8s_uid", &ev.Signal.Target.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "signal.target.user_session.k8s_username":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
 		}
-		return ev.setStringFieldValue("signal.target.user_session.k8s_username", &ev.Signal.Target.Process.UserSession.K8SUsername, value)
+		return ev.setStringFieldValue("signal.target.user_session.k8s_username", &ev.Signal.Target.Process.UserSession.K8SSessionContext.K8SUsername, value)
+	case "signal.target.user_session.session_type":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.user_session.session_type", &ev.Signal.Target.Process.UserSession.SessionType, value)
+	case "signal.target.user_session.ssh_auth_method":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.user_session.ssh_auth_method", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
+	case "signal.target.user_session.ssh_client_ip":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(net.IPNet)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "signal.target.user_session.ssh_client_ip"}
+		}
+		ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHClientIP = rv
+		return nil
+	case "signal.target.user_session.ssh_client_port":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setIntFieldValue("signal.target.user_session.ssh_client_port", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHClientPort, value)
+	case "signal.target.user_session.ssh_public_key":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setStringFieldValue("signal.target.user_session.ssh_public_key", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
+	case "signal.target.user_session.ssh_session_id":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.user_session.ssh_session_id", &ev.Signal.Target.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "signal.type":
 		return ev.setUint32FieldValue("signal.type", &ev.Signal.Type, value)
 	case "splice.file.change_time":
@@ -45717,8 +54165,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("splice.file.name", &ev.Splice.File.BasenameStr, value)
 	case "splice.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "splice.file.name.length"}
+	case "splice.file.package.epoch":
+		return ev.setIntFieldValue("splice.file.package.epoch", &ev.Splice.File.PkgEpoch, value)
 	case "splice.file.package.name":
 		return ev.setStringFieldValue("splice.file.package.name", &ev.Splice.File.PkgName, value)
+	case "splice.file.package.release":
+		return ev.setStringFieldValue("splice.file.package.release", &ev.Splice.File.PkgRelease, value)
+	case "splice.file.package.source_epoch":
+		return ev.setIntFieldValue("splice.file.package.source_epoch", &ev.Splice.File.PkgSrcEpoch, value)
+	case "splice.file.package.source_release":
+		return ev.setStringFieldValue("splice.file.package.source_release", &ev.Splice.File.PkgSrcRelease, value)
 	case "splice.file.package.source_version":
 		return ev.setStringFieldValue("splice.file.package.source_version", &ev.Splice.File.PkgSrcVersion, value)
 	case "splice.file.package.version":
@@ -45785,8 +54241,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("unlink.file.name", &ev.Unlink.File.BasenameStr, value)
 	case "unlink.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "unlink.file.name.length"}
+	case "unlink.file.package.epoch":
+		return ev.setIntFieldValue("unlink.file.package.epoch", &ev.Unlink.File.PkgEpoch, value)
 	case "unlink.file.package.name":
 		return ev.setStringFieldValue("unlink.file.package.name", &ev.Unlink.File.PkgName, value)
+	case "unlink.file.package.release":
+		return ev.setStringFieldValue("unlink.file.package.release", &ev.Unlink.File.PkgRelease, value)
+	case "unlink.file.package.source_epoch":
+		return ev.setIntFieldValue("unlink.file.package.source_epoch", &ev.Unlink.File.PkgSrcEpoch, value)
+	case "unlink.file.package.source_release":
+		return ev.setStringFieldValue("unlink.file.package.source_release", &ev.Unlink.File.PkgSrcRelease, value)
 	case "unlink.file.package.source_version":
 		return ev.setStringFieldValue("unlink.file.package.source_version", &ev.Unlink.File.PkgSrcVersion, value)
 	case "unlink.file.package.version":
@@ -45845,8 +54309,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringFieldValue("utimes.file.name", &ev.Utimes.File.BasenameStr, value)
 	case "utimes.file.name.length":
 		return &eval.ErrFieldReadOnly{Field: "utimes.file.name.length"}
+	case "utimes.file.package.epoch":
+		return ev.setIntFieldValue("utimes.file.package.epoch", &ev.Utimes.File.PkgEpoch, value)
 	case "utimes.file.package.name":
 		return ev.setStringFieldValue("utimes.file.package.name", &ev.Utimes.File.PkgName, value)
+	case "utimes.file.package.release":
+		return ev.setStringFieldValue("utimes.file.package.release", &ev.Utimes.File.PkgRelease, value)
+	case "utimes.file.package.source_epoch":
+		return ev.setIntFieldValue("utimes.file.package.source_epoch", &ev.Utimes.File.PkgSrcEpoch, value)
+	case "utimes.file.package.source_release":
+		return ev.setStringFieldValue("utimes.file.package.source_release", &ev.Utimes.File.PkgSrcRelease, value)
 	case "utimes.file.package.source_version":
 		return ev.setStringFieldValue("utimes.file.package.source_version", &ev.Utimes.File.PkgSrcVersion, value)
 	case "utimes.file.package.version":

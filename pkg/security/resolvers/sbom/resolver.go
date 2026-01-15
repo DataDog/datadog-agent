@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/collectorv2"
 	sbomtypes "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom/types"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -142,11 +143,7 @@ type sbomCollector interface {
 
 // NewSBOMResolver returns a new instance of Resolver
 func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
-	sbomCollector, err := selectCollector(c)
-	if err != nil {
-		return nil, err
-	}
-
+	sbomCollector := collectorv2.NewOSScanner()
 	dataCache, err := simplelru.NewLRU[workloadKey, *Data](c.SBOMResolverWorkloadsCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create new SBOMResolver: %w", err)
@@ -498,7 +495,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
-	id := workload.ContainerID
+	id := workload.ContainerContext.ContainerID
 	// We don't scan hosts for now
 	if len(id) == 0 {
 		return
@@ -527,8 +524,8 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (r *Resolver) OnCGroupDeletedEvent(cgroup *cgroupModel.CacheEntry) {
-	if cgroup.ContainerID != "" {
-		r.Delete(cgroup.ContainerID)
+	if cgroup.ContainerContext.ContainerID != "" {
+		r.Delete(cgroup.ContainerContext.ContainerID)
 	}
 }
 

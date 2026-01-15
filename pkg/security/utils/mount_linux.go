@@ -136,7 +136,7 @@ func GetHostMountPathID(mountPath string) (uint32, error) {
 		}
 
 		if fields[4] == mountPath {
-			id, err := strconv.Atoi(fields[0])
+			id, err := strconv.ParseUint(fields[0], 10, 32)
 			if err != nil {
 				return 0, err
 			}

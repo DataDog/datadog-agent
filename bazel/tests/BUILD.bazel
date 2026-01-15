@@ -1,0 +1,8 @@
+load("@rules_python//python:py_test.bzl", "py_test")
+
+py_test(
+    name = "does_python_work",
+    srcs = ["does_python_work.py"],
+    data = ["//:python_version"],
+    deps = ["@py_dev_requirements//invoke"],
+)

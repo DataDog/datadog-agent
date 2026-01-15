@@ -107,31 +107,41 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	require.NotNil(t, storeContainer, "container should be found in the store")
 
 	t.Run("NoContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), "")
+		allDevices, err := sysCtx.deviceCache.All()
 		require.NoError(t, err)
-		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()) // With no container, all devices should be returned
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, "")
+		require.NoError(t, err)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices) // With no container, all devices should be returned
 	})
 
 	t.Run("NonExistentContainer", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), "non-existent-at-all")
+		allDevices, err := sysCtx.deviceCache.All()
 		require.NoError(t, err)
-		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()) // If we can't find the container, all devices should be returned
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, "non-existent-at-all")
+		require.NoError(t, err)
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices) // If we can't find the container, all devices should be returned
 	})
 
 	t.Run("ContainerWithGPU", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerID)
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, containerID)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[deviceIndex:deviceIndex+1])
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices[deviceIndex:deviceIndex+1])
 	})
 
 	t.Run("ContainerWithNoGPUs", func(t *testing.T) {
-		_, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDNoGpu)
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		_, err = sysCtx.filterDevicesForContainer(allDevices, containerIDNoGpu)
 		require.Error(t, err, "expected an error when filtering a container with no GPUs")
 	})
 
 	t.Run("ContainerWithNoGPUsButOnlyOneDeviceInSystem", func(t *testing.T) {
-		sysDevices := sysCtx.deviceCache.All()[:1]
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		sysDevices := allDevices[:1]
 		filtered, err := sysCtx.filterDevicesForContainer(sysDevices, containerIDNoGpu)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
@@ -139,10 +149,12 @@ func TestFilterDevicesForContainer(t *testing.T) {
 	})
 
 	t.Run("ContainerWithGKEPlugin", func(t *testing.T) {
-		filtered, err := sysCtx.filterDevicesForContainer(sysCtx.deviceCache.All(), containerIDGke)
+		allDevices, err := sysCtx.deviceCache.All()
+		require.NoError(t, err)
+		filtered, err := sysCtx.filterDevicesForContainer(allDevices, containerIDGke)
 		require.NoError(t, err)
 		require.Len(t, filtered, 1)
-		nvmltestutil.RequireDeviceListsEqual(t, filtered, sysCtx.deviceCache.All()[0:1])
+		nvmltestutil.RequireDeviceListsEqual(t, filtered, allDevices[0:1])
 	})
 }
 
@@ -264,7 +276,9 @@ func TestGetCurrentActiveGpuDevice(t *testing.T) {
 			for i, idx := range c.expectedDeviceIdx {
 				activeDevice, err := sysCtx.getCurrentActiveGpuDevice(c.pid, c.pid+i, func() string { return c.containerID })
 				require.NoError(t, err)
-				nvmltestutil.RequireDevicesEqual(t, sysCtx.deviceCache.All()[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
+				allDevices, err := sysCtx.deviceCache.All()
+				require.NoError(t, err)
+				nvmltestutil.RequireDevicesEqual(t, allDevices[idx], activeDevice, "invalid device at index %d (real index is %d, selected index is %d)", i, idx, c.configuredDeviceIdx[i])
 			}
 
 			// Note: we're explicitly not resetting the caches, as we want to test

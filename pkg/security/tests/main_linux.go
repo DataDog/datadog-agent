@@ -113,6 +113,12 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestConnectEventAFInetIOUring",
 			"TestAcceptEvent/accept-af-inet-any-tcp-success-sockaddrin-io-uring",
 			"TestOpenTree",
+			"TestMoveMount",
+			"TestMoveMountRecursiveNoPropagation",
+			"TestMoveMountRecursivePropagation",
+			"TestActionKillContainerWithSignature",
+			"TestActionKillContainerWithSignatureBroadRule",
+			"TestActionKillWithSignature",
 		}
 
 		if disableSeccomp {

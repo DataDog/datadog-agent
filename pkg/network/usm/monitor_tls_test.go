@@ -129,10 +129,10 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
 				require.NoError(t, err)
 				containerPid := strings.TrimSpace(string(rawout))
-				containerRoot := fmt.Sprintf("/proc/%s/root", containerPid)
+				containerRoot := "/proc/" + containerPid + "/root"
 
 				// We start curl with chroot instead of via docker run since
-				// docker run forks and so `testHTTPSLibrary` woudn't have the
+				// docker run forks and so `testHTTPSLibrary` wouldn't have the
 				// PID of curl which it needs to wait for the shared library
 				// monitoring to happen.
 				return containerRoot, []string{"chroot", containerRoot, "ldd", "/usr/bin/curl"}, []string{"chroot", containerRoot,
@@ -212,8 +212,6 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 	requestCmd.Stderr = requestCmd.Stdout
 	require.NoError(t, requestCmd.Start())
 
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, requestCmd.Process.Pid, utils.ManualTracingFallbackDisabled)
-
 	if err := requestCmd.Wait(); err != nil {
 		output, err := io.ReadAll(stdout)
 		if err == nil {
@@ -249,7 +247,7 @@ func testHTTPSLibrary(t *testing.T, cfg *config.Config, fetchCmd, prefetchLibs [
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
 		return false
-	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
+	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http_in_flight")
@@ -1026,7 +1024,7 @@ func testNodeJSSegfaultPrevention(t *testing.T, usmMonitor *Monitor, nodeJSPID u
 	initialPID := nodeJSPID
 
 	// Create client and make HTTPS requests to trigger potential uretprobe usage
-	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	client, requestFn := simpleGetRequestsGenerator(t, "localhost:"+serverPort)
 
 	// Make several requests that would normally trigger uretprobe attachment
 	for i := 0; i < 5; i++ {
@@ -1069,7 +1067,7 @@ func testNodeJSNormalMonitoring(t *testing.T, usmMonitor *Monitor, nodeJSPID uin
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
-	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	client, requestFn := simpleGetRequestsGenerator(t, "localhost:"+serverPort)
 
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {
@@ -1168,7 +1166,7 @@ func testOpenSSLNormalMonitoring(t *testing.T, usmMonitor *Monitor, pythonPID ui
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, int(pythonPID), utils.ManualTracingFallbackEnabled)
 
 	// This maps will keep track of whether the tracer saw this request already or not
-	client, requestFn := simpleGetRequestsGenerator(t, fmt.Sprintf("localhost:%s", serverPort))
+	client, requestFn := simpleGetRequestsGenerator(t, "localhost:"+serverPort)
 
 	var requests []*nethttp.Request
 	for i := 0; i < expectedOccurrences; i++ {

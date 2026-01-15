@@ -15,7 +15,7 @@ import (
 )
 
 func (q *queue[Item, ID]) items() iter.Seq[Item] {
-	return q.list.items()
+	return q.l.items()
 }
 
 // Note that it's not safe to modify the list while iterating over it.
@@ -48,7 +48,7 @@ func TestQueue(t *testing.T) {
 		_, ok := q.popFront()
 		require.False(t, ok)
 		require.Equal(t, 0, len(q.m))
-		require.Nil(t, q.list.head)
+		require.Nil(t, q.l.head)
 	})
 
 	t.Run("push and pop", func(t *testing.T) {

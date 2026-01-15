@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,13 +57,14 @@ type Metadata struct {
 	Labels      map[string]string
 }
 
-// DCAClientInterface  is required to query the API of Datadog cluster agent
+// DCAClientInterface is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version(withRefresh bool) version.Version
 	ClusterAgentAPIEndpoint() string
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error)
+	GetNodeUID(nodeName string) (string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
 	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
@@ -131,7 +133,7 @@ func (c *DCAClient) init() error {
 	}
 
 	c.clusterAgentAPIRequestHeaders = http.Header{}
-	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, fmt.Sprintf("Bearer %s", authToken))
+	c.clusterAgentAPIRequestHeaders.Set(authorizationHeaderKey, "Bearer "+authToken)
 	podIP := pkgconfigsetup.Datadog().GetString("clc_runner_host")
 	c.clusterAgentAPIRequestHeaders.Set(RealIPHeader, podIP)
 
@@ -358,6 +360,20 @@ func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error)
 	return result, err
 }
 
+// GetNodeUID returns the node UID from the Cluster Agent.
+func (c *DCAClient) GetNodeUID(nodeName string) (string, error) {
+	var result map[string]string
+
+	err := c.doJSONQuery(context.TODO(), "api/v1/uid/node/"+nodeName, "GET", nil, &result, false)
+	log.Debugf("GetNodeUID from DCA for node '%s': %v", nodeName, result)
+
+	if err != nil {
+		log.Debugf("Error getting node UID from DCA: %v", err)
+		return "", err
+	}
+	return result["uid"], nil
+}
+
 // GetNamespaceMetadata returns the namespace metadata from the Cluster Agent.
 func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 	var result Metadata
@@ -369,7 +385,7 @@ func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
 func (c *DCAClient) GetNodeAnnotations(nodeName string, filter ...string) (map[string]string, error) {
 	var result map[string]string
 
-	base := fmt.Sprintf("api/v1/annotations/node/%s", nodeName)
+	base := "api/v1/annotations/node/" + nodeName
 	path, err := buildQueryList(base, "filter", filter)
 	if err != nil {
 		return result, err
@@ -469,13 +485,18 @@ func buildQueryList(path string, key string, list []string) (string, error) {
 
 	encodedKey := url.QueryEscape(key)
 
+	var builder strings.Builder
+	builder.WriteString(path)
 	for i, val := range list {
 		encodedVal := url.QueryEscape(val)
 		if i == 0 {
-			path = path + fmt.Sprintf("?%s=%s", encodedKey, encodedVal) // first parameter starts with a ?
+			builder.WriteString("?") // first parameter starts with a ?
 		} else {
-			path = path + fmt.Sprintf("&%s=%s", encodedKey, encodedVal) // the rest start with &
+			builder.WriteString("&") // the rest start with &
 		}
+		builder.WriteString(encodedKey)
+		builder.WriteString("=")
+		builder.WriteString(encodedVal)
 	}
-	return path, nil
+	return builder.String(), nil
 }

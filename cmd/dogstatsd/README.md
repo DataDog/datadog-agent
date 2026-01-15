@@ -2,7 +2,7 @@
 
 DogStatsD accepts custom application metric points and periodically aggregates
 and forwards them to Datadog, where they can be graphed on dashboards.
-DogStatsD implements the [StatsD](https://github.com/etsy/statsd) protocol,
+DogStatsD implements the [StatsD](https://github.com/statsd/statsd) protocol,
 along with a few extensions for special Datadog features.
 
 ## Quick start
@@ -23,9 +23,9 @@ you can set the `dogstatsd_socket` option in the configuration file, or use the 
 dogstatsd start -f datadog.yaml -s /tmp/dsd.sock
 ```
 
-The easiest way to run DogStatsD is starting a Docker container (still not publicly available):
+The easiest way to run DogStatsD is starting a Docker container:
 ```
-docker run -e DD_API_KEY=XXX datadog/dogstatsd:beta
+docker run -e DD_API_KEY=XXX datadog/dogstatsd:latest
 ```
 
 ## Why UDP?

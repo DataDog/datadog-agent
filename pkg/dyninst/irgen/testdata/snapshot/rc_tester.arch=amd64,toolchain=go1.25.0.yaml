@@ -10,9 +10,17 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 1}
       events:
-        - ID: 1
+        - Kind: Entry
           Type: 210 EventRootType Probe[main.HandleHTTP]
           InjectionPoints: [{PC: "0xd36353", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 211 EventRootType Probe[main.HandleHTTP]Return
+          InjectionPoints:
+            - PC: "0xd3658f"
+              Frameless: false
+            - PC: "0xd365a5"
+              Frameless: false
           Condition: null
     - id: look_at_the_request
       version: 0
@@ -24,9 +32,13 @@ Probes:
       captureSnapshot: true
       subprogram: {subprogram: 2}
       events:
-        - ID: 2
-          Type: 211 EventRootType Probe[main.LookAtTheRequest]
+        - Kind: Entry
+          Type: 212 EventRootType Probe[main.LookAtTheRequest]
           InjectionPoints: [{PC: "0xd366ae", Frameless: false}]
+          Condition: null
+        - Kind: Return
+          Type: 213 EventRootType Probe[main.LookAtTheRequest]Return
+          InjectionPoints: [{PC: "0xd3673d", Frameless: false}]
           Condition: null
 Subprograms:
     - ID: 1
@@ -55,8 +67,7 @@ Subprograms:
                   Op: {CfaOffset: 0}
                 - Size: 8
                   Op: {CfaOffset: 8}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: r
           Type: 110 PointerType *net/http.Request
           Locations:
@@ -64,15 +75,13 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
             - Range: 0xd363b6..0xd365d9
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
         - Name: span
           Type: 112 PointerType *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span
           Locations:
             - Range: 0xd363c8..0xd36401
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
         - Name: '&buf'
           Type: 114 PointerType *bytes.Buffer
           Locations:
@@ -80,8 +89,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
             - Range: 0xd364f2..0xd365d9
               Pieces: [{Size: 8, Op: {CfaOffset: -128}}]
-          IsParameter: false
-          IsReturn: false
+          Role: Local
     - ID: 2
       Name: main.LookAtTheRequest
       OutOfLinePCRanges: [0xd366a0..0xd36765]
@@ -96,8 +104,7 @@ Subprograms:
                   Op: {RegNo: 0, Shift: 0}
                 - Size: 8
                   Op: {RegNo: 3, Shift: 0}
-          IsParameter: true
-          IsReturn: false
+          Role: Parameter
 Types:
     - __kind: PointerType
       ID: 63
@@ -561,6 +568,7 @@ Types:
       Expressions:
         - Name: w
           Offset: 1
+          Kind: argument
           Expression:
             Type: 109 GoInterfaceType net/http.ResponseWriter
             Operations:
@@ -570,6 +578,7 @@ Types:
                   ByteSize: 16
         - Name: r
           Offset: 17
+          Kind: argument
           Expression:
             Type: 110 PointerType *net/http.Request
             Operations:
@@ -579,12 +588,16 @@ Types:
                   ByteSize: 8
     - __kind: EventRootType
       ID: 211
+      Name: Probe[main.HandleHTTP]Return
+    - __kind: EventRootType
+      ID: 212
       Name: Probe[main.LookAtTheRequest]
       ByteSize: 17
       PresenceBitsetSize: 1
       Expressions:
         - Name: path
           Offset: 1
+          Kind: argument
           Expression:
             Type: 9 GoStringHeaderType string
             Operations:
@@ -592,6 +605,9 @@ Types:
                   Variable: {subprogram: 2, index: 0, name: path}
                   Offset: 0
                   ByteSize: 16
+    - __kind: EventRootType
+      ID: 213
+      Name: Probe[main.LookAtTheRequest]Return
     - __kind: ArrayType
       ID: 92
       Name: '[10]runtime.heldLockInfo'
@@ -729,13 +745,13 @@ Types:
     - __kind: GoSliceDataType
       ID: 199
       Name: '[]noalg.map.group[string][]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 328
       Element: 195 StructureType noalg.map.group[string][]string
     - __kind: GoSliceDataType
       ID: 209
       Name: '[]noalg.map.group[string]string.array'
-      DynamicSizeClass: slice
+      DynamicSizeClass: hashmap
       ByteSize: 264
       Element: 205 StructureType noalg.map.group[string]string
     - __kind: UnresolvedPointeeType
@@ -2535,7 +2551,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 595296
       GoKind: 26
-MaxTypeID: 211
+MaxTypeID: 213
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x18bb880", TypesOffset: 296}
 CommonTypes:

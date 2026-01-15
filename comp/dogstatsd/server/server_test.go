@@ -9,6 +9,7 @@ package server
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,7 +29,23 @@ func TestNewServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 	requireStart(t, deps.Server)
+}
 
+func TestNewServerUseDogstatsdFalse(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["use_dogstatsd"] = false
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	requireStopped(t, deps.Server)
+}
+
+func TestNewServerDataPlaneEnabled(t *testing.T) {
+	cfg := make(map[string]interface{})
+	cfg["data_plane.enabled"] = true
+	cfg["data_plane.dogstatsd.enabled"] = true
+
+	deps := fulfillDepsWithConfigOverride(t, cfg)
+	requireStopped(t, deps.Server)
 }
 
 func TestHistogramMetricNamesFilter(t *testing.T) {
@@ -75,7 +92,7 @@ func TestNoRaceOriginTagMaps(t *testing.T) {
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
-		id := fmt.Sprintf("%d", i)
+		id := strconv.Itoa(i)
 		go func() {
 			defer func() { done <- struct{}{} }()
 			<-sync
@@ -143,7 +160,7 @@ func TestNewServerExtraTags(t *testing.T) {
 	requireStart(t, s)
 
 	require.ElementsMatch(
-		[]string{"hello:world", "extra:tags", "hello:world2"},
+		[]string{"hello:world", "extra:tags", "hello:world2", "kube_distribution:eks"},
 		s.extraTags,
 		"both tag sources should have been combined",
 	)
@@ -230,6 +247,11 @@ func TestOrigin(t *testing.T) {
 func requireStart(t *testing.T, s Component) {
 	assert.NotNil(t, s)
 	assert.True(t, s.IsRunning(), "server was not running")
+}
+
+func requireStopped(t *testing.T, s Component) {
+	assert.NotNil(t, s)
+	assert.False(t, s.IsRunning(), "server was running")
 }
 
 func TestDogstatsdMappingProfilesOk(t *testing.T) {

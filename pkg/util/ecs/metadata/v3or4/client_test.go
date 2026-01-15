@@ -9,7 +9,7 @@ package v3or4
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -29,7 +29,7 @@ func TestGetV4TaskWithTags(t *testing.T) {
 	ts := dummyECS.Start()
 	defer ts.Close()
 
-	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+	client := NewClient(ts.URL+"/v4/1234-1", "v4")
 	task, err := client.GetTaskWithTags(context.Background())
 	require.NoError(t, err)
 
@@ -45,7 +45,7 @@ func TestGetV4TaskWithTagsWithoutRetryWithDelay(t *testing.T) {
 	require.NoError(t, err)
 	ts := dummyECS.Start()
 
-	client := NewClient(fmt.Sprintf("%s/v4/1234-1", ts.URL), "v4")
+	client := NewClient(ts.URL+"/v4/1234-1", "v4")
 	task, err := client.GetTaskWithTags(context.Background())
 
 	ts.Close()
@@ -66,7 +66,7 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 	ts := dummyECS.Start()
 
 	c := NewClient(
-		fmt.Sprintf("%s/v4/1234-1", ts.URL),
+		ts.URL+"/v4/1234-1",
 		"v4",
 		WithTryOption(100*time.Millisecond, 2*time.Second, func(d time.Duration) time.Duration { return 2 * d }),
 	)
@@ -81,6 +81,113 @@ func TestGetV4TaskWithTagsWithRetryWithDelay(t *testing.T) {
 	// 1st request failed: request timeout is 1s
 	// 2nd request succeed: request timeout is 2s
 	require.Equal(t, uint64(2), dummyECS.RequestCount.Load())
+}
+
+func TestGetContainerStats(t *testing.T) {
+	ctx := context.Background()
+	handlerPath := "/v4/1234-1/task/stats"
+
+	tests := []struct {
+		name        string
+		fixture     string
+		containerID string
+		expected    *ContainerStatsV4
+		expectedErr error
+	}{
+		{
+			name:        "net-stats",
+			fixture:     "./testdata/task_stats.json",
+			containerID: "2207f63945be40abb2d7bca5a2661cfd-0911415269",
+			expected: &ContainerStatsV4{
+				Timestamp: "2025-10-24T21:33:07.765945058Z",
+				CPU: CPUStats{
+					Usage:  CPUUsage{Total: 181104000, Usermode: 113190000, Kernelmode: 67914000},
+					System: 276134970000000,
+				},
+				Memory: MemStats{
+					Details: DetailedMem{PgFault: 9884},
+					Limit:   18446744073709551615,
+					Usage:   42827776,
+				},
+				IO: IOStats{
+					BytesPerDeviceAndKind: []OPStat{
+						{Major: 259, Minor: 0, Kind: "read", Value: 1875968},
+						{Major: 259, Minor: 0, Kind: "write", Value: 0},
+						{Major: 252, Minor: 0, Kind: "read", Value: 1875968},
+						{Major: 252, Minor: 0, Kind: "write", Value: 0},
+						{Major: 259, Minor: 1, Kind: "read", Value: 7593984},
+						{Major: 259, Minor: 1, Kind: "write", Value: 28672},
+					},
+				},
+				Networks: NetStatsMap{
+					"eth0": {RxBytes: 163710528, RxPackets: 113457, TxBytes: 1103607, TxPackets: 16969},
+				},
+			},
+		},
+		{
+			name:        "no-net-stats",
+			fixture:     "./testdata/task_stats_empty_net_stats.json",
+			containerID: "2207f63945be40abb2d7bca5a2661cfd-0911415269",
+			expected: &ContainerStatsV4{
+				Timestamp: "2025-10-24T21:33:07.765945058Z",
+				CPU: CPUStats{
+					Usage:  CPUUsage{Total: 181104000, Usermode: 113190000, Kernelmode: 67914000},
+					System: 276134970000000,
+				},
+				Memory: MemStats{
+					Details: DetailedMem{PgFault: 9884},
+					Limit:   18446744073709551615,
+					Usage:   42827776,
+				},
+				IO: IOStats{
+					BytesPerDeviceAndKind: []OPStat{
+						{Major: 259, Minor: 0, Kind: "read", Value: 1875968},
+						{Major: 259, Minor: 0, Kind: "write", Value: 0},
+						{Major: 252, Minor: 0, Kind: "read", Value: 1875968},
+						{Major: 252, Minor: 0, Kind: "write", Value: 0},
+						{Major: 259, Minor: 1, Kind: "read", Value: 7593984},
+						{Major: 259, Minor: 1, Kind: "write", Value: 28672},
+					},
+				},
+			},
+		},
+		{
+			name:        "missing-container",
+			fixture:     "./testdata/task_stats.json",
+			containerID: "470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42",
+			expectedErr: errors.New("Failed to retrieve container stats for id: 470f831ceac0479b8c6614a7232e707fb24760c350b13ee589dd1d6424315d42"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dummyECS, err := testutil.NewDummyECS(
+				testutil.FileHandlerOption(handlerPath, tt.fixture),
+			)
+			require.NoError(t, err)
+			ts := dummyECS.Start()
+			defer ts.Close()
+
+			client := NewClient(ts.URL+"/v4/1234-1", "v4")
+			stats, err := client.GetContainerStats(ctx, tt.containerID)
+
+			if tt.expectedErr != nil {
+				require.EqualError(t, err, tt.expectedErr.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, stats)
+
+			select {
+			case r := <-dummyECS.Requests:
+				require.Equal(t, "GET", r.Method)
+				require.Equal(t, handlerPath, r.URL.Path)
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timeout waiting for request")
+			}
+		})
+	}
 }
 
 // expected is an expected Task from ./testdata/task.json

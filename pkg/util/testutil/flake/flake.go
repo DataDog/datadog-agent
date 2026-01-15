@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.Datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package flake marks an instance of [testing.TB](https://pkg.go.dev/testing#TB) as flake.
 // Use [flake.Mark] to mark a known flake test.
 // Use `skip-flake` to control the behavior, or set the environment variable `SKIP_FLAKE`.
@@ -10,8 +12,8 @@
 package flake
 
 import (
+	"errors"
 	"flag"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -58,7 +60,7 @@ func getPackageName() (string, error) {
 	}
 
 	if fullPackageName == "" {
-		return "", fmt.Errorf("failed to fetch e2e test function information")
+		return "", errors.New("failed to fetch e2e test function information")
 	}
 
 	prefix := filepath.FromSlash("github.com/DataDog/datadog-agent/")

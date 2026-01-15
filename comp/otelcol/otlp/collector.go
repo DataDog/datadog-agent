@@ -23,6 +23,7 @@ import (
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
+	"go.opentelemetry.io/collector/service/telemetry/otelconftelemetry"
 	"go.uber.org/atomic"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -59,6 +60,9 @@ func getComponents(
 	error,
 ) {
 	var errs []error
+
+	serializerexporter.InitTelemetry(telemetry)
+	logsagentexporter.InitTelemetry(telemetry)
 
 	extensions, err := otelcol.MakeFactoryMap[extension.Factory]()
 	if err != nil {
@@ -110,6 +114,7 @@ func getComponents(
 		Receivers:  receivers,
 		Processors: processors,
 		Exporters:  exporters,
+		Telemetry:  otelconftelemetry.NewFactory(),
 	}
 
 	return factories, multierr.Combine(errs...)
@@ -135,10 +140,16 @@ type PipelineConfig struct {
 	TracesEnabled bool
 	// LogsEnabled states whether OTLP logs support is enabled.
 	LogsEnabled bool
+	// Enable/disable InfraAttributes processor for Traces pipeline
+	TracesInfraAttributesEnabled bool
+	// Logs contains configuration options for the logs
+	Logs map[string]interface{}
 	// Debug contains debug configurations.
 	Debug map[string]interface{}
 	// Metrics contains configuration options for the serializer metrics exporter
 	Metrics map[string]interface{}
+	// MetricsBatch contains configuration options for the sending queue batch
+	MetricsBatch map[string]interface{}
 }
 
 // shouldSetLoggingSection returns whether debug logging is enabled.

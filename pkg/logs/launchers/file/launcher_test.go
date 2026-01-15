@@ -8,6 +8,7 @@
 package file
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -23,7 +24,6 @@ import (
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -34,9 +34,99 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
+type RegularTestSetupStrategy struct{}
+
+func (s *RegularTestSetupStrategy) Setup(t *testing.T) TestSetupResult {
+	return TestSetupResult{TestDirs: []string{t.TempDir(), t.TempDir()},
+		TestOps: TestOps{
+			create: os.Create,
+			rename: os.Rename,
+			remove: os.Remove,
+		}}
+}
+
 type LauncherTestSuite struct {
+	BaseLauncherTestSuite
+}
+
+func (suite *LauncherTestSuite) SetupSuite() {
+	suite.setupStrategy = &RegularTestSetupStrategy{}
+}
+
+func TestLauncherTestSuite(t *testing.T) {
+	suite.Run(t, new(LauncherTestSuite))
+}
+
+func TestLauncherTestSuiteWithConfigID(t *testing.T) {
+	s := new(LauncherTestSuite)
+	s.configID = "123456789"
+	suite.Run(t, s)
+}
+
+func TestLauncherScanStartNewTailer(t *testing.T) {
+	runLauncherScanStartNewTailerTest(t, []string{t.TempDir(), t.TempDir()})
+}
+
+func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
+	runLauncherWithConcurrentContainerTailerTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherTailFromTheBeginning(t *testing.T) {
+	runLauncherTailFromTheBeginningTest(t, []string{t.TempDir()}, false)
+}
+
+func TestLauncherSetTail(t *testing.T) {
+	runLauncherSetTailTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherConfigIdentifier(t *testing.T) {
+	runLauncherConfigIdentifierTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanWithTooManyFiles(t *testing.T) {
+	runLauncherScanWithTooManyFilesTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
+	runLauncherUpdatesSourceForExistingTailerTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+	runLauncherScanRecentFilesWithRemovalTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+	runLauncherScanRecentFilesWithNewFilesTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherFileRotation(t *testing.T) {
+	runLauncherFileRotationTest(t, []string{t.TempDir()})
+}
+
+func TestLauncherFileDetectionSingleScan(t *testing.T) {
+	runLauncherFileDetectionSingleScanTest(t, []string{t.TempDir()})
+}
+
+type TestSetupStrategy interface {
+	Setup(t *testing.T) TestSetupResult
+}
+
+type TestOps struct {
+	create func(name string) (*os.File, error)
+	rename func(oldPath, newPath string) error
+	remove func(name string) error
+}
+
+type TestSetupResult struct {
+	TestDirs []string
+	TestOps  TestOps
+}
+
+type BaseLauncherTestSuite struct {
 	suite.Suite
 	configID        string
 	testDir         string
@@ -51,63 +141,106 @@ type LauncherTestSuite struct {
 	openFilesLimit   int
 	s                *Launcher
 	tagger           taggermock.Mock
+
+	setupStrategy TestSetupStrategy
+	setupResult   TestSetupResult
+
+	ops TestOps
 }
 
-func (suite *LauncherTestSuite) SetupTest() {
+const DefaultFileLimit = 100
+
+type launcherTestOptions struct {
+	openFilesLimit    int
+	wildcardMode      string
+	fakeTagger        taggermock.Mock
+	fingerprintConfig *types.FingerprintConfig
+}
+
+func createLauncher(t *testing.T, opts launcherTestOptions) *Launcher {
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	openFilesLimit := opts.openFilesLimit
+	if openFilesLimit == 0 {
+		openFilesLimit = DefaultFileLimit
+	}
+
+	wildcardMode := opts.wildcardMode
+	if wildcardMode == "" {
+		wildcardMode = WildcardModeByName
+	}
+
+	fakeTagger := opts.fakeTagger
+	if fakeTagger == nil {
+		fakeTagger = taggerfxmock.SetupFakeTagger(t)
+	}
+	// Create default fingerprint config for tests
+	fileOpener := opener.NewFileOpener()
+	fingerprintConfig := opts.fingerprintConfig
+	if opts.fingerprintConfig == nil {
+		fingerprintConfig = &types.FingerprintConfig{
+			FingerprintStrategy: types.FingerprintStrategyDisabled,
+			Count:               1,
+			CountToSkip:         0,
+			MaxBytes:            10000,
+		}
+	}
+	fingerprinter := filetailer.NewFingerprinter(*fingerprintConfig, fileOpener)
+
+	return NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, wildcardMode, fc, fakeTagger, fileOpener, fingerprinter)
+}
+
+func (suite *BaseLauncherTestSuite) SetupTest() {
+	if suite.setupStrategy != nil {
+		suite.setupResult = suite.setupStrategy.Setup(suite.T())
+	}
+
 	cfg := configmock.New(suite.T())
 	suite.pipelineProvider = mock.NewMockProvider()
 	suite.outputChan = suite.pipelineProvider.NextPipelineChan()
 	suite.tagger = taggerfxmock.SetupFakeTagger(suite.T())
 
 	var err error
-	suite.testDir = suite.T().TempDir()
+	suite.testDir = suite.setupResult.TestDirs[0]
 
-	suite.testPath = fmt.Sprintf("%s/launcher.log", suite.testDir)
-	suite.testRotatedPath = fmt.Sprintf("%s.1", suite.testPath)
+	suite.ops = suite.setupResult.TestOps
 
-	f, err := os.Create(suite.testPath)
+	suite.testPath = suite.testDir + "/launcher.log"
+	suite.testRotatedPath = suite.testPath + ".1"
+
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	suite.testFile = f
-	f, err = os.Create(suite.testRotatedPath)
+	f, err = suite.ops.create(suite.testRotatedPath)
 	suite.Nil(err)
 	suite.testRotatedFile = f
 
-	suite.openFilesLimit = 100
+	suite.openFilesLimit = DefaultFileLimit
 	suite.source = sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: suite.configID, Path: suite.testPath})
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
-
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	suite.s = NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, defaultFingerprintConfig)
+	suite.s = createLauncher(suite.T(), launcherTestOptions{})
 	suite.s.pipelineProvider = suite.pipelineProvider
 	suite.s.registry = auditorMock.NewMockRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
-	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{suite.source}))
-	suite.s.scan()
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{suite.source}))
+	suite.s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 }
 
-func (suite *LauncherTestSuite) TearDownTest() {
+func (suite *BaseLauncherTestSuite) TearDownTest() {
 	status.Clear()
 	suite.testFile.Close()
 	suite.testRotatedFile.Close()
 	suite.s.cleanup()
 }
 
-func (suite *LauncherTestSuite) TestLauncherStartsTailers() {
+func (suite *BaseLauncherTestSuite) TestLauncherStartsTailers() {
 	_, err := suite.testFile.WriteString("hello world\n")
 	suite.Nil(err)
 	msg := <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	s := suite.s
 
 	var tailer *filetailer.Tailer
@@ -121,7 +254,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	// testing that launcher did not have to create a new tailer
 	suite.True(tailer == newTailer)
@@ -132,7 +265,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 	s := suite.s
 
 	var tailer *filetailer.Tailer
@@ -146,10 +279,11 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello world", string(msg.GetContent()))
 
 	tailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
 	suite.Nil(err)
-	s.scan()
+	f, err := suite.ops.create(suite.testPath)
+	suite.Nil(err)
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
 
@@ -159,16 +293,12 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_RotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_lines", 1)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.to_skip", 0)
-
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
 	// Create fingerprint config for this test
 	launcherFingerprintConfig := &types.FingerprintConfig{
@@ -178,12 +308,14 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 		MaxBytes:            256,
 	}
 
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, *launcherFingerprintConfig)
+	s := createLauncher(suite.T(), launcherTestOptions{
+		fingerprintConfig: launcherFingerprintConfig,
+	})
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -191,7 +323,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -218,8 +350,9 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	s.registry.(*auditorMock.Registry).SetFingerprint(fingerprint)
 
 	// Rotate file
-	os.Rename(suite.testPath, suite.testRotatedPath)
-	f, err := os.Create(suite.testPath)
+	err = suite.ops.rename(suite.testPath, suite.testRotatedPath)
+	suite.Nil(err)
+	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 
 	// Write different content
@@ -228,7 +361,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.Nil(f.Sync())
 	defer f.Close()
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
@@ -242,14 +375,10 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_Rotat
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRotationOccurs() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
 	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
-
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
 	// Create fingerprint config for this test
 	fingerprintConfig := &types.FingerprintConfig{
@@ -259,12 +388,14 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 		MaxBytes:            256,
 	}
 
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, *fingerprintConfig)
+	s := createLauncher(suite.T(), launcherTestOptions{
+		fingerprintConfig: fingerprintConfig,
+	})
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -273,7 +404,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read message
 	msg := <-suite.outputChan
@@ -295,7 +426,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.False(didRotate, "Should not detect rotation when writing to the same file")
 
 	// Scan again - should not trigger any rotation logic
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Verify the same tailer is still being used
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -306,7 +437,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_NoRot
 	suite.Equal("hello again", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	s := suite.s
 	var tailer *filetailer.Tailer
 	var newTailer *filetailer.Tailer
@@ -328,7 +459,7 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.Nil(err)
 
 	suite.Nil(suite.testFile.Sync())
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
@@ -337,26 +468,26 @@ func (suite *LauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate() {
 	suite.Equal("third", string(msg.GetContent()))
 }
 
-func (suite *LauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
+func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
 	s := suite.s
 	tailerLen := s.tailers.Count()
 
 	var err error
 
 	// remove file
-	err = os.Remove(suite.testPath)
+	err = suite.ops.remove(suite.testPath)
 	suite.Nil(err)
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen-1, s.tailers.Count())
 
 	// create file
-	_, err = os.Create(suite.testPath)
+	_, err = suite.ops.create(suite.testPath)
 	suite.Nil(err)
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 	suite.Equal(tailerLen, s.tailers.Count())
 }
 
-func (suite *LauncherTestSuite) TestLifeCycle() {
+func (suite *BaseLauncherTestSuite) TestLauncherLifeCycle() {
 	s := suite.s
 	suite.Equal(1, s.tailers.Count())
 	s.Start(launchers.NewMockSourceProvider(), suite.pipelineProvider, auditorMock.NewMockRegistry(), tailers.NewTailerTracker())
@@ -366,53 +497,33 @@ func (suite *LauncherTestSuite) TestLifeCycle() {
 	suite.Equal(0, s.tailers.Count())
 }
 
-func TestLauncherTestSuite(t *testing.T) {
-	suite.Run(t, new(LauncherTestSuite))
-}
-
-func TestLauncherTestSuiteWithConfigID(t *testing.T) {
-	s := new(LauncherTestSuite)
-	s.configID = "123456789"
-	suite.Run(t, s)
-}
-
-func TestLauncherScanStartNewTailer(t *testing.T) {
+func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
 	var path string
 	var msg *message.Message
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
 	IDs := []string{"", "123456789"}
 
-	for _, configID := range IDs {
-		testDir := t.TempDir()
+	for i, configID := range IDs {
+		testDir := testDirs[i]
 
 		// create launcher
-		path = fmt.Sprintf("%s/*.log", testDir)
-		openFilesLimit := 2
-		sleepDuration := 20 * time.Millisecond
-		fc := flareController.NewFlareController()
+		path = testDir + "/*.log"
 
-		// Create default fingerprint config for tests
-		defaultFingerprintConfig := types.FingerprintConfig{
-			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-			Count:               1,
-			CountToSkip:         0,
-			MaxBytes:            10000,
-		}
-
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+		launcher := createLauncher(t, launcherTestOptions{
+			openFilesLimit: 2,
+		})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
 		outputChan := launcher.pipelineProvider.NextPipelineChan()
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Identifier: configID, Path: path})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 		defer status.Clear()
 
 		// create file
-		path = fmt.Sprintf("%s/test.log", testDir)
+		path = testDir + "/test.log"
 		file, err := os.Create(path)
 		assert.Nil(t, err)
 
@@ -424,7 +535,8 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 		file.Close()
 
 		// test scan from beginning
-		launcher.scan()
+		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+
 		assert.Equal(t, 1, launcher.tailers.Count())
 		msg = <-outputChan
 		assert.Equal(t, "hello", string(msg.GetContent()))
@@ -433,20 +545,13 @@ func TestLauncherScanStartNewTailer(t *testing.T) {
 	}
 }
 
-func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
+func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []string) {
 	mockConfig := configmock.New(t)
+	testDir := testDirs[0]
 
 	// Temporarily set the global config for this test
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	testDir := t.TempDir()
-
 	// create launcher
-	path := fmt.Sprintf("%s/*.log", testDir)
-	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
+	path := testDir + "/*.log"
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{
@@ -456,54 +561,52 @@ func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
 		MaxBytes:            10000,
 	}
 
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit:    2,
+		fingerprintConfig: &fingerprintConfig,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create empty file
-	_, err := os.Create(fmt.Sprintf("%s/test.log", testDir))
+	_, err := os.Create(testDir + "/test.log")
 	assert.Nil(t, err)
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+
 	assert.Equal(t, 0, launcher.tailers.Count())
 }
 
-func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
-	mockConfig := configmock.New(t)
+func TestLauncherScanStartNewTailerForEmptyFile(t *testing.T) {
+	runLauncherScanStartNewTailerForEmptyFileTest(t, []string{t.TempDir()})
+}
 
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDir := t.TempDir()
+func runLauncherScanStartNewTailerWithOneLineTest(t *testing.T, testDirs []string) {
+	mockConfig := configmock.New(t)
+	testDir := testDirs[0]
 
 	// create launcher
-	path := fmt.Sprintf("%s/*.log", testDir)
+	path := testDir + "/*.log"
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create fingerprint config for this test
-	fingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            256,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyLineChecksum}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyDisabled}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create file
-	filePath := fmt.Sprintf("%s/test.log", testDir)
+	filePath := testDir + "/test.log"
 	file, err := os.Create(filePath)
 	assert.Nil(t, err)
 
@@ -513,43 +616,47 @@ func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
 	file.Close()
 
 	// test scan from beginning
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
-func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
-	mockConfig := configmock.New(t)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
-	// Temporarily set the global config for this test
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDir := t.TempDir()
+func TestLauncherScanStartNewTailerWithOneLine(t *testing.T) {
+	runLauncherScanStartNewTailerWithOneLineTest(t, []string{t.TempDir()})
+}
 
+func runLauncherScanStartNewTailerWithLongLineTest(t *testing.T, testDirs []string) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("logs_config.fingerprint_config.max_bytes", 256)
+	testDir := testDirs[0]
+
+	// Temporarily set the global config for this test
 	// create launcher
-	path := fmt.Sprintf("%s/*.log", testDir)
+	path := testDir + "/*.log"
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
 		Count:               1,
 		CountToSkip:         0,
 		MaxBytes:            256,
 	}
 
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, fingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit:    openFilesLimit,
+		fingerprintConfig: &fingerprintConfig,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
-	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyLineChecksum}})
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, FingerprintConfig: &types.FingerprintConfig{Count: 1, MaxBytes: 256, CountToSkip: 0, FingerprintStrategy: types.FingerprintStrategyByteChecksum}})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// create file
-	filePath := fmt.Sprintf("%s/test.log", testDir)
+	filePath := testDir + "/test.log"
 	file, err := os.Create(filePath)
 	assert.Nil(t, err)
 
@@ -560,33 +667,29 @@ func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
 	file.Close()
 
 	// test scan from beginning
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
-func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
-	testDir := t.TempDir()
-	path := fmt.Sprintf("%s/container.log", testDir)
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+func TestLauncherScanStartNewTailerWithLongLine(t *testing.T) {
+	runLauncherScanStartNewTailerWithLongLineTest(t, []string{t.TempDir()})
+}
+
+func runLauncherWithConcurrentContainerTailerTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
+	path := testDir + "/container.log"
 	// create launcher
 	openFilesLimit := 3
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
-	firstSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "123456789"})
-	secondSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/*.log", testDir), TailingMode: "beginning", Identifier: "987654321"})
+	firstSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/*.log", TailingMode: "beginning", Identifier: "123456789"})
+	secondSource := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/*.log", TailingMode: "beginning", Identifier: "987654321"})
 
 	// create/truncate file
 	file, err := os.Create(path)
@@ -622,38 +725,50 @@ func TestLauncherWithConcurrentContainerTailer(t *testing.T) {
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
-func TestLauncherTailFromTheBeginning(t *testing.T) {
-	testDir := t.TempDir()
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
+func runLauncherTailFromTheBeginningTest(t *testing.T, testDirs []string, chmodFileIfExists bool) {
+	testDir := testDirs[0]
 	// create launcher
-	openFilesLimit := 3
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
-
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: 3,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	outputChan := launcher.pipelineProvider.NextPipelineChan()
 	sources := []*sources.LogSource{
-		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/test.log", testDir), TailingMode: "beginning"}),
-		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "123456789"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/test.log", TailingMode: "beginning"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/container.log", TailingMode: "beginning", Identifier: "123456789"}),
 		// Same file different container ID
-		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/container.log", testDir), TailingMode: "beginning", Identifier: "987654321"}),
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/container.log", TailingMode: "beginning", Identifier: "987654321"}),
 	}
 
 	for i, source := range sources {
+		var restoreChmod bool
+		if chmodFileIfExists {
+			// If the file exists, check if it has 000 permissions and temporarily
+			// chmod it to 666 and restore the chmod after the create operation.
+			//
+			// This is needed since when the test is run as part of privileged log access
+			// tests, the file has 000 permissions to make it inaccessible to
+			// the tailer (and the test code) and only accessible via the
+			// privileged logs handler.
+			//
+			// But when we want the test to truncate the file, we need to make
+			// it accessible again.
+			if _, err := os.Stat(source.Config.Path); err == nil {
+				err = os.Chmod(source.Config.Path, 0666)
+				assert.Nil(t, err)
+				restoreChmod = true
+			}
+		}
+
 		// create/truncate file
 		file, err := os.Create(source.Config.Path)
 		assert.Nil(t, err)
+
+		if chmodFileIfExists && restoreChmod {
+			err = os.Chmod(source.Config.Path, 0000)
+			assert.Nil(t, err)
+		}
 
 		// add content before starting the tailer
 		_, err = file.WriteString("Once\n")
@@ -682,27 +797,17 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	}
 }
 
-func TestLauncherSetTail(t *testing.T) {
-	testDir := t.TempDir()
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	path1 := fmt.Sprintf("%s/test.log", testDir)
-	path2 := fmt.Sprintf("%s/test2.log", testDir)
+func runLauncherSetTailTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
+	path1 := testDir + "/test.log"
+	path2 := testDir + "/test2.log"
 	os.Create(path1)
 	os.Create(path2)
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -718,25 +823,15 @@ func TestLauncherSetTail(t *testing.T) {
 	assert.Equal(t, "beginning", tailer2.Source().Config.TailingMode)
 }
 
-func TestLauncherConfigIdentifier(t *testing.T) {
-	testDir := t.TempDir()
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	path := fmt.Sprintf("%s/test.log", testDir)
+func runLauncherConfigIdentifierTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
+	path := testDir + "/test.log"
 	os.Create(path)
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -746,87 +841,63 @@ func TestLauncherConfigIdentifier(t *testing.T) {
 	launcher.addSource(source)
 	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
 	assert.Equal(t, "beginning", tailer.Source().Config.TailingMode)
-
 }
 
-func TestLauncherScanWithTooManyFiles(t *testing.T) {
+func runLauncherScanWithTooManyFilesTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
 	var path string
-
-	testDir := t.TempDir()
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
+	testDir := testDirs[0]
 	// creates files
-	path = fmt.Sprintf("%s/1.log", testDir)
+	path = testDir + "/1.log"
+	_, err := os.Create(path)
+	assert.Nil(t, err)
+
+	path = testDir + "/2.log"
 	_, err = os.Create(path)
 	assert.Nil(t, err)
 
-	path = fmt.Sprintf("%s/2.log", testDir)
-	_, err = os.Create(path)
-	assert.Nil(t, err)
-
-	path = fmt.Sprintf("%s/3.log", testDir)
+	path = testDir + "/3.log"
 	_, err = os.Create(path)
 	assert.Nil(t, err)
 
 	// create launcher
-	path = fmt.Sprintf("%s/*.log", testDir)
+	path = testDir + "/*.log"
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path})
 	launcher.activeSources = append(launcher.activeSources, source)
 	status.Clear()
-	status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 	defer status.Clear()
 
 	// test at scan
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	// Confirm that all of the files have been keepalive'd even if they are not tailed
 	assert.Equal(t, 3, len(launcher.registry.(*auditorMock.Registry).KeepAlives))
 
-	path = fmt.Sprintf("%s/2.log", testDir)
+	path = testDir + "/2.log"
 	err = os.Remove(path)
 	assert.Nil(t, err)
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
-func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
-	testDir := t.TempDir()
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
-	path := fmt.Sprintf("%s/*.log", testDir)
+func runLauncherUpdatesSourceForExistingTailerTest(t *testing.T, testDirs []string) {
+	testDir := testDirs[0]
+	path := testDir + "/*.log"
 	os.Create(path)
 	openFilesLimit := 2
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
-	// Create default fingerprint config for tests
-	defaultFingerprintConfig := types.FingerprintConfig{
-		FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-		Count:               1,
-		CountToSkip:         0,
-		MaxBytes:            10000,
-	}
-
-	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+	launcher := createLauncher(t, launcherTestOptions{
+		openFilesLimit: openFilesLimit,
+	})
 	launcher.pipelineProvider = mock.NewMockProvider()
 	launcher.registry = auditorMock.NewMockRegistry()
 
@@ -848,15 +919,14 @@ func TestLauncherUpdatesSourceForExistingTailer(t *testing.T) {
 	assert.Equal(t, tailer.Source(), source2)
 }
 
-func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
+func runLauncherScanRecentFilesWithRemovalTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -871,14 +941,12 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 		err = os.Remove(path(name))
 		assert.Nil(t, err)
 	}
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
 	createLauncher := func() *Launcher {
 		sleepDuration := 20 * time.Millisecond
 
 		// Create default fingerprint config for tests
 		defaultFingerprintConfig := types.FingerprintConfig{
-			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
+			FingerprintStrategy: types.FingerprintStrategyDisabled,
 			Count:               1,
 			CountToSkip:         0,
 			MaxBytes:            10000,
@@ -894,15 +962,16 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 			scanPeriod:             10 * time.Second,
 			flarecontroller:        flareController.NewFlareController(),
 			tagger:                 fakeTagger,
-			fingerprinter:          filetailer.NewFingerprinter(false, defaultFingerprintConfig),
+			fileOpener:             opener.NewFileOpener(),
+			fingerprinter:          filetailer.NewFingerprinter(defaultFingerprintConfig, opener.NewFileOpener()),
 		}
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
-		logDirectory := fmt.Sprintf("%s/*.log", testDir)
+		logDirectory := testDir + "/*.log"
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -915,14 +984,14 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("1.log")))
 	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... the newest file gets rm'd
 	rmFile("2.log")
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 
 	// Then the next 2 most recently modified should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -930,16 +999,12 @@ func TestLauncherScanRecentFilesWithRemoval(t *testing.T) {
 	assert.True(t, launcher.tailers.Contains(path("3.log")))
 }
 
-func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
+func runLauncherScanRecentFilesWithNewFilesTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	baseTime := time.Date(2010, time.August, 10, 25, 0, 0, 0, time.UTC)
 	openFilesLimit := 2
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -952,25 +1017,17 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	}
 
 	createLauncher := func() *Launcher {
-		sleepDuration := 20 * time.Millisecond
-		fc := flareController.NewFlareController()
-
-		// Create default fingerprint config for tests
-		defaultFingerprintConfig := types.FingerprintConfig{
-			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-			Count:               1,
-			CountToSkip:         0,
-			MaxBytes:            10000,
-		}
-
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_modification_time", fc, fakeTagger, defaultFingerprintConfig)
+		launcher := createLauncher(t, launcherTestOptions{
+			openFilesLimit: openFilesLimit,
+			wildcardMode:   WildcardModeByModificationTime,
+		})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
-		logDirectory := fmt.Sprintf("%s/*.log", testDir)
+		logDirectory := testDir + "/*.log"
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -983,14 +1040,14 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("1.log")))
 	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... a newer file appears
 	createFile("7.log", baseTime.Add(time.Second*8))
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 
 	// Then it should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -999,7 +1056,7 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 
 	// When ... an even newer file appears
 	createFile("a.log", baseTime.Add(time.Second*10))
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 
 	// Then it should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -1007,15 +1064,11 @@ func TestLauncherScanRecentFilesWithNewFiles(t *testing.T) {
 	assert.True(t, launcher.tailers.Contains(path("a.log")))
 }
 
-func TestLauncherFileRotation(t *testing.T) {
+func runLauncherFileRotationTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	openFilesLimit := 2
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -1025,25 +1078,16 @@ func TestLauncherFileRotation(t *testing.T) {
 	}
 
 	createLauncher := func() *Launcher {
-		sleepDuration := 20 * time.Millisecond
-		fc := flareController.NewFlareController()
-
-		// Create default fingerprint config for tests
-		defaultFingerprintConfig := types.FingerprintConfig{
-			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-			Count:               1,
-			CountToSkip:         0,
-			MaxBytes:            10000,
-		}
-
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+		launcher := createLauncher(t, launcherTestOptions{
+			openFilesLimit: openFilesLimit,
+		})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
-		logDirectory := fmt.Sprintf("%s/*.log", testDir)
+		logDirectory := testDir + "/*.log"
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1055,7 +1099,7 @@ func TestLauncherFileRotation(t *testing.T) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.Equal(t, 0, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
@@ -1073,7 +1117,7 @@ func TestLauncherFileRotation(t *testing.T) {
 	assert.Nil(t, err)
 	assert.True(t, didRotate)
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, launcher.tailers.Count(), 2)
 	assert.Equal(t, 1, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
@@ -1084,15 +1128,11 @@ func TestLauncherFileRotation(t *testing.T) {
 	assert.Equal(t, len(launcher.rotatedTailers), 0)
 }
 
-func TestLauncherFileDetectionSingleScan(t *testing.T) {
+func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 	cfg := configmock.New(t)
-
-	var err error
-
-	testDir := t.TempDir()
+	testDir := testDirs[0]
 	openFilesLimit := 2
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-
+	var err error
 	path := func(name string) string {
 		return fmt.Sprintf("%s/%s", testDir, name)
 	}
@@ -1102,25 +1142,16 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	}
 
 	createLauncher := func() *Launcher {
-		sleepDuration := 20 * time.Millisecond
-		fc := flareController.NewFlareController()
-
-		// Create default fingerprint config for tests
-		defaultFingerprintConfig := types.FingerprintConfig{
-			FingerprintStrategy: types.FingerprintStrategyLineChecksum,
-			Count:               1,
-			CountToSkip:         0,
-			MaxBytes:            10000,
-		}
-
-		launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, fakeTagger, defaultFingerprintConfig)
+		launcher := createLauncher(t, launcherTestOptions{
+			openFilesLimit: openFilesLimit,
+		})
 		launcher.pipelineProvider = mock.NewMockProvider()
 		launcher.registry = auditorMock.NewMockRegistry()
-		logDirectory := fmt.Sprintf("%s/*.log", testDir)
+		logDirectory := testDir + "/*.log"
 		source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: logDirectory})
 		launcher.activeSources = append(launcher.activeSources, source)
 		status.Clear()
-		status.InitStatus(cfg, util.CreateSources([]*sources.LogSource{source}))
+		status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
 		return launcher
 	}
@@ -1130,26 +1161,22 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("a.log")))
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
 
 	createFile("z.log")
 
-	launcher.scan()
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
 	assert.Equal(t, launcher.tailers.Count(), 2)
 	assert.True(t, launcher.tailers.Contains(path("z.log")))
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
 }
 
-func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
+func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{
@@ -1159,12 +1186,17 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 		MaxBytes:            10000,
 	}
 
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger, fingerprintConfig)
+	s := createLauncher(suite.T(), launcherTestOptions{
+		openFilesLimit:    suite.openFilesLimit,
+		wildcardMode:      WildcardModeByName,
+		fakeTagger:        suite.tagger,
+		fingerprintConfig: &fingerprintConfig,
+	})
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -1172,7 +1204,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -1181,7 +1213,6 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 	// Get initial tailer and verify rotation detection works
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	initialTailerCount := s.tailers.Count()
 
 	// Simulate rotation: truncate file to empty (fingerprint becomes 0)
 	suite.Nil(suite.testFile.Truncate(0))
@@ -1195,21 +1226,19 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedUnder
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
-	afterScanCount := s.tailers.Count()
-	suite.Equal(initialTailerCount-1, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	// Verify the behavior when file is truncated to undersized:
+	// - Old tailer should be removed from active tailers
+	// - Old tailer should be added to rotatedTailers to finish draining
+	// - No new tailer should be created for the undersized file
+	suite.Equal(0, s.tailers.Count(), "No active tailers should remain when file truncates to undersized")
+	suite.Equal(1, len(s.rotatedTailers), "Rotated tailer should remain tracked while draining")
 }
 
-func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
+func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersizedFile() {
 	suite.s.cleanup()
 	mockConfig := configmock.New(suite.T())
-	mockConfig.SetWithoutSource("logs_config.fingerprint_enabled_experimental", true)
-
-	sleepDuration := 20 * time.Millisecond
-	fc := flareController.NewFlareController()
 
 	// Create fingerprint config for this test
 	fingerprintConfig := types.FingerprintConfig{
@@ -1219,12 +1248,17 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 		MaxBytes:            10000,
 	}
 
-	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "checksum", fc, suite.tagger, fingerprintConfig)
+	s := createLauncher(suite.T(), launcherTestOptions{
+		openFilesLimit:    suite.openFilesLimit,
+		wildcardMode:      WildcardModeByName,
+		fakeTagger:        suite.tagger,
+		fingerprintConfig: &fingerprintConfig,
+	})
 	s.pipelineProvider = suite.pipelineProvider
 	s.registry = auditorMock.NewMockRegistry()
 	s.activeSources = append(s.activeSources, suite.source)
 	status.Clear()
-	status.InitStatus(mockConfig, util.CreateSources([]*sources.LogSource{suite.source}))
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
 	defer status.Clear()
 
 	// Write initial content
@@ -1232,7 +1266,7 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -1241,15 +1275,14 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 	// Get initial tailer and verify rotation detection works
 	tailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(found, "tailer should be found")
-	initialTailerCount := s.tailers.Count()
 
 	// Simulate file rotation: move current file to .1 and create a new empty file
 	rotatedPath := suite.testPath + ".1"
-	err = os.Rename(suite.testPath, rotatedPath)
+	err = suite.ops.rename(suite.testPath, rotatedPath)
 	suite.Nil(err)
 
 	// Create a new file that is undersized (empty, which results in fingerprint = 0)
-	newFile, err := os.Create(suite.testPath)
+	newFile, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
 	newFile.Close()
 
@@ -1259,12 +1292,14 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
-	s.scan()
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
 
-	// Verify no new tailer was created for the undersized file
-	// The old tailer should be removed but no new one should be created
-	afterScanCount := s.tailers.Count() + len(s.rotatedTailers)
-	suite.Equal(initialTailerCount, afterScanCount, "No new tailer should be created for undersized file after rotation")
+	// Verify the behavior when file rotates to undersized:
+	// - Old tailer should be removed from active tailers (because new file is undersized and won't be tailed)
+	// - Old tailer should be added to rotatedTailers to finish draining
+	// - No new tailer should be created for the undersized file
+	suite.Equal(0, s.tailers.Count(), "No active tailers should remain when file rotates to undersized")
+	suite.Equal(1, len(s.rotatedTailers), "Rotated tailer should remain tracked while draining")
 
 	// Clean up the rotated file
 	os.Remove(rotatedPath)
@@ -1272,4 +1307,214 @@ func (suite *LauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUndersi
 
 func getScanKey(path string, source *sources.LogSource) string {
 	return filetailer.NewFile(path, source, false).GetScanKey()
+}
+
+// TestRotatedTailersNotStoppedDuringScan tests that rotated tailers are not stopped during scan
+func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               5,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := createLauncher(suite.T(), launcherTestOptions{
+		fingerprintConfig: &fingerprintConfig,
+	})
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
+	// Create initial file with content
+	_, err := suite.testFile.WriteString("initial content\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// Read the message
+	msg := <-suite.outputChan
+	suite.Equal("initial content", string(msg.GetContent()))
+
+	// Rotate the file
+	rotatedPath := suite.testPath + ".1"
+	err = suite.ops.rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	newFile, err := suite.ops.create(suite.testPath)
+	suite.Nil(err)
+	_, err = newFile.WriteString("new content\n")
+	suite.Nil(err)
+	newFile.Close()
+
+	// Scan detects rotation
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// After rotation, we should have:
+	// - 1 active tailer (for the new file)
+	// - 1 rotated tailer (still draining the old file)
+	suite.Equal(1, s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(s.rotatedTailers), "Should have 1 rotated tailer")
+
+	// Change the source path to simulate the file no longer matching
+	// This should normally cause the tailer to be stopped, but rotated tailers should be skipped
+	s.activeSources = []*sources.LogSource{}
+
+	// Scan again - the rotated tailer should NOT be stopped
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// Clean up
+	os.Remove(rotatedPath)
+}
+
+// TestRestartTailerAfterFileRotationRemovesTailer tests that restartTailerAfterFileRotation removes the old tailer
+func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTailer() {
+	suite.s.cleanup()
+	mockConfig := configmock.New(suite.T())
+	mockConfig.SetWithoutSource("logs_config.close_timeout", 1) // seconds
+
+	// Create fingerprint config for this test
+	fingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyByteChecksum,
+		Count:               5,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+	}
+
+	s := createLauncher(suite.T(), launcherTestOptions{
+		fingerprintConfig: &fingerprintConfig,
+	})
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+	s.activeSources = append(s.activeSources, suite.source)
+	status.Clear()
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{suite.source}))
+	defer status.Clear()
+
+	// Create initial file
+	_, err := suite.testFile.WriteString("line1\n")
+	suite.Nil(err)
+	suite.Nil(suite.testFile.Sync())
+
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// Read the message
+	msg := <-suite.outputChan
+	suite.Equal("line1", string(msg.GetContent()))
+
+	// Get initial tailer
+	initialTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.NotNil(initialTailer)
+
+	// Simulate rotation
+	rotatedPath := suite.testPath + ".1"
+	err = suite.ops.rename(suite.testPath, rotatedPath)
+	suite.Nil(err)
+
+	// Create new file
+	newFile, err := suite.ops.create(suite.testPath)
+	suite.Nil(err)
+	_, err = newFile.WriteString("line2\n")
+	suite.Nil(err)
+	newFile.Close()
+
+	// Scan to detect rotation
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+
+	// After rotation:
+	// - The old tailer should be removed from the active container
+	// - The old tailer should be in rotatedTailers list
+	// - A new tailer should be in the active container
+	suite.Equal(1, s.tailers.Count(), "Should have 1 active tailer")
+	suite.Equal(1, len(s.rotatedTailers), "Should have 1 rotated tailer")
+
+	newTailer, found := s.tailers.Get(getScanKey(suite.testPath, suite.source))
+	suite.True(found, "New tailer should be in active container")
+	suite.True(initialTailer != newTailer, "New tailer should be different from initial tailer")
+
+	// The old tailer should be in rotatedTailers
+	suite.True(initialTailer == s.rotatedTailers[0], "Old tailer should be in rotatedTailers list")
+
+	// Read the new message
+	msg = <-suite.outputChan
+	suite.Equal("line2", string(msg.GetContent()))
+
+	// Clean up
+	os.Remove(rotatedPath)
+}
+
+// TestTailerReceivesConfigWhenDisabled tests that tailers receive fingerprint config even when disabled
+func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
+	// Clean up existing state from SetupTest
+	suite.s.cleanup()
+
+	mockConfig := configmock.New(suite.T())
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+
+	// Create global fingerprint config
+	globalFingerprintConfig := types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+		CountToSkip:         0,
+		MaxBytes:            10000,
+		Source:              types.FingerprintConfigSourceGlobal,
+	}
+
+	// Create fileOpener and fingerprinter
+	fileOpener := opener.NewFileOpener()
+	fingerprinter := filetailer.NewFingerprinter(globalFingerprintConfig, fileOpener)
+
+	// Create new launcher
+	s := NewLauncher(suite.openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc, suite.tagger, fileOpener, fingerprinter)
+	s.pipelineProvider = suite.pipelineProvider
+	s.registry = auditorMock.NewMockRegistry()
+
+	// Create a source with per-source disabled fingerprinting config
+	perSourceConfig := &types.FingerprintConfig{
+		FingerprintStrategy: types.FingerprintStrategyDisabled,
+		Count:               500,
+	}
+	sourceConfig := &config.LogsConfig{
+		Type:              config.FileType,
+		Path:              suite.testPath,
+		FingerprintConfig: perSourceConfig,
+	}
+	source := sources.NewLogSource("test_disabled", sourceConfig)
+	s.activeSources = append(s.activeSources, source)
+	status.Clear()
+	status.InitStatus(mockConfig, testutils.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// Create file with content
+	f, err := suite.ops.create(suite.testPath)
+	suite.Nil(err)
+	_, err = f.WriteString("test data\n")
+	suite.Nil(err)
+	f.Close()
+
+	// Scan for files
+	s.resolveActiveTailers(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry))
+
+	// Verify tailer was created
+	scanKey := getScanKey(suite.testPath, source)
+	tailerInstance, exists := s.tailers.Get(scanKey)
+	suite.True(exists, "Tailer should be created even with disabled fingerprinting")
+
+	// Verify the tailer has the fingerprint config
+	fingerprint := tailerInstance.GetFingerprint()
+	suite.NotNil(fingerprint, "Tailer should have fingerprint")
+	suite.NotNil(fingerprint.Config, "Fingerprint should have config")
+	suite.Equal(types.FingerprintStrategyDisabled, fingerprint.Config.FingerprintStrategy, "Config should show disabled strategy")
+	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
+	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
+	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
 }

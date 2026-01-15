@@ -9,13 +9,14 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
 
-func TestDeviceConfig_Validation(t *testing.T) {
+func TestDeviceInstance_Validation(t *testing.T) {
 	tests := []struct {
 		name        string
 		config      DeviceInstance
@@ -76,7 +77,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 			errorMsg:    "auth is required: missing username",
 		},
 		{
-			name: "missing password",
+			name: "missing auth method (no password/private key)",
 			config: DeviceInstance{
 				IPAddress: "100.1.1.1",
 				Auth: AuthCredentials{
@@ -86,7 +87,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errorMsg:    "auth is required: missing password",
+			errorMsg:    "auth is required: missing auth method (either password or private key) for device 100.1.1.1",
 		},
 		{
 			name: "invalid port",
@@ -120,7 +121,7 @@ func TestDeviceConfig_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.ValidateDeviceInstance()
+			err := tt.config.Validate()
 			if tt.expectValid {
 				assert.NoError(t, err)
 			} else {
@@ -133,7 +134,54 @@ func TestDeviceConfig_Validation(t *testing.T) {
 	}
 }
 
-func TestDeviceConfig_YAML_Marshaling(t *testing.T) {
+func TestSSHConfig_Validation(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *SSHConfig
+		expectedConfig *SSHConfig
+		errMsg         string
+	}{
+		{
+			name: "valid config: known_path is set",
+			config: &SSHConfig{
+				KnownHostsPath: "/test/directory",
+				Timeout:        60 * time.Second,
+			},
+			expectedConfig: &SSHConfig{
+				KnownHostsPath: "/test/directory",
+				Timeout:        60 * time.Second,
+			},
+		},
+		{
+			name: "valid config, missing timeout uses default",
+			config: &SSHConfig{
+				InsecureSkipVerify: true,
+			},
+			expectedConfig: &SSHConfig{
+				InsecureSkipVerify: true,
+				Timeout:            defaultSSHTimeout,
+			},
+		},
+		{
+			name:           "missing both known_hosts path and insecure_skip_verify",
+			config:         &SSHConfig{},
+			expectedConfig: &SSHConfig{},
+			errMsg:         "no SSH host key verification configured: set known_hosts_path or enable insecure_skip_verify",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.validate()
+			if tt.errMsg != "" {
+				assert.EqualError(t, err, tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDeviceInstance_YAML_Marshaling(t *testing.T) {
 	config := DeviceInstance{
 		IPAddress: "10.100.1.1",
 		Auth: AuthCredentials{

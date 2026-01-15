@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"maps"
+	"math"
 	"sync"
 	"syscall"
 
@@ -64,8 +65,8 @@ const (
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
 
-	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
-	EventFlagsIsSnapshot
+	// EventFlagsFromReplay is true if the event is generated from a replay
+	EventFlagsFromReplay
 )
 
 const (
@@ -83,6 +84,18 @@ const (
 	IMDSIBMCloudProvider = "ibm"
 	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
 	IMDSOracleCloudProvider = "oracle"
+)
+
+// EventSource is the source of the event
+type EventSource = string
+
+const (
+	// EventSourceRuntime is used to report that the event is generated from a runtime
+	EventSourceRuntime EventSource = "runtime"
+	// EventSourceReplay is used to report that the event is generated from a replay
+	EventSourceReplay EventSource = "replay"
+	// EventSourceRelated is used to report that the event is generated from a related event
+	EventSourceRelated EventSource = "related"
 )
 
 var (
@@ -439,6 +452,22 @@ var (
 		"STATIC":  Static,
 		"DYNAMIC": Dynamic,
 	}
+
+	// UserSessionTypes are the supported user session types
+	// generate_constants:UserSessionTypes,UserSessionTypes are the supported user session types.
+	UserSessionTypes = map[string]usersession.Type{
+		"unknown": usersession.UserSessionTypeUnknown,
+		"k8s":     usersession.UserSessionTypeK8S,
+		"ssh":     usersession.UserSessionTypeSSH,
+	}
+
+	// SSHAuthMethodConstants are the supported SSH authentication methods
+	// generate_constants:SSHAuthMethod,SSH authentication methods.
+	SSHAuthMethodConstants = map[string]usersession.AuthType{
+		"password":   usersession.SSHAuthMethodPassword,
+		"public_key": usersession.SSHAuthMethodPublicKey,
+		"unknown":    usersession.SSHAuthMethodUnknown,
+	}
 )
 
 var (
@@ -456,6 +485,10 @@ var (
 	compressionTypeStrings     = map[CompressionType]string{}
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
+	// UserSessionTypeStrings are the supported user session types
+	userSessionTypeStrings = map[usersession.Type]string{}
+	// SSHAuthMethodStrings are the supported SSH authentication methods
+	sshAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -605,6 +638,20 @@ func initLinkageTypeConstants() {
 	}
 }
 
+func initUserSessionTypes() {
+	for k, v := range UserSessionTypes {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		userSessionTypeStrings[v] = k
+	}
+}
+
+func initSSHAuthMethodConstants() {
+	for k, v := range SSHAuthMethodConstants {
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		sshAuthMethodStrings[v] = k
+	}
+}
+
 func initConstants() {
 	initBoolConstants()
 	initErrorConstants()
@@ -635,7 +682,6 @@ func initConstants() {
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
 	initAUIDConstants()
-	usersession.InitUserSessionTypes()
 	initSSLVersionConstants()
 	initSysCtlActionConstants()
 	initSetSockOptLevelConstants()
@@ -653,6 +699,8 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
+	initUserSessionTypes()
+	initSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -973,6 +1021,9 @@ func (proto NetworkProtocolType) String() string {
 }
 
 const (
+	// UnspecType is the default type
+	UnspecType NetworkProtocolType = math.MaxUint16
+
 	// ICMPTypeEchoRequest is the type for ICMP echo requests
 	ICMPTypeEchoRequest NetworkProtocolType = 8
 	// ICMPTypeEchoReply is the type for ICMP echo replies
@@ -1133,4 +1184,25 @@ func (l LinkageType) String() string {
 		initLinkageTypeConstants()
 	}
 	return linkageTypeStrings[l]
+}
+
+// UserSessionTypeToString converts a usersession.Type to its string representation
+func UserSessionTypeToString(t usersession.Type) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := userSessionTypeStrings[t]; ok {
+		return val
+	}
+	return ""
+}
+
+func SSHAuthMethodToString(t usersession.AuthType) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := sshAuthMethodStrings[t]; ok {
+		return val
+	}
+	return ""
 }

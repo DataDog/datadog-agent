@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package aggregator
 
 import (
@@ -38,9 +36,4 @@ func (NoOpSenderManager) DestroySender(_ checkid.ID) {}
 // GetDefaultSender returns a default sender.
 func (NoOpSenderManager) GetDefaultSender() (sender.Sender, error) {
 	return nil, errors.New("NotImplemented")
-}
-
-// LazyGetSenderManager gets an instance of SenderManager lazily.
-func (sender NoOpSenderManager) LazyGetSenderManager() (sender.SenderManager, error) {
-	return sender, nil
 }

@@ -53,6 +53,38 @@ func TestSnapshotTesting(t *testing.T) {
 	}
 }
 
+func BenchmarkSnapshotTesting(t *testing.B) {
+	cfgs := testprogs.MustGetCommonConfigs(t)
+	const prog = "sample"
+	t.Run(prog, func(t *testing.B) {
+		for _, cfg := range cfgs {
+			t.Run(cfg.String(), func(t *testing.B) {
+				binPath := testprogs.MustGetBinary(t, prog, cfg)
+				probesCfgs := testprogs.MustGetProbeDefinitions(t, prog)
+				diskCache, err := object.NewDiskCache(object.DiskCacheConfig{
+					DirPath:                  t.TempDir(),
+					RequiredDiskSpaceBytes:   10 * 1024 * 1024,  // require 10 MiB free
+					RequiredDiskSpacePercent: 1.0,               // 1% free space
+					MaxTotalBytes:            512 * 1024 * 1024, // 512 MiB max cache size
+				})
+				require.NoError(t, err)
+				obj, err := diskCache.Load(binPath)
+				require.NoError(t, err)
+				defer func() { require.NoError(t, obj.Close()) }()
+
+				t.ResetTimer()
+				for t.Loop() {
+					_, err := irgen.GenerateIR(1, obj, probesCfgs,
+						irgen.WithOnDiskGoTypeIndexFactory(diskCache),
+						irgen.WithObjectLoader(diskCache),
+					)
+					require.NoError(t, err)
+				}
+			})
+		}
+	})
+}
+
 func probeConfigsWithMaxReferenceDepth(
 	probesCfgs []ir.ProbeDefinition, limit int,
 ) []ir.ProbeDefinition {
@@ -84,7 +116,22 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 	// use the results because they might be huge.
 	irWithDefaultLimits, err := irgen.GenerateIR(1, obj, probesCfgs)
 	require.NoError(t, err)
-	require.Empty(t, irWithDefaultLimits.Issues)
+	// Use tags to communicate expected issues.
+	expectedIssues := make(map[string]string)
+	for _, cfg := range probesCfgs {
+		if issue, ok := testprogs.GetIssueTag(cfg); ok {
+			expectedIssues[cfg.GetID()] = issue
+		}
+	}
+	computeGotIssues := func(p *ir.Program) map[string]string {
+		gotIssues := make(map[string]string)
+		for _, issue := range p.Issues {
+			gotIssues[issue.ProbeDefinition.GetID()] = issue.Issue.Kind.String()
+		}
+		return gotIssues
+	}
+	require.Equal(t, expectedIssues, computeGotIssues(irWithDefaultLimits))
+
 	{
 		_, err := irprinter.PrintYAML(irWithDefaultLimits)
 		require.NoError(t, err)
@@ -98,7 +145,8 @@ func runTest(t *testing.T, cfg testprogs.Config, prog string) {
 		probesCfgs = probeConfigsWithMaxReferenceDepth(probesCfgs, i)
 		irWithLimit, err := irgen.GenerateIR(1, obj, probesCfgs)
 		require.NoError(t, err)
-		require.Empty(t, irWithLimit.Issues)
+		require.Equal(t, expectedIssues, computeGotIssues(irWithLimit))
+
 		if i == 1 {
 			irWithLimit1 = irWithLimit
 		}

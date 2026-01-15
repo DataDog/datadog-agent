@@ -9,7 +9,6 @@ package run
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -17,16 +16,19 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
+	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logtracefx "github.com/DataDog/datadog-agent/comp/core/log/fx-trace"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-trace"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	optionalRemoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-optional-remote"
-	taggerTypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -36,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -79,10 +82,6 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath, coreconfig.WithFleetPoliciesDirPath(cliParams.FleetPoliciesDirPath))),
 		secretsfx.Module(),
-		fx.Provide(func(comp secrets.Component) option.Option[secrets.Component] {
-			return option.New[secrets.Component](comp)
-		}),
-		fx.Supply(secrets.NewEnabledParams()),
 		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() log.Params {
@@ -100,14 +99,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 				// that we do not need the container tagging provided by the
 				// remote tagger in this environment, so we can use the noop
 				// tagger instead.
-				Disable: serverlessenv.IsAzureAppServicesExtension,
+				Disable: func(_ coreconfig.Component) bool { return serverlessenv.IsAzureAppServicesExtension() },
 			},
-			tagger.RemoteParams{
-				RemoteTarget: func(c coreconfig.Component) (string, error) {
-					return fmt.Sprintf(":%v", c.GetInt("cmd_port")), nil
-				},
-				RemoteFilter: taggerTypes.NewMatchAllFilter(),
-			}),
+			tagger.NewRemoteParams()),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -121,8 +115,15 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		trace.Bundle(),
 		ipcfx.ModuleReadWrite(),
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
+		fxinstrumentation.Module(),
+		remoteagentfx.Module(),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
+		agenttelemetryfx.Module(),
+		fx.Invoke(func(tm coretelemetry.Component) {
+			api.InitTelemetry(tm)
+		}),
+		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil

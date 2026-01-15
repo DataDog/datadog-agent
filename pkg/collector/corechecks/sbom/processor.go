@@ -36,6 +36,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
+	gopsutil "github.com/shirou/gopsutil/v4/host"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -48,8 +49,7 @@ type processor struct {
 	cfg                   config.Component
 	queue                 chan *model.SBOMEntity
 	workloadmetaStore     workloadmeta.Component
-	filterStore           workloadfilter.Component
-	selectedFilters       [][]workloadfilter.ContainerFilter
+	containerFilter       workloadfilter.FilterBundle
 	tagger                tagger.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
@@ -98,8 +98,7 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 			log.Debugf("SBOM event sent with %d entities", len(entities))
 		}),
 		workloadmetaStore:     workloadmetaStore,
-		filterStore:           filterStore,
-		selectedFilters:       filterStore.GetContainerSBOMFilters(),
+		containerFilter:       filterStore.GetContainerSBOMFilters(),
 		tagger:                tagger,
 		imageRepoDigests:      make(map[string]string),
 		imageUsers:            make(map[string]map[string]struct{}),
@@ -113,8 +112,8 @@ func newProcessor(workloadmetaStore workloadmeta.Component, filterStore workload
 }
 
 func isProcfsSBOMEnabled(cfg config.Component) bool {
-	// Allowed only on Fargate instance for now
-	return cfg.GetBool("sbom.container.enabled") && fargate.IsFargateInstance()
+	// Allowed only in sidecar mode for now
+	return cfg.GetBool("sbom.container.enabled") && fargate.IsSidecar()
 }
 
 func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBundle) {
@@ -141,7 +140,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 		switch event.Type {
 		case workloadmeta.EventTypeSet:
 			filterableContainerImage := workloadfilter.CreateContainerImage(event.Entity.(*workloadmeta.ContainerImageMetadata).Name)
-			if p.filterStore.IsContainerExcluded(filterableContainerImage, p.selectedFilters) {
+			if p.containerFilter.IsExcluded(filterableContainerImage) {
 				continue
 			}
 
@@ -161,7 +160,7 @@ func (p *processor) processContainerImagesEvents(evBundle workloadmeta.EventBund
 			p.registerContainer(container)
 
 			filterableContainer := workloadmetafilter.CreateContainer(container, nil)
-			if p.filterStore.IsContainerExcluded(filterableContainer, p.selectedFilters) {
+			if p.containerFilter.IsExcluded(filterableContainer) {
 				continue
 			}
 
@@ -230,6 +229,13 @@ func (p *processor) unregisterContainer(ctr *workloadmeta.Container) {
 
 func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	log.Debugf("processing host scanresult: %v", result)
+
+	info, err := gopsutil.Info()
+	if err != nil {
+		log.Warnf("Failed to get host info: %v", err)
+		info = &gopsutil.InfoStat{}
+	}
+
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Type:               model.SBOMSourceType_HOST_FILE_SYSTEM,
@@ -237,6 +243,8 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+		CpuArchitecture:    info.KernelArch,
+		KernelVersion:      info.KernelVersion,
 	}
 
 	if result.Error != nil {
@@ -290,6 +298,13 @@ func (p *processor) triggerProcfsScan(ctr *workloadmeta.Container) {
 
 func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 	log.Debugf("processing procfs scanresult: %v", result)
+
+	info, err := gopsutil.Info()
+	if err != nil {
+		log.Warnf("Failed to get host info: %v", err)
+		info = &gopsutil.InfoStat{}
+	}
+
 	sbom := &model.SBOMEntity{
 		Status:             model.SBOMStatus_SUCCESS,
 		Id:                 result.RequestID,
@@ -297,6 +312,8 @@ func (p *processor) processProcfsScanResult(result sbom.ScanResult) {
 		InUse:              true,
 		GeneratedAt:        timestamppb.New(result.CreatedAt),
 		GenerationDuration: bomconvert.ConvertDuration(result.Duration),
+		CpuArchitecture:    info.KernelArch,
+		KernelVersion:      info.KernelVersion,
 	}
 
 	if result.Error != nil {

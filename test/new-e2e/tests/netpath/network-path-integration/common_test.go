@@ -9,6 +9,7 @@ package networkpathintegration
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -17,12 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintakeclient "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 //go:embed fixtures/system-probe.yaml
@@ -63,7 +64,7 @@ func (s *baseNetworkPathIntegrationTestSuite) findNetpath(isMatch func(*aggregat
 		return nil, err
 	}
 	if nps == nil {
-		return nil, fmt.Errorf("GetLatestNetpathEvents() returned nil netpaths")
+		return nil, errors.New("GetLatestNetpathEvents() returned nil netpaths")
 	}
 
 	var match *aggregator.Netpath
@@ -127,6 +128,29 @@ func (s *baseNetworkPathIntegrationTestSuite) checkGoogleDNSUDP(c *assert.Collec
 func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPSocket(c *assert.CollectT, agentHostname string) {
 	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
 		return np.Destination.Hostname == "8.8.8.8" && np.Protocol == "TCP"
+	})
+
+	assertPayloadBase(c, np, agentHostname)
+
+	assert.NotZero(c, np.Destination.Port)
+	require.NotEmpty(c, np.Traceroute.Runs)
+	assert.NotEmpty(c, np.Traceroute.Runs[0].Hops)
+
+	// assert that one of the hops is reachable
+	run := np.Traceroute.Runs[0]
+	countKnownHops := 0
+	for _, hop := range run.Hops {
+		if hop.Reachable {
+			countKnownHops++
+		}
+	}
+	// > 1 verifies that we have more than just the last hop known
+	assert.True(c, countKnownHops > 1, "expected to find at least one hop that is reachable")
+}
+
+func (s *baseNetworkPathIntegrationTestSuite) checkGoogleTCPDisableWindowsDriver(c *assert.CollectT, agentHostname string) {
+	np := s.expectNetpath(c, func(np *aggregator.Netpath) bool {
+		return np.Destination.Hostname == "1.1.1.1" && np.Protocol == "TCP"
 	})
 
 	assertPayloadBase(c, np, agentHostname)

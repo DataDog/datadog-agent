@@ -215,3 +215,179 @@ func TestIsPartialSnapshot(t *testing.T) {
 	span.Metrics = map[string]float64{"_dd.partial_version": float64(rand.Uint32())}
 	assert.True(IsPartialSnapshot(span), "Any value in partialVersion key will mark the span as incomplete")
 }
+
+func TestCopyTraceID(t *testing.T) {
+	t.Run("64-bit trace ID", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID should be copied")
+		assert.Nil(t, dst.Meta, "Meta should remain nil when source has no high bits")
+	})
+
+	t.Run("128-bit trace ID", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta: map[string]string{
+				"_dd.p.tid": "6958127700000000",
+			},
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID (low 64 bits) should be copied")
+		assert.NotNil(t, dst.Meta, "Meta should be initialized")
+		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"], "High 64 bits should be copied")
+	})
+
+	t.Run("128-bit trace ID with existing destination meta", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta: map[string]string{
+				"_dd.p.tid": "6958127700000000",
+			},
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+			Meta: map[string]string{
+				"existing": "value",
+			},
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID should be copied")
+		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"], "High 64 bits should be copied")
+		assert.Equal(t, "value", dst.Meta["existing"], "Existing meta should be preserved")
+	})
+
+	t.Run("Source with other meta fields", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta: map[string]string{
+				"_dd.p.tid": "6958127700000000",
+				"other":     "field",
+			},
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID should be copied")
+		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"], "High 64 bits should be copied")
+		assert.NotContains(t, dst.Meta, "other", "Other meta fields should not be copied")
+	})
+
+	t.Run("Nil source meta", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta:    nil,
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID should be copied")
+		assert.Nil(t, dst.Meta, "Meta should remain nil when source has nil meta")
+	})
+
+	t.Run("Overwrite existing high bits", func(t *testing.T) {
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta: map[string]string{
+				"_dd.p.tid": "6958127700000000",
+			},
+		}
+		dst := &pb.Span{
+			TraceID: 99999,
+			Meta: map[string]string{
+				"_dd.p.tid": "0000000000000000",
+			},
+		}
+
+		CopyTraceID(dst, src)
+
+		assert.Equal(t, uint64(12345), dst.TraceID, "TraceID should be copied")
+		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"], "High 64 bits should be overwritten")
+	})
+}
+
+func TestSameTraceID(t *testing.T) {
+	t.Run("Same 64-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 12345}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Different 64-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 99999}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("Same 128-bit trace ID", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Same low bits, different high bits", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "1111111111111111"},
+		}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("One has high bits, other doesn't", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+		}
+		assert.False(t, SameTraceID(a, b))
+	})
+
+	t.Run("Neither has high bits", func(t *testing.T) {
+		a := &pb.Span{TraceID: 12345}
+		b := &pb.Span{TraceID: 12345}
+		assert.True(t, SameTraceID(a, b))
+	})
+
+	t.Run("Other meta fields don't affect comparison", func(t *testing.T) {
+		a := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000", "other": "a"},
+		}
+		b := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000", "other": "b"},
+		}
+		assert.True(t, SameTraceID(a, b))
+	})
+}

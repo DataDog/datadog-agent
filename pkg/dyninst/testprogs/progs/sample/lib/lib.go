@@ -11,3 +11,7 @@ var dummy int
 func Foo() {
 	dummy++
 }
+
+func InlinedFunc() {
+	dummy++
+}

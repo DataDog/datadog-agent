@@ -47,6 +47,7 @@ from tasks.kernel_matrix_testing.init_kmt import init_kernel_matrix_testing_syst
 from tasks.kernel_matrix_testing.kmt_os import flare as flare_kmt_os
 from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
+from tasks.kernel_matrix_testing.setup import check_requirements, get_requirements
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, check_and_get_stack_or_exit, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import PlatformInfo, component_from_str
@@ -62,6 +63,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import get_build_flags
 from tasks.libs.pipeline.tools import GitlabJobStatus, loop_status
+from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import VERSION_RE, check_version
 from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.libs.types.types import JobDependency
@@ -72,6 +74,7 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_HELPER_CBINS,
     TEST_PACKAGES_LIST,
+    build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
     get_ebpf_build_dir,
@@ -99,8 +102,8 @@ except ImportError:
     tabulate = None
 
 
-X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
-ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
+X86_AMI_ID_SANDBOX = "ami-0ee01fdc00d76ae88"
+ARM_AMI_ID_SANDBOX = "ami-0b200b09727f5cd75"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
@@ -414,9 +417,19 @@ def ls(_, distro=True, custom=False):
         "images": "Comma separated list of images to download. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
         "all-images": "Download all available VM images for the current architecture.",
         "skip-ssh-setup": "Skip step to setup SSH files for interacting with remote AWS VMs",
+        "exclude-requirements": "Comma separated list of requirements to exclude. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
+        "only-requirements": "Comma separated list of requirements to include, no other requirements will be checked. Refer to the output of `dda inv kmt.selfcheck` for the available requirements.",
     }
 )
-def init(ctx: Context, images: str | None = None, all_images=False, remote_setup_only=False, skip_ssh_setup=False):
+def init(
+    ctx: Context,
+    images: str | None = None,
+    all_images=False,
+    remote_setup_only=False,
+    skip_ssh_setup=False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+):
     if not remote_setup_only and not all_images and images is None:
         if (
             ask(
@@ -432,7 +445,14 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
         info("[+] Use `dda inv kmt.update-resources --images=<list>` to download specific images for local use.")
 
     try:
-        init_kernel_matrix_testing_system(ctx, images, all_images, remote_setup_only)
+        init_kernel_matrix_testing_system(
+            ctx,
+            images,
+            all_images,
+            remote_setup_only,
+            exclude_requirements,
+            only_requirements,
+        )
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
         raise e
@@ -446,12 +466,39 @@ def init(ctx: Context, images: str | None = None, all_images=False, remote_setup
 
 
 @task
+def selfcheck(
+    ctx: Context,
+    remote_setup_only: bool = False,
+    fix: bool = False,
+    exclude_requirements: list[str] | None = None,
+    only_requirements: list[str] | None = None,
+    show_flare_for_failures: bool = False,
+):
+    requirements = get_requirements(remote_setup_only, exclude_requirements, only_requirements)
+    failed = check_requirements(
+        ctx,
+        requirements,
+        fix=fix,
+        echo=True,
+        verbose=ctx.config["run"]["echo"],
+        show_flare_for_failures=show_flare_for_failures,
+    )
+
+    # flush stdout to ensure formatting is correct
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    if failed:
+        raise Exit("[-] KMT setup incorrect")
+    else:
+        info("[+] KMT setup correct")
+
+
+@task
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
     info("[+] Configuring SSH key for use with the KMT AWS instances")
-    info(
-        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
-    )
+    info("[+] Ensure your desired SSH key is set up in the AWS agent-sandbox account so we can check its existence")
     info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
@@ -700,6 +747,7 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
         variables={
             "go": go_path,
             "chdir": "cd test/new-e2e/system-probe/test-json-review/",
+            "tags": "-tags=test",
             "env": env_str,
         },
     )
@@ -977,10 +1025,12 @@ def build_run_config(run: str | None, packages: list[str]):
 
     for p in packages:
         p = p.removeprefix("./")
+        if "filters" not in c:
+            c["filters"] = {}
         if run is not None:
-            c["filters"] = {p: {"run-only": [run]}}
+            c["filters"][p] = {"run-only": [run]}
         else:
-            c["filters"] = {p: {"exclude": False}}
+            c["filters"][p] = {"exclude": False}
 
     return c
 
@@ -1071,6 +1121,14 @@ def kmt_sysprobe_prepare(
     build_tags = get_sysprobe_test_buildtags(False, False)
     target_packages = build_target_packages(filter_pkgs, build_tags)
     pkg_deps = compute_package_dependencies(ctx, target_packages, build_tags)
+
+    info("[+] Building Rust binaries...")
+    build_rust_binaries(
+        ctx,
+        arch=arch,
+        output_dir=kmt_paths.sysprobe_tests,
+        packages=[os.path.relpath(p, os.getcwd()) for p in target_packages],
+    )
 
     info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
@@ -2268,8 +2326,8 @@ def tag_ci_job(ctx: Context):
     ctx.run(f"datadog-ci tag --level job {tags_str}")
 
     if len(metrics) > 0:
-        metrics_str = " ".join(f"--metrics '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
-        ctx.run(f"datadog-ci metric --level job {metrics_str}")
+        metrics_str = " ".join(f"--measures '{tag_prefix}{k}:{v}'" for k, v in metrics.items())
+        ctx.run(f"datadog-ci measure --level job {metrics_str}")
 
 
 @task
@@ -2336,8 +2394,7 @@ def install_ddagent(
     if version is not None:
         check_version(ctx, version)
     else:
-        with open("release.json") as f:
-            release = json.load(f)
+        release = load_release_json()
         version = release["last_stable"]["7"]
 
     if version is None:

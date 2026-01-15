@@ -5,8 +5,7 @@ fit for your use case, please [refer to the official documentation][custom-check
 
 ## JMX-based checks
 JMX-based checks are executed by a component of the Agent called `jmxfetch`.
-Refer to [./jmxfetch.md](./jmxfetch.md) for more.
-
+See the [JMXFetch repo](https://github.com/DataDog/JMXFetch) for more.
 ## Configuration
 
 Every check has its own YAML configuration file. The file has one mandatory key,

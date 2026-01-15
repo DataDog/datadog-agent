@@ -79,10 +79,8 @@ func TestDNSResponse(t *testing.T) {
 	defer justBind().Close()
 
 	t.Run("catch-dns-rcode-zero", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
-
-			time.Sleep(1 * time.Second)
 			err = injectHexDump("lo", hexDump)
 
 			return nil
@@ -93,7 +91,7 @@ func TestDNSResponse(t *testing.T) {
 			assert.Equal(t, uint8(model.DNSResponseCodeConstants["NOERROR"]), event.DNS.Response.ResponseCode, "wrong response code")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "dns_response_ok")
 	})
 	test.Close()
 
@@ -105,7 +103,7 @@ func TestDNSResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("catch-dns-rcode-nxdomain", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			hexDump := "0000000000000000000000000800450000732e9d400001114ca77f0000357f00000115b1d778005fba5b2a7281830001000000010000037777770864617461646177670265750000010001c0190006000100000258002a02736903646e73c0190474656368056575726964c019423b7e6500000e10000007080036ee8000000258"
 			err = injectHexDump("lo", hexDump)
 			if err != nil {
@@ -118,7 +116,47 @@ func TestDNSResponse(t *testing.T) {
 			assert.Equal(t, "www.datadawg.eu", event.DNS.Question.Name, "wrong domain name")
 			assert.Equal(t, uint8(model.DNSResponseCodeConstants["NXDOMAIN"]), event.DNS.Response.ResponseCode, "wrong response code")
 			test.validateDNSSchema(t, event)
-		})
+		}, "dns_response_nok")
 	})
 	test.Close()
+}
+
+func TestDNSResponseDiscarder(t *testing.T) {
+	SkipIfNotAvailable(t)
+	checkNetworkCompatibility(t)
+	if testEnvironment != DockerEnvironment && !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	ruleDefsRcodeOK := []*rules.RuleDefinition{
+		{
+			ID:         "dns_response_ok",
+			Expression: `dns.response.code == NXDOMAIN`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefsRcodeOK, withStaticOpts(testOpts{
+		dnsPort: DNSPort,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+	defer justBind().Close()
+
+	t.Run("noerror-packet-is-discarded", func(_ *testing.T) {
+		err = test.GetProbeEvent(func() error {
+			// Send packet with rcode NOERROR, but the rule expects NODOMAIN, therefore it should be discarded
+			hexDump := "00000000000000000000000008004500004ef53c40000111862c7f0000357f00000115b18bb0003a96af5ac281800001000100000000037777770964617461646f6768710265750000010001c00c000100010000003c00042295739e"
+			err = injectHexDump("lo", hexDump)
+			return nil
+		}, func(event *model.Event) bool {
+			return event.DNS.Question.Name == "www.datadoghq.eu"
+		}, 3*time.Second, model.DNSEventType)
+	})
+
+	// Packet should never be received
+	assert.NotEqual(t, err, nil)
 }

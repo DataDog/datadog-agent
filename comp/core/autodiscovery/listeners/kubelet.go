@@ -29,8 +29,10 @@ import (
 // to the workloadmeta store.
 type KubeletListener struct {
 	workloadmetaListener
-	filterStore workloadfilter.Component
-	tagger      tagger.Component
+	globalFilter  workloadfilter.FilterBundle
+	metricsFilter workloadfilter.FilterBundle
+	logsFilter    workloadfilter.FilterBundle
+	tagger        tagger.Component
 }
 
 // NewKubeletListener returns a new KubeletListener.
@@ -38,8 +40,10 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{
-		filterStore: options.Filter,
-		tagger:      options.Tagger,
+		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:        options.Tagger,
 	}
 	wmetaFilter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -99,7 +103,7 @@ func (l *KubeletListener) createPodService(
 
 	entity := kubelet.PodUIDToEntityName(pod.ID)
 	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
-	svc := &service{
+	svc := &WorkloadService{
 		entity:        pod,
 		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, types.ChecksConfigCardinality),
 		adIdentifiers: []string{entity},
@@ -107,6 +111,7 @@ func (l *KubeletListener) createPodService(
 		ports:         ports,
 		ready:         true,
 		tagger:        l.tagger,
+		wmeta:         l.Store(),
 	}
 
 	svcID := buildSvcID(pod.GetID())
@@ -125,10 +130,9 @@ func (l *KubeletListener) createContainerService(
 	containerName := podContainer.Name
 	containerImg := podContainer.Image
 
-	if l.filterStore.IsContainerExcluded(
-		workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-		l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
-	) {
+	filterableContainer := workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod))
+
+	if l.globalFilter.IsExcluded(filterableContainer) {
 		log.Debugf("container %s filtered out: name %q image %q namespace %q", container.ID, containerName, containerImg.RawName, pod.Namespace)
 		return
 	}
@@ -159,7 +163,7 @@ func (l *KubeletListener) createContainerService(
 	})
 
 	entity := containers.BuildEntityName(string(container.Runtime), container.ID)
-	svc := &service{
+	svc := &WorkloadService{
 		entity:   container,
 		tagsHash: l.tagger.GetEntityHash(types.NewEntityID(types.ContainerID, container.ID), types.ChecksConfigCardinality),
 		ready:    pod.Ready || shouldSkipPodReadiness(pod),
@@ -173,15 +177,11 @@ func (l *KubeletListener) createContainerService(
 
 		// Exclude non-running containers (including init containers)
 		// from metrics collection but keep them for collecting logs.
-		metricsExcluded: l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		) || !container.State.Running,
-		logsExcluded: l.filterStore.IsContainerExcluded(
-			workloadmetafilter.CreateContainerFromOrch(podContainer, workloadmetafilter.CreatePod(pod)),
-			l.filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		),
-		tagger: l.tagger,
+		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
+		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
+		tagger:          l.tagger,
+		imageName:       containerImg.ShortName,
+		wmeta:           l.Store(),
 	}
 
 	adIdentifier := containerName

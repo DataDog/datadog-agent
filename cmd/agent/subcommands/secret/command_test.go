@@ -8,11 +8,8 @@ package secret
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,9 +18,7 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"secret"},
 		showSecretInfo,
-		func(_ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
-		})
+		func(_ core.BundleParams) {})
 }
 
 func TestRefreshCommand(t *testing.T) {
@@ -31,7 +26,5 @@ func TestRefreshCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"secret", "refresh"},
 		secretRefresh,
-		func(_ core.BundleParams, secretParams secrets.Params) {
-			require.Equal(t, false, secretParams.Enabled)
-		})
+		func(_ core.BundleParams) {})
 }

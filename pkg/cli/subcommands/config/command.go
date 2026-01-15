@@ -19,6 +19,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,6 +33,9 @@ type cliParams struct {
 
 	// source enables detailed information about each source and its value
 	source bool
+
+	// includeDefault enables displaying all settings including defaults
+	includeDefault bool
 
 	// args are the positional command line args
 	args []string
@@ -68,6 +72,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
+				secretnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		}
@@ -78,6 +83,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		Long:  ``,
 		RunE:  oneShotRunE(showRuntimeConfiguration),
 	}
+	cmd.Flags().BoolVarP(&cliParams.includeDefault, "all", "a", false, "display all settings including defaults")
 
 	listRuntimeCmd := &cobra.Command{
 		Use:   "list-runtime",
@@ -121,7 +127,12 @@ func showRuntimeConfiguration(_ log.Component, client ipc.HTTPClient, cliParams 
 		return err
 	}
 
-	runtimeConfig, err := c.FullConfig()
+	var runtimeConfig string
+	if cliParams.includeDefault {
+		runtimeConfig, err = c.FullConfig()
+	} else {
+		runtimeConfig, err = c.FullConfigWithoutDefaults()
+	}
 	if err != nil {
 		return err
 	}
@@ -154,7 +165,7 @@ func listRuntimeConfigurableValue(_ log.Component, client ipc.HTTPClient, cliPar
 
 func setConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if len(cliParams.args) != 2 {
-		return fmt.Errorf("exactly two parameters are required: the setting name and its value")
+		return errors.New("exactly two parameters are required: the setting name and its value")
 	}
 
 	c, err := cliParams.SettingsBuilder(client)
@@ -178,7 +189,7 @@ func setConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams
 
 func getConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
-		return fmt.Errorf("a single setting name must be specified")
+		return errors.New("a single setting name must be specified")
 	}
 
 	c, err := cliParams.SettingsBuilder(client)
@@ -196,14 +207,14 @@ func getConfigValue(_ log.Component, client ipc.HTTPClient, cliParams *cliParams
 	if cliParams.source {
 		sourcesVal, ok := resp["sources_value"].([]interface{})
 		if !ok {
-			return fmt.Errorf("failed to cast sources_value to []map[interface{}]interface{}")
+			return errors.New("failed to cast sources_value to []map[interface{}]interface{}")
 		}
 
 		fmt.Printf("sources and their value:\n")
 		for _, sourceVal := range sourcesVal {
 			sourceVal, ok := sourceVal.(map[string]interface{})
 			if !ok {
-				return fmt.Errorf("failed to cast sourceVal to map[string]interface{}")
+				return errors.New("failed to cast sourceVal to map[string]interface{}")
 			}
 			fmt.Printf("  %s: %v\n", sourceVal["Source"], sourceVal["Value"])
 		}

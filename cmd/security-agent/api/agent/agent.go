@@ -55,6 +55,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
 	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
+	r.HandleFunc("/config/without-defaults", a.settings.GetFullConfigWithoutDefaults("")).Methods("GET")
 	// FIXME: this returns the entire datadog.yaml and not just security-agent.yaml config
 	r.HandleFunc("/config/by-source", a.settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
@@ -163,7 +164,7 @@ func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (a *Agent) refreshSecrets(w http.ResponseWriter, _ *http.Request) {
-	res, err := a.secrets.Refresh()
+	res, err := a.secrets.Refresh(true)
 	if err != nil {
 		log.Errorf("error while refresing secrets: %s", err)
 		w.Header().Set("Content-Type", "application/json")

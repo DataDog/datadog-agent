@@ -261,8 +261,8 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 				return
 			case <-heartbeatTicker.C:
 				tags := []string{
-					fmt.Sprintf("version:%s", version.AgentVersion),
-					fmt.Sprintf("os:%s", runtime.GOOS),
+					"version:" + version.AgentVersion,
+					"os:" + runtime.GOOS,
 					constants.CardinalityTagPrefix + "none",
 				}
 
@@ -291,7 +291,7 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 
 				e.RLock()
 				for _, version := range e.policiesVersions {
-					tags = append(tags, fmt.Sprintf("policies_version:%s", version))
+					tags = append(tags, "policies_version:"+version)
 				}
 				e.RUnlock()
 
@@ -358,7 +358,7 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, events.AllCustomRuleIDs()...)
 
 	// analyze the ruleset, push probe evaluation rule sets to the kernel and generate the policy report
-	filterReport, err := e.probe.ApplyRuleSet(rs)
+	filterReport, replayEvents, err := e.probe.ApplyRuleSet(rs)
 	if err != nil {
 		return err
 	}
@@ -370,6 +370,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	ruleIDs = append(ruleIDs, rs.ListRuleIDs()...)
 
 	e.currentRuleSet.Store(rs)
+
+	if replayEvents {
+		e.probe.ReplayEvents()
+	}
 
 	if err := e.probe.FlushDiscarders(); err != nil {
 		return fmt.Errorf("failed to flush discarders: %w", err)
@@ -411,8 +415,10 @@ func (e *RuleEngine) newSECLVariableEventPreparator() *seclVariableEventPreparat
 	}
 }
 
+var eventZeroer = model.NewEventZeroer()
+
 func (p *seclVariableEventPreparator) get(f func(event *model.Event)) *eval.Context {
-	p.event.Zero()
+	eventZeroer(p.event)
 	f(p.event)
 	return p.ctxPool.Get(p.event)
 }
@@ -430,15 +436,12 @@ func (e *RuleEngine) fillCommonSECLVariables(rsVariables map[string]eval.SECLVar
 			}
 
 			e.probe.Walk(func(entry *model.ProcessCacheEntry) {
-				entry.Retain()
-				defer entry.Release()
-
 				ctx := preparator.get(func(event *model.Event) {
 					event.ProcessCacheEntry = entry
 				})
 				defer preparator.put(ctx)
 
-				value, found := scopedVariable.GetValue(ctx)
+				value, found := scopedVariable.GetValue(ctx, true) // for status, let's not follow inheritance
 				if !found {
 					return
 				}
@@ -514,7 +517,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	ev := event.(*model.Event)
 
 	// add matched rules before any auto suppression check to ensure that this information is available in activity dumps
-	if ev.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" && (e.config.ActivityDumpTagRulesEnabled || e.config.AnomalyDetectionTagRulesEnabled) {
 		ev.Rules = append(ev.Rules, model.NewMatchedRule(rule.Def.ID, rule.Def.Version, rule.Def.Tags, rule.Policy.Name, rule.Policy.Version))
 	}
 
@@ -529,9 +532,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerTags(ev, ev.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.ContainerContext)
+	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
+	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -544,9 +547,9 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 	var extTagsCb func() ([]string, bool)
 
-	if ev.ContainerContext.ContainerID != "" {
+	if ev.ProcessContext.Process.ContainerContext.ContainerID != "" {
 		// copy the container ID here to avoid later data race
-		containerID := ev.ContainerContext.ContainerID
+		containerID := ev.ProcessContext.Process.ContainerContext.ContainerID
 
 		extTagsCb = func() ([]string, bool) {
 			return e.probe.GetEventTags(containerID), true

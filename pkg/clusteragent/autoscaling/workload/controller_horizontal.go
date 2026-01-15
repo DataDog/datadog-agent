@@ -274,6 +274,11 @@ func (hr *horizontalController) computeScaleAction(
 }
 
 func isFallbackScalingDirectionEnabled(fallbackEnabledDirection datadoghq.DatadogPodAutoscalerFallbackDirection, scaleDirection common.ScaleDirection) bool {
+	if fallbackEnabledDirection == "" {
+		// Default to ScaleUp if not set
+		fallbackEnabledDirection = datadoghq.DatadogPodAutoscalerFallbackDirectionScaleUp
+	}
+
 	if fallbackEnabledDirection == datadoghq.DatadogPodAutoscalerFallbackDirectionAll {
 		return true
 	}

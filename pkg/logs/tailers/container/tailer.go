@@ -80,7 +80,7 @@ type Tailer struct {
 	ContainerID string
 
 	outputChan      chan *message.Message
-	decoder         *decoder.Decoder
+	decoder         decoder.Decoder
 	unsafeLogReader func(context.Context, time.Time) (io.ReadCloser, error)
 	Source          *sources.LogSource
 	tagProvider     tag.Provider
@@ -190,7 +190,7 @@ func NewDockerTailer(
 
 // Identifier returns a string that uniquely identifies a source
 func (t *Tailer) Identifier() string {
-	return fmt.Sprintf("docker:%s", t.ContainerID)
+	return "docker:" + t.ContainerID
 }
 
 // Stop stops the tailer from reading new container logs,
@@ -357,7 +357,7 @@ func (t *Tailer) readForever() {
 				t.wait()
 				continue
 			}
-			t.decoder.InputChan <- decoder.NewInput(inBuf[:n])
+			t.decoder.InputChan() <- decoder.NewInput(inBuf[:n])
 		}
 	}
 }
@@ -415,7 +415,7 @@ func (d *dockerMessageForwarder) forward() {
 		// the decoder has successfully been flushed
 		d.tailer.done <- struct{}{}
 	}()
-	for output := range d.tailer.decoder.OutputChan {
+	for output := range d.tailer.decoder.OutputChan() {
 		if len(output.GetContent()) > 0 {
 			msg := buildMessage(d.tailer, output)
 			d.tailer.outputChan <- msg
@@ -455,7 +455,7 @@ func (k *kubeletMessageForwarder) forward() {
 		// the decoder has successfully been flushed
 		k.tailer.done <- struct{}{}
 	}()
-	for output := range k.tailer.decoder.OutputChan {
+	for output := range k.tailer.decoder.OutputChan() {
 		if len(output.GetContent()) > 0 {
 			// Because the kubelet API does not support sub-second granularity we run the risk of logging duplicates
 			// we check the timestamp to drop logs that have already been processed

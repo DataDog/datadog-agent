@@ -8,6 +8,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -33,12 +34,12 @@ func parseTestMetrics(data [][]interface{}) ([]TestMetric, error) {
 
 		id, ok := row[0].(string)
 		if !ok {
-			return nil, fmt.Errorf("expected string for ID")
+			return nil, errors.New("expected string for ID")
 		}
 
 		value, ok := row[1].(float64)
 		if !ok {
-			return nil, fmt.Errorf("expected float64 for Value")
+			return nil, errors.New("expected float64 for Value")
 		}
 
 		metrics = append(metrics, TestMetric{ID: id, Value: value})

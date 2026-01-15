@@ -62,6 +62,11 @@ type Serie struct {
 	Source         MetricSource         `json:"-"` // This is only used by api V2
 }
 
+// GetName returns the name of the Serie
+func (serie *Serie) GetName() string {
+	return serie.Name
+}
+
 // Metadata holds metadata about the metric
 type Metadata struct {
 	Origin Origin `json:"origin,omitempty"`
@@ -197,7 +202,7 @@ func (series *Series) Append(serie *Serie) {
 // MarshalStrings converts the timeseries to a sorted slice of string slices
 func (series Series) MarshalStrings() ([]string, [][]string) {
 	headers := []string{"Metric", "Type", "Timestamp", "Value", "Tags"}
-	payload := make([][]string, len(series))
+	payload := make([][]string, 0, len(series))
 
 	for _, serie := range series {
 		payload = append(payload, []string{

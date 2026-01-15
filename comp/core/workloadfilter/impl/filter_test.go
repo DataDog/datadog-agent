@@ -3,45 +3,55 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build cel && test
+
 // Package workloadfilterimpl contains the implementation of the filter component.
 package workloadfilterimpl
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Create a new filter object for testing purposes
-func newFilterObject(t *testing.T, config config.Component) *filter {
+func newFilterStoreObject(t *testing.T, config config.Component) *localFilterStore {
 	reqs := Requires{
-		Log:    logmock.New(t),
-		Config: config,
+		Log:       logmock.New(t),
+		Config:    config,
+		Telemetry: fxutil.Test[coretelemetry.Component](t, telemetryimpl.MockModule()),
 	}
-	f, _ := NewComponent(reqs)
-	return f.Comp.(*filter)
+
+	f, err := NewComponent(reqs)
+	if err != nil {
+		t.Errorf("failed to create filter component: %v", err)
+		return nil
+	}
+
+	return f.Comp.(*localFilterStore)
 }
 
 func TestBasicFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("container_include", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("container_exclude", []string{"image:datadog/agent:latest"})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("empty filters, empty container", func(t *testing.T) {
 		container := &workloadfilter.Container{}
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -55,7 +65,8 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -69,7 +80,8 @@ func TestBasicFilter(t *testing.T) {
 			nil,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -85,7 +97,9 @@ func TestBasicFilter(t *testing.T) {
 			},
 			nil,
 		)
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
@@ -93,7 +107,7 @@ func TestBasicFilter(t *testing.T) {
 
 func TestADAnnotationFilter(t *testing.T) {
 	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("improper exclude annotation", func(t *testing.T) {
 		pod := workloadmetafilter.CreatePod(
@@ -114,7 +128,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -137,7 +152,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			pod,
 		)
 
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
@@ -162,7 +178,8 @@ func TestADAnnotationFilter(t *testing.T) {
 			},
 			pod,
 		)
-		res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotations}})
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -175,7 +192,7 @@ func TestCombinedFilter(t *testing.T) {
 	mockConfig.SetWithoutSource("ac_include", []string{"kube_namespace:default"})
 	mockConfig.SetWithoutSource("ac_exclude", []string{"kube_namespace:datadog-agent"})
 
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -186,7 +203,8 @@ func TestCombinedFilter(t *testing.T) {
 		nil,
 	)
 
-	res := f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}})
+	res := filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	pod := workloadmetafilter.CreatePod(
@@ -205,7 +223,8 @@ func TestCombinedFilter(t *testing.T) {
 		pod,
 	)
 
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal, workloadfilter.ContainerLegacyACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	container = workloadmetafilter.CreateContainer(
@@ -216,7 +235,9 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal, workloadfilter.ContainerLegacyACExclude, workloadfilter.ContainerLegacyACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, false, res)
 
 	pod = workloadmetafilter.CreatePod(
@@ -234,8 +255,234 @@ func TestCombinedFilter(t *testing.T) {
 		},
 		pod,
 	)
-	res = f.IsContainerExcluded(container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal, workloadfilter.LegacyContainerACExclude, workloadfilter.LegacyContainerACInclude}})
+	filterBundle = filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal, workloadfilter.ContainerLegacyACExclude, workloadfilter.ContainerLegacyACInclude}})
+	res = filterBundle.IsExcluded(container)
 	assert.Equal(t, true, res)
+}
+
+func TestContainerAutodiscoveryFilterScopes(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    string
+		scope     workloadfilter.Scope
+		container *workloadfilter.Container
+		expected  bool
+	}{
+		{
+			name: "Global include interact with logs exclude",
+			config: `
+container_include: ["kube_namespace:default"]
+container_exclude_logs: ["name:nginx"]
+`,
+			scope: workloadfilter.LogsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: "nginx",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "default",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+		{
+			name: "Global include interact with metrics exclude",
+			config: `
+container_include: ["image:agent"]
+container_exclude_metrics: ["kube_namespace:datadog-agent"]
+`,
+			scope: workloadfilter.MetricsFilter,
+			container: workloadmetafilter.CreateContainer(
+				&workloadmeta.Container{
+					Image: workloadmeta.ContainerImage{
+						RawName: "agent",
+					},
+				},
+				workloadmetafilter.CreatePod(
+					&workloadmeta.KubernetesPod{
+						EntityMeta: workloadmeta.EntityMeta{
+							Namespace: "datadog-agent",
+						},
+					},
+				),
+			),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.NewFromYAML(t, tt.config)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetContainerAutodiscoveryFilters(tt.scope)
+			res := filterBundle.IsExcluded(tt.container)
+			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
+		})
+	}
+}
+
+func TestLegacySharedMetricFilter(t *testing.T) {
+	t.Run("Legacy config with pause container excluded", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Legacy config with pause container included", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("exclude_pause_container", false)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+	})
+
+	t.Run("New config with metrics specific filters", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("exclude_pause_container", false)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:nginx.*"})
+		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:ddmetric-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerSharedMetricFilters()
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "ddmetric-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "ddmetric-152462", "nginx:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+	})
+}
+
+func TestLegacyAutodiscoveryFilter(t *testing.T) {
+	t.Run("Global legacy config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Global new config with legacy config ignored", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*"})
+		mockConfig.SetWithoutSource("ac_include", []string{"image:apache/legacy.*"})
+		mockConfig.SetWithoutSource("ac_exclude", []string{"name:dd/legacy-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd/legacy-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Metrics new config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include_metrics", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude_metrics", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Logs new config", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include_logs", []string{"image:apache.*"})
+		mockConfig.SetWithoutSource("container_exclude_logs", []string{"name:dd-.*"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
+		assert.Emptyf(t, f.GetErrors(), "Expected no errors.")
+
+		assert.True(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "dummy:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dd-152462", "apache:latest", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "dummy", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "k8s.gcr.io/pause-amd64:3.1", "")))
+		assert.False(t, f.IsExcluded(createTestContainer(nil, "dummy", "rancher/pause-amd64:3.1", "")))
+	})
+
+	t.Run("Filter errors with invalid regex", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetWithoutSource("container_include", []string{"image:apache.*", "kube_namespace:?"})
+		mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-.*", "invalid"})
+
+		filterStore := newFilterStoreObject(t, mockConfig)
+		f := filterStore.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)
+
+		errs := f.GetErrors()
+		assert.NotEmpty(t, errs)
+		assert.True(t, containsErrorWithMessage(errs, "Container filter \"invalid\" is unknown, ignoring it. The supported filters are 'image', 'name' and 'kube_namespace'"))
+	})
+}
+
+func createTestContainer(annotations map[string]string, name, image, namespace string) *workloadfilter.Container {
+	return workloadmetafilter.CreateContainer(
+		&workloadmeta.Container{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: name,
+			},
+			Image: workloadmeta.ContainerImage{
+				RawName: image,
+			},
+		},
+		workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:        "test-pod",
+					Namespace:   namespace,
+					Annotations: annotations,
+				},
+			},
+		),
+	)
 }
 
 func TestContainerSBOMFilter(t *testing.T) {
@@ -363,9 +610,9 @@ func TestContainerSBOMFilter(t *testing.T) {
 			mockConfig.SetWithoutSource("sbom.container_image.container_exclude", tt.exclude)
 			mockConfig.SetWithoutSource("sbom.container_image.exclude_pause_container", tt.pauseCtn)
 
-			f := newFilterObject(t, mockConfig)
-
-			res := f.IsContainerExcluded(tt.container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerSBOM}})
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetContainerSBOMFilters()
+			res := filterBundle.IsExcluded(tt.container)
 			assert.Equal(t, tt.expected, res, "Container exclusion result mismatch")
 		})
 	}
@@ -376,7 +623,7 @@ func TestFilterPrecedence(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
 
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -392,48 +639,52 @@ func TestFilterPrecedence(t *testing.T) {
 
 	t.Run("First set excludes, second set not evaluated", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
-			{workloadfilter.LegacyContainerGlobal},  // Excludes (higher priority)
-			{workloadfilter.LegacyContainerMetrics}, // Includes (but lower priority)
+			{workloadfilter.ContainerLegacyGlobal},  // Excludes (higher priority)
+			{workloadfilter.ContainerLegacyMetrics}, // Includes (but lower priority)
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
 	t.Run("First set includes, second set not evaluated", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
-			{workloadfilter.LegacyContainerMetrics}, // Includes (higher priority)
-			{workloadfilter.LegacyContainerGlobal},  // Excludes (but lower priority)
+			{workloadfilter.ContainerLegacyMetrics}, // Includes (higher priority)
+			{workloadfilter.ContainerLegacyGlobal},  // Excludes (but lower priority)
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 
 	t.Run("First set unknown, second set exclude", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
-			{workloadfilter.LegacyContainerLogs},   // Unknown, no results
-			{workloadfilter.LegacyContainerGlobal}, // Excludes
+			{workloadfilter.ContainerLegacyLogs},   // Unknown, no results
+			{workloadfilter.ContainerLegacyGlobal}, // Excludes
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Excluded, res)
 	})
 
 	t.Run("First set unknown, second set include", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
-			{workloadfilter.LegacyContainerLogs},    // Unknown, no results
-			{workloadfilter.LegacyContainerMetrics}, // Includes
+			{workloadfilter.ContainerLegacyLogs},    // Unknown, no results
+			{workloadfilter.ContainerLegacyMetrics}, // Includes
 		}
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
 
-		res := evaluateResource(f, container, precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Included, res)
 	})
 }
 
 func TestEvaluateResourceNoFilters(t *testing.T) {
 	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -446,7 +697,8 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 
 	t.Run("No filter sets", func(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{}
-		res := evaluateResource(f, container, precedenceFilters)
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 
@@ -454,7 +706,8 @@ func TestEvaluateResourceNoFilters(t *testing.T) {
 		precedenceFilters := [][]workloadfilter.ContainerFilter{
 			{}, {}, {}, {}, {}, {}, {}, {}, {},
 		}
-		res := evaluateResource(f, container, precedenceFilters)
+		filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+		res := filterBundle.GetResult(container)
 		assert.Equal(t, workloadfilter.Unknown, res)
 	})
 }
@@ -465,111 +718,31 @@ func TestContainerFilterInitializationError(t *testing.T) {
 	mockConfig.SetWithoutSource("container_exclude", []string{"bad_name:nginx"})
 	mockConfig.SetWithoutSource("container_include_metrics", []string{"name:dd-agent"})
 	mockConfig.SetWithoutSource("ac_include", []string{"other_bad_name:nginx"})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("Properly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerMetrics})
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyMetrics}}).GetErrors()
 		assert.Empty(t, errs, "Expected no initialization errors for properly defined filter")
 	})
 
 	t.Run("Improperly defined filter", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors([]workloadfilter.ContainerFilter{workloadfilter.LegacyContainerGlobal})
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}}).GetErrors()
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
 	})
 
 	t.Run("Improperly defined filter with multiple filters", func(t *testing.T) {
-		errs := f.GetContainerFilterInitializationErrors(
-			append(
-				workloadfilter.FlattenFilterSets(f.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter)),
-				workloadfilter.LegacyContainerACInclude,
-			),
-		)
+		errs := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerADAnnotationsMetrics}, {workloadfilter.ContainerLegacyMetrics}, {workloadfilter.ContainerLegacyACInclude}}).GetErrors()
 		assert.NotEmpty(t, errs, "Expected initialization errors for improperly defined filter with multiple filters")
 		assert.True(t, containsErrorWithMessage(errs, "other_bad_name"), "Expected error message to contain the improper key 'other_bad_name'")
 		assert.True(t, containsErrorWithMessage(errs, "bad_name"), "Expected error message to contain the improper key 'bad_name'")
 	})
 }
 
-type errorInclProgram struct{}
-
-func (p errorInclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Included, []error{fmt.Errorf("include evaluation error on %s", o.Type())}
-}
-
-func (p errorInclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-type errorExclProgram struct{}
-
-func (p errorExclProgram) Evaluate(o workloadfilter.Filterable) (workloadfilter.Result, []error) {
-	return workloadfilter.Excluded, []error{fmt.Errorf("exclude evaluation error on %s", o.Type())}
-}
-
-func (p errorExclProgram) GetInitializationErrors() []error {
-	return nil
-}
-
-func TestProgramErrorHandling(t *testing.T) {
-	mockConfig := configmock.New(t)
-	f := newFilterObject(t, mockConfig)
-
-	container := workloadmetafilter.CreateContainer(
-		&workloadmeta.Container{
-			EntityMeta: workloadmeta.EntityMeta{
-				Name: "error-case",
-			},
-		},
-		nil,
-	)
-	precedenceFilters := [][]workloadfilter.ContainerFilter{
-		{workloadfilter.LegacyContainerMetrics},
-	}
-
-	t.Run("Include with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &filter{
-			config:              f.config,
-			log:                 f.log,
-			telemetry:           f.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
-				return &errorInclProgram{}
-			})
-
-		res := evaluateResource(errorFilter, container, precedenceFilters)
-		assert.Equal(t, workloadfilter.Included, res)
-	})
-
-	t.Run("Exclude with error thrown", func(t *testing.T) {
-		// Create a new filter with injected error factory
-		errorFilter := &filter{
-			config:              f.config,
-			log:                 f.log,
-			telemetry:           f.telemetry,
-			programFactoryStore: make(map[workloadfilter.ResourceType]map[int]*filterFactory),
-		}
-
-		// Register the error program factory
-		errorFilter.registerFactory(workloadfilter.ContainerType, int(workloadfilter.LegacyContainerMetrics),
-			func(_ config.Component, _ log.Component) program.FilterProgram {
-				return &errorExclProgram{}
-			})
-
-		res := evaluateResource(errorFilter, container, precedenceFilters)
-		assert.Equal(t, workloadfilter.Excluded, res)
-	})
-}
-
 func TestSpecialCharacters(t *testing.T) {
 	mockConfig := configmock.New(t)
 	mockConfig.SetWithoutSource("container_include", []string{`name:g'oba\\r\d-0x[0-9a-fA-F]+\\n`})
-	f := newFilterObject(t, mockConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
 
 	container := workloadmetafilter.CreateContainer(
 		&workloadmeta.Container{
@@ -580,7 +753,9 @@ func TestSpecialCharacters(t *testing.T) {
 		nil,
 	)
 
-	res := evaluateResource(f, container, [][]workloadfilter.ContainerFilter{{workloadfilter.LegacyContainerGlobal}})
+	precedenceFilters := [][]workloadfilter.ContainerFilter{{workloadfilter.ContainerLegacyGlobal}}
+	filterBundle := filterStore.GetContainerFilters(precedenceFilters)
+	res := filterBundle.GetResult(container)
 	assert.Equal(t, workloadfilter.Included, res)
 }
 
@@ -592,7 +767,7 @@ func TestServiceFiltering(t *testing.T) {
 		serviceName string
 		namespace   string
 		annotations map[string]string
-		filters     [][]workloadfilter.ServiceFilter
+		filters     [][]workloadfilter.KubeServiceFilter
 		expected    workloadfilter.Result
 	}{
 		{
@@ -601,7 +776,7 @@ func TestServiceFiltering(t *testing.T) {
 			serviceName: "svc1",
 			namespace:   "",
 			annotations: nil,
-			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			filters:     [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceLegacyGlobal}},
 			expected:    workloadfilter.Excluded,
 		},
 		{
@@ -610,7 +785,7 @@ func TestServiceFiltering(t *testing.T) {
 			serviceName: "my-service",
 			namespace:   "test",
 			annotations: nil,
-			filters:     [][]workloadfilter.ServiceFilter{{workloadfilter.LegacyServiceGlobal}},
+			filters:     [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceLegacyGlobal}},
 			expected:    workloadfilter.Excluded,
 		},
 		{
@@ -620,7 +795,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "true",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -630,7 +805,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "true",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -640,7 +815,7 @@ func TestServiceFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "T",
 			},
-			filters:  [][]workloadfilter.ServiceFilter{{workloadfilter.ServiceADAnnotations}},
+			filters:  [][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -651,11 +826,12 @@ func TestServiceFiltering(t *testing.T) {
 			if len(tt.exclude) > 0 {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetKubeServiceFilters(tt.filters)
 
-			service := workloadfilter.CreateService(tt.serviceName, tt.namespace, tt.annotations)
+			service := workloadfilter.CreateKubeService(tt.serviceName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(f, service, tt.filters)
+			res := filterBundle.GetResult(service)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -669,7 +845,7 @@ func TestEndpointFiltering(t *testing.T) {
 		endpointName string
 		namespace    string
 		annotations  map[string]string
-		filters      [][]workloadfilter.EndpointFilter
+		filters      [][]workloadfilter.KubeEndpointFilter
 		expected     workloadfilter.Result
 	}{
 		{
@@ -678,7 +854,7 @@ func TestEndpointFiltering(t *testing.T) {
 			endpointName: "ep1",
 			namespace:    "",
 			annotations:  nil,
-			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			filters:      [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointLegacyGlobal}},
 			expected:     workloadfilter.Excluded,
 		},
 		{
@@ -687,7 +863,7 @@ func TestEndpointFiltering(t *testing.T) {
 			endpointName: "my-endpoint",
 			namespace:    "test",
 			annotations:  nil,
-			filters:      [][]workloadfilter.EndpointFilter{{workloadfilter.LegacyEndpointGlobal}},
+			filters:      [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointLegacyGlobal}},
 			expected:     workloadfilter.Excluded,
 		},
 		{
@@ -697,7 +873,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/exclude": "true",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotations}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotations}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -707,7 +883,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "true",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -717,7 +893,7 @@ func TestEndpointFiltering(t *testing.T) {
 			annotations: map[string]string{
 				"ad.datadoghq.com/metrics_exclude": "1",
 			},
-			filters:  [][]workloadfilter.EndpointFilter{{workloadfilter.EndpointADAnnotationsMetrics}},
+			filters:  [][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointADAnnotationsMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -728,11 +904,12 @@ func TestEndpointFiltering(t *testing.T) {
 			if len(tt.exclude) > 0 {
 				mockConfig.SetWithoutSource("container_exclude", tt.exclude)
 			}
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetKubeEndpointFilters(tt.filters)
 
-			endpoint := workloadfilter.CreateEndpoint(tt.endpointName, tt.namespace, tt.annotations)
+			endpoint := workloadfilter.CreateKubeEndpoint(tt.endpointName, tt.namespace, tt.annotations)
 
-			res := evaluateResource(f, endpoint, tt.filters)
+			res := filterBundle.GetResult(endpoint)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -767,12 +944,12 @@ func TestImageFiltering(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
+			filterStore := newFilterStoreObject(t, mockConfig)
 
-			f := newFilterObject(t, mockConfig)
-
+			containerFilters := filterStore.GetContainerSharedMetricFilters()
 			containerImage := workloadfilter.CreateContainerImage(tt.imageName)
 
-			res := evaluateResource(f, containerImage, f.GetContainerSharedMetricFilters())
+			res := containerFilters.GetResult(containerImage)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
@@ -806,7 +983,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "default",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodLegacyGlobal, workloadfilter.PodLegacyMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -818,7 +995,7 @@ func TestPodFiltering(t *testing.T) {
 					Namespace: "test",
 				},
 			},
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodLegacyGlobal, workloadfilter.PodLegacyMetrics}},
 			expected: workloadfilter.Included,
 		},
 		{
@@ -832,7 +1009,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotations filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.PodLegacyGlobal, workloadfilter.PodLegacyMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 		{
@@ -846,7 +1023,7 @@ func TestPodFiltering(t *testing.T) {
 				},
 			},
 			// Testing PodADAnnotationsMetrics filter
-			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.LegacyPod}},
+			filters:  [][]workloadfilter.PodFilter{{workloadfilter.PodADAnnotations, workloadfilter.PodADAnnotationsMetrics}, {workloadfilter.PodLegacyGlobal, workloadfilter.PodLegacyMetrics}},
 			expected: workloadfilter.Excluded,
 		},
 	}
@@ -856,12 +1033,349 @@ func TestPodFiltering(t *testing.T) {
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("container_include", tt.include)
 			mockConfig.SetWithoutSource("container_exclude", tt.exclude)
-			f := newFilterObject(t, mockConfig)
+			filterStore := newFilterStoreObject(t, mockConfig)
+			filterBundle := filterStore.GetPodFilters(tt.filters)
 
 			pod := workloadmetafilter.CreatePod(tt.wmetaPod)
 
-			res := evaluateResource(f, pod, tt.filters)
+			res := filterBundle.GetResult(pod)
 			assert.Equal(t, tt.expected, res)
 		})
 	}
+}
+
+func TestProcessFiltering(t *testing.T) {
+	tests := []struct {
+		name             string
+		disallowPatterns []string
+		comm             string
+		cmdline          []string
+		filters          [][]workloadfilter.ProcessFilter
+		expected         workloadfilter.Result
+	}{
+		{
+			name:             "empty filters, empty process",
+			disallowPatterns: []string{},
+			filters:          [][]workloadfilter.ProcessFilter{},
+			expected:         workloadfilter.Unknown,
+		},
+		{
+			name:             "process excluded by cmdline pattern",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"java", "-server", "-Xmx2g"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process excluded by systemd pattern in cmdline",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"systemd", "--user"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process excluded by /usr/bin pattern in cmdline",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"/usr/bin/python3", "script.py"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "process not excluded",
+			disallowPatterns: []string{"java.*", "systemd", "/usr/bin/.*"},
+			cmdline:          []string{"nginx", "-g", "daemon off;"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Unknown,
+		},
+		{
+			name:             "pattern spanning multiple arguments - python script",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"python3", "manage.py", "runserver", "script.py"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "pattern spanning multiple arguments - java jar app",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"java", "-Xmx2g", "-jar", "myapp.jar", "--port", "8080"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Excluded,
+		},
+		{
+			name:             "no patterns match",
+			disallowPatterns: []string{"python.*script", "java.*-jar.*app", "node.*server"},
+			cmdline:          []string{"nginx", "-g", "daemon off;"},
+			filters:          [][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}},
+			expected:         workloadfilter.Unknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			if len(tt.disallowPatterns) > 0 {
+				mockConfig.SetWithoutSource("process_config.blacklist_patterns", tt.disallowPatterns)
+			}
+			f := newFilterStoreObject(t, mockConfig)
+
+			var process *workloadfilter.Process
+			if tt.name == "empty filters, empty process" {
+				process = &workloadfilter.Process{}
+			} else {
+				process = workloadmetafilter.CreateProcess(
+					&workloadmeta.Process{
+						Comm:    tt.comm,
+						Cmdline: tt.cmdline,
+					},
+				)
+			}
+
+			filterBundle := f.GetProcessFilters(tt.filters)
+			res := filterBundle.GetResult(process)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}
+
+func TestProcessFilterInitializationError(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("process_config.blacklist_patterns", []string{
+		"valid_pattern",
+		"[invalid_regex",
+	})
+	f := newFilterStoreObject(t, mockConfig)
+
+	t.Run("Invalid regex patterns cause initialization errors", func(t *testing.T) {
+		filters := f.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessLegacyExclude}})
+		errs := filters.GetErrors()
+		assert.NotEmpty(t, errs, "Expected initialization errors for invalid regex patterns")
+
+		errStrings := make([]string, len(errs))
+		for i, err := range errs {
+			errStrings[i] = err.Error()
+		}
+
+		hasRegexError := false
+		for _, errStr := range errStrings {
+			if strings.Contains(errStr, "invalid_regex") || strings.Contains(errStr, "error parsing regexp") {
+				hasRegexError = true
+				break
+			}
+		}
+		assert.True(t, hasRegexError, "Expected error message to contain regex-related error. Got errors: %v", errStrings)
+	})
+}
+func TestCELWorkloadExcludeFiltering(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["metrics"]
+  rules:
+    kube_services: ["true"]
+    pods: ["false"]
+- products:
+    - logs
+    - sbom
+  rules:
+    containers:
+      - "container.name != 'this'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	t.Run("CEL exclude kube_service", func(t *testing.T) {
+		svc := workloadfilter.CreateKubeService("", "", nil)
+		filterBundle := filterStore.GetKubeServiceFilters([][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceFilter(workloadfilter.KubeServiceCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(svc))
+	})
+
+	t.Run("CEL exclude pod", func(t *testing.T) {
+		pod := workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+				},
+			},
+		)
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(pod))
+	})
+
+	t.Run("CEL exclude container", func(t *testing.T) {
+		container := workloadmetafilter.CreateContainer(
+			&workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "this",
+				},
+			},
+			nil,
+		)
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELLogs)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, false, filterBundle.IsExcluded(container))
+	})
+}
+
+func TestCELWorkloadExcludeFilteringRuntimeErrors(t *testing.T) {
+
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    pods:
+      - "100"
+- products:
+    - metrics
+  rules:
+    pods:
+      - "pod.annotations['non-existent-key'] != 'x'"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	pod := workloadmetafilter.CreatePod(
+		&workloadmeta.KubernetesPod{
+			EntityMeta: workloadmeta.EntityMeta{
+				Name:      "my-pod",
+				Namespace: "test",
+			},
+		},
+	)
+
+	t.Run("Nonexistent annotation on pod", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+
+	t.Run("Non-boolean result on rule", func(t *testing.T) {
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELGlobal)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(pod))
+	})
+}
+
+func TestCELProcessLogsFiltering(t *testing.T) {
+	yamlConfig := `
+cel_workload_exclude:
+- products: ["global"]
+  rules:
+    processes:
+      - "process.args.exists(arg, arg == 'ignore-me')"
+- products: ["logs"]
+  rules:
+    processes:
+      - "process.name == 'nginx'"
+      - "process.cmdline.contains('-jar app.jar')"
+      - "process.name == 'redis-server' && process.log_file.startsWith('/private/')"
+`
+
+	mockConfig := configmock.NewFromYAML(t, yamlConfig)
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{
+		workloadfilter.ProcessCELLogs,
+		workloadfilter.ProcessCELGlobal}})
+	assert.Nil(t, filterBundle.GetErrors())
+
+	t.Run("CEL exclude process by name", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "nginx",
+			Cmdline: []string{"nginx", "-g", "daemon off;"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by cmdline", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "java",
+			Cmdline: []string{"java", "-jar", "app.jar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude process by args", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "foobar",
+			Cmdline: []string{"ignore-me", "--foo", "bar"},
+		})
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with no matching rule", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL with non-excluded log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/public/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(process))
+	})
+
+	t.Run("CEL exclude log file", func(t *testing.T) {
+		process := workloadmetafilter.CreateProcess(&workloadmeta.Process{
+			Name:    "redis-server",
+			Cmdline: []string{"/usr/bin/redis-server"},
+		})
+		process.SetLogFile("/private/foo.log")
+		filterBundle := filterStore.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELLogs}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(process))
+	})
+}
+
+func TestContainerRuntimeSecurityAndComplianceFilters(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockSystemProbe := configmock.NewSystemProbe(t)
+
+	// Setup Compliance Config
+	mockConfig.SetWithoutSource("compliance_config.container_include", []string{"image:compliance-agent"})
+	mockConfig.SetWithoutSource("compliance_config.container_exclude", []string{"image:malicious"})
+
+	// Setup Runtime Security Config
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_include", []string{"image:security-agent"})
+	mockSystemProbe.SetWithoutSource("runtime_security_config.container_exclude", []string{"image:suspicious"})
+
+	filterStore := newFilterStoreObject(t, mockConfig)
+
+	// Test Compliance Filter
+	t.Run("Compliance Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("compliance-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("malicious")
+		unknownContainer := workloadfilter.CreateContainerImage("security-agent")
+
+		filterBundle := filterStore.GetContainerComplianceFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
+	// Test Runtime Security Filter
+	t.Run("Runtime Security Filter", func(t *testing.T) {
+		includedContainer := workloadfilter.CreateContainerImage("security-agent")
+		excludedContainer := workloadfilter.CreateContainerImage("suspicious")
+		unknownContainer := workloadfilter.CreateContainerImage("malicious")
+
+		filterBundle := filterStore.GetContainerRuntimeSecurityFilters()
+
+		assert.Equal(t, workloadfilter.Included, filterBundle.GetResult(includedContainer))
+		assert.Equal(t, workloadfilter.Excluded, filterBundle.GetResult(excludedContainer))
+		assert.Equal(t, workloadfilter.Unknown, filterBundle.GetResult(unknownContainer))
+	})
+
 }

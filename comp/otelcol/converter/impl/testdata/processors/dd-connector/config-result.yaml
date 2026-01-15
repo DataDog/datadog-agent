@@ -13,8 +13,6 @@ exporters:
       key: "0000"
 processors:
   infraattributes/dd-autoconfigured:
-  batch:
-    timeout: 10s
 connectors:
   datadog/connector:
     traces:
@@ -42,13 +40,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog/connector, datadog]
     metrics:
       receivers: [otlp, datadog/connector]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch, infraattributes/dd-autoconfigured]
+      processors: [infraattributes/dd-autoconfigured]
       exporters: [datadog]

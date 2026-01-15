@@ -41,13 +41,10 @@ typedef struct rtloader_pyobject_s rtloader_pyobject_t;
 DATADOG_AGENT_RTLOADER_API rtloader_t *make3(const char *python_home, const char *python_exe, char **error);
 
 // HELPERS
-/*! \fn void set_memory_tracker_cb(cb_memory_tracker_t)
-    \brief Sets a callback to be used by rtloader for some memory allocation book-keeping.
-    \param object A function pointer to the callback function.
-
-    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+/*! \fn void enable_memory_tracker()
+    \brief Enables memory tracking stats for the rtloader.
 */
-DATADOG_AGENT_RTLOADER_API void set_memory_tracker_cb(cb_memory_tracker_t);
+DATADOG_AGENT_RTLOADER_API void enable_memory_tracker(void);
 
 // API
 /*! \fn void destroy(rtloader_t *rtloader)
@@ -345,7 +342,7 @@ DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
 
     The returned error C-string must be freed by the caller.
 */
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, char **error);
+DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error);
 #endif
 
 // PYTHON HELPERS

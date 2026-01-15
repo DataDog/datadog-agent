@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
 	"github.com/cenkalti/backoff/v4"
 )
@@ -31,6 +31,12 @@ func (b *BoundPort) LocalAddress() string {
 // LocalPort returns the local port of the bound port
 func (b *BoundPort) LocalPort() int {
 	return b.localPort
+}
+
+// Transport returns the transport protocol of the bound port
+func (b *BoundPort) Transport() string {
+	// TODO: We currently only collect listening TCP sockets. We could likely get UDP by querying `Get-NetUDPEndpoint`.
+	return "tcp"
 }
 
 // Process returns the process name of the bound port
@@ -105,9 +111,9 @@ func PutOrDownloadFileWithRetry(host *components.RemoteHost, url string, destina
 		return nil
 	}
 
-	if strings.HasPrefix(url, "file://") {
+	if after, ok := strings.CutPrefix(url, "file://"); ok {
 		// URL is a local file
-		localPath := strings.TrimPrefix(url, "file://")
+		localPath := after
 		host.CopyFile(localPath, destination)
 		return nil
 	}

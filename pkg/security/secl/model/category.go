@@ -25,6 +25,8 @@ func (t EventCategory) String() string {
 		return "Kernel Activity"
 	case NetworkCategory:
 		return "Network Activity"
+	case InternalCategory:
+		return "Internal Activity"
 	default:
 		return "Unknown Category"
 	}
@@ -40,6 +42,8 @@ const (
 	KernelCategory
 	// NetworkCategory network events
 	NetworkCategory
+	// InternalCategory internal events
+	InternalCategory
 )
 
 // UnknownCategory for everything without a clear category
@@ -52,6 +56,7 @@ func GetAllCategories() []EventCategory {
 		ProcessCategory,
 		KernelCategory,
 		NetworkCategory,
+		InternalCategory,
 	}
 }
 
@@ -89,6 +94,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SyscallsEventType.String(),
 		LoginUIDWriteEventType.String(),
 		PrCtlEventType.String(),
+		TracerMemfdCreateEventType.String(),
+		TracerMemfdSealEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
 
@@ -117,6 +124,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		DNSEventType.String(),
 		FullDNSResponseEventType.String(),
 		ShortDNSResponseEventType.String(),
+		FailedDNSEventType.String(),
 		IMDSEventType.String(),
 		RawPacketFilterEventType.String(),
 		RawPacketActionEventType.String(),
@@ -128,6 +136,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// FIM
 	case
+		// linux
 		FileChmodEventType.String(),
 		FileChownEventType.String(),
 		FileOpenEventType.String(),
@@ -147,8 +156,24 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		MountReleasedEventType.String(),
 		StatEventType.String(),
 		FileFsmountEventType.String(),
-		FileOpenTreeEventType.String():
+		FileMoveMountEventType.String(),
+		FileOpenTreeEventType.String(),
+		// windows
+		CreateNewFileEventType.String(),
+		DeleteFileEventType.String(),
+		WriteFileEventType.String(),
+		CreateRegistryKeyEventType.String(),
+		OpenRegistryKeyEventType.String(),
+		SetRegistryKeyValueEventType.String(),
+		DeleteRegistryKeyEventType.String(),
+		ChangePermissionEventType.String():
+
 		return FIMCategory
+
+	// Internal
+	case
+		NopEventType.String():
+		return InternalCategory
 	}
 
 	return UnknownCategory

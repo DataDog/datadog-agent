@@ -9,7 +9,6 @@ package nvidia
 
 import (
 	"errors"
-	"fmt"
 	"regexp"
 	"strconv"
 
@@ -38,7 +37,7 @@ func (voltageMetricsSender *voltageMetricsSender) SendMetrics(sender sender.Send
 	}
 
 	for i := 0; i < len(voltageFields); i++ {
-		voltageProbeTags := []string{fmt.Sprintf("probe:%s", voltageFields[i][regexSubexpIndex(r, "voltageProbeName")])}
+		voltageProbeTags := []string{"probe:" + voltageFields[i][regexSubexpIndex(r, "voltageProbeName")]}
 		instantVoltage, err := strconv.ParseFloat(voltageFields[i][regexSubexpIndex(r, "currentVoltage")], 64)
 		if err != nil {
 			return err

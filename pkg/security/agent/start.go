@@ -23,9 +23,13 @@ import (
 
 // StartRuntimeSecurity starts runtime security
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, compression compression.Component) (*RuntimeSecurityAgent, error) {
-	enabled := config.GetBool("runtime_security_config.enabled")
-	if !enabled {
+	if !config.GetBool("runtime_security_config.enabled") {
 		log.Info("Datadog runtime security agent disabled by config")
+		return nil, nil
+	}
+
+	if config.GetBool("runtime_security_config.direct_send_from_system_probe") {
+		log.Info("Datadog runtime security agent disabled because CWS is running in full system-probe mode")
 		return nil, nil
 	}
 
@@ -44,12 +48,23 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
 	if err != nil {
 		return nil, err
 	}
 
-	agent.Start(reporter, endpoints)
+	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo()
+	if err != nil {
+		_ = log.Error(err)
+	}
+	stopper.Add(secInfoCtx)
+
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression)
+	if err != nil {
+		return nil, err
+	}
+
+	agent.Start(runtimeReporter, endpoints, secInfoReporter, secInfoEndpoints)
 
 	log.Info("Datadog runtime security agent is now running")
 

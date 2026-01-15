@@ -15,7 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	trcommon "github.com/DataDog/datadog-traceroute/common"
+	tracerlog "github.com/DataDog/datadog-traceroute/log"
+	"github.com/DataDog/datadog-traceroute/result"
+	"github.com/DataDog/datadog-traceroute/traceroute"
+
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -24,13 +28,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	trcommon "github.com/DataDog/datadog-traceroute/common"
-	tracerlog "github.com/DataDog/datadog-traceroute/log"
-	"github.com/DataDog/datadog-traceroute/result"
-	"github.com/DataDog/datadog-traceroute/runner"
-	"github.com/DataDog/datadog-traceroute/traceroute"
 )
 
 const (
@@ -70,19 +70,14 @@ func init() {
 
 // Runner executes traceroutes
 type Runner struct {
-	gatewayLookup   network.GatewayLookup
-	nsIno           uint32
-	networkID       string
-	hostnameService hostname.Component
+	gatewayLookup network.GatewayLookup
+	nsIno         uint32
+	networkID     func() string
+	traceroute    *traceroute.Traceroute
 }
 
 // New initializes a new traceroute runner
-func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Component) (*Runner, error) {
-	networkID, err := retryGetNetworkID()
-	if err != nil {
-		log.Errorf("failed to get network ID: %s", err.Error())
-	}
-
+func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	gatewayLookup, nsIno, err := createGatewayLookup(telemetryComp)
 	if err != nil {
 		log.Errorf("failed to create gateway lookup: %s", err.Error())
@@ -91,20 +86,32 @@ func New(telemetryComp telemetryComponent.Component, hostnameService hostname.Co
 		log.Warnf("gateway lookup is not enabled")
 	}
 
+	tracerouteInst := traceroute.NewTraceroute()
 	return &Runner{
-		gatewayLookup:   gatewayLookup,
-		nsIno:           nsIno,
-		networkID:       networkID,
-		hostnameService: hostnameService,
+		gatewayLookup: gatewayLookup,
+		nsIno:         nsIno,
+		networkID: funcs.MemoizeNoError(func() string {
+			nid, err := retryGetNetworkID()
+			if err != nil {
+				log.Errorf("failed to get network ID: %s", err.Error())
+			}
+			return nid
+		}),
+		traceroute: tracerouteInst,
 	}, nil
 }
 
-// RunTraceroute wraps the implementation of traceroute
+// Start starts the traceroute runner
+func (r *Runner) Start() {
+	_ = r.networkID()
+}
+
+// Run wraps the implementation of traceroute
 // so it can be called from the different OS implementations
 //
 // This code is experimental and will be replaced with a more
 // complete implementation.
-func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
+func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPath, error) {
 	defer tracerouteRunnerTelemetry.runs.Inc()
 
 	maxTTL := cfg.MaxTTL
@@ -119,36 +126,30 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 		timeout = cfg.Timeout
 	}
 
-	hname, err := r.hostnameService.Get(ctx)
+	params := traceroute.TracerouteParams{
+		Hostname:              cfg.DestHostname,
+		Port:                  int(cfg.DestPort),
+		Protocol:              strings.ToLower(string(cfg.Protocol)),
+		MinTTL:                trcommon.DefaultMinTTL,
+		MaxTTL:                int(cfg.MaxTTL),
+		Delay:                 DefaultDelay,
+		Timeout:               timeout,
+		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
+		WantV6:                false,
+		ReverseDns:            cfg.ReverseDNS,
+		CollectSourcePublicIP: true,
+		UseWindowsDriver:      !cfg.DisableWindowsDriver,
+		TracerouteQueries:     cfg.TracerouteQueries,
+		E2eQueries:            cfg.E2eQueries,
+	}
+
+	results, err := r.traceroute.RunTraceroute(ctx, params)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
 	}
 
-	params := runner.TracerouteParams{
-		Hostname:   cfg.DestHostname,
-		Port:       int(cfg.DestPort),
-		Protocol:   strings.ToLower(string(cfg.Protocol)),
-		MinTTL:     trcommon.DefaultMinTTL,
-		MaxTTL:     int(cfg.MaxTTL),
-		Delay:      DefaultDelay,
-		Timeout:    timeout,
-		TCPMethod:  traceroute.TCPMethod(cfg.TCPMethod),
-		WantV6:     false,
-		ReverseDns: cfg.ReverseDNS,
-
-		// TODO: Using TracerouteQueries = 1 for now since this PR is only about migrating the data model.
-		//       A separate PR will 1/ make traceroute_queries configurable, 2/ use 3x as default.
-		TracerouteQueries: 1,
-	}
-
-	results, err := runner.RunTraceroute(ctx, params)
-	if err != nil {
-		tracerouteRunnerTelemetry.failedRuns.Inc()
-		return payload.NetworkPath{}, err
-	}
-
-	pathResult, err := r.processResults(results, cfg.Protocol, hname, cfg.DestHostname, cfg.DestPort)
+	pathResult, err := r.processResults(results, cfg.Protocol, cfg.DestHostname, cfg.DestPort)
 	if err != nil {
 		tracerouteRunnerTelemetry.failedRuns.Inc()
 		return payload.NetworkPath{}, err
@@ -157,7 +158,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg config.Config) (payload.
 	return pathResult, nil
 }
 
-func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, hname string, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, destinationHost string, destinationPort uint16) (payload.NetworkPath, error) {
 	if res == nil {
 		return payload.NetworkPath{}, nil
 	}
@@ -168,10 +169,8 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
-			Name:        hname,
-			DisplayName: hname,
-			Hostname:    hname,
-			NetworkID:   r.networkID,
+			NetworkID: r.networkID(),
+			PublicIP:  res.Source.PublicIP,
 		},
 		Destination: payload.NetworkPathDestination{
 			Hostname: destinationHost,

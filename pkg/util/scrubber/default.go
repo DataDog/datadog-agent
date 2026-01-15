@@ -137,12 +137,12 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 		// * key: case-insensitive, optionally quoted (pass | password | pswd | pwd), not anchored to match on args like --mysql_password= etc.
 		// * separator: (= or :) with optional opening quote we don't want to match as part of the password
 		// * password string: alphanum + special chars except quotes and semicolon
-		Regex: regexp.MustCompile(`(?i)(\"?(?:pass(?:word)?|pswd|pwd)\"?)((?:=| = |: )\"?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
+		Regex: regexp.MustCompile(`(?i)([\"\']?(?:pass(?:word)?|pswd|pwd)[\"\']?)((?:=| = |: )[\"\']?)([0-9A-Za-z#!$%&()*+,\-./:<=>?@[\\\]^_{|}~]+)`),
 		// replace the 3rd capture group (password string) with ********
 		Repl: []byte(`$1$2********`),
 
-		// https://github.com/DataDog/datadog-agent/pull/28144
-		LastUpdated: parseVersion("7.57.0"),
+		// https://github.com/DataDog/datadog-agent/pull/43188
+		LastUpdated: parseVersion("7.73.1"),
 	}
 	tokenReplacer := matchYAMLKeyEnding(
 		`token`,
@@ -167,8 +167,8 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	consumerKeyAndTokenIDReplacer.LastUpdated = parseVersion("7.70.0") // https://github.com/DataDog/datadog-agent/pull/40345
 
 	snmpReplacer := matchYAMLKey(
-		`(community_string|auth[Kk]ey|priv[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
-		[]string{"community_string", "authKey", "authkey", "privKey", "privkey", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
+		`(community_string|auth_?[Kk]ey|priv_?[Kk]ey|community|authentication_key|privacy_key|Authorization|authorization)`,
+		[]string{"community_string", "authKey", "authkey", "auth_key", "privKey", "privkey", "priv_key", "community", "authentication_key", "privacy_key", "Authorization", "authorization"},
 		[]byte(`$1 "********"`),
 	)
 	snmpReplacer.LastUpdated = parseVersion("7.64.0") // https://github.com/DataDog/datadog-agent/pull/33742
@@ -231,7 +231,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	httpHeaderKeyReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
 		`key`,
-		[]string{"x-api-key", "x-dreamfactory-api-key", "x-functions-key", "x-lz-api-key", "x-octopus-apikey", "x-pm-partner-key", "x-rapidapi-key", "x-sungard-idp-api-key", "x-vtex-api-appkey"},
+		[]string{"x-api-key", "x-dreamfactory-api-key", "x-functions-key", "x-lz-api-key", "x-octopus-apikey", "x-pm-partner-key", "x-rapidapi-key", "x-sungard-idp-api-key", "x-vtex-api-appkey", "x-seel-api-key", "x-goog-api-key", "x-sonar-passcode"},
 		[]byte(`$1 "********"`),
 	)
 	httpHeaderKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -240,7 +240,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	httpHeaderTokenReplacer := matchYAMLKeyPrefixSuffix(
 		`x-`,
 		`token`,
-		[]string{"x-auth-token", "x-rundeck-auth-token"},
+		[]string{"x-auth-token", "x-rundeck-auth-token", "x-consul-token", "x-datadog-monitor-token", "x-vault-token", "x-vtex-api-apptoken", "x-static-token"},
 		[]byte(`$1 "********"`),
 	)
 	httpHeaderTokenReplacer.LastUpdated = parseVersion("7.70.2")
@@ -254,10 +254,19 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	httpHeaderAuthReplacer.LastUpdated = parseVersion("7.70.2")
 
+	// HTTP header-style API keys with "secret" suffix
+	httpHeaderSecretReplacer := matchYAMLKeyPrefixSuffix(
+		`x-`,
+		`secret`,
+		[]string{"x-api-secret", "x-ibm-client-secret", "x-chalk-client-secret"},
+		[]byte(`$1 "********"`),
+	)
+	httpHeaderSecretReplacer.LastUpdated = parseVersion("7.70.2")
+
 	// Exact key matches for specific API keys and auth tokens
 	exactKeyReplacer := matchYAMLKey(
-		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey)`,
-		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey"},
+		`(auth-tenantid|authority|cainzapp-api-key|cms-svc-api-key|lodauth|sec-websocket-key|statuskey|cookie|private-token|kong-admin-token|accesstoken|session_token)`,
+		[]string{"auth-tenantid", "authority", "cainzapp-api-key", "cms-svc-api-key", "lodauth", "sec-websocket-key", "statuskey", "cookie", "private-token", "kong-admin-token", "accesstoken", "session_token"},
 		[]byte(`$1 "********"`),
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
@@ -269,6 +278,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, httpHeaderKeyReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderTokenReplacer)
 	scrubber.AddReplacer(SingleLine, httpHeaderAuthReplacer)
+	scrubber.AddReplacer(SingleLine, httpHeaderSecretReplacer)
 	scrubber.AddReplacer(SingleLine, exactKeyReplacer)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacerYAML)
 	scrubber.AddReplacer(SingleLine, apiKeyReplacer)

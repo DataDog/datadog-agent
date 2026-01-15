@@ -25,6 +25,8 @@ type config struct {
 	batcherConfig
 	client *http.Client
 	url    *url.URL
+	// Key-value pairs to be added to all upload HTTP requests as headers.
+	headers [][2]string
 }
 
 type batcherConfig struct {
@@ -39,6 +41,8 @@ type batcherConfig struct {
 func defaultConfig() config {
 	return config{
 		client: http.DefaultClient,
+		url:    nil,
+
 		batcherConfig: batcherConfig{
 			maxBatchItems:     defaultMaxBatchItems,
 			maxBatchSizeBytes: defaultMaxBatchSizeBytes,

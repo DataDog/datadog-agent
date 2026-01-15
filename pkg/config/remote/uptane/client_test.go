@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/go-tuf/pkg/keys"
 	"github.com/DataDog/go-tuf/sign"
 	"github.com/stretchr/testify/assert"
-	"go.etcd.io/bbolt"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -42,20 +41,20 @@ func newTestConfig(t testing.TB, repo testRepositories) model.Config {
 	return cfg
 }
 
-func newTestClient(db *bbolt.DB, cfg model.Config) (*CoreAgentClient, error) {
+func newTestClient(ts *transactionalStore, cfg model.Config) (*CoreAgentClient, error) {
 	opts := []ClientOption{
 		WithOrgIDCheck(2),
 		WithConfigRootOverride("datadoghq.com", cfg.GetString("remote_configuration.config_root")),
 		WithDirectorRootOverride("datadoghq.com", cfg.GetString("remote_configuration.director_root")),
 	}
-	return NewCoreAgentClient(db, getTestOrgUUIDProvider(2), opts...)
+	return newCoreAgentClient(ts, getTestOrgUUIDProvider(2), opts...)
 }
 
 func TestClientState(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
-	client1, err := newTestClient(db, cfg)
+	ts := getTestTransactionalStore(t)
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 
 	// Testing default state
@@ -85,7 +84,7 @@ func TestClientState(t *testing.T) {
 	assert.Equal(t, targets1, targets1u)
 
 	// Testing state is maintained between runs
-	client2, err := newTestClient(db, cfg)
+	client2, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	clientState, err = client2.State()
 	assert.NoError(t, err)
@@ -114,10 +113,10 @@ func TestClientFullState(t *testing.T) {
 	}
 	testRepository := newTestRepository(2, 1, configTargets, directorTargets, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}})
 	cfg := newTestConfig(t, testRepository)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	// Prepare
-	client, err := newTestClient(db, cfg)
+	client, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	err = client.Update(testRepository.toUpdate())
 	assert.NoError(t, err)
@@ -151,17 +150,17 @@ func assertMetaVersion(t *testing.T, state map[string]MetaState, metaName string
 func TestClientVerifyTUF(t *testing.T) {
 	testRepository1 := newTestRepository(2, 1, nil, nil, nil)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	previousConfigTargets := testRepository1.configTargets
-	client1, err := newTestClient(db, cfg)
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	testRepository1.configTargets = generateTargets(generateKey(), testRepository1.configTargetsVersion, nil, nil)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.Error(t, err)
 
 	testRepository1.configTargets = previousConfigTargets
-	client2, err := newTestClient(db, cfg)
+	client2, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	testRepository1.directorTargets = generateTargets(generateKey(), testRepository1.directorTargetsVersion, nil, nil)
 	err = client2.Update(testRepository1.toUpdate())
@@ -189,9 +188,9 @@ func TestClientVerifyUptane(t *testing.T) {
 	testRepositoryInvalid1 := newTestRepository(2, 1, configTargets2, directorTargets2, []*pbgo.File{{Path: "datadog/2/APM_SAMPLING/id/1", Raw: target1content}, {Path: "datadog/2/APM_SAMPLING/id/2", Raw: target2content}})
 
 	cfgValid := newTestConfig(t, testRepositoryValid)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
@@ -200,7 +199,7 @@ func TestClientVerifyUptane(t *testing.T) {
 	assert.Equal(t, target1content, targetFile)
 
 	cfgInvalid1 := newTestConfig(t, testRepositoryInvalid1)
-	client2, err := newTestClient(db, cfgInvalid1)
+	client2, err := newTestClient(ts, cfgInvalid1)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid1.toUpdate())
 	assert.Error(t, err)
@@ -209,7 +208,7 @@ func TestClientVerifyUptane(t *testing.T) {
 }
 
 func TestClientVerifyOrgID(t *testing.T) {
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
@@ -232,20 +231,20 @@ func TestClientVerifyOrgID(t *testing.T) {
 
 	cfgValid := newTestConfig(t, testRepositoryValid)
 
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
-	client2, err := newTestClient(db, cfgInvalid)
+	client2, err := newTestClient(ts, cfgInvalid)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
 }
 
 func TestClientVerifyOrgUUID(t *testing.T) {
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
 	target1content, target1 := generateTarget()
 	_, target2 := generateTarget()
@@ -264,30 +263,30 @@ func TestClientVerifyOrgUUID(t *testing.T) {
 	cfgValid := newTestConfig(t, testRepositoryValid)
 
 	// Valid repository with an orgID and a UUID in the snapshot
-	client1, err := newTestClient(db, cfgValid)
+	client1, err := newTestClient(ts, cfgValid)
 	assert.NoError(t, err)
 	err = client1.Update(testRepositoryValid.toUpdate())
 	assert.NoError(t, err)
 
 	cfgValidNoUUID := newTestConfig(t, testRepositoryValidNoUUID)
 	// Valid repository with an orgID but no UUID in the snapshot
-	db2 := getTestDB(t)
-	client2, err := newTestClient(db2, cfgValidNoUUID)
+	ts2 := getTestTransactionalStore(t)
+	client2, err := newTestClient(ts2, cfgValidNoUUID)
 	assert.NoError(t, err)
 	err = client2.Update(testRepositoryValidNoUUID.toUpdate())
 	assert.Error(t, err)
 
 	cfgInvalid := newTestConfig(t, testRepositoryInvalid)
 	// Invalid repository : receives snapshot with orgUUID for org 2, but is org 3
-	client3, err := newTestClient(db, cfgInvalid)
+	client3, err := newTestClient(ts, cfgInvalid)
 	assert.NoError(t, err)
 	err = client3.Update(testRepositoryInvalid.toUpdate())
 	assert.Error(t, err)
 }
 
 func TestOrgStore(t *testing.T) {
-	db := getTestDB(t)
-	client, err := NewCoreAgentClient(db, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
+	ts := getTestTransactionalStore(t)
+	client, err := newCoreAgentClient(ts, getTestOrgUUIDProvider(2), WithOrgIDCheck(2))
 	assert.NoError(t, err)
 
 	// Store key
@@ -334,9 +333,10 @@ func TestRollbackRejected(t *testing.T) {
 
 	testRepository1 := newTestRepository(2, 1, configTargets, directorTargets, targetFiles)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
 
-	client1, err := newTestClient(db, cfg)
+	ts := getTestTransactionalStore(t)
+
+	client1, err := newTestClient(ts, cfg)
 	assert.NoError(t, err)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)
@@ -380,9 +380,10 @@ func TestKeyRotationRollback(t *testing.T) {
 
 	testRepository1 := newTestRepository(2, 10, configTargets, directorTargets, targetFiles)
 	cfg := newTestConfig(t, testRepository1)
-	db := getTestDB(t)
+	ts := getTestTransactionalStore(t)
 
-	client1, err := newTestClient(db, cfg)
+	client1, err := newTestClient(ts, cfg)
+
 	assert.NoError(t, err)
 	err = client1.Update(testRepository1.toUpdate())
 	assert.NoError(t, err)

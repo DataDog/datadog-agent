@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    [DBM] Bump go-sqllexer to v0.1.9 to fix the following bugs:
+    - Fixes a nil pointer when normalizing CTE queries with collectTables=false.
+    - Fixes normalizing MySQL UNION ALL statements.
+    - Fixes obfuscating MySQL double quoted string literals.

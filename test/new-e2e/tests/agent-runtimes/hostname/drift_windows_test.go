@@ -8,9 +8,9 @@ package hostname
 import (
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
 type windowsHostnameDriftSuite struct {
@@ -20,5 +20,5 @@ type windowsHostnameDriftSuite struct {
 func TestWindowsHostnameDriftSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsHostnameDriftSuite{}
-	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsDefault)...)
+	e2e.Run(t, suite, suite.getSuiteOptions(os.WindowsServerDefault)...)
 }

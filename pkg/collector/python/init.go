@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -33,8 +34,9 @@ import (
 )
 
 /*
-#cgo !windows LDFLAGS: -ldatadog-agent-rtloader -ldl
-#cgo windows LDFLAGS: -ldatadog-agent-rtloader -lstdc++ -static
+#cgo !windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -ldl
+#cgo windows LDFLAGS: -L${SRCDIR}/../../../rtloader/build/rtloader -ldatadog-agent-rtloader -lstdc++ -static
+#cgo CFLAGS: -I "${SRCDIR}/../../../rtloader/include"  -I "${SRCDIR}/../../../rtloader/common"
 
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
@@ -45,14 +47,6 @@ import (
 
 char *getStringAddr(char **array, unsigned int idx) {
 	return array[idx];
-}
-
-//
-// init memory tracking facilities method
-//
-void MemoryTracker(void *, size_t, rtloader_mem_ops_t);
-void initMemoryTracker(void) {
-	set_memory_tracker_cb(MemoryTracker);
 }
 
 //
@@ -124,6 +118,7 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // aggregator module
 //
 
+// callbacks from the collector aggregator package, every exported Go function can be used in any package
 void SubmitMetric(char *, metric_type_t, char *, double, char **, char *, bool);
 void SubmitServiceCheck(char *, char *, int, char **, char *, char *);
 void SubmitEvent(char *, event_t *);
@@ -176,6 +171,14 @@ void GetKubeletConnectionInfo(char **);
 
 void initkubeutilModule(rtloader_t *rtloader) {
 	set_get_connection_info_cb(rtloader, GetKubeletConnectionInfo);
+}
+
+//
+// Wrapper to call _free function pointer from CGO
+//
+
+static inline void call_free(void* ptr) {
+    _free(ptr);
 }
 */
 import "C"
@@ -366,7 +369,7 @@ func Initialize(paths ...string) error {
 
 	// Memory related RTLoader-global initialization
 	if pkgconfigsetup.Datadog().GetBool("memtrack_enabled") {
-		C.initMemoryTracker()
+		InitMemoryTracker()
 	}
 
 	// Any platform-specific initialization
@@ -385,20 +388,20 @@ func Initialize(paths ...string) error {
 	var pyErr *C.char
 
 	csPythonHome := TrackedCString(PythonHome)
-	defer C._free(unsafe.Pointer(csPythonHome))
+	defer C.call_free(unsafe.Pointer(csPythonHome))
 	csPythonExecPath := TrackedCString(pythonBinPath)
-	defer C._free(unsafe.Pointer(csPythonExecPath))
+	defer C.call_free(unsafe.Pointer(csPythonExecPath))
 
 	log.Infof("Initializing rtloader with Python 3 %s", PythonHome)
 	rtloader = C.make3(csPythonHome, csPythonExecPath, &pyErr)
 
 	if rtloader == nil {
 		err := addExpvarPythonInitErrors(
-			fmt.Sprintf("could not load runtime python for version 3: %s", C.GoString(pyErr)),
+			"could not load runtime python for version 3: " + C.GoString(pyErr),
 		)
 		if pyErr != nil {
 			// pyErr tracked when created in rtloader
-			C._free(unsafe.Pointer(pyErr))
+			C.call_free(unsafe.Pointer(pyErr))
 		}
 		return err
 	}
@@ -409,7 +412,7 @@ func Initialize(paths ...string) error {
 		if pkgconfigsetup.Datadog().GetBool("telemetry.enabled") {
 			// detailed telemetry is enabled
 			interval = 1 * time.Second
-		} else if pkgconfigsetup.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
+		} else if configutils.IsAgentTelemetryEnabled(pkgconfigsetup.Datadog()) {
 			// default telemetry is enabled (emitted every 15 minute)
 			interval = 15 * time.Minute
 		}
@@ -433,13 +436,12 @@ func Initialize(paths ...string) error {
 	C.initAggregatorModule(rtloader)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
-	initContainerFilter() // special init for the container go code
 	C.initContainersModule(rtloader)
 	C.initkubeutilModule(rtloader)
 
 	// Init RtLoader machinery
 	if C.init(rtloader) == 0 {
-		err := fmt.Sprintf("could not initialize rtloader: %s", C.GoString(C.get_error(rtloader)))
+		err := "could not initialize rtloader: " + C.GoString(C.get_error(rtloader))
 		return addExpvarPythonInitErrors(err)
 	}
 

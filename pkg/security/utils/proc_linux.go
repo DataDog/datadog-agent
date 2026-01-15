@@ -19,9 +19,10 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/shirou/gopsutil/v4/process"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/shirou/gopsutil/v4/process"
 )
 
 // GetpidFrom returns the current process ID from the given proc root
@@ -41,6 +42,10 @@ func Getpid() uint32 {
 }
 
 var networkNamespacePattern = regexp.MustCompile(`net:\[(\d+)\]`)
+
+// ErrNoNSPid is returned when no NSpid field is found in the status file, useful to distinguish between
+// errors reading the file and the case where the field is not present, common for non-containerized processes.
+var ErrNoNSPid = errors.New("no NSpid field found")
 
 // NetNSPath represents a network namespace path
 type NetNSPath struct {
@@ -190,8 +195,8 @@ func CapEffCapEprm(pid uint32) (uint64, uint64, error) {
 	if err != nil {
 		return 0, 0, err
 	}
-	lines := strings.Split(string(contents), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(contents), "\n")
+	for line := range lines {
 		capKind, value, found := strings.Cut(line, "\t")
 		if !found {
 			continue
@@ -353,8 +358,8 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 	}
 
 	output := make(map[string]ProcFSModule)
-	lines := strings.Split(string(procModules), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(procModules), "\n")
+	for line := range lines {
 		split := strings.Split(line, " ")
 		if len(split) < 6 {
 			continue
@@ -431,11 +436,11 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 		return nil, fmt.Errorf("failed to read status file: %w", err)
 	}
 
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "NSpid:") {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
+		if after, ok := strings.CutPrefix(line, "NSpid:"); ok {
 			// Remove "NSpid:" prefix and trim spaces
-			values := strings.TrimPrefix(line, "NSpid:")
+			values := after
 			values = strings.TrimSpace(values)
 
 			// Split the remaining string into fields
@@ -444,7 +449,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			// Convert string values to integers
 			nspids := make([]uint32, 0, len(fields))
 			for _, field := range fields {
-				val, err := strconv.ParseUint(field, 10, 64)
+				val, err := strconv.ParseUint(field, 10, 32)
 				if err != nil {
 					return nil, fmt.Errorf("failed to parse NSpid value: %w", err)
 				}
@@ -453,7 +458,7 @@ func GetNsPids(pid uint32, task string) ([]uint32, error) {
 			return nspids, nil
 		}
 	}
-	return nil, fmt.Errorf("NSpid field not found")
+	return nil, ErrNoNSPid
 }
 
 // GetPidTasks returns the task IDs of a process
@@ -520,21 +525,21 @@ func GetTracerPid(pid uint32) (uint32, error) {
 		return 0, fmt.Errorf("failed to read status file: %w", err)
 	}
 
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
-		if strings.HasPrefix(line, "TracerPid:") {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
+		if after, ok := strings.CutPrefix(line, "TracerPid:"); ok {
 			// Remove "NSpid:" prefix and trim spaces
-			line = strings.TrimPrefix(line, "TracerPid:")
+			line = after
 			line = strings.TrimSpace(line)
 
-			tracerPid, err := strconv.ParseUint(line, 10, 64)
+			tracerPid, err := strconv.ParseUint(line, 10, 32)
 			if err != nil {
 				return 0, fmt.Errorf("failed to parse TracerPid value: %w", err)
 			}
 			return uint32(tracerPid), nil
 		}
 	}
-	return 0, fmt.Errorf("TracerPid field not found")
+	return 0, errors.New("TracerPid field not found")
 }
 
 // FindTraceesByTracerPid returns the process list being trced by the given tracer host PID
@@ -562,8 +567,8 @@ var isNsPidAvailable = sync.OnceValue(func() bool {
 	if err != nil {
 		return false
 	}
-	lines := strings.Split(string(content), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(content), "\n")
+	for line := range lines {
 		if strings.HasPrefix(line, "NSpid:") {
 			return true
 		}

@@ -10,8 +10,7 @@ package hostinfo
 import "context"
 
 // NodeInfo is use to get Kubernetes Node metadata information
-type NodeInfo struct {
-}
+type NodeInfo struct{}
 
 // NewNodeInfo return a new NodeInfo instance
 // return an error if it fails to access the kubelet client.
@@ -24,4 +23,9 @@ func NewNodeInfo() (*NodeInfo, error) {
 //nolint:revive // TODO(CINT) Fix revive linter
 func (n *NodeInfo) GetNodeLabels(_ context.Context) (map[string]string, error) {
 	return nil, nil
+}
+
+// GetNodeName returns the node name for this host
+func (n *NodeInfo) GetNodeName(_ context.Context) (string, error) {
+	return "", nil
 }

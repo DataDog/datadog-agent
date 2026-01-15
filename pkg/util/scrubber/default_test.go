@@ -235,6 +235,26 @@ func TestTextStripLogPassword(t *testing.T) {
 			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {"username": "userme",  "password": "********"}"`,
 		},
 		{
+			name: "logged as json with single quotes (eg. 'password':)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {'username': 'userme',  'password': '$AeVtn8*gbyaf!hnUHx^L.'}`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: {'username': 'userme',  'password': '********'}`,
+		},
+		{
+			name: "single-quoted key with equals (eg. 'password'=)",
+			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | Error: 'password'=MyS3cr3t!Pass user='admin'`,
+			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | Error: 'password'=******** user='admin'`,
+		},
+		{
+			name: "single-quoted pwd key (eg. 'pwd':)",
+			log:  `Connection config: {'host': 'localhost', 'pwd': 'Secr3t@123', 'port': 5432}`,
+			want: `Connection config: {'host': 'localhost', 'pwd': '********', 'port': 5432}`,
+		},
+		{
+			name: "single-quoted pswd key (eg. 'pswd'=)",
+			log:  `Auth failed: 'pswd'=P@ssw0rd123`,
+			want: `Auth failed: 'pswd'=********`,
+		},
+		{
 			name: "logged PSWD (eg. PSWD=)",
 			log:  `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=$AeVtn8*gbyaf!hnUHx^L."`,
 			want: `2024-07-02 10:40:18 EDT | CORE | ERROR | (pkg/collector/worker/check_logger.go:71 in Error) | check:sqlserver | Error running check: [{"message": "Unable to connect: USER=userme PSWD=********"`,
@@ -360,11 +380,17 @@ func TestSNMPConfig(t *testing.T) {
 		`authkey: password`,
 		`authkey: "********"`)
 	assertClean(t,
+		`auth_key: password`,
+		`auth_key: "********"`)
+	assertClean(t,
 		`privKey: password`,
 		`privKey: "********"`)
 	assertClean(t,
 		`privkey: password`,
 		`privkey: "********"`)
+	assertClean(t,
+		`priv_key: password`,
+		`priv_key: "********"`)
 	assertClean(t,
 		`community_string: p@ssw0r)`,
 		`community_string: "********"`)
@@ -862,6 +888,15 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 	assertClean(t,
 		`x-vtex-api-appkey: vtexkey789`,
 		`x-vtex-api-appkey: "********"`)
+	assertClean(t,
+		`x-seel-api-key: seelkey123`,
+		`x-seel-api-key: "********"`)
+	assertClean(t,
+		`x-goog-api-key: googlekey456`,
+		`x-goog-api-key: "********"`)
+	assertClean(t,
+		`x-sonar-passcode: sonarpass789`,
+		`x-sonar-passcode: "********"`)
 
 	// Test HTTP header-style API keys with "token" suffix
 	assertClean(t,
@@ -870,6 +905,21 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 	assertClean(t,
 		`x-rundeck-auth-token: rundecktoken`,
 		`x-rundeck-auth-token: "********"`)
+	assertClean(t,
+		`x-consul-token: consultoken123`,
+		`x-consul-token: "********"`)
+	assertClean(t,
+		`x-datadog-monitor-token: ddmonitortoken`,
+		`x-datadog-monitor-token: "********"`)
+	assertClean(t,
+		`x-vault-token: vaulttoken456`,
+		`x-vault-token: "********"`)
+	assertClean(t,
+		`x-vtex-api-apptoken: vtexapptoken`,
+		`x-vtex-api-apptoken: "********"`)
+	assertClean(t,
+		`x-static-token: statictoken789`,
+		`x-static-token: "********"`)
 
 	// Test HTTP header-style API keys with "auth" suffix
 	assertClean(t,
@@ -878,6 +928,17 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 	assertClean(t,
 		`x-stratum-auth: stratumauth`,
 		`x-stratum-auth: "********"`)
+
+	// Test HTTP header-style API keys with "secret" suffix
+	assertClean(t,
+		`x-api-secret: apisecret123`,
+		`x-api-secret: "********"`)
+	assertClean(t,
+		`x-ibm-client-secret: ibmsecret456`,
+		`x-ibm-client-secret: "********"`)
+	assertClean(t,
+		`x-chalk-client-secret: chalksecret789`,
+		`x-chalk-client-secret: "********"`)
 
 	// Test exact key matches
 	assertClean(t,
@@ -901,6 +962,21 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 	assertClean(t,
 		`statuskey: status123`,
 		`statuskey: "********"`)
+	assertClean(t,
+		`cookie: cookievalue123`,
+		`cookie: "********"`)
+	assertClean(t,
+		`private-token: privatetoken456`,
+		`private-token: "********"`)
+	assertClean(t,
+		`kong-admin-token: kongadmintoken`,
+		`kong-admin-token: "********"`)
+	assertClean(t,
+		`accesstoken: accesstoken789`,
+		`accesstoken: "********"`)
+	assertClean(t,
+		`session_token: sessiontoken123`,
+		`session_token: "********"`)
 
 	// Test that non-matching keys are not scrubbed
 	assertClean(t,

@@ -18,7 +18,7 @@
           {
             "function": "main.PointerChainArg",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 111
+            "lineNumber": 113
           },
           {
             "function": "main.main",
@@ -52,8 +52,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function was inlined"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "ptr: {pointer: not captured at 0x[addr]}"
   }
 ]

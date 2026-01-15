@@ -594,7 +594,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	}
 
 	filter := workloadmeta.NewFilterBuilder().
-		SetSource("kubeapiserver").
+		SetSource(workloadmeta.SourceKubeAPIServer).
 		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindKubernetesDeployment).
 		Build()
@@ -628,7 +628,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	)
 
 	// simulate updating annotations
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeSet,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -646,7 +646,7 @@ func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	)
 
 	//simulate deleting deployment
-	mockStore.Push("kubeapiserver", workloadmeta.Event{
+	mockStore.Push(workloadmeta.SourceKubeAPIServer, workloadmeta.Event{
 		Type: workloadmeta.EventTypeUnset,
 		Entity: &workloadmeta.KubernetesDeployment{
 			EntityID: workloadmeta.EntityID{
@@ -896,6 +896,65 @@ func TestGetOwnersLanguages(t *testing.T) {
 	actualOwnersLanguages := getOwnersLanguages(mockRequestData, mockExpiration)
 
 	assert.True(t, reflect.DeepEqual(expectedOwnersLanguages, actualOwnersLanguages), fmt.Sprintf("Expected %v, found %v", expectedOwnersLanguages, actualOwnersLanguages))
+}
+
+func TestSyncFromInjectableLanguagesAndFlush(t *testing.T) {
+	mockOwner := langUtil.NewNamespacedOwnerReference("apps/v1", langUtil.KindDeployment, "test-deployment", "test-ns")
+	ttl := 10 * time.Minute
+
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	ownersLanguages := newOwnersLanguages()
+
+	// Sync injectable languages (simulates follower receiving from kubeapiserver)
+	injectableLanguages := languagemodels.ContainersLanguages{
+		*languagemodels.NewContainer("container-1"): {
+			"java":   {},
+			"python": {},
+		},
+		*languagemodels.NewContainer("container-2"): {
+			"go": {},
+		},
+	}
+
+	ownersLanguages.syncFromInjectableLanguages(mockOwner, injectableLanguages, ttl)
+
+	// Verify dirty flag is set
+	assert.True(t, ownersLanguages.containersLanguages[mockOwner].dirty, "dirty flag should be set after sync")
+
+	// Flush to workloadmeta (simulates periodic flush from follower)
+	err := ownersLanguages.flush(mockStore)
+	assert.NoError(t, err, "flush should not return an error")
+
+	// Verify dirty flag is reset
+	assert.False(t, ownersLanguages.containersLanguages[mockOwner].dirty, "dirty flag should be reset after flush")
+
+	// Verify languages were pushed to workloadmeta
+	assert.Eventuallyf(t,
+		func() bool {
+			deployment, err := mockStore.GetKubernetesDeployment("test-ns/test-deployment")
+			if err != nil {
+				return false
+			}
+
+			expectedLanguages := languagemodels.ContainersLanguages{
+				*languagemodels.NewContainer("container-1"): {
+					"java":   {},
+					"python": {},
+				},
+				*languagemodels.NewContainer("container-2"): {
+					"go": {},
+				},
+			}
+
+			return reflect.DeepEqual(deployment.DetectedLanguages, expectedLanguages)
+		},
+		eventuallyTestTimeout,
+		eventuallyTestTick,
+		"Should find deployment in workloadmeta with synced languages")
 }
 
 func TestGeneratePushEvent(t *testing.T) {

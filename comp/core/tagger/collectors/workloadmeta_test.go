@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -46,9 +48,9 @@ func TestHandleKubePod(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	podEntityID := workloadmeta.EntityID{
@@ -230,15 +232,15 @@ func TestHandleKubePod(t *testing.T) {
 						"gitcommit:foobar",
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:datadog-agent",
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_app_instance:%s", podName),
-						fmt.Sprintf("kube_app_name:%s", svc),
-						fmt.Sprintf("kube_app_version:%s", version),
-						fmt.Sprintf("kube_deployment:%s", svc),
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_app_instance:" + podName,
+						"kube_app_name:" + svc,
+						"kube_app_version:" + version,
+						"kube_deployment:" + svc,
+						"kube_namespace:" + podNamespace,
 						"component:agent",
 						"kube_app_component:agent",
 						"kube_app_managed_by:helm",
@@ -293,10 +295,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 						"persistentvolumeclaim:pvc-0",
 					},
@@ -306,15 +308,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -348,10 +350,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -359,15 +361,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -399,10 +401,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -410,15 +412,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: types.NewEntityID(types.ContainerID, otelEnvContainerID),
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", otelEnvContainerID),
+						"container_id:" + otelEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -454,10 +456,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -465,15 +467,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: noEnvContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -499,11 +501,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"oshift_deployment:gitlab-ce-1",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"oshift_deployment_config:gitlab-ce",
 					},
 					StandardTags: []string{},
@@ -529,10 +531,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"dd_remote_config_id:id",
 						"dd_remote_config_rev:123",
 					},
@@ -561,11 +563,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:daemonset",
 						"kube_daemon_set:owner_name",
 					},
@@ -594,11 +596,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicationcontroller",
 						"kube_replication_controller:owner_name",
 					},
@@ -630,11 +632,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 						"kube_stateful_set:owner_name",
 						"persistentvolumeclaim:pvc-0",
@@ -664,11 +666,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:job",
 						"kube_job:owner_name",
 					},
@@ -701,12 +703,12 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:some_cronjob-123",
 						"kube_job:some_cronjob-123",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:job",
 						"kube_cronjob:some_cronjob",
 					},
@@ -735,11 +737,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:owner_name",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:owner_name",
 					},
@@ -777,11 +779,11 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 						"kube_ownerref_name:some_deployment-bcd2",
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:replicaset",
 						"kube_replica_set:some_deployment-bcd2",
 						"kube_deployment:some_deployment",
@@ -809,10 +811,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"eks_fargate_node:foobar",
 					},
 					StandardTags: []string{},
@@ -837,10 +839,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_autoscaler_kind:datadogpodautoscaler",
 					},
 					StandardTags: []string{},
@@ -867,10 +869,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -899,10 +901,10 @@ func TestHandleKubePod(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"gpu_vendor:nvidia",
 					},
 					StandardTags: []string{},
@@ -911,15 +913,15 @@ func TestHandleKubePod(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1032,10 +1034,10 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 						"kube_ownerref_kind:statefulset",
 					},
 					StandardTags: []string{},
@@ -1044,15 +1046,15 @@ func TestHandleKubePodWithoutPvcAsTags(t *testing.T) {
 					Source:   podSource,
 					EntityID: types.NewEntityID(types.ContainerID, noEnvContainerID),
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", noEnvContainerID),
+						"container_id:" + noEnvContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", runtimeContainerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1096,9 +1098,9 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	podEntityID := workloadmeta.EntityID{
@@ -1181,10 +1183,10 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 					EntityID:     podTaggerEntityID,
 					HighCardTags: []string{},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: []string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
+						"kube_namespace:" + podNamespace,
 					},
 					StandardTags: []string{},
 				},
@@ -1192,15 +1194,15 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 					Source:   podSource,
 					EntityID: fullyFleshedContainerTaggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_id:%s", fullyFleshedContainerID),
+						"container_id:" + fullyFleshedContainerID,
 						fmt.Sprintf("display_container_name:%s_%s", containerName, podName),
 					},
 					OrchestratorCardTags: []string{
-						fmt.Sprintf("pod_name:%s", podName),
+						"pod_name:" + podName,
 					},
 					LowCardTags: append([]string{
-						fmt.Sprintf("kube_namespace:%s", podNamespace),
-						fmt.Sprintf("kube_container_name:%s", containerName),
+						"kube_namespace:" + podNamespace,
+						"kube_container_name:" + containerName,
 						"image_id:datadog/agent@sha256:a63d3f66fb2f69d955d4f2ca0b229385537a77872ffc04290acae65aed5317d2",
 						"image_name:datadog/agent",
 						"image_tag:latest",
@@ -1233,7 +1235,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 
 	kubeMetadataEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesMetadata,
-		ID:   fmt.Sprintf("namespaces//%s", namespace),
+		ID:   "namespaces//" + namespace,
 	}
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -1246,7 +1248,7 @@ func TestHandleKubeMetadata(t *testing.T) {
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   fmt.Sprintf("namespaces//%s", namespace),
+			ID:   "namespaces//" + namespace,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: namespace,
@@ -1306,6 +1308,93 @@ func TestHandleKubeMetadata(t *testing.T) {
 			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &test.kubeMetadata,
+			})
+
+			assertTagInfoListEqual(tt, test.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeCRD(t *testing.T) {
+	const (
+		crdNamespace = "datadog"
+		crdName      = "datadogagent.datadoghq.com"
+		crdGroup     = "datadoghq.com"
+		crdKind      = "DatadogAgent"
+		crdVersion   = "v1alpha1"
+	)
+
+	kubeCRDID := string(util.GenerateKubeMetadataEntityID(crdGroup, crdKind, crdNamespace, crdName))
+
+	kubeCRDEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindCRD,
+		ID:   kubeCRDID,
+	}
+
+	taggerEntityID := types.NewEntityID(types.Crd, kubeCRDEntityID.ID)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	store.Set(&workloadmeta.CRD{
+		EntityID: kubeCRDEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      crdName,
+			Namespace: crdNamespace,
+		},
+		Group:   crdGroup,
+		Kind:    crdKind,
+		Version: crdVersion,
+	})
+
+	tests := []struct {
+		name     string
+		kubeCRD  workloadmeta.CRD
+		expected []*types.TagInfo
+	}{
+		{
+			name: "CRD entity",
+			kubeCRD: workloadmeta.CRD{
+				EntityID: kubeCRDEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      crdName,
+					Namespace: crdNamespace,
+				},
+				Version: crdVersion,
+				Group:   crdGroup,
+				Kind:    crdKind,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               crdSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					StandardTags:         []string{},
+					LowCardTags: []string{
+						"crd_group:" + crdGroup,
+						"crd_kind:" + crdKind,
+						"crd_version:" + crdVersion,
+						"crd_namespace:" + crdNamespace,
+						"crd_name:" + crdName,
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := configmock.New(t)
+			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+			actual := collector.handleCRD(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &test.kubeCRD,
 			})
 
 			assertTagInfoListEqual(tt, test.expected, actual)
@@ -1695,9 +1784,9 @@ func TestHandleContainer(t *testing.T) {
 	)
 
 	standardTags := []string{
-		fmt.Sprintf("env:%s", env),
-		fmt.Sprintf("service:%s", svc),
-		fmt.Sprintf("version:%s", version),
+		"env:" + env,
+		"service:" + svc,
+		"version:" + version,
 	}
 
 	entityID := workloadmeta.EntityID{
@@ -1741,8 +1830,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1786,14 +1875,14 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
 						"owner_team:container-integrations",
-						fmt.Sprintf("git.repository_url:%s", repositoryURL),
-						fmt.Sprintf("git.commit.sha:%s", commitSHA),
+						"git.repository_url:" + repositoryURL,
+						"git.commit.sha:" + commitSHA,
 					}, standardTags...),
 					StandardTags: standardTags,
 				},
@@ -1824,8 +1913,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1860,8 +1949,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1896,8 +1985,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: append([]string{
@@ -1920,7 +2009,7 @@ func TestHandleContainer(t *testing.T) {
 					"TIER": "node",
 
 					// otel standard tags
-					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=,  =  , =%s", env),
+					"OTEL_RESOURCE_ATTRIBUTES": "service.name=,  =  , =" + env,
 				},
 			},
 			envAsTags: map[string]string{
@@ -1931,8 +2020,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -1966,8 +2055,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 						"app_name:datadog-agent",
 					},
 					OrchestratorCardTags: []string{},
@@ -2003,8 +2092,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2037,8 +2126,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2070,8 +2159,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2104,8 +2193,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{
 						"mesos_task:system_dd-agent.dcc75b42-4b87-11e7-9a62-70b3d5800001",
@@ -2148,8 +2237,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 						"rancher_container:testAD-redis-1",
 					},
 					OrchestratorCardTags: []string{},
@@ -2183,8 +2272,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2212,8 +2301,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2240,8 +2329,8 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -2267,12 +2356,41 @@ func TestHandleContainer(t *testing.T) {
 					Source:   containerSource,
 					EntityID: taggerEntityID,
 					HighCardTags: []string{
-						fmt.Sprintf("container_name:%s", containerName),
-						fmt.Sprintf("container_id:%s", entityID.ID),
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
 					},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
 						"gpu_vendor:nvidia",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "resize policy",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				ResizePolicy: workloadmeta.ContainerResizePolicy{
+					CPURestartPolicy:    "NotRequired",
+					MemoryRestartPolicy: "RestartContainer",
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:   containerSource,
+					EntityID: taggerEntityID,
+					HighCardTags: []string{
+						"container_name:" + containerName,
+						"container_id:" + entityID.ID,
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"cpu_restart_policy:NotRequired",
+						"memory_restart_policy:RestartContainer",
 					},
 					StandardTags: []string{},
 				},
@@ -2415,6 +2533,8 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla-v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
 					},
 					StandardTags: []string{},
 				},
@@ -2443,6 +2563,85 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_vendor:nvidia",
 						"gpu_device:tesla_v100",
 						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_parent_uuid:gpu-1234",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG device",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "MIG-432",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "MIG-432",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB MIG 3g.20gb",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypeMIG,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "MIG-432"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb_mig_3g.20gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig",
+						"gpu_uuid:mig-432",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
+			name: "MIG parent",
+			gpu: workloadmeta.GPU{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindGPU,
+					ID:   "GPU-1234",
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "GPU-1234",
+				},
+				Vendor:             "nvidia",
+				Device:             "A100-SXM4-40GB",
+				DriverVersion:      "525.60.13",
+				DeviceType:         workloadmeta.GPUDeviceTypePhysical,
+				ParentGPUUUID:      "GPU-1234",
+				VirtualizationMode: "none",
+				Architecture:       "ampere",
+				ChildrenGPUUUIDs:   []string{"MIG-432", "MIG-543"},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             types.NewEntityID(types.GPU, "GPU-1234"),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_architecture:ampere",
+						"gpu_device:a100-sxm4-40gb",
+						"gpu_driver_version:525.60.13",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_slicing_mode:mig-parent",
+						"gpu_uuid:gpu-1234",
+						"gpu_vendor:nvidia",
+						"gpu_virtualization_mode:none",
 					},
 					StandardTags: []string{},
 				},
@@ -2799,9 +2998,35 @@ func TestHandleProcess(t *testing.T) {
 		serviceNameFromDD = "my-service"
 		envFromDD         = "production"
 		versionFromDD     = "1.2.3"
+		gpuUUID           = "gpu-uuid-123"
+		gpuVendor         = "NVIDIA"
+		gpuDevice         = "Tesla V100"
+		gpuDriverVersion  = "525.60.13"
+		gpuVirtMode       = "none"
+		gpuSlicingMode    = "none"
 	)
 
-	collector := &WorkloadMetaCollector{}
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	// Add GPU entity to store for GPU-related tests
+	store.Set(&workloadmeta.GPU{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindGPU,
+			ID:   gpuUUID,
+		},
+		Vendor:             gpuVendor,
+		Device:             gpuDevice,
+		DriverVersion:      gpuDriverVersion,
+		VirtualizationMode: gpuVirtMode,
+	})
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 
 	tests := []struct {
 		name            string
@@ -2828,16 +3053,16 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("env:%s", envFromDD),
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -2861,14 +3086,14 @@ func TestHandleProcess(t *testing.T) {
 				Source:   processSource,
 				EntityID: types.NewEntityID(types.Process, pid),
 				LowCardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 				OrchestratorCardTags: []string{},
 				HighCardTags:         []string{},
 				StandardTags: []string{
-					fmt.Sprintf("service:%s", serviceNameFromDD),
-					fmt.Sprintf("version:%s", versionFromDD),
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},
@@ -2898,6 +3123,327 @@ func TestHandleProcess(t *testing.T) {
 						Env:     "",
 						Version: "",
 					},
+				},
+			},
+		},
+		{
+			name: "process with both UST and ProcessTags",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:com.example.Main,service.type:tomcat",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:com.example.Main",
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"service.type:tomcat",
+					"version:" + versionFromDD,
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+				},
+			},
+		},
+		{
+			name: "process with only ProcessTags (no UST)",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{}, // Empty UST
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.workdir:app,service.framework:spring-boot",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:               processSource,
+				EntityID:             types.NewEntityID(types.Process, pid),
+				LowCardTags:          []string{"entrypoint.workdir:app", "service.framework:spring-boot"},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags:         []string{},
+			},
+		},
+		{
+			name: "process with multiple TracerMetadata entries",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:com.myapp.Server1,service.runtime:openjdk-17",
+						},
+						{
+							ProcessTags: "entrypoint.name:com.myapp.Server2,service.runtime:openjdk-17,entrypoint.workdir:myapp,service.type:web-server",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:com.myapp.Server1",
+					"entrypoint.name:com.myapp.Server2",
+					"entrypoint.workdir:myapp",
+					"service:" + serviceNameFromDD,
+					"service.runtime:openjdk-17",
+					"service.type:web-server",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"service:" + serviceNameFromDD,
+				},
+			},
+		},
+		{
+			name: "process with mixed valid and invalid ProcessTags",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ProcessTags: "entrypoint.name:my.package.Main,invalid_tag,service.framework:nodejs", // Contains invalid tag
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"entrypoint.name:my.package.Main",
+					"service:" + serviceNameFromDD,
+					"service.framework:nodejs",
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"service:" + serviceNameFromDD,
+				},
+			},
+		},
+		{
+			name: "process with TracerMetadata service tags and multiple entries",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+					TracerMetadata: []tracermetadata.TracerMetadata{
+						{
+							ServiceName:    "first-tracer-service",
+							ServiceEnv:     "dev",
+							ServiceVersion: "1.0.0",
+							ProcessTags:    "framework:express",
+						},
+						{
+							ServiceEnv: "test",
+						},
+						{
+							// These will be skipped because they match the UST tags
+							ServiceName:    serviceNameFromDD,
+							ServiceEnv:     envFromDD,
+							ServiceVersion: versionFromDD,
+						},
+						{
+							ServiceName:    "second-tracer-service",
+							ServiceEnv:     envFromDD,
+							ServiceVersion: "2.0.0",
+							ProcessTags:    "runtime:nodejs",
+						},
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"env:" + envFromDD,
+					"framework:express",
+					"runtime:nodejs",
+					"tracer_service_env:dev",
+					"tracer_service_env:test",
+					"tracer_service_name:first-tracer-service",
+					"tracer_service_name:second-tracer-service",
+					"tracer_service_version:1.0.0",
+					"tracer_service_version:2.0.0",
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+				},
+			},
+		},
+		{
+			name: "process with GPU reference but no service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
+					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_uuid:" + strings.ToLower(gpuUUID),
+					"gpu_vendor:" + strings.ToLower(gpuVendor),
+					"gpu_virtualization_mode:" + gpuVirtMode,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags:         []string{},
+			},
+		},
+		{
+			name: "process with GPU reference and service data",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   gpuUUID,
+					},
+				},
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"env:" + envFromDD,
+					"gpu_device:" + strings.ToLower(strings.ReplaceAll(gpuDevice, " ", "_")),
+					"gpu_driver_version:" + gpuDriverVersion,
+					"gpu_uuid:" + strings.ToLower(gpuUUID),
+					"gpu_vendor:" + strings.ToLower(gpuVendor),
+					"gpu_virtualization_mode:" + gpuVirtMode,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+					"gpu_slicing_mode:" + gpuSlicingMode,
+					"gpu_parent_uuid:" + strings.ToLower(gpuUUID),
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+				},
+			},
+		},
+		{
+			name: "process with GPU reference but GPU entity not found in store",
+			process: &workloadmeta.Process{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindProcess,
+					ID:   pid,
+				},
+				Pid: 12345,
+				GPUs: []workloadmeta.EntityID{
+					{
+						Kind: workloadmeta.KindGPU,
+						ID:   "non-existent-gpu",
+					},
+				},
+				Service: &workloadmeta.Service{
+					UST: workloadmeta.UST{
+						Service: serviceNameFromDD,
+						Env:     envFromDD,
+						Version: versionFromDD,
+					},
+				},
+			},
+			expectedTagInfo: &types.TagInfo{
+				Source:   processSource,
+				EntityID: types.NewEntityID(types.Process, pid),
+				LowCardTags: []string{
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
+				},
+				OrchestratorCardTags: []string{},
+				HighCardTags:         []string{},
+				StandardTags: []string{
+					"env:" + envFromDD,
+					"service:" + serviceNameFromDD,
+					"version:" + versionFromDD,
 				},
 			},
 		},

@@ -70,7 +70,7 @@ func TestGetIPCAddress(t *testing.T) {
 
 func getConfig(t *testing.T) model.Config {
 	cfg := newEmptyMockConf(t)
-	cfg.BindEnv("ipc_address")
+	cfg.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
 	return cfg
 }

@@ -65,7 +65,9 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
 
     evt->flows_count = 0;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < ACTIVE_FLOWS_MAX_SIZE; i++) {
         if (i >= entry->cursor) {
             break;
@@ -87,8 +89,8 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
         } else {
             // we copied only the flow without the stats - better to get at least the flow than nothing at all
 #if defined(DEBUG_NETWORK_FLOW)
-            bpf_printk("no stats for sp:%d sa0:%lu sa1:%lu", ns_flow_tmp.flow.sport, ns_flow_tmp.flow.saddr[0], ns_flow_tmp.flow.saddr[1]);
-            bpf_printk("             dp:%d da0:%lu da1:%lu", ns_flow_tmp.flow.dport, ns_flow_tmp.flow.daddr[0], ns_flow_tmp.flow.daddr[1]);
+            bpf_printk("no stats for sp:%d sa0:%lu sa1:%lu", ns_flow_tmp.flow.tcp_udp.sport, ns_flow_tmp.flow.saddr[0], ns_flow_tmp.flow.saddr[1]);
+            bpf_printk("             dp:%d da0:%lu da1:%lu", ns_flow_tmp.flow.tcp_udp.dport, ns_flow_tmp.flow.daddr[0], ns_flow_tmp.flow.daddr[1]);
             bpf_printk("             netns:%lu l3:%d l4:%d", ns_flow_tmp.netns, ns_flow_tmp.flow.l3_protocol, ns_flow_tmp.flow.l4_protocol);
 #endif
         }
@@ -143,8 +145,8 @@ __attribute__((always_inline)) void count_pkt(struct __sk_buff *skb, struct pack
     }
 
 #if defined(DEBUG_NETWORK_FLOW)
-    bpf_printk("added stats for sp:%d sa0:%lu sa1:%lu", ns_flow.flow.sport, ns_flow.flow.saddr[0], ns_flow.flow.saddr[1]);
-    bpf_printk("                dp:%d da0:%lu da1:%lu", ns_flow.flow.dport, ns_flow.flow.daddr[0], ns_flow.flow.daddr[1]);
+    bpf_printk("added stats for sp:%d sa0:%lu sa1:%lu", ns_flow.flow.tcp_udp.sport, ns_flow.flow.saddr[0], ns_flow.flow.saddr[1]);
+    bpf_printk("                dp:%d da0:%lu da1:%lu", ns_flow.flow.tcp_udp.dport, ns_flow.flow.daddr[0], ns_flow.flow.daddr[1]);
     bpf_printk("                netns:%lu l3:%d l4:%d", ns_flow.netns, ns_flow.flow.l3_protocol, ns_flow.flow.l4_protocol);
 #endif
 

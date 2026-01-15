@@ -21,12 +21,22 @@ type probeParams struct {
 	Pointer_chasing_limit uint32
 	Collection_size_limit uint32
 	String_size_limit     uint32
+	Probe_id              uint32
 	Frameless             bool
-	X__padding            [3]bool
+	Has_associated_return bool
+	Kind                  int8
+	Top_pc_offset         int8
+	No_return_reason      int8
+	X__padding            [3]int8
 }
 type throttlerParams struct {
 	Ns     uint64
 	Budget int64
+}
+type stats struct {
+	Cpu_ns        uint64
+	Hit_cnt       uint64
+	Throttled_cnt uint64
 }
 
 func opcodeByte(opcode compiler.Opcode) uint8 {

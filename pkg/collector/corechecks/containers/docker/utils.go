@@ -8,8 +8,6 @@
 package docker
 
 import (
-	"fmt"
-
 	"github.com/docker/docker/api/types/events"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -18,12 +16,12 @@ import (
 	pkgcontainersimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 )
 
-func getProcessorFilter(filterStore workloadfilter.Component, store workloadmeta.Component) generic.ContainerFilter {
+func getProcessorFilter(containerFilter workloadfilter.FilterBundle, store workloadmeta.Component) generic.ContainerFilter {
 	// Reject all containers that are not run by Docker
 	return generic.ANDContainerFilter{
 		Filters: []generic.ContainerFilter{
 			generic.RuntimeContainerFilter{Runtime: workloadmeta.ContainerRuntimeDocker},
-			generic.LegacyContainerFilter{FilterStore: filterStore, Store: store},
+			generic.LegacyContainerFilter{ContainerFilter: containerFilter, Store: store},
 		},
 	}
 }
@@ -35,10 +33,10 @@ func getImageTags(imageName string) ([]string, error) {
 	}
 
 	return []string{
-		fmt.Sprintf("docker_image:%s", imageName),
-		fmt.Sprintf("image_name:%s", long),
-		fmt.Sprintf("image_tag:%s", tag),
-		fmt.Sprintf("short_image:%s", short),
+		"docker_image:" + imageName,
+		"image_name:" + long,
+		"image_tag:" + tag,
+		"short_image:" + short,
 	}, nil
 }
 

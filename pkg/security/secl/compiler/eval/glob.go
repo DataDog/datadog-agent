@@ -68,6 +68,10 @@ func (g *Glob) matchesPrefix(filename string) bool {
 	// normalize */ == /*/
 	if g.prefix[0].pattern == "*" {
 		filename = filename[1:]
+
+		if len(filename) == 0 && len(g.prefix) > 1 {
+			return false
+		}
 	}
 
 	var (

@@ -13,10 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 var testAdditionalEndpointsConf = []byte(`
@@ -161,7 +159,7 @@ func TestProxyWithSecret(t *testing.T) {
 				c.setup(t, config, configPath, resolver)
 			}
 
-			_, err := LoadDatadogCustom(config, "unit_test", option.New[secrets.Component](resolver), nil)
+			err := LoadDatadog(config, resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

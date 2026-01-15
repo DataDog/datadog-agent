@@ -9,7 +9,6 @@ package ecs
 
 import (
 	"context"
-	"fmt"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -91,6 +90,7 @@ func verifyV4ParserResults(t *testing.T, store *fakeWorkloadmetaStore, checkTags
 			}
 		case *workloadmeta.Container:
 			require.Equal(t, "RUNNING", entity.KnownStatus)
+			require.Equal(t, workloadmeta.ContainerStatusRunning, entity.State.Status)
 			require.Equal(t, "HEALTHY", entity.Health.Status)
 			if entity.Image.Name == "datadog/datadog-agent" {
 				require.Equal(t, "7.50.0", entity.Image.Tag)
@@ -215,7 +215,7 @@ func getFakeWorkloadmetaStore(ecsAgentURL string) *fakeWorkloadmetaStore {
 				// add delay to trigger timeout
 				return &workloadmeta.Container{
 					EnvVars: map[string]string{
-						v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/1234-2", ecsAgentURL),
+						v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/1234-2",
 					},
 				}, nil
 			}
@@ -224,15 +224,142 @@ func getFakeWorkloadmetaStore(ecsAgentURL string) *fakeWorkloadmetaStore {
 				// add delay to trigger timeout
 				return &workloadmeta.Container{
 					EnvVars: map[string]string{
-						v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/1234-1", ecsAgentURL),
+						v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/1234-1",
 					},
 				}, nil
 			}
 			return &workloadmeta.Container{
 				EnvVars: map[string]string{
-					v3or4.DefaultMetadataURIv4EnvVariable: fmt.Sprintf("%s/v4/undefined", ecsAgentURL),
+					v3or4.DefaultMetadataURIv4EnvVariable: ecsAgentURL + "/v4/undefined",
 				},
 			}, nil
 		},
 	}
+}
+
+// TestParseV4TaskForSidecarFargate tests parsing a V4 task in sidecar mode with Fargate launch type
+func TestParseV4TaskForSidecarFargate(t *testing.T) {
+	task := &v3or4.Task{
+		TaskARN:       "arn:aws:ecs:us-east-1:123456:task/test-task",
+		Family:        "test-family",
+		Version:       "1",
+		KnownStatus:   "RUNNING",
+		DesiredStatus: "RUNNING",
+		Containers: []v3or4.Container{
+			{
+				DockerID:   "test-container-id",
+				Name:       "test-container",
+				DockerName: "ecs-test-container",
+			},
+		},
+	}
+
+	collector := &collector{
+		actualLaunchType: workloadmeta.ECSLaunchTypeFargate,
+		deploymentMode:   deploymentModeSidecar,
+	}
+
+	events := collector.parseV4TaskForSidecar(task)
+	require.NotEmpty(t, events)
+
+	// Verify Fargate-specific attributes
+	for _, event := range events {
+		require.Equal(t, workloadmeta.SourceRuntime, event.Source, "Sidecar mode should use SourceRuntime")
+
+		if ecsTask, ok := event.Entity.(*workloadmeta.ECSTask); ok {
+			require.Equal(t, workloadmeta.ECSLaunchTypeFargate, ecsTask.LaunchType, "Launch type should be Fargate")
+		}
+
+		if container, ok := event.Entity.(*workloadmeta.Container); ok {
+			require.Equal(t, workloadmeta.ContainerRuntimeECSFargate, container.Runtime, "Fargate containers should have ECSFargate runtime")
+		}
+	}
+}
+
+// TestParseV4TaskForSidecarEC2 tests parsing a V4 task in sidecar mode with EC2 launch type
+func TestParseV4TaskForSidecarEC2(t *testing.T) {
+	task := &v3or4.Task{
+		TaskARN:       "arn:aws:ecs:us-east-1:123456:task/test-task",
+		Family:        "test-family",
+		Version:       "1",
+		KnownStatus:   "RUNNING",
+		DesiredStatus: "RUNNING",
+		Containers: []v3or4.Container{
+			{
+				DockerID:   "test-container-id",
+				Name:       "test-container",
+				DockerName: "ecs-test-container",
+			},
+		},
+	}
+
+	collector := &collector{
+		actualLaunchType: workloadmeta.ECSLaunchTypeEC2,
+		deploymentMode:   deploymentModeSidecar,
+	}
+
+	events := collector.parseV4TaskForSidecar(task)
+	require.NotEmpty(t, events)
+
+	// Verify EC2-specific attributes
+	for _, event := range events {
+		require.Equal(t, workloadmeta.SourceRuntime, event.Source, "Sidecar mode should use SourceRuntime")
+
+		if ecsTask, ok := event.Entity.(*workloadmeta.ECSTask); ok {
+			require.Equal(t, workloadmeta.ECSLaunchTypeEC2, ecsTask.LaunchType, "Launch type should be EC2")
+		}
+
+		if container, ok := event.Entity.(*workloadmeta.Container); ok {
+			require.Empty(t, container.Runtime, "EC2 sidecar containers should have empty runtime")
+		}
+	}
+}
+
+// TestParseV4TaskForSidecarDaemonMode tests parsing a V4 task with daemon deployment mode
+func TestParseV4TaskForSidecarDaemonMode(t *testing.T) {
+	task := &v3or4.Task{
+		TaskARN:       "arn:aws:ecs:us-east-1:123456:task/test-task",
+		Family:        "test-family",
+		Version:       "1",
+		KnownStatus:   "RUNNING",
+		DesiredStatus: "RUNNING",
+		Containers: []v3or4.Container{
+			{
+				DockerID:   "test-container-id",
+				Name:       "test-container",
+				DockerName: "ecs-test-container",
+			},
+		},
+	}
+
+	collector := &collector{
+		actualLaunchType: workloadmeta.ECSLaunchTypeEC2,
+		deploymentMode:   deploymentModeDaemon,
+	}
+
+	events := collector.parseV4TaskForSidecar(task)
+	require.NotEmpty(t, events)
+
+	// Verify daemon mode uses SourceNodeOrchestrator
+	for _, event := range events {
+		require.Equal(t, workloadmeta.SourceNodeOrchestrator, event.Source, "Daemon mode should use SourceNodeOrchestrator")
+	}
+}
+
+// TestParseV4TaskForSidecarStoppedTask tests that stopped tasks are filtered out
+func TestParseV4TaskForSidecarStoppedTask(t *testing.T) {
+	task := &v3or4.Task{
+		TaskARN:       "arn:aws:ecs:us-east-1:123456:task/test-task",
+		Family:        "test-family",
+		KnownStatus:   workloadmeta.ECSTaskKnownStatusStopped,
+		DesiredStatus: "STOPPED",
+	}
+
+	collector := &collector{
+		actualLaunchType: workloadmeta.ECSLaunchTypeFargate,
+		deploymentMode:   deploymentModeSidecar,
+	}
+
+	events := collector.parseV4TaskForSidecar(task)
+	require.Empty(t, events, "Stopped tasks should not generate events")
 }

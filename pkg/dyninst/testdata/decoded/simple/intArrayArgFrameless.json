@@ -18,7 +18,7 @@
           {
             "function": "main.stringArrayArgFrameless",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 73
+            "lineNumber": 75
           },
           {
             "function": "main.main",
@@ -66,7 +66,13 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
     "timestamp": "[ts]"
   }

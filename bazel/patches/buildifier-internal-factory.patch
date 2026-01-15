@@ -1,0 +1,15 @@
+diff --git a/buildifier/internal/factory.bzl b/buildifier/internal/factory.bzl
+index 0ad56ff..c33f0b6 100644
+--- a/buildifier/internal/factory.bzl
++++ b/buildifier/internal/factory.bzl
+@@ -161,4 +161,8 @@ def buildifier_impl_factory(ctx, test_rule = False):
+             fail("Cannot use 'exclude_patterns' in a test rule without 'no_sandbox'")
+-        exclude_patterns = ["\\! -path %s" % shell.quote(pattern) for pattern in ctx.attr.exclude_patterns]
+-        exclude_patterns_str = " ".join(exclude_patterns)
++        if ctx.executable.buildifier.extension.lower() == "exe":
++            exclude_patterns = [shell.quote(pattern.replace("/", "\\")) for pattern in ctx.attr.exclude_patterns]
++            exclude_patterns_str = ", ".join(exclude_patterns)
++        else:
++            exclude_patterns = ["\\! -path %s" % shell.quote(pattern) for pattern in ctx.attr.exclude_patterns]
++            exclude_patterns_str = " ".join(exclude_patterns)
+ 

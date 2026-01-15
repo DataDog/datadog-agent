@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff"
+	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,6 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/system/socket"
 )
 
 const (
@@ -93,6 +95,13 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 	c.ctx, c.cancel = context.WithCancel(ctx)
 
 	opts := []grpc.DialOption{grpc.WithContextDialer(func(_ context.Context, url string) (net.Conn, error) {
+		if vsockAddr := pkgconfigsetup.Datadog().GetString("vsock_addr"); vsockAddr != "" {
+			cid, err := socket.ParseVSockAddress(vsockAddr)
+			if err != nil {
+				return nil, err
+			}
+			return vsock.Dial(cid, uint32(c.StreamHandler.Port()), &vsock.Config{})
+		}
 		return net.Dial("tcp", url)
 	})}
 
@@ -141,7 +150,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 				c.ctx,
 				metadata.MD{
 					"authorization": []string{
-						fmt.Sprintf("Bearer %s", c.IPC.GetAuthToken()), // TODO IPC: Remove this raw usage of the auth token
+						"Bearer " + c.IPC.GetAuthToken(), // TODO IPC: Remove this raw usage of the auth token
 					},
 				},
 			),

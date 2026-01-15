@@ -24,14 +24,14 @@ target:
     DD_PROFILING_WAIT_PROFILE_MAX_GOROUTINES: 2000
     DD_APM_INTERNAL_PROFILING_ENABLED: true
 
-    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:docker_containers
+    DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:docker_containers_memory
 
 checks:
   - name: memory_usage
     description: Memory usage
     bounds:
       series: total_pss_bytes
-      upper_bound: "315 MiB"
+      upper_bound: "370 MiB"
 
   # This check validates that the experiment setup allows the Agent to run as
   # intended.

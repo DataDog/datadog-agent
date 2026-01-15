@@ -117,6 +117,15 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(rule *eval.Rule) error {
+	if m.ExtraValidateRule != nil {
+		return m.ExtraValidateRule(rule)
+	}
+
+	return nil
+}
+
 // IsFakeInode returns whether the given inode is a fake inode
 func IsFakeInode(inode uint64) bool {
 	return inode>>32 == fakeInodeMSW
@@ -245,12 +254,13 @@ func (e *FileEvent) GetPathResolutionError() string {
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown  MountOrigin = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs                      // MountOriginProcfs mount point info from procfs
-	MountOriginEvent                       // MountOriginEvent mount point info from an event
-	MountOriginUnshare                     // MountOriginUnshare mount point info from an event
-	MountOriginFsmount                     // MountOriginFsmount mount point info from the fsmount syscall
-	MountOriginOpenTree                    // MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginUnknown   MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                       // MountOriginProcfs mount point info from procfs
+	MountOriginEvent                        // MountOriginEvent mount point info from an event
+	MountOriginUnshare                      // MountOriginUnshare mount point info from an event
+	MountOriginFsmount                      // MountOriginFsmount mount point info from the fsmount syscall
+	MountOriginOpenTree                     // MountOriginOpenTree mount point created from the open_tree syscall
+	MountOriginListmount                    // MountOriginListmount mount point obtained by calling `listmount`
 )
 
 // MountSource source of the mount
@@ -259,7 +269,6 @@ type MountSource = uint32
 const (
 	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknown source
 	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice                      // MountSourceDevice mount resolved with the device
 	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
 )
 
@@ -267,7 +276,6 @@ const (
 var MountSources = [...]string{
 	"unknown",
 	"mount_id",
-	"device",
 	"snapshot",
 }
 
@@ -294,6 +302,7 @@ var MountOrigins = [...]string{
 	"unshare",
 	"fsmount",
 	"open_tree",
+	"listmount",
 }
 
 // MountOriginToString returns the string corresponding to a mount origin
@@ -376,8 +385,8 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 	return nil
 }
 
-// ResolveUserSessionContext resolves and updates the provided user session context
-func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
+// ResolveK8SUserSessionContext resolves and updates the provided user session context
+func (dfh *FakeFieldHandlers) ResolveK8SUserSessionContext(_ *Event, _ *K8SSessionContext) {}
 
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
 func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
@@ -403,7 +412,7 @@ const (
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveUserSessionContext(evtCtx *UserSessionContext)
+	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }

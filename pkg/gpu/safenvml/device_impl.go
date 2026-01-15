@@ -317,10 +317,58 @@ func (d *safeDeviceImpl) GpmSampleGet(sample nvml.GpmSample) error {
 	return NewNvmlAPIErrorOrNil("GpmSampleGet", ret)
 }
 
+func (d *safeDeviceImpl) GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error {
+	if err := d.lib.lookup("nvmlGpmMigSampleGet"); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.GpmMigSampleGet(migInstanceID, sample)
+	return NewNvmlAPIErrorOrNil("GpmMigSampleGet", ret)
+}
+
 func (d *safeDeviceImpl) IsMigDeviceHandle() (bool, error) {
 	if err := d.lib.lookup(toNativeName("IsMigDeviceHandle")); err != nil {
 		return false, err
 	}
 	isMig, ret := d.nvmlDevice.IsMigDeviceHandle()
 	return isMig, NewNvmlAPIErrorOrNil("IsMigDeviceHandle", ret)
+}
+
+func (d *safeDeviceImpl) GetVirtualizationMode() (nvml.GpuVirtualizationMode, error) {
+	if err := d.lib.lookup(toNativeName("GetVirtualizationMode")); err != nil {
+		return nvml.GPU_VIRTUALIZATION_MODE_NONE, err
+	}
+	mode, ret := d.nvmlDevice.GetVirtualizationMode()
+	return mode, NewNvmlAPIErrorOrNil("GetVirtualizationMode", ret)
+}
+
+func (d *safeDeviceImpl) GetSupportedEventTypes() (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetSupportedEventTypes")); err != nil {
+		return 0, err
+	}
+	types, ret := d.nvmlDevice.GetSupportedEventTypes()
+	return types, NewNvmlAPIErrorOrNil("GetSupportedEventTypes", ret)
+}
+
+func (d *safeDeviceImpl) RegisterEvents(evtTypes uint64, evtSet nvml.EventSet) error {
+	if err := d.lib.lookup(toNativeName("RegisterEvents")); err != nil {
+		return err
+	}
+	ret := d.nvmlDevice.RegisterEvents(evtTypes, evtSet)
+	return NewNvmlAPIErrorOrNil("RegisterEvents", ret)
+}
+
+func (d *safeDeviceImpl) GetMemoryErrorCounter(errorType nvml.MemoryErrorType, eccCounterType nvml.EccCounterType, memoryLocation nvml.MemoryLocation) (uint64, error) {
+	if err := d.lib.lookup(toNativeName("GetMemoryErrorCounter")); err != nil {
+		return 0, err
+	}
+	count, ret := d.nvmlDevice.GetMemoryErrorCounter(errorType, eccCounterType, memoryLocation)
+	return count, NewNvmlAPIErrorOrNil("GetMemoryErrorCounter", ret)
+}
+
+func (d *safeDeviceImpl) GetRunningProcessDetailList() (nvml.ProcessDetailList, error) {
+	if err := d.lib.lookup(toNativeName("GetRunningProcessDetailList")); err != nil {
+		return nvml.ProcessDetailList{}, err
+	}
+	processes, ret := d.nvmlDevice.GetRunningProcessDetailList()
+	return processes, NewNvmlAPIErrorOrNil("GetRunningProcessDetailList", ret)
 }

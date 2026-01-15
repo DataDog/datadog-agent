@@ -8,6 +8,7 @@ package strings
 import (
 	"fmt"
 	"math/rand"
+	stdstrings "strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,12 +57,12 @@ func TestIsStringMatching(t *testing.T) {
 func randomString(size uint) string {
 	letterBytes := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	var str string
+	var builder stdstrings.Builder
 	for range size {
-		str += string(letterBytes[rand.Intn(len(letterBytes))])
+		builder.WriteByte(letterBytes[rand.Intn(len(letterBytes))])
 	}
 
-	return str
+	return builder.String()
 }
 
 func BenchmarkStringsMatcher(b *testing.B) {
