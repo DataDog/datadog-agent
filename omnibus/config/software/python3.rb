@@ -8,7 +8,6 @@ unless windows?
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
-  dependency "libyaml"
 end
 dependency "openssl3"
 
