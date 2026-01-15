@@ -233,7 +233,11 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
+	// Memory is released via defer after the callback returns, so use Eventually
+	// to avoid a race between receiving the callback result and the defer executing
+	require.Eventually(t, func() bool {
+		return ctb.memoryUsage.Load() == 0
+	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
@@ -267,7 +271,11 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
+	// Memory is released via defer after the callback returns, so use Eventually
+	// to avoid a race between receiving the callback result and the defer executing
+	require.Eventually(t, func() bool {
+		return ctb.memoryUsage.Load() == 0
+	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
