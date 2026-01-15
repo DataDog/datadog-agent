@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-//go:build linux_bpf && nvml
+//go:build linux_bpf && nvml && docker
 
 package integrationtests
 
@@ -13,11 +13,22 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	workloadmetadefaults "github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/gpu"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -28,30 +39,8 @@ const (
 // requireDocker skips the test if Docker is not available
 func requireDocker(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("Docker not available, skipping test")
+		t.Skipf("Docker not available, skipping test: %v", err)
 	}
-}
-
-// addContainerToWorkloadmeta adds a Docker container to the workloadmeta store.
-// This populates the store with the real container data that was discovered.
-func addContainerToWorkloadmeta(t *testing.T, wmeta workloadmetamock.Mock, containerID string, pid int) {
-	container := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: containerID,
-		},
-		Runtime: workloadmeta.ContainerRuntimeDocker,
-		PID:     pid,
-	}
-	wmeta.Set(container)
-
-	// Verify the container was added
-	storedContainer, err := wmeta.GetContainer(containerID)
-	require.NoError(t, err, "container should be found in the store")
-	require.NotNil(t, storedContainer, "container should not be nil")
 }
 
 // deviceAssignmentTestCase defines a test case for device assignment
@@ -155,9 +144,28 @@ func TestDeviceAssignment(t *testing.T) {
 	})
 
 	// DockerContainer tests: Run sample binary inside a Docker container
-	// Uses real container process with real procfs, workloadmeta populated with real container data
+	// Uses real container process with real procfs and real workloadmeta docker collector
 	t.Run("DockerContainer", func(t *testing.T) {
 		requireDocker(t)
+		env.SetFeatures(t, env.Docker)
+
+		type workloadmetaDeps struct {
+			fx.In
+			Wmeta workloadmeta.Component
+		}
+
+		wmeta := fxutil.Test[workloadmetaDeps](t, fx.Options(
+			fx.Supply(core.BundleParams{
+				ConfigParams:         config.NewParams("", config.WithIgnoreErrors(true)),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+				LogParams:            log.ForOneShot("gpu-device-assignment-test", "off", true),
+			}),
+			core.Bundle(),
+			secretsnoopfx.Module(),
+			workloadfilterfx.Module(),
+			wmcatalog.GetCatalog(),
+			workloadmetafx.Module(workloadmetadefaults.DefaultParams()),
+		)).Wmeta
 
 		for _, tc := range testCases {
 			tc := tc // capture range variable
@@ -181,9 +189,10 @@ func TestDeviceAssignment(t *testing.T) {
 				// Give the container process a moment to fully initialize
 				time.Sleep(100 * time.Millisecond)
 
-				// Use real procfs, populate workloadmeta with real container data
-				wmeta := testutil.GetWorkloadMetaMock(t)
-				addContainerToWorkloadmeta(t, wmeta, containerID, pid)
+				require.Eventually(t, func() bool {
+					container, err := wmeta.GetContainer(containerID)
+					return err == nil && container != nil
+				}, 30*time.Second, 500*time.Millisecond, "container %s not found in workloadmeta", containerID)
 
 				sysCtx, err := gpu.GetSystemContext(gpu.WithProcRoot(kernel.ProcFSRoot()), gpu.WithWorkloadMeta(wmeta), gpu.WithTelemetry(testutil.GetTelemetryMock(t)))
 				require.NoError(t, err)
