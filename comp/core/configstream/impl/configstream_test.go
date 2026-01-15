@@ -324,11 +324,6 @@ func newConfigStreamForTest(cfg config.Component, logger log.Component) *configS
 	return cs
 }
 
-// Dummy lifecycle for testing
-type dummyLifecycle struct{}
-
-func (d *dummyLifecycle) Append(_ compdef.Hook) {}
-
 // ============================================================================
 // Original tests (preserved)
 // ============================================================================

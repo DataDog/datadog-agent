@@ -201,7 +201,7 @@ func formatValue(v interface{}) string {
 	default:
 		str := fmt.Sprintf("%v", val)
 		if len(str) > 50 {
-			return fmt.Sprintf("%s... (truncated)", str[:50])
+			return str[:50] + "... (truncated)"
 		}
 		return str
 	}

@@ -60,11 +60,11 @@ type mockRemoteAgentRegistry struct {
 	mock.Mock
 }
 
-func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(req *remoteagentregistry.RegistrationData) (string, uint32, error) {
+func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(_ *remoteagentregistry.RegistrationData) (string, uint32, error) {
 	return "test-session-id", 30, nil
 }
 
-func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
+func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(_ string) bool {
 	// Always return true for tests (agent is registered)
 	return true
 }
