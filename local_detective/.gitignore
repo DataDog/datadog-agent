@@ -1,0 +1,38 @@
+# Python
+venv/
+forecast_env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# PyTorch models and data
+*.pt
+*.pth
+models/
+models/*.pt
+models/*.pth
+models/healthy_baseline/
+
+# Data files
+*.csv
+*.png
+*.json
+recordings/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

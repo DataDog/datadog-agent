@@ -1,0 +1,5 @@
+torch>=2.0.0
+torch-geometric>=2.3.0
+networkx>=3.0
+numpy>=1.24.0
+python-dateutil>=2.8.0

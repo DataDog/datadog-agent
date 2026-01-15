@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: local-detective
+
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: baseline-collector
+  namespace: local-detective
+  labels:
+    app: local-detective
+    component: baseline-collector
+spec:
+  hostPID: true       # See all host PIDs
+  hostNetwork: true   # See all network connections
+  restartPolicy: Never
+  containers:
+  - name: collector
+    image: local-detective:latest
+    imagePullPolicy: IfNotPresent
+    command: ["python3", "scripts/collect_baseline.py"]
+    args:
+    - "--samples=60"
+    - "--interval=10"
+    - "--output-dir=/app/models/healthy_baseline"
+    securityContext:
+      privileged: true   # Access to all /proc data
+    volumeMounts:
+    - name: proc
+      mountPath: /host/proc
+      readOnly: true
+    - name: models
+      mountPath: /app/models
+  volumes:
+  - name: proc
+    hostPath:
+      path: /proc
+  - name: models
+    hostPath:
+      path: /tmp/local-detective-models
+      type: DirectoryOrCreate

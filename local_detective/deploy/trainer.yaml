@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gnn-trainer
+  namespace: local-detective
+  labels:
+    app: local-detective
+    component: trainer
+spec:
+  restartPolicy: Never
+  containers:
+  - name: trainer
+    image: local-detective:latest
+    imagePullPolicy: IfNotPresent
+    command: ["python3", "scripts/train_on_baseline.py"]
+    args:
+    - "--baseline-dir=/app/models/healthy_baseline"
+    - "--epochs=100"
+    - "--output=/app/models/trained_autoencoder.pt"
+    volumeMounts:
+    - name: models
+      mountPath: /app/models
+  volumes:
+  - name: models
+    hostPath:
+      path: /tmp/local-detective-models
