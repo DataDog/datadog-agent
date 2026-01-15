@@ -9,10 +9,8 @@ license = "Apache-2.0"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-# Lading observer for container metrics sampling
-# Using expose-observer-public branch with public observer APIs
-lading = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public", package = "lading" }
-lading-capture = { git = "https://github.com/DataDog/lading", branch = "sopell/expose-observer-public", package = "lading-capture" }
+# Lading observer for container metrics sampling with public APIs
+lading-observer = { path = "/home/bits/alt-lading" }
 
 # Metrics facade - lading emits via this, we'll intercept with custom Recorder
 metrics = "0.24"

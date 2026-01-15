@@ -24,9 +24,9 @@ use std::path::Path;
 use std::sync::Mutex;
 
 #[cfg(target_os = "linux")]
-use lading::observer::linux::cgroup::v2 as cgroup_v2;
+use lading_observer::linux::cgroup::v2 as cgroup_v2;
 #[cfg(target_os = "linux")]
-use lading::observer::linux::procfs::memory::smaps_rollup;
+use lading_observer::linux::procfs::memory::smaps_rollup;
 
 use crate::metrics_bridge::{CallbackRecorder, MetricCallback};
 
