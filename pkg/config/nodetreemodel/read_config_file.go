@@ -167,7 +167,20 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// Both default and dest have a child but they conflict in type. This should never happen.
 				warnings = append(warnings, errors.New("invalid tree: default and dest tree don't have the same layout"))
 			} else {
-				dest.InsertChildNode(key, newLeafNode(value, source))
+				// If a setting is known and nil we mimic the behavior of viper and ignore the value
+				// to keep the default one. We still insert nil value for unknown settings to keep
+				// track of them and from inner node since this mechanism is used by OTEL to mark
+				// entire section as "existing".
+				//
+				// 'nil' value in YAML file can easily be create by setting a key with no value.
+				//
+				// Example:
+				//
+				//    setting_name_1:      # no value -> nil in Go
+				//    setting name_2: 1234
+				if value != nil {
+					dest.InsertChildNode(key, newLeafNode(value, source))
+				}
 			}
 			continue
 		}

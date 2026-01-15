@@ -340,3 +340,19 @@ func TestBuildNestedMap(t *testing.T) {
 	}
 	require.Equal(t, expect, m)
 }
+
+func TestNilValueFromFileAreIgnored(t *testing.T) {
+	var yamlPayload = `
+a:
+`
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+
+	cfg.SetDefault("a", true)
+
+	cfg.BuildSchema()
+
+	err := cfg.ReadConfig(strings.NewReader(yamlPayload))
+	require.NoError(t, err)
+
+	assert.Equal(t, true, cfg.GetBool("a"))
+}
