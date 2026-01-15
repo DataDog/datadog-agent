@@ -79,21 +79,18 @@ type systemContextOptions struct {
 
 type systemContextOption func(*systemContextOptions)
 
-// withProcRoot sets the procfs root directory for the system context
 func withProcRoot(procRoot string) systemContextOption {
 	return func(opts *systemContextOptions) {
 		opts.procRoot = procRoot
 	}
 }
 
-// withWorkloadMeta sets the workloadmeta component for the system context
 func withWorkloadMeta(wmeta workloadmeta.Component) systemContextOption {
 	return func(opts *systemContextOptions) {
 		opts.wmeta = wmeta
 	}
 }
 
-// withTelemetry sets the telemetry component for the system context
 func withTelemetry(tm telemetry.Component) systemContextOption {
 	return func(opts *systemContextOptions) {
 		opts.tm = tm
@@ -225,13 +222,12 @@ func (ctx *systemContext) filterDevicesForContainer(devices []ddnvml.Device, con
 	return nil, fmt.Errorf("no GPU devices found for container %s that matched its allocated resources %+v: %w", containerID, container.ResolvedAllocatedResources, err)
 }
 
-// GetCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
+// getCurrentActiveGpuDevice returns the active GPU device for a given process and thread, based on the
 // last selection (via cudaSetDevice) this thread made and the visible devices for the process.
 // This function caches the visible devices for the process in the visibleDevicesCache map, so it only
 // does the expensive operations of looking into the process state and filtering devices one time for each process
 // containerIDFunc is a function that returns the container ID for the given process. As retrieving the container ID
 // might be expensive, we pass a function that can be called to retrieve it only when needed
-
 func (ctx *systemContext) getCurrentActiveGpuDevice(pid int, tid int, containerIDFunc func() string) (ddnvml.Device, error) {
 	visibleDevices, ok := ctx.visibleDevicesCache[pid]
 	if !ok {

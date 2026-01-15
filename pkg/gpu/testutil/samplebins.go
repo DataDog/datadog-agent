@@ -263,9 +263,9 @@ func RunSampleWithArgs(t testing.TB, sample Sample, args SampleArgs) SampleOutpu
 	cmd, lines, err := runCommandAndPipeOutput(t, []string{builtBin}, sample, args)
 	require.NoError(t, err, "failed to run command")
 
+	output.Output = lines
 	if cmd.Process != nil {
 		output.PID = cmd.Process.Pid
-		output.Output = lines
 		output.Command = cmd
 	}
 
