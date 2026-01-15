@@ -55,29 +55,6 @@ func TestCommand(t *testing.T) {
 		})
 }
 
-<<<<<<< HEAD
-func TestCommandWithInstanceID(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			config := path.Join(t.TempDir(), "datadog.yaml")
-			err := os.WriteFile(config, []byte("hostname: test"), 0644)
-			require.NoError(t, err)
-
-			return GlobalParams{
-				ConfFilePath: config,
-			}
-		}),
-	}
-
-	fxutil.TestOneShotSubcommand(t,
-		commands,
-		[]string{"check", "http_check", "--instance-id", "3e96f922a85e2ab0"},
-		run,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Equal(t, []string{"http_check"}, cliParams.args)
-			require.Equal(t, "3e96f922a85e2ab0", cliParams.instanceID)
-		})
-=======
 func TestGetAllCheckConfigs_CustomConfig(t *testing.T) {
 	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
@@ -123,5 +100,27 @@ instances:
 	require.Len(t, checkConfig.Instances, 2)
 	assert.Equal(t, integration.Data("def: 456\n"), checkConfig.Instances[0])
 	assert.Equal(t, integration.Data("ghi: 789\n"), checkConfig.Instances[1])
->>>>>>> origin/main
+}
+
+func TestCommandWithInstanceID(t *testing.T) {
+	commands := []*cobra.Command{
+		MakeCommand(func() GlobalParams {
+			config := path.Join(t.TempDir(), "datadog.yaml")
+			err := os.WriteFile(config, []byte("hostname: test"), 0644)
+			require.NoError(t, err)
+
+			return GlobalParams{
+				ConfFilePath: config,
+			}
+		}),
+	}
+
+	fxutil.TestOneShotSubcommand(t,
+		commands,
+		[]string{"check", "http_check", "--instance-id", "3e96f922a85e2ab0"},
+		run,
+		func(cliParams *cliParams, _ core.BundleParams) {
+			require.Equal(t, []string{"http_check"}, cliParams.args)
+			require.Equal(t, "3e96f922a85e2ab0", cliParams.instanceID)
+		})
 }
