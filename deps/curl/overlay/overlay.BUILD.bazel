@@ -175,7 +175,7 @@ cc_shared_library(
     dynamic_deps = [
         "@nghttp2//:nghttp2_shared",
         "@openssl//:imported_ssl_shared",
-        "@openssl//:imported_crypto_shared",
+        # "@openssl//:imported_crypto_shared",
         "@zlib//:z",
     ],
     visibility = ["//visibility:public"],
