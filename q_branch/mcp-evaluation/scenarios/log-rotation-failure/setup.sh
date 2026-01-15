@@ -14,9 +14,12 @@ echo "Deploying application service..."
 
 limactl shell "$LIMA_VM" sudo mkdir -p /opt/app_service /tmp/app_logs
 limactl copy "$SCENARIO_DIR/workload.py" "$LIMA_VM:/tmp/service.py"
+limactl copy "$SCENARIO_DIR/logrotate.conf" "$LIMA_VM:/tmp/logrotate.conf"
 
 limactl shell "$LIMA_VM" bash <<'EOF'
 sudo mv /tmp/service.py /opt/app_service/service.py
+sudo mv /tmp/logrotate.conf /etc/logrotate.d/app_service
+sudo chmod 644 /etc/logrotate.d/app_service
 cd /opt/app_service
 python3 service.py > /tmp/app_service.log 2>&1 &
 echo $! > /tmp/app_service.pid

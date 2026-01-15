@@ -16,6 +16,7 @@ if [ -f /tmp/app_service.pid ]; then
     rm /tmp/app_service.pid
 fi
 rm -f /tmp/app_service.log
+sudo rm -f /etc/logrotate.d/app_service
 sudo rm -rf /opt/app_service /tmp/app_logs
 EOF
 
