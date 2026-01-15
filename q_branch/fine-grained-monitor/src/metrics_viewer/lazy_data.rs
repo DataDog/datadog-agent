@@ -2075,3 +2075,95 @@ impl RawContainerData {
         self.values.extend(other.values);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Datelike, Timelike};
+
+    #[test]
+    fn test_parse_iso_compact_valid() {
+        let ts = parse_iso_compact("20260114T221825Z").unwrap();
+        assert_eq!(ts.year(), 2026);
+        assert_eq!(ts.month(), 1);
+        assert_eq!(ts.day(), 14);
+        assert_eq!(ts.hour(), 22);
+        assert_eq!(ts.minute(), 18);
+        assert_eq!(ts.second(), 25);
+    }
+
+    #[test]
+    fn test_parse_iso_compact_without_z_suffix() {
+        // Should still work - we only require 15 chars minimum
+        let ts = parse_iso_compact("20260114T221825").unwrap();
+        assert_eq!(ts.year(), 2026);
+        assert_eq!(ts.hour(), 22);
+    }
+
+    #[test]
+    fn test_parse_iso_compact_too_short() {
+        assert!(parse_iso_compact("2026011").is_none());
+        assert!(parse_iso_compact("").is_none());
+    }
+
+    #[test]
+    fn test_parse_iso_compact_invalid_format() {
+        // Invalid month
+        assert!(parse_iso_compact("20261314T221825Z").is_none());
+        // Invalid day
+        assert!(parse_iso_compact("20260132T221825Z").is_none());
+        // Invalid hour
+        assert!(parse_iso_compact("20260114T251825Z").is_none());
+    }
+
+    #[test]
+    fn test_parse_file_timestamp_metrics_format() {
+        let ts = parse_file_timestamp("metrics-20260114T221825Z.parquet").unwrap();
+        assert_eq!(ts.year(), 2026);
+        assert_eq!(ts.month(), 1);
+        assert_eq!(ts.day(), 14);
+        assert_eq!(ts.hour(), 22);
+        assert_eq!(ts.minute(), 18);
+        assert_eq!(ts.second(), 25);
+    }
+
+    #[test]
+    fn test_parse_file_timestamp_consolidated_format() {
+        // Consolidated files have START-END format, we extract the END timestamp
+        let ts = parse_file_timestamp("consolidated-20260114T220024Z-20260114T221825Z.parquet")
+            .unwrap();
+        assert_eq!(ts.year(), 2026);
+        assert_eq!(ts.month(), 1);
+        assert_eq!(ts.day(), 14);
+        // Should be the END timestamp (22:18:25), not the START (22:00:24)
+        assert_eq!(ts.hour(), 22);
+        assert_eq!(ts.minute(), 18);
+        assert_eq!(ts.second(), 25);
+    }
+
+    #[test]
+    fn test_parse_file_timestamp_consolidated_different_days() {
+        // Test when start and end are on different days
+        let ts = parse_file_timestamp("consolidated-20260113T235959Z-20260114T000030Z.parquet")
+            .unwrap();
+        // Should extract the END timestamp (Jan 14, 00:00:30)
+        assert_eq!(ts.day(), 14);
+        assert_eq!(ts.hour(), 0);
+        assert_eq!(ts.minute(), 0);
+        assert_eq!(ts.second(), 30);
+    }
+
+    #[test]
+    fn test_parse_file_timestamp_unknown_format() {
+        assert!(parse_file_timestamp("data.parquet").is_none());
+        assert!(parse_file_timestamp("random-file.parquet").is_none());
+        assert!(parse_file_timestamp("").is_none());
+    }
+
+    #[test]
+    fn test_parse_file_timestamp_consolidated_too_short() {
+        // Consolidated filename without proper timestamps
+        assert!(parse_file_timestamp("consolidated-short.parquet").is_none());
+        assert!(parse_file_timestamp("consolidated-.parquet").is_none());
+    }
+}

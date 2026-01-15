@@ -32,13 +32,19 @@ impl TimeRange {
         }
     }
 
-    /// Get the cutoff timestamp in milliseconds for this time range.
+    /// Get the cutoff timestamp in milliseconds relative to a reference time.
     /// Returns None for All (no cutoff).
-    pub fn cutoff_ms(&self) -> Option<i64> {
-        self.to_duration().map(|d| {
-            let now = chrono::Utc::now();
-            (now - d).timestamp_millis()
-        })
+    ///
+    /// For historical/exported data, pass `data_range.latest` as the reference.
+    /// For live data, pass `Utc::now()`.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let cutoff = time_range.cutoff_ms(data_range.latest);
+    /// ```
+    pub fn cutoff_ms(&self, reference: chrono::DateTime<chrono::Utc>) -> Option<i64> {
+        self.to_duration()
+            .map(|d| (reference - d).timestamp_millis())
     }
 
     /// Short string representation for API.
