@@ -5,7 +5,6 @@
 
 //go:build orchestrator
 
-// Package redact is used to scrub sensitive information from Kubernetes pod manifests and CRs.
 package redact
 
 import (
