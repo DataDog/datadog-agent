@@ -341,6 +341,49 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
+static __attribute__((always_inline)) int is_btrfs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == 0x9123683e; // BTRFS_SUPER_MAGIC
+}
+
+// get_btrfs_subvolume_id returns the btrfs subvolume ID from a dentry
+// Returns 0 if not a btrfs filesystem or if it fails to read
+// 
+// struct btrfs_root {
+//     struct btrfs_key root_key; // root_key.objectid is the subvolume ID
+//     ...
+// };
+// 
+// super_block->s_fs_info points to btrfs_root
+static __attribute__((always_inline)) u64 get_btrfs_subvolume_id(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    
+    // Check if it's btrfs
+    if (get_sb_magic(sb) != 0x9123683e) { // BTRFS_SUPER_MAGIC
+        return 0;
+    }
+    
+    // Get s_fs_info offset (contains btrfs_root*)
+    u64 s_fs_info_offset;
+    LOAD_CONSTANT("sb_s_fs_info_offset", s_fs_info_offset);
+    
+    void *btrfs_root;
+    bpf_probe_read(&btrfs_root, sizeof(btrfs_root), (char *)sb + s_fs_info_offset);
+    if (!btrfs_root) {
+        return 0;
+    }
+    
+    // Get root_key offset within btrfs_root
+    u64 btrfs_root_root_key_offset;
+    LOAD_CONSTANT("btrfs_root_root_key_offset", btrfs_root_root_key_offset);
+    
+    // btrfs_key.objectid is at offset 0 within btrfs_key
+    u64 subvol_id;
+    bpf_probe_read(&subvol_id, sizeof(subvol_id), (char *)btrfs_root + btrfs_root_root_key_offset);
+    
+    return subvol_id;
+}
+
 static struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(struct dentry *dentry) {
     struct inode *d_inode = get_dentry_inode(dentry);
 

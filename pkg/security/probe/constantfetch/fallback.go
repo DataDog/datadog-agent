@@ -79,6 +79,8 @@ func computeRawsTable() map[string]uint64 {
 		OffsetNameRtnlLinkOpsKind:                 16,
 		OffsetNameMntNamespaceNs:                  8,
 		OffsetNameNsCommonInum:                    16,
+		OffsetNameSuperBlockSFsInfo:               328, // super_block.s_fs_info (varies by kernel version)
+		OffsetNameBtrfsRootRootKey:                0,   // btrfs_root.root_key is at beginning of struct
 	}
 }
 
@@ -128,6 +130,8 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameSockStructSKProtocol:        getSockStructSKProtocolOffset,
 		OffsetNameFlowI4StructProto:           getFlowiProtoOffset,
 		OffsetNameFlowI6StructProto:           getFlowiProtoOffset,
+		OffsetNameSuperBlockSFsInfo:           getSuperBlockSFsInfoOffset,
+		OffsetNameBtrfsRootRootKey:            getBtrfsRootRootKeyOffset,
 		OffsetNameMountMntNs:                  getMountMntNsOffset,
 	}
 }
@@ -237,6 +241,29 @@ func getSuperBlockMagicOffset(kv *kernel.Version) uint64 {
 	}
 
 	return offset
+}
+
+func getSuperBlockSFsInfoOffset(kv *kernel.Version) uint64 {
+	// super_block.s_fs_info offset varies by kernel version
+	// This is a filesystem-specific pointer
+	offset := uint64(328)
+
+	switch {
+	case kv.IsRH7Kernel():
+		offset = 296
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_15:
+		offset = 312
+	case kv.IsInRangeCloseOpen(kernel.Kernel4_15, kernel.Kernel5_0):
+		offset = 320
+	}
+
+	return offset
+}
+
+func getBtrfsRootRootKeyOffset(_ *kernel.Version) uint64 {
+	// btrfs_root.root_key is at the beginning of the struct
+	// This offset is stable across kernel versions
+	return 0
 }
 
 // Depending on the value CONFIG_NO_HZ_FULL, a field can be added before the `tty` field.

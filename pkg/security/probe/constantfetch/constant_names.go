@@ -47,6 +47,10 @@ const (
 	OffsetNameVfsmountMntSb             = "vfsmount_mnt_sb_offset"
 	OffsetNameSuperblockSType           = "super_block_s_type_offset"
 	OffsetNameDentryDName               = "dentry_d_name_offset"
+	OffsetNameSuperBlockSFsInfo         = "sb_s_fs_info_offset"
+
+	// btrfs
+	OffsetNameBtrfsRootRootKey = "btrfs_root_root_key_offset"
 
 	// inode
 	OffsetInodeIno   = "inode_ino_offset"
