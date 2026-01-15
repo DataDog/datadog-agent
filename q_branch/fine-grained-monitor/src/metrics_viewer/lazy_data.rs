@@ -1616,6 +1616,26 @@ fn load_metric_from_file(
 ) -> Result<HashMap<InternedId, RawContainerData>> {
     let file_start = std::time::Instant::now();
 
+    // FAST PATH: Check containers sidecar BEFORE opening parquet file
+    // This avoids spending 200-370ms parsing parquet metadata for files with 0 matching containers
+    if !container_set.is_empty() {
+        let sidecar_path = sidecar::sidecar_path_for_parquet(path);
+        if let Ok(sidecar) = ContainerSidecar::read(&sidecar_path) {
+            // Check if ANY requested container exists in this file
+            let has_matching_container = sidecar
+                .containers
+                .iter()
+                .any(|c| container_set.contains(&c.container_id));
+
+            if !has_matching_container {
+                // No matching containers - skip this file entirely
+                return Ok(HashMap::new());
+            }
+        }
+        // If sidecar doesn't exist or can't be read, proceed with parquet file
+        // (This handles old data before sidecars were implemented)
+    }
+
     // REQ-MV-012: Skip invalid/incomplete parquet files gracefully
     let file = match File::open(path) {
         Ok(f) => f,

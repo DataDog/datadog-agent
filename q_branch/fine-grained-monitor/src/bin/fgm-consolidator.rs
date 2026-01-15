@@ -6,7 +6,7 @@
 //! REQ-CON-002: Uses streaming approach to maintain bounded memory usage
 //! (~80MB) regardless of data volume.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -22,6 +22,8 @@ use parquet::file::properties::WriterProperties;
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::watch;
 use tracing::{error, info, warn};
+
+use fine_grained_monitor::sidecar::{self, ContainerSidecar, SidecarContainer};
 
 /// Streaming Parquet Consolidator
 ///
@@ -468,6 +470,43 @@ fn consolidate_files(
 
     // REQ-CON-003: Atomic rename
     std::fs::rename(&tmp_path, output_path).context("Failed to rename temp file to final")?;
+
+    // Write consolidated sidecar file by merging sidecars from all input files
+    // This enables the viewer's sidecar fast path to work with consolidated files
+    write_consolidated_sidecar(output_path, input_paths)?;
+
+    Ok(())
+}
+
+/// Write a consolidated sidecar file by merging sidecars from all input files.
+/// Deduplicates containers by container_id to avoid duplicates.
+fn write_consolidated_sidecar(output_path: &Path, input_paths: &[PathBuf]) -> Result<()> {
+    let mut seen_containers: HashSet<String> = HashSet::new();
+    let mut all_containers: Vec<SidecarContainer> = Vec::new();
+
+    // Collect containers from all input sidecars
+    for input_path in input_paths {
+        let sidecar_path = sidecar::sidecar_path_for_parquet(input_path);
+
+        // Skip if sidecar doesn't exist (old files before sidecars were added)
+        if let Ok(sidecar) = ContainerSidecar::read(&sidecar_path) {
+            for container in sidecar.containers {
+                // Deduplicate by container_id
+                if seen_containers.insert(container.container_id.clone()) {
+                    all_containers.push(container);
+                }
+            }
+        }
+    }
+
+    // Write consolidated sidecar if we found any containers
+    if !all_containers.is_empty() {
+        let consolidated_sidecar = ContainerSidecar::new(all_containers);
+        let sidecar_path = sidecar::sidecar_path_for_parquet(output_path);
+        consolidated_sidecar
+            .write(&sidecar_path)
+            .context("Failed to write consolidated sidecar")?;
+    }
 
     Ok(())
 }
