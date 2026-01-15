@@ -39,7 +39,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
@@ -55,6 +54,11 @@ import (
 )
 
 const clientID = "local_client"
+
+type ConnectionsSource interface {
+	RegisterClient(clientID string) error
+	GetActiveConnections(clientID string) (*network.Connections, func(), error)
+}
 
 // Sender sends data directly to the backend for CNM/USM data
 type Sender interface{}
@@ -76,7 +80,7 @@ type Dependencies struct {
 // New creates a direct sender
 func New(
 	ctx context.Context,
-	tr *tracer.Tracer,
+	tr ConnectionsSource,
 	deps Dependencies,
 ) (Sender, error) {
 	if err := tr.RegisterClient(clientID); err != nil {
@@ -131,7 +135,6 @@ func New(
 	forwarderOpts.DisableAPIKeyChecking = true
 	forwarderOpts.RetryQueuePayloadsTotalMaxSize = queueBytes
 
-	// TODO a review pass on config keys and sources
 	checkInterval := 30 * time.Second
 	if deps.Config.IsConfigured("process_config.intervals.connections") {
 		if v := deps.Config.GetInt("process_config.intervals.connections"); v > 0 {
@@ -183,10 +186,10 @@ func New(
 	}
 
 	deps.Lc.Append(compdef.Hook{
-		OnStart: func(ctx context.Context) error {
+		OnStart: func(_ context.Context) error {
 			return ds.start()
 		},
-		OnStop: func(ctx context.Context) error {
+		OnStop: func(_ context.Context) error {
 			return ds.stop()
 		},
 	})
@@ -195,7 +198,7 @@ func New(
 }
 
 type directSender struct {
-	tracer  *tracer.Tracer
+	tracer  ConnectionsSource
 	groupID atomic.Int32
 
 	hostTagProvider *hosttags.HostTagProvider
@@ -343,7 +346,7 @@ func (d *directSender) networkPathConnections(conns *network.Connections) iter.S
 
 func (d *directSender) collect() {
 	start := time.Now()
-	d.runCount += 1
+	d.runCount++
 
 	conns, cleanup, err := d.tracer.GetActiveConnections(clientID)
 	if err != nil {
@@ -404,7 +407,7 @@ func (d *directSender) collect() {
 			headers: extraHeaders,
 		})
 		allBatches.size += int64(len(body))
-		messageIndex += 1
+		messageIndex++
 	}
 
 	// we have to include all batches as a single item in the queue, otherwise individual batches could be evicted.
@@ -499,7 +502,6 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 
 			// convert collected DNS information for this batch to an optimized version for transmission
 			var mappedDNSLookups []byte
-			// TODO can we avoid this conversion from dns.Hostname to string?
 			uniqDNSStringList := ddslices.Map(dnsSet.UniqueKeys(), func(h dns.Hostname) string { return dns.ToString(h) })
 			encodedNameDb, indexToOffset, err := dnsEncoder.EncodeDomainDatabase(uniqDNSStringList)
 			if err != nil {
@@ -589,7 +591,7 @@ func (d *directSender) getRequestID(start time.Time, chunkIndex int) string {
 	// Next, we take up to 14 bits to represent the message index in the batch.
 	// It means that we support up to 16384 (2 ^ 14) different messages being sent on the same batch.
 	chunk := uint64(chunkIndex & chunkMask)
-	return fmt.Sprintf("%d", seconds+d.requestIDCachedHash+chunk)
+	return strconv.FormatUint(seconds+d.requestIDCachedHash+chunk, 10)
 }
 
 func (d *directSender) readResponseStatuses(responses <-chan defaultforwarder.Response) {
