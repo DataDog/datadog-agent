@@ -54,13 +54,14 @@ dda inv full-host-profiler.build
 
 **Note**: This must be run on a Linux system or in a Linux build environment, as the binary includes Linux-specific eBPF dependencies.
 
-## Usage
+## Development
 
-### Using docker
+### Using docker-compose
 
-Create a `.env` file containing:
+Create a `.env` file in `cmd/host-profiler` containing:
 
 ```
+DD_SITE=datad0g.com # optional, defaults to "datadoghq.com"
 UID=1234 # required on Datadog workspace, set to the output of `id -u` on the workspace
 GID=1234 # required on Datadog workspace, set to the output of `id -g` on the workspace
 ```
