@@ -9,10 +9,11 @@ package sender
 
 import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 
-// NewDockerProxyConsumer is not supported on non-linux systems
-func NewDockerProxyConsumer(_ *eventmonitor.EventMonitor, _ log.Component) (eventmonitor.EventConsumer, error) {
+// NewDirectSenderConsumer is not supported on non-linux systems
+func NewDirectSenderConsumer(_ *eventmonitor.EventMonitor, _ log.Component, _ sysprobeconfig.Component) (eventmonitor.EventConsumer, error) {
 	return nil, nil
 }
