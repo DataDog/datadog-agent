@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	v2 "k8s.io/api/autoscaling/v2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -306,27 +308,28 @@ func TestSyncDeploymentKind_TriggerRollout(t *testing.T) {
 	}
 
 	// Create a fake Deployment in the dynamic client
-	deployment := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-			"metadata": map[string]interface{}{
-				"name":      deploymentName,
-				"namespace": autoscalerNamespace,
-			},
-			"spec": map[string]interface{}{
-				"replicas": int64(3),
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{},
-					},
+	deployment, err := autoscaling.ToUnstructured(&appsv1.Deployment{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: autoscalerNamespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Ptr(int32(3)),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
 				},
 			},
 		},
-	}
+	})
+	assert.NoError(t, err)
 
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
-	_, err := f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), deployment, metav1.CreateOptions{})
+	_, err = f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), deployment, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	fakePai := &model.FakePodAutoscalerInternal{
@@ -767,27 +770,28 @@ func TestSyncStatefulSetKind_TriggerRollout(t *testing.T) {
 	}
 
 	// Create a fake StatefulSet in the dynamic client
-	statefulSet := &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "StatefulSet",
-			"metadata": map[string]interface{}{
-				"name":      statefulSetName,
-				"namespace": autoscalerNamespace,
-			},
-			"spec": map[string]interface{}{
-				"replicas": int64(3),
-				"template": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"annotations": map[string]interface{}{},
-					},
+	statefulSet, err := autoscaling.ToUnstructured(&appsv1.StatefulSet{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "StatefulSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      statefulSetName,
+			Namespace: autoscalerNamespace,
+		},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas: pointer.Ptr(int32(3)),
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{},
 				},
 			},
 		},
-	}
+	})
+	assert.NoError(t, err)
 
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
-	_, err := f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), statefulSet, metav1.CreateOptions{})
+	_, err = f.dynamicClient.Resource(gvr).Namespace(autoscalerNamespace).Create(context.Background(), statefulSet, metav1.CreateOptions{})
 	assert.NoError(t, err)
 
 	fakePai := &model.FakePodAutoscalerInternal{

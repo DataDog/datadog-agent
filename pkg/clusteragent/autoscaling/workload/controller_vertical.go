@@ -126,9 +126,9 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 }
 
-// isRolloutComplete checks if all pods of a workload have completed a rollout
-// Returns true if the rollout is complete (all pods updated).
-func isRolloutComplete(recommendationID string, pods []*workloadmeta.KubernetesPod, podsPerRecomendationID map[string]int32) bool {
+// isRecommendationRolloutComplete checks if the current recommendation is entirely rolled out.
+// Returns true if all pods have the given recommendation ID.
+func isRecommendationRolloutComplete(recommendationID string, pods []*workloadmeta.KubernetesPod, podsPerRecomendationID map[string]int32) bool {
 	// currently basic check with 100% match expected.
 	// TODO: Refine the logic and add backoff for stuck PODs.
 	return podsPerRecomendationID[recommendationID] == int32(len(pods))
@@ -228,7 +228,7 @@ func (u *verticalController) syncDeploymentKind(
 	podsPerDirectOwner map[string]int32,
 ) (autoscaling.ProcessResult, error) {
 	// Check if we need to rollout
-	if isRolloutComplete(recommendationID, pods, podsPerRecomendationID) {
+	if isRecommendationRolloutComplete(recommendationID, pods, podsPerRecomendationID) {
 		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
@@ -274,7 +274,7 @@ func (u *verticalController) syncStatefulSetKind(
 	podsPerRecommendationID map[string]int32,
 ) (autoscaling.ProcessResult, error) {
 	// Check if we need to rollout
-	if isRolloutComplete(recommendationID, pods, podsPerRecommendationID) {
+	if isRecommendationRolloutComplete(recommendationID, pods, podsPerRecommendationID) {
 		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
