@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering"
