@@ -589,7 +589,8 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuiteEC2
       - EXTRA_PARAMS: --run TestAgentSuiteGCP
       - EXTRA_PARAMS: --run TestECSFargate
-      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestKindHelmSuite
+      - EXTRA_PARAMS: --run TestKindOperatorSuite
       - EXTRA_PARAMS: --run TestAgentWindowsSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   # NOTE: Do not remove this from e2e fips pipeline before remote config is available with fips, you can re-enable on fips pipeline when this test does not rely on remote-configuration
