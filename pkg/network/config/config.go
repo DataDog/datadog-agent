@@ -237,6 +237,12 @@ type Config struct {
 	// This is useful for performance testing to measure the overhead of handle_tcp_recv()
 	// while still maintaining map cleanup.
 	SkipHandleTCPRecv bool
+
+	// MaxProtocolClassificationAttempts limits the number of classification attempts per connection.
+	// After this many attempts with PROTOCOL_UNKNOWN, the connection will be marked as fully classified
+	// to avoid wasting CPU cycles on connections that can't be classified.
+	// 0 means no limit (unlimited attempts).
+	MaxProtocolClassificationAttempts int
 }
 
 // New creates a config for the network tracer
@@ -329,6 +335,8 @@ func New() *Config {
 
 		DontAttachTCPRecvMsgProbes: cfg.GetBool(sysconfig.FullKeyPath(netNS, "dont_attach_tcp_recvmsg_probes")),
 		SkipHandleTCPRecv:          cfg.GetBool(sysconfig.FullKeyPath(netNS, "skip_handle_tcp_recv")),
+
+		MaxProtocolClassificationAttempts: cfg.GetInt(sysconfig.FullKeyPath(netNS, "max_protocol_classification_attempts")),
 	}
 
 	if !c.CollectTCPv4Conns {

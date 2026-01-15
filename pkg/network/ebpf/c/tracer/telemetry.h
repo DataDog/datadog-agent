@@ -61,6 +61,8 @@ enum telemetry_counter {
     protocol_classifier_classified_after_2_attempts,
     protocol_classifier_classified_after_3_attempts,
     protocol_classifier_classified_after_4_plus_attempts,
+    // Gave up classification after max attempts
+    protocol_classifier_gave_up_classification_calls,
 };
 
 static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
@@ -200,6 +202,9 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case protocol_classifier_classified_after_4_plus_attempts:
         __sync_fetch_and_add(&val->protocol_classifier_classified_after_4_plus_attempts, times);
+        break;
+    case protocol_classifier_gave_up_classification_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_gave_up_classification_calls, times);
         break;
     }
 }

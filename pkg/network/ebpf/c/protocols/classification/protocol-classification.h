@@ -237,7 +237,19 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // Increment classification attempts for this connection (only if we're doing actual classification work)
-    increment_classification_attempts(&classification_ctx->tuple);
+    __u16 attempts = increment_classification_attempts(&classification_ctx->tuple);
+
+    // Check if we've exceeded max classification attempts - if so, give up and mark as fully classified
+    // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)
+    if (should_give_up_classification(attempts)) {
+        increment_telemetry_count(protocol_classifier_gave_up_classification_calls);
+        // Get or create the stack so we can mark it as fully classified
+        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
+        if (protocol_stack) {
+            mark_as_fully_classified(protocol_stack);
+        }
+        return;
+    }
 
     bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
 

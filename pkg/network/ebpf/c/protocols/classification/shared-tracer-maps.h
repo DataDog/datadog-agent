@@ -16,6 +16,24 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
+// Returns the maximum number of classification attempts before giving up (0 = unlimited)
+static __always_inline __u64 get_max_protocol_classification_attempts() {
+    __u64 val = 0;
+    LOAD_CONSTANT("max_protocol_classification_attempts", val);
+    return val;
+}
+
+// Check if we've exceeded the max classification attempts for a connection
+// Returns true if we should give up and mark as fully classified
+static __always_inline bool should_give_up_classification(__u16 attempts) {
+    __u64 max_attempts = get_max_protocol_classification_attempts();
+    // 0 means unlimited
+    if (max_attempts == 0) {
+        return false;
+    }
+    return attempts >= max_attempts;
+}
+
 // Returns the wrapper (not just the stack) for access to classification_attempts
 static __always_inline protocol_stack_wrapper_t* __get_protocol_stack_wrapper_if_exists(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);

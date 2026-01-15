@@ -343,7 +343,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
-		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)},
+		manager.ConstantEditor{Name: "max_protocol_classification_attempts", Value: uint64(config.MaxProtocolClassificationAttempts)})
 
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
 	var extractor *batchExtractor
@@ -1011,12 +1012,14 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		after2 := int64(ebpfTelemetry.Protocol_classifier_classified_after_2_attempts)
 		after3 := int64(ebpfTelemetry.Protocol_classifier_classified_after_3_attempts)
 		after4Plus := int64(ebpfTelemetry.Protocol_classifier_classified_after_4_plus_attempts)
+		gaveUp := int64(ebpfTelemetry.Protocol_classifier_gave_up_classification_calls)
 		totalClassified := after1 + after2 + after3 + after4Plus
 		log.Infof("JMW   classification_attempts_histogram (cumulative): 1_attempt=%d (%.1f%%), 2_attempts=%d (%.1f%%), 3_attempts=%d (%.1f%%), 4+_attempts=%d (%.1f%%)",
 			after1, safePercent(after1, totalClassified),
 			after2, safePercent(after2, totalClassified),
 			after3, safePercent(after3, totalClassified),
 			after4Plus, safePercent(after4Plus, totalClassified))
+		log.Infof("JMW   gave_up_classification (cumulative): %d (connections that hit max_protocol_classification_attempts limit)", gaveUp)
 
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)

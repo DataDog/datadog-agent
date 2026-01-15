@@ -403,6 +403,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Performance testing options for tcp_recvmsg probes
 	cfg.BindEnvAndSetDefault("network_config.dont_attach_tcp_recvmsg_probes", false, "DD_DONT_ATTACH_TCP_RECVMSG_PROBES")
 	cfg.BindEnvAndSetDefault("network_config.skip_handle_tcp_recv", false, "DD_SKIP_HANDLE_TCP_RECV")
+
+	// Protocol classification optimization - limit attempts before giving up on unknown connections
+	// 0 means unlimited attempts (default behavior)
+	cfg.BindEnvAndSetDefault("network_config.max_protocol_classification_attempts", 0, "DD_MAX_PROTOCOL_CLASSIFICATION_ATTEMPTS")
 }
 
 func suffixHostEtc(suffix string) string {
