@@ -7,7 +7,11 @@
 #include "bpf_metadata.h"
 #include "bpf_telemetry.h"
 
-// TODO noisy: determine what values you want for these constants
+// Note on PID vs TID:
+// In eBPF/kernel space, task_struct->pid is the Thread ID (TID)
+// In userspace, this is typically called TID, while PID refers to the process group (TGID)
+// We use "pid" in kernel code to match kernel conventions, but the userspace interprets it as TID
+
 #define MAX_TASK_ENTRIES 4096
 #define RATE_LIMIT_NS 100000
 
@@ -22,6 +26,8 @@ struct {
 
 BPF_RINGBUF_MAP(runq_events, 0)
 BPF_PERCPU_HASH_MAP(cgroup_id_to_last_event_ts, __u64, __u64, MAX_TASK_ENTRIES)
+BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIES)
+BPF_HASH_MAP(cgroup_pids, pid_key_t, __u8, 10000)
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
@@ -72,6 +78,28 @@ int tp_sched_switch(u64 *ctx) {
 
     u32 prev_pid = prev->pid;
     u32 next_pid = next->pid;
+
+    u64 prev_cgroup_id = get_task_cgroup_id(prev);
+
+    if (prev_pid != 0 && next_pid == 0 && prev->__state == TASK_RUNNING) {
+        cgroup_agg_stats_t *stats = bpf_map_lookup_elem(&cgroup_agg_stats, &prev_cgroup_id);
+        if (!stats) {
+            cgroup_agg_stats_t zero = {};
+            bpf_map_update_with_telemetry(cgroup_agg_stats, &prev_cgroup_id, &zero, BPF_NOEXIST);
+            stats = bpf_map_lookup_elem(&cgroup_agg_stats, &prev_cgroup_id);
+            // Populate cgroup name on first creation
+            if (stats) {
+                bpf_rcu_read_lock();
+                bpf_probe_read_kernel_str_with_telemetry(stats->cgroup_name, sizeof(stats->cgroup_name),
+                                                          prev->cgroups->dfl_cgrp->kn->name);
+                bpf_rcu_read_unlock();
+            }
+        }
+        if (stats) {
+            __sync_fetch_and_add(&stats->preemption_count, 1);
+        }
+    }
+
     if (!next_pid) {
         return 0;
     }
@@ -89,11 +117,33 @@ int tp_sched_switch(u64 *ctx) {
     // delete pid from enqueued map
     bpf_task_storage_delete(&runq_enqueued, next);
 
-    u64 prev_cgroup_id = get_task_cgroup_id(prev);
     u64 cgroup_id = get_task_cgroup_id(next);
 
-    // per-cgroup-id-per-CPU rate-limiting
-    // to balance observability with performance overhead
+    cgroup_agg_stats_t *stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
+    if (!stats) {
+        cgroup_agg_stats_t zero = {};
+        bpf_map_update_with_telemetry(cgroup_agg_stats, &cgroup_id, &zero, BPF_NOEXIST);
+        stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
+        if (stats) {
+            bpf_rcu_read_lock();
+            bpf_probe_read_kernel_str_with_telemetry(stats->cgroup_name, sizeof(stats->cgroup_name),
+                                                      next->cgroups->dfl_cgrp->kn->name);
+            bpf_rcu_read_unlock();
+        }
+    }
+    if (stats) {
+        __sync_fetch_and_add(&stats->sum_latencies_ns, runq_lat);
+        __sync_fetch_and_add(&stats->event_count, 1);
+    }
+
+    pid_key_t pid_key = {.cgroup_id = cgroup_id, .pid = next_pid};
+    __u8 pid_marker = 1;
+    bpf_map_update_elem(&cgroup_pids, &pid_key, &pid_marker, BPF_ANY);
+
+    // === LEGACY: Ringbuffer events (rate-limited for backwards compatibility) ===
+    // Rate limit: max 1 event per cgroup per 100ms per CPU
+    // Provides individual samples while aggregation provides comprehensive averages
+    // per-cgroup-id-per-CPU rate-limiting to balance observability with performance
     u64 *last_ts = bpf_map_lookup_elem(&cgroup_id_to_last_event_ts, &cgroup_id);
     u64 last_ts_val = last_ts == NULL ? 0 : *last_ts;
 
@@ -118,8 +168,8 @@ int tp_sched_switch(u64 *ctx) {
 
     // read cgroup names
     bpf_rcu_read_lock();
-    bpf_probe_read_kernel_str(event->prev_cgroup_name, sizeof(event->prev_cgroup_name), prev->cgroups->dfl_cgrp->kn->name);
-    bpf_probe_read_kernel_str(event->cgroup_name, sizeof(event->cgroup_name), next->cgroups->dfl_cgrp->kn->name);
+    bpf_probe_read_kernel_str_with_telemetry(event->prev_cgroup_name, sizeof(event->prev_cgroup_name), prev->cgroups->dfl_cgrp->kn->name);
+    bpf_probe_read_kernel_str_with_telemetry(event->cgroup_name, sizeof(event->cgroup_name), next->cgroups->dfl_cgrp->kn->name);
     bpf_rcu_read_unlock();
 
     bpf_ringbuf_submit(event, 0);
