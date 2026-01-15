@@ -10,7 +10,7 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 # Lading observer for container metrics sampling with public APIs
-lading-observer = { git = "https://github.com/DataDog/lading", branch = "dd/extract-lading-observer-crate" }
+lading-observer = { git = "https://github.com/DataDog/lading", branch = "dd/extract-lading-observer-crate-clean" }
 
 # Metrics facade - lading emits via this, we'll intercept with custom Recorder
 metrics = "0.24"
