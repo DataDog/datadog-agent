@@ -112,6 +112,10 @@ func (m *testModel) ValidateField(key string, value FieldValue) error {
 	return nil
 }
 
+func (m *testModel) ValidateRule(_ *Rule) error {
+	return nil
+}
+
 func (m *testModel) GetFieldRestrictions(_ Field) []EventType {
 	return nil
 }

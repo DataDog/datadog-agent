@@ -14,19 +14,24 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/avast/retry-go/v4"
 )
 
 func TestSBOM(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
 
 	kv, err := kernel.NewKernelVersion()
 	if err != nil {
@@ -37,9 +42,9 @@ func TestSBOM(t *testing.T) {
 		t.Skip("Skip test where docker is unavailable")
 	}
 
-	if testEnvironment == DockerEnvironment {
-		t.Skip("Skip test spawning docker containers on docker")
-	}
+	checkKernelCompatibility(t, "broken containerd support on Suse 12", func(kv *kernel.Version) bool {
+		return kv.IsSuse12Kernel()
+	})
 
 	ruleDefs := []*rules.RuleDefinition{
 		{
@@ -70,7 +75,7 @@ func TestSBOM(t *testing.T) {
 	}
 
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, _ wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			retry.Do(func() error {
 				sbom := p.Resolvers.SBOMResolver.GetWorkload(containerutils.ContainerID(dockerWrapper.containerID))
 				if sbom == nil {
@@ -90,11 +95,11 @@ func TestSBOM(t *testing.T) {
 			assertFieldNotEmpty(t, event, "process.container.id", "container id shouldn't be empty")
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_file_package")
 	})
 
 	t.Run("host", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			sbom := p.Resolvers.SBOMResolver.GetWorkload("")
 			if sbom == nil {
 				return errors.New("failed to find host SBOM for host")
@@ -114,7 +119,7 @@ func TestSBOM(t *testing.T) {
 			}
 
 			test.validateOpenSchema(t, event)
-		})
+		}, "test_host_file_package")
 	})
 }
 

@@ -553,6 +553,8 @@ class GithubAPI:
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
+        if app_id is None or app_key_b64 is None:
+            raise RuntimeError(f"Missing {app_id_env} or {pkey_env}")
         app_key = base64.b64decode(app_key_b64).decode("ascii")
 
         auth = Auth.AppAuth(app_id, app_key)
@@ -752,10 +754,18 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
 
 
-def ask_review_actor(pr):
-    for event in pr.get_issue_events():
-        if event.event == "labeled" and event.label.name == "ask-review":
-            return event.actor.name or event.actor.login
+def get_events_info(pr):
+    actor, team = None, None
+    for event in reversed(list(pr.get_issue_events())):
+        if (event.event == "labeled" and event.label.name == "ask-review") or event.event in [
+            "review_requested",
+            "ready_for_review",
+        ]:
+            actor = event.actor.name or event.actor.login
+            if "requested_team" in event.raw_data:
+                team = event.raw_data["requested_team"]["slug"]
+            break
+    return actor, team
 
 
 def generate_local_github_token(ctx):

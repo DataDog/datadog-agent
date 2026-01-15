@@ -10,6 +10,8 @@ import "debug/elf" //nolint:depguard
 
 type Prog = elf.Prog
 type Symbol = elf.Symbol
+type SymType = elf.SymType
+type SymBind = elf.SymBind
 type Section = elf.Section
 type SectionHeader = elf.SectionHeader
 type SectionType = elf.SectionType
@@ -43,6 +45,17 @@ const PF_X = elf.PF_X
 const PF_W = elf.PF_W
 
 const STB_GLOBAL = elf.STB_GLOBAL
+const STB_WEAK = elf.STB_WEAK
+const STT_OBJECT = elf.STT_OBJECT
 const STT_FUNC = elf.STT_FUNC
+const STT_FILE = elf.STT_FILE
+const SHN_UNDEF = elf.SHN_UNDEF
+const SHF_WRITE = elf.SHF_WRITE
+const SHT_NOBITS = elf.SHT_NOBITS
+const SHN_ABS = elf.SHN_ABS
+const SHN_COMMON = elf.SHN_COMMON
 
 const SHF_COMPRESSED = elf.SHF_COMPRESSED
+
+func ST_TYPE(info uint8) SymType { return elf.ST_TYPE(info) }
+func ST_BIND(info uint8) SymBind { return elf.ST_BIND(info) }

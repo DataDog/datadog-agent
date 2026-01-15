@@ -35,12 +35,28 @@ const (
 	FileChownEventType
 	// FileUtimesEventType Utime event
 	FileUtimesEventType
+	// MMapEventType MMap event
+	MMapEventType
+	// MProtectEventType MProtect event
+	MProtectEventType
+	// SpliceEventType Splice event
+	SpliceEventType
 	// FileSetXAttrEventType Setxattr event
 	FileSetXAttrEventType
 	// FileRemoveXAttrEventType Removexattr event
 	FileRemoveXAttrEventType
 	// FileChdirEventType chdir event
 	FileChdirEventType
+	// BPFEventType bpf event
+	BPFEventType
+	// SysCtlEventType sysctl event
+	SysCtlEventType
+	// ConnectEventType Connect event
+	ConnectEventType
+	// PrCtlEventType is sent when a prctl event is captured
+	PrCtlEventType
+	// SetSockOptEventType is sent when a socket option is set
+	SetSockOptEventType
 	// FileMountEventType Mount event
 	FileMountEventType
 	// FileUmountEventType Umount event
@@ -65,22 +81,14 @@ const (
 	MountReleasedEventType
 	// SELinuxEventType selinux event
 	SELinuxEventType
-	// BPFEventType bpf event
-	BPFEventType
 	// PTraceEventType PTrace event
 	PTraceEventType
-	// MMapEventType MMap event
-	MMapEventType
-	// MProtectEventType MProtect event
-	MProtectEventType
 	// LoadModuleEventType LoadModule event
 	LoadModuleEventType
 	// UnloadModuleEventType UnloadModule evnt
 	UnloadModuleEventType
 	// SignalEventType Signal event
 	SignalEventType
-	// SpliceEventType Splice event
-	SpliceEventType
 	// CgroupTracingEventType is sent when a new cgroup is being traced
 	CgroupTracingEventType
 	// DNSEventType DNS event
@@ -99,8 +107,6 @@ const (
 	AcceptEventType
 	// BindEventType Bind event
 	BindEventType
-	// ConnectEventType Connect event
-	ConnectEventType
 	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
@@ -117,16 +123,10 @@ const (
 	RawPacketFilterEventType
 	// NetworkFlowMonitorEventType is sent to monitor network activity
 	NetworkFlowMonitorEventType
-	// PrCtlEventType is sent when a prctl event is captured
-	PrCtlEventType
 	// StatEventType stat event (used kernel side only)
 	StatEventType
-	// SysCtlEventType sysctl event
-	SysCtlEventType
 	// SetrlimitEventType setrlimit event
 	SetrlimitEventType
-	// SetSockOptEventType is sent when a socket option is set
-	SetSockOptEventType
 	// FileFsmountEventType Mount event
 	FileFsmountEventType
 	// FileOpenTreeEventType Open Tree event
@@ -143,6 +143,8 @@ const (
 	TracerMemfdCreateEventType
 	// TracerMemfdSealEventType Tracer memfd seal event
 	TracerMemfdSealEventType
+	// NopEventType nop event
+	NopEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -159,7 +161,7 @@ const (
 	LastDiscarderEventType = FileChdirEventType
 
 	// LastApproverEventType is the last event that accepts approvers
-	LastApproverEventType = SpliceEventType
+	LastApproverEventType = SetSockOptEventType
 
 	// CustomEventType represents a custom event type
 	CustomEventType EventType = iota
@@ -336,6 +338,8 @@ func (t EventType) String() string {
 		return "tracer_memfd_create"
 	case TracerMemfdSealEventType:
 		return "tracer_memfd_seal"
+	case NopEventType:
+		return "nop"
 	default:
 		return "unknown"
 	}

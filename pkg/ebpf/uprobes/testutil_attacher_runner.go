@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -275,6 +276,7 @@ func (r *FmapperRunner) Stop(t *testing.T) {
 // SameProcessAttacherRunner runs the attacher in the same process as the caller code
 type SameProcessAttacherRunner struct {
 	attachedProbes []attachedProbe
+	useEventStream bool
 }
 
 type attachedProbe struct {
@@ -285,8 +287,8 @@ type attachedProbe struct {
 var _ AttacherRunner = &SameProcessAttacherRunner{}
 
 // NewSameProcessAttacherRunner creates a new runner that executes the attacher in the same process as the caller code
-func NewSameProcessAttacherRunner() AttacherRunner {
-	return &SameProcessAttacherRunner{}
+func NewSameProcessAttacherRunner(useEventStream bool) AttacherRunner {
+	return &SameProcessAttacherRunner{useEventStream: useEventStream}
 }
 
 func (r *SameProcessAttacherRunner) onAttach(probe *manager.Probe, fpath *usmutils.FilePath) {
@@ -296,7 +298,7 @@ func (r *SameProcessAttacherRunner) onAttach(probe *manager.Probe, fpath *usmuti
 // RunAttacher starts the attacher in the same process as the test
 func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName AttacherTestConfigName) {
 	mgr := manager.Manager{}
-	procMon := launchProcessMonitor(t, false)
+	procMon := launchProcessMonitor(t, r.useEventStream)
 
 	cfg := GetAttacherTestConfig(t, configName)
 
@@ -335,11 +337,13 @@ func (r *SameProcessAttacherRunner) GetProbes(_ assert.TestingT) []ProbeStatus {
 type ContainerizedAttacherRunner struct {
 	containerName  string
 	probesEndpoint string
+	useEventStream bool
 }
 
 // NewContainerizedAttacherRunner creates a new runner that executes the attacher in a container
-func NewContainerizedAttacherRunner() AttacherRunner {
+func NewContainerizedAttacherRunner(useEventStream bool) AttacherRunner {
 	return &ContainerizedAttacherRunner{
+		useEventStream: useEventStream,
 		probesEndpoint: "http://localhost:8080/probes",
 	}
 }
@@ -400,6 +404,7 @@ func (r *ContainerizedAttacherRunner) RunAttacher(t *testing.T, configName Attac
 			[]string{
 				"-test.v", // Ensure the test framework doesn't suppress output
 				"-config", string(configName),
+				"-use-event-stream=" + strconv.FormatBool(r.useEventStream),
 			},
 		),
 		dockerutils.WithMounts(mounts),

@@ -65,7 +65,11 @@ jobs:
           EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
         run: |
-          labels="$(gh pr view "$PR_NUMBER" --json labels --jq '[.labels[].name] | (join(" "))')"
+          labels="$(curl --retry 4 -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "https://api.github.com/repos/$GH_REPO/pulls/$PR_NUMBER" \
+            | jq -r '[.labels[].name] | join(" ")')"
           echo "Fetched labels for PR $EVENT_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
   team-label-check:
@@ -122,20 +126,3 @@ jobs:
           features: legacy-tasks
       - name: Check agent telemetry metric list
         run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
-
-  ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
-      - name: Ask for code reviews
-        env:
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
