@@ -41,6 +41,16 @@ func New(port int) *Server {
 		log.Printf("Failed to register bash tool: %v", err)
 	}
 
+	safeShellTool, err := tools.NewSafeShellTool(30 * time.Second)
+	if err != nil {
+		log.Printf("Warning: Failed to create safe-shell tool: %v", err)
+		log.Printf("Safe-shell tool will not be available (safe-shell binary not found)")
+	} else {
+		if err := safeShellTool.Register(mcpServer); err != nil {
+			log.Printf("Failed to register safe-shell tool: %v", err)
+		}
+	}
+
 	return s
 }
 
