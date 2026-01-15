@@ -295,3 +295,90 @@ func (s *configSuite) TestSystemProbeConfig() {
 	require.NoError(s.T(), err, "agent should be running after promotion to stable")
 	require.NotEmpty(s.T(), status.AgentMetadata.AgentVersion, "agent version should be available after promotion")
 }
+
+// TestConfigRollbackDeploymentID tests that rolling back a config experiment
+// does not incorrectly set the stable_config_version.
+// This test reproduces a Windows-specific bug where RemoveExperiment copies
+// the experiment deployment ID to stable during rollback.
+func (s *configSuite) TestConfigRollbackDeploymentID() {
+	s.Agent.MustInstall()
+	defer s.Agent.MustUninstall()
+
+	// Get initial remote config state
+	initialState, err := s.Backend.RemoteConfigStatus()
+	require.NoError(s.T(), err)
+
+	// Find the datadog-agent package state
+	var initialAgentState *backend.RemoteConfigStatePackage
+	for i, pkg := range initialState.Packages {
+		if pkg.Package == "datadog-agent" {
+			initialAgentState = &initialState.Packages[i]
+			break
+		}
+	}
+	require.NotNil(s.T(), initialAgentState, "datadog-agent package should be in remote config state")
+	initialStableConfigVersion := initialAgentState.StableConfigVersion
+
+	// Start a config experiment with a known deployment ID
+	experimentDeploymentID := "test-rollback-deployment-123"
+	err = s.Backend.StartConfigExperiment(backend.ConfigOperations{
+		DeploymentID: experimentDeploymentID,
+		FileOperations: []backend.FileOperation{
+			{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
+		},
+	})
+	require.NoError(s.T(), err)
+
+	// Verify config changed during experiment
+	config, err := s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "debug", config["log_level"])
+
+	// Verify remote config state shows experiment_config_version
+	experimentState, err := s.Backend.RemoteConfigStatus()
+	require.NoError(s.T(), err)
+
+	var agentStateAfterStart *backend.RemoteConfigStatePackage
+	for i, pkg := range experimentState.Packages {
+		if pkg.Package == "datadog-agent" {
+			agentStateAfterStart = &experimentState.Packages[i]
+			break
+		}
+	}
+	require.NotNil(s.T(), agentStateAfterStart, "datadog-agent package should be in remote config state")
+	require.Equal(s.T(), experimentDeploymentID, agentStateAfterStart.ExperimentConfigVersion,
+		"experiment_config_version should be set after StartConfigExperiment")
+	require.Equal(s.T(), initialStableConfigVersion, agentStateAfterStart.StableConfigVersion,
+		"stable_config_version should not change during experiment")
+
+	// Stop the experiment (rollback)
+	err = s.Backend.StopConfigExperiment()
+	require.NoError(s.T(), err)
+
+	// Verify config rolled back
+	config, err = s.Agent.Configuration()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "info", config["log_level"])
+
+	// Verify remote config state after rollback
+	rollbackState, err := s.Backend.RemoteConfigStatus()
+	require.NoError(s.T(), err)
+
+	var agentStateAfterRollback *backend.RemoteConfigStatePackage
+	for i, pkg := range rollbackState.Packages {
+		if pkg.Package == "datadog-agent" {
+			agentStateAfterRollback = &rollbackState.Packages[i]
+			break
+		}
+	}
+	require.NotNil(s.T(), agentStateAfterRollback, "datadog-agent package should be in remote config state")
+
+	// BUG: On Windows, stable_config_version gets incorrectly set to experimentDeploymentID
+	// Expected: stable_config_version should remain unchanged (initialStableConfigVersion)
+	// Actual: stable_config_version = experimentDeploymentID due to backupOrRestoreDirectory copying .deployment-id
+	require.Equal(s.T(), initialStableConfigVersion, agentStateAfterRollback.StableConfigVersion,
+		"BUG: stable_config_version should not change after rollback, but got: %s (expected: %s)",
+		agentStateAfterRollback.StableConfigVersion, initialStableConfigVersion)
+	require.Empty(s.T(), agentStateAfterRollback.ExperimentConfigVersion,
+		"experiment_config_version should be empty after rollback")
+}
