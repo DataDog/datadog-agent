@@ -974,7 +974,9 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
-		log.Infof("JMW   early_exit taken: read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns)",
+		totalEarlyExitCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls
+		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns)",
+			totalEarlyExitCalls, safePercent(totalEarlyExitCalls, socketClassifierCalls),
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
 			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,

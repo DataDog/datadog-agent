@@ -236,6 +236,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Ensure the protocol stack wrapper exists before incrementing classification attempts.
+    // This is needed because increment_classification_attempts operates on the wrapper,
+    // and we need the wrapper to exist so the attempt count is properly tracked for the histogram.
+    protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
+    if (!protocol_stack) {
+        return;
+    }
+
     // Increment classification attempts for this connection (only if we're doing actual classification work)
     __u32 attempts = increment_classification_attempts(&classification_ctx->tuple);
 
@@ -243,11 +251,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)
     if (should_give_up_classification(attempts)) {
         increment_telemetry_count(protocol_classifier_gave_up_classification_calls);
-        // Get or create the stack so we can mark it as fully classified
-        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
-        if (protocol_stack) {
-            mark_as_fully_classified(protocol_stack);
-        }
+        mark_as_fully_classified(protocol_stack);
         return;
     }
 
@@ -263,11 +267,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     tls_record_header_t tls_hdr = {0};
 
     if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
-        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
-        if (!protocol_stack) {
-            return;
-        }
-        // TLS classification
+        // TLS classification (protocol_stack already exists from get_or_create above)
         increment_telemetry_count(protocol_classifier_detected_tls_calls);
         update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
@@ -308,11 +308,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     if (app_layer_proto != PROTOCOL_UNKNOWN) {
-        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
-        if (!protocol_stack) {
-            return;
-        }
-        
+        // protocol_stack already exists from get_or_create above
         // Track which protocol was detected
         if (app_layer_proto == PROTOCOL_HTTP) {
             increment_telemetry_count(protocol_classifier_detected_http_calls);
