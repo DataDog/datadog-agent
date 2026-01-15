@@ -161,7 +161,7 @@ def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_
     'This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored'
 )
 def gen_config_subset(ctx, jobs, dry_run=False, force=False):
-    """Will generate a full .gitlab-ci.yml containing only the jobs necessary to run the target jobs `jobs`.
+    """Will generate a full .gitlab/pipeline.yml containing only the jobs necessary to run the target jobs `jobs`.
 
     That is, the resulting pipeline will have `jobs` as last jobs to run.
 
@@ -169,8 +169,8 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
         This doesn't take implicit dependencies into account (stages order), only explicit dependencies (job `needs` / `dependencies`).
 
     Args:
-        dry_run: Print only the new configuration without writing it to the .gitlab-ci.yml file.
-        force: Force the update of the .gitlab-ci.yml file even if it has been modified.
+        dry_run: Print only the new configuration without writing it to the .gitlab/pipeline.yml file.
+        force: Force the update of the .gitlab/pipeline.yml file even if it has been modified.
 
     Example:
         $ dda inv gitlab.gen-config-subset tests_deb-arm64-py3
@@ -180,11 +180,13 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     jobs_to_keep = ['cancel-prev-pipelines', 'github_rate_limit_info', 'setup_agent_version']
     attributes_to_keep = 'stages', 'variables', 'default', 'workflow'
 
-    # .gitlab-ci.yml should not be modified
-    if not force and not dry_run and ctx.run('git status -s .gitlab-ci.yml', hide='stdout').stdout.strip():
-        raise Exit(color_message('The .gitlab-ci.yml file should not be modified as it will be overwritten', Color.RED))
+    # .gitlab/pipeline.yml should not be modified
+    if not force and not dry_run and ctx.run('git status -s .gitlab/pipeline.yml', hide='stdout').stdout.strip():
+        raise Exit(
+            color_message('The .gitlab/pipeline.yml file should not be modified as it will be overwritten', Color.RED)
+        )
 
-    config = resolve_gitlab_ci_configuration(ctx, '.gitlab-ci.yml')
+    config = resolve_gitlab_ci_configuration(ctx, '.gitlab/pipeline.yml')
 
     jobs = [j for j in jobs.split(',') if j] + jobs_to_keep
     required = set()
@@ -226,10 +228,10 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
     if dry_run:
         print(content)
     else:
-        with open('.gitlab-ci.yml', 'w') as f:
+        with open('.gitlab/pipeline.yml', 'w') as f:
             f.write(content)
 
-        print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
+        print(color_message('The .gitlab/pipeline.yml file has been updated', Color.GREEN))
 
 
 @task
@@ -245,7 +247,7 @@ def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
 @task
 def print_ci(
     ctx,
-    input_file: str = '.gitlab-ci.yml',
+    input_file: str = '.gitlab/pipeline.yml',
     job: str | None = None,
     sort: bool = False,
     clean: bool = True,
@@ -301,9 +303,9 @@ def compute_gitlab_ci_config(
     ctx,
     before: str | None = None,
     after: str | None = None,
-    before_file: str = 'before.gitlab-ci.yml',
-    after_file: str = 'after.gitlab-ci.yml',
-    diff_file: str = 'diff.gitlab-ci.yml',
+    before_file: str = 'before.gitlab-pipeline.yml',
+    after_file: str = 'after.gitlab-pipeline.yml',
+    diff_file: str = 'diff.gitlab-pipeline.yml',
 ):
     """Will compute the Gitlab CI full configuration for the current commit and the base commit and will compute the diff between them.
 

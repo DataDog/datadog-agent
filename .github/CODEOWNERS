@@ -79,10 +79,22 @@
 /skaffold.yaml                                       @DataDog/agent-devx @DataDog/container-platform
 /.run/skaffold/                                      @DataDog/agent-devx @DataDog/container-platform
 
+# CI configuration
+/ci/*                                                @DataDog/agent-devx
+/ci/templates/**                                     @DataDog/agent-devx
+
+# CI units
+/ci/units/agent.toml                                 @DataDog/agent-devx
+
+# Auto generated CI files
+/.ci/**                                              @DataDog/agent-devx
+/.ci/units/*                                         # do not notify anyone, rely on configuration
+
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-devx or agent-delivery or agent-build
 # Files that only describe structure (eg. includes, rules) are owned by agent-devx
 
+/.gitlab/pipeline.yml                                @DataDog/agent-devx
 /.gitlab/.ci-linters.yml                             @DataDog/agent-devx
 /.gitlab/.pre/*                                      @DataDog/agent-devx
 /.gitlab/.post/*                                     @DataDog/agent-devx

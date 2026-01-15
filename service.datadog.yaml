@@ -54,7 +54,7 @@ extensions:
         - name: "beta-build-full"
           # For now, this config is mandatory, even if the target is not a ci_pipeline CNAB object.
           # Setting this to a placeholder value for now, the intended pipeline that will be triggered will
-          # be the one that is defined in the main .gitlab-ci.yml file.
+          # be the one that is defined in the main .gitlab/pipeline.yml file.
           ci_pipeline: "//fake_placeholder:fake_placeholder"
           branch: "main"
           schedule: "10 3 * * SUN-THU"

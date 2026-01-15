@@ -556,8 +556,10 @@ class MultiGitlabCIDiff:
 
         res = []
 
-        # .gitlab-ci.yml will be always first and other entries sorted alphabetically
-        diffs = sorted(self.diffs, key=lambda diff: '' if diff.entry_point == '.gitlab-ci.yml' else diff.entry_point)
+        # .gitlab/pipeline.yml will be always first and other entries sorted alphabetically
+        diffs = sorted(
+            self.diffs, key=lambda diff: '' if diff.entry_point == '.gitlab/pipeline.yml' else diff.entry_point
+        )
 
         for diff in diffs:
             res.extend(str_entry(diff))
@@ -855,7 +857,7 @@ def post_process_gitlab_ci_configuration(
 
 def get_all_gitlab_ci_configurations(
     ctx,
-    input_file: str = '.gitlab-ci.yml',
+    input_file: str = '.gitlab/pipeline.yml',
     resolve_only_includes: bool = False,
     git_ref: str | None = None,
     postprocess_options: dict[str, Any] | Literal[False] | None = None,
@@ -960,7 +962,7 @@ def _get_trigger_filenames(node):
 
 def resolve_gitlab_ci_configuration(
     ctx,
-    input_config_or_file: str | dict = '.gitlab-ci.yml',
+    input_config_or_file: str | dict = '.gitlab/pipeline.yml',
     resolve_only_includes: bool = False,
     git_ref: str | None = None,
 ) -> dict:
@@ -1052,6 +1054,8 @@ def read_content(ctx, file_path, git_ref: str | None = None):
                 content = f.read()
         elif ctx.run(f"git cat-file -e '{git_ref}:{file_path}'", hide=True, warn=True).ok:
             content = ctx.run(f"git show '{git_ref}:{file_path}'", hide=True).stdout
+        elif ctx.run(f"git cat-file -e '{git_ref}:.gitlab-ci.yml'", hide=True, warn=True).ok:
+            content = ctx.run(f"git show '{git_ref}:.gitlab-ci.yml'", hide=True).stdout
         else:
             print(f"{file_path!r} didn't exist in {git_ref!r} - assuming empty")
             content = "{}"
@@ -1299,7 +1303,7 @@ def get_buildimages_version():
     Get the version of datadog-agent-buildimages currently used
     """
     try:
-        version_file = Path.cwd() / ".gitlab-ci.yml"
+        version_file = Path.cwd() / ".gitlab" / "pipeline.yml"
         gitlab_ci_yaml = yaml.safe_load(version_file.read_text(encoding="utf-8"))
         # CI_IMAGE_DEB_ARM64 is an approximation we agreed on with DevX folks
         return gitlab_ci_yaml["variables"]["CI_IMAGE_DEB_ARM64"].split("-")[1].strip()
@@ -1309,7 +1313,7 @@ def get_buildimages_version():
 
 def update_gitlab_config(file_path, tag, images="", test=True, update=True, windows=False):
     """
-    Override variables in .gitlab-ci.yml file.
+    Override variables in .gitlab/pipeline.yml file.
     """
     with open(file_path) as gl:
         file_content = gl.readlines()
@@ -1344,7 +1348,7 @@ def find_buildimages(variables, images="", prefix="CI_IMAGE_", windows=False):
 
 def update_image_tag(lines, tag, variables, test=True):
     """
-    Update the variables in the .gitlab-ci.yml file.
+    Update the variables in the .gitlab/pipeline.yml file.
     We update the file content (instead of the yaml.load) to keep the original order/formatting.
     """
     output = []

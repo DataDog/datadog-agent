@@ -84,7 +84,7 @@ def clean_running_pipelines(ctx, git_ref=None, here=False, use_latest_sha=False,
     cancel_pipelines_with_confirmation(agent, pipelines)
 
 
-def workflow_rules(gitlab_file=".gitlab-ci.yml"):
+def workflow_rules(gitlab_file=".gitlab/pipeline.yml"):
     """Get Gitlab workflow rules list in a YAML-formatted string."""
     with open(gitlab_file) as f:
         return yaml.dump(yaml.safe_load(f.read())["workflow"]["rules"])
@@ -687,7 +687,7 @@ def compare_to_itself(ctx):
 
     release_json = load_release_json()
 
-    with open('.gitlab-ci.yml', 'r+') as f:
+    with open('.gitlab/pipeline.yml', 'r+') as f:
         content = f.read()
         f.write(
             content.replace(f'COMPARE_TO_BRANCH: {release_json["base_branch"]}', f'COMPARE_TO_BRANCH: {new_branch}')
@@ -737,7 +737,7 @@ def is_dev_branch(_):
     """
     Check if the current branch is not a dev branch.
     """
-    # Mirror logic from .fast_on_dev_branch_only in .gitlab-ci.yml
+    # Mirror logic from .fast_on_dev_branch_only in .gitlab/pipeline.yml
     # Not a dev branch if any of the following is true:
     # - On main branch
     # - On a release branch (e.g., 7.42.x)

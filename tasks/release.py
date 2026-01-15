@@ -790,7 +790,7 @@ def create_release_branches(
     That includes:
         - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
         - updates release.json on new datadog-agent branch to point to newly created release branches
-        - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
+        - updates entries in .gitlab/pipeline.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Args:
         commit: the commit on which the branch should be created (usually the one before the milestone bump)
@@ -853,16 +853,16 @@ def create_release_branches(
         set_new_release_branch(release_branch)
 
         # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
-        with open(".gitlab-ci.yml") as f:
+        with open(".gitlab/pipeline.yml") as f:
             content = f.read()
-        with open(".gitlab-ci.yml", "w") as f:
+        with open(".gitlab/pipeline.yml", "w") as f:
             f.write(
                 content.replace(f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}')
             )
 
         # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
+        ctx.run("git add release.json .gitlab/pipeline.yml")
+        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab/pipeline.yml with {release_branch}'")
         if not ok:
             raise Exit(
                 color_message(
@@ -885,7 +885,7 @@ def create_release_branches(
             )
 
         create_release_pr(
-            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
+            f"[release] Update release.json and .gitlab/pipeline.yml files for {release_branch} branch",
             release_branch,
             update_branch,
             current,

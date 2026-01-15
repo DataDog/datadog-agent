@@ -77,6 +77,8 @@ nav:
     - Lab environments:
       - tutorials/dev/lab/index.md
       - Kind: tutorials/dev/lab/kind.md
+  - CI:
+    - Units: tutorials/ci/units.md
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
@@ -115,6 +117,12 @@ nav:
     - Builders: reference/images/builders.md
   - Agent buildables:
     - Agent components: reference/builds/components.md
+  - CI:
+    - Structure: reference/ci/structure.md
+    - Templates: reference/ci/templates.md
+    - Units:
+      - Defined: reference/ci/units/defined.md
+      - Configuration: reference/ci/units/config.md
 
 watch:
 - .go-version

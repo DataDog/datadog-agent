@@ -222,15 +222,15 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
     """
     if generate_config:
         # Read gitlab config
-        config = resolve_gitlab_ci_configuration(ctx, ".gitlab-ci.yml")
+        config = resolve_gitlab_ci_configuration(ctx, ".gitlab/pipeline.yml")
     else:
         # Read gitlab config, which is computed and stored in compute_gitlab_ci_config job
-        if not os.path.exists("artifacts/after.gitlab-ci.yml"):
+        if not os.path.exists("artifacts/after.gitlab-pipeline.yml"):
             raise Exit(
                 "The configuration is not stored as artifact. Please ensure you ran the compute_gitlab_ci_config job, or set generate_config to True"
             )
-        with open("artifacts/after.gitlab-ci.yml") as f:
-            config = yaml.safe_load(f)[".gitlab-ci.yml"]
+        with open("artifacts/after.gitlab-pipeline.yml") as f:
+            config = yaml.safe_load(f)[".gitlab/pipeline.yml"]
 
     # Lets keep only variables and jobs with flake finder variable
     kept_job = {}

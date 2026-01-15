@@ -111,7 +111,7 @@ def lint_and_test_gitlab_ci_config(full_config: dict[str, dict], test="all", cus
     for config_filename, config_object in full_config.items():
         with gitlab_section(f"Testing {config_filename}", echo=True, collapsed=True):
             # Only the main config should be tested with all contexts
-            if config_filename == ".gitlab-ci.yml":
+            if config_filename == ".gitlab/pipeline.yml":
                 all_contexts = []
                 if custom_context:
                     all_contexts = load_context(custom_context)
@@ -418,7 +418,7 @@ class SSMParameterCall:
             file (str): The name of the file where the SSM parameter call is located.
             line_nb (int): The line number in the file where the SSM parameter call is located.
             with_wrapper (bool, optional): If the call is using the wrapper. Defaults to False.
-            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab-ci.yml. Defaults to False.
+            with_env_var (bool, optional): If the call is using an environment variable defined in .gitlab/pipeline.yml. Defaults to False.
         """
         self.file = file
         self.line_nb = line_nb
@@ -430,7 +430,7 @@ class SSMParameterCall:
         if not self.with_wrapper:
             message += "Please use the dedicated `fetch_secret.(sh|ps1)`."
         if not self.with_env_var:
-            message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
+            message += " Save your parameter name as environment variable in .gitlab/pipeline.yml file."
         return f"{self.file}:{self.line_nb + 1}. {message}"
 
     def __repr__(self):
