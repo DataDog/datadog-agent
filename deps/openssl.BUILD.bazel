@@ -274,7 +274,6 @@ cc_import(
     shared_library = ":libcrypto",
 )
 
-# TODO: delete before submit
 cc_shared_library(
     name = "imported_crypto_shared",
     deps = [":imported_crypto"],
