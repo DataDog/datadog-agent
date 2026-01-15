@@ -154,6 +154,8 @@ type EbpfTracerTelemetryData struct {
 	lastProtocolClassifierContextInitFailedTimeNs   int64
 	lastProtocolClassifierAlreadyClassifiedCalls    int64
 	lastProtocolClassifierAlreadyClassifiedTimeNs   int64
+	lastMaxAttemptsExceededCalls                    int64
+	lastMaxAttemptsExceededTimeNs                   int64
 	lastGaveUpClassificationCalls                   int64
 	lastGaveUpClassificationTimeNs                  int64
 	// socket classifier entry timing metrics last values
@@ -255,6 +257,8 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	0, // lastProtocolClassifierContextInitFailedTimeNs
 	0, // lastProtocolClassifierAlreadyClassifiedCalls
 	0, // lastProtocolClassifierAlreadyClassifiedTimeNs
+	0, // lastMaxAttemptsExceededCalls
+	0, // lastMaxAttemptsExceededTimeNs
 	0, // lastGaveUpClassificationCalls
 	0, // lastGaveUpClassificationTimeNs
 	0, // lastSocketClassifierEntryCalls
@@ -963,7 +967,14 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 			avgAlreadyClassifiedTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs) / float64(alreadyClassifiedCalls)
 		}
 
-		// Gave up classification (hit max attempts limit)
+		// Max attempts exceeded (early exit for connections that previously hit the limit)
+		maxAttemptsExceededCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_max_attempts_exceeded_calls) - EbpfTracerTelemetry.lastMaxAttemptsExceededCalls
+		avgMaxAttemptsExceededTime := float64(0)
+		if maxAttemptsExceededCalls > 0 {
+			avgMaxAttemptsExceededTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_max_attempts_exceeded_time_ns)-EbpfTracerTelemetry.lastMaxAttemptsExceededTimeNs) / float64(maxAttemptsExceededCalls)
+		}
+
+		// Gave up classification (the call that hit max attempts limit)
 		gaveUpClassificationCalls := int64(ebpfTelemetry.Protocol_classifier_gave_up_classification_calls) - EbpfTracerTelemetry.lastGaveUpClassificationCalls
 		avgGaveUpClassificationTime := float64(0)
 		if gaveUpClassificationCalls > 0 {
@@ -971,7 +982,7 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		// Calculate full classification stats
-		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + gaveUpClassificationCalls
+		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
 		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
 		avgFullClassificationTime := float64(0)
 		if fullClassificationCalls > 0 {
@@ -980,19 +991,21 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 				float64(notTcpOrEmptyCalls)*avgNotTcpOrEmptyTime +
 				float64(contextInitFailedCalls)*avgContextInitFailedTime +
 				float64(alreadyClassifiedCalls)*avgAlreadyClassifiedTime +
+				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime +
 				float64(gaveUpClassificationCalls)*avgGaveUpClassificationTime
 			fullClassificationTimeNs := totalTimeNs - earlyExitTimeNs
 			avgFullClassificationTime = fullClassificationTimeNs / float64(fullClassificationCalls)
 		}
 
 		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
-		totalEarlyExitCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + gaveUpClassificationCalls
-		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), gave_up=%d (avg %.2fns)",
+		totalEarlyExitCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
+		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns), gave_up=%d (avg %.2fns)",
 			totalEarlyExitCalls, safePercent(totalEarlyExitCalls, socketClassifierCalls),
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
 			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,
 			alreadyClassifiedCalls, avgAlreadyClassifiedTime,
+			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime,
 			gaveUpClassificationCalls, avgGaveUpClassificationTime)
 		log.Infof("JMW   full_classification path taken: calls=%d (%.1f%%) (avg %.2fns)",
 			fullClassificationCalls,
@@ -1045,6 +1058,8 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)
 		EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls)
 		EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_time_ns)
+		EbpfTracerTelemetry.lastMaxAttemptsExceededCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_max_attempts_exceeded_calls)
+		EbpfTracerTelemetry.lastMaxAttemptsExceededTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_max_attempts_exceeded_time_ns)
 		EbpfTracerTelemetry.lastGaveUpClassificationCalls = int64(ebpfTelemetry.Protocol_classifier_gave_up_classification_calls)
 		EbpfTracerTelemetry.lastGaveUpClassificationTimeNs = int64(ebpfTelemetry.Protocol_classifier_gave_up_classification_time_ns)
 	}

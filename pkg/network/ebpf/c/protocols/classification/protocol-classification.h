@@ -239,12 +239,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     // Check if we've already given up on this connection (hit max attempts limit previously).
-    // We check this early to avoid the cost of get_or_create_protocol_stack for connections
-    // that we've already decided can't be classified.
-    if (wrapper && should_give_up_classification(wrapper->classification_attempts)) {
-        // Already hit the limit on a previous call - just exit without doing any more work
-        RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_gave_up_classification_calls,
-                                     protocol_classifier_gave_up_classification_time_ns,
+    // This is a fast check using the flag we set when max attempts was reached.
+    if (protocol_stack && (protocol_stack->flags & FLAG_MAX_ATTEMPTS_EXCEEDED)) {
+        RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_entrypoint_max_attempts_exceeded_calls,
+                                     protocol_classifier_entrypoint_max_attempts_exceeded_time_ns,
                                      entrypoint_start_ns);
         return;
     }
@@ -260,10 +258,10 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     // Increment classification attempts for this connection (only if we're doing actual classification work)
     __u32 attempts = increment_classification_attempts(&classification_ctx->tuple);
 
-    // Check if we've NOW exceeded max classification attempts - if so, give up and mark as fully classified
+    // Check if we've NOW exceeded max classification attempts - if so, mark as max attempts exceeded
     // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)
     if (should_give_up_classification(attempts)) {
-        mark_as_fully_classified(protocol_stack);
+        protocol_stack->flags |= FLAG_MAX_ATTEMPTS_EXCEEDED;
         RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_gave_up_classification_calls,
                                      protocol_classifier_gave_up_classification_time_ns,
                                      entrypoint_start_ns);

@@ -100,6 +100,8 @@ type Telemetry struct {
 	Protocol_classifier_entrypoint_context_init_failed_time_ns       uint64
 	Protocol_classifier_entrypoint_already_classified_calls          uint64
 	Protocol_classifier_entrypoint_already_classified_time_ns        uint64
+	Protocol_classifier_entrypoint_max_attempts_exceeded_calls       uint64
+	Protocol_classifier_entrypoint_max_attempts_exceeded_time_ns     uint64
 	Protocol_classifier_entrypoint_no_protocol_stack_calls           uint64
 	Protocol_classifier_entrypoint_stack_not_fully_classified_calls  uint64
 	Protocol_classifier_entrypoint_flag_set_but_not_classified_calls uint64
