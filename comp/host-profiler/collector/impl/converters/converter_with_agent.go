@@ -83,6 +83,10 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 		return err
 	}
 
+	if err := addProfilerMetadataTags(confStringMap); err != nil {
+		return err
+	}
+
 	*conf = *confmap.NewFromStringMap(confStringMap)
 	return nil
 }
