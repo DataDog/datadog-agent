@@ -320,5 +320,4 @@ bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * pr_name) {
     return true;
 }
 
-
 #endif
