@@ -239,9 +239,10 @@ fn parse_file_timestamp(filename: &str) -> Option<DateTime<Utc>> {
             .strip_suffix(".parquet")?;
         // Find the second timestamp (after the hyphen between timestamps)
         // Format: YYYYMMDDTHHMMSSZ-YYYYMMDDTHHMMSSZ
-        if rest.len() >= 31 {
-            // 15 chars for first timestamp + 1 hyphen + 15 chars for second
-            let end_ts = &rest[16..]; // Skip first timestamp and hyphen
+        // First timestamp is 16 chars (YYYYMMDD + T + HHMMSS + Z), hyphen at index 16, second starts at 17
+        if rest.len() >= 33 {
+            // 16 chars for first timestamp + 1 hyphen + 16 chars for second = 33
+            let end_ts = &rest[17..]; // Skip first timestamp and hyphen
             parse_iso_compact(end_ts)
         } else {
             None
@@ -620,7 +621,23 @@ impl LazyDataStore {
         }
 
         // REQ-MV-037: Filter results by time range cutoff
-        if let Some(cutoff_ms) = time_range.cutoff_ms() {
+        // For historical/exported data, use the data's latest timestamp as reference
+        // instead of wall-clock time. This ensures old data is still visible.
+        if let Some(lookback) = time_range.to_duration() {
+            let now = Utc::now();
+            let index = self.index.read().unwrap();
+            let data_latest = index.data_range.latest;
+            drop(index);
+
+            // If data is stale (latest data is before our lookback window),
+            // use the data's latest timestamp as the reference point
+            let reference_time = if data_latest < now - lookback {
+                data_latest
+            } else {
+                now
+            };
+            let cutoff_ms = (reference_time - lookback).timestamp_millis();
+
             result = result
                 .into_iter()
                 .map(|(id, points)| {
@@ -643,13 +660,25 @@ impl LazyDataStore {
     pub fn get_containers_by_recency(&self, time_range: TimeRange) -> Vec<ContainerInfo> {
         let start = std::time::Instant::now();
 
+        let index = self.index.read().unwrap();
+
         // Calculate cutoff time for filtering
+        // For historical/exported data, use the data's latest timestamp as reference
+        // instead of wall-clock time. This ensures old data is still visible.
         let cutoff_ms = time_range.to_duration().map(|d| {
             let now = Utc::now();
-            (now - d).timestamp_millis()
-        });
+            let data_latest = index.data_range.latest;
 
-        let index = self.index.read().unwrap();
+            // If data is stale (latest data is before our lookback window),
+            // use the data's latest timestamp as the reference point
+            let reference_time = if data_latest < now - d {
+                data_latest
+            } else {
+                now
+            };
+
+            (reference_time - d).timestamp_millis()
+        });
         // Pre-allocate based on index size (filter will reduce but avoids reallocation)
         let mut containers: Vec<ContainerInfo> = Vec::with_capacity(index.containers.len());
         containers.extend(index.containers.values().filter(|c| {
