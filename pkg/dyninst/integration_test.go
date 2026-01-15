@@ -201,7 +201,7 @@ func testDyninst(
 					Service:    service,
 				},
 				RuntimeID:         runtimeID,
-				Probes:            probes,
+				Probes:            slices.Clone(probes),
 				ShouldUploadSymDB: false,
 			},
 		},
@@ -388,6 +388,7 @@ func runIntegrationTestSuite(
 			for _, debug := range []bool{false, true} {
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
+					probeSlice = slices.Clone(probeSlice)
 					actual := testDyninst(
 						t, service, cfg, bin, probeSlice, resultNames, rewrite, expectedOutput,
 						debug, sem, collector,
