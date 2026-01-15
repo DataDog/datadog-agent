@@ -334,6 +334,9 @@ func (p *EBPFResolver) AddExecEntry(event *model.Event) error {
 
 // ApplyExitEntry delete entry from the local cache if present
 func (p *EBPFResolver) ApplyExitEntry(event *model.Event, newEntryCb func(*model.ProcessCacheEntry, error)) bool {
+	p.Lock()
+	defer p.Unlock()
+
 	event.ProcessCacheEntry = p.resolve(event.PIDContext.Pid, event.PIDContext.Tid, event.PIDContext.ExecInode, false, newEntryCb)
 	if event.ProcessCacheEntry == nil {
 		// no need to dispatch an exit event that don't have the corresponding cache entry
