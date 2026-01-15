@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.opentelemetry.io/collector/confmap"
 )
 
@@ -266,6 +267,62 @@ func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 
 	if !hasOtlpHTTP {
 		return errors.New("no otlphttp exporter configured in profiles pipeline")
+	}
+
+	return nil
+}
+
+var (
+	profilerNameResourceProcessorElement = confMap{
+		"key":    "profiler_name",
+		"value":  "host_profiler",
+		"action": "upsert",
+	}
+	profilerVersionResourceProcessorElement = confMap{
+		"key":    "profiler_version",
+		"value":  version.AgentPackageVersion,
+		"action": "upsert",
+	}
+)
+
+func addProfilerMetadataTags(conf confMap) error {
+	processors, err := Ensure[[]any](conf, "service::pipelines::profiles::processors")
+	if err != nil {
+		return err
+	}
+
+	resourceProcessorName := "resource/default"
+	isResourceProcessorInPipeline := false
+	for _, processorAny := range processors {
+		// by that point, processors pipeline has been verified to be only strings
+		processor := processorAny.(string)
+		if isComponentType(processor, "resource") {
+			resourceProcessorName = processor
+			isResourceProcessorInPipeline = true
+			break
+		}
+	}
+
+	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
+	if err != nil {
+		return err
+	}
+
+	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
+	if err != nil {
+		return err
+	}
+	attributes = append(attributes, profilerNameResourceProcessorElement)
+	attributes = append(attributes, profilerVersionResourceProcessorElement)
+	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
+		return err
+	}
+
+	if !isResourceProcessorInPipeline {
+		processors = append(processors, resourceProcessorName)
+		if err := Set(conf, "service::pipelines::profiles::processors", processors); err != nil {
+			return err
+		}
 	}
 
 	return nil
