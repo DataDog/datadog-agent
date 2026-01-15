@@ -100,6 +100,14 @@ UNIX_BINS = [
     "python3.13"
 ]
 
+python_deps = {
+    'libffi': '-lffi',
+    'libsqlite3': '-lsqlite3',
+    'zlib': '-lz',
+    'bzip2': '-lbz2',
+    'liblzma': '-llzma'
+}
+
 configure_make(
     name = "python_unix",
     configure_options = [
@@ -124,14 +132,12 @@ configure_make(
     ],
     env = {
         "OPT": "-DNDEBUG -fwrapv",
-        # manually provide some dependencies cflags/ldflags instead of
-        # relying on pkg-config
-        "ZLIB_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
-        "ZLIB_LIBS": "-lz",
-        "BZIP2_CFLAGS": "-I$$EXT_BUILD_DEPS/include",
-        "BZIP2_LIBS": "-lbz2",
         # Ensure we don't use the system provided .pc
         "PKG_CONFIG_LIBDIR": "/does/not/exist",
+    } | {
+        dep.upper() + '_CFLAGS': "-I$$EXT_BUILD_DEPS/include" for dep in python_deps.keys()
+    } | {
+        dep.upper() + '_LIBS': lib for dep, lib in python_deps.items()
     } | select({
             "@platforms//os:macos": {
                 # https://github.com/bazelbuild/bazel/issues/5127
@@ -153,7 +159,6 @@ configure_make(
     deps = [
         "@libffi//:libffi",
         "@openssl//:openssl",
-        "@libyaml//:libyaml",
         "@sqlite3//:libsqlite3",
         "@zlib//:zlib",
         "@bzip2//:libbz2",
@@ -162,7 +167,6 @@ configure_make(
     dynamic_deps = [
         "@zlib//:z",
         "@bzip2//:bz2",
-        "@libyaml//:yaml",
         "@sqlite3//:sqlite3",
         "@libffi//:ffi",
         "@xz//:lzma",
