@@ -54,42 +54,6 @@ func setupFakeMetricsProvider(mockMetricsProvider metrics.Provider) func() {
 	return func() { metrics.GetProvider = originalMetricsProvider }
 }
 
-func TestAccumulateTagsFor(t *testing.T) {
-	entityID := types.NewEntityID(types.ContainerID, "entity_name")
-
-	mockReq := MockRequires{
-		Config:    configmock.New(t),
-		Log:       logmock.New(t),
-		Telemetry: noopTelemetry.GetCompatComponent(),
-	}
-	mockReq.WorkloadMeta = fxutil.Test[workloadmeta.Component](t,
-		fx.Provide(func() config.Component { return mockReq.Config }),
-		fx.Provide(func() log.Component { return mockReq.Log }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-	fakeTagger := NewMock(mockReq).Comp
-	tagStore := fakeTagger.GetTagStore()
-
-	tagStore.ProcessTagInfo([]*types.TagInfo{
-		{
-			EntityID:     entityID,
-			Source:       "stream",
-			LowCardTags:  []string{"low1"},
-			HighCardTags: []string{"high"},
-		},
-		{
-			EntityID:    entityID,
-			Source:      "pull",
-			LowCardTags: []string{"low2"},
-		},
-	})
-
-	tb := tagset.NewHashlessTagsAccumulator()
-	err := fakeTagger.AccumulateTagsFor(entityID, types.HighCardinality, tb)
-	assert.NoError(t, err)
-	assert.ElementsMatch(t, []string{"high", "low1", "low2"}, tb.Get())
-}
-
 func TestTag(t *testing.T) {
 	entityID := types.NewEntityID(types.ContainerID, "123")
 
@@ -123,6 +87,10 @@ func TestTag(t *testing.T) {
 		},
 	})
 
+	noneCardTags, err := fakeTagger.Tag(entityID, types.NoneCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{}, noneCardTags)
+
 	lowCardTags, err := fakeTagger.Tag(entityID, types.LowCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2"}, lowCardTags)
@@ -134,6 +102,10 @@ func TestTag(t *testing.T) {
 	highCardTags, err := fakeTagger.Tag(entityID, types.HighCardinality)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"low1", "low2", "orchestrator1", "orchestrator2", "high1", "high2"}, highCardTags)
+
+	undefinedTags, err := fakeTagger.Tag(types.NewEntityID(types.ContainerID, "undefined-entity"), types.HighCardinality)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, []string{}, undefinedTags)
 }
 
 func TestGenerateContainerIDFromOriginInfo(t *testing.T) {

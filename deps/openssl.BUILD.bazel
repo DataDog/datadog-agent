@@ -7,7 +7,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
-    name = "all",
+    name = "all_srcs",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
@@ -115,7 +115,7 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    lib_source = ":all",
+    lib_source = ":all_srcs",
     out_include_dir = "include",
     out_static_libs = select({
         "@platforms//os:windows": [
@@ -135,7 +135,7 @@ configure_make(
         ],
         "//conditions:default": [],
     }),
-    out_pc_dir = "lib/pkgconfig",
+    out_data_dirs = ["lib/pkgconfig"],
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,

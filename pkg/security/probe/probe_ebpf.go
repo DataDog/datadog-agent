@@ -802,6 +802,16 @@ func (p *EBPFProbe) Start() error {
 	return p.eventStream.Start(&p.wg)
 }
 
+// ReplayEvents replays the events from the rule set
+func (p *EBPFProbe) ReplayEvents() {
+	p.replayEventsState.Store(true)
+
+	// trigger a nop event to ensure that the replayed events are processed
+	if err := p.triggerNopEvent(); err != nil {
+		seclog.Warnf("unable to trigger nop event: %v", err)
+	}
+}
+
 func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	seclog.Debugf("playing the snapshot")
 
@@ -1593,6 +1603,14 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			seclog.Debugf("failed to add tracer metadata: %s (pid %d, fd %d)", err, event.PIDContext.Pid, event.TracerMemfdSeal.Fd)
 		}
 		// Second handle for exec event because the context is required to detect a ssh session
+	case model.CgroupWriteEventType:
+		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
+			return false
+		}
+		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
+			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
+		}
 	case model.ExecEventType:
 		p.HandleSSHUserSession(event)
 
@@ -1681,15 +1699,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			}
 
 			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-		}
-		return false
-	case model.CgroupWriteEventType:
-		if _, err = event.CgroupWrite.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode cgroup write released event: %s (offset %d, len %d)", err, offset, dataLen)
-			return false
-		}
-		if _, err := p.resolveCGroup(event.CgroupWrite.Pid, event.CgroupWrite.File.PathKey, newEntryCb); err != nil {
-			seclog.Debugf("Failed to resolve cgroup: %s", err.Error())
 		}
 		return false
 	case model.UnshareMountNsEventType:
@@ -2417,16 +2426,16 @@ func isRawPacketActionPresent(rs *rules.RuleSet) bool {
 }
 
 // ApplyRuleSet apply the required update to handle the new ruleset
-func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, error) {
+func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, bool, error) {
 	if p.opts.SyscallsMonitorEnabled {
 		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
 	filterReport, err := kfilters.ComputeFilters(p.config.Probe, rs)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err := applyDNSDefaultDropMaskFromRules(p.Manager, rs); err != nil {
@@ -2439,16 +2448,16 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 		if err := p.setApprovers(eventType, report.Approvers); err != nil {
 			seclog.Errorf("Error while adding approvers fallback in-kernel policy to `%s` for `%s`: %s", kfilters.PolicyModeAccept, eventType, err)
 			if err := fpb.add(eventType, kfilters.PolicyModeAccept); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		} else {
 			if err := fpb.add(eventType, report.Mode); err != nil {
-				return nil, err
+				return nil, false, err
 			}
 		}
 	}
 	if err := fpb.apply(p.Manager); err != nil {
-		return nil, fmt.Errorf("unable to apply to filter policy: %w", err)
+		return nil, false, fmt.Errorf("unable to apply to filter policy: %w", err)
 	}
 
 	eventTypes := rs.GetEventTypes()
@@ -2489,15 +2498,15 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
-		return nil, fmt.Errorf("failed to select probes: %w", err)
+		return nil, false, fmt.Errorf("failed to select probes: %w", err)
 	}
 
 	if p.opts.SyscallsMonitorEnabled {
 		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
@@ -2521,18 +2530,10 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, err
 	}
 
 	// do not replay the snapshot if we are in the first rule set version, this was already done in the start method
-	if p.ruleSetVersion != 0 {
-		p.replayEventsState.Store(true)
-	}
-
+	replayEvents := p.ruleSetVersion != 0
 	p.ruleSetVersion++
 
-	// trigger a nop event to ensure that the replayed events are processed
-	if err := p.triggerNopEvent(); err != nil {
-		seclog.Warnf("unable to trigger nop event: %v", err)
-	}
-
-	return filterReport, nil
+	return filterReport, replayEvents, nil
 }
 
 // OnNewRuleSetLoaded resets statistics and states once a new rule set is loaded

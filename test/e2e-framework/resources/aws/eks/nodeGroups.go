@@ -21,8 +21,6 @@ import (
 )
 
 const (
-	amazonLinux2AMD64AmiType    = "AL2_x86_64"
-	amazonLinux2ARM64AmiType    = "AL2_ARM_64"
 	amazonLinux2023AMD64AmiType = "AL2023_x86_64_STANDARD"
 	amazonLinux2023ARM64AmiType = "AL2023_ARM_64_STANDARD"
 	bottlerocketAmiType         = "BOTTLEROCKET_x86_64"
@@ -48,14 +46,6 @@ func NewAL2023LinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRol
 	}
 
 	return newManagedNodeGroup(e, name, cluster, nodeRole, amazonLinux2023ARM64AmiType, e.DefaultARMInstanceType(), lt, opts...)
-}
-
-func NewLinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "linux", cluster, nodeRole, amazonLinux2AMD64AmiType, e.DefaultInstanceType(), nil, opts...)
-}
-
-func NewLinuxARMNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
-	return newManagedNodeGroup(e, "linux-arm", cluster, nodeRole, amazonLinux2ARM64AmiType, e.DefaultARMInstanceType(), nil, opts...)
 }
 
 func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
@@ -139,8 +129,14 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 		)
 	}
 
+	releaseVersion, err := GetNodesVersion(amiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+
 	// common args
 	args := &eks.ManagedNodeGroupArgs{
+		ReleaseVersion:      pulumi.String(releaseVersion),
 		AmiType:             pulumi.StringPtr(amiType),
 		Cluster:             cluster.Core,
 		InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),
