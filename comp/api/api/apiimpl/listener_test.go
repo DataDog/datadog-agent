@@ -43,7 +43,7 @@ func TestGetIPCServerPath(t *testing.T) {
 
 		path, enabled := getIPCServerPath()
 		require.True(t, enabled)
-		require.Equal(t, "/var/run/datadog/agent_ipc.socket", path)
+		require.Equal(t, "/opt/datadog-agent/run/agent_ipc.socket", path)
 	})
 }
 
