@@ -111,10 +111,6 @@ func sendPrName(s string) error {
 	return unix.Prctl(syscall.PR_SET_NAME, uintptr(ptr), 0, 0, 0)
 }
 
-// TODO: Tomorrow
-// This test had to be moved here, but there should be a way to make the discarder work
-// with the ruleset of the first test, or we risk having a footgun when someone writes more than one prctl rule
-// Check exactly how
 func TestPrCtlDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 

@@ -611,7 +611,7 @@ func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Di
 
 	name := value.(string)
 	if len(name) > 16 {
-		return false, fmt.Errorf("prctl name length exceeded the maximum of 16 bytes")
+		return false, errors.New("prctl name length exceeded the maximum of 16 bytes")
 	}
 
 	probe.erpcRequest.OP = erpc.DiscardPrctlOp
