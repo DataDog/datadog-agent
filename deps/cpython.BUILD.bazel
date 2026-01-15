@@ -108,6 +108,15 @@ python_deps = {
     'liblzma': '-llzma'
 }
 
+# The list of build tools we want to override in sysconfigdata.py
+# as they will not be available when building custom integrations without bazel
+build_tools = [
+    'ar',
+    'gcc',
+    'g++',
+    'ld',
+]
+
 configure_make(
     name = "python_unix",
     configure_options = [
@@ -182,6 +191,11 @@ configure_make(
         "@platforms//os:linux": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
+    postfix_script = " && ".join([
+        "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python3.13/_sysconfigdata__*.py".format(
+            tool=tool
+        ) for tool in build_tools
+    ])
 )
 
 pkg_files(
