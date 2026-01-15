@@ -107,6 +107,16 @@ type Telemetry struct {
 	Protocol_classifier_entrypoint_empty_stack_calls                 uint64
 	Socket_classifier_entry_calls                                    uint64
 	Socket_classifier_entry_time_ns                                  uint64
+	Protocol_stack_created_empty_calls                               uint64
+	Protocol_classifier_detected_http_calls                          uint64
+	Protocol_classifier_detected_http2_calls                         uint64
+	Protocol_classifier_detected_tls_calls                           uint64
+	Protocol_classifier_detected_unknown_calls                       uint64
+	Protocol_classifier_mark_fully_classified_calls                  uint64
+	Protocol_classifier_classified_after_1_attempt                   uint64
+	Protocol_classifier_classified_after_2_attempts                  uint64
+	Protocol_classifier_classified_after_3_attempts                  uint64
+	Protocol_classifier_classified_after_4_plus_attempts             uint64
 }
 type PortBinding struct {
 	Netns     uint32

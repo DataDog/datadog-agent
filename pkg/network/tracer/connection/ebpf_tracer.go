@@ -815,6 +815,14 @@ func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
 	return result
 }
 
+// safePercent calculates percentage safely, returning 0 if total is 0
+func safePercent(value, total int64) float64 {
+	if total == 0 {
+		return 0.0
+	}
+	return float64(value) * 100.0 / float64(total)
+}
+
 // logTelemetryMetrics logs the current telemetry metrics with calculated averages
 // Should be called periodically (e.g., from GetConnections)
 func (t *ebpfTracer) logTelemetryMetrics() {
@@ -981,11 +989,34 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		stackNotFullyClassifiedCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_stack_not_fully_classified_calls)
 		flagSetButNotClassified := int64(ebpfTelemetry.Protocol_classifier_entrypoint_flag_set_but_not_classified_calls)
 		hasAppLayerNoFlag := int64(ebpfTelemetry.Protocol_classifier_entrypoint_has_app_layer_no_flag_calls)
-		log.Infof("JMW   debug (cumulative): no_protocol_stack=%d, stack_not_fully_classified=%d",
-			noProtocolStackCalls, stackNotFullyClassifiedCalls)
 		emptyStackCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_empty_stack_calls)
-		log.Infof("JMW   debug2 (cumulative): flag_set_but_not_classified=%d, has_app_layer_no_flag=%d, empty_stack=%d",
-			flagSetButNotClassified, hasAppLayerNoFlag, emptyStackCalls)
+		log.Infof("JMW   debug (cumulative): no_protocol_stack=%d, stack_not_fully_classified=%d, empty_stack=%d",
+			noProtocolStackCalls, stackNotFullyClassifiedCalls, emptyStackCalls)
+		log.Infof("JMW   debug2 (cumulative): flag_set_but_not_classified=%d, has_app_layer_no_flag=%d",
+			flagSetButNotClassified, hasAppLayerNoFlag)
+
+		// Stack creation and protocol detection (cumulative)
+		stackCreatedEmpty := int64(ebpfTelemetry.Protocol_stack_created_empty_calls)
+		detectedHTTP := int64(ebpfTelemetry.Protocol_classifier_detected_http_calls)
+		detectedHTTP2 := int64(ebpfTelemetry.Protocol_classifier_detected_http2_calls)
+		detectedTLS := int64(ebpfTelemetry.Protocol_classifier_detected_tls_calls)
+		detectedUnknown := int64(ebpfTelemetry.Protocol_classifier_detected_unknown_calls)
+		markFullyClassified := int64(ebpfTelemetry.Protocol_classifier_mark_fully_classified_calls)
+		log.Infof("JMW   stack_creation (cumulative): created_empty=%d", stackCreatedEmpty)
+		log.Infof("JMW   protocol_detection (cumulative): http=%d, http2=%d, tls=%d, unknown=%d, mark_fully_classified=%d",
+			detectedHTTP, detectedHTTP2, detectedTLS, detectedUnknown, markFullyClassified)
+
+		// Classification attempt histogram (cumulative) - shows how many attempts before fully classified
+		after1 := int64(ebpfTelemetry.Protocol_classifier_classified_after_1_attempt)
+		after2 := int64(ebpfTelemetry.Protocol_classifier_classified_after_2_attempts)
+		after3 := int64(ebpfTelemetry.Protocol_classifier_classified_after_3_attempts)
+		after4Plus := int64(ebpfTelemetry.Protocol_classifier_classified_after_4_plus_attempts)
+		totalClassified := after1 + after2 + after3 + after4Plus
+		log.Infof("JMW   classification_attempts_histogram (cumulative): 1_attempt=%d (%.1f%%), 2_attempts=%d (%.1f%%), 3_attempts=%d (%.1f%%), 4+_attempts=%d (%.1f%%)",
+			after1, safePercent(after1, totalClassified),
+			after2, safePercent(after2, totalClassified),
+			after3, safePercent(after3, totalClassified),
+			after4Plus, safePercent(after4Plus, totalClassified))
 
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)

@@ -175,6 +175,19 @@ typedef struct {
     // socket classifier entry timing metrics
     __u64 socket_classifier_entry_calls;
     __u64 socket_classifier_entry_time_ns;
+    // Stack creation tracking
+    __u64 protocol_stack_created_empty_calls;
+    // Classification outcome tracking
+    __u64 protocol_classifier_detected_http_calls;
+    __u64 protocol_classifier_detected_http2_calls;
+    __u64 protocol_classifier_detected_tls_calls;
+    __u64 protocol_classifier_detected_unknown_calls;
+    __u64 protocol_classifier_mark_fully_classified_calls;
+    // Classification attempt histogram (attempts before fully classified)
+    __u64 protocol_classifier_classified_after_1_attempt;
+    __u64 protocol_classifier_classified_after_2_attempts;
+    __u64 protocol_classifier_classified_after_3_attempts;
+    __u64 protocol_classifier_classified_after_4_plus_attempts;
 } telemetry_t;
 
 typedef struct {

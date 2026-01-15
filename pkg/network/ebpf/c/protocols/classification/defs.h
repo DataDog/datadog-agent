@@ -110,6 +110,8 @@ typedef struct {
 typedef struct {
     __u64 updated;
     protocol_stack_t stack;
+    __u16 classification_attempts; // Number of times classification was attempted for this connection
+    __u16 _pad[3]; // Padding for alignment
 } protocol_stack_wrapper_t;
 
 typedef enum {

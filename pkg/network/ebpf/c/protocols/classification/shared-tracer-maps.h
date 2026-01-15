@@ -4,6 +4,7 @@
 #include "map-defs.h"
 #include "port_range.h"
 #include "protocols/classification/stack-helpers.h"
+#include "tracer/telemetry.h"
 
 // Maps a connection tuple to its classified protocol. Used to reduce redundant
 // classification procedures on the same connection
@@ -15,13 +16,39 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
-static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+// Returns the wrapper (not just the stack) for access to classification_attempts
+static __always_inline protocol_stack_wrapper_t* __get_protocol_stack_wrapper_if_exists(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {
         return NULL;
     }
     wrapper->updated = bpf_ktime_get_ns();
+    return wrapper;
+}
+
+static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = __get_protocol_stack_wrapper_if_exists(tuple);
+    if (!wrapper) {
+        return NULL;
+    }
     return &wrapper->stack;
+}
+
+// Returns the wrapper for the given connection tuple (for tracking classification attempts)
+static __always_inline protocol_stack_wrapper_t* get_protocol_stack_wrapper_if_exists(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_protocol_stack_wrapper_if_exists(&normalized_tup);
+}
+
+// Increment classification attempts for a connection and return the new count
+static __always_inline __u16 increment_classification_attempts(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(tuple);
+    if (!wrapper) {
+        return 0;
+    }
+    // Use atomic increment to handle concurrent access
+    return __sync_fetch_and_add(&wrapper->classification_attempts, 1) + 1;
 }
 
 // Returns the protocol_stack_t associated with the given connection tuple.
@@ -37,13 +64,16 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
 static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
     conn_tuple_t normalized_tup = *skb_tup;
     normalize_tuple(&normalized_tup);
-    protocol_stack_t *wrapper = __get_protocol_stack_if_exists(&normalized_tup);
-    if (wrapper) {
-        return wrapper;
+    protocol_stack_t *stack = __get_protocol_stack_if_exists(&normalized_tup);
+    if (stack) {
+        return stack;
     }
 
     // this code path is executed once during the entire connection lifecycle
     protocol_stack_wrapper_t empty_wrapper = {0};
+
+    // Track that we're creating an empty stack
+    increment_telemetry_count(protocol_stack_created_empty_calls);
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.

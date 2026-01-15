@@ -80,7 +80,7 @@ static __always_inline void classify_grpc(classification_context_t *classificati
 
     // Whether the traffic is gRPC or not, we can mark the stack as fully
     // classified now.
-    mark_as_fully_classified(protocol_stack);
+    mark_as_fully_classified_with_telemetry(protocol_stack, &classification_ctx->tuple);
 }
 
 // Checks if a given buffer is http, http2, gRPC.
@@ -139,6 +139,42 @@ static __always_inline protocol_t classify_queue_protocols(struct __sk_buff *skb
             __sync_fetch_and_add(&val->time_field_name, duration); \
         } \
     } while(0)
+
+// Helper to record classification attempt histogram when a connection becomes fully classified
+static __always_inline void record_classification_attempt_histogram(__u16 attempts) {
+    if (attempts == 0) {
+        return;
+    }
+    if (attempts == 1) {
+        increment_telemetry_count(protocol_classifier_classified_after_1_attempt);
+    } else if (attempts == 2) {
+        increment_telemetry_count(protocol_classifier_classified_after_2_attempts);
+    } else if (attempts == 3) {
+        increment_telemetry_count(protocol_classifier_classified_after_3_attempts);
+    } else {
+        increment_telemetry_count(protocol_classifier_classified_after_4_plus_attempts);
+    }
+}
+
+// Helper to track when mark_as_fully_classified is called and record the attempt histogram
+static __always_inline void mark_as_fully_classified_with_telemetry(protocol_stack_t *stack, conn_tuple_t *tuple) {
+    if (!stack) {
+        return;
+    }
+    
+    // Only record telemetry if this is the first time we're marking as fully classified
+    if (!(stack->flags & FLAG_FULLY_CLASSIFIED)) {
+        increment_telemetry_count(protocol_classifier_mark_fully_classified_calls);
+        
+        // Record the histogram of classification attempts
+        protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(tuple);
+        if (wrapper) {
+            record_classification_attempt_histogram(wrapper->classification_attempts);
+        }
+    }
+    
+    stack->flags |= FLAG_FULLY_CLASSIFIED;
+}
 
 // A shared implementation for the runtime & prebuilt socket filter that classifies the protocols of the connections.
 __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct __sk_buff *skb) {
@@ -200,6 +236,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Increment classification attempts for this connection (only if we're doing actual classification work)
+    increment_classification_attempts(&classification_ctx->tuple);
+
     bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
 
     // Load information that will be later on used to route tail-calls
@@ -217,6 +256,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             return;
         }
         // TLS classification
+        increment_telemetry_count(protocol_classifier_detected_tls_calls);
         update_protocol_information(classification_ctx, protocol_stack, PROTOCOL_TLS);
         if (tls_hdr.content_type != TLS_HANDSHAKE) {
             // If the TLS record is not a handshake, we can stop here as we've already marked the protocol as TLS
@@ -260,6 +300,14 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         if (!protocol_stack) {
             return;
         }
+        
+        // Track which protocol was detected
+        if (app_layer_proto == PROTOCOL_HTTP) {
+            increment_telemetry_count(protocol_classifier_detected_http_calls);
+        } else if (app_layer_proto == PROTOCOL_HTTP2) {
+            increment_telemetry_count(protocol_classifier_detected_http2_calls);
+        }
+        
         update_protocol_information(classification_ctx, protocol_stack, app_layer_proto);
 
         if (app_layer_proto == PROTOCOL_HTTP2) {
@@ -267,9 +315,12 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
             goto next_program;
         }
 
-        mark_as_fully_classified(protocol_stack);
+        mark_as_fully_classified_with_telemetry(protocol_stack, &classification_ctx->tuple);
         return;
     }
+
+    // No protocol detected - track as unknown
+    increment_telemetry_count(protocol_classifier_detected_unknown_calls);
 
  next_program:
     classification_next_program(skb, classification_ctx);
@@ -323,7 +374,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
         return;
     }
     update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
-    mark_as_fully_classified(protocol_stack);
+    mark_as_fully_classified_with_telemetry(protocol_stack, &classification_ctx->tuple);
 
  next_program:
     classification_next_program(skb, classification_ctx);
@@ -347,7 +398,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     }
 
     update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
-    mark_as_fully_classified(protocol_stack);
+    mark_as_fully_classified_with_telemetry(protocol_stack, &classification_ctx->tuple);
  next_program:
     classification_next_program(skb, classification_ctx);
 }
