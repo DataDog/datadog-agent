@@ -97,8 +97,8 @@ type EbpfTracerTelemetryData struct {
 	// protocol classifier timing metrics (prometheus)
 	protocolClassifierReadConnTupleFailedCalls  *prometheus.Desc
 	protocolClassifierReadConnTupleFailedTimeNs *prometheus.Desc
-	protocolClassifierNotTcpOrEmptyCalls        *prometheus.Desc
-	protocolClassifierNotTcpOrEmptyTimeNs       *prometheus.Desc
+	protocolClassifierNotTCPOrEmptyCalls        *prometheus.Desc
+	protocolClassifierNotTCPOrEmptyTimeNs       *prometheus.Desc
 	protocolClassifierContextInitFailedCalls    *prometheus.Desc
 	protocolClassifierContextInitFailedTimeNs   *prometheus.Desc
 	protocolClassifierAlreadyClassifiedCalls    *prometheus.Desc
@@ -148,8 +148,8 @@ type EbpfTracerTelemetryData struct {
 	// protocol classifier timing metrics last values
 	lastProtocolClassifierReadConnTupleFailedCalls  int64
 	lastProtocolClassifierReadConnTupleFailedTimeNs int64
-	lastProtocolClassifierNotTcpOrEmptyCalls        int64
-	lastProtocolClassifierNotTcpOrEmptyTimeNs       int64
+	lastProtocolClassifierNotTCPOrEmptyCalls        int64
+	lastProtocolClassifierNotTCPOrEmptyTimeNs       int64
 	lastProtocolClassifierContextInitFailedCalls    int64
 	lastProtocolClassifierContextInitFailedTimeNs   int64
 	lastProtocolClassifierAlreadyClassifiedCalls    int64
@@ -251,8 +251,8 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	0, // lastNetDevQueueNotEqualTimeNs
 	0, // lastProtocolClassifierReadConnTupleFailedCalls
 	0, // lastProtocolClassifierReadConnTupleFailedTimeNs
-	0, // lastProtocolClassifierNotTcpOrEmptyCalls
-	0, // lastProtocolClassifierNotTcpOrEmptyTimeNs
+	0, // lastProtocolClassifierNotTCPOrEmptyCalls
+	0, // lastProtocolClassifierNotTCPOrEmptyTimeNs
 	0, // lastProtocolClassifierContextInitFailedCalls
 	0, // lastProtocolClassifierContextInitFailedTimeNs
 	0, // lastProtocolClassifierAlreadyClassifiedCalls
@@ -947,10 +947,10 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		// Not TCP or empty payload
-		notTcpOrEmptyCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls) - EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls
-		avgNotTcpOrEmptyTime := float64(0)
-		if notTcpOrEmptyCalls > 0 {
-			avgNotTcpOrEmptyTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs) / float64(notTcpOrEmptyCalls)
+		notTCPOrEmptyCalls := int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls) - EbpfTracerTelemetry.lastProtocolClassifierNotTCPOrEmptyCalls
+		avgNotTCPOrEmptyTime := float64(0)
+		if notTCPOrEmptyCalls > 0 {
+			avgNotTCPOrEmptyTime = float64(int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)-EbpfTracerTelemetry.lastProtocolClassifierNotTCPOrEmptyTimeNs) / float64(notTCPOrEmptyCalls)
 		}
 
 		// Context init failed
@@ -986,13 +986,13 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		// Early exits: read_conn_tuple_failed, not_tcp_or_empty, context_init_failed,
 		//              already_classified, max_attempts_exceeded, gave_up
 		// Full classification: everything else (actual protocol detection work)
-		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
+		earlyExitTotalCalls := readConnTupleFailedCalls + notTCPOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
 		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
 		avgFullClassificationTime := float64(0)
 		if fullClassificationCalls > 0 {
 			totalTimeNs := float64(socketClassifierCalls) * avgSocketClassifierTime
 			earlyExitTimeNs := float64(readConnTupleFailedCalls)*avgReadConnTupleFailedTime +
-				float64(notTcpOrEmptyCalls)*avgNotTcpOrEmptyTime +
+				float64(notTCPOrEmptyCalls)*avgNotTCPOrEmptyTime +
 				float64(contextInitFailedCalls)*avgContextInitFailedTime +
 				float64(alreadyClassifiedCalls)*avgAlreadyClassifiedTime +
 				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime +
@@ -1007,7 +1007,7 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		log.Infof("JMW   early_exit: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns), gave_up=%d (avg %.2fns)",
 			earlyExitTotalCalls, safePercent(earlyExitTotalCalls, socketClassifierCalls),
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
-			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
+			notTCPOrEmptyCalls, avgNotTCPOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,
 			alreadyClassifiedCalls, avgAlreadyClassifiedTime,
 			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime,
@@ -1055,8 +1055,8 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		EbpfTracerTelemetry.lastSocketClassifierEntryTimeNs = int64(ebpfTelemetry.Socket_classifier_entry_time_ns)
 		EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls)
 		EbpfTracerTelemetry.lastProtocolClassifierReadConnTupleFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns)
-		EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls)
-		EbpfTracerTelemetry.lastProtocolClassifierNotTcpOrEmptyTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)
+		EbpfTracerTelemetry.lastProtocolClassifierNotTCPOrEmptyCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls)
+		EbpfTracerTelemetry.lastProtocolClassifierNotTCPOrEmptyTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns)
 		EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls)
 		EbpfTracerTelemetry.lastProtocolClassifierContextInitFailedTimeNs = int64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns)
 		EbpfTracerTelemetry.lastProtocolClassifierAlreadyClassifiedCalls = int64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls)
@@ -1105,8 +1105,8 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.netDevQueueNotEqualTimeNs
 	ch <- EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls
 	ch <- EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs
-	ch <- EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls
-	ch <- EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs
+	ch <- EbpfTracerTelemetry.protocolClassifierNotTCPOrEmptyCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierNotTCPOrEmptyTimeNs
 	ch <- EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls
 	ch <- EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs
 	ch <- EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls
@@ -1217,8 +1217,8 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	// to avoid interference between Prometheus scraping and logging intervals.
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_calls))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierReadConnTupleFailedTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_read_conn_tuple_failed_time_ns))
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls))
-	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTcpOrEmptyTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTCPOrEmptyCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_calls))
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierNotTCPOrEmptyTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_not_tcp_or_empty_time_ns))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_calls))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierContextInitFailedTimeNs, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_context_init_failed_time_ns))
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierAlreadyClassifiedCalls, prometheus.CounterValue, float64(ebpfTelemetry.Protocol_classifier_entrypoint_already_classified_calls))
