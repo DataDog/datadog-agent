@@ -300,7 +300,6 @@ pkg_install(
         ":libcrypto_with_symlink",
     ] + select({
         "@platforms//os:windows": [
-            ":dll_a",
             ":openssl_exe_file",
         ],
         "//conditions:default": [
