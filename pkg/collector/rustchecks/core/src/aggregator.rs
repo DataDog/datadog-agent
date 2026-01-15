@@ -121,7 +121,7 @@ impl Aggregator {
     }
 
     pub fn from_ptr(ptr: *const Aggregator) -> Self {
-        unsafe { *ptr }
+        unsafe { *ptr }.clone()
     }
 
     pub fn submit_metric(&self, check_id: &str, metric_type: MetricType, name: &str, value: f64, tags: &[String], hostname: &str, flush_first_value: bool) -> Result<()> {

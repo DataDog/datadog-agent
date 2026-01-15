@@ -2,9 +2,11 @@
 #[macro_export]
 macro_rules! generate_ffi {
     ($check_function:ident, $version:ident) => {
+        use std::ffi;
+
         /// Entrypoint of the check
         #[unsafe(no_mangle)]
-        pub extern "C" fn Run(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut core::Aggregator, error_handler: *mut *mut std::ffi::c_char) {
+        pub extern "C" fn Run(check_id_str: *const ffi::c_char, init_config_str: *const ffi::c_char, instance_config_str: *const ffi::c_char, aggregator_ptr: *const core::Aggregator, error_handler: *mut *mut ffi::c_char) {
             if let Err(e) = create_and_run_check(check_id_str, init_config_str, instance_config_str, aggregator_ptr) {
                 let cstr_ptr = core::to_cstring(&e.to_string())
                     .unwrap_or(core::to_cstring("").unwrap());
@@ -13,7 +15,7 @@ macro_rules! generate_ffi {
         }
 
         /// Build the check structure and execute its custom implementation
-        fn create_and_run_check(check_id_str: *mut std::ffi::c_char, init_config_str: *mut std::ffi::c_char, instance_config_str: *mut std::ffi::c_char, aggregator_ptr: *mut core::Aggregator) -> anyhow::Result<()> {
+        fn create_and_run_check(check_id_str: *const ffi::c_char, init_config_str: *const ffi::c_char, instance_config_str: *const ffi::c_char, aggregator_ptr: *const core::Aggregator) -> anyhow::Result<()> {
             // convert C args to Rust structs
             let check_id = core::to_rust_string(check_id_str)?;
 
@@ -31,7 +33,7 @@ macro_rules! generate_ffi {
 
         /// Get the version of the check
         #[unsafe(no_mangle)]
-        pub extern "C" fn Version() -> *const std::ffi::c_char {
+        pub extern "C" fn Version() -> *const ffi::c_char {
             $version.as_ptr()
         }
     }
