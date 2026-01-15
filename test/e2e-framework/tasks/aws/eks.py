@@ -69,8 +69,10 @@ def create_eks(
     """
 
     # When GPU node group is enabled, disable other node groups for a GPU-only cluster
+    # GPU instances are x86_64 only, so ARM is incompatible
     if gpu_node_group:
         linux_node_group = False
+        linux_arm_node_group = False
         bottlerocket_node_group = False
 
     extra_flags = {
