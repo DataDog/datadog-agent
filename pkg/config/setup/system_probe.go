@@ -265,7 +265,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ebpf_check.enabled", false)
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
 	// noisy neighbor module
-	cfg.BindEnvAndSetDefault(join("noisy_neighbor", "enabled"), false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
