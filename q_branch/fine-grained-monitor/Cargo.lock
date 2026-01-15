@@ -1438,6 +1438,7 @@ dependencies = [
  "arrow 54.3.1",
  "axum 0.7.9",
  "bincode",
+ "bytes",
  "chrono",
  "clap",
  "divan",
@@ -1463,6 +1464,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
+ "tokio-stream",
  "tokio-util",
  "tower-http 0.5.2",
  "tracing",
@@ -4922,6 +4924,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

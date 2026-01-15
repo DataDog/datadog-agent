@@ -1,6 +1,7 @@
 #!/usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.10"
+# dependencies = ["pyyaml"]
 # ///
 """
 Scenario runner for fine-grained-monitor incident reproduction.
@@ -43,6 +44,8 @@ from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
+import yaml
+
 # Add q_branch to path for shared library imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -71,7 +74,7 @@ DEFAULT_NAMESPACE = "default"  # For legacy scenarios without namespace isolatio
 
 # Gensim cache config (for importing blueprints)
 GENSIM_CACHE_DIR = Path.home() / ".cache" / "fgm" / "gensim"
-GENSIM_REPO_URL = "https://github.com/DataDog/gensim.git"
+GENSIM_REPO_URL = "git@github.com:DataDog/gensim.git"
 GENSIM_BRANCH = "sopell/k8s-adapter"  # TODO: Change to "main" once PR #106 is merged
 
 # Environment and backend (lazy initialization)
@@ -372,7 +375,7 @@ def cmd_list():
     return 0
 
 
-def cmd_run(scenario_name: str):
+def cmd_run(scenario_name: str, duration_minutes: int = 30):
     """Build images, deploy scenario to cluster, return run ID."""
     kube_context = get_kube_context()
     image_tag = get_image_tag()
@@ -510,11 +513,85 @@ metadata:
         return 1
     print("done")
 
+    # Deploy cleanup job for namespace-isolated scenarios
+    # This job sleeps for the duration, then deletes the namespace
+    if uses_namespace:
+        print("Deploying cleanup job...", end=" ", flush=True)
+        cleanup_manifest = f"""---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: scenario-cleanup
+  namespace: {namespace}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: scenario-cleanup-{run_id}
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: scenario-cleanup-{run_id}
+subjects:
+- kind: ServiceAccount
+  name: scenario-cleanup
+  namespace: {namespace}
+roleRef:
+  kind: ClusterRole
+  name: scenario-cleanup-{run_id}
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: scenario-cleanup
+  namespace: {namespace}
+  labels:
+    fgm-run: "{run_id}"
+spec:
+  ttlSecondsAfterFinished: 10
+  template:
+    spec:
+      serviceAccountName: scenario-cleanup
+      restartPolicy: Never
+      containers:
+      - name: cleanup
+        image: bitnami/kubectl:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Scenario cleanup job started at $(date)"
+          echo "Will delete namespace {namespace} after {duration_minutes} minutes"
+          sleep {duration_minutes * 60}
+          echo "Duration expired. Deleting namespace {namespace}..."
+          kubectl delete namespace {namespace}
+          echo "Cleanup complete at $(date)"
+"""
+        result = subprocess.run(
+            ["kubectl", "apply", "-f", "-", "--context", kube_context],
+            input=cleanup_manifest,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print("FAILED")
+            print(f"  Warning: Cleanup job failed to deploy: {result.stderr}")
+            print("  Scenario will run indefinitely until manually stopped")
+        else:
+            print("done")
+
     # Save metadata
     metadata = {
         "run_id": run_id,
         "scenario": scenario_name,
         "started_at": datetime.now().isoformat(),
+        "duration_minutes": duration_minutes,
         "components": components,
         "cluster": get_cluster_name(),
         "namespace": namespace,
@@ -524,7 +601,6 @@ metadata:
     (run_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
 
     # Wait for pods to be ready
-    label = get_scenario_label(run_id, is_gensim=is_gensim)
     print("Waiting for pods...", end=" ", flush=True)
     start = time.time()
 
@@ -558,6 +634,12 @@ metadata:
     print(f"  Status: ./scenario.py status {run_id}")
     print(f"  Logs:   ./scenario.py logs {run_id}")
     print(f"  Stop:   ./scenario.py stop {run_id}")
+
+    if uses_namespace:
+        print(f"\nScenario will auto-stop after {duration_minutes} minutes (via cleanup job)")
+    else:
+        print("\nScenario will run indefinitely until manually stopped")
+        print("  (Auto-cleanup only works for namespace-isolated scenarios)")
 
     return 0
 
@@ -594,10 +676,6 @@ def cmd_status(run_id: str | None):
         print()
     else:
         namespace = DEFAULT_NAMESPACE
-
-    # Get appropriate label based on scenario type
-    is_gensim = metadata.get("is_gensim", False)
-    label = get_scenario_label(run_id, is_gensim=is_gensim)
 
     # Show pod status
     print(f"Pods (namespace: {namespace}):")
@@ -774,7 +852,6 @@ def cmd_export(run_id: str | None, output: str | None):
 
     metadata = json.loads(metadata_file.read_text())
     scenario_name = metadata["scenario"]
-    namespace = metadata.get("namespace", DEFAULT_NAMESPACE)
 
     print(f"Exporting scenario '{scenario_name}' (run {run_id})")
 
@@ -806,11 +883,27 @@ def cmd_export(run_id: str | None, output: str | None):
 
     # Export all available metrics (not just dashboard panels)
 
-    # Use all available data
-    params["range"] = "all"
+    # Use scenario time range with padding (not 'all' which loads days of data)
+    # Parse scenario start time (treat as UTC)
+    from datetime import datetime, timedelta, timezone
+
+    start_dt = datetime.fromisoformat(metadata["started_at"]).replace(tzinfo=timezone.utc)
+
+    # Get duration from metadata (defaults to 30 minutes for old runs)
+    duration_minutes = metadata.get("duration_minutes", 30)
+
+    # Add 60s padding before start, use metadata duration after start
+    time_from = start_dt - timedelta(seconds=60)
+    time_to = start_dt + timedelta(minutes=duration_minutes)
+
+    # Convert to epoch milliseconds
+    params["time_from_ms"] = str(int(time_from.timestamp() * 1000))
+    params["time_to_ms"] = str(int(time_to.timestamp() * 1000))
 
     print(f"  Namespace: {params.get('namespace', '(all)')}")
     print(f"  Labels: {params.get('labels', '(none)')}")
+    print(f"  Duration: {duration_minutes} minutes")
+    print(f"  Time range: {time_from.strftime('%H:%M:%S')} to {time_to.strftime('%H:%M:%S')}")
     print("  Metrics: (all)")
 
     # Find the metrics-viewer pod
@@ -886,7 +979,7 @@ def cmd_export(run_id: str | None, output: str | None):
         print(f"Fetching data from {url}...", end=" ", flush=True)
 
         try:
-            response = urlopen(url, timeout=120)
+            response = urlopen(url, timeout=300)  # 5 minutes for streaming export
             parquet_data = response.read()
             print(f"done ({len(parquet_data)} bytes)")
         except URLError as e:
@@ -962,7 +1055,8 @@ def cmd_import(blueprint_name: str | None, list_only: bool, update: bool):
         return 1
 
     # Validate blueprint exists
-    blueprint_path = cache / "blueprints" / blueprint_name / f"{blueprint_name}.spec.yaml"
+    blueprint_dir = cache / "blueprints" / blueprint_name
+    blueprint_path = blueprint_dir / f"{blueprint_name}.spec.yaml"
     if not blueprint_path.exists():
         print(f"Error: Blueprint '{blueprint_name}' not found")
         print(f"  Expected: {blueprint_path}")
@@ -974,46 +1068,108 @@ def cmd_import(blueprint_name: str | None, list_only: bool, update: bool):
         print(f"Error: k8s-adapter not found at {adapter}")
         return 1
 
-    output_dir = SCENARIOS_DIR / blueprint_name
+    # Find all disruption files for this blueprint
+    disruption_files = list(blueprint_dir.glob(f"{blueprint_name}.disruption-*.yaml"))
 
-    print(f"Importing blueprint '{blueprint_name}'...")
+    scenarios_to_generate = []
 
-    # Run k8s-adapter generate in a temp directory first
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_output = Path(tmp_dir) / blueprint_name
+    # Base scenario (no disruption)
+    scenarios_to_generate.append(
+        {
+            "name": blueprint_name,
+            "blueprint": blueprint_path,
+            "disruption": None,
+        }
+    )
 
-        result = subprocess.run(
-            [
+    # Disruption scenarios
+    for disruption_file in disruption_files:
+        # Read the disruption name from the YAML file
+        try:
+            with open(disruption_file) as f:
+                disruption_data = yaml.safe_load(f)
+                # Use the 'name' field from the disruption YAML
+                # This is the authoritative name that k8s-adapter uses
+                scenario_name = disruption_data.get("name", disruption_file.stem)
+        except Exception as e:
+            print(f"Warning: Could not read disruption name from {disruption_file}: {e}")
+            # Fallback to filename-based naming
+            scenario_name = disruption_file.stem.replace(f"{blueprint_name}.disruption-", "")
+
+        scenarios_to_generate.append(
+            {
+                "name": scenario_name,
+                "blueprint": blueprint_path,
+                "disruption": disruption_file,
+            }
+        )
+
+    print(f"Importing blueprint '{blueprint_name}' with {len(disruption_files)} disruption(s)...")
+    imported_scenarios = []
+
+    for scenario in scenarios_to_generate:
+        scenario_name = scenario["name"]
+        output_dir = SCENARIOS_DIR / scenario_name
+
+        disruption_label = ""
+        if scenario["disruption"]:
+            disruption_label = f" (with disruption: {scenario['disruption'].name})"
+
+        print(f"\n  Generating scenario '{scenario_name}'{disruption_label}...")
+
+        # Run k8s-adapter generate in a temp directory first
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_output = Path(tmp_dir) / scenario_name
+
+            cmd = [
                 "uv",
                 "run",
                 str(adapter),
                 "generate",
                 "--blueprint",
-                str(blueprint_path),
+                str(scenario["blueprint"]),
                 "--output",
                 str(tmp_output),
-            ],
-            capture_output=True,
-            text=True,
-            cwd=cache / "src" / "k8s-adapter",
-        )
+            ]
 
-        if result.returncode != 0:
-            print("Failed to generate scenario")
-            print(f"  Error: {result.stderr}")
-            if result.stdout:
-                print(f"  Output: {result.stdout}")
-            return 1
+            if scenario["disruption"]:
+                cmd.extend(["--disruption", str(scenario["disruption"])])
 
-        # Copy to scenarios dir (overwrite if exists)
-        if output_dir.exists():
-            print(f"  Replacing existing scenario at {output_dir}")
-            shutil.rmtree(output_dir)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=cache / "src" / "k8s-adapter",
+            )
 
-        shutil.copytree(tmp_output, output_dir)
+            if result.returncode != 0:
+                print(f"    FAILED to generate scenario '{scenario_name}'")
+                print(f"      Error: {result.stderr}")
+                if result.stdout:
+                    print(f"      Output: {result.stdout}")
+                continue
 
-    print(f"\nImported '{blueprint_name}' to scenarios/{blueprint_name}/")
-    print(f"  Deploy with: ./scenario.py run {blueprint_name}")
+            # Copy to scenarios dir (overwrite if exists)
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+
+            shutil.copytree(tmp_output, output_dir)
+            imported_scenarios.append(scenario_name)
+            print(f"    ✓ Generated scenarios/{scenario_name}/")
+
+    if not imported_scenarios:
+        print("\nNo scenarios were successfully imported")
+        return 1
+
+    print(f"\n✓ Successfully imported {len(imported_scenarios)} scenario(s):")
+    for name in imported_scenarios:
+        print(f"  - {name}")
+
+    print("\nDeploy with:")
+    print(f"  ./scenario.py run {imported_scenarios[0]}  # Base scenario")
+    if len(imported_scenarios) > 1:
+        print(f"  ./scenario.py run {imported_scenarios[1]}  # Example disruption")
+
     return 0
 
 
@@ -1114,6 +1270,216 @@ if (document.readyState === 'loading') {{
     return html
 
 
+def cmd_disrupt(disruption_type: str, run_id: str | None):
+    """Apply a disruption to a running scenario."""
+    if run_id is None:
+        run_id = get_latest_scenario_run()
+        if run_id is None:
+            print("No running scenarios found")
+            return 1
+
+    namespace = f"fgm-run-{run_id}"
+
+    # Map disruption types to implementation functions
+    disruption_map = {
+        "network-latency": apply_network_latency,
+        "cpu-stress": apply_cpu_stress,
+        "memory-pressure": apply_memory_pressure,
+    }
+
+    if disruption_type not in disruption_map:
+        print(f"Error: Unknown disruption type '{disruption_type}'")
+        print(f"Available types: {', '.join(disruption_map.keys())}")
+        return 1
+
+    print(f"Applying '{disruption_type}' disruption to run {run_id}...")
+    try:
+        result = disruption_map[disruption_type](namespace)
+        if result == 0:
+            print("✓ Disruption applied successfully")
+        return result
+    except Exception as e:
+        print(f"Failed to apply disruption: {e}")
+        return 1
+
+
+def apply_network_latency(namespace: str):
+    """Apply network latency to Redis pod using tc (traffic control)."""
+    # Find Redis deployment
+    print("  Adding NET_ADMIN capability to Redis deployment...")
+
+    # Patch deployment to add NET_ADMIN capability
+    patch = '''
+    {
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [{
+              "name": "todo-redis",
+              "securityContext": {
+                "capabilities": {
+                  "add": ["NET_ADMIN"]
+                }
+              }
+            }]
+          }
+        }
+      }
+    }
+    '''
+
+    patch_result = subprocess.run(
+        ["kubectl", "patch", "deployment", "todo-redis", "-n", namespace, "--type=strategic", "-p", patch],
+        capture_output=True,
+        text=True,
+    )
+
+    if patch_result.returncode != 0:
+        print(f"  Error patching deployment: {patch_result.stderr}")
+        return 1
+
+    # Wait for new pod to be ready
+    print("  Waiting for pod to restart with NET_ADMIN capability...")
+    subprocess.run(
+        ["kubectl", "rollout", "status", "deployment/todo-redis", "-n", namespace, "--timeout=60s"],
+        capture_output=True,
+    )
+
+    # Find the new Redis pod
+    result = subprocess.run(
+        ["kubectl", "get", "pods", "-n", namespace, "-l", "app=todo-redis", "-o", "jsonpath={.items[0].metadata.name}"],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0 or not result.stdout:
+        print(f"Error: Could not find Redis pod in namespace {namespace}")
+        return 1
+
+    pod_name = result.stdout.strip()
+    print(f"  Target: {pod_name}")
+
+    # Install iproute2 if needed (has tc command)
+    print("  Installing iproute2...")
+    subprocess.run(
+        [
+            "kubectl",
+            "exec",
+            "-n",
+            namespace,
+            pod_name,
+            "--",
+            "sh",
+            "-c",
+            "apk add --no-cache iproute2 2>/dev/null || true",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    # Apply network latency: 200ms ± 50ms
+    print("  Applying 200ms ± 50ms latency...")
+    tc_result = subprocess.run(
+        [
+            "kubectl",
+            "exec",
+            "-n",
+            namespace,
+            pod_name,
+            "--",
+            "tc",
+            "qdisc",
+            "add",
+            "dev",
+            "eth0",
+            "root",
+            "netem",
+            "delay",
+            "200ms",
+            "50ms",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if tc_result.returncode != 0:
+        print(f"  Error applying tc: {tc_result.stderr}")
+        return 1
+
+    print(f"  Network latency active on {pod_name}")
+    return 0
+
+
+def apply_cpu_stress(namespace: str):
+    """Apply CPU stress to backend pod."""
+    # Find backend pod
+    result = subprocess.run(
+        [
+            "kubectl",
+            "get",
+            "pods",
+            "-n",
+            namespace,
+            "-l",
+            "app=todo-backend",
+            "-o",
+            "jsonpath={.items[0].metadata.name}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode != 0 or not result.stdout:
+        print(f"Error: Could not find backend pod in namespace {namespace}")
+        return 1
+
+    pod_name = result.stdout.strip()
+    print(f"  Target: {pod_name}")
+
+    # Inject CPU stress via a background process
+    print("  Starting CPU stress (2 cores)...")
+    stress_result = subprocess.run(
+        ["kubectl", "exec", "-n", namespace, pod_name, "--", "sh", "-c", "nohup sh -c 'while :; do :; done' &"],
+        capture_output=True,
+        text=True,
+    )
+
+    if stress_result.returncode != 0:
+        print(f"  Error starting stress: {stress_result.stderr}")
+        return 1
+
+    print(f"  CPU stress active on {pod_name}")
+    return 0
+
+
+def apply_memory_pressure(namespace: str):
+    """Apply memory pressure to Redis pod."""
+    # Reduce memory limit on Redis deployment
+    print("  Reducing Redis memory limit to 32Mi...")
+    patch_result = subprocess.run(
+        [
+            "kubectl",
+            "patch",
+            "deployment",
+            "todo-redis",
+            "-n",
+            namespace,
+            "--type=json",
+            "-p",
+            '[{"op": "replace", "path": "/spec/template/spec/containers/0/resources/limits/memory", "value": "32Mi"}]',
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if patch_result.returncode != 0:
+        print(f"  Error patching deployment: {patch_result.stderr}")
+        return 1
+
+    print("  Memory limit reduced, pod will restart")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Scenario runner for fine-grained-monitor incident reproduction",
@@ -1121,12 +1487,15 @@ def main():
         epilog="""
 Examples:
   ./scenario.py list                   # List available scenarios
-  ./scenario.py run sigpipe-crash      # Deploy the SIGPIPE crash scenario
+  ./scenario.py run sigpipe-crash      # Run scenario for 30 min (auto-stops)
+  ./scenario.py run todo-app --duration 60  # Run scenario for 60 min (auto-stops)
   ./scenario.py status                 # Check status of latest run
   ./scenario.py status a1b2c3d4        # Check status of specific run
   ./scenario.py logs                   # Show logs from latest run
   ./scenario.py logs -c victim-app     # Show logs from specific container
   ./scenario.py stop a1b2c3d4          # Stop and clean up scenario
+  ./scenario.py disrupt network-latency  # Apply network latency to latest run
+  ./scenario.py disrupt cpu-stress a1b2c3d4  # Apply CPU stress to specific run
   ./scenario.py export                 # Export latest run as self-contained HTML
   ./scenario.py export a1b2c3d4 -o results.html  # Export specific run
   ./scenario.py import --list          # List blueprints available for import
@@ -1145,6 +1514,9 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
     # run <name>
     run_parser = subparsers.add_parser("run", help="Deploy scenario to cluster")
     run_parser.add_argument("name", type=str, help="Scenario name")
+    run_parser.add_argument(
+        "--duration", type=int, default=30, help="Expected scenario duration in minutes (default: 30)"
+    )
 
     # status [run_id]
     status_parser = subparsers.add_parser("status", help="Show scenario pod status")
@@ -1158,6 +1530,11 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
     logs_parser = subparsers.add_parser("logs", help="Show scenario pod logs")
     logs_parser.add_argument("run_id", type=str, nargs="?", default=None, help="Run ID (default: latest)")
     logs_parser.add_argument("-c", "--container", type=str, default=None, help="Container name")
+
+    # disrupt <type> [run_id]
+    disrupt_parser = subparsers.add_parser("disrupt", help="Apply disruption to running scenario")
+    disrupt_parser.add_argument("type", type=str, help="Disruption type (network-latency, cpu-stress, memory-pressure)")
+    disrupt_parser.add_argument("run_id", type=str, nargs="?", default=None, help="Run ID (default: latest)")
 
     # export [run_id]
     export_parser = subparsers.add_parser("export", help="Export scenario as parquet and HTML files")
@@ -1177,13 +1554,15 @@ Use ./dev.py cluster deploy first to ensure the cluster exists.
     if args.command == "list":
         sys.exit(cmd_list())
     elif args.command == "run":
-        sys.exit(cmd_run(args.name))
+        sys.exit(cmd_run(args.name, args.duration))
     elif args.command == "status":
         sys.exit(cmd_status(args.run_id))
     elif args.command == "stop":
         sys.exit(cmd_stop(args.run_id))
     elif args.command == "logs":
         sys.exit(cmd_logs(args.run_id, args.container))
+    elif args.command == "disrupt":
+        sys.exit(cmd_disrupt(args.type, args.run_id))
     elif args.command == "export":
         sys.exit(cmd_export(args.run_id, args.output))
     elif args.command == "import":

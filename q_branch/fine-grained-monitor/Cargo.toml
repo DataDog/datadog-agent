@@ -16,6 +16,7 @@ metrics = "0.24"
 
 # Async runtime
 tokio = { version = "1.47", features = ["full", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 # Structured logging
 tracing = "0.1"
@@ -59,6 +60,7 @@ arrow = "54"
 axum = "0.7"
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 rayon = "1.10"
+bytes = "1"
 
 # Kubernetes API client (REQ-MV-015)
 kube = { version = "0.93", features = ["client", "runtime"] }

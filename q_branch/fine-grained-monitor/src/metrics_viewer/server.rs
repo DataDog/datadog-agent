@@ -13,18 +13,22 @@ use arrow::array::{ArrayRef, Float64Builder, StringBuilder, TimestampMillisecond
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow::record_batch::RecordBatch;
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
     http::{header, StatusCode},
     response::{Html, IntoResponse, Json, Response},
     routing::get,
     Router,
 };
+use bytes::Bytes;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::mpsc;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
@@ -609,7 +613,7 @@ async fn study_handler(
 
 /// Memory protection limits for export.
 const MAX_EXPORT_ROWS: usize = 10_000_000;
-const MAX_EXPORT_CONTAINERS: usize = 100;
+const MAX_EXPORT_CONTAINERS: usize = 1000; // Increased for scenarios with many container restarts
 
 /// GET /api/export - export filtered timeseries data as a parquet file.
 /// Returns a downloadable parquet file containing timeseries data matching the filter criteria.
@@ -682,6 +686,29 @@ impl IntoResponse for ExportError {
             }
         };
         (status, message).into_response()
+    }
+}
+
+/// A writer that sends chunks to a tokio mpsc channel for streaming responses.
+struct ChannelWriter {
+    sender: mpsc::Sender<Result<Bytes, std::io::Error>>,
+}
+
+impl Write for ChannelWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let bytes = Bytes::copy_from_slice(buf);
+        let len = bytes.len();
+
+        // Send the chunk (blocking on async in sync context)
+        self.sender.blocking_send(Ok(bytes))
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed"))?;
+
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        // Nothing to flush for channel-based writer
+        Ok(())
     }
 }
 
@@ -766,13 +793,20 @@ async fn export_handler(
         None => all_metrics.iter().map(|m| m.name.as_str()).collect(),
     };
 
-    // Build a lookup map from short_id to container info
-    let container_map: std::collections::HashMap<&str, &ContainerInfo> = filtered_containers
+    // Clone data for spawned task (to avoid lifetime issues)
+    let metrics_owned: Vec<String> = metrics_to_export.iter().map(|s| s.to_string()).collect();
+    let container_ids_owned: Vec<String> = filtered_containers
         .iter()
-        .map(|c| (c.short_id.as_str(), *c))
+        .map(|c| c.short_id.clone())
         .collect();
+    let container_map_owned: std::collections::HashMap<String, ContainerInfo> = filtered_containers
+        .iter()
+        .map(|c| (c.short_id.clone(), (*c).clone()))
+        .collect();
+    let num_containers = filtered_containers.len();
+    let num_metrics = metrics_to_export.len();
 
-    // Collect all data points
+    // Collect all data points using STREAMING EXPORT (batched processing)
     struct ExportRow {
         time_ms: i64,
         metric_name: String,
@@ -784,57 +818,7 @@ async fn export_handler(
         qos_class: Option<String>,
     }
 
-    let mut all_data: Vec<ExportRow> = Vec::new();
-
-    for metric in &metrics_to_export {
-        let timeseries = match state.data.get_timeseries(metric, &container_ids, time_range) {
-            Ok(ts) => ts,
-            Err(e) => {
-                eprintln!("Error loading timeseries for export metric={}: {}", metric, e);
-                continue;
-            }
-        };
-
-        for (container_id, points) in timeseries {
-            let container = container_map.get(container_id.as_str());
-
-            for point in points {
-                // Apply explicit time bounds if provided
-                if let Some(from) = query.time_from_ms {
-                    if point.time_ms < from {
-                        continue;
-                    }
-                }
-                if let Some(to) = query.time_to_ms {
-                    if point.time_ms > to {
-                        continue;
-                    }
-                }
-
-                all_data.push(ExportRow {
-                    time_ms: point.time_ms,
-                    metric_name: metric.to_string(),
-                    value: point.value,
-                    container_id: container_id.clone(),
-                    container_name: container.and_then(|c| c.container_name.clone()),
-                    pod_name: container.and_then(|c| c.pod_name.clone()),
-                    namespace: container.and_then(|c| c.namespace.clone()),
-                    qos_class: container.and_then(|c| c.qos_class.clone()),
-                });
-
-                // Check row limit
-                if all_data.len() > MAX_EXPORT_ROWS {
-                    return Err(ExportError::TooMuchData(all_data.len()));
-                }
-            }
-        }
-    }
-
-    if all_data.is_empty() {
-        return Err(ExportError::NoData);
-    }
-
-    // Build Arrow schema
+    // Build Arrow schema upfront (needed for writer creation)
     let schema = Arc::new(Schema::new(vec![
         Field::new("time", DataType::Timestamp(TimeUnit::Millisecond, None), false),
         Field::new("metric_name", DataType::Utf8, false),
@@ -846,62 +830,8 @@ async fn export_handler(
         Field::new("l_qos_class", DataType::Utf8, true),
     ]));
 
-    // Build Arrow arrays
-    let capacity = all_data.len();
-    let mut time_builder = TimestampMillisecondBuilder::with_capacity(capacity);
-    let mut metric_builder = StringBuilder::with_capacity(capacity, capacity * 30);
-    let mut value_builder = Float64Builder::with_capacity(capacity);
-    let mut container_id_builder = StringBuilder::with_capacity(capacity, capacity * 12);
-    let mut container_name_builder = StringBuilder::with_capacity(capacity, capacity * 20);
-    let mut pod_name_builder = StringBuilder::with_capacity(capacity, capacity * 30);
-    let mut namespace_builder = StringBuilder::with_capacity(capacity, capacity * 15);
-    let mut qos_class_builder = StringBuilder::with_capacity(capacity, capacity * 12);
-
-    for row in &all_data {
-        time_builder.append_value(row.time_ms);
-        metric_builder.append_value(&row.metric_name);
-        value_builder.append_value(row.value);
-        container_id_builder.append_value(&row.container_id);
-        container_name_builder.append_option(row.container_name.as_deref());
-        pod_name_builder.append_option(row.pod_name.as_deref());
-        namespace_builder.append_option(row.namespace.as_deref());
-        qos_class_builder.append_option(row.qos_class.as_deref());
-    }
-
-    let arrays: Vec<ArrayRef> = vec![
-        Arc::new(time_builder.finish()),
-        Arc::new(metric_builder.finish()),
-        Arc::new(value_builder.finish()),
-        Arc::new(container_id_builder.finish()),
-        Arc::new(container_name_builder.finish()),
-        Arc::new(pod_name_builder.finish()),
-        Arc::new(namespace_builder.finish()),
-        Arc::new(qos_class_builder.finish()),
-    ];
-
-    let batch = RecordBatch::try_new(schema.clone(), arrays)
-        .map_err(|e| ExportError::ParquetError(e.to_string()))?;
-
-    // Write to in-memory buffer with ZSTD compression
-    let mut buffer = Vec::new();
-    let props = WriterProperties::builder()
-        .set_compression(Compression::ZSTD(
-            parquet::basic::ZstdLevel::try_new(3).unwrap(),
-        ))
-        .build();
-
-    {
-        let mut writer = ArrowWriter::try_new(&mut buffer, schema, Some(props))
-            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
-
-        writer
-            .write(&batch)
-            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
-
-        writer
-            .close()
-            .map_err(|e| ExportError::ParquetError(e.to_string()))?;
-    }
+    // Create channel for streaming response (buffer 16 chunks in memory)
+    let (tx, rx) = mpsc::channel::<Result<Bytes, std::io::Error>>(16);
 
     // Generate filename with timestamp
     let filename = format!(
@@ -909,24 +839,191 @@ async fn export_handler(
         chrono::Utc::now().format("%Y%m%dT%H%M%SZ")
     );
 
-    eprintln!(
-        "[export] Generated {} rows, {} bytes for {} containers, {} metrics",
-        all_data.len(),
-        buffer.len(),
-        filtered_containers.len(),
-        metrics_to_export.len()
-    );
+    // Clone state and capture query parameters for spawned task
+    let state_clone = Arc::clone(&state);
+    let time_from_ms = query.time_from_ms;
+    let time_to_ms = query.time_to_ms;
 
-    // Return as downloadable binary
-    Ok((
-        [
-            (header::CONTENT_TYPE, "application/octet-stream"),
-            (
-                header::CONTENT_DISPOSITION,
-                &format!("attachment; filename=\"{}\"", filename),
-            ),
-        ],
-        buffer,
-    )
-        .into_response())
+    // Spawn task to write parquet data to channel
+    tokio::spawn(async move {
+        let state = state_clone;
+        let metrics_to_export = metrics_owned;
+        let container_ids: Vec<&str> = container_ids_owned.iter().map(|s| s.as_str()).collect();
+        let container_map = container_map_owned;
+        let total_metrics = num_metrics;
+        let filtered_containers_len = num_containers;
+        // Create channel writer
+        let mut channel_writer = ChannelWriter { sender: tx };
+
+        // Create parquet writer properties
+        let props = WriterProperties::builder()
+            .set_compression(Compression::ZSTD(
+                parquet::basic::ZstdLevel::try_new(3).unwrap(),
+            ))
+            .build();
+
+        // Create Arrow writer that writes to the channel
+        let mut writer = match ArrowWriter::try_new(&mut channel_writer, schema.clone(), Some(props)) {
+            Ok(w) => w,
+            Err(e) => {
+                eprintln!("[export] Error creating parquet writer: {}", e);
+                return;
+            }
+        };
+
+        // Process metrics in batches to avoid memory explosion
+        const BATCH_SIZE: usize = 15; // Process 15 metrics at a time
+        let mut total_rows = 0;
+        let start_time = std::time::Instant::now();
+
+        for (batch_idx, metric_batch) in metrics_to_export.chunks(BATCH_SIZE).enumerate() {
+            let mut batch_data: Vec<ExportRow> = Vec::new();
+
+            for metric in metric_batch {
+                let timeseries = match state.data.get_timeseries(metric.as_str(), &container_ids, time_range) {
+                    Ok(ts) => ts,
+                    Err(e) => {
+                        eprintln!("Error loading timeseries for export metric={}: {}", metric, e);
+                        continue;
+                    }
+                };
+
+                for (container_id, points) in timeseries {
+                    let container = container_map.get(container_id.as_str());
+
+                    for point in points {
+                        // Apply explicit time bounds if provided
+                        if let Some(from) = time_from_ms {
+                            if point.time_ms < from {
+                                continue;
+                            }
+                        }
+                        if let Some(to) = time_to_ms {
+                            if point.time_ms > to {
+                                continue;
+                            }
+                        }
+
+                    batch_data.push(ExportRow {
+                        time_ms: point.time_ms,
+                        metric_name: metric.to_string(),
+                        value: point.value,
+                        container_id: container_id.clone(),
+                        container_name: container.and_then(|c| c.container_name.clone()),
+                        pod_name: container.and_then(|c| c.pod_name.clone()),
+                        namespace: container.and_then(|c| c.namespace.clone()),
+                        qos_class: container.and_then(|c| c.qos_class.clone()),
+                    });
+
+                    // Check global row limit
+                    if total_rows + batch_data.len() > MAX_EXPORT_ROWS {
+                        eprintln!("[export] ERROR: Too much data ({} rows), limit is {}",
+                                  total_rows + batch_data.len(), MAX_EXPORT_ROWS);
+                        return;
+                    }
+                }
+            }
+        }
+
+        if !batch_data.is_empty() {
+            // Write this batch to parquet immediately
+            let batch_size = batch_data.len();
+            let capacity = batch_size;
+
+            let mut time_builder = TimestampMillisecondBuilder::with_capacity(capacity);
+            let mut metric_builder = StringBuilder::with_capacity(capacity, capacity * 30);
+            let mut value_builder = Float64Builder::with_capacity(capacity);
+            let mut container_id_builder = StringBuilder::with_capacity(capacity, capacity * 12);
+            let mut container_name_builder = StringBuilder::with_capacity(capacity, capacity * 20);
+            let mut pod_name_builder = StringBuilder::with_capacity(capacity, capacity * 30);
+            let mut namespace_builder = StringBuilder::with_capacity(capacity, capacity * 15);
+            let mut qos_class_builder = StringBuilder::with_capacity(capacity, capacity * 12);
+
+            for row in &batch_data {
+                time_builder.append_value(row.time_ms);
+                metric_builder.append_value(&row.metric_name);
+                value_builder.append_value(row.value);
+                container_id_builder.append_value(&row.container_id);
+                container_name_builder.append_option(row.container_name.as_deref());
+                pod_name_builder.append_option(row.pod_name.as_deref());
+                namespace_builder.append_option(row.namespace.as_deref());
+                qos_class_builder.append_option(row.qos_class.as_deref());
+            }
+
+            let arrays: Vec<ArrayRef> = vec![
+                Arc::new(time_builder.finish()),
+                Arc::new(metric_builder.finish()),
+                Arc::new(value_builder.finish()),
+                Arc::new(container_id_builder.finish()),
+                Arc::new(container_name_builder.finish()),
+                Arc::new(pod_name_builder.finish()),
+                Arc::new(namespace_builder.finish()),
+                Arc::new(qos_class_builder.finish()),
+            ];
+
+            let batch = match RecordBatch::try_new(schema.clone(), arrays) {
+                Ok(b) => b,
+                Err(e) => {
+                    eprintln!("[export] Error creating record batch: {}", e);
+                    return;
+                }
+            };
+
+            if let Err(e) = writer.write(&batch) {
+                eprintln!("[export] Error writing batch: {}", e);
+                return;
+            }
+
+            total_rows += batch_size;
+
+            // Progress logging
+            let metrics_processed = (batch_idx + 1) * BATCH_SIZE;
+            let metrics_done = metrics_processed.min(total_metrics);
+            eprintln!(
+                "[export] Batch {}: wrote {} rows ({} total), {}/{} metrics processed ({:.0}%), {:.1}s elapsed",
+                batch_idx + 1,
+                batch_size,
+                total_rows,
+                metrics_done,
+                total_metrics,
+                (metrics_done as f64 / total_metrics as f64) * 100.0,
+                start_time.elapsed().as_secs_f64()
+            );
+
+            // Clear batch data to free memory
+            batch_data.clear();
+        }
+    }
+
+        // Close the writer (finalizes parquet file and flushes remaining data)
+        if let Err(e) = writer.close() {
+            eprintln!("[export] Error closing parquet writer: {}", e);
+            return;
+        }
+
+        eprintln!(
+            "[export] COMPLETE: {} rows, {} containers, {} metrics in {:.1}s",
+            total_rows,
+            filtered_containers_len,
+            total_metrics,
+            start_time.elapsed().as_secs_f64()
+        );
+
+        // Channel will be closed when tx is dropped
+    });
+
+    // Create streaming response body from channel receiver
+    let stream = tokio_stream::wrappers::ReceiverStream::new(rx);
+    let body = Body::from_stream(stream);
+
+    // Return streaming response with appropriate headers
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{}\"", filename),
+        )
+        .body(body)
+        .unwrap())
 }
