@@ -68,6 +68,8 @@ const (
 	DDInfraEksLinuxARMNodeGroup                    = "aws/eks/linuxARMNodeGroup"
 	DDInfraEksLinuxBottlerocketNodeGroup           = "aws/eks/linuxBottlerocketNodeGroup"
 	DDInfraEksWindowsNodeGroup                     = "aws/eks/windowsNodeGroup"
+	DDInfraEksGPUNodeGroup                         = "aws/eks/gpuNodeGroup"
+	DDInfraEksGPUInstanceType                      = "aws/eks/gpuInstanceType"
 	DDInfraEksAccountAdminSSORole                  = "aws/eks/accountAdminSSORole"
 	DDInfraEksReadOnlySSORole                      = "aws/eks/readOnlySSORole"
 )
@@ -402,6 +404,14 @@ func (e *Environment) EKSBottlerocketNodeGroup() bool {
 
 func (e *Environment) EKSWindowsNodeGroup() bool {
 	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksWindowsNodeGroup, e.envDefault.ddInfra.eks.windowsLTSCNodeGroup)
+}
+
+func (e *Environment) EKSGPUNodeGroup() bool {
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraEksGPUNodeGroup, e.envDefault.ddInfra.eks.gpuNodeGroup)
+}
+
+func (e *Environment) EKSGPUInstanceType() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraEksGPUInstanceType, e.envDefault.ddInfra.eks.gpuInstanceType)
 }
 
 func (e *Environment) EKSAccountAdminSSORole() string {

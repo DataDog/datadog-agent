@@ -437,10 +437,18 @@ func TestRustBinary(t *testing.T) {
 
 	require.FileExists(t, binaryPath, "Rust binary should be built")
 
-	cmd := exec.Command(binaryPath)
-	output, err := cmd.CombinedOutput()
+	truePath := "/bin/true"
+	if _, err := os.Stat(truePath); os.IsNotExist(err) {
+		truePath = "/usr/bin/true"
+	}
 
+	env := os.Environ()
+	env = append(env, "DD_DISCOVERY_ENABLED=false")
+	// Fake system-probe binary with empty configuration file
+	cmd := exec.Command(binaryPath, "--", truePath, "-c", "/dev/null")
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
 	require.NoError(t, err, "Rust binary should execute successfully")
-	require.Contains(t, string(output), "Hello from Rust test binary!")
-	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0")
+	require.Contains(t, string(output), "Discovery is disabled")
+	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0", string(output))
 }

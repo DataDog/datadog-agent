@@ -20,6 +20,8 @@ from . import doc
         "linux_arm_node_group": doc.linux_arm_node_group,
         "bottlerocket_node_group": doc.bottlerocket_node_group,
         "windows_node_group": doc.windows_node_group,
+        "gpu_node_group": doc.gpu_node_group,
+        "gpu_instance_type": doc.gpu_instance_type,
         "instance_type": aws_doc.instance_type,
     }
 )
@@ -36,6 +38,8 @@ def create_eks(
     linux_arm_node_group: bool = False,
     bottlerocket_node_group: bool = True,
     windows_node_group: bool = False,
+    gpu_node_group: bool = False,
+    gpu_instance_type: Optional[str] = None,
     instance_type: Optional[str] = None,
 ):
     print('This command is deprecated, please use `aws.create-eks` instead')
@@ -55,6 +59,8 @@ def create_eks(
         linux_arm_node_group,
         bottlerocket_node_group,
         windows_node_group,
+        gpu_node_group,
+        gpu_instance_type,
         instance_type,
     )
 

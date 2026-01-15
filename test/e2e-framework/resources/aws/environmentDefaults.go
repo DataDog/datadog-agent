@@ -80,6 +80,8 @@ type ddInfraEKS struct {
 	linuxARMNodeGroup                    bool
 	linuxBottlerocketNodeGroup           bool
 	windowsLTSCNodeGroup                 bool
+	gpuNodeGroup                         bool
+	gpuInstanceType                      string
 }
 
 type DDInfraEKSPodSubnets struct {

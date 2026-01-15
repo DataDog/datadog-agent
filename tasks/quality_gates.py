@@ -63,12 +63,15 @@ def _extract_gate_name_from_scope(scope: str) -> str | None:
 
 
 def _get_latest_value_from_pointlist(pointlist: list) -> float | None:
-    """Get the latest non-null value from a pointlist."""
+    """Get the latest non-null value from a pointlist of Point objects.
+
+    Point.value returns [timestamp, metric_value], so we access index 1.
+    """
     if not pointlist:
         return None
     for point in reversed(pointlist):
-        if point and len(point) >= 2 and point[1] is not None:
-            return point[1]
+        if point and point.value and point.value[1] is not None:
+            return point.value[1]
     return None
 
 

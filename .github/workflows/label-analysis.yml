@@ -126,21 +126,3 @@ jobs:
           features: legacy-tasks
       - name: Check agent telemetry metric list
         run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
-
-  ask-reviews:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.action == 'labeled' && github.event.label.name == 'ask-review'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
-      - name: Ask for code reviews
-        env:
-          SLACK_DATADOG_AGENT_BOT_TOKEN : ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          PR_REQUESTED_TEAMS: ${{ toJSON(github.event.pull_request.requested_teams) }}
-        run: dda inv -- -e issue.ask-reviews -p ${{ github.event.pull_request.number }}
