@@ -119,6 +119,38 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
+// ExtractSingle extracts process metadata from a single process
+func (d *ServiceExtractor) ExtractSingle(proc *procutil.Process) {
+	if !d.enabled {
+		return
+	}
+
+	if meta, seen := d.serviceByPID[proc.Pid]; seen {
+		// check the service metadata is for the same process
+		if len(proc.Cmdline) == len(meta.cmdline) {
+			if len(proc.Cmdline) == 0 || proc.Cmdline[0] == meta.cmdline[0] {
+				return
+			}
+		}
+	}
+	meta := d.extractServiceMetadata(proc)
+	if meta != nil {
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("detected service metadata: %v", meta)
+		}
+		d.serviceByPID[proc.Pid] = meta
+	}
+}
+
+// Remove deletes process metadata for the provided PID
+func (d *ServiceExtractor) Remove(pid int32) {
+	if !d.enabled {
+		return
+	}
+
+	delete(d.serviceByPID, pid)
+}
+
 // GetServiceContext returns the service context for the PID
 func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
