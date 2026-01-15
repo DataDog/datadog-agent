@@ -1,6 +1,0 @@
----
-# maintenance_jobs stage
-# Contains utility jobs to manipulate Docker repositories (Dockerhub & GCR)
-
-include:
-  - .gitlab/maintenance_jobs/docker.yml

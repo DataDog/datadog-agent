@@ -8,7 +8,14 @@
 package cli
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 )
 
 var complianceKubernetesProvider compliance.KubernetesProvider
+
+// Not used in the security agent. This is only for the Cluster Agent
+func startComplianceReflectorStore(context.Context) *compliance.ReflectorStore {
+	return nil
+}

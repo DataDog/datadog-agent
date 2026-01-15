@@ -27,7 +27,7 @@ except ImportError:
 
 DOCKER_HUB_API_URL = "https://hub.docker.com/v2/repositories/kindest/node/tags"
 VERSIONS_FILE = "k8s_versions.json"
-E2E_YAML_PATH = ".gitlab/e2e/e2e.yml"
+E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
 
 
 def _check_dependencies():
@@ -373,7 +373,7 @@ def update_e2e_yaml(_, versions_file=VERSIONS_FILE):
     Update the e2e.yml file with new Kubernetes versions.
 
     This task reads Kubernetes versions from a JSON file and updates the
-    .gitlab/e2e/e2e.yml file with any new versions that aren't already present.
+    .gitlab/test/e2e/e2e.yml file with any new versions that aren't already present.
 
     Args:
         versions_file: Path to the JSON file containing versions (default: k8s_versions.json)

@@ -7,7 +7,7 @@ This module contains tasks that automatically update the Kubernetes versions use
 The automation runs twice daily (6am and 6pm UTC) via GitHub Actions and:
 1. Fetches the latest Kubernetes version from Docker Hub's `kindest/node` repository
 2. Extracts the index digest for the version
-3. Updates `.gitlab/e2e/e2e.yml` if a new version is available
+3. Updates `.gitlab/test/e2e/e2e.yml` if a new version is available
 4. Creates a pull request with the change
 
 ## Tasks
@@ -37,7 +37,7 @@ Updates the e2e.yml file with the new Kubernetes version.
 
 **What it does:**
 - Reads the stored versions from `k8s_versions.json`
-- Parses `.gitlab/e2e/e2e.yml` to find the `new-e2e-containers` matrix section
+- Parses `.gitlab/test/e2e/e2e.yml` to find the `new-e2e-containers` matrix section
 - Checks which versions are already present
 - Adds new versions in the format: `kubernetesVersion=v1.34.0@sha256:...`
 - Inserts new entries after the last Kubernetes version in the matrix
@@ -86,10 +86,10 @@ dda inv k8s-versions.fetch-versions
 dda inv k8s-versions.update-e2e-yaml
 
 # Check the diff
-git diff .gitlab/e2e/e2e.yml
+git diff .gitlab/test/e2e/e2e.yml
 
 # Restore the file when done testing
-git checkout .gitlab/e2e/e2e.yml
+git checkout .gitlab/test/e2e/e2e.yml
 ```
 
 ## How It Works
@@ -109,7 +109,7 @@ The task extracts the **index digest** (not the image digest) for the latest ver
 
 ### YAML Update Strategy
 The task:
-1. Locates the `new-e2e-containers` job in `.gitlab/e2e/e2e.yml`
+1. Locates the `new-e2e-containers` job in `.gitlab/test/e2e/e2e.yml`
 2. Finds the `parallel.matrix` section
 3. Identifies existing Kubernetes version entries
 4. Adds the new version after the last Kubernetes version entry (if not already present)
@@ -171,4 +171,4 @@ version_tags = [
 
 - [Kind Node Images](https://hub.docker.com/r/kindest/node/tags)
 - [Docker Hub API](https://docs.docker.com/docker-hub/api/latest/)
-- [GitLab CI E2E Tests](.gitlab/e2e/e2e.yml)
+- [GitLab CI E2E Tests](.gitlab/test/e2e/e2e.yml)
