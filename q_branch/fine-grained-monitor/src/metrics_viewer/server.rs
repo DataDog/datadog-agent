@@ -699,11 +699,26 @@ impl Write for ChannelWriter {
         let bytes = Bytes::copy_from_slice(buf);
         let len = bytes.len();
 
-        // Send the chunk (blocking on async in sync context)
-        self.sender.blocking_send(Ok(bytes))
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::BrokenPipe, "channel closed"))?;
-
-        Ok(len)
+        // Use try_send to avoid blocking in async context
+        // The channel has a buffer, so this should succeed unless the receiver is slow
+        match self.sender.try_send(Ok(bytes)) {
+            Ok(()) => Ok(len),
+            Err(mpsc::error::TrySendError::Full(_)) => {
+                // Channel buffer is full - receiver is slow
+                // Return WouldBlock to signal backpressure
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "channel buffer full"
+                ))
+            }
+            Err(mpsc::error::TrySendError::Closed(_)) => {
+                // Channel closed - receiver dropped
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "channel closed"
+                ))
+            }
+        }
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
@@ -830,8 +845,9 @@ async fn export_handler(
         Field::new("l_qos_class", DataType::Utf8, true),
     ]));
 
-    // Create channel for streaming response (buffer 16 chunks in memory)
-    let (tx, rx) = mpsc::channel::<Result<Bytes, std::io::Error>>(16);
+    // Create channel for streaming response (buffer 1024 chunks to avoid backpressure)
+    // Each chunk is typically a few KB, so this is ~few MB of buffering
+    let (tx, rx) = mpsc::channel::<Result<Bytes, std::io::Error>>(1024);
 
     // Generate filename with timestamp
     let filename = format!(
