@@ -10,10 +10,9 @@ package winutil
 
 import (
 	"fmt"
-	"unsafe"
-	"syscall"
-
 	"golang.org/x/sys/windows"
+	"syscall"
+	"unsafe"
 )
 
 var (
