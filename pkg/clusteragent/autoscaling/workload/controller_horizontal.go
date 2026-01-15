@@ -397,9 +397,10 @@ func applyScaleUpPolicy(
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMax int32
-		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
+		switch rule.Type {
+		case datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType:
 			ruleMax = periodStartReplicas + rule.Value
-		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
+		case datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType:
 			// 1.x * start may yield the same number of replicas as periodStartReplicas, ceiling up to always always allow at least 1 replica
 			// otherwise it would block scaling up forever.
 			ruleMax = int32(math.Ceil(float64(periodStartReplicas) * (1 + float64(rule.Value)/100)))
@@ -461,10 +462,10 @@ func applyScaleDownPolicy(
 		// For that we consider the current number and apply the opposite of the events that happened in the period.
 		periodStartReplicas := currentDesiredReplicas - replicasAdded + replicasRemoved
 		var ruleMin int32
-		if rule.Type == datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType {
+		switch rule.Type {
+		case datadoghqcommon.DatadogPodAutoscalerPodsScalingRuleType:
 			ruleMin = periodStartReplicas - rule.Value
-		} else if rule.Type == datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType {
-			// When casting, the decimal is truncated, so we always have at least 1 replica allowed
+		case datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType:
 			ruleMin = int32(float64(periodStartReplicas) * (1 - float64(rule.Value)/100))
 		}
 		minReplicasFromRules = selectPolicyFn(minReplicasFromRules, ruleMin)
