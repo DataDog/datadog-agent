@@ -39,28 +39,39 @@ cd q_branch/fine-grained-monitor
 ./dev.py cluster viewer start
 ```
 
-## Running Scenarios
+## Scenarios
 
-Scenarios are reproducible workloads that exhibit specific behaviors for investigation:
+Scenarios are reproducible workloads that exhibit specific behaviors for investigation. The workflow is: **List → Run → View → Export**.
+
+### The Core Loop
 
 ```bash
-# List available scenarios
+# 1. List available scenarios
 ./scenario.py list
 
-# Run a scenario
-./scenario.py run memory-leak
+# 2. Run a scenario (auto-stops after duration, default 30 min)
+./scenario.py run todo-app-redis --duration 10
 
-# Check status
-./scenario.py status
+# 3. View metrics in browser
+./dev.py cluster viewer start
 
-# View logs
-./scenario.py logs
-
-# Stop and clean up
-./scenario.py stop <run_id>
+# 4. Export for offline analysis or sharing
+./scenario.py export
 ```
 
-**Available scenarios:**
+### Scenario Commands
+
+| Command | Description |
+|---------|-------------|
+| `./scenario.py list` | List all available scenarios |
+| `./scenario.py run <name>` | Deploy scenario to cluster |
+| `./scenario.py run <name> --duration 60` | Run for 60 minutes then auto-stop |
+| `./scenario.py status [run_id]` | Check scenario pod status |
+| `./scenario.py logs [run_id]` | View scenario pod logs |
+| `./scenario.py stop <run_id>` | Stop and clean up early |
+| `./scenario.py export [run_id]` | Export as .parquet and .html |
+
+### Built-in Scenarios
 
 | Scenario | Description |
 |----------|-------------|
@@ -70,20 +81,63 @@ Scenarios are reproducible workloads that exhibit specific behaviors for investi
 | `sigpipe-crash` | SIGPIPE-induced crash from broken pipe |
 | `todo-app` | Multi-service app (frontend, backend, postgres) |
 
-## Exporting Results
+### Exporting Results
 
 Export captured metrics for offline analysis or sharing:
 
 ```bash
-# Export scenario data (creates .parquet and .html files)
-./scenario.py export <run_id>
+# Export latest scenario run
+./scenario.py export
 
-# Specify output path
-./scenario.py export <run_id> -o my-analysis
-# Creates: my-analysis.parquet, my-analysis.html
+# Export specific run with custom filename
+./scenario.py export a1b2c3d4 -o investigation
+# Creates: investigation.parquet, investigation.html
 ```
 
-The exported HTML is self-contained—works offline with the full viewer UI.
+The exported HTML is **self-contained**—open it in any browser, works completely offline with the full viewer UI. Share it with teammates without any server setup.
+
+## Adding Scenarios with Gensim
+
+FGM integrates with [gensim](https://github.com/DataDog/gensim) to import realistic multi-service application blueprints. Gensim blueprints define complete microservice architectures that can be compiled into Kubernetes manifests.
+
+> **Note**: FGM currently uses the [`sopell/k8s-adapter`](https://github.com/DataDog/gensim/tree/sopell/k8s-adapter) branch which adds the k8s-adapter for generating Kubernetes manifests from blueprints.
+
+### Import Workflow
+
+```bash
+# List available blueprints from gensim
+./scenario.py import --list
+
+# Import a blueprint (creates scenario + disruption variants)
+./scenario.py import todo-app-redis
+
+# Update gensim cache to get latest blueprints
+./scenario.py import --update
+```
+
+### What Import Creates
+
+When you import a blueprint like `todo-app-redis`, FGM generates:
+
+1. **Base scenario**: `scenarios/todo-app-redis/` — the healthy application
+2. **Disruption variants**: One scenario per disruption defined in the blueprint
+   - `todo-app-redis-memory-exhaustion/`
+   - `todo-app-redis-cpu-starvation/`
+   - `todo-app-redis-network-high-latency/`
+   - etc.
+
+Each variant pre-configures a specific failure mode, making it easy to study how different issues manifest in metrics.
+
+### Creating New Blueprints
+
+To add new scenarios:
+
+1. Create a blueprint in [gensim](https://github.com/DataDog/gensim/tree/sopell/k8s-adapter/blueprints)
+2. Define the service architecture in `<name>.spec.yaml`
+3. Add disruption variants in `<name>.disruption-*.yaml`
+4. Import into FGM: `./scenario.py import <name>`
+
+See existing blueprints like [`todo-app-redis`](https://github.com/DataDog/gensim/tree/sopell/k8s-adapter/blueprints/todo-app-redis) for examples.
 
 ## What It Captures
 
