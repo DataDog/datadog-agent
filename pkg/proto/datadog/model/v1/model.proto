@@ -146,6 +146,8 @@ message TaggerStateResponse {
 message ConfigStreamRequest {
   // The name of the client subscribing to the config stream.
   string name = 1;
+  // The session ID from RAR registration. Required for authorization.
+  string session_id = 2;
 }
 
 message ConfigSetting {

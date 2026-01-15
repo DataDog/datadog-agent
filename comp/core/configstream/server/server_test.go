@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -54,6 +55,28 @@ func (m *mockComp) Subscribe(req *pb.ConfigStreamRequest) (<-chan *pb.ConfigEven
 	return args.Get(0).(<-chan *pb.ConfigEvent), args.Get(1).(func())
 }
 
+// mockRemoteAgentRegistry is a mock of the remoteagentregistry.Component interface
+type mockRemoteAgentRegistry struct {
+	mock.Mock
+}
+
+func (m *mockRemoteAgentRegistry) RegisterRemoteAgent(req *remoteagentregistry.RegistrationData) (string, uint32, error) {
+	return "test-session-id", 30, nil
+}
+
+func (m *mockRemoteAgentRegistry) RefreshRemoteAgent(sessionID string) bool {
+	// Always return true for tests (agent is registered)
+	return true
+}
+
+func (m *mockRemoteAgentRegistry) GetRegisteredAgents() []remoteagentregistry.RegisteredAgent {
+	return nil
+}
+
+func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistry.StatusData {
+	return nil
+}
+
 func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("config_stream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
@@ -61,14 +84,20 @@ func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStre
 	comp := &mockComp{}
 	stream := &mockStream{ctx: ctx}
 
-	server := NewServer(cfg, comp)
+	// Create a mock RAR that always returns true for RefreshRemoteAgent
+	mockRAR := &mockRemoteAgentRegistry{}
+
+	server := NewServer(cfg, comp, mockRAR)
 	eventsCh := make(chan *pb.ConfigEvent, 1)
 
 	return server, comp, stream, eventsCh
 }
 
 func TestStreamConfigEventsErrors(t *testing.T) {
-	testReq := &pb.ConfigStreamRequest{}
+	testReq := &pb.ConfigStreamRequest{
+		Name:      "test-client",
+		SessionId: "test-session-id",
+	}
 	testEvent := &pb.ConfigEvent{}
 
 	t.Run("returns error on terminal error from stream Send", func(t *testing.T) {

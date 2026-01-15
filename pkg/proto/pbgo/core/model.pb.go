@@ -7,12 +7,13 @@
 package core
 
 import (
-	_struct "github.com/golang/protobuf/ptypes/struct"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	_struct "github.com/golang/protobuf/ptypes/struct"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (
@@ -1163,7 +1164,9 @@ func (x *TaggerStateResponse) GetLoaded() bool {
 type ConfigStreamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The name of the client subscribing to the config stream.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// The session ID from RAR registration. Required for authorization.
+	SessionId     string `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1201,6 +1204,13 @@ func (*ConfigStreamRequest) Descriptor() ([]byte, []int) {
 func (x *ConfigStreamRequest) GetName() string {
 	if x != nil {
 		return x.Name
+	}
+	return ""
+}
+
+func (x *ConfigStreamRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -1693,9 +1703,11 @@ const file_datadog_model_v1_model_proto_rawDesc = "" +
 	"\x03key\x18\x01 \x01(\x05R\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"-\n" +
 	"\x13TaggerStateResponse\x12\x16\n" +
-	"\x06loaded\x18\x01 \x01(\bR\x06loaded\")\n" +
+	"\x06loaded\x18\x01 \x01(\bR\x06loaded\"H\n" +
 	"\x13ConfigStreamRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"g\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\"g\n" +
 	"\rConfigSetting\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x10\n" +
 	"\x03key\x18\x02 \x01(\tR\x03key\x12,\n" +
