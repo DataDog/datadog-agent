@@ -41,8 +41,6 @@ load(
     "DEFAULT_CANONICAL_ID_ENV",
     "get_default_canonical_id",
 )
-
-# load("@@//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
 load(
     "@@//third_party/bazel/tools/build_defs/repo:utils.bzl",
     "download_remote_files",
