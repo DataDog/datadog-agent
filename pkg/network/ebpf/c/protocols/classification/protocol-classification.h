@@ -208,7 +208,9 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
+    // Get the wrapper once - we can derive protocol_stack from it and also check classification_attempts
+    protocol_stack_wrapper_t *wrapper = get_protocol_stack_wrapper_if_exists(&classification_ctx->tuple);
+    protocol_stack_t *protocol_stack = wrapper ? &wrapper->stack : NULL;
 
     // Debug: track when protocol_stack is NULL vs when it exists but isn't fully classified
     if (!protocol_stack) {
@@ -236,6 +238,17 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Check if we've already given up on this connection (hit max attempts limit previously).
+    // We check this early to avoid the cost of get_or_create_protocol_stack for connections
+    // that we've already decided can't be classified.
+    if (wrapper && should_give_up_classification(wrapper->classification_attempts)) {
+        // Already hit the limit on a previous call - just exit without doing any more work
+        RECORD_CLASSIFIER_EARLY_EXIT(protocol_classifier_gave_up_classification_calls,
+                                     protocol_classifier_gave_up_classification_time_ns,
+                                     entrypoint_start_ns);
+        return;
+    }
+
     // Ensure the protocol stack wrapper exists before incrementing classification attempts.
     // This is needed because increment_classification_attempts operates on the wrapper,
     // and we need the wrapper to exist so the attempt count is properly tracked for the histogram.
@@ -247,7 +260,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     // Increment classification attempts for this connection (only if we're doing actual classification work)
     __u32 attempts = increment_classification_attempts(&classification_ctx->tuple);
 
-    // Check if we've exceeded max classification attempts - if so, give up and mark as fully classified
+    // Check if we've NOW exceeded max classification attempts - if so, give up and mark as fully classified
     // This prevents wasting CPU cycles on connections that can't be classified (e.g., data-only packets)
     if (should_give_up_classification(attempts)) {
         mark_as_fully_classified(protocol_stack);
