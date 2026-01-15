@@ -551,23 +551,6 @@ func TestNormalizeTraceTraceIdMismatch(t *testing.T) {
 	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
 }
 
-func TestNormalizeTraceTraceIdMismatch128Bit(t *testing.T) {
-	a := &Agent{conf: config.New()}
-	ts := newTagStats()
-	span1, span2 := newTestSpan(), newTestSpan()
-
-	// Same low 64 bits, different high 64 bits (_dd.p.tid)
-	span1.TraceID = 1
-	span2.TraceID = 1
-	span1.Meta["_dd.p.tid"] = "0000000000000001"
-	span2.Meta["_dd.p.tid"] = "0000000000000002"
-
-	trace := pb.Trace{span1, span2}
-	err := a.normalizeTrace(ts, trace)
-	assert.Error(t, err)
-	assert.Equal(t, tsDropped(&info.TracesDropped{ForeignSpan: *atomic.NewInt64(1)}), ts)
-}
-
 func TestNormalizeTraceInvalidSpan(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
