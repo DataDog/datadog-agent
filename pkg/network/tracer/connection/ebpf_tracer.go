@@ -982,12 +982,17 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		// Calculate full classification stats
-		// Note: gaveUpClassificationCalls is NOT included in early exits because it happens after
-		// get_or_create_protocol_stack and increment_classification_attempts, so it's counted as
-		// part of the "full classification" path (it's the one-time event of hitting the limit).
-		// maxAttemptsExceededCalls IS an early exit because it happens before any classification work.
-		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls
+		// Every call takes exactly ONE path: early exit OR full classification
+		// Early exits: read_conn_tuple_failed, not_tcp_or_empty, context_init_failed,
+		//              already_classified, max_attempts_exceeded, gave_up
+		// Full classification: everything else (actual protocol detection work)
+		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
 		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
+		if fullClassificationCalls < 0 {
+			// This can happen on the first interval after deployment when "last" values are 0
+			// but counters have accumulated values from before
+			fullClassificationCalls = 0
+		}
 		avgFullClassificationTime := float64(0)
 		if fullClassificationCalls > 0 {
 			totalTimeNs := float64(socketClassifierCalls) * avgSocketClassifierTime
@@ -995,24 +1000,27 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 				float64(notTcpOrEmptyCalls)*avgNotTcpOrEmptyTime +
 				float64(contextInitFailedCalls)*avgContextInitFailedTime +
 				float64(alreadyClassifiedCalls)*avgAlreadyClassifiedTime +
-				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime
+				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime +
+				float64(gaveUpClassificationCalls)*avgGaveUpClassificationTime
 			fullClassificationTimeNs := totalTimeNs - earlyExitTimeNs
-			avgFullClassificationTime = fullClassificationTimeNs / float64(fullClassificationCalls)
+			if fullClassificationTimeNs > 0 {
+				avgFullClassificationTime = fullClassificationTimeNs / float64(fullClassificationCalls)
+			}
 		}
 
 		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
-		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns)",
+		log.Infof("JMW   early_exit: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns), gave_up=%d (avg %.2fns)",
 			earlyExitTotalCalls, safePercent(earlyExitTotalCalls, socketClassifierCalls),
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
 			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,
 			alreadyClassifiedCalls, avgAlreadyClassifiedTime,
-			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime)
-		log.Infof("JMW   full_classification path taken: calls=%d (%.1f%%) (avg %.2fns), gave_up=%d (avg %.2fns)",
+			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime,
+			gaveUpClassificationCalls, avgGaveUpClassificationTime)
+		log.Infof("JMW   full_classification: calls=%d (%.1f%%) (avg %.2fns)",
 			fullClassificationCalls,
 			safePercent(fullClassificationCalls, socketClassifierCalls),
-			avgFullClassificationTime,
-			gaveUpClassificationCalls, avgGaveUpClassificationTime)
+			avgFullClassificationTime)
 
 		// Debug: why aren't more connections hitting already_classified?
 		// Note: these are CUMULATIVE totals since agent start, not deltas for this interval
