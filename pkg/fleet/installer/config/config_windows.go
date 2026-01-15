@@ -62,7 +62,8 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 	if err != nil {
 		return fmt.Errorf("error creating target directory: %w", err)
 	}
-	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath)
+	// Copy deployment ID during backup - we want to preserve stable's deployment ID in the backup
+	err = backupOrRestoreDirectory(ctx, d.StablePath, d.ExperimentPath, true)
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
@@ -108,7 +109,8 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if os.IsNotExist(err) {
 		return nil
 	}
-	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
+	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
+	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath, false)
 	if err != nil {
 		return fmt.Errorf("error backing up stable directory: %w", err)
 	}
@@ -121,7 +123,8 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
-func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
+// If copyDeploymentID is true, also copies the .deployment-id file.
+func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string, copyDeploymentID bool) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("error checking if source directory exists: %w", err)
@@ -137,16 +140,21 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if _, err := os.Stat(targetPath); err != nil {
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
-	deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error reading deployment ID file: %w", err)
-	}
-	if !os.IsNotExist(err) {
-		err = os.WriteFile(filepath.Join(targetPath, deploymentIDFile), deploymentID, 0640)
-		if err != nil {
-			return fmt.Errorf("error writing deployment ID file: %w", err)
+
+	// Only copy deployment ID if explicitly requested (during backup, not during restore)
+	if copyDeploymentID {
+		deploymentID, err := os.ReadFile(filepath.Join(sourcePath, deploymentIDFile))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("error reading deployment ID file: %w", err)
+		}
+		if !os.IsNotExist(err) {
+			err = os.WriteFile(filepath.Join(targetPath, deploymentIDFile), deploymentID, 0640)
+			if err != nil {
+				return fmt.Errorf("error writing deployment ID file: %w", err)
+			}
 		}
 	}
+
 	cmd := telemetry.CommandContext(
 		ctx,
 		"robocopy",
