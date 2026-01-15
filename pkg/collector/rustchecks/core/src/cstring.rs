@@ -1,9 +1,13 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use std::ffi::{c_char, CStr, CString};
 
 /// Convert C-String pointer to Rust String
-pub fn to_rust_string(ptr: *mut c_char) -> Result<String> {
+pub fn to_rust_string(ptr: *const c_char) -> Result<String> {
+    if ptr.is_null() {
+        bail!("pointer to C-String is null, can't convert to Rust String")
+    }
+
     let rust_str = unsafe { CStr::from_ptr(ptr) }.to_str()?;
     Ok(rust_str.to_string())
 }
