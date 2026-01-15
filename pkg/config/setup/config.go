@@ -302,6 +302,11 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
 	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
 
+	// FGM (Fine-Grained Metrics) - high-frequency container metrics via cgroup/procfs
+	// Linux-only feature that samples container metrics at sub-second intervals
+	config.BindEnvAndSetDefault("fgm.enabled", false)
+	config.BindEnvAndSetDefault("fgm.sample_interval", 1*time.Second)
+
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	config.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)

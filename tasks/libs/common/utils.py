@@ -282,6 +282,22 @@ def get_build_flags(
         extra_cgo_flags += f" -I{rtloader_common_headers}"
     env['CGO_CFLAGS'] = os.environ.get('CGO_CFLAGS', '') + extra_cgo_flags
 
+    # Add FGM observer library and headers (Linux only)
+    if sys.platform == 'linux':
+        fgm_lib_path = os.path.join(embedded_path, "lib", "libfgm_observer.a")
+        fgm_include_path = os.path.join(embedded_path, "include", "fgm_observer")
+
+        if os.path.exists(fgm_lib_path):
+            fgm_lib_dir = os.path.dirname(fgm_lib_path)
+            env['CGO_LDFLAGS'] = env.get('CGO_LDFLAGS', '') + f" -L{fgm_lib_dir} -lfgm_observer -ldl -lpthread -lm"
+            if not headless_mode:
+                print(f"--- Setting FGM observer library path: {fgm_lib_dir}")
+
+        if os.path.exists(fgm_include_path):
+            env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', '') + f" -I{fgm_include_path}"
+            if not headless_mode:
+                print(f"--- Setting FGM observer include path: {fgm_include_path}")
+
     if sys.platform == 'linux' and os.getenv('GOOS') == "windows":
         # fake the minimum windows version
         env['CGO_CFLAGS'] = env['CGO_CFLAGS'] + " -D_WIN32_WINNT=0x0A00"

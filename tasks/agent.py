@@ -164,6 +164,38 @@ def build(
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
+    # Build FGM observer Rust library (Linux only)
+    if sys.platform == 'linux':
+        with gitlab_section("Build FGM observer", collapsed=True):
+            # Determine embedded path for library installation
+            fgm_embedded_path = embedded_path if embedded_path else get_embedded_path(ctx)
+            if not fgm_embedded_path:
+                print("Warning: Could not determine embedded path, skipping FGM observer build")
+            else:
+                # Build Rust library with Cargo
+                print("Building FGM observer Rust library...")
+                result = ctx.run("cd pkg/fgm/observer && cargo build --release", warn=True)
+
+                if result and result.ok:
+                    # Create lib and include directories in embedded path
+                    lib_dir = os.path.join(fgm_embedded_path, "lib")
+                    include_dir = os.path.join(fgm_embedded_path, "include", "fgm_observer")
+                    os.makedirs(lib_dir, exist_ok=True)
+                    os.makedirs(include_dir, exist_ok=True)
+
+                    # Copy library
+                    shutil.copy(
+                        "pkg/fgm/observer/target/release/libfgm_observer.a", os.path.join(lib_dir, "libfgm_observer.a")
+                    )
+                    print(f"Installed libfgm_observer.a to {lib_dir}")
+
+                    # Copy headers
+                    for header in glob.glob("pkg/fgm/observer/include/*.h"):
+                        shutil.copy(header, include_dir)
+                    print(f"Installed FGM observer headers to {include_dir}")
+                else:
+                    print("Warning: FGM observer build failed, continuing without it")
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
