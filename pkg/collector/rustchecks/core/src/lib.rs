@@ -2,7 +2,7 @@
 mod agent_check;
 pub use agent_check::AgentCheck;
 mod aggregator;
-pub use aggregator::{Aggregator, MetricType, ServiceCheckStatus};
+pub use aggregator::{Aggregator, MetricType, ServiceCheckStatus, Event};
 mod config;
 
 // FFI using the C-ABI

@@ -4,33 +4,34 @@
 
 There are 2 folders at the root level:
 - `core`: Shared code between every Rust check. This code is included in each check.
-- `checks`: Folder containing every Rust-based check, each in its own project.
+- `checks`: Folder containing every Rust-based check, each in its own crate.
 
-## Writing a Rust check
+## Writing Rust checks
 
-To start writing a new Rust check, you have 2 options:
-- Make a copy of `example` in `checks`, which is an "Hello world" Rust check that you can use as a template.
-- Create a new Rust project in `checks` and copy `lib.rs` from any checks you want.
-
-Then, follow these steps:
-- In `Cargo.toml`, change the name and make sure it has a property named `lib`.
-- In `lib.rs`, change the version (const `VERSION` value).
-- Write any code you want in the `check` function in `lib.rs`.
+To start writing a new Rust check, follow these steps:
+- In `checks`, copy the crate `example` and rename it with your `check_name`. The check 'example' is a template for Rust-based checks.
+- Change the name of the crate in `Cargo.toml`
+- Add your crate in the `workspace.members` list in the `Cargo.toml` located at the root level.
+- Write your implementation in the body of the `check` function in `check.rs`. 
 
 And you're done!
 
-## Building a Rust check
+Alternatively, you can create the crate with `cargo new checks/<check_name>` then copy the `Cargo.toml` and the source files manually. `cargo new` will automatically add your crate in the workspace members.
 
-Building a Rust check means compiling it into a C-Shared library.
+## Compiling into shared libraries
 
-To compile a Rust check into a shared library, you can use the following command:
+To run Rust checks in the Agent, you need to compile them into a C-Shared library with:
+
 ```
 cargo build --release -p <check_name>
 ```
 
-You will then find the shared library in `target/release` under the name `lib<check_name>.<lib_extension>`.
+The shared library will be created in `target/release` under the name `lib<check_name>.<lib_extension>`.
+
+## Testing shared libraries compiled from Rust checks
+
+Now that you have 
 
 ## Additional notes
 
 - The project is experimental. The logic and behavior of Rust-based checks may change. 
-- `httpcheck` should be refactored.
