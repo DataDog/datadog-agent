@@ -262,6 +262,49 @@
         "recordedRepoMappingEntries": []
       }
     },
+    "//deps:dd_http.bzl%dd_http": {
+      "general": {
+        "bzlTransitiveDigest": "BwXlNFbqhx1xy0g5tDOJh7CWPpJSLcei4w0GjN1XneQ=",
+        "usagesDigest": "L7Aa+ttfpmzmndASB5ohBWn7zfFdj9CpswGH8Rrjtek=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "xz": {
+            "repoRuleId": "@@//third_party/bazel/tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "build_file": "@@//deps:xz.BUILD.bazel",
+              "files": {
+                "config.lzma-linux-arm64.h": "@@//deps/xz:config.lzma-linux-arm64.h",
+                "config.lzma-linux-x86_64.h": "@@//deps/xz:config.lzma-linux-x86_64.h",
+                "config.lzma-osx-arm64.h": "@@//deps/xz:config.lzma-osx-arm64.h",
+                "config.lzma-osx-x86_64.h": "@@//deps/xz:config.lzma-osx-x86_64.h",
+                "config.lzma-windows.h": "@@//deps/xz:config.lzma-windows.h"
+              },
+              "sha256": "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543",
+              "strip_prefix": "xz-5.8.1",
+              "urls": [
+                "https://dd-agent-omnibus.s3.amazonaws.com/bazel/xz-5.8.1.tar.gz",
+                "https://tukaani.org/xz/xz-5.8.1.tar.gz"
+              ]
+            }
+          },
+          "zlib": {
+            "repoRuleId": "@@//third_party/bazel/tools/build_defs/repo:http.bzl%http_archive",
+            "attributes": {
+              "build_file": "@@//deps:zlib.BUILD.bazel",
+              "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+              "strip_prefix": "zlib-1.3.1",
+              "urls": [
+                "https://dd-agent-omnibus.s3.amazonaws.com/bazel/zlib-1.3.1.tar.gz",
+                "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz"
+              ]
+            }
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
     "@@buildifier_prebuilt+//:defs.bzl%buildifier_prebuilt_deps_extension": {
       "general": {
         "bzlTransitiveDigest": "o1WPvgvSISMJsXVrFW1v+M17eIj9AJjkcTAucRVb3vI=",
