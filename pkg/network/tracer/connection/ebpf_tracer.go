@@ -982,7 +982,11 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		}
 
 		// Calculate full classification stats
-		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
+		// Note: gaveUpClassificationCalls is NOT included in early exits because it happens after
+		// get_or_create_protocol_stack and increment_classification_attempts, so it's counted as
+		// part of the "full classification" path (it's the one-time event of hitting the limit).
+		// maxAttemptsExceededCalls IS an early exit because it happens before any classification work.
+		earlyExitTotalCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls
 		fullClassificationCalls := socketClassifierCalls - earlyExitTotalCalls
 		avgFullClassificationTime := float64(0)
 		if fullClassificationCalls > 0 {
@@ -991,26 +995,24 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 				float64(notTcpOrEmptyCalls)*avgNotTcpOrEmptyTime +
 				float64(contextInitFailedCalls)*avgContextInitFailedTime +
 				float64(alreadyClassifiedCalls)*avgAlreadyClassifiedTime +
-				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime +
-				float64(gaveUpClassificationCalls)*avgGaveUpClassificationTime
+				float64(maxAttemptsExceededCalls)*avgMaxAttemptsExceededTime
 			fullClassificationTimeNs := totalTimeNs - earlyExitTimeNs
 			avgFullClassificationTime = fullClassificationTimeNs / float64(fullClassificationCalls)
 		}
 
 		log.Infof("JMW socket_classifier_entry telemetry: total_calls=%d (avg %.2fns)", socketClassifierCalls, avgSocketClassifierTime)
-		totalEarlyExitCalls := readConnTupleFailedCalls + notTcpOrEmptyCalls + contextInitFailedCalls + alreadyClassifiedCalls + maxAttemptsExceededCalls + gaveUpClassificationCalls
-		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns), gave_up=%d (avg %.2fns)",
-			totalEarlyExitCalls, safePercent(totalEarlyExitCalls, socketClassifierCalls),
+		log.Infof("JMW   early_exit taken: calls=%d (%.1f%%) read_conn_tuple_failed=%d (avg %.2fns), not_tcp_or_empty=%d (avg %.2fns), context_init_failed=%d (avg %.2fns), already_classified=%d (avg %.2fns), max_attempts_exceeded=%d (avg %.2fns)",
+			earlyExitTotalCalls, safePercent(earlyExitTotalCalls, socketClassifierCalls),
 			readConnTupleFailedCalls, avgReadConnTupleFailedTime,
 			notTcpOrEmptyCalls, avgNotTcpOrEmptyTime,
 			contextInitFailedCalls, avgContextInitFailedTime,
 			alreadyClassifiedCalls, avgAlreadyClassifiedTime,
-			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime,
-			gaveUpClassificationCalls, avgGaveUpClassificationTime)
-		log.Infof("JMW   full_classification path taken: calls=%d (%.1f%%) (avg %.2fns)",
+			maxAttemptsExceededCalls, avgMaxAttemptsExceededTime)
+		log.Infof("JMW   full_classification path taken: calls=%d (%.1f%%) (avg %.2fns), gave_up=%d (avg %.2fns)",
 			fullClassificationCalls,
-			float64(fullClassificationCalls)*100/float64(socketClassifierCalls),
-			avgFullClassificationTime)
+			safePercent(fullClassificationCalls, socketClassifierCalls),
+			avgFullClassificationTime,
+			gaveUpClassificationCalls, avgGaveUpClassificationTime)
 
 		// Debug: why aren't more connections hitting already_classified?
 		// Note: these are CUMULATIVE totals since agent start, not deltas for this interval
@@ -1038,14 +1040,12 @@ func (t *ebpfTracer) logTelemetryMetrics() {
 		after2 := int64(ebpfTelemetry.Protocol_classifier_classified_after_2_attempts)
 		after3 := int64(ebpfTelemetry.Protocol_classifier_classified_after_3_attempts)
 		after4Plus := int64(ebpfTelemetry.Protocol_classifier_classified_after_4_plus_attempts)
-		gaveUp := int64(ebpfTelemetry.Protocol_classifier_gave_up_classification_calls)
 		totalClassified := after1 + after2 + after3 + after4Plus
 		log.Infof("JMW   classification_attempts_histogram (cumulative): 1_attempt=%d (%.1f%%), 2_attempts=%d (%.1f%%), 3_attempts=%d (%.1f%%), 4+_attempts=%d (%.1f%%)",
 			after1, safePercent(after1, totalClassified),
 			after2, safePercent(after2, totalClassified),
 			after3, safePercent(after3, totalClassified),
 			after4Plus, safePercent(after4Plus, totalClassified))
-		log.Infof("JMW   gave_up_classification (cumulative): %d (connections that hit max_protocol_classification_attempts limit)", gaveUp)
 
 		// Update last values
 		EbpfTracerTelemetry.lastSocketClassifierEntryCalls = int64(ebpfTelemetry.Socket_classifier_entry_calls)
