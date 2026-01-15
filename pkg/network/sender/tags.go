@@ -72,7 +72,6 @@ func (d *directSender) getContainersForExplicitTagging(currentConnections *netwo
 		}
 	}
 
-	// TODO was using clock.Now() for testing purposes
 	currentTime := time.Now()
 	duration := d.sysprobeconfig.GetDuration("system_probe_config.expected_tags_duration")
 	withinAgentStartingPeriod := pkgconfigsetup.StartTime.Add(duration).After(currentTime)

@@ -17,10 +17,12 @@ func newIndexedSet[K comparable]() *indexedSet[K] {
 	}
 }
 
+// Size returns the number of entries in the set
 func (s *indexedSet[K]) Size() int {
 	return len(s.uniqList)
 }
 
+// Add adds a key and returns the index in the set.
 func (s *indexedSet[K]) Add(k K) int32 {
 	if v, found := s.keyMap[k]; found {
 		return v
@@ -31,6 +33,7 @@ func (s *indexedSet[K]) Add(k K) int32 {
 	return v
 }
 
+// AddSlice adds all the keys from the slice and returns all the corresponding indexes.
 func (s *indexedSet[K]) AddSlice(ks []K) []int32 {
 	idxs := make([]int32, 0, len(ks))
 	for _, k := range ks {
@@ -39,10 +42,12 @@ func (s *indexedSet[K]) AddSlice(ks []K) []int32 {
 	return idxs
 }
 
+// UniqueKeys returns all the unique keys in the set
 func (s *indexedSet[K]) UniqueKeys() []K {
 	return s.uniqList
 }
 
+// Subset returns all the keys corresponding to the provided indexes
 func (s *indexedSet[K]) Subset(indexes []int32) []K {
 	sub := make([]K, 0, len(indexes))
 	for _, index := range indexes {

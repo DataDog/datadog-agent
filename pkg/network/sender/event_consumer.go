@@ -18,10 +18,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	logutil "github.com/DataDog/datadog-agent/pkg/util/log"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+const eventConsumerSubsystem = "sender__event_consumer"
+
+var eventConsumerTelemetry = struct {
+	eventsReceived telemetry.Counter
+	processCount   telemetry.Gauge
+}{
+	telemetry.NewCounter(eventConsumerSubsystem, "events_received", []string{"event_type"}, ""),
+	telemetry.NewGauge(eventConsumerSubsystem, "process_count", nil, ""),
+}
 
 var _ eventmonitor.EventConsumerHandler = &directSenderConsumer{}
 var _ eventmonitor.EventConsumer = &directSenderConsumer{}
@@ -111,6 +122,7 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 	if !ok {
 		return
 	}
+	eventConsumerTelemetry.eventsReceived.Inc(p.EventType.String())
 	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
 		cwd, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "cwd"))
 		if err != nil {
@@ -144,11 +156,10 @@ func (d *directSenderConsumer) process(p *process) {
 	}
 	d.proxyFilter.process(p)
 	d.extractor.process(p)
+	eventConsumerTelemetry.processCount.Set(float64(len(d.processes)))
 }
 
 // cleanupProcesses is called after connections have been collected, so stale process entries can be cleaned up.
-//
-//nolint:unused // will be used once direct send loop is added in future PR
 func (d *directSenderConsumer) cleanupProcesses() {
 	d.mtx.Lock()
 	defer d.mtx.Unlock()
@@ -164,4 +175,5 @@ func (d *directSenderConsumer) cleanupProcesses() {
 			delete(d.processes, pid)
 		}
 	}
+	eventConsumerTelemetry.processCount.Set(float64(len(d.processes)))
 }

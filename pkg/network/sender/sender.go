@@ -44,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -54,7 +55,19 @@ import (
 )
 
 const clientID = "local_client"
+const telemetrySubsystem = "sender__connections"
 
+var senderTelemetry = struct {
+	queueSize       telemetry.Gauge
+	queueBytes      telemetry.Gauge
+	connectionCount telemetry.Counter
+}{
+	telemetry.NewGauge(telemetrySubsystem, "queue_size", nil, ""),
+	telemetry.NewGauge(telemetrySubsystem, "queue_bytes", nil, ""),
+	telemetry.NewCounter(telemetrySubsystem, "connection_count", nil, ""),
+}
+
+// ConnectionsSource is an interface for an object that can provide network connections data
 type ConnectionsSource interface {
 	RegisterClient(clientID string) error
 	GetActiveConnections(clientID string) (*network.Connections, func(), error)
@@ -299,7 +312,8 @@ func (d *directSender) submitLoop() {
 func getDNSNameForIP(conns *network.Connections, ip util.Address) string {
 	if dnsEntry := conns.DNS[ip]; len(dnsEntry) > 0 {
 		// We are only using the first entry for now, but in the future, if we find a good solution,
-		// we might want to report the other DNS names too if necessary (need more investigation on how to best achieve that).
+		// we might want to report the other DNS names too if necessary.
+		// (need more investigation on how to best achieve that).
 		return dnsEntry[0].Get()
 	}
 	return ""
@@ -353,6 +367,7 @@ func (d *directSender) collect() {
 		d.log.Errorf("error getting connections: %s", err)
 		return
 	}
+	senderTelemetry.connectionCount.Add(float64(len(conns.Conns)))
 	defer cleanup()
 	defer network.Reclaim(conns)
 
@@ -413,6 +428,9 @@ func (d *directSender) collect() {
 	// we have to include all batches as a single item in the queue, otherwise individual batches could be evicted.
 	d.resultsQueue.Add(allBatches)
 	d.logCheckDuration(start)
+
+	senderTelemetry.queueSize.Set(float64(d.resultsQueue.Len()))
+	senderTelemetry.queueBytes.Set(float64(d.resultsQueue.Weight()))
 }
 
 func (d *directSender) batches(conns *network.Connections, groupID int32) iter.Seq[*model.CollectorConnections] {
@@ -596,25 +614,21 @@ func (d *directSender) getRequestID(start time.Time, chunkIndex int) string {
 
 func (d *directSender) readResponseStatuses(responses <-chan defaultforwarder.Response) {
 	checkName := "connections"
-	submissionErrors := int64(0)
 
 	for response := range responses {
 		if response.Err != nil {
 			d.log.Errorf("[%s] Error from %s: %s", checkName, response.Domain, response.Err)
-			submissionErrors++
 			continue
 		}
 
 		if response.StatusCode >= 300 {
 			d.log.Errorf("[%s] Invalid response from %s: %d -> %v", checkName, response.Domain, response.StatusCode, response.Err)
-			submissionErrors++
 			continue
 		}
 
 		r, err := model.DecodeMessage(response.Body)
 		if err != nil {
 			d.log.Errorf("[%s] Could not decode response body: %s", checkName, err)
-			submissionErrors++
 			continue
 		}
 
@@ -623,16 +637,11 @@ func (d *directSender) readResponseStatuses(responses <-chan defaultforwarder.Re
 			rm := r.Body.(*model.ResCollector)
 			if len(rm.Message) > 0 {
 				d.log.Errorf("[%s] Error in response from %s: %s", checkName, response.Domain, rm.Message)
-				submissionErrors++
 			}
 		default:
 			d.log.Errorf("[%s] Unexpected response type from %s: %d", checkName, response.Domain, r.Header.Type)
-			submissionErrors++
 		}
 	}
-
-	// TODO
-	//status.AddSubmissionErrorCount(submissionErrors)
 }
 
 func (d *directSender) batchCount(conns *network.Connections) int32 {
