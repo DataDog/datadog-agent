@@ -8,6 +8,7 @@ package mock
 
 import (
 	"testing"
+	"time"
 
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
@@ -52,6 +53,11 @@ func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, repor
 	// Store the issue
 	m.issues[checkID] = issue
 
+	return nil
+}
+
+// RegisterCheck does nothing in the mock implementation
+func (m *mockHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
 

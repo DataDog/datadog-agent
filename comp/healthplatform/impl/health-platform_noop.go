@@ -6,6 +6,8 @@
 package healthplatformimpl
 
 import (
+	"time"
+
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
@@ -15,6 +17,11 @@ type noopHealthPlatform struct{}
 
 // ReportIssue does nothing when the health platform is disabled
 func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatform.IssueReport) error {
+	return nil
+}
+
+// RegisterCheck does nothing when the health platform is disabled
+func (n *noopHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
 
