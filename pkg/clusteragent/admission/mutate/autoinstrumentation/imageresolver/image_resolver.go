@@ -211,9 +211,9 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
-// NewImageResolver creates the appropriate Resolver based on whether
+// New creates the appropriate Resolver based on whether
 // a remote config client is available.
-func NewImageResolver(cfg Config) Resolver {
+func New(cfg Config) Resolver {
 	if cfg.RCClient == nil || reflect.ValueOf(cfg.RCClient).IsNil() {
 		log.Debugf("No remote config client available")
 		return NewNoOpResolver()
