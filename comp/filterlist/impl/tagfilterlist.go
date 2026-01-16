@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package aggregator
+package filterlistimpl
 
 import (
 	"slices"
@@ -41,7 +41,7 @@ type HashedMetricTagList struct {
 // a list of metric names and tags. Those tags are hashed using murmur3.
 // The hashed value is then used to query whether a tag should be removed
 // from a given metric.
-func NewTagMatcher(metrics map[string]MetricTagList) *TagMatcher {
+func NewTagMatcher(metrics map[string]MetricTagList) TagMatcher {
 	// Store a hashed version of the tag list since that will take up
 	// less space and be faster to query.
 	hashed := make(map[string]HashedMetricTagList, len(metrics))
@@ -69,7 +69,7 @@ func NewTagMatcher(metrics map[string]MetricTagList) *TagMatcher {
 		}
 	}
 
-	return &TagMatcher{
+	return TagMatcher{
 		Metrics: hashed,
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"gopkg.in/yaml.v2"
 )
 
 // Requires contains the config for RC
@@ -46,10 +47,14 @@ type FilterList struct {
 	config        config.Component
 	telemetrycomp telemetry.Component
 
-	updateMtx        sync.RWMutex
-	filterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
-	filterList       utilstrings.Matcher
-	histoFilterList  utilstrings.Matcher
+	updateMetricMtx        sync.RWMutex
+	metricFilterListUpdate []func(utilstrings.Matcher, utilstrings.Matcher)
+	filterList             utilstrings.Matcher
+	histoFilterList        utilstrings.Matcher
+
+	updateTagMtx        sync.RWMutex
+	tagFilterListUpdate []func(TagMatcher)
+	tagFilterList       TagMatcher
 
 	tlmFilterListUpdates telemetry.SimpleCounter
 	tlmFilterListSize    telemetry.SimpleGauge
@@ -77,6 +82,8 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		"Filter list size",
 	)
 
+	tagMatcher := loadTagFilterList()
+
 	fl := &FilterList{
 		localFilterListConfig: localFilterListConfig,
 		config:                config,
@@ -84,11 +91,39 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		telemetrycomp:         telemetrycomp,
 		tlmFilterListUpdates:  tlmFilterListUpdates,
 		tlmFilterListSize:     tlmFilterListSize,
+
+		tagFilterList: tagMatcher,
 	}
 
 	fl.SetFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
 
 	return fl
+}
+
+// loadTagFilterList loads the tag filterlist from the config file.
+func loadTagFilterList(config config.Component, log log.Component) TagMatcher {
+	tagFilterListInterface := config.Datadog().GetStringMap("metric_tag_filterlist")
+
+	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
+	for metricName, tags := range tagFilterListInterface {
+		// Tags can be configured as an object with fields:
+		// tags - array of tags
+		// action - either `include` or `exclude`.
+		// Roundtrip the struct through yaml to load it.
+		tagBytes, err := yaml.Marshal(tags)
+		if err != nil {
+			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+		} else {
+			var tags MetricTagList
+			err = yaml.Unmarshal(tagBytes, &tags)
+			if err != nil {
+				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+			} else {
+				tagFilterList[metricName] = tags
+			}
+		}
+	}
+	return NewTagMatcher(tagFilterList)
 }
 
 // create a list based on all `metricNames` but only containing metric names
@@ -135,8 +170,8 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	fl.filterList = utilstrings.NewMatcher(metricNames, matchPrefix)
 	fl.histoFilterList = utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
-	fl.updateMtx.RLock()
-	defer fl.updateMtx.RUnlock()
+	fl.updateMetricMtx.RLock()
+	defer fl.updateMetricMtx.RUnlock()
 
 	for _, update := range fl.filterListUpdate {
 		update(fl.filterList, fl.histoFilterList)
@@ -156,11 +191,19 @@ func (fl *FilterList) restoreFilterListFromLocalConfig() {
 }
 
 func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
-	fl.updateMtx.Lock()
-	defer fl.updateMtx.Unlock()
+	fl.updateMetricMtx.Lock()
+	defer fl.updateMetricMtx.Unlock()
 
-	fl.filterListUpdate = append(fl.filterListUpdate, onUpdate)
+	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
 	onUpdate(fl.filterList, fl.histoFilterList)
+}
+
+func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(TagMatcher)) {
+	fl.updateTagMtx.Lock()
+	defer fl.updateTagMtx.Unlock()
+
+	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
+	onUpdate(fl.tagFilterList)
 }
 
 func NewFilterListReq(req Requires) Provides {
