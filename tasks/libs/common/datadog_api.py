@@ -254,7 +254,7 @@ def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> 
 
             for series in series_list:
                 # Extract gate_name from scope (e.g., "gate_name:static_quality_gate_agent_deb_amd64")
-                scope = series.get("scope", "")
+                scope = series["scope"]
                 gate_name = None
                 for tag in scope.split(","):
                     if tag.startswith("gate_name:"):
@@ -264,13 +264,18 @@ def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> 
                 if not gate_name:
                     continue
 
-                # Get the most recent non-null value
-                pointlist = series.get("pointlist", [])
+                # Get the most recent non-null value from pointlist
+                # Points are [timestamp, value] pairs
+                pointlist = series["pointlist"]
                 for point in reversed(pointlist):
-                    if len(point) > 1 and point[1] is not None:
+                    # point[0] is a timestamp when this metric point was reported,
+                    # safe to ignore since we reverse the pointlist and get
+                    # the latest non-null value
+                    value = point[1]
+                    if value is not None:
                         if gate_name not in results:
                             results[gate_name] = {}
-                        results[gate_name][metric_key] = int(point[1])
+                        results[gate_name][metric_key] = int(value)
                         break
 
         except Exception as e:
