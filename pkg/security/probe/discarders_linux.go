@@ -615,6 +615,7 @@ func prCtlDiscarder(_ *rules.RuleSet, event *model.Event, probe *EBPFProbe, _ Di
 	}
 
 	probe.erpcRequest.OP = erpc.DiscardPrctlOp
+	probe.erpcRequest.Data = [256]byte{}
 	copy(probe.erpcRequest.Data[:], name)
 	err = probe.Erpc.Request(probe.erpcRequest)
 
