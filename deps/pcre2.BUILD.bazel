@@ -260,6 +260,7 @@ cc_shared_library(
 cc_shared_library(
     name = "pcre2posix",
     deps = [":libpcre2-posix"],
+    dynamic_deps = [":pcre2"],
     visibility = ["//visibility:public"],
 )
 
