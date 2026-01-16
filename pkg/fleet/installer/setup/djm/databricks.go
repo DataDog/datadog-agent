@@ -145,8 +145,20 @@ func SetupDatabricks(s *common.Setup) error {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigDatabricks.TraceDebug = config.BoolToPtr(true)
 	}
+	if os.Getenv("DD_PROFILING_ENABLED") == "true" {
+		s.Out.WriteString("Enabling Datadog Profiler on DD_PROFILING_ENABLED=true\n")
+		profilingEnabled := "true"
+		tracerConfigDatabricks.ProfilingEnabled = &profilingEnabled
+	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigDatabricks,
+	}
+
+	// Disable credit card obfuscation for Databricks to avoid issues with job and run ids
+	s.Config.DatadogYAML.APMConfig.ObfuscationConfig = &config.ObfuscationConfig{
+		CreditCards: config.CreditCardObfuscationConfig{
+			KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime", "config.spark_databricks_job_parentRunId"},
+		},
 	}
 
 	setupCommonHostTags(s)
