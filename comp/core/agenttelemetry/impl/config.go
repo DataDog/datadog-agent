@@ -432,19 +432,16 @@ var defaultProfiles = `
       period: 900
   - name: cluster-agent
     metric:
-      exclude:
-        zero_metric: false
       metrics:
         - name: admission_webhooks.image_resolution_attempts
           aggregate_tags:
-            - registry
             - repository
-            - digest_resolution
+            - tag
             - outcome
     schedule:
-      start_after: 30
+      start_after: 0
       iterations: 0
-      period: 900
+      period: 600
 `
 
 func compileMetricsExclude(p *Profile) error {
