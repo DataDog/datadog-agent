@@ -70,10 +70,10 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		matchPrefix: filterlistPrefix,
 	}
 
-	tlmFilterListUpdates := telemetrycomp.NewSimpleCounter("filterlist", "filterlist_updates",
+	tlmFilterListUpdates := telemetrycomp.NewSimpleCounter("filterlist", "updates",
 		"Incremented when a reconfiguration of the filterlist happened",
 	)
-	tlmFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "filterlist_size",
+	tlmFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "size",
 		"Filter list size",
 	)
 

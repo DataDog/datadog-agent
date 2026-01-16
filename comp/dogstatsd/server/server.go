@@ -174,8 +174,6 @@ type server struct {
 	tlmProcessedOk          telemetry.SimpleCounter
 	tlmProcessedError       telemetry.SimpleCounter
 	tlmChannel              telemetry.Histogram
-	tlmFilterListUpdates    telemetry.SimpleCounter
-	tlmFilterListSize       telemetry.SimpleGauge
 	listernersTelemetry     *listeners.TelemetryStore
 	packetsTelemetry        *packets.TelemetryStore
 	stringInternerTelemetry *stringInternerTelemetry
@@ -334,12 +332,6 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
-	s.tlmFilterListUpdates = telemetrycomp.NewSimpleCounter("dogstatsd", "filterlist_updates",
-		"Incremented when a reconfiguration of the filterlist happened",
-	)
-	s.tlmFilterListSize = telemetrycomp.NewSimpleGauge("dogstatsd", "filterlist_size",
-		"Filter list size",
-	)
 
 	// Initialize the metric type counters. These metrics are not
 	// per-context but absolute.
