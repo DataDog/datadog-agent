@@ -125,7 +125,7 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 	eventConsumerTelemetry.eventsReceived.Inc(p.EventType.String())
 	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
 		cwd, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "cwd"))
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			if cwdLogLimiter.ShouldLog() {
 				d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
 			}
