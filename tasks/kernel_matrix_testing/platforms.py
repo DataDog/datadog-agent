@@ -46,7 +46,11 @@ def filter_by_ci_component(platforms: Platforms, component: Component) -> dict[s
     }
 
     target_file = (
-        Path(__file__).parent.parent.parent / ".gitlab" / "kernel_matrix_testing" / f"{component.replace('-', '_')}.yml"
+        Path(__file__).parent.parent.parent
+        / ".gitlab"
+        / "test"
+        / "kernel_matrix_testing"
+        / f"{component.replace('-', '_')}.yml"
     )
     yaml.SafeLoader.add_constructor(ReferenceTag.yaml_tag, ReferenceTag.from_yaml)
     with open(target_file) as f:

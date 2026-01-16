@@ -79,20 +79,11 @@ func TestDogStatsDReverseProxy(t *testing.T) {
 }
 
 func testDogStatsDReverseProxyEndToEndUDP(t *testing.T, cfg *config.AgentConfig) {
-	port, err := getAvailableUDPPort()
-	if err != nil {
-		t.Skip("Couldn't find available UDP port to run test. Skipping.")
-	}
-	p, err := strconv.Atoi(port)
-	if err != nil {
-		t.Fatalf("can't convert udp port to string: %v", err)
-	}
-	cfg.StatsdPort = p
 	hosts := []string{"localhost", "127.0.0.1", "::1"}
 	for _, host := range hosts {
 		t.Run(fmt.Sprintf("host=%q", host), func(t *testing.T) {
-			cfg.StatsdHost = host
-			addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, port))
+			// Bind to available port first to eliminate race condition
+			addr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(host, "0"))
 			if err != nil {
 				t.Fatalf("could not resolve udp addr: %s", err)
 			}
@@ -101,6 +92,20 @@ func testDogStatsDReverseProxyEndToEndUDP(t *testing.T, cfg *config.AgentConfig)
 				t.Fatalf("can't listen: %s", err)
 			}
 			defer conn.Close()
+
+			// Extract the actual bound port
+			_, port, err := net.SplitHostPort(conn.LocalAddr().String())
+			if err != nil {
+				t.Fatalf("can't extract port: %s", err)
+			}
+			p, err := strconv.Atoi(port)
+			if err != nil {
+				t.Fatalf("can't convert udp port to int: %v", err)
+			}
+
+			// Configure with the bound port
+			cfg.StatsdHost = host
+			cfg.StatsdPort = p
 
 			receiver := newTestReceiverFromConfig(cfg)
 			proxy := receiver.dogstatsdProxyHandler()
@@ -146,20 +151,4 @@ func TestDogStatsDReverseProxyEndToEndUDP(t *testing.T) {
 		cfg.StatsdHost = "[::1]"
 		testDogStatsDReverseProxyEndToEndUDP(t, cfg)
 	})
-}
-
-// getAvailableUDPPort requests a random port number and makes sure it is available
-func getAvailableUDPPort() (string, error) {
-	// This is based on comp/dogstatsd/server_test.go.
-	conn, err := net.ListenPacket("udp", ":0")
-	if err != nil {
-		return "", fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	defer conn.Close()
-
-	_, port, err := net.SplitHostPort(conn.LocalAddr().String())
-	if err != nil {
-		return "", fmt.Errorf("can't find an available udp port: %s", err)
-	}
-	return port, nil
 }

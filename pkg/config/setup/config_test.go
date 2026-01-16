@@ -472,6 +472,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
@@ -490,6 +491,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 			},
 		},
 		{
@@ -498,6 +500,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_GLOBAL_VIEW_DB_TAG", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -505,6 +508,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 		{
@@ -527,6 +531,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -534,6 +539,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 	}
@@ -662,6 +668,60 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
+}
+
+func TestInfrastructureModeLegacyAliases(t *testing.T) {
+	// Test that legacy allowed_additional_checks is aliased to mode-specific
+	// key via applyInfrastructureModeOverrides
+	datadogYaml := `
+infrastructure_mode: basic
+allowed_additional_checks:
+  - prometheus
+  - redis
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// Legacy allowed_additional_checks should be merged into integration.additional
+	additional := config.GetStringSlice("integration.additional")
+	assert.Contains(t, additional, "prometheus")
+	assert.Contains(t, additional, "redis")
+}
+
+func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be a list of maps")
+	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+
+	// Check that the first filter is the deny-all rule
+	assert.Equal(t, "*", filtersList[0]["match_domain"])
+	assert.Equal(t, "exclude", filtersList[0]["type"])
+
+	// Check that some expected SaaS domains are present
+	var foundGoogle, foundSlack, foundGitHub bool
+	for _, filter := range filtersList {
+		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
+			foundGoogle = true
+		}
+		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
+			foundSlack = true
+		}
+		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
+			foundGitHub = true
+		}
+	}
+	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
+	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
+	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
+
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {

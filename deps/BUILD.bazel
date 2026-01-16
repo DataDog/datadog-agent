@@ -35,29 +35,3 @@ filegroup(
         "//packages:__subpackages__",
     ],
 )
-
-# This is temporary to separate heroku from non-heroku deps
-#
-filegroup(
-    name = "openscap_deps",
-    srcs = select({
-        "@platforms//os:linux": [
-            "@acl",
-            "@attr",
-            "@gcrypt",
-            "@gpg-error",
-            "@libpcap//:pcap",
-            "@libselinux//:selinux",
-            "@libsepol//:sepol",
-            "@libxml2",
-            "@libxslt",
-            "@pcre2",
-            "@zstd",
-        ],
-        "//conditions:default": [],
-    }),
-    visibility = [
-        "//compliance:__pkg__",
-        "//packages:__subpackages__",
-    ],
-)
