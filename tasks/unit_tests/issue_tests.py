@@ -143,21 +143,27 @@ class TestAskReviews(unittest.TestCase):
         'os.environ',
         {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_ask_reviews_nominal(self, slack_mock, gh_mock, get_events_info_mock, print_mock):
+    def test_ask_reviews_nominal(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "This is a feature"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "someuser"
         pr_mock.html_url = "https://github.com/foo/bar/pull/1"
         pr_mock.title = "Nominal PR"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="labeled",
+                label=types.SimpleNamespace(name="ask-review"),
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={},
+            )
+        ]
 
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-        get_events_info_mock.return_value = ("actor", None)
 
         emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2', 'microwave': 'urlx'}}
         slack_client = MagicMock()
@@ -165,6 +171,7 @@ class TestAskReviews(unittest.TestCase):
         slack_mock.return_value = slack_client
 
         # Fill GITHUB_SLACK_REVIEW_MAP to have separate channels for each team
+        GITHUB_SLACK_REVIEW_MAP.clear()
         GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
         GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
 
@@ -179,17 +186,14 @@ class TestAskReviews(unittest.TestCase):
         'os.environ',
         {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
-    def test_ask_reviews_backport(self, gh_mock, get_events_info_mock, print_mock):
+    def test_ask_reviews_backport(self, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Backport: fix issue 123"
         pr_mock.get_labels.return_value = [MagicMock(name='ask-review')]
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-
-        get_events_info_mock.return_value = ("actor", None)
 
         ask_reviews(MockContext(), 6)
         print_mock.assert_any_call("This is a backport PR, we don't need to ask for reviews.")
@@ -202,20 +206,26 @@ class TestAskReviews(unittest.TestCase):
             'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token',
         },
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_ask_reviews_default_channel(self, slack_mock, gh_mock, get_events_info_mock, print_mock):
+    def test_ask_reviews_default_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Title"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "frank"
         pr_mock.html_url = "http://foo"
         pr_mock.title = "PR with reviewers on DEFAULT_SLACK_CHANNEL"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="labeled",
+                label=types.SimpleNamespace(name="ask-review"),
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={},
+            )
+        ]
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-        get_events_info_mock.return_value = ("actor", None)
 
         emoji_list = {'emoji': {'wave': 'url1'}}
         slack_client = MagicMock()
@@ -239,20 +249,26 @@ class TestAskReviews(unittest.TestCase):
         'os.environ',
         {'PR_REQUESTED_TEAMS': '[{"slug": "teamx"}, {"slug": "teamy"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_ask_reviews_same_slack_channel(self, slack_mock, gh_mock, get_events_info_mock, print_mock):
+    def test_ask_reviews_same_slack_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Some PR"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "integrationbot"
         pr_mock.html_url = "http://foo"
         pr_mock.title = "Test"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="labeled",
+                label=types.SimpleNamespace(name="ask-review"),
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={},
+            )
+        ]
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-        get_events_info_mock.return_value = ("actor", None)
 
         emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2'}}
         slack_client = MagicMock()
@@ -275,22 +291,27 @@ class TestAskReviews(unittest.TestCase):
         'os.environ',
         {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_ask_reviews_from_review_request(self, slack_mock, gh_mock, get_events_info_mock, print_mock):
+    def test_ask_reviews_from_review_request(self, slack_mock, gh_mock, print_mock):
         """Test that when a specific team is requested (review_request event), only that team is notified"""
         pr_mock = MagicMock()
         pr_mock.title = "Feature PR"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "someuser"
         pr_mock.html_url = "https://github.com/foo/bar/pull/9"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="review_requested",
+                label=None,
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={"requested_team": {"slug": "team42"}},
+            )
+        ]
 
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-        # Simulate a review_request event where team1 was specifically requested
-        get_events_info_mock.return_value = ("actor", "team42")
 
         emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2'}}
         slack_client = MagicMock()
@@ -298,12 +319,13 @@ class TestAskReviews(unittest.TestCase):
         slack_mock.return_value = slack_client
 
         # Fill GITHUB_SLACK_REVIEW_MAP
+        GITHUB_SLACK_REVIEW_MAP.clear()
         GITHUB_SLACK_REVIEW_MAP['@datadog/team42'] = 'channel42'
         GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
 
         ask_reviews(MockContext(), 9)
 
-        # Only one message should be sent (to team1's channel)
+        # Only one message should be sent (the requested team only)
         slack_client.chat_postMessage.assert_called_once()
         args, kwargs = slack_client.chat_postMessage.call_args
         self.assertEqual(kwargs['channel'], 'channel42')
@@ -313,22 +335,88 @@ class TestAskReviews(unittest.TestCase):
         'os.environ',
         {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
     )
-    @patch('tasks.issue.get_events_info')
     @patch('tasks.issue.GithubAPI')
     @patch('slack_sdk.WebClient')
-    def test_ask_reviews_from_ready_for_review(self, slack_mock, gh_mock, get_events_info_mock, print_mock):
-        """Test that when PR is marked as ready_for_review, all requested teams are notified"""
+    def test_ask_reviews_unique_reviewer_request_ignored(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
-        pr_mock.title = "Draft PR now ready"
+        pr_mock.title = "Feature PR"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
-        pr_mock.user.login = "developer"
-        pr_mock.html_url = "https://github.com/foo/bar/pull/10"
+        pr_mock.user.login = "someuser"
+        pr_mock.html_url = "https://github.com/foo/bar/pull/99"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="review_requested",
+                label=None,
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={"requested_reviewer": {"login": "some-reviewer"}},
+            )
+        ]
 
         gh_instance = MagicMock()
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
-        # Simulate a ready_for_review event (team is None)
-        get_events_info_mock.return_value = ("actor", None)
+
+        ask_reviews(MockContext(), 99)
+
+        print_mock.assert_any_call("This is a unique reviewer request, we ignore it.")
+        slack_mock.assert_not_called()
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    def test_ask_reviews_labeled_but_no_ask_review_label_ignored(self, slack_mock, gh_mock, print_mock):
+        pr_mock = MagicMock()
+        pr_mock.title = "Feature PR"
+        pr_mock.get_labels.return_value = [types.SimpleNamespace(name='needs-review')]
+        pr_mock.user.login = "someuser"
+        pr_mock.html_url = "https://github.com/foo/bar/pull/100"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="labeled",
+                label=types.SimpleNamespace(name="needs-review"),
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={},
+            )
+        ]
+
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
+
+        ask_reviews(MockContext(), 100)
+
+        print_mock.assert_any_call("This is a labeled event, but the label is not 'ask-review', we ignore it.")
+        slack_mock.assert_not_called()
+
+    @patch('builtins.print')
+    @patch(
+        'os.environ',
+        {'PR_REQUESTED_TEAMS': '[{"slug": "team1"}, {"slug": "team2"}]', 'SLACK_DATADOG_AGENT_BOT_TOKEN': 'fake-token'},
+    )
+    @patch('tasks.issue.GithubAPI')
+    @patch('slack_sdk.WebClient')
+    def test_ask_reviews_from_revew_requested(self, slack_mock, gh_mock, print_mock):
+        """Test that when PR is marked as review_requested, requested team is notified"""
+        pr_mock = MagicMock()
+        pr_mock.title = "Draft PR now ready"
+        pr_mock.user.login = "developer"
+        pr_mock.html_url = "https://github.com/foo/bar/pull/10"
+        pr_mock.get_issue_events.return_value = [
+            types.SimpleNamespace(
+                event="review_requested",
+                label=None,
+                actor=types.SimpleNamespace(name="actor", login="actorlogin"),
+                raw_data={},
+            )
+        ]
+
+        gh_instance = MagicMock()
+        gh_instance.repo.get_pull.return_value = pr_mock
+        gh_mock.return_value = gh_instance
 
         emoji_list = {'emoji': {'wave': 'url1', 'waves': 'url2'}}
         slack_client = MagicMock()
@@ -336,6 +424,7 @@ class TestAskReviews(unittest.TestCase):
         slack_mock.return_value = slack_client
 
         # Fill GITHUB_SLACK_REVIEW_MAP
+        GITHUB_SLACK_REVIEW_MAP.clear()
         GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
         GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
 
