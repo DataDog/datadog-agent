@@ -184,7 +184,7 @@ func initTestAgentDemultiplexerWithFlushInterval(log log.Component, hostname hos
 	opts.EnableNoAggregationPipeline = true
 
 	sharedForwarder := defaultforwarder.NoopForwarder{}
-	filterList := &filterlist.NoopFilterList{}
+	filterList := filterlist.NewNoopFilterList()
 	orchestratorForwarder := option.New[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(hostname, logscompressor))
 	demux := aggregator.InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, eventPlatformForwarder, haagentmock.NewMockHaAgent(), metricscompressor, noopimpl.NewComponent(), filterList, "hostname")

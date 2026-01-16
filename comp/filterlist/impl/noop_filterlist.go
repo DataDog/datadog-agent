@@ -11,12 +11,12 @@ import (
 )
 
 // NoopFilterList is a Noop FilterList to be used for tests.
-type NoopFilterList struct{}
+type noopFilterList struct{}
 
 func NewNoopFilterList() filterlist.Component {
-	return &NoopFilterList{}
+	return &noopFilterList{}
 }
 
 // OnUpdateMetricFilterList does nothing.
-func (*NoopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {
+func (*noopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {
 }

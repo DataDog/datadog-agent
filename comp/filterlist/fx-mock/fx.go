@@ -21,5 +21,5 @@ func MockModule() fxutil.Module {
 }
 
 func NewMockFilterList() filterlistdef.Component {
-	return &filterlistimpl.NoopFilterList{}
+	return filterlistimpl.NewNoopFilterList()
 }
