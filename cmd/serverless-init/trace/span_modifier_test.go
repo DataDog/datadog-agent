@@ -269,3 +269,80 @@ func TestCloudRunJobsSpanModifier_128BitTraceID_NoHighBits(t *testing.T) {
 	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should adopt TraceID")
 	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
 }
+
+func TestCloudRunJobsSpanModifier_MixedTraceIDBitWidths_128BitFirst(t *testing.T) {
+	// Test backward compatibility: spans from the same trace may have different
+	// bit widths (some with _dd.p.tid, some without). Per Datadog documentation,
+	// these should be treated as matching if the low 64 bits match.
+	// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
+
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// First span arrives with 128-bit trace ID (has _dd.p.tid)
+	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
+	rootSpan.ParentID = 0
+	rootSpan.Meta = map[string]string{
+		"_dd.p.tid": "6958127700000000", // High 64 bits
+	}
+
+	// Second span from same trace arrives with only 64-bit trace ID (no _dd.p.tid)
+	// This can happen when mixing tracers with different 128-bit support
+	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
+	childSpan.TraceID = rootSpan.TraceID // Same low 64 bits
+	childSpan.ParentID = rootSpan.SpanID
+	// No _dd.p.tid tag - simulates a tracer that doesn't support 128-bit IDs
+
+	// Modify both spans
+	modifier.ModifySpan(nil, rootSpan)
+	modifier.ModifySpan(nil, childSpan)
+
+	// Verify: job span adopted the full 128-bit trace ID from root
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should match root span")
+
+	// Verify: child span (64-bit only) is still recognized as same trace
+	// because SameTraceID only compares low 64 bits when one span lacks high bits
+	assert.True(t, traceutil.SameTraceID(jobSpan, childSpan), "Job span should match child span despite missing _dd.p.tid")
+
+	// Verify hierarchy preserved
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+	assert.Equal(t, rootSpan.SpanID, childSpan.ParentID, "Child span should keep its original parent")
+}
+
+func TestCloudRunJobsSpanModifier_MixedTraceIDBitWidths_64BitFirst(t *testing.T) {
+	// Test the reverse case: 64-bit trace ID span arrives before 128-bit span.
+	// The job span adopts the 64-bit ID first, then a 128-bit span from the
+	// same trace arrives and should still be recognized as matching.
+	// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
+
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// First span arrives with only 64-bit trace ID (no _dd.p.tid)
+	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
+	rootSpan.ParentID = 0
+	// No _dd.p.tid tag
+
+	// Second span from same trace arrives with 128-bit trace ID (has _dd.p.tid)
+	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
+	childSpan.TraceID = rootSpan.TraceID // Same low 64 bits
+	childSpan.ParentID = rootSpan.SpanID
+	childSpan.Meta = map[string]string{
+		"_dd.p.tid": "6958127700000000", // High 64 bits - tracer supports 128-bit
+	}
+
+	// Modify both spans (64-bit first, then 128-bit)
+	modifier.ModifySpan(nil, rootSpan)
+	modifier.ModifySpan(nil, childSpan)
+
+	// Verify: job span adopted the 64-bit trace ID from root (no high bits)
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should match root span")
+
+	// Verify: child span (128-bit) is still recognized as same trace
+	// because SameTraceID only compares low 64 bits when one span lacks high bits
+	assert.True(t, traceutil.SameTraceID(jobSpan, childSpan), "Job span should match child span despite having _dd.p.tid")
+
+	// Verify hierarchy preserved
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+	assert.Equal(t, rootSpan.SpanID, childSpan.ParentID, "Child span should keep its original parent")
+}

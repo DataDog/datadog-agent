@@ -363,6 +363,9 @@ func TestSameTraceID(t *testing.T) {
 	})
 
 	t.Run("One has high bits, other doesn't", func(t *testing.T) {
+		// Per Datadog documentation, spans with 128-bit trace IDs and spans with
+		// 64-bit trace IDs should be treated as matching if the low 64 bits match.
+		// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
 		a := &pb.Span{
 			TraceID: 12345,
 			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
@@ -370,7 +373,7 @@ func TestSameTraceID(t *testing.T) {
 		b := &pb.Span{
 			TraceID: 12345,
 		}
-		assert.False(t, SameTraceID(a, b))
+		assert.True(t, SameTraceID(a, b))
 	})
 
 	t.Run("Neither has high bits", func(t *testing.T) {

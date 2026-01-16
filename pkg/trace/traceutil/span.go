@@ -231,14 +231,22 @@ func CopyTraceID(dst, src *pb.Span) {
 // SameTraceID returns true if both spans have the same full trace ID.
 // This compares both the low 64 bits (TraceID field) and the high 64 bits
 // (_dd.p.tid meta tag) to properly handle 128-bit trace IDs.
+//
+// If either span lacks the high 64 bits, only the low 64 bits are compared.
+// This maintains backwards compatibility per Datadog documentation:
+// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
 func SameTraceID(a, b *pb.Span) bool {
 	if a.TraceID != b.TraceID {
 		return false
 	}
 	aHigh, aHasHigh := GetMeta(a, metaTraceIDHigh)
 	bHigh, bHasHigh := GetMeta(b, metaTraceIDHigh)
-	if aHasHigh != bHasHigh {
-		return false
+	// If either span lacks high bits, only compare low 64 bits
+	// (already done above). This maintains backwards compatibility
+	// for systems that intermix 64-bit and 128-bit trace IDs.
+	if !aHasHigh || !bHasHigh {
+		return true
 	}
+	// Both have high bits, compare them
 	return aHigh == bHigh
 }
