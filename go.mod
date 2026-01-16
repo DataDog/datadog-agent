@@ -178,7 +178,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/datadog-operator/api v0.0.0-20251127112405-4be7033d5f47
 	github.com/DataDog/datadog-traceroute v1.0.3
-	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
+	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20260114170818-5b1d3ecae35b
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.10
 	github.com/DataDog/gopsutil v1.2.2
@@ -383,7 +383,7 @@ require (
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.143.0
 	go.opentelemetry.io/collector/service v0.143.0
 	go.opentelemetry.io/contrib/instrumentation/runtime v0.63.0
-	go.opentelemetry.io/ebpf-profiler v0.0.202547
+	go.opentelemetry.io/ebpf-profiler v0.0.202601
 	go.opentelemetry.io/otel v1.39.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.39.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.39.0
@@ -401,7 +401,7 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.23.0
 	golang.org/x/crypto v0.46.0
-	golang.org/x/exp v0.0.0-20251209150349-8475f28825e9
+	golang.org/x/exp v0.0.0-20251219203646-944ab1f22d93
 	golang.org/x/mod v0.31.0
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
@@ -993,9 +993,14 @@ require (
 )
 
 require (
+	github.com/DataDog/appsec-internal-go v1.14.0 // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.2.2 // indirect
+	github.com/DataDog/go-libddwaf/v4 v4.3.2 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
+	github.com/eapache/queue/v2 v2.0.0-20230407133247-75960ed334e4 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
