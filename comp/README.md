@@ -741,6 +741,13 @@ Package connectivitychecker is responsible for running connectivity checks that 
 
 Package etw provides an ETW tracing interface
 
+### [comp/filterlist](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/filterlist)
+
+*Datadog Team*: agent-metric-pipelines
+
+Package filterlist defines a component to handle the metric and tag filterlist
+including any updates from RC.
+
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
 
 *Datadog Team*: fleet

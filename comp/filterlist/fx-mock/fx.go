@@ -10,12 +10,11 @@ import (
 	filterlistdef "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(
+		fxutil.ProvideComponentConstructor(
 			NewMockFilterList,
 		),
 	)

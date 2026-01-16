@@ -7,6 +7,8 @@
 // including any updates from RC.
 package filterlist
 
+// team: agent-metric-pipelines
+
 import utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
 type Component interface {
