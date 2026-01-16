@@ -376,7 +376,9 @@ func (c *LogsConfig) validateTailingMode() error {
 		return fmt.Errorf("invalid tailing mode '%v' for %v", c.TailingMode, c.Path)
 	}
 	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
-		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
+		if c.FingerprintConfig == nil || c.FingerprintConfig.FingerprintStrategy == "disabled" {
+			log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
+		}
 	}
 	return nil
 }
