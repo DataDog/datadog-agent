@@ -16,7 +16,9 @@ import (
 	"strings"
 
 	"github.com/shirou/gopsutil/v4/mem"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -31,9 +33,14 @@ var openProcFile = func(path string) (*os.File, error) {
 	return os.Open(path)
 }
 
-// Check doesn't need additional fields
+type memoryInstanceConfig struct {
+	CollectMemoryPressure bool `yaml:"collect_memory_pressure"`
+}
+
+// Check collects memory metrics
 type Check struct {
 	core.CheckBase
+	instanceConfig memoryInstanceConfig
 }
 
 const mbSize float64 = 1024 * 1024
@@ -105,7 +112,9 @@ func (c *Check) linuxSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) error 
 	sender.Gauge("system.mem.committed_as", float64(v.CommittedAS)/mbSize, "", nil)
 	sender.Gauge("system.swap.cached", float64(v.SwapCached)/mbSize, "", nil)
 
-	c.collectVMStatPressureMetrics(sender)
+	if c.instanceConfig.CollectMemoryPressure {
+		c.collectVMStatPressureMetrics(sender)
+	}
 
 	return nil
 }
@@ -118,6 +127,22 @@ func (c *Check) freebsdSpecificVirtualMemoryCheck(v *mem.VirtualMemoryStat) erro
 
 	sender.Gauge("system.mem.cached", float64(v.Cached)/mbSize, "", nil)
 	return nil
+}
+
+// Configure configures the memory check
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, rawInstance integration.Data, rawInitConfig integration.Data, source string) error {
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
+	if err != nil {
+		return err
+	}
+
+	s, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+	s.FinalizeCheckServiceTag()
+
+	return yaml.Unmarshal(rawInstance, &c.instanceConfig)
 }
 
 func (c *Check) collectVMStatPressureMetrics(sender sender.Sender) {

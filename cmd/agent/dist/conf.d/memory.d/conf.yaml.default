@@ -1,2 +1,16 @@
+## This file is overwritten upon Agent upgrade.
+## To make modifications to the check configuration, copy this file
+## to `memory.yaml` and make your changes on that file.
+
+init_config:
+
 instances:
-  - {}
+  -
+
+    ## @param collect_memory_pressure - boolean - optional - default: false
+    ## Set to true to collect memory pressure metrics from /proc/vmstat
+    ## (allocstall, pgscan_direct, pgsteal_direct, pgscan_kswapd, pgsteal_kswapd).
+    ## These metrics help detect kernel memory pressure before OOM events occur.
+    ## Linux only.
+    #
+    # collect_memory_pressure: false

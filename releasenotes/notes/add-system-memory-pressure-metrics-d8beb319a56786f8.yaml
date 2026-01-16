@@ -8,8 +8,9 @@
 ---
 features:
   - |
-    The system memory check on Linux now collects memory pressure metrics
+    The system memory check on Linux can now collect memory pressure metrics
     from /proc/vmstat to help detect memory pressure before OOM events occur.
+    To enable, set ``collect_memory_pressure: true`` in the memory check configuration.
     New metrics: ``system.mem.allocstall`` (with ``zone`` tag),
     ``system.mem.pgscan_direct``, ``system.mem.pgsteal_direct``,
     ``system.mem.pgscan_kswapd``, ``system.mem.pgsteal_kswapd``.

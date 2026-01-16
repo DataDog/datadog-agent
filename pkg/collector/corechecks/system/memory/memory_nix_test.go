@@ -62,6 +62,7 @@ func TestMemoryCheckLinux(t *testing.T) {
 	virtualMemory = VirtualMemory
 	swapMemory = SwapMemory
 	memCheck := new(Check)
+	memCheck.instanceConfig.CollectMemoryPressure = true
 
 	vmstatContent := `nr_free_pages 12345
 allocstall_dma 10
