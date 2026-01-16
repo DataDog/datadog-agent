@@ -309,8 +309,12 @@ int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct s
 // sets all the bytes after the null terminator to null and truncates the string if needed
 void __attribute__((always_inline)) clean_str_trailing_zeros(char *data, int string_size, int array_size) {
     bool found_null = false;
+    const int max = 16;
     #pragma unroll
-    for(int i=0; i != array_size; ++i) {
+    for(int i=0; i != max; ++i) {
+        if (i >= array_size) {
+            break;
+        }
         if(found_null || i >= string_size - 1) {
             data[i] = 0;
         } else if (data[i] == 0) {
