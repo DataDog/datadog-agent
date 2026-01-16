@@ -118,10 +118,8 @@ receivers:
                 - 0.0.0.0:8888
           track_timestamps_staleness: false
     report_extra_scrape_metrics: false
-    start_time_metric_regex: ""
     target_allocator: null
     trim_metric_suffixes: false
-    use_start_time_metric: false
 service:
   pipelines:
     logs:

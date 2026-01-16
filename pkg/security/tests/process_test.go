@@ -1799,7 +1799,7 @@ func TestProcessExit(t *testing.T) {
 		},
 		{
 			ID:         "test_exit_signal",
-			Expression: fmt.Sprintf(`exit.cause == SIGNALED && exit.code == SIGKILL && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
+			Expression: fmt.Sprintf(`exit.cause == SIGNALED && exit.code == SIGTERM && process.file.path == "%s" && process.envp in ["%s"]`, sleepExec, envpExitSleep),
 		},
 		{
 			ID:         "test_exit_time_1",
@@ -1877,7 +1877,7 @@ func TestProcessExit(t *testing.T) {
 		SkipIfNotAvailable(t)
 
 		test.WaitSignalFromRule(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
+			args := []string{"--preserve-status", "--signal=SIGTERM", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1889,14 +1889,14 @@ func TestProcessExit(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_exit_signal")
 			assertFieldEqual(t, event, "exit.file.path", sleepExec)
 			assert.Equal(t, uint32(sharedconsts.ExitSignaled), event.Exit.Cause, "wrong exit cause")
-			assert.Equal(t, uint32(syscall.SIGKILL), event.Exit.Code, "wrong exit code")
+			assert.Equal(t, uint32(syscall.SIGTERM), event.Exit.Code, "wrong exit code")
 			assert.False(t, event.ProcessContext.ExitTime.Before(event.ProcessContext.ExecTime), "exit time < exec time")
 		}, "test_exit_signal")
 	})
 
 	t.Run("exit-time-1", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "2"}
+			args := []string{"--preserve-status", "--signal=SIGTERM", "9", sleepExec, "2"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
@@ -1914,7 +1914,7 @@ func TestProcessExit(t *testing.T) {
 
 	t.Run("exit-time-2", func(t *testing.T) {
 		test.WaitSignalFromRule(t, func() error {
-			args := []string{"--preserve-status", "--signal=SIGKILL", "9", sleepExec, "5"}
+			args := []string{"--preserve-status", "--signal=SIGTERM", "9", sleepExec, "5"}
 			envp := []string{envpExitSleepTime}
 
 			cmd := exec.Command(timeoutExec, args...)
