@@ -129,6 +129,7 @@ type server struct {
 	sharedFloat64List       *float64ListPool
 	Statistics              *statutil.Stats
 	Started                 bool
+	startedMtx              sync.RWMutex
 	stopChan                chan bool
 	health                  *health.Handle
 	histToDist              bool
@@ -496,9 +497,13 @@ func (s *server) start(context.Context) error {
 }
 
 func (s *server) stop(context.Context) error {
+	s.startedMtx.Lock()
+	defer s.startedMtx.Unlock()
+
 	if !s.IsRunning() {
 		return nil
 	}
+
 	for _, l := range s.listeners {
 		l.Stop()
 	}
@@ -526,6 +531,14 @@ func (s *server) SetExtraTags(tags []string) {
 }
 
 func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+	s.startedMtx.RLock()
+	defer s.startedMtx.RUnlock()
+
+	if !s.IsRunning() {
+		// The workers have stopped so can't receive updates.
+		return
+	}
+
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
 		worker.FilterListUpdate <- filterList

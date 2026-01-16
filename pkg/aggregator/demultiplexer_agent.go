@@ -517,6 +517,14 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 // SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the samplers.
 func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.aggregator == nil {
+		// The demultiplexer has stopped and the workers and aggregator are no longer available
+		// to receive updates.
+		return
+	}
 
 	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
 	// Histogram metrics need aggregating before we determine the correct name to be filtered.
