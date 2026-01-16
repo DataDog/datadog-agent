@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	ebpfmanager "github.com/DataDog/ebpf-manager"
 )
 
 type pendingProfile struct {
@@ -51,8 +50,6 @@ type ManagerV2 struct {
 	statsdClient  statsd.ClientInterface
 	resolvers     *resolvers.EBPFResolvers
 	kernelVersion *kernel.Version
-	newEvent      func() *model.Event
-	dumpHandler   backend.ActivityDumpHandler
 	ipc           ipc.Component
 
 	sendAnomalyDetection func(*model.Event)
@@ -84,7 +81,7 @@ type ManagerV2 struct {
 	lateInsertions       *atomic.Uint64 // events inserted after profile was sent
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -147,6 +144,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf 
 
 func (m *ManagerV2) Start(ctx context.Context) {
 	sendTickerChan := m.setupPersistenceTicker()
+	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -159,6 +157,8 @@ func (m *ManagerV2) Start(ctx context.Context) {
 			return
 		case <-sendTickerChan:
 			m.persistAllProfiles()
+		case <-nodeEvictionTickerChan:
+			m.evictUnusedNodes()
 		}
 	}
 }
@@ -170,6 +170,15 @@ func (m *ManagerV2) setupPersistenceTicker() <-chan time.Time {
 	}
 
 	return time.NewTicker(m.config.RuntimeSecurity.ActivityDumpCgroupDumpTimeout).C
+}
+
+// setupNodeEvictionTicker creates the ticker channel for periodic node eviction
+func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout <= 0 {
+		return make(chan time.Time)
+	}
+
+	return time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout).C
 }
 
 // persistAllProfiles encodes and persists all profiles to configured storage backends
@@ -513,7 +522,7 @@ func (m *ManagerV2) createNewProfile(selector cgroupModel.WorkloadSelector, even
 		KernelVersion:     m.kernelVersion.Code.String(),
 		LinuxDistribution: m.kernelVersion.OsRelease["PRETTY_NAME"],
 		Arch:              utils.RuntimeArch(),
-		Name:              fmt.Sprintf("activity-dump-%s", utils.RandString(10)),
+		Name:              "activity-dump-" + utils.RandString(10),
 		ProtobufVersion:   profile.ProtobufVersion,
 		DifferentiateArgs: m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs,
 		ContainerID:       event.ProcessContext.Process.ContainerContext.ContainerID,
