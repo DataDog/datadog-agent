@@ -186,7 +186,7 @@ cc_binary(
     }),
     visibility = ["//visibility:public"],
     deps = [":pcre2test_dotc_headers", ":libpcre2", ":libpcre2-posix"],
-    dynamic_deps = [":pcre2", ":pcre2posix"]
+    dynamic_deps = [":pcre2-8", ":pcre2-posix"]
 )
 
 filegroup(
@@ -260,20 +260,20 @@ cc_shared_library(
 cc_shared_library(
     name = "pcre2-posix",
     deps = [":libpcre2-posix"],
-    dynamic_deps = [":pcre2"],
+    dynamic_deps = [":pcre2-8"],
     visibility = ["//visibility:public"],
 )
 
 so_symlink(
     name = "pcre2_libfiles",
-    src = ":pcre2",
+    src = ":pcre2-8",
     libname = "libpcre2-8",
     version = "0.11.2",
 )
 
 so_symlink(
     name = "pcre2posix_libfiles",
-    src = ":pcre2posix",
+    src = ":pcre2-posix",
     libname = "libpcre2-posix",
     version = "3.0.4",
 )
