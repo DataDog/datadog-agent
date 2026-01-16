@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI, get_events_info
+from tasks.libs.ciproviders.github_api import GithubAPI, ask_review_actor
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
@@ -21,44 +21,39 @@ def ask_reviews(_, pr_id):
     if 'backport' in pr.title.casefold():
         print("This is a backport PR, we don't need to ask for reviews.")
         return
-    if any(label.name == 'no-review' for label in pr.get_labels()):
-        print("This PR has the no-review label, we don't need to ask for reviews.")
-        return
-    actor, team = get_events_info(pr)
-    if team:  # This is a review request event, only a single team is concerned
-        reviewers = [f"@datadog/{team}"]
-    else:
+    if any(label.name == 'ask-review' for label in pr.get_labels()):
+        actor = ask_review_actor(pr)
         reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
-    print(f"Reviewers: {reviewers}")
+        print(f"Reviewers: {reviewers}")
 
-    from slack_sdk import WebClient
+        from slack_sdk import WebClient
 
-    client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
-    emojis = client.emoji_list()
-    waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
+        client = WebClient(os.environ['SLACK_DATADOG_AGENT_BOT_TOKEN'])
+        emojis = client.emoji_list()
+        waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
 
-    channels = defaultdict(list)
-    for reviewer in reviewers:
-        channel = next(
-            (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
-            DEFAULT_SLACK_CHANNEL,
-        )
-        channels[channel].append(reviewer)
+        channels = defaultdict(list)
+        for reviewer in reviewers:
+            channel = next(
+                (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
+                DEFAULT_SLACK_CHANNEL,
+            )
+            channels[channel].append(reviewer)
 
-    for channel, reviewers in channels.items():
-        stop_updating = ""
-        if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
-            "chore(deps): update integrations-core"
-        ):
-            stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
-        message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
-        if channel == DEFAULT_SLACK_CHANNEL:
-            message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {', '.join(reviewers)}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
-        try:
-            client.chat_postMessage(channel=channel, text=message)
-        except Exception as e:
-            message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
-            client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
+        for channel, reviewers in channels.items():
+            stop_updating = ""
+            if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
+                "chore(deps): update integrations-core"
+            ):
+                stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
+            message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
+            if channel == DEFAULT_SLACK_CHANNEL:
+                message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {', '.join(reviewers)}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+            try:
+                client.chat_postMessage(channel=channel, text=message)
+            except Exception as e:
+                message = f"An error occurred while sending a review message from {actor} for PR <{pr.html_url}/s|{pr.title}> to channel {channel}. Error: {e}"
+                client.chat_postMessage(channel=DEFAULT_SLACK_CHANNEL, text=message)
 
 
 @task
