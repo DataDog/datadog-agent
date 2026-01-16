@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build windows
 
@@ -173,8 +173,8 @@ func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
 	codePage := pair[1]
 	langCodePage := fmt.Sprintf("%04x%04x", langCode, codePage)
 
-	// Helper to read a specific string value
-	readString := func(key string) string {
+	// Helper to read a specific version string value
+	readVerString := func(key string) string {
 		query := fmt.Sprintf("\\StringFileInfo\\%s\\%s", langCodePage, key)
 		queryPtr, qerr := syscall.UTF16PtrFromString(query)
 		if qerr != nil {
@@ -194,12 +194,12 @@ func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
 		return windows.UTF16PtrToString(valuePtr)
 	}
 
-	info.CompanyName = readString("CompanyName")
-	info.ProductName = readString("ProductName")
-	info.FileVersion = readString("FileVersion")
-	info.ProductVersion = readString("ProductVersion")
-	info.OriginalFilename = readString("OriginalFilename")
-	info.InternalName = readString("InternalName")
+	info.CompanyName = readVerString("CompanyName")
+	info.ProductName = readVerString("ProductName")
+	info.FileVersion = readVerString("FileVersion")
+	info.ProductVersion = readVerString("ProductVersion")
+	info.OriginalFilename = readVerString("OriginalFilename")
+	info.InternalName = readVerString("InternalName")
 
 	return info, nil
 }

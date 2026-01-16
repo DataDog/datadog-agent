@@ -16,30 +16,29 @@ import (
 
 // LoadedModulesReport is the JSON structure written to the flare as agent_loaded_modules.json.
 type LoadedModulesReport struct {
-	GeneratedAt string         `json:"generated_at"`
+	GeneratedAt string         `json:"generated_at"`           // RFC3339 UTC
+	ProcessName string         `json:"process_name,omitempty"` // same for all entries
+	ProcessPID  int            `json:"process_pid,omitempty"`  // same for all entries
 	Modules     []LoadedModule `json:"modules"`
 }
 
 // LoadedModule describes a single loaded module (DLL).
 type LoadedModule struct {
-	ProcessName      string `json:"process_name"`
-	ProcessPID       int    `json:"process_pid"`
-	DLLName          string `json:"dll_name"`
 	DLLPath          string `json:"dll_path"`
-	FileTimestamp    string `json:"file_timestamp,omitempty"`
+	FileTimestamp    string `json:"file_timestamp,omitempty"` // on-disk modtime
 	CompanyName      string `json:"company_name,omitempty"`
 	ProductName      string `json:"product_name,omitempty"`
 	FileVersion      string `json:"file_version,omitempty"`
 	ProductVersion   string `json:"product_version,omitempty"`
 	OriginalFilename string `json:"original_filename,omitempty"`
 	InternalName     string `json:"internal_name,omitempty"`
-	Size             int64  `json:"size_bytes,omitempty"`
-	Perms            string `json:"perms,omitempty"`
+	SizeBytes        int64  `json:"size_bytes,omitempty"` // on-disk size
 }
 
 // ListLoadedModulesReportJSON returns a JSON payload describing DLLs loaded by the current agent process.
 func ListLoadedModulesReportJSON() ([]byte, error) {
-	files, err := ListOpenFilesFromSelf()
+	// Reuse open-file enumeration to get module file paths for the current process.
+	openFiles, err := ListOpenFilesFromSelf()
 	if err != nil {
 		return nil, err
 	}
@@ -49,28 +48,24 @@ func ListLoadedModulesReportJSON() ([]byte, error) {
 	pid := os.Getpid()
 
 	report := LoadedModulesReport{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339), // matches other flare artifacts
+		ProcessName: procName,
+		ProcessPID:  pid,
 	}
 
-	for _, f := range files {
+	for _, f := range openFiles {
 		modPath := f.Name
-		modName := filepath.Base(modPath)
 
 		var ts string
 		var size int64
-		var perms string
 		if fi, err := os.Stat(modPath); err == nil {
 			size = fi.Size()
-			perms = fi.Mode().Perm().String()
 			ts = fi.ModTime().UTC().Format(time.RFC3339)
 		}
 
 		verInfo, _ := winutil.GetFileVersionInfoStrings(modPath)
 
 		report.Modules = append(report.Modules, LoadedModule{
-			ProcessName:      procName,
-			ProcessPID:       pid,
-			DLLName:          modName,
 			DLLPath:          modPath,
 			FileTimestamp:    ts,
 			CompanyName:      verInfo.CompanyName,
@@ -79,8 +74,7 @@ func ListLoadedModulesReportJSON() ([]byte, error) {
 			ProductVersion:   verInfo.ProductVersion,
 			OriginalFilename: verInfo.OriginalFilename,
 			InternalName:     verInfo.InternalName,
-			Size:             size,
-			Perms:            perms,
+			SizeBytes:        size,
 		})
 	}
 
