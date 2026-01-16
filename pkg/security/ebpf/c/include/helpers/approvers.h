@@ -261,6 +261,21 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_open_by_flags(struct s
     return DISCARDED;
 }
 
+enum SYSCALL_STATE __attribute__((always_inline)) approve_open_sample(struct file_t *file) {
+    // NOTE: should we consider to remove the path_id to limit the invalidation and let the LRU refreshing the entry ?
+    u8 value = 0;
+    if (bpf_map_update_elem(&open_samples, &file->path_key, &value, BPF_NOEXIST) < 0) {
+        return DISCARDED;
+    }
+
+    if (!global_limiter_allow(OPEN_SAMPLE_LIMITER, 100, 1)) {
+        return DISCARDED;
+    }
+
+    return SAMPLED;
+}
+
+
 enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_cache_t *syscall) {
     enum SYSCALL_STATE state = approve_by_basename(syscall->open.dentry, EVENT_OPEN);
     if (state == DISCARDED) {
@@ -271,6 +286,11 @@ enum SYSCALL_STATE __attribute__((always_inline)) open_approvers(struct syscall_
     }
     if (state == DISCARDED) {
         state = approve_by_in_upper_layer(EVENT_OPEN, &syscall->open.file);
+    }
+
+    // can return DISCARDED or SAMPLED
+    if (state == DISCARDED) {
+        state = approve_open_sample(&syscall->open.file);
     }
 
     return state;
