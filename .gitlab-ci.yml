@@ -1074,11 +1074,9 @@ workflow:
         - .gitlab/build/package_build/**/*
       compare_to: $COMPARE_TO_BRANCH
 
-.on_c_files_changes:
+.on_macos_m_files_changes:
   - changes:
       paths:
-        - "**/*.c"
-        - "**/*.h"
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
