@@ -7,7 +7,10 @@
 
 package sender
 
-import "context"
+import (
+	"context"
+	"errors"
+)
 
 // New creates a direct sender
 func New(
