@@ -736,6 +736,71 @@ class GateMetricHandler:
 
         return False
 
+    def _query_gate_metrics_for_commit(self, commit_sha: str, lookback: str = "now-7d") -> dict:
+        """
+        Query Datadog for static quality gate metrics for a specific commit.
+
+        Uses query_metrics to fetch on_disk_size and on_wire_size metrics
+        for an ancestor commit. This provides a consistent source of truth
+        for calculating relative size changes.
+
+        Args:
+            commit_sha: The git commit SHA to query metrics for
+            lookback: How far back to look (default 7 days)
+
+        Returns:
+            Dict mapping gate_name -> {'current_on_disk_size': ..., 'current_on_wire_size': ...}
+            Empty dict if no metrics found.
+        """
+        import sys
+
+        from tasks.libs.common.datadog_api import query_metrics
+
+        results = {}
+
+        metrics_to_query = {
+            'current_on_disk_size': 'datadog.agent.static_quality_gate.on_disk_size',
+            'current_on_wire_size': 'datadog.agent.static_quality_gate.on_wire_size',
+        }
+
+        for metric_key, metric_name in metrics_to_query.items():
+            # Query all gates at once using "by {gate_name}" aggregation
+            query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
+
+            try:
+                series_list = query_metrics(query, lookback, "now")
+
+                for series in series_list:
+                    # Extract gate_name from scope (e.g., "gate_name:static_quality_gate_agent_deb_amd64")
+                    scope = series["scope"]
+                    gate_name = None
+                    for tag in scope.split(","):
+                        if tag.startswith("gate_name:"):
+                            gate_name = tag.split(":", 1)[1]
+                            break
+
+                    if not gate_name:
+                        continue
+
+                    # Get the most recent non-null value from pointlist
+                    # Points are [timestamp, value] pairs
+                    pointlist = series["pointlist"]
+                    for point in reversed(pointlist):
+                        # point[0] is a timestamp when this metric point was reported,
+                        # safe to ignore since we reverse the pointlist and get
+                        # the latest non-null value
+                        value = point[1]
+                        if value is not None:
+                            if gate_name not in results:
+                                results[gate_name] = {}
+                            results[gate_name][metric_key] = int(value)
+                            break
+
+            except Exception as e:
+                print(f"[WARN] Failed to query {metric_name} for commit {commit_sha}: {e}", file=sys.stderr)
+
+        return results
+
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
         metric_value = self.metrics[gate].get(metric_key)
         if metric_value is not None:
@@ -749,24 +814,19 @@ class GateMetricHandler:
             )
         return None
 
-    def generate_relative_size(self, ctx, ancestor=None, report_path="static_gate_report.json"):
+    def generate_relative_size(self, ancestor=None):
         """
         Calculate relative sizes by querying Datadog for ancestor metrics.
-        Falls back to S3 report if Datadog query fails or returns no data.
 
         Args:
-            ctx: Invoke context
             ancestor: The ancestor commit SHA to compare against
-            report_path: Local path to store S3 report (only used for fallback)
         """
         if not ancestor:
             print(color_message("[WARN] Unable to find this commit ancestor", "orange"))
             return
 
-        from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
-
         # Query Datadog once for all gates
-        ancestor_metrics = query_gate_metrics_for_commit(ancestor)
+        ancestor_metrics = self._query_gate_metrics_for_commit(ancestor)
 
         datadog_gates_found = 0
         for gate in self.metrics:
@@ -782,62 +842,18 @@ class GateMetricHandler:
                         relative_metric_size = current_value - ancestor_value
                         self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
 
-        # Fallback to S3 if no Datadog metrics found for any gate
         if datadog_gates_found == 0:
             print(
                 color_message(
-                    f"[INFO] No Datadog metrics found for ancestor {ancestor}, falling back to S3 report",
-                    "blue",
+                    f"[WARN] No Datadog metrics found for ancestor {ancestor}",
+                    "orange",
                 )
             )
-            self._generate_relative_size_from_s3(ctx, ancestor, report_path)
         else:
             print(
                 color_message(
                     f"[INFO] Successfully fetched ancestor metrics from Datadog for {datadog_gates_found} gate(s)",
                     "green",
-                )
-            )
-
-    def _generate_relative_size_from_s3(self, ctx, ancestor, report_path):
-        """
-        Legacy method: Calculate relative sizes from S3 report.
-        Used as fallback when Datadog query fails or for historical commits.
-
-        Args:
-            ctx: Invoke context
-            ancestor: The ancestor commit SHA
-            report_path: Local path to download the S3 report to
-        """
-        s3_filename = "static_gate_report.json"
-        out = ctx.run(
-            f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.S3_REPORT_PATH}/{ancestor}/{s3_filename} {report_path}",
-            hide=True,
-            warn=True,
-        )
-        if out.exited == 0:
-            ancestor_metric_handler = GateMetricHandler(ancestor, self.bucket_branch, report_path)
-            for gate in self.metrics:
-                ancestor_gate = ancestor_metric_handler.metrics.get(gate)
-                if not ancestor_gate:
-                    continue
-                for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                    current_value = self.metrics[gate].get(metric_key)
-                    ancestor_value = ancestor_gate.get(metric_key)
-                    if current_value is not None and ancestor_value is not None:
-                        relative_metric_size = current_value - ancestor_value
-                        self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
-            print(
-                color_message(
-                    f"[INFO] Successfully fetched ancestor metrics from S3 for ancestor {ancestor}",
-                    "green",
-                )
-            )
-        else:
-            print(
-                color_message(
-                    f"[WARN] Unable to fetch quality gates {report_path} from {ancestor} via S3!\nstdout:\n{out.stdout}\nstderr:\n{out.stderr}",
-                    "orange",
                 )
             )
 
