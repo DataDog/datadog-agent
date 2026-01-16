@@ -34,7 +34,6 @@ import (
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	"github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -404,6 +403,12 @@ func TestNetworkConnectionTags(t *testing.T) {
 	require.EqualValues(t, expectedTags, foundTags)
 }
 
+type fakeEventMonitor struct{}
+
+func (f *fakeEventMonitor) AddEventConsumerHandler(_ eventmonitor.EventConsumerHandler) error {
+	return nil
+}
+
 func TestNetworkConnectionTagsWithService(t *testing.T) {
 	p := makeConnections(1)
 	tags := []string{"tag0"}
@@ -415,11 +420,10 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	var dsch eventmonitor.EventConsumerHandler
 	d := mockDirectSender(t)
 	d.sysprobeconfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-	testutil.StartEventMonitor(t, func(t testing.TB, evm *eventmonitor.EventMonitor) {
-		dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
-		require.NoError(t, err)
-		dsch = dsc.(eventmonitor.EventConsumerHandler)
-	})
+	evm := &fakeEventMonitor{}
+	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
+	require.NoError(t, err)
+	dsch = dsc.(eventmonitor.EventConsumerHandler)
 	e := evmodel.NewFakeEvent()
 	e.Type = uint32(evmodel.ExecEventType)
 	e.ProcessContext = &evmodel.ProcessContext{Process: evmodel.Process{PIDContext: evmodel.PIDContext{Pid: p[0].Pid}, Argv: []string{"my-server.sh"}}}
