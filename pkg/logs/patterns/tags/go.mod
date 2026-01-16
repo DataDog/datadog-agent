@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
-	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -23,7 +23,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fips v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.61.0 // indirect
@@ -54,6 +53,9 @@ require (
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
+	go.opentelemetry.io/otel/metric v1.38.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.38.0 // indirect
+	go.opentelemetry.io/otel/trace v1.38.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20251009144603-d2f985daa21b // indirect
 	golang.org/x/net v0.46.0 // indirect
@@ -166,6 +168,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../../../pkg/logs/patterns/clustering
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../../../pkg/logs/patterns/clustering/merging
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../../../pkg/logs/patterns/eviction
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../../pkg/logs/patterns/processor
 	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../../pkg/logs/patterns/token
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
