@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -164,7 +165,7 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	// Fetch API key once and check if configured
 	apiKey := f.cfg.GetString("api_key")
 	if apiKey == "" {
-		return fmt.Errorf("API key not configured")
+		return errors.New("API key not configured")
 	}
 
 	payload, err := json.Marshal(report)
