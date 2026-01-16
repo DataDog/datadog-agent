@@ -34,9 +34,6 @@ const (
 	// httpTimeout is the timeout for HTTP requests
 	httpTimeout = 30 * time.Second
 
-	// schemaVersion is the current schema version for health reports
-	schemaVersion = "1.0"
-
 	// eventType is the event type for health reports
 	eventType = "agent-health-issues"
 )
@@ -152,9 +149,8 @@ func (f *forwarder) sendHealthReport() {
 // buildReport creates a HealthReport from the current issues
 func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *healthplatform.HealthReport {
 	return &healthplatform.HealthReport{
-		SchemaVersion: schemaVersion,
-		EventType:     eventType,
-		EmittedAt:     time.Now().UTC().Format(time.RFC3339),
+		EventType: eventType,
+		EmittedAt: time.Now().UTC().Format(time.RFC3339),
 		Host: healthplatform.HostInfo{
 			Hostname:     f.hostname,
 			AgentVersion: version.AgentVersion,
@@ -165,6 +161,12 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 
 // send marshals and sends the report to the intake endpoint
 func (f *forwarder) send(report *healthplatform.HealthReport) error {
+	// Fetch API key once and check if configured
+	apiKey := f.cfg.GetString("api_key")
+	if apiKey == "" {
+		return fmt.Errorf("API key not configured")
+	}
+
 	payload, err := json.Marshal(report)
 	if err != nil {
 		return fmt.Errorf("marshal report: %w", err)
@@ -178,7 +180,10 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 		return fmt.Errorf("create request: %w", err)
 	}
 
-	f.setHeaders(req)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("DD-API-KEY", apiKey)
+	req.Header.Set("DD-Agent-Version", version.AgentVersion)
+	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
@@ -191,12 +196,4 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	}
 
 	return nil
-}
-
-// setHeaders sets the required HTTP headers for the request
-func (f *forwarder) setHeaders(req *http.Request) {
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("DD-API-KEY", f.cfg.GetString("api_key"))
-	req.Header.Set("DD-Agent-Version", version.AgentVersion)
-	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
 }

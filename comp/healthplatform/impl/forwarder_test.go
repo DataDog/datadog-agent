@@ -72,7 +72,6 @@ func TestForwarderBuildReport(t *testing.T) {
 
 	report := fwd.buildReport(provider.issues)
 
-	assert.Equal(t, "1.0", report.SchemaVersion)
 	assert.Equal(t, "agent-health-issues", report.EventType)
 	assert.Equal(t, "test-host", report.Host.Hostname)
 	assert.Equal(t, version.AgentVersion, report.Host.AgentVersion)
@@ -212,7 +211,6 @@ func TestForwarderWithComponent(t *testing.T) {
 	// Verify forwarder was created
 	require.NotNil(t, comp.forwarder)
 	assert.Equal(t, "test-hostname", comp.forwarder.hostname)
-	// API key is read from config at request time, not stored in forwarder
 
 	// Start component
 	err = lifecycle.Start(context.Background())
@@ -223,7 +221,7 @@ func TestForwarderWithComponent(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestForwarderWithoutAPIKey tests that forwarder is not created without API key
+// TestForwarderWithoutAPIKey tests that forwarder is created but send fails gracefully without API key
 func TestForwarderWithoutAPIKey(t *testing.T) {
 	lifecycle := newMockLifecycle()
 	reqs := testRequires(t, lifecycle)
@@ -234,8 +232,29 @@ func TestForwarderWithoutAPIKey(t *testing.T) {
 	require.NoError(t, err)
 	comp := provides.Comp.(*healthPlatformImpl)
 
-	// Verify forwarder was not created
-	assert.Nil(t, comp.forwarder)
+	// Verify forwarder was still created (API key check happens at send time)
+	assert.NotNil(t, comp.forwarder)
+}
+
+// TestForwarderSendWithoutAPIKey tests that send fails gracefully without API key
+func TestForwarderSendWithoutAPIKey(t *testing.T) {
+	cfg := config.NewMock(t)
+	// Don't set API key
+	provider := newMockIssueProvider()
+
+	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
+
+	provider.addIssue("check-1", &healthplatform.Issue{
+		ID:       "issue-1",
+		Title:    "Test Issue",
+		Severity: "high",
+	})
+
+	report := fwd.buildReport(provider.issues)
+	err := fwd.send(report)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "API key not configured")
 }
 
 // TestBuildIntakeURL tests URL building based on site configuration

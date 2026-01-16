@@ -93,7 +93,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
 	}
 
-	// Initialize the forwarder if API key is configured
 	if err := comp.initForwarder(reqs); err != nil {
 		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
 	}
@@ -312,11 +311,6 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 
 // initForwarder initializes the forwarder for sending health reports to Datadog intake
 func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
-	// Check if API key is configured at startup (it will be read fresh at request time)
-	if reqs.Config.GetString("api_key") == "" {
-		return errors.New("API key not configured")
-	}
-
 	hostname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to get hostname: %w", err)
