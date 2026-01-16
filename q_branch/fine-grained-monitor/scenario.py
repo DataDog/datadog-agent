@@ -1106,6 +1106,7 @@ def cmd_import(blueprint_name: str | None, list_only: bool, update: bool):
 
     print(f"Importing blueprint '{blueprint_name}' with {len(disruption_files)} disruption(s)...")
     imported_scenarios = []
+    base_scenario_dir = None  # Track base scenario for dashboard.json copying
 
     for scenario in scenarios_to_generate:
         scenario_name = scenario["name"]
@@ -1156,6 +1157,16 @@ def cmd_import(blueprint_name: str | None, list_only: bool, update: bool):
             shutil.copytree(tmp_output, output_dir)
             imported_scenarios.append(scenario_name)
             print(f"    ✓ Generated scenarios/{scenario_name}/")
+
+            # Track base scenario directory (first one, no disruption)
+            if scenario["disruption"] is None:
+                base_scenario_dir = output_dir
+            # Copy dashboard.json from base scenario to disruption scenarios
+            elif base_scenario_dir is not None:
+                base_dashboard = base_scenario_dir / "dashboard.json"
+                if base_dashboard.exists():
+                    shutil.copy(base_dashboard, output_dir / "dashboard.json")
+                    print("    ✓ Copied dashboard.json from base scenario")
 
     if not imported_scenarios:
         print("\nNo scenarios were successfully imported")

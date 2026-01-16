@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "name": "Todo App - Multi-Tier Web Application",
+  "description": "Frontend, backend, and database services for the todo application generated from gensim blueprint",
+
+  "containers": {
+    "namespace": "fgm-run-{{RUN_ID}}"
+  },
+
+  "time_range": {
+    "mode": "from_containers",
+    "padding_seconds": 60
+  },
+
+  "panels": [
+    {
+      "metric": "cpu_percentage",
+      "title": "CPU Usage %"
+    },
+    {
+      "metric": "cgroup.v2.memory.current",
+      "title": "Memory Usage"
+    },
+    {
+      "metric": "cgroup.v2.cpu.stat.throttled_usec",
+      "title": "CPU Throttling (usec)"
+    },
+    {
+      "metric": "cgroup.v2.io.stat.rbytes",
+      "title": "IO Read Bytes"
+    },
+    {
+      "metric": "cgroup.v2.pids.current",
+      "title": "Process Count"
+    }
+  ]
+}
