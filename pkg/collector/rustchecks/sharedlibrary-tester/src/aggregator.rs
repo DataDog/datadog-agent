@@ -1,45 +1,17 @@
 use core::{Aggregator, MetricType, Event};
 
-use std::ffi::{c_char, c_double, c_float, c_longlong, c_int, CStr};
+use crate::cstring::{c_str_to_string, c_str_array_to_vec};
 
-/// Helper function to safely convert C string to Rust string for printing
-fn c_str_to_string(ptr: *mut c_char) -> String {
-    if ptr.is_null() {
-        "NULL".to_string()
-    } else {
-        unsafe { CStr::from_ptr(ptr) }
-            .to_str()
-            .unwrap_or("<invalid_utf8>")
-            .to_string()
-    }
-}
+use std::{ffi::{c_char, c_double, c_float, c_int, c_longlong}, sync::atomic::{AtomicUsize, Ordering}};
 
-/// Helper function to print C string array
-fn c_str_array_to_vec(ptr: *mut *mut c_char) -> Vec<String> {
-    if ptr.is_null() {
-        return vec!["NULL".to_string()];
-    }
-    
-    let mut result = Vec::new();
-    let mut current = ptr;
-    
-    
-    unsafe {
-        while !(*current).is_null() {
-            result.push(c_str_to_string(*current));
-            current = current.add(1);
-        }
-    }
-    
-    if result.is_empty() {
-        vec!["<empty_array>".to_string()]
-    } else {
-        result
-    }
-}
+static METRICS_COUNT: AtomicUsize = AtomicUsize::new(0);
+static SERVICE_CHECKS_COUNT: AtomicUsize = AtomicUsize::new(0);
+static EVENTS_COUNT: AtomicUsize = AtomicUsize::new(0);
+static HISTOGRAM_BUCKET_COUNT: AtomicUsize = AtomicUsize::new(0);
+static EVENT_PLATFORM_EVENTS_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-/// Mock implementation of SubmitMetric
-extern "C" fn mock_submit_metric(
+/// Implementation of SubmitMetric that prints the payload
+extern "C" fn fake_submit_metric(
     check_id: *mut c_char,
     metric_type: MetricType,
     name: *mut c_char,
@@ -48,6 +20,8 @@ extern "C" fn mock_submit_metric(
     hostname: *mut c_char,
     flush_first_value: bool,
 ) {
+    METRICS_COUNT.fetch_add(1, Ordering::SeqCst);
+
     println!(
         r#"=== Metric ===
 {{
@@ -69,8 +43,8 @@ extern "C" fn mock_submit_metric(
     );
 }
 
-/// Mock implementation of SubmitServiceCheck
-extern "C" fn mock_submit_service_check(
+/// Implementation of SubmitServiceCheck that prints the payload
+extern "C" fn fake_submit_service_check(
     check_id: *mut c_char,
     name: *mut c_char,
     status: c_int,
@@ -78,6 +52,8 @@ extern "C" fn mock_submit_service_check(
     hostname: *mut c_char,
     message: *mut c_char,
 ) {
+    SERVICE_CHECKS_COUNT.fetch_add(1, Ordering::SeqCst);
+
     println!(
         r#"=== Service Check ===
 {{
@@ -97,11 +73,13 @@ extern "C" fn mock_submit_service_check(
     );
 }
 
-/// Mock implementation of SubmitEvent
-extern "C" fn mock_submit_event(
+/// Implementation of SubmitEvent that prints the payload
+extern "C" fn fake_submit_event(
     check_id: *mut c_char,
     event_ptr: *const Event,
 ) {
+    EVENTS_COUNT.fetch_add(1, Ordering::SeqCst);
+
     let event = unsafe { &*event_ptr };
 
     println!(
@@ -115,8 +93,8 @@ extern "C" fn mock_submit_event(
     );
 }
 
-/// Mock implementation of SubmitHistogramBucket
-extern "C" fn mock_submit_histogram_bucket(
+/// Implementation of SubmitHistogramBucket that prints the payload
+extern "C" fn fake_submit_histogram_bucket(
     check_id: *mut c_char,
     metric_name: *mut c_char,
     value: c_longlong,
@@ -127,6 +105,8 @@ extern "C" fn mock_submit_histogram_bucket(
     tags: *mut *mut c_char,
     flush_first_value: bool,
 ) {
+    HISTOGRAM_BUCKET_COUNT.fetch_add(1, Ordering::SeqCst);
+
     println!(
         r#"=== Histogram Bucket ===
 {{
@@ -152,13 +132,15 @@ extern "C" fn mock_submit_histogram_bucket(
     );
 }
 
-/// Mock implementation of SubmitEventPlatformEvent
-extern "C" fn mock_submit_event_platform_event(
+/// Implementation of SubmitEventPlatformEvent that prints the payload
+extern "C" fn fake_submit_event_platform_event(
     check_id: *mut c_char,
     raw_event_pointer: *mut c_char,
     raw_event_size: c_int,
     event_type: *mut c_char,
 ) {
+    EVENT_PLATFORM_EVENTS_COUNT.fetch_add(1, Ordering::SeqCst);
+
     println!(
         r#"=== Event Platform Event ===
 {{
@@ -174,12 +156,21 @@ extern "C" fn mock_submit_event_platform_event(
     );
 }
 
-pub fn mock_aggregator() -> Aggregator {
+pub fn fake_aggregator() -> Aggregator {
     Aggregator::new(
-        mock_submit_metric, 
-        mock_submit_service_check, 
-        mock_submit_event, 
-        mock_submit_histogram_bucket, 
-        mock_submit_event_platform_event
+        fake_submit_metric, 
+        fake_submit_service_check, 
+        fake_submit_event, 
+        fake_submit_histogram_bucket, 
+        fake_submit_event_platform_event,
     )
+}
+
+pub fn print_payload_counts() {
+    println!("=== Recap ===");
+    println!("Metrics: {}", METRICS_COUNT.load(Ordering::SeqCst));
+    println!("Service checks: {}", SERVICE_CHECKS_COUNT.load(Ordering::SeqCst));
+    println!("Events: {}", EVENTS_COUNT.load(Ordering::SeqCst));
+    println!("Histogram buckets: {}", HISTOGRAM_BUCKET_COUNT.load(Ordering::SeqCst));
+    println!("Event platform events: {}", EVENT_PLATFORM_EVENTS_COUNT.load(Ordering::SeqCst));
 }
