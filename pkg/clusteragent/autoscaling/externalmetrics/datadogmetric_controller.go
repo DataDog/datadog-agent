@@ -146,11 +146,9 @@ func (c *DatadogMetricController) enqueue(obj interface{}) {
 	c.workqueue.AddRateLimited(key)
 }
 
-func (c *DatadogMetricController) enqueueID(id, sender string) {
-	// Do not enqueue our own updates (avoid infinite loops)
-	if sender != ddmControllerStoreID {
-		c.workqueue.AddRateLimited(id)
-	}
+func (c *DatadogMetricController) enqueueID(id string, obj interface{}) {
+	// Enqueue for processing - workqueue rate limiting will handle any potential loops
+	c.workqueue.AddRateLimited(id)
 }
 
 func (c *DatadogMetricController) process(workerID int) bool {
@@ -352,7 +350,7 @@ func (c *DatadogMetricController) deleteDatadogMetric(ns, name string) error {
 	return nil
 }
 
-func (c *DatadogMetricController) deleteTelemetry(id, _ string) {
+func (c *DatadogMetricController) deleteTelemetry(id string, obj interface{}) {
 	ns, name, err := cache.SplitMetaNamespaceKey(id)
 	if err != nil {
 		log.Debugf("Unable to split meta namespace key to delete telemetry: %v", err)

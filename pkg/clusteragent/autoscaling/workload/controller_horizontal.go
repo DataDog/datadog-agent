@@ -27,10 +27,11 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -44,13 +45,17 @@ type horizontalController struct {
 	clock         clock.Clock
 	eventRecorder record.EventRecorder
 	scaler        scaler
+	sender        sender.Sender
+	isLeader      func() bool
 }
 
-func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecorder, restMapper apimeta.RESTMapper, scaleGetter scaleclient.ScalesGetter) *horizontalController {
+func newHorizontalReconciler(clock clock.Clock, eventRecorder record.EventRecorder, restMapper apimeta.RESTMapper, scaleGetter scaleclient.ScalesGetter, senderInstance sender.Sender, isLeaderFunc func() bool) *horizontalController {
 	return &horizontalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,
 		scaler:        newScaler(restMapper, scaleGetter),
+		sender:        senderInstance,
+		isLeader:      isLeaderFunc,
 	}
 }
 
@@ -125,18 +130,16 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
 
-		telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error", le.JoinLeaderValue)
+		if hr.isLeader() {
+			metrics.SubmitHorizontalScaleAction(hr.sender, scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error")
+		}
 		return autoscaling.Requeue, err
 	}
 
-	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
-	setHorizontalScaleAppliedRecommendations(
-		float64(horizontalAction.ToReplicas),
-		scale.Namespace,
-		scale.Name,
-		podAutoscaler.Name,
-		string(scalingValues.Horizontal.Source),
-	)
+	if hr.isLeader() {
+		metrics.SubmitHorizontalScaleAction(hr.sender, scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok")
+		metrics.SubmitHorizontalScaleAppliedReplicas(hr.sender, float64(horizontalAction.ToReplicas), scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source))
+	}
 
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)

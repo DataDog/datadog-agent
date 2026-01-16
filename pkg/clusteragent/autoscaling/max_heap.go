@@ -99,11 +99,11 @@ func NewHashHeap(maxSize int, store *store) *HashHeap {
 }
 
 // InsertIntoHeap returns true if the key already exists in the max heap or was inserted correctly
-// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) InsertIntoHeap(key, _sender string) {
-	// Get object from store
-	podAutoscalerInternal, podAutoscalerInternalFound := h.store.Get(key)
-	if !podAutoscalerInternalFound {
+// Used as an ObserverFunc; accept obj as parameter to match ObserverFunc signature
+func (h *HashHeap) InsertIntoHeap(key string, obj interface{}) {
+	// Type assert the object
+	podAutoscalerInternal, ok := obj.(model.PodAutoscalerInternal)
+	if !ok {
 		return
 	}
 
@@ -139,8 +139,8 @@ func (h *HashHeap) InsertIntoHeap(key, _sender string) {
 }
 
 // DeleteFromHeap removes the given key from the max heap
-// Used as an ObserverFunc; accept sender as parameter to match ObserverFunc signature
-func (h *HashHeap) DeleteFromHeap(key, _sender string) {
+// Used as an ObserverFunc; accept obj as parameter to match ObserverFunc signature
+func (h *HashHeap) DeleteFromHeap(key string, _obj interface{}) {
 	// Key did not exist in heap, return early
 	if !h.Exists(key) {
 		return

@@ -17,7 +17,8 @@ const (
 )
 
 // ObserverFunc represents observer functions of the store
-type ObserverFunc func(string, string)
+// First parameter is the key, second parameter is the object (or nil for delete operations)
+type ObserverFunc func(string, interface{})
 
 // Observer allows to define functions to watch changes in Store
 type Observer struct {
@@ -102,20 +103,24 @@ func (s *Store[T]) GetFiltered(filter func(T) bool) []T {
 // Updator func is expected to return the new object and a boolean indicating if the object has changed.
 // The object is updated only if boolean is true, observers are notified only for updated objects after all objects have been updated.
 func (s *Store[T]) Update(updator func(T) (T, bool), sender string) {
-	var changedIDs []string
+	type change struct {
+		id  string
+		obj T
+	}
+	var changes []change
 	s.lock.Lock()
 	for id, object := range s.store {
 		newObject, changed := updator(object)
 		if changed {
 			s.store[id] = newObject
-			changedIDs = append(changedIDs, id)
+			changes = append(changes, change{id: id, obj: newObject})
 		}
 	}
 	s.lock.Unlock()
 
 	// Notifying must be done after releasing the lock
-	for _, id := range changedIDs {
-		s.notify(setOperation, id, sender)
+	for _, ch := range changes {
+		s.notify(setOperation, ch.id, ch.obj)
 	}
 }
 
@@ -133,18 +138,18 @@ func (s *Store[T]) Set(id string, obj T, sender string) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender)
+	s.notify(setOperation, id, obj)
 }
 
 // Delete object corresponding to id if present
 func (s *Store[T]) Delete(id, sender string) {
 	s.lock.Lock()
-	_, exists := s.store[id]
+	obj, exists := s.store[id]
 	delete(s.store, id)
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender)
+		s.notify(deleteOperation, id, obj)
 	}
 }
 
@@ -174,27 +179,27 @@ func (s *Store[T]) UnlockSet(id string, obj T, sender string) {
 	s.store[id] = obj
 	s.lock.Unlock()
 
-	s.notify(setOperation, id, sender)
+	s.notify(setOperation, id, obj)
 }
 
 // UnlockDelete deletes an object and releases the lock (previously acquired by `LockRead`)
 func (s *Store[T]) UnlockDelete(id, sender string) {
-	_, exists := s.store[id]
+	obj, exists := s.store[id]
 
 	delete(s.store, id)
 	s.lock.Unlock()
 
 	if exists {
-		s.notify(deleteOperation, id, sender)
+		s.notify(deleteOperation, id, obj)
 	}
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (s *Store[T]) notify(operationType storeOperation, key, sender string) {
+func (s *Store[T]) notify(operationType storeOperation, key string, obj interface{}) {
 	s.observersLock.RLock()
 	defer s.observersLock.RUnlock()
 
 	for _, observer := range s.observers[operationType] {
-		observer(key, sender)
+		observer(key, obj)
 	}
 }

@@ -19,7 +19,8 @@ const (
 )
 
 // DatadogMetricInternalObserverFunc represents observer functions of the datadog metrics store
-type DatadogMetricInternalObserverFunc func(string, string)
+// First parameter is the key, second parameter is the object (or nil for delete operations)
+type DatadogMetricInternalObserverFunc func(string, interface{})
 
 // DatadogMetricInternalObserver allows to define functions to watch changes in Store
 type DatadogMetricInternalObserver struct {
@@ -113,18 +114,18 @@ func (ds *DatadogMetricsInternalStore) Set(id string, datadogMetric model.Datado
 	ds.store[id] = datadogMetric
 	ds.lock.Unlock()
 
-	ds.notify(setOperation, id, sender)
+	ds.notify(setOperation, id, datadogMetric)
 }
 
 // Delete `DatadogMetricInternal` corresponding to id if present
 func (ds *DatadogMetricsInternalStore) Delete(id, sender string) {
 	ds.lock.Lock()
-	_, exists := ds.store[id]
+	obj, exists := ds.store[id]
 	delete(ds.store, id)
 	ds.lock.Unlock()
 
 	if exists {
-		ds.notify(deleteOperation, id, sender)
+		ds.notify(deleteOperation, id, obj)
 	}
 }
 
@@ -156,27 +157,27 @@ func (ds *DatadogMetricsInternalStore) UnlockSet(id string, datadogMetric model.
 	ds.store[id] = datadogMetric
 	ds.lock.Unlock()
 
-	ds.notify(setOperation, id, sender)
+	ds.notify(setOperation, id, datadogMetric)
 }
 
 // UnlockDelete deletes a DatadogMetricInternal and releases the lock (previously acquired by `LockRead`)
 func (ds *DatadogMetricsInternalStore) UnlockDelete(id, sender string) {
-	_, exists := ds.store[id]
+	obj, exists := ds.store[id]
 
 	delete(ds.store, id)
 	ds.lock.Unlock()
 
 	if exists {
-		ds.notify(deleteOperation, id, sender)
+		ds.notify(deleteOperation, id, obj)
 	}
 }
 
 // It's a very simple implementation of a notify process, but it's enough in our case as we aim at only 1 or 2 observers
-func (ds *DatadogMetricsInternalStore) notify(operationType storeOperation, key, sender string) {
+func (ds *DatadogMetricsInternalStore) notify(operationType storeOperation, key string, obj interface{}) {
 	ds.observersLock.RLock()
 	defer ds.observersLock.RUnlock()
 
 	for _, observer := range ds.observers[operationType] {
-		observer(key, sender)
+		observer(key, obj)
 	}
 }

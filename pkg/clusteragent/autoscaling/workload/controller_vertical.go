@@ -27,10 +27,11 @@ import (
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,15 +45,19 @@ type verticalController struct {
 	eventRecorder record.EventRecorder
 	dynamicClient dynamic.Interface
 	podWatcher    PodWatcher
+	sender        sender.Sender
+	isLeader      func() bool
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw PodWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw PodWatcher, senderInstance sender.Sender, isLeaderFunc func() bool) *verticalController {
 	res := &verticalController{
 		clock:         clock,
 		eventRecorder: eventRecorder,
 		dynamicClient: cl,
 		podWatcher:    pw,
+		sender:        senderInstance,
+		isLeader:      isLeaderFunc,
 	}
 	return res
 }
@@ -171,7 +176,9 @@ func (u *verticalController) syncDeploymentKind(
 	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
 		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err)
-		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
+		if u.isLeader() {
+			metrics.SubmitVerticalRolloutTriggered(u.sender, target.Namespace, target.Name, autoscalerInternal.Name(), "error")
+		}
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
 
@@ -180,7 +187,9 @@ func (u *verticalController) syncDeploymentKind(
 
 	// Propagating information about the rollout
 	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-	telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
+	if u.isLeader() {
+		metrics.SubmitVerticalRolloutTriggered(u.sender, target.Namespace, target.Name, autoscalerInternal.Name(), "ok")
+	}
 	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
 
 	autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{

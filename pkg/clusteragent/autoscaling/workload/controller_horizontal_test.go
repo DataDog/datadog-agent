@@ -25,6 +25,7 @@ import (
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -44,6 +45,8 @@ func newHorizontalControllerFixture(t *testing.T, testTime time.Time) *horizonta
 	clock := clock.NewFakeClock(testTime)
 	recorder := record.NewFakeRecorder(100)
 	scaler := newFakeScaler()
+	mockSender := mocksender.NewMockSender("")
+	mockSender.SetupAcceptAll()
 
 	return &horizontalControllerFixture{
 		t:        t,
@@ -55,6 +58,8 @@ func newHorizontalControllerFixture(t *testing.T, testTime time.Time) *horizonta
 			clock:         clock,
 			eventRecorder: recorder,
 			scaler:        scaler,
+			sender:        mockSender,
+			isLeader:      func() bool { return true },
 		},
 	}
 }
