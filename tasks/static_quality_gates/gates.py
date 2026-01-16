@@ -714,6 +714,28 @@ class GateMetricHandler:
         with open(filename) as f:
             self.metrics = json.load(f)
 
+    def _should_skip_send_metrics(self) -> bool:
+        """
+        Check if we should skip sending SQG metrics to Datadog.
+
+        On main branch, we only want to send metrics for push pipelines
+        (not for manually triggered, downstream, or scheduled pipelines).
+
+        This is to avoid sending metrics for pipelines that override
+        integrations-core version that leads to inconsistent metrics.
+
+        Returns:
+            True if metrics should be skipped, False otherwise.
+        """
+        branch = os.getenv("CI_COMMIT_BRANCH", "")
+        pipeline_source = os.getenv("CI_PIPELINE_SOURCE", "")
+
+        # On main branch, only allow push pipelines to send metrics
+        if branch == "main" and pipeline_source != "push":
+            return True
+
+        return False
+
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
         metric_value = self.metrics[gate].get(metric_key)
         if metric_value is not None:
@@ -855,6 +877,12 @@ class GateMetricHandler:
 
     def send_metrics_to_datadog(self):
         """Send all metrics to Datadog (backward compatible)."""
+        if self._should_skip_send_metrics():
+            branch = os.getenv("CI_COMMIT_BRANCH", "")
+            source = os.getenv("CI_PIPELINE_SOURCE", "")
+            print(color_message(f"[INFO] Skipping SQG metrics: branch={branch}, pipeline_source={source}", "blue"))
+            return
+
         series = self._generate_series()
 
         if series:
