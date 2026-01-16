@@ -51,6 +51,24 @@ checks:
       series: lost_bytes
       upper_bound: 0KiB
 
+  - name: bytes_received_metrics_intake
+    description: "Allowable bytes received by datatog intake metrics endpoint"
+    bounds:
+      series: bytes_received['metrics_intake']
+      upper_bound: 100 MiB
+
+  - name: bytes_received_logs_intake
+    description: "Allowable bytes received by datatog intake logs endpoint"
+    bounds:
+      series: bytes_received['logs_intake']
+      upper_bound: 100 MiB
+
+  - name: bytes_received_process_intake
+    description: "Allowable bytes received by datatog intake processes endpoint"
+    bounds:
+      series: bytes_received['process_intake']
+      upper_bound: 100 MiB
+
 report_links:
   - text: "bounds checks dashboard"
     link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"

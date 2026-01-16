@@ -62,12 +62,15 @@ generator:
         mount_point: /smp-shared
 
 blackhole:
-  - http:
+  - id: "metrics_intake"
+    http:
       binding_addr: "127.0.0.1:9091"
-  - http:
+  - id: "logs_intake"
+    http:
       binding_addr: "127.0.0.1:9092"
       response_delay_millis: 75
-  - http:
+  - id: "process_intake" 
+    http:
       binding_addr: "127.0.0.1:9093"
 
 target_metrics:
