@@ -306,28 +306,12 @@ int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct s
     return syscall->type;
 }
 
-// sets all the bytes after the null terminator to null and truncates the string if needed
-void __attribute__((always_inline)) clean_str_trailing_zeros(char *data, int string_size, int array_size) {
-    bool found_null = false;
-    #pragma unroll
-    for(int i=0; i != 17; ++i) {
-        if (i >= array_size) {
-            break;
-        }
-        if(found_null || i >= string_size - 1) {
-            data[i] = 0;
-        } else if (data[i] == 0) {
-            found_null = true;
-        }
-    }
-}
-
-void __attribute__((always_inline)) discard_pr_name(char *data) {
+void __attribute__((always_inline)) discard_pr_name(char* data) {
     int val = get_discarders_revision();
     bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
 }
 
-bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * data) {
+bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char* data) {
     int* entry = bpf_map_lookup_elem(&prctl_discarders, data);
     if (entry == NULL) {
         return false;

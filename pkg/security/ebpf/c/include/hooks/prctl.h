@@ -2,9 +2,10 @@
 #define _HOOKS_PRCTL_H_
 
 #include "constants/syscall_macro.h"
-#include "helpers/syscalls.h"
-#include "helpers/process.h"
 #include "helpers/approvers.h"
+#include "helpers/process.h"
+#include "helpers/syscalls.h"
+#include "helpers/strings.h"
 #include <linux/prctl.h>
 
 long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void * arg2) {
@@ -29,6 +30,7 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
             syscall.prctl.name_size_to_send = 0;
         }
 
+        syscall.prctl.name[15] = 0;
         clean_str_trailing_zeros(syscall.prctl.name, MAX_PRCTL_NAME_LEN, MAX_PRCTL_NAME_LEN + 1);
         if (is_prctl_pr_name_discarder(syscall.prctl.name)) {
             return 0;
