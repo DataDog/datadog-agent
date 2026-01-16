@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package healthplatformimpl
 
 import (
@@ -18,21 +20,17 @@ import (
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 )
 
-// mockReporter is a mock implementation of issueReporter for testing
+// mockReporter is a simple mock for testing check runner registration/validation
 type mockReporter struct {
-	reportedIssues map[string]*healthplatform.IssueReport
-	reportCount    int32
+	reportCount int32
 }
 
 func newMockReporter() *mockReporter {
-	return &mockReporter{
-		reportedIssues: make(map[string]*healthplatform.IssueReport),
-	}
+	return &mockReporter{}
 }
 
-func (m *mockReporter) ReportIssue(checkID string, _ string, report *healthplatform.IssueReport) error {
+func (m *mockReporter) ReportIssue(_ string, _ string, _ *healthplatform.IssueReport) error {
 	atomic.AddInt32(&m.reportCount, 1)
-	m.reportedIssues[checkID] = report
 	return nil
 }
 
@@ -111,9 +109,7 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	callCount := int32(0)
 	checkFn := func() (*healthplatform.IssueReport, error) {
 		atomic.AddInt32(&callCount, 1)
-		return &healthplatform.IssueReport{
-			IssueID: "test-issue",
-		}, nil
+		return nil, nil
 	}
 
 	// Register with very short interval for testing
@@ -125,66 +121,9 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	defer runner.Stop()
 
 	// Wait for at least 2 executions
-	time.Sleep(150 * time.Millisecond)
-
-	assert.GreaterOrEqual(t, atomic.LoadInt32(&callCount), int32(2))
-	assert.GreaterOrEqual(t, atomic.LoadInt32(&reporter.reportCount), int32(2))
-}
-
-// TestCheckRunnerReportsIssues tests that issues are reported correctly
-func TestCheckRunnerReportsIssues(t *testing.T) {
-	reporter := newMockReporter()
-	runner := newCheckRunner(logmock.New(t), reporter)
-
-	checkFn := func() (*healthplatform.IssueReport, error) {
-		return &healthplatform.IssueReport{
-			IssueID: "test-issue-id",
-			Context: map[string]string{"key": "value"},
-		}, nil
-	}
-
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
-	require.NoError(t, err)
-
-	runner.Start()
-	defer runner.Stop()
-
-	// Wait for check to run
-	time.Sleep(100 * time.Millisecond)
-
-	// Verify issue was reported
-	report := reporter.reportedIssues["test-check"]
-	require.NotNil(t, report)
-	assert.Equal(t, "test-issue-id", report.IssueID)
-	assert.Equal(t, "value", report.Context["key"])
-}
-
-// TestCheckRunnerClearsIssueWhenNil tests that nil report clears issues
-func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
-	reporter := newMockReporter()
-	runner := newCheckRunner(logmock.New(t), reporter)
-
-	// First return an issue, then nil
-	returnIssue := true
-	checkFn := func() (*healthplatform.IssueReport, error) {
-		if returnIssue {
-			returnIssue = false
-			return &healthplatform.IssueReport{IssueID: "test-issue"}, nil
-		}
-		return nil, nil // No issue
-	}
-
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
-	require.NoError(t, err)
-
-	runner.Start()
-	defer runner.Stop()
-
-	// Wait for both runs
-	time.Sleep(150 * time.Millisecond)
-
-	// Verify nil was reported (clearing the issue)
-	assert.Nil(t, reporter.reportedIssues["test-check"])
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.reportCount) >= 2
+	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
 // TestCheckRunnerStartStop tests graceful start/stop
@@ -201,7 +140,12 @@ func TestCheckRunnerStartStop(t *testing.T) {
 
 	// Start and stop should complete gracefully
 	runner.Start()
-	time.Sleep(50 * time.Millisecond)
+
+	// Wait for at least one execution
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&reporter.reportCount) >= 1
+	}, 100*time.Millisecond, 5*time.Millisecond)
+
 	runner.Stop() // Stop blocks until all goroutines finish
 
 	// Verify runner is no longer running
@@ -237,11 +181,80 @@ func TestCheckRunnerWithComponent(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for check to run
-	time.Sleep(100 * time.Millisecond)
-
-	assert.GreaterOrEqual(t, atomic.LoadInt32(&callCount), int32(1))
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&callCount) >= 1
+	}, 500*time.Millisecond, 10*time.Millisecond)
 
 	// Stop component
 	err = lifecycle.Stop(context.Background())
 	require.NoError(t, err)
+}
+
+// TestCheckRunnerReportsIssues tests that issues are reported correctly using the component
+func TestCheckRunnerReportsIssues(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+	reqs.Config.SetWithoutSource("health_platform.enabled", true)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	comp := provides.Comp.(*healthPlatformImpl)
+
+	checkFn := func() (*healthplatform.IssueReport, error) {
+		return &healthplatform.IssueReport{
+			IssueID: "check-execution-failure", // Use real issue ID from registry
+			Context: map[string]string{"checkName": "test-check", "error": "test error"},
+		}, nil
+	}
+
+	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	require.NoError(t, err)
+
+	err = lifecycle.Start(context.Background())
+	require.NoError(t, err)
+	defer func() { _ = lifecycle.Stop(context.Background()) }()
+
+	// Wait for issue to be reported
+	assert.Eventually(t, func() bool {
+		issue := comp.GetIssueForCheck("test-check")
+		return issue != nil && issue.ID == "check-execution-failure"
+	}, 500*time.Millisecond, 10*time.Millisecond)
+}
+
+// TestCheckRunnerClearsIssueWhenNil tests that nil report clears issues using the component
+func TestCheckRunnerClearsIssueWhenNil(t *testing.T) {
+	lifecycle := newMockLifecycle()
+	reqs := testRequires(t, lifecycle)
+	reqs.Config.SetWithoutSource("health_platform.enabled", true)
+
+	provides, err := NewComponent(reqs)
+	require.NoError(t, err)
+
+	comp := provides.Comp.(*healthPlatformImpl)
+
+	// First return an issue, then nil
+	callCount := int32(0)
+	checkFn := func() (*healthplatform.IssueReport, error) {
+		count := atomic.AddInt32(&callCount, 1)
+		if count == 1 {
+			return &healthplatform.IssueReport{
+				IssueID: "check-execution-failure", // Use real issue ID from registry
+				Context: map[string]string{"checkName": "test-check", "error": "test error"},
+			}, nil
+		}
+		return nil, nil // No issue - should clear
+	}
+
+	err = comp.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	require.NoError(t, err)
+
+	err = lifecycle.Start(context.Background())
+	require.NoError(t, err)
+	defer func() { _ = lifecycle.Stop(context.Background()) }()
+
+	// Wait for issue to be cleared (after second run)
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&callCount) >= 2 && comp.GetIssueForCheck("test-check") == nil
+	}, 500*time.Millisecond, 10*time.Millisecond)
 }
