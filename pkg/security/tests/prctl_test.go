@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/stretchr/testify/assert"
@@ -195,5 +196,93 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 	t.Run("prctl-set-name-discarder-above-limit", func(t *testing.T) {
 		testPrName(t, "looooooooooooooooooooooong")
+	})
+}
+
+func TestPrCtlDiscarderReload(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_prctl",
+			Expression: `prctl.option == PR_SET_NAME && prctl.new_name == "my_thread"`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	truncate := func(s string, max int) string {
+		if len(s) <= max {
+			return s
+		}
+		return s[:max]
+	}
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
+	t.Run("prctl-discarders-invalidated-when-ruleset-is-reloaded", func(t *testing.T) {
+		prName := "cenas"
+		t.Helper()
+		// 1. send first event not matching the rule to create a discarder.
+		// it's expected that we receive the event
+		err = test.GetProbeEvent(func() error {
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			if err != nil {
+				t.Fatal("error calling prctl: %w", err)
+			}
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "prctl" || event.PrCtl.NewName != truncate(prName, 15) {
+				return false
+			}
+
+			return true
+		}, 3*time.Second, model.PrCtlEventType)
+
+		if err != nil {
+			t.Fatal("Failed to get the first prctl event")
+		}
+
+		// 2. make sure that we're still receiving non-discarded messages
+		test.WaitSignalFromRule(t, func() error {
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "my_thread")
+			if err != nil {
+				t.Fatal("error calling prctl: %w", err)
+			}
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_prctl")
+		}, "test_rule_prctl")
+
+		// 3. flush the discarders
+		assert.NoError(t, p.FlushDiscarders())
+
+		// 4. trigger prctl again with the name that had previously been added to the discarders. we should receive it now
+		err = test.GetProbeEvent(func() error {
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
+			if err != nil {
+				t.Fatal("error calling prctl: %w", err)
+			}
+			return nil
+		}, func(event *model.Event) bool {
+			if event.GetType() != "prctl" || event.PrCtl.NewName != truncate(prName, 15) {
+				return false
+			}
+			return true
+		}, 3*time.Second, model.PrCtlEventType)
+
+		assert.Equal(t, err, nil, "Should have received the event")
 	})
 }

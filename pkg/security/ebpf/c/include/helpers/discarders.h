@@ -306,7 +306,7 @@ int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct s
     return syscall->type;
 }
 
-// sets all the bytes after the null terminator to null
+// sets all the bytes after the null terminator to null and truncates the string if needed
 void __attribute__((always_inline)) clean_str_trailing_zeros(char *data, int string_size, int array_size) {
     bool found_null = false;
     #pragma unroll
@@ -320,18 +320,17 @@ void __attribute__((always_inline)) clean_str_trailing_zeros(char *data, int str
 }
 
 void __attribute__((always_inline)) discard_pr_name(char *data) {
-    bool val = true;
-    int r = bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
-    if (r != 0) {
-    }
+    int val = get_discarders_revision();
+    bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
 }
 
 bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * data) {
-    bool *entry = bpf_map_lookup_elem(&prctl_discarders, data);
+    int* entry = bpf_map_lookup_elem(&prctl_discarders, data);
     if (entry == NULL) {
         return false;
     }
-    return true;
+
+    return *entry == get_discarders_revision();
 }
 
 #endif
