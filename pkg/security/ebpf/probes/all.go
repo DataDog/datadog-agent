@@ -282,6 +282,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: capabilitiesContextsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
+		"open_samples": {
+			MaxEntries: 40000,
+			EditorFlag: manager.EditMaxEntries,
+		},
 	}
 
 	if opts.SecurityProfileSyscallAnomaly {
