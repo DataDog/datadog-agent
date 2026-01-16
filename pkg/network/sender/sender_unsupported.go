@@ -3,20 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
+//go:build !linux
 
 package sender
 
-import "net/netip"
+import "context"
 
-type ipCache map[netip.Addr]string
-
-func (ipc ipCache) get(addr netip.Addr) string {
-	if v, ok := ipc[addr]; ok {
-		return v
-	}
-
-	v := addr.String()
-	ipc[addr] = v
-	return v
+// New creates a direct sender
+func New(
+	_ context.Context,
+	_ ConnectionsSource,
+	_ Dependencies,
+) (Sender, error) {
+	return nil, errors.New("unsupported platform")
 }
