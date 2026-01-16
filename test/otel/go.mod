@@ -30,14 +30,19 @@ require (
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20250903184740-5d135037bd4d // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
+	go.opentelemetry.io/collector/pdata/xpdata v0.142.0 // indirect
 	go.opentelemetry.io/collector/pdata/xpdata v0.143.0 // indirect
 	golang.org/x/crypto v0.46.0 // indirect
 )
 
 require (
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.73.0-rc.11 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.76.0-devel // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.49.0 // indirect
+	go.opentelemetry.io/collector/config/configmiddleware v1.49.0 // indirect
 	go.opentelemetry.io/collector/confmap/xconfmap v0.143.0 // indirect
+	go.opentelemetry.io/collector/confmap/xconfmap v0.143.0 // indirect
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.142.0 // indirect
 	go.opentelemetry.io/collector/exporter/exporterhelper v0.143.0 // indirect
 	go.opentelemetry.io/collector/extension/extensionmiddleware v0.143.0 // indirect
 )
@@ -66,6 +71,7 @@ require (
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.23 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
+	go.opentelemetry.io/collector/consumer/consumererror v0.142.0 // indirect
 	go.opentelemetry.io/collector/consumer/consumererror v0.143.0 // indirect
 	go.opentelemetry.io/collector/pdata/pprofile v0.143.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
@@ -205,10 +211,15 @@ require (
 	go.opentelemetry.io/collector/config/confighttp v0.143.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v1.49.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.49.0 // indirect
+	go.opentelemetry.io/collector/config/configretry v1.48.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.49.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.49.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v1.49.0 // indirect
+	go.opentelemetry.io/collector/confmap v1.49.0 // indirect
 	go.opentelemetry.io/collector/confmap v1.49.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.49.0 // indirect
+	go.opentelemetry.io/collector/consumer v1.49.0 // indirect
+	go.opentelemetry.io/collector/exporter v1.48.0 // indirect
 	go.opentelemetry.io/collector/exporter v1.49.0 // indirect
 	go.opentelemetry.io/collector/extension v1.49.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.49.0 // indirect
