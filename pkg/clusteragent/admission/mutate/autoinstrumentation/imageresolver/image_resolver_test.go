@@ -106,7 +106,7 @@ func (m *mockRCClient) setBlocking(block bool) {
 
 func TestNew(t *testing.T) {
 	t.Run("with_remote_config_client", func(t *testing.T) {
-		mockClient := newMockRCClient("image_resolver_multi_repo.json")
+		mockClient := newMockRCClient("multi_repo.json")
 		mockConfig := NewConfig(config.NewMock(t), mockClient)
 		resolver := New(mockConfig)
 
@@ -174,7 +174,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
 
-	testConfigs, err := loadTestConfigFile("image_resolver_multi_repo.json")
+	testConfigs, err := loadTestConfigFile("multi_repo.json")
 	require.NoError(t, err)
 
 	t.Run("multiple_repositories", func(t *testing.T) {
@@ -227,7 +227,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
-	mockRCClient := newMockRCClient("image_resolver_multi_repo.json")
+	mockRCClient := newMockRCClient("multi_repo.json")
 	resolver := newRcResolver(NewConfig(config.NewMock(t), mockRCClient))
 
 	testCases := []struct {
@@ -378,7 +378,7 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
-	testConfigs, err := loadTestConfigFile("invalid_digest_test.json")
+	testConfigs, err := loadTestConfigFile("invalid_digest.json")
 	require.NoError(t, err)
 
 	resolver := &rcResolver{
@@ -413,7 +413,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 }
 
 func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
-	resolver := newRcResolver(NewConfig(config.NewMock(t), newMockRCClient("image_resolver_multi_repo.json")))
+	resolver := newRcResolver(NewConfig(config.NewMock(t), newMockRCClient("multi_repo.json")))
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
 		var wg sync.WaitGroup
@@ -491,7 +491,7 @@ func TestIsDatadoghqRegistry(t *testing.T) {
 
 func TestAsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
-		mockClient := newMockRCClient("image_resolver_multi_repo.json")
+		mockClient := newMockRCClient("multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
 
 		resolver := newRcResolver(NewConfig(config.NewMock(t), mockClient))
@@ -502,7 +502,7 @@ func TestAsyncInitialization(t *testing.T) {
 	})
 
 	t.Run("successful_async_initialization", func(t *testing.T) {
-		mockClient := newMockRCClient("image_resolver_multi_repo.json")
+		mockClient := newMockRCClient("multi_repo.json")
 		mockClient.setBlocking(true)
 
 		resolver := newRcResolver(NewConfig(config.NewMock(t), mockClient))
