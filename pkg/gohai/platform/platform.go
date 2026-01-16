@@ -3,8 +3,6 @@
 // Copyright © 2015 Kentaro Kuribayashi <kentarok@gmail.com>
 // Copyright 2014-present Datadog, Inc.
 
-//go:build !android
-
 // Package platform regroups collecting information about the platform
 package platform
 

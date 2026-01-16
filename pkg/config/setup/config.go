@@ -536,7 +536,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_path.collector.e2e_queries", DefaultNetworkPathStaticPathE2eQueries)
 	config.BindEnvAndSetDefault("network_path.collector.disable_windows_driver", false)
 	config.BindEnvAndSetDefault("network_path.collector.monitor_ip_without_domain", false)
-	config.BindEnv("network_path.collector.filters") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_path.collector.filters", []map[string]string{})
+
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Network Config Management
@@ -1331,6 +1332,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("bind_host") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 0)
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("win_skip_com_init", false)
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
@@ -2830,6 +2832,226 @@ func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	}
 
 	if infraMode == "end_user_device" {
+		defaultNetworkPathCollectorFilters := []map[string]string{
+			// Exclude everything by default
+			{"match_domain": "*", "type": "exclude"},
+
+			// 1. Microsoft 365 (without IP addresses)
+			// https://tinyurl.com/4a3ydsrs
+			{"match_domain": "*.aadrm.com", "type": "include"},
+			{"match_domain": "*.aka.ms", "type": "include"},
+			{"match_domain": "*.amp.azure.net", "type": "include"},
+			{"match_domain": "*.apps.mil", "type": "include"},
+			{"match_domain": "*.aspnetcdn.com", "type": "include"},
+			{"match_domain": "*.azure.com", "type": "include"},
+			{"match_domain": "*.azure.net", "type": "include"},
+			{"match_domain": "*.azure.us", "type": "include"},
+			{"match_domain": "*.azurerms.com", "type": "include"},
+			{"match_domain": "*.bing.com", "type": "include"},
+			{"match_domain": "*.bing.net", "type": "include"},
+			{"match_domain": "*.cloudappsecurity.com", "type": "include"},
+			{"match_domain": "*.cortana.ai", "type": "include"},
+			{"match_domain": "*.digicert.com", "type": "include"},
+			{"match_domain": "*.dps.mil", "type": "include"},
+			{"match_domain": "*.entrust.net", "type": "include"},
+			{"match_domain": "*.geotrust.com", "type": "include"},
+			{"match_domain": "*.globalsign.com", "type": "include"},
+			{"match_domain": "*.globalsign.net", "type": "include"},
+			{"match_domain": "*.identrust.com", "type": "include"},
+			{"match_domain": "*.letsencrypt.org", "type": "include"},
+			{"match_domain": "*.linkedin.com", "type": "include"},
+			{"match_domain": "*.live.com", "type": "include"},
+			{"match_domain": "*.live.net", "type": "include"},
+			{"match_domain": "*.microsoft.us", "type": "include"},
+			{"match_domain": "*.microsoftazure.us", "type": "include"},
+			{"match_domain": "*.microsoftonline.com", "type": "include"},
+			{"match_domain": "*.microsoftonline.us", "type": "include"},
+			{"match_domain": "*.microsoft", "type": "include"},
+			{"match_domain": "*.msecnd.net", "type": "include"},
+			{"match_domain": "*.msauth.net", "type": "include"},
+			{"match_domain": "*.msauthimages.net", "type": "include"},
+			{"match_domain": "*.msedge.net", "type": "include"},
+			{"match_domain": "*.msftauth.net", "type": "include"},
+			{"match_domain": "*.msocdn.com", "type": "include"},
+			{"match_domain": "*.o365weve.com", "type": "include"},
+			{"match_domain": "*.office.com", "type": "include"},
+			{"match_domain": "*.office.net", "type": "include"},
+			{"match_domain": "*.office365.com", "type": "include"},
+			{"match_domain": "*.office365.us", "type": "include"},
+			{"match_domain": "*.onestore.ms", "type": "include"},
+			{"match_domain": "*.onedrive.com", "type": "include"},
+			{"match_domain": "*.onenote.com", "type": "include"},
+			{"match_domain": "*.onmicrosoft.com", "type": "include"},
+			{"match_domain": "*.powerapps.com", "type": "include"},
+			{"match_domain": "*.powerautomate.com", "type": "include"},
+			{"match_domain": "*.powerplatform.com", "type": "include"},
+			{"match_domain": "*.public-trust.com", "type": "include"},
+			{"match_domain": "*.sfx.ms", "type": "include"},
+			{"match_domain": "*.sharepoint.com", "type": "include"},
+			{"match_domain": "*.sharepoint-mil.us", "type": "include"},
+
+			// 2. Google Workspace
+			// https://tinyurl.com/tvdmkrpy
+			{"match_domain": "*.google.com", "type": "include"},
+			{"match_domain": "*.googleapis.com", "type": "include"},
+			{"match_domain": "*.googledrive.com", "type": "include"},
+			{"match_domain": "*.googleusercontent.com", "type": "include"},
+			{"match_domain": "*.gstatic.com", "type": "include"},
+			{"match_domain": "*.youtube.com", "type": "include"},
+
+			// 3. Zoom
+			// https://tinyurl.com/594954h7
+			{"match_domain": "*.zoom.us", "type": "include"},
+			{"match_domain": "*.zoom.com", "type": "include"},
+
+			// 4. Slack
+			// https://docs.slack.dev/faq
+			{"match_domain": "*.slack-core.com", "type": "include"},
+			{"match_domain": "*.slack-edge.com", "type": "include"},
+			{"match_domain": "*.slack-files.com", "type": "include"},
+			{"match_domain": "*.slack-imgs.com", "type": "include"},
+			{"match_domain": "*.slack-msgs.com", "type": "include"},
+			{"match_domain": "*.slack.com", "type": "include"},
+			{"match_domain": "*.slackb.com", "type": "include"},
+
+			// 5. Salesforce
+			// https://tinyurl.com/y5jet7cn
+			{"match_domain": "*.documentforce.com", "type": "include"},
+			{"match_domain": "*.force-user-content.com", "type": "include"},
+			{"match_domain": "*.force.com", "type": "include"},
+			{"match_domain": "*.forceusercontent.com", "type": "include"},
+			{"match_domain": "*.lightning.com", "type": "include"},
+			{"match_domain": "*.salesforce-communities.com", "type": "include"},
+			{"match_domain": "*.salesforce-experience.com", "type": "include"},
+			{"match_domain": "*.salesforce-hub.com", "type": "include"},
+			{"match_domain": "*.salesforce-scrt.com", "type": "include"},
+			{"match_domain": "*.salesforce-setup.com", "type": "include"},
+			{"match_domain": "*.salesforce-sites.com", "type": "include"},
+			{"match_domain": "*.salesforce.com", "type": "include"},
+			{"match_domain": "*.salesforceiq.com", "type": "include"},
+			{"match_domain": "*.salesforceliveagent.com", "type": "include"},
+			{"match_domain": "*.sfdc.sh", "type": "include"},
+			{"match_domain": "*.sfdcfc.net", "type": "include"},
+			{"match_domain": "*.sfdcopens.com", "type": "include"},
+			{"match_domain": "*.site.com", "type": "include"},
+			{"match_domain": "*.trailblazer.me", "type": "include"},
+			{"match_domain": "*.trailhead.com", "type": "include"},
+
+			// 6. ServiceNow
+			{"match_domain": "*.service-now.com", "type": "include"},
+			{"match_domain": "*.servicenow.com", "type": "include"},
+			{"match_domain": "*.servicenowservices.com", "type": "include"},
+			{"match_domain": "*.sncustomer.com", "type": "include"},
+			{"match_domain": "*.sncustomertest.com", "type": "include"},
+			{"match_domain": "*.snhosting.com", "type": "include"},
+
+			// 7. Workday
+			{"match_domain": "*.myworkday.com", "type": "include"},
+			{"match_domain": "*.myworkdaygadgets.com", "type": "include"},
+			{"match_domain": "*.myworkdayjobs.com", "type": "include"},
+			{"match_domain": "*.myworkdaysite.com", "type": "include"},
+			{"match_domain": "*.workday.com", "type": "include"},
+
+			// 8. Atlassian
+			// https://tinyurl.com/2fxexx5h
+			{"match_domain": "*.atl-paas.net", "type": "include"},
+			{"match_domain": "*.atlassian-dev-us-gov-mod.net", "type": "include"},
+			{"match_domain": "*.atlassian-dev.net", "type": "include"},
+			{"match_domain": "*.atlassian-us-gov-mod.com", "type": "include"},
+			{"match_domain": "*.atlassian-us-gov-mod.net", "type": "include"},
+			{"match_domain": "*.atlassian.com", "type": "include"},
+			{"match_domain": "*.atlassian.net", "type": "include"},
+			{"match_domain": "*.bitbucket.org", "type": "include"},
+			{"match_domain": "*.jira.com", "type": "include"},
+			{"match_domain": "*.ss-inf.net", "type": "include"},
+
+			// 9. GitHub
+			{"match_domain": "*.github.com", "type": "include"},
+
+			// 10. Okta
+			// https://tinyurl.com/54rddask
+			{"match_domain": "*.okta.com", "type": "include"},
+			{"match_domain": "*.okta-emea.com", "type": "include"},
+			{"match_domain": "*.okta-gov.com", "type": "include"},
+			{"match_domain": "*.okta.mil", "type": "include"},
+			{"match_domain": "*.okta-preview.com", "type": "include"},
+			{"match_domain": "*.oktapreview.com", "type": "include"},
+			{"match_domain": "*.oktacdn.com", "type": "include"},
+
+			// 11. Cisco WebEx
+			// https://tinyurl.com/ye9bawcc
+			{"match_domain": "*.wbx2.com", "type": "include"},
+			{"match_domain": "*.webex.com", "type": "include"},
+
+			// 12. Box
+			// https://tinyurl.com/2eyv6wr4
+			{"match_domain": "*.box.com", "type": "include"},
+			{"match_domain": "*.box.net", "type": "include"},
+			{"match_domain": "*.boxcdn.net", "type": "include"},
+			{"match_domain": "*.boxcloud.com", "type": "include"},
+
+			// 13. Dropbox
+			// https://tinyurl.com/pmne8a73
+			{"match_domain": "*.addtodropbox.com", "type": "include"},
+			{"match_domain": "*.dash.ai", "type": "include"},
+			{"match_domain": "*.db.tt", "type": "include"},
+			{"match_domain": "*.docsend.com", "type": "include"},
+			{"match_domain": "*.dropbox.com", "type": "include"},
+			{"match_domain": "*.dropbox.tech", "type": "include"},
+			{"match_domain": "*.dropbox.zendesk.com", "type": "include"},
+			{"match_domain": "*.dropboxapi.com", "type": "include"},
+			{"match_domain": "*.dropboxbusiness.com", "type": "include"},
+			{"match_domain": "*.dropboxcaptcha.com", "type": "include"},
+			{"match_domain": "*.dropboxexperiment.com", "type": "include"},
+			{"match_domain": "*.dropboxforum.com", "type": "include"},
+			{"match_domain": "*.dropboxforums.com", "type": "include"},
+			{"match_domain": "*.dropboxinsiders.com", "type": "include"},
+			{"match_domain": "*.dropboxlegal.com", "type": "include"},
+			{"match_domain": "*.dropboxmail.com", "type": "include"},
+			{"match_domain": "*.dropboxpartners.com", "type": "include"},
+			{"match_domain": "*.dropboxstatic.com", "type": "include"},
+			{"match_domain": "*.dropboxteam.com", "type": "include"},
+			{"match_domain": "*.getdropbox.com", "type": "include"},
+			{"match_domain": "*.hellofax.com", "type": "include"},
+			{"match_domain": "*.hellosign.com", "type": "include"},
+
+			// 14. Monday.com
+			{"match_domain": "*.monday.com", "type": "include"},
+
+			// 15. OpenAI/ChatGPT
+			// https://tinyurl.com/3ye2uwfj
+			{"match_domain": "*.openai.com", "type": "include"},
+			{"match_domain": "*.chatgpt.com", "type": "include"},
+
+			// 16. Cursor
+			// https://tinyurl.com/y6f85d6d
+			{"match_domain": "*.cursor.sh", "type": "include"},
+			{"match_domain": "*.cursor-cdn.com", "type": "include"},
+
+			// 17. Anthropic/Claude
+			{"match_domain": "anthropic.com", "type": "include"},
+			{"match_domain": "claude.ai", "type": "include"},
+		}
+
+		// Append user-defined filters to the defaults
+		if userFilters := config.Get("network_path.collector.filters"); userFilters != nil {
+			if userFiltersList, ok := userFilters.([]interface{}); ok {
+				for _, f := range userFiltersList {
+					if filterMap, ok := f.(map[string]interface{}); ok {
+						converted := make(map[string]string)
+						for k, v := range filterMap {
+							if strVal, ok := v.(string); ok {
+								converted[k] = strVal
+							}
+						}
+						// Always append the user defined filters to the defaults at the end of the list to get the higher priority than the default configuration
+						defaultNetworkPathCollectorFilters = append(defaultNetworkPathCollectorFilters, converted)
+					}
+				}
+			}
+		}
+		config.Set("network_path.collector.filters", defaultNetworkPathCollectorFilters, pkgconfigmodel.SourceAgentRuntime) // Agent runtime source is required to override customer defined filters with default configuration
+
 		// Enable features for end_user_device mode
 		config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceInfraMode)
 		config.Set("software_inventory.enabled", true, pkgconfigmodel.SourceInfraMode)

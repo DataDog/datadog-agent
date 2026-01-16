@@ -19,7 +19,7 @@ bazel:mod-tidy:
   extends: .bazel:runner:linux-amd64
   stage: lint
   script:
-    - bazel mod tidy
+    - bazel mod tidy --lockfile_mode=off
     - git diff --exit-code
   after_script:
     - |-
