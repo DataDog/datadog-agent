@@ -18,19 +18,18 @@ type windowsSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
 
-func TestWindowsCheckImplementationSuite(t *testing.T) {
-	t.Parallel()
+func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
+	//t.Parallel()
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
-			libraryName: "libdatadog-agent-example.dll",
-			checksdPath: "C:\\Temp\\Datadog\\checks.d",
+			checksdPath: "C:/Temp/Datadog/checks.d",
 		},
 	}
 
-	e2e.Run(t, suite, suite.getSuiteOptions()...)
+	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
 }
 
 func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
-	v.testCheckExample()
+	v.testCheckExampleRun()
 }

@@ -9,6 +9,7 @@ package sharedlibrary
 import (
 	"testing"
 
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -18,19 +19,22 @@ type linuxSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
 
-func TestLinuxCheckImplementationSuite(t *testing.T) {
-	t.Parallel()
+func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
+	//t.Parallel()
+
+	permissions := perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("root"))
+
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
-			libraryName: "libdatadog-agent-example.so",
 			checksdPath: "/tmp/datadog-agent/checks.d",
+			permissions: permissions,
 		},
 	}
 
-	e2e.Run(t, suite, suite.getSuiteOptions()...)
+	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
 }
 
 func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
-	v.testCheckExample()
+	v.testCheckExampleRun()
 }
