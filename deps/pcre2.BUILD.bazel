@@ -253,11 +253,13 @@ pkg_files(
 cc_shared_library(
     name = "pcre2_so",
     deps = [":pcre2"],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "pcre2posix_so",
     deps = [":pcre2-posix"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
