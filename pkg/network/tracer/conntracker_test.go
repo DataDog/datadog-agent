@@ -8,7 +8,6 @@
 package tracer
 
 import (
-	"fmt"
 	"net"
 	"net/url"
 	"os/exec"
@@ -199,7 +198,7 @@ func testNFConntrackHashCheckInsert(t *testing.T, srcIP, dstIP, replySrcIP strin
 		srcPort := 54320
 		dstPort := 8080
 
-		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, "tcp")
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "tcp")
 
 		var trans *network.IPTranslation
 		cs := network.ConnectionTuple{
@@ -228,7 +227,7 @@ func testNFConntrackHashCheckInsert(t *testing.T, srcIP, dstIP, replySrcIP strin
 		srcPort := 54321
 		dstPort := 8081
 
-		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, "udp")
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "udp")
 
 		var trans *network.IPTranslation
 		cs := network.ConnectionTuple{
@@ -463,12 +462,12 @@ func testNFConntrackHashCheckInsertCrossNamespace(t *testing.T, ct netlink.Connt
 	dstPort := 80
 	replySrcPort := 8080
 
-	// Run conntrack -I in the test namespace
-	cmd := fmt.Sprintf("ip netns exec %s conntrack -I -s %s -d %s -p tcp "+
-		"--sport %d --dport %d --reply-src %s --reply-dst %s "+
-		"--reply-port-src %d --reply-port-dst %d --state ESTABLISHED --timeout 120",
-		ns, srcIP, dstIP, srcPort, dstPort, dstIP, srcIP, replySrcPort, srcPort)
-	nettestutil.RunCommands(t, []string{cmd}, false)
+	// Create conntrack entry in the test namespace
+	err = netnsutil.WithNS(testNs, func() error {
+		netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, dstIP, srcIP, replySrcPort, srcPort, "tcp")
+		return nil
+	})
+	require.NoError(t, err)
 
 	var trans *network.IPTranslation
 	cs := network.ConnectionTuple{
@@ -504,7 +503,7 @@ func testNFConntrackHashCheckInsertCrossNamespaceNATonRoot(t *testing.T, ct netl
 	dstPort := 8080
 	replySrcIP := "1.1.1.1"
 
-	netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, "tcp")
+	netlinktestutil.CreateConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, replySrcIP, srcIP, dstPort, srcPort, "tcp")
 
 	var trans *network.IPTranslation
 	cs := network.ConnectionTuple{
