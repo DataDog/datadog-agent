@@ -537,8 +537,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.39.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.35.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.5
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.6
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/awslabs/operatorpkg v0.0.0-20250909182303-e8e550b6f339 // indirect
@@ -611,7 +609,6 @@ require (
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/go-resty/resty/v2 v2.17.0 // indirect
-	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/go-zookeeper/zk v1.0.4 // indirect
 	github.com/gobuffalo/flect v1.0.3 // indirect
@@ -984,7 +981,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.67.7
 	github.com/aymerick/raymond v2.0.2+incompatible
-	github.com/aymerick/raymond v2.0.2+incompatible
 	github.com/creack/pty v1.1.24
 	github.com/frapposelli/wwhrd v0.4.0
 	github.com/go-enry/go-license-detector/v4 v4.3.1
@@ -996,6 +992,7 @@ require (
 	github.com/hashicorp/vault/api/auth/aws v0.11.0
 	github.com/hashicorp/vault/api/auth/ldap v0.11.0
 	github.com/hashicorp/vault/api/auth/userpass v0.11.0
+	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/modelcontextprotocol/go-sdk v1.1.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
@@ -1025,15 +1022,14 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
+	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/gopenpgp/v3 v3.2.1 // indirect
-	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/VictoriaMetrics/easyproto v0.1.4 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.63.107 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.17.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/benbjohnson/immutable v0.4.0 // indirect
 	github.com/bgentry/speakeasy v0.2.0 // indirect
@@ -1051,7 +1047,6 @@ require (
 	github.com/emicklei/dot v0.15.0 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
-	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/gammazero/deque v0.2.1 // indirect
 	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
@@ -1064,7 +1059,6 @@ require (
 	github.com/google/go-metrics-stackdriver v0.2.0 // indirect
 	github.com/google/licensecheck v0.3.1 // indirect
 	github.com/gophercloud/gophercloud v1.8.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hashicorp/cli v1.1.7 // indirect
@@ -1130,6 +1124,8 @@ require (
 	github.com/joyent/triton-go v1.7.1-0.20200416154420-6801d15b779f // indirect
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
+	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/lestrrat-go/backoff/v2 v2.0.8 // indirect
 	github.com/lestrrat-go/blackmagic v1.0.2 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
@@ -1137,19 +1133,15 @@ require (
 	github.com/lestrrat-go/jwx v1.2.29 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 // indirect
-	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
+	github.com/moby/moby/api v1.52.0 // indirect
+	github.com/moby/moby/client v0.2.1 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.5.1 // indirect
 	github.com/nicolai86/scaleway-sdk v1.10.2-0.20180628010248-798f60e20bb2 // indirect
 	github.com/oklog/run v1.2.0 // indirect
 	github.com/okta/okta-sdk-golang/v5 v5.0.2 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.143.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/healthcheck v0.143.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.142.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.143.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
 	github.com/oracle/oci-go-sdk/v60 v60.0.0 // indirect
@@ -1160,11 +1152,9 @@ require (
 	github.com/pjbgf/sha1cd v0.3.2 // indirect
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/pquerna/otp v1.2.1-0.20191009055518-468c2dd2b58d // indirect
-	github.com/prometheus/client_golang/exp v0.0.0-20250914183048-a974e0d45e0a // indirect
 	github.com/prometheus/client_golang/exp v0.0.0-20251212205219-7ba246a648ca // indirect
 	github.com/rboyer/safeio v0.2.3 // indirect
 	github.com/renier/xmlrpc v0.0.0-20170708154548-ce4a1a486c03 // indirect
-	github.com/robfig/cron v1.2.0 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
