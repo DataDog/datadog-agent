@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
 
-func TestNewOCIPackageFromFullRef(t *testing.T) {
+func TestNewLibraryImageFromFullRef(t *testing.T) {
 	tests := []struct {
 		name             string
 		fullRef          string
@@ -100,25 +100,25 @@ func TestNewOCIPackageFromFullRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pkg := libraryinjection.NewOCIPackageFromFullRef(tt.fullRef, tt.canonicalVersion)
+			img := libraryinjection.NewLibraryImageFromFullRef(tt.fullRef, tt.canonicalVersion)
 
-			assert.Equal(t, tt.expectedName, pkg.Name)
-			assert.Equal(t, tt.expectedRegistry, pkg.Registry)
-			assert.Equal(t, tt.expectedVersion, pkg.Version)
-			assert.Equal(t, tt.canonicalVersion, pkg.CanonicalVersion)
+			assert.Equal(t, tt.expectedName, img.Name)
+			assert.Equal(t, tt.expectedRegistry, img.Registry)
+			assert.Equal(t, tt.expectedVersion, img.Version)
+			assert.Equal(t, tt.canonicalVersion, img.CanonicalVersion)
 		})
 	}
 }
 
-func TestOCIPackage_FullRef(t *testing.T) {
+func TestLibraryImage_FullRef(t *testing.T) {
 	tests := []struct {
 		name     string
-		pkg      libraryinjection.OCIPackage
+		img      libraryinjection.LibraryImage
 		expected string
 	}{
 		{
 			name: "all fields set",
-			pkg: libraryinjection.OCIPackage{
+			img: libraryinjection.LibraryImage{
 				Name:     "dd-lib-java-init",
 				Registry: "gcr.io/datadoghq",
 				Version:  "1.2.3",
@@ -127,7 +127,7 @@ func TestOCIPackage_FullRef(t *testing.T) {
 		},
 		{
 			name: "no version",
-			pkg: libraryinjection.OCIPackage{
+			img: libraryinjection.LibraryImage{
 				Name:     "dd-lib-java-init",
 				Registry: "gcr.io/datadoghq",
 			},
@@ -135,7 +135,7 @@ func TestOCIPackage_FullRef(t *testing.T) {
 		},
 		{
 			name: "no registry",
-			pkg: libraryinjection.OCIPackage{
+			img: libraryinjection.LibraryImage{
 				Name:    "dd-lib-java-init",
 				Version: "1.2.3",
 			},
@@ -143,7 +143,7 @@ func TestOCIPackage_FullRef(t *testing.T) {
 		},
 		{
 			name: "name only",
-			pkg: libraryinjection.OCIPackage{
+			img: libraryinjection.LibraryImage{
 				Name: "dd-lib-java-init",
 			},
 			expected: "dd-lib-java-init",
@@ -152,12 +152,12 @@ func TestOCIPackage_FullRef(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expected, tt.pkg.FullRef())
+			assert.Equal(t, tt.expected, tt.img.FullRef())
 		})
 	}
 }
 
-func TestOCIPackage_RoundTrip(t *testing.T) {
+func TestLibraryImage_RoundTrip(t *testing.T) {
 	// Test that parsing a full ref and then calling FullRef returns the original
 	testCases := []string{
 		"gcr.io/datadoghq/dd-lib-java-init:1.2.3",
@@ -170,8 +170,8 @@ func TestOCIPackage_RoundTrip(t *testing.T) {
 
 	for _, fullRef := range testCases {
 		t.Run(fullRef, func(t *testing.T) {
-			pkg := libraryinjection.NewOCIPackageFromFullRef(fullRef, "")
-			assert.Equal(t, fullRef, pkg.FullRef())
+			img := libraryinjection.NewLibraryImageFromFullRef(fullRef, "")
+			assert.Equal(t, fullRef, img.FullRef())
 		})
 	}
 }

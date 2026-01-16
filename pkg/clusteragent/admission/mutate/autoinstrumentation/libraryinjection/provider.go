@@ -52,7 +52,7 @@ type MutationResult struct {
 // InjectorConfig contains the configuration needed to inject the APM injector component.
 type InjectorConfig struct {
 	// Package contains the OCI package reference.
-	Package OCIPackage
+	Package LibraryImage
 }
 
 // LibraryConfig contains the configuration needed to inject a language-specific tracing library.
@@ -60,7 +60,7 @@ type LibraryConfig struct {
 	// Language is the programming language (e.g., "java", "python", "js").
 	Language string
 	// Package contains the OCI package reference.
-	Package OCIPackage
+	Package LibraryImage
 	// ContainerName is the target container name (empty means all containers).
 	ContainerName string
 	// Context contains data from a previous InjectInjector call.

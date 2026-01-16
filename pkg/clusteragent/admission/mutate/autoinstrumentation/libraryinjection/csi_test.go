@@ -30,7 +30,7 @@ func TestCSIProvider_InjectInjector(t *testing.T) {
 
 	provider := libraryinjection.NewCSIProvider(libraryinjection.LibraryInjectionConfig{})
 	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
-		Package: libraryinjection.NewOCIPackageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
 	})
 
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
@@ -95,7 +95,7 @@ func TestCSIProvider_InjectLibrary(t *testing.T) {
 	provider := libraryinjection.NewCSIProvider(libraryinjection.LibraryInjectionConfig{})
 	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
 		Language: "java",
-		Package:  libraryinjection.NewOCIPackageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.2.3", "1.2.3"),
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.2.3", "1.2.3"),
 	})
 
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
@@ -135,14 +135,14 @@ func TestCSIProvider_InjectMultipleLibraries(t *testing.T) {
 	// Inject Java library
 	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
 		Language: "java",
-		Package:  libraryinjection.NewOCIPackageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.0.0", ""),
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.0.0", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
 	// Inject Python library
 	result = provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
 		Language: "python",
-		Package:  libraryinjection.NewOCIPackageFromFullRef("gcr.io/datadoghq/dd-lib-python-init:2.0.0", ""),
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-python-init:2.0.0", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
@@ -174,7 +174,7 @@ func TestCSIProvider_ContainerFilter(t *testing.T) {
 	})
 
 	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
-		Package: libraryinjection.NewOCIPackageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", ""),
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", ""),
 	})
 	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
 
