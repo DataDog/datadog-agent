@@ -1,0 +1,7 @@
+---
+# Invalid CEL syntax - missing closing parenthesis
+- products:
+    - metrics
+  rules:
+    containers:
+      - container.name == "redis" && (container.pod.namespace == "production"
