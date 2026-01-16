@@ -35,12 +35,6 @@ const (
 
 	// csiVolumeAttributeVersion is the key for the package version.
 	csiVolumeAttributeVersion = "dd.csi.datadog.com/library.version"
-
-	// csiVolumeAttributeSource is the key for the source path within the OCI image.
-	csiVolumeAttributeSource = "dd.csi.datadog.com/library.source"
-
-	// csiLibrarySourcePath is the source path for language libraries within their OCI images.
-	csiLibrarySourcePath = "/datadog-init/package"
 )
 
 // CSIProvider implements LibraryInjectionProvider using a CSI driver.
@@ -72,7 +66,6 @@ func (p *CSIProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConfig) Mutati
 					csiVolumeAttributePackage:  cfg.Package.Name,
 					csiVolumeAttributeRegistry: cfg.Package.Registry,
 					csiVolumeAttributeVersion:  cfg.Package.Version,
-					csiVolumeAttributeSource:   asAbsPath(injectPackageDir),
 				},
 			},
 		},
@@ -124,7 +117,6 @@ func (p *CSIProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) Mutation
 					csiVolumeAttributePackage:  cfg.Package.Name,
 					csiVolumeAttributeRegistry: cfg.Package.Registry,
 					csiVolumeAttributeVersion:  cfg.Package.Version,
-					csiVolumeAttributeSource:   csiLibrarySourcePath,
 				},
 			},
 		},

@@ -111,7 +111,6 @@ func TestCSIProvider_InjectLibrary(t *testing.T) {
 	assert.Equal(t, "dd-lib-java-init", vol.CSI.VolumeAttributes["dd.csi.datadog.com/library.package"])
 	assert.Equal(t, "gcr.io/datadoghq", vol.CSI.VolumeAttributes["dd.csi.datadog.com/library.registry"])
 	assert.Equal(t, "1.2.3", vol.CSI.VolumeAttributes["dd.csi.datadog.com/library.version"])
-	assert.Equal(t, "/datadog-init/package", vol.CSI.VolumeAttributes["dd.csi.datadog.com/library.source"])
 
 	// Verify volume mount was added
 	require.Len(t, pod.Spec.Containers[0].VolumeMounts, 1)
