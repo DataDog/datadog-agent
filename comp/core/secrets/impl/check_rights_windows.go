@@ -19,9 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-// checkRights check that the given filename has access controls set only for
+// CheckRights check that the given filename has access controls set only for
 // Administrator, Local System and the datadog user.
-func checkRights(filename string, allowGroupExec bool) error {
+func CheckRights(filename string, allowGroupExec bool) error {
 	// this function ignore `allowGroupExec` since it was design for the cluster-agent,
 	// but the cluster-agent is not delivered for windows.
 	if allowGroupExec {
@@ -182,9 +182,4 @@ var getDDAgentUserSID = func() (*windows.SID, error) {
 
 	sid, _, _, err := windows.LookupSID("", user)
 	return sid, err
-}
-
-// CheckRights checks that others don't have any rights and that group doesn't have write/exec permission
-func CheckRights(path string) error {
-	return checkRights(path, false)
 }

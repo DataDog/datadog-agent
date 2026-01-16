@@ -15,9 +15,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/aggregator" // import submit functions
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 /*
@@ -176,21 +174,4 @@ func NewSharedLibraryLoader(folderPath string) *SharedLibraryLoader {
 		folderPath: folderPath,
 		aggregator: C.get_aggregator(),
 	}
-}
-
-func checkOwnerAndPermissions(path string) error {
-	p, err := filesystem.NewPermission()
-	if err != nil {
-		return err
-	}
-
-	if err := p.CheckOwner(path); err != nil {
-		return err
-	}
-
-	if err := secretsimpl.CheckRights(path); err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -33,7 +33,7 @@ func testCheckRightsStub() {
 }
 
 func TestWrongPath(t *testing.T) {
-	require.NotNil(t, checkRights("does not exists", false))
+	require.NotNil(t, CheckRights("does not exists", false))
 }
 
 func TestSpaceInPath(t *testing.T) {
@@ -44,12 +44,12 @@ func TestSpaceInPath(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	require.Nil(t, os.Chmod(tmpFile.Name(), 0700))
-	require.Nil(t, checkRights(tmpFile.Name(), false))
+	require.Nil(t, CheckRights(tmpFile.Name(), false))
 }
 
 func TestCheckRightsDoesNotExists(t *testing.T) {
 	// file does not exist
-	require.NotNil(t, checkRights("/does not exists", false))
+	require.NotNil(t, CheckRights("/does not exists", false))
 }
 
 func TestCheckRightsMissingCurrentUser(t *testing.T) {
@@ -64,7 +64,7 @@ func TestCheckRightsMissingCurrentUser(t *testing.T) {
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingLocalSystem(t *testing.T) {
@@ -79,7 +79,7 @@ func TestCheckRightsMissingLocalSystem(t *testing.T) {
 		"-removeLocalSystem", "1",
 		"-addDDuser", "0").Run()
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingAdministrator(t *testing.T) {
@@ -94,7 +94,7 @@ func TestCheckRightsMissingAdministrator(t *testing.T) {
 		"-removeLocalSystem", "0",
 		"-addDDuser", "0").Run()
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsExtraRights(t *testing.T) {
@@ -110,7 +110,7 @@ func TestCheckRightsExtraRights(t *testing.T) {
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
 	require.NoError(t, err)
-	assert.Nil(t, checkRights(tmpfile.Name(), false))
+	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
@@ -126,5 +126,5 @@ func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 		"-removeLocalSystem", "0",
 		"-addDDuser", "1").Run()
 	require.NoError(t, err)
-	assert.Nil(t, checkRights(tmpfile.Name(), false))
+	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }

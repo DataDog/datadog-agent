@@ -51,7 +51,7 @@ var newClock = clock.New
 var templatesFS embed.FS
 
 // this is overridden by tests when needed
-var checkRightsFunc = checkRights
+var checkRightsFunc = CheckRights
 
 // Provides list the provided interfaces from the secrets Component
 type Provides struct {

@@ -105,7 +105,7 @@ func TestSecretStatusWithPermissions(t *testing.T) {
 		//GroupExecPerm: false,
 	})
 
-	defer func() { checkRightsFunc = checkRights }()
+	defer func() { checkRightsFunc = CheckRights }()
 
 	checkRightsFunc = func(_ string, _ bool) error { return nil }
 

@@ -14,7 +14,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func checkRights(path string, allowGroupExec bool) error {
+// CheckRights checks if a file has restricted permissions for group and others
+func CheckRights(path string, allowGroupExec bool) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return fmt.Errorf("invalid executable '%s': can't stat it: %s", path, err)
@@ -35,9 +36,4 @@ func checkRights(path string, allowGroupExec bool) error {
 	}
 
 	return nil
-}
-
-// CheckRights checks that others don't have any rights and that group doesn't have write permission
-func CheckRights(path string) error {
-	return checkRights(path, true)
 }

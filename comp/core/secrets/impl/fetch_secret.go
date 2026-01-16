@@ -128,7 +128,7 @@ func (r *secretResolver) fetchSecretBackendVersion() (string, error) {
 	defer done()
 
 	if !r.embeddedBackendPermissiveRights {
-		if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+		if err := CheckRights(cmd.Path, r.commandAllowGroupExec); err != nil {
 			return "", err
 		}
 	}
