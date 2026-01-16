@@ -2,7 +2,7 @@
 set -e
 
 SCENARIO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 if ! limactl list | grep -q "$LIMA_VM"; then
     echo "Error: Lima VM '$LIMA_VM' not found"
@@ -12,11 +12,11 @@ fi
 
 echo "Deploying application service..."
 
-limactl shell "$LIMA_VM" sudo mkdir -p /opt/app_service /tmp/app_logs
+limactl shell --workdir /tmp "$LIMA_VM" sudo mkdir -p /opt/app_service /tmp/app_logs
 limactl copy "$SCENARIO_DIR/workload.py" "$LIMA_VM:/tmp/service.py"
 limactl copy "$SCENARIO_DIR/logrotate.conf" "$LIMA_VM:/tmp/logrotate.conf"
 
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 sudo mv /tmp/service.py /opt/app_service/service.py
 sudo mv /tmp/logrotate.conf /etc/logrotate.d/app_service
 sudo chmod 644 /etc/logrotate.d/app_service

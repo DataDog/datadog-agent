@@ -1,0 +1,120 @@
+# Lima VM configuration for MCP evaluation - BASH MODE
+# Start with: limactl start lima-bash.yaml --name mcp-eval-bash
+# Shell into VM: limactl shell mcp-eval-bash
+
+vmType: vz
+
+images:
+  # Fedora 42 (ships with kernel 6.14+)
+  - location: "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-42-1.1.x86_64.qcow2"
+    arch: "x86_64"
+  - location: "https://download.fedoraproject.org/pub/fedora/linux/releases/42/Cloud/aarch64/images/Fedora-Cloud-Base-Generic-42-1.1.aarch64.qcow2"
+    arch: "aarch64"
+
+# CPUs and Memory
+cpus: 4
+memory: "8GiB"
+disk: "10GiB"
+
+# No mounts - MCP directory will be copied on startup
+mountType: virtiofs
+
+# SSH settings
+ssh:
+  localPort: 0
+  loadDotSSHPubKeys: true
+  forwardAgent: true
+
+# Network (user-v2 mode doesn't require socket_vmnet)
+networks:
+  - lima: user-v2
+
+# Provision scripts
+provision:
+  - mode: system
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Update package list
+      dnf update -y
+
+      # Install basic tools (excluding golang - we'll install specific version)
+      dnf install -y \
+        @development-tools \
+        gcc \
+        make \
+        pkg-config \
+        procps-ng \
+        iproute \
+        util-linux \
+        strace \
+        curl \
+        git \
+        wget \
+        vim \
+        htop \
+        net-tools \
+        bind-utils
+
+      # Install Go 1.25.5
+      GO_VERSION="1.25.5"
+      GO_ARCH="arm64"  # aarch64 for Lima on Apple Silicon
+      GO_TARBALL="go${GO_VERSION}.linux-${GO_ARCH}.tar.gz"
+      GO_URL="https://go.dev/dl/${GO_TARBALL}"
+
+      echo "Downloading Go ${GO_VERSION} for linux-${GO_ARCH}..."
+      wget -q "${GO_URL}" -O "/tmp/${GO_TARBALL}"
+
+      echo "Installing Go to /usr/local/go..."
+      rm -rf /usr/local/go
+      tar -C /usr/local -xzf "/tmp/${GO_TARBALL}"
+      rm "/tmp/${GO_TARBALL}"
+
+      # Add Go to system-wide PATH
+      echo 'export PATH=$PATH:/usr/local/go/bin' > /etc/profile.d/golang.sh
+      chmod +x /etc/profile.d/golang.sh
+
+      # Verify Go installation
+      /usr/local/go/bin/go version
+
+      # Fix systemd-binfmt.service failures
+      systemctl mask systemd-binfmt.service
+
+      echo "Kernel version: $(uname -r)"
+      KERNEL_VERSION=$(uname -r | cut -d. -f1,2)
+      echo "Running kernel $KERNEL_VERSION"
+
+      echo "VM provisioning complete"
+
+  - mode: user
+    script: |
+      #!/bin/bash
+      set -eux -o pipefail
+
+      # Set up user environment
+      echo 'export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin' >> ~/.bashrc
+
+      # Verify Go is accessible
+      /usr/local/go/bin/go version
+
+      echo "User environment setup complete"
+
+# Port forwarding (for MCP server - BASH MODE)
+portForwards:
+  - guestPort: 8080
+    hostPort: 8081
+    proto: tcp
+
+# Message to display when VM starts
+message: |
+  ┌────────────────────────────────────────────┐
+  │ MCP Evaluation VM - BASH MODE (Fedora 42)  │
+  ├────────────────────────────────────────────┤
+  │ MCP directory: /mcp                        │
+  │ Build server:  cd /mcp && make build       │
+  │ Run server:    ./bin/mcp-server -mode bash │
+  │ Port forward:  8081 (host) -> 8080 (guest) │
+  ├────────────────────────────────────────────┤
+  │ Kernel: 6.14+ (Fedora 42)                  │
+  └────────────────────────────────────────────┘

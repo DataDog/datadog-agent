@@ -14,15 +14,13 @@ images:
 # CPUs and Memory
 cpus: 4
 memory: "8GiB"
-disk: "50GiB"
+disk: "10GiB"
 
 # Mounts
 mounts:
-  - location: "/Users/matthew.deguzman/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp"
+  - location: "~/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp"
     mountPoint: "/mcp"
     writable: true
-  - location: "~"
-    writable: false
 
 mountType: virtiofs
 
@@ -135,7 +133,7 @@ provision:
       safe-shell --version
 
       echo "User environment setup complete"
-      echo "To build MCP server: cd /mcp && go build -o ./bin/mcp-server ./cmd/mcp-server"
+      echo "To build MCP server: cd /mcp && make build"
 
 # Port forwarding (for MCP server)
 portForwards:
@@ -145,13 +143,13 @@ portForwards:
 
 # Message to display when VM starts
 message: |
-  ┌──────────────────────────────────────────────────────────────────┐
-  │ MCP Evaluation VM (Fedora 42)                                    │
-  ├──────────────────────────────────────────────────────────────────┤
-  │ MCP directory: /mcp                                              │
-  │ Build server:  cd /mcp && go build -o ./bin/mcp-server ./cmd/... │
-  │ Run server:    ./bin/mcp-server                                  │
-  │ Port forward:  8080 (host) -> 8080 (guest)                       │
-  ├──────────────────────────────────────────────────────────────────┤
-  │ Kernel: 6.14+ (Fedora 42)                                        │
-  └──────────────────────────────────────────────────────────────────┘
+  ┌────────────────────────────────────────────┐
+  │ MCP Evaluation VM (Fedora 42)              │
+  ├────────────────────────────────────────────┤
+  │ MCP directory: /mcp                        │
+  │ Build server:  cd /mcp && make build       │
+  │ Run server:    ./bin/mcp-server            │
+  │ Port forward:  8080 (host) -> 8080 (guest) │
+  ├────────────────────────────────────────────┤
+  │ Kernel: 6.14+ (Fedora 42)                  │
+  └────────────────────────────────────────────┘

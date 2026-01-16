@@ -2,7 +2,7 @@
 set -e
 
 SCENARIO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 if ! limactl list | grep -q "$LIMA_VM"; then
     echo "Error: Lima VM '$LIMA_VM' not found"
@@ -12,11 +12,11 @@ fi
 
 echo "Deploying connection monitor..."
 
-limactl shell "$LIMA_VM" sudo mkdir -p /opt/connection_monitor
+limactl shell --workdir /tmp "$LIMA_VM" sudo mkdir -p /opt/connection_monitor
 limactl copy "$SCENARIO_DIR/workload.py" "$LIMA_VM:/tmp/service.py"
 limactl copy "$SCENARIO_DIR/resolv.conf.broken" "$LIMA_VM:/tmp/resolv.conf.test"
 
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 # Backup original resolv.conf
 sudo cp /etc/resolv.conf /etc/resolv.conf.backup
 

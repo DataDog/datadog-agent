@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 # Check if Lima VM exists
 if ! limactl list | grep -q "$LIMA_VM"; then
@@ -12,7 +12,7 @@ fi
 echo "Stopping worker service..."
 
 # Stop the service in VM
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 if [ -f /tmp/worker_service.pid ]; then
     kill $(cat /tmp/worker_service.pid) 2>/dev/null || true
     rm /tmp/worker_service.pid

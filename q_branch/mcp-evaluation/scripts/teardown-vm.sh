@@ -9,7 +9,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-VM_NAME="mcp-eval"
+VM_NAME="${1:-mcp-eval}"
 
 # Helper functions
 log_info() {
@@ -30,8 +30,9 @@ if ! command -v limactl &> /dev/null; then
     exit 1
 fi
 
-# Check if VM exists
-if ! limactl list | grep -q "^$VM_NAME"; then
+# Check if VM exists using JSON output
+VM_COUNT=$(limactl list --format json | jq -s "map(select(.name == \"$VM_NAME\")) | length")
+if [ "$VM_COUNT" -eq 0 ]; then
     log_warn "VM '$VM_NAME' does not exist. Nothing to do."
 
     # Still clean up the Lima directory if it exists (orphaned state)
@@ -44,8 +45,8 @@ if ! limactl list | grep -q "^$VM_NAME"; then
     exit 0
 fi
 
-# Get VM status
-VM_STATUS=$(limactl list "$VM_NAME" 2>/dev/null | tail -n 1 | awk '{print $2}')
+# Get VM status using JSON output
+VM_STATUS=$(limactl list --format json | jq -rs "map(select(.name == \"$VM_NAME\"))[0].status")
 
 log_info "Found VM '$VM_NAME' with status: $VM_STATUS"
 

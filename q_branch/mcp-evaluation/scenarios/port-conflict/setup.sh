@@ -2,7 +2,7 @@
 set -e
 
 SCENARIO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 if ! limactl list | grep -q "$LIMA_VM"; then
     echo "Error: Lima VM '$LIMA_VM' not found"
@@ -12,11 +12,11 @@ fi
 
 echo "Deploying API services..."
 
-limactl shell "$LIMA_VM" sudo mkdir -p /opt/api_service
+limactl shell --workdir /tmp "$LIMA_VM" sudo mkdir -p /opt/api_service
 limactl copy "$SCENARIO_DIR/server1.py" "$LIMA_VM:/tmp/primary.py"
 limactl copy "$SCENARIO_DIR/server2.py" "$LIMA_VM:/tmp/backup.py"
 
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 sudo mv /tmp/primary.py /opt/api_service/primary.py
 sudo mv /tmp/backup.py /opt/api_service/backup.py
 cd /opt/api_service

@@ -2,7 +2,7 @@
 set -e
 
 SCENARIO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 if ! limactl list | grep -q "$LIMA_VM"; then
     echo "Error: Lima VM '$LIMA_VM' not found"
@@ -12,10 +12,10 @@ fi
 
 echo "Deploying storage sync service..."
 
-limactl shell "$LIMA_VM" sudo mkdir -p /opt/storage_sync
+limactl shell --workdir /tmp "$LIMA_VM" sudo mkdir -p /opt/storage_sync
 limactl copy "$SCENARIO_DIR/workload.py" "$LIMA_VM:/tmp/service.py"
 
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 sudo mv /tmp/service.py /opt/storage_sync/service.py
 cd /opt/storage_sync
 python3 service.py > /tmp/storage_sync.log 2>&1 &

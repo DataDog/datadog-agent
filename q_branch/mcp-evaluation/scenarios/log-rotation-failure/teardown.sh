@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-LIMA_VM="mcp-eval"
+LIMA_VM="${1:-mcp-eval}"
 
 if ! limactl list | grep -q "$LIMA_VM"; then
     echo "Lima VM '$LIMA_VM' does not exist. Nothing to tear down."
@@ -10,7 +10,7 @@ fi
 
 echo "Stopping application service..."
 
-limactl shell "$LIMA_VM" bash <<'EOF'
+limactl shell --workdir /tmp "$LIMA_VM" bash <<'EOF'
 if [ -f /tmp/app_service.pid ]; then
     kill $(cat /tmp/app_service.pid) 2>/dev/null || true
     rm /tmp/app_service.pid
