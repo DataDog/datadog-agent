@@ -431,3 +431,20 @@ pkg_files(
     srcs = PUBLIC_HEADERS,
     prefix = "include/openscap",
 )
+
+so_symlink(
+    name = "libopenscap_symlink",
+    src = ":openscap",
+    libname = "librpmio",
+    version = "9.4.0",
+)
+
+
+pkg_files(
+    name = "lib_files",
+    srcs = [
+        ":libopenscap_symlink",
+        ":libopenscap_sce_symlink",
+    ],
+    prefix = "lib/",
+)

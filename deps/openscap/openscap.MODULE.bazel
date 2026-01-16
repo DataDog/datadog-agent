@@ -24,6 +24,7 @@ http_archive(
         "//deps:openscap/patches/sysctl-probe-offline-skip.patch",
         "//deps:openscap/patches/probes-no-procfs.patch",
         "//deps:openscap/patches/oscap-io.patch",
+        "//deps:openscap/patches/dpkginfo-virtual-packages-revert.patch",
     ],
     patch_tool = "patch",
     patch_strip = 1,
