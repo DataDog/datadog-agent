@@ -66,6 +66,10 @@ cc_shared_library(
     deps = [
         ":libselinux",
     ],
+    dynamic_deps = [
+        "@libsepol//:sepol",
+        "@pcre2//:pcre2_so",
+    ],
     additional_linker_inputs = [
         "src/libselinux.map",
     ],
