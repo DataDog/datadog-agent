@@ -121,6 +121,7 @@ cc_library(
         'RPMCONFIGDIR=\\"{}/lib/rpm\\"'.format(FAKE_PREFIX),
     ],
     includes = [".", "include"],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -133,6 +134,7 @@ cc_shared_library(
         "@xz//:lzma",
         "@zlib//:z",
     ],
+    visibility = ["//visibility:public"],
 )
 
 genrule(
@@ -247,6 +249,7 @@ cc_library(
         'SYSCONFDIR=\\"{}/etc\\"'.format(FAKE_PREFIX),
     ],
     includes = ["."],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
@@ -257,6 +260,7 @@ cc_shared_library(
         "@sqlite3//:sqlite3",
         "@popt//:popt",
     ],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(
