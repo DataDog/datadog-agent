@@ -112,7 +112,7 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 	// Init container that copies injector files
 	initContainer := corev1.Container{
 		Name:    InjectorInitContainerName,
-		Image:   cfg.Image,
+		Image:   cfg.Package.FullRef(),
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
 			fmt.Sprintf(
@@ -147,13 +147,6 @@ func (p *InitContainerProvider) InjectInjector(pod *corev1.Pod, cfg InjectorConf
 
 // InjectLibrary mutates the pod to add a language-specific tracing library using init containers.
 func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig) MutationResult {
-	if !IsLanguageSupported(cfg.Language) {
-		return MutationResult{
-			Status: MutationStatusError,
-			Err:    fmt.Errorf("language %s is not supported", cfg.Language),
-		}
-	}
-
 	patcher := NewPodPatcher(pod, p.cfg.ContainerFilter)
 
 	// Main volume (should already exist from injector, but we add it for completeness)
@@ -183,7 +176,7 @@ func (p *InitContainerProvider) InjectLibrary(pod *corev1.Pod, cfg LibraryConfig
 	// Init container that copies library files
 	initContainer := corev1.Container{
 		Name:    containerName,
-		Image:   cfg.Image,
+		Image:   cfg.Package.FullRef(),
 		Command: []string{"/bin/sh", "-c", "--"},
 		Args: []string{
 			fmt.Sprintf(
