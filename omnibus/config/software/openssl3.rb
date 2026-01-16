@@ -43,11 +43,17 @@ build do
       # openssl binaries on macos
       real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
       lib_extension = if linux_target? then ".so" else ".dylib" end
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded" \
-        " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
-        " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-        " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
-        " #{install_dir}/embedded/bin/openssl"
+
+      files_to_patch = [
+        "lib/libssl#{lib_extension}",
+        "lib/libcrypto#{lib_extension}",
+        "lib/engines-3/*#{lib_extension}",
+        "lib/ossl-modules/*#{lib_extension}",
+        "lib/pkgconfig/*.pc",
+        "bin/openssl",
+      ].map { |path| "#{install_dir}/embedded/#{path}" }
+
+      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded #{files_to_patch.join(' ')}"
       command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
         " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
         " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
