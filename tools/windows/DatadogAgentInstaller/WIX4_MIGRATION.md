@@ -1,0 +1,152 @@
+# WiX 4+ Migration Guide
+
+This document describes the migration from WiX 3 (via `WixSharp.bin`) to WiX 4+ (via `WixSharp_wix4.bin`).
+
+## Changes Made
+
+### 1. Package Reference Update
+**File**: `WixSetup/WixSetup.csproj`
+
+Changed from:
+```xml
+<PackageReference Include="WixSharp.bin" Version="1.20.3" />
+```
+
+To:
+```xml
+<PackageReference Include="WixSharp_wix4.bin" Version="2.12.0" />
+```
+
+### 2. WiX Toolset Installation
+**File**: `tasks/msi.py`
+
+The build script now automatically installs WiX 5.0.2 globally if not already present. WixSharp_wix4 supports WiX 4.x and 5.x.
+
+### 3. Build Script Enhancement
+**File**: `tasks/msi.py`
+
+Added `_ensure_wix_tools()` function that:
+- Checks if WiX is installed globally
+- Automatically installs WiX 5.0.2 globally if not found
+
+The function is automatically called at the beginning of the `_build()` function.
+
+### 4. Documentation Update
+**File**: `WixSetup/Program.cs`
+
+Added comments documenting that the project now uses WiX 4+ via `WixSharp_wix4` package.
+
+## How to Build
+
+### Prerequisites
+- .NET SDK 8.0 or higher (required for WiX 4+ dotnet tool)
+- The WiX tools will be automatically installed during the build process
+
+### Local Development
+```bash
+# The build process will automatically ensure WiX tools are installed
+dda inv msi.build
+```
+
+### Manual Tool Installation (Optional)
+If you prefer to install the tools manually before building:
+
+```bash
+# Install WiX 5.0.2 globally (compatible with WixSharp_wix4)
+dotnet tool install --global wix --version 5.0.2
+```
+
+### Verify WiX Installation
+```bash
+# Check if WiX is installed
+dotnet wix --version
+
+# Should output: WiX Toolset v5.0.2.0 or similar
+```
+
+## CI/CD Considerations
+
+The `_ensure_wix_tools()` function handles tool installation automatically, so no explicit CI/CD changes are required. The function will:
+1. Check for global installation
+2. Install WiX 5.0.2 globally if needed
+
+The Windows build containers should have .NET SDK 8.0+ to support the dotnet tool installation.
+
+## Key Differences from WiX 3
+
+### Tooling
+- **WiX 3**: Bundled binaries in NuGet package (`candle.exe`, `light.exe`)
+- **WiX 5**: Distributed as .NET global tool (`wix` command, version 5.0.2)
+
+### Build Process
+- **WiX 3**: WixSharp directly invoked bundled executables
+- **WiX 5**: WixSharp invokes the `wix` tool from PATH (globally installed)
+
+### Compiler Options
+- The `Compiler.LightOptions` and `Compiler.CandleOptions` in `Program.cs` remain unchanged
+- WixSharp abstracts the differences between WiX 3 and WiX 4/5 command-line interfaces
+
+### WiX Version
+- Using **WiX 5.0.2** because WixSharp_wix4 supports both WiX 4.x and 5.x
+- WiX 6 is too new and not officially supported by WixSharp yet
+
+## Driver Support Note
+
+The migration assumes that the driver merge modules (`DDNPM.msm` and `ddprocmon.msm`) will continue to work with WiX 4+. These MSMs are integrated via the `Merge` element in the generated WiX XML and should be compatible.
+
+**Note**: WiX 4 dropped the built-in `<Driver>` element, but since we use pre-built merge modules rather than defining drivers directly in our WiX source, this should not affect our build.
+
+## Rollback Plan
+
+If issues arise, rollback is straightforward:
+
+1. Revert `WixSetup.csproj`:
+   ```xml
+   <PackageReference Include="WixSharp.bin" Version="1.20.3" />
+   ```
+
+2. Revert changes to `tasks/msi.py` (remove `_ensure_wix_tools()` function and its call)
+
+3. Uninstall WiX 5 if desired:
+   ```bash
+   dotnet tool uninstall --global wix
+   ```
+
+4. Clean and rebuild:
+   ```bash
+   dda inv clean
+   dda inv msi.build
+   ```
+
+## Testing Checklist
+
+Before considering the migration complete, test:
+
+- [ ] MSI builds successfully in local development
+- [ ] MSI builds successfully in CI/CD
+- [ ] Driver installation works correctly (NPM and procmon)
+- [ ] Upgrade scenarios work (from previous version to new)
+- [ ] Fresh installation works
+- [ ] Uninstallation works
+- [ ] Rollback during installation works
+- [ ] All custom actions execute correctly
+- [ ] Services start correctly after installation
+- [ ] Agent configuration is preserved during upgrades
+
+## References
+
+- [WixSharp WiX4 Documentation](https://github.com/oleg-shilo/wixsharp/wiki/WixSharp-and-WiX4)
+- [WiX Toolset v5 Documentation](https://wixtoolset.org/docs/intro/)
+- [WixSharp_wix4.bin NuGet Package](https://www.nuget.org/packages/WixSharp_wix4.bin/)
+
+## FAQ
+
+**Q: Why WiX 5.0.2 and not WiX 6?**  
+A: WixSharp_wix4 is tested and qualified with WiX 4.x and 5.x. WiX 6 is very new and not yet officially supported by WixSharp. Using WiX 5.0.2 ensures stability and compatibility.
+
+**Q: How do I check which WiX version is installed?**  
+A: Run `dotnet wix --version` to see the installed version.
+
+**Q: Can I use a different WiX 4.x or 5.x version?**  
+A: Yes, any WiX 4.x or 5.x version should work. The build script installs 5.0.2 by default, but if you have a different compatible version already installed, it will use that.
+
