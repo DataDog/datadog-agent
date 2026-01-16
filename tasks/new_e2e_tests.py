@@ -654,9 +654,6 @@ def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]
     import boto3
     from botocore.exceptions import ClientError
 
-    if not backend_url.startswith("s3://"):
-        raise ValueError(f"Expected S3 backend URL, got: {backend_url}")
-
     # Parse S3 URL: s3://bucket-name/optional/path
     s3_path = backend_url.removeprefix("s3://")
     parts = s3_path.split("/", 1)
