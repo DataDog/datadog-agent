@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -159,18 +158,16 @@ func (u *verticalController) triggerRollout(
 	_, err := u.patchClient.Apply(ctx, intent, workloadpatcher.PatchOptions{Caller: "vpa"})
 	if err != nil {
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonRolloutFailed, fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name, err))
-		telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "error", le.JoinLeaderValue)
 		autoscalerInternal.UpdateFromVerticalAction(nil, err)
+		autoscalerInternal.VerticalActionErrorInc()
 		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
-
 		return autoscaling.Requeue, err
 	}
 
 	// Propagating information about the rollout
 	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-	telemetryVerticalRolloutTriggered.Inc(target.Namespace, target.Name, autoscalerInternal.Name(), "ok", le.JoinLeaderValue)
 	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec().TargetRef.Name)
-
+	autoscalerInternal.VerticalActionSuccessInc()
 	autoscalerInternal.UpdateFromVerticalAction(&datadoghqcommon.DatadogPodAutoscalerVerticalAction{
 		Time:    metav1.NewTime(patchTime),
 		Version: recommendationID,

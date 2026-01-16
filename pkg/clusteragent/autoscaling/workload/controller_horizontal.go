@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -67,6 +66,7 @@ func (hr *horizontalController) sync(ctx context.Context, podAutoscaler *datadog
 	if scaleErr != nil {
 		scaleErr = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to get scale subresource for autoscaler %s, err: %w", autoscalerInternal.ID(), scaleErr))
 		autoscalerInternal.UpdateFromHorizontalAction(nil, scaleErr)
+		autoscalerInternal.HorizontalActionErrorInc()
 		return autoscaling.Requeue, scaleErr
 	}
 
@@ -118,22 +118,13 @@ func (hr *horizontalController) performScaling(ctx context.Context, podAutoscale
 		err = autoscaling.NewConditionError(autoscaling.ConditionReasonScaleFailed, fmt.Errorf("failed to scale target: %s/%s to %d replicas, err: %w", scale.Namespace, scale.Name, horizontalAction.ToReplicas, err))
 		hr.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedScaleEventReason, err.Error())
 		autoscalerInternal.UpdateFromHorizontalAction(nil, err)
-
-		telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "error", le.JoinLeaderValue)
+		autoscalerInternal.HorizontalActionErrorInc()
 		return autoscaling.Requeue, err
 	}
 
-	telemetryHorizontalScaleActions.Inc(scale.Namespace, scale.Name, podAutoscaler.Name, string(scalingValues.Horizontal.Source), "ok", le.JoinLeaderValue)
-	setHorizontalScaleAppliedRecommendations(
-		float64(horizontalAction.ToReplicas),
-		scale.Namespace,
-		scale.Name,
-		podAutoscaler.Name,
-		string(scalingValues.Horizontal.Source),
-	)
-
 	log.Debugf("Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	autoscalerInternal.UpdateFromHorizontalAction(horizontalAction, nil)
+	autoscalerInternal.HorizontalActionSuccessInc()
 	hr.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulScaleEventReason, "Scaled target: %s/%s from %d replicas to %d replicas", scale.Namespace, scale.Name, horizontalAction.FromReplicas, horizontalAction.ToReplicas)
 	if nextEvalAfter > 0 {
 		return autoscaling.Requeue.After(nextEvalAfter), nil
