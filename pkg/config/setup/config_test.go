@@ -681,8 +681,9 @@ allowed_additional_checks:
 `
 	config := confFromYAML(t, datadogYaml)
 	applyInfrastructureModeOverrides(config)
-	// Legacy allowed_additional_checks should be merged into integration.basic.additional
-	additional := config.GetStringSlice("integration.basic.additional")
+
+	// Legacy allowed_additional_checks should be merged into integration.additional
+	additional := config.GetStringSlice("integration.additional")
 	assert.Contains(t, additional, "prometheus")
 	assert.Contains(t, additional, "redis")
 }

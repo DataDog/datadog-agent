@@ -1337,7 +1337,16 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
 	config.BindEnvAndSetDefault("integration.enabled", true)
+
+	// integration.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.additional", []string{})
+	// integration.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.excluded", []string{})
 
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
@@ -1372,14 +1381,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-	// integration.basic.excluded: checks to exclude (user configured)
-	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
-	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
-	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
-
-	// Legacy alias for backward compatibility
-	// This applies to the current infrastructure_mode
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1950,6 +1951,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	// Tag logs with their auto multiline detection label without aggregating them
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
@@ -2087,7 +2090,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
-	config.BindEnvAndSetDefault("kubernetes_kube_service_new_behavior", false)
+	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
@@ -2820,12 +2823,11 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
 
-	// Apply legacy alias: copy values from legacy key to mode-specific key
-	// Legacy `allowed_additional_checks` -> `integration.<mode>.additional`
+	// Apply legacy alias: copy values from legacy key to integration.additional
+	// Legacy `allowed_additional_checks` -> `integration.additional`
 	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
-		modeAdditionalKey := "integration." + infraMode + ".additional"
-		combined := append(config.GetStringSlice(modeAdditionalKey), legacyAdditional...)
-		config.Set(modeAdditionalKey, combined, pkgconfigmodel.SourceAgentRuntime)
+		combined := append(config.GetStringSlice("integration.additional"), legacyAdditional...)
+		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	if infraMode == "end_user_device" {

@@ -10,7 +10,7 @@ import (
 	"errors"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 )
 
 // ErrNoSignalFound is returned when no signal is found

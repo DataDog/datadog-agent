@@ -24,8 +24,8 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 	infraMode := cfg.GetString("infrastructure_mode")
 
-	// Check excluded list for the current mode
-	if slices.Contains(cfg.GetStringSlice("integration."+infraMode+".excluded"), checkName) {
+	// Check excluded list
+	if slices.Contains(cfg.GetStringSlice("integration.excluded"), checkName) {
 		return false
 	}
 
@@ -39,6 +39,6 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 		return true
 	}
 
-	// Check additional list for the current mode
-	return slices.Contains(cfg.GetStringSlice("integration."+infraMode+".additional"), checkName)
+	// Check additional list
+	return slices.Contains(cfg.GetStringSlice("integration.additional"), checkName)
 }
