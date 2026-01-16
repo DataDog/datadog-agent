@@ -208,12 +208,15 @@ def query_metrics(query, from_time, to_time):
 
         # Extract series data from response
         series_list = []
-        if hasattr(response, 'series') and response.series:
-            for series in response.series:
-                series_data = {
-                    "scope": series.scope if hasattr(series, 'scope') else "",
-                    "pointlist": series.pointlist if hasattr(series, 'pointlist') else [],
-                }
-                series_list.append(series_data)
+        if not response.series:
+            return series_list
+
+        for series in response.series:
+            series_data = {
+                "scope": series.scope or "",
+                "pointlist": series.pointlist or [],
+                "expression": series.expression or "",
+            }
+            series_list.append(series_data)
 
         return series_list
