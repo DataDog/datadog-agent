@@ -447,43 +447,49 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
 	config.BindEnvAndSetDefault("network_devices.namespace", "default")
 
-	config.SetKnown("snmp_listener.discovery_interval")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.allowed_failures")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.discovery_allowed_failures") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.collect_device_metadata")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.collect_topology")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.workers")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.configs")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.loader")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.min_collection_interval")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.namespace")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.use_device_id_as_hostname")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.enabled")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.count")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.interval")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.timeout")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("snmp_listener.ping.linux.use_raw_socket")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("snmp_listener.discovery_interval", 3600)
+	config.BindEnvAndSetDefault("snmp_listener.allowed_failures", 3)
+	config.BindEnvAndSetDefault("snmp_listener.discovery_allowed_failures", 3)
+	config.BindEnvAndSetDefault("snmp_listener.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("snmp_listener.collect_topology", true)
+	config.BindEnvAndSetDefault("snmp_listener.workers", 2)
+	config.BindEnvAndSetDefault("snmp_listener.configs", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("snmp_listener.loader", "core")
+	config.BindEnvAndSetDefault("snmp_listener.min_collection_interval", 15)
+	config.BindEnvAndSetDefault("snmp_listener.namespace", "default")
+	config.BindEnvAndSetDefault("snmp_listener.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.enabled", false)
+	config.BindEnvAndSetDefault("snmp_listener.ping.count", 2)
+	config.BindEnvAndSetDefault("snmp_listener.ping.interval", 10)
+	config.BindEnvAndSetDefault("snmp_listener.ping.timeout", 3000)
+	config.BindEnvAndSetDefault("snmp_listener.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("snmp_listener.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("snmp_listener.timeout", 5)
+	config.BindEnvAndSetDefault("snmp_listener.retries", 3)
 
 	// network_devices.autodiscovery has precedence over snmp_listener config
 	// snmp_listener config is still here for legacy reasons
-	config.SetKnown("network_devices.autodiscovery.discovery_interval")         //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.allowed_failures")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.discovery_allowed_failures") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.collect_device_metadata")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.collect_topology")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.workers")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.configs")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.loader")                     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.min_collection_interval")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.namespace")                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.use_device_id_as_hostname")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.enabled")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.count")                 //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.interval")              //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.timeout")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.ping.linux.use_raw_socket")  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.use_deduplication")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.SetKnown("network_devices.autodiscovery.collect_vpn")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_interval", 3600)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.allowed_failures", 3)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.discovery_allowed_failures", 3)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_device_metadata", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_topology", true)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.workers", 2)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.configs", []map[string]interface{}{})
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.loader", "core")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.min_collection_interval", 15)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.namespace", "default")
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_device_id_as_hostname", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.enabled", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.count", 2)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.interval", 10)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.ping.linux.use_raw_socket", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.use_deduplication", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.collect_vpn", false)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.oid_batch_size", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
+	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
@@ -491,7 +497,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.community_strings", []string{})
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.bind_host", "0.0.0.0")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.stop_timeout", 5) // in seconds
-	config.SetKnown("network_devices.snmp_traps.users")                       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("network_devices.snmp_traps.users", []map[string]string{})
 
 	// NetFlow
 	config.SetKnown("network_devices.netflow.listeners")                                  //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
@@ -1330,14 +1336,26 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("allow_arbitrary_tags", false)
 	config.BindEnvAndSetDefault("use_proxy_for_cloud_metadata", false)
 
+	// Legacy alias for backward compatibility
+	// This applies to the current infrastructure_mode
+	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
+
+	config.BindEnvAndSetDefault("integration.enabled", true)
+
+	// integration.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.additional", []string{})
+	// integration.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.excluded", []string{})
+
 	// Infrastructure mode
 	// The infrastructure mode is used to determine the features that are available to the agent.
 	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
-	// Infrastructure basic mode - allowed checks (UNDOCUMENTED)
+	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
-	config.BindEnvAndSetDefault("allowed_checks", []string{
+	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)
+	config.BindEnvAndSetDefault("integration.basic.allowed", []string{
 		"cpu",
 		"agent_telemetry",
 		"agentcrashdetect",
@@ -1362,11 +1380,6 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
-
-	// Infrastructure basic mode - additional checks
-	// When infrastructure_mode is set to "basic", only a limited set of checks are allowed to run.
-	// This setting allows customers to add additional checks to the allowlist beyond the default set.
-	config.BindEnvAndSetDefault("allowed_additional_checks", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -1886,12 +1899,14 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.aurora.global_view_db_tag", "datadoghq.com/global_view_db")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.enabled", false)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.discovery_interval", 300)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.region", "")
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.query_timeout", 10)
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.tags", []string{"datadoghq.com/scrape:true"})
 	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.dbm_tag", "datadoghq.com/dbm:true")
+	config.BindEnvAndSetDefault("database_monitoring.autodiscovery.rds.global_view_db_tag", "datadoghq.com/global_view_db")
 
 	bindEnvAndSetLogsConfigKeys(config, "data_streams.forwarder.")
 	config.BindEnvAndSetDefault("data_streams.forwarder.batch_wait", 0.1) // 100ms for low-latency forwarding
@@ -1935,6 +1950,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
 	// Add a tag to logs that are truncated by the agent
 	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	// Tag logs with their auto multiline detection label without aggregating them
+	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
@@ -2072,6 +2089,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
 	config.BindEnvAndSetDefault("kubernetes_apiserver_use_protobuf", false)
 	config.BindEnvAndSetDefault("kubernetes_ad_tags_disabled", []string{})
+	config.BindEnvAndSetDefault("kubernetes_kube_service_ignore_readiness", false)
 
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("kubernetes_kubelet_podresources_socket", `\\.\pipe\kubelet-pod-resources`)
@@ -2803,6 +2821,13 @@ func toggleDefaultPayloads(config pkgconfigmodel.Config) {
 
 func applyInfrastructureModeOverrides(config pkgconfigmodel.Config) {
 	infraMode := config.GetString("infrastructure_mode")
+
+	// Apply legacy alias: copy values from legacy key to integration.additional
+	// Legacy `allowed_additional_checks` -> `integration.additional`
+	if legacyAdditional := config.GetStringSlice("allowed_additional_checks"); len(legacyAdditional) > 0 {
+		combined := append(config.GetStringSlice("integration.additional"), legacyAdditional...)
+		config.Set("integration.additional", combined, pkgconfigmodel.SourceAgentRuntime)
+	}
 
 	if infraMode == "end_user_device" {
 		// Enable features for end_user_device mode

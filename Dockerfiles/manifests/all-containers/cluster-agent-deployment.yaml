@@ -139,6 +139,8 @@ spec:
               value: "true"
             - name: DD_KUBERNETES_USE_ENDPOINT_SLICES
               value: "false"
+            - name: DD_KUBERNETES_KUBE_SERVICE_IGNORE_READINESS
+              value: "false"
             - name: DD_KUBERNETES_EVENTS_SOURCE_DETECTION_ENABLED
               value: "false"
             - name: DD_CLUSTER_AGENT_KUBERNETES_SERVICE_NAME

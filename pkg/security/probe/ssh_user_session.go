@@ -28,8 +28,8 @@ import (
 func getEnvVar(envp []string, key string) string {
 	prefix := key + "="
 	for _, env := range envp {
-		if strings.HasPrefix(env, prefix) {
-			return strings.TrimPrefix(env, prefix)
+		if after, ok := strings.CutPrefix(env, prefix); ok {
+			return after
 		}
 	}
 	return ""
@@ -141,10 +141,7 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 	p.resolver.SSHSessionParsed.Mu.Unlock()
 
 	if ok {
-		if model.SSHAuthMethodStrings == nil {
-			model.InitSSHAuthMethodConstants()
-		}
-		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodStrings[usersession.AuthType(value.AuthenticationMethod)]
+		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(value.AuthenticationMethod))
 		ev.ProcessContextSerializer.UserSession.SSHPublicKey = value.PublicKey
 	}
 }
