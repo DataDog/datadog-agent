@@ -72,7 +72,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		return autoscaling.NoRequeue, nil
 	}
 
-	recomendationID := scalingValues.Vertical.ResourcesHash
+	recommendationID := scalingValues.Vertical.ResourcesHash
 
 	// Get the pods for the pod owner
 	pods := u.podWatcher.GetPodsForOwner(target)
@@ -83,11 +83,11 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 
 	// Compute pods per resourceHash and per owner
-	podsPerRecomendationID := make(map[string]int32)
+	podsPerRecommendationID := make(map[string]int32)
 	podsPerDirectOwner := make(map[string]int32)
 	for _, pod := range pods {
 		// PODs without any recommendation will be stored with "" key
-		podsPerRecomendationID[pod.Annotations[model.RecommendationIDAnnotation]] = podsPerRecomendationID[pod.Annotations[model.RecommendationIDAnnotation]] + 1
+		podsPerRecommendationID[pod.Annotations[model.RecommendationIDAnnotation]] = podsPerRecommendationID[pod.Annotations[model.RecommendationIDAnnotation]] + 1
 
 		if len(pod.Owners) == 0 {
 			// This condition should never happen since the pod watcher groups pods by owner
@@ -98,7 +98,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	}
 
 	// Update scaled replicas status
-	autoscalerInternal.SetScaledReplicas(podsPerRecomendationID[recomendationID])
+	autoscalerInternal.SetScaledReplicas(podsPerRecommendationID[recommendationID])
 
 	// Check if we're allowed to rollout, we don't care about the source in this case, so passing most favorable source: manual
 	updateStrategy, reason := getVerticalPatchingStrategy(autoscalerInternal)
@@ -115,23 +115,23 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 
 	switch targetGVK.Kind {
 	case k8sutil.DeploymentKind:
-		return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+		return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)
 	case k8sutil.RolloutKind:
-		return u.syncRolloutKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+		return u.syncRolloutKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)
 	case k8sutil.StatefulSetKind:
-		return u.syncStatefulSetKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID)
+		return u.syncStatefulSetKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecommendationID)
 	default:
-		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("automic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
+		autoscalerInternal.UpdateFromVerticalAction(nil, fmt.Errorf("automatic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind))
 		return autoscaling.NoRequeue, nil
 	}
 }
 
 // isRecommendationRolloutComplete checks if the current recommendation is entirely rolled out.
 // Returns true if all pods have the given recommendation ID.
-func isRecommendationRolloutComplete(recommendationID string, pods []*workloadmeta.KubernetesPod, podsPerRecomendationID map[string]int32) bool {
+func isRecommendationRolloutComplete(recommendationID string, pods []*workloadmeta.KubernetesPod, podsPerRecommendationID map[string]int32) bool {
 	// currently basic check with 100% match expected.
 	// TODO: Refine the logic and add backoff for stuck PODs.
-	return podsPerRecomendationID[recommendationID] == int32(len(pods))
+	return podsPerRecommendationID[recommendationID] == int32(len(pods))
 }
 
 // isStatefulSetRolloutInProgress checks if a StatefulSet rollout is currently in progress
@@ -224,11 +224,11 @@ func (u *verticalController) syncDeploymentKind(
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
 	pods []*workloadmeta.KubernetesPod,
-	podsPerRecomendationID map[string]int32,
+	podsPerRecommendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
 ) (autoscaling.ProcessResult, error) {
 	// Check if we need to rollout
-	if isRecommendationRolloutComplete(recommendationID, pods, podsPerRecomendationID) {
+	if isRecommendationRolloutComplete(recommendationID, pods, podsPerRecommendationID) {
 		autoscalerInternal.UpdateFromVerticalAction(nil, nil)
 		return autoscaling.NoRequeue, nil
 	}
@@ -254,12 +254,12 @@ func (u *verticalController) syncRolloutKind(
 	targetGVK schema.GroupVersionKind,
 	recommendationID string,
 	pods []*workloadmeta.KubernetesPod,
-	podsPerRecomendationID map[string]int32,
+	podsPerRecommendationID map[string]int32,
 	podsPerDirectOwner map[string]int32,
 ) (autoscaling.ProcessResult, error) {
 	// Argo Rollouts use the same pod template structure as Deployments,
 	// so we can reuse the same rollout logic
-	return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+	return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recommendationID, pods, podsPerRecommendationID, podsPerDirectOwner)
 }
 
 func (u *verticalController) syncStatefulSetKind(
