@@ -252,13 +252,13 @@ pkg_files(
 )
 
 cc_shared_library(
-    name = "pcre2",
+    name = "pcre2-8",
     deps = [":libpcre2"],
     visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
-    name = "pcre2posix",
+    name = "pcre2-posix",
     deps = [":libpcre2-posix"],
     dynamic_deps = [":pcre2"],
     visibility = ["//visibility:public"],
