@@ -20,9 +20,9 @@ type linuxSharedLibrarySuite struct {
 }
 
 func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
 
-	permissions := perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("root"))
+	permissions := perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
@@ -35,6 +35,6 @@ func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
 	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
 }
 
-func (v *linuxSharedLibrarySuite) TestLinuxCheckExample() {
+func (v *linuxSharedLibrarySuite) TestCheckExample() {
 	v.testCheckExampleRun()
 }

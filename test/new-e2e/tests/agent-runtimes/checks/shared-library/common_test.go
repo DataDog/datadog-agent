@@ -80,9 +80,9 @@ func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
 }
 
 func (v *sharedLibrarySuite) updateEnvWithCheck(name string, config string) {
-	// find the corresponding shared library and use it on the remote host
+	// find the corresponding local shared library and use it on the remote host
 	libraryName := v.resolveSharedLibraryFileName(name)
-	libraryContent, err := os.ReadFile(path.Join(".", "files", libraryName))
+	libraryContent, err := os.ReadFile(path.Join("files", libraryName))
 	require.NoError(v.T(), err)
 
 	libraryPath := path.Join(v.checksdPath, libraryName)

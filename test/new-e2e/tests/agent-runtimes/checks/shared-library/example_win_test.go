@@ -9,6 +9,7 @@ package sharedlibrary
 import (
 	"testing"
 
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -19,17 +20,22 @@ type windowsSharedLibrarySuite struct {
 }
 
 func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
-	//t.Parallel()
+	t.Parallel()
+
+	icaclsCmd := `/grant "ddagentuser:(D,WDAC,RX,RA)" /grant "Administrators:(RX)" /grant "SYSTEM:(RX)"`
+	permissions := perms.NewWindowsPermissions(perms.WithIcaclsCommand(icaclsCmd), perms.WithDisableInheritance())
+
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
 			checksdPath: "C:/Temp/Datadog/checks.d",
+			permissions: permissions,
 		},
 	}
 
 	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
 }
 
-func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
+func (v *windowsSharedLibrarySuite) TestCheckExample() {
 	v.testCheckExampleRun()
 }
