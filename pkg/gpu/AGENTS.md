@@ -223,116 +223,15 @@ require.Equal(t, stats.get, stats.put)  // Balanced get/put
 
 ### Overview
 
-The GPU monitoring system emits two metrics related to GPU active time:
-- **`process.sm_active`**: Per-process percentage of time the GPU had active kernels for that process
-- **`sm_active`**: Device-wide percentage of time the GPU had any active kernels
+The GPU monitoring system emits two active time metrics:
+- **`process.sm_active`**: Per-process percentage of time the GPU had active kernels
+- **`sm_active`**: Device-wide percentage of time any GPU kernels were active
 
-Both metrics are emitted with **Low priority** to act as fallbacks when NVML GPM-based metrics are unavailable.
+Both are emitted with **Low priority** to serve as fallbacks when NVML or GPM-based metrics are unavailable.
 
-### Calculation
+### How They Are Generated
 
-#### Per-Process Active Time (`process.sm_active`)
+Active time is derived from kernel execution intervals captured within each collection window. The system merges overlapping intervals before computing the percentage of the window that was active.
 
-1. **Interval Tracking**: For each kernel span, the aggregator records the time interval `[startKtime, endKtime]`
-2. **Interval Merging**: Overlapping intervals within the same process are merged using `mergeIntervals()`
-3. **Percentage Calculation**: `ActiveTimePct = (mergedDuration / intervalNs) * 100`
-
-#### Device-Level Active Time (`sm_active`)
-
-1. **Collect All Intervals**: The `statsGenerator` collects kernel span intervals from all processes on a device
-2. **Merge Across Processes**: Intervals are merged to handle overlapping execution across processes
-3. **Percentage Calculation**: Same as per-process, but using the merged intervals from all processes
-
-### Implementation Details
-
-#### `mergeIntervals()` Function (`aggregator.go`)
-
-```go
-func mergeIntervals(intervals [][2]uint64) uint64
-```
-
-- Takes unsorted time intervals `[start, end]`
-- Sorts by start time
-- Merges overlapping/adjacent intervals
-- Returns total duration covered
-- Time complexity: O(n log n)
-
-**Example**:
-```
-Input:  [[1, 5], [3, 8], [10, 15]]
-Merged: [[1, 8], [10, 15]]
-Total:  7 + 5 = 12 nanoseconds
-```
-
-#### Boundary Clamping
-
-Kernel span times are clamped to the stats generation interval:
-```go
-if lastGenerationKTime > start {
-    start = lastGenerationKTime
-}
-if end > nowKtime {
-    end = nowKtime
-}
-```
-
-This ensures we only count activity within the current measurement window.
-
-### Data Flow
-
-```
-1. StreamHandler.processKernelSpan()
-   └── Records [startKtime, endKtime] in aggregator.activeIntervals
-
-2. Aggregator.getRawStats()
-   └── Merges intervals, computes per-process ActiveTimePct
-
-3. statsGenerator.getStats()
-   ├── Collects all intervals per device
-   ├── Merges intervals across processes
-   └── Computes device-level ActiveTimePct
-
-4. ebpfCollector.Collect()
-   ├── Emits process.sm_active (per-process, Low priority)
-   └── Emits sm_active (device-wide, Low priority)
-```
-
-### Metric Priority
-
-Both metrics use **Low priority** to ensure NVML GPM-based `sm_active` metrics (which have Medium priority) take precedence when available. This makes the eBPF-based metrics act as fallbacks.
-
-### Testing
-
-Run tests using the appropriate command based on what you're testing:
-
-#### System-Probe Tests (for `pkg/gpu/*` - eBPF/system-probe code)
-```bash
-dda inv -e system-probe.test --packages=./pkg/gpu
-```
-
-This runs tests for the system-probe GPU module (probe.go, stats.go, aggregator.go, stream.go, etc.).
-
-#### Agent Tests (for `pkg/collector/corechecks/gpu/*` - agent-side code)
-```bash
-dda inv test --targets=./pkg/collector/corechecks/gpu/nvidia --build-include=nvml,test
-```
-
-This runs tests for agent-side collectors (ebpf.go, process collector, etc.). The `test` build tag is required to include test dependencies.
-
-**Key distinction**:
-- Use `system-probe.test` for eBPF/system-probe packages
-- Use `test` for agent core check packages
-
-#### Test Coverage
-
-- **Unit tests** (`aggregator_test.go`): Test `mergeIntervals()` function with various scenarios (empty, overlapping, adjacent, unsorted, edge cases)
-- **Integration tests** (`stats_test.go`): Test per-process and device-level `ActiveTimePct` calculation with overlapping spans
-- **End-to-end tests** (`probe_test.go`): Verify metrics are computed from real CUDA samples
-- **Collector tests** (`ebpf_test.go`): Verify metrics are emitted with correct priority
-
-### Common Pitfalls
-
-1. **Overlapping Intervals**: Don't sum durations directly; use `mergeIntervals()` to handle overlaps
-2. **Boundary Clamping**: Always clamp span times to the measurement interval
-3. **Percentage Cap**: Cap at 100% to handle edge cases where spans extend beyond the interval
-4. **Priority**: Ensure Low priority is set so NVML metrics take precedence
+- **Per-process**: Merge intervals for a single process, then compute the percentage of the window that was active.
+- **Device-wide**: Merge intervals across all processes on the device, then compute the percentage of the window that was active.
