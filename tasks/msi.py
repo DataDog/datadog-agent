@@ -177,6 +177,29 @@ def sign_file(ctx, path, force=False):
         return ctx.run(f'dd-wcs sign "{path}"')
 
 
+def _ensure_wix_tools(ctx):
+    """
+    Ensure WiX 5.x dotnet tools are installed globally.
+    This is required for WixSharp_wix4 which relies on the wix dotnet tool.
+    WixSharp_wix4 supports WiX 4.x and 5.x.
+    """
+    if sys.platform != 'win32':
+        return
+
+    # Check if wix is installed globally
+    result = ctx.run('dotnet wix --version', warn=True, hide=True)
+    if result and result.return_code == 0:
+        print("WiX tools found")
+        return
+
+    # Install WiX 5.x globally (WixSharp_wix4 supports WiX 4.x and 5.x)
+    print("WiX tools not found. Installing WiX 5.0.2 globally...")
+    result = ctx.run('dotnet tool install --global wix --version 5.0.2', warn=True)
+    if not result or result.return_code != 0:
+        raise Exit("Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version 5.0.2", code=1)
+    print("WiX tools installed successfully")
+
+
 def _build(
     ctx,
     env,
@@ -190,6 +213,9 @@ def _build(
     if sys.platform != 'win32':
         print("Building the MSI installer is only for available on Windows")
         raise Exit(code=1)
+
+    # Ensure WiX 4+ tools are available
+    _ensure_wix_tools(ctx)
 
     cmd = ""
 
