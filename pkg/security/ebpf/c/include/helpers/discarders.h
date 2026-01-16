@@ -306,17 +306,31 @@ int __attribute__((always_inline)) dentry_resolver_discarder_event_type(struct s
     return syscall->type;
 }
 
-void __attribute__((always_inline)) discard_pr_name(char *data) {
-    bool val = true;
-    bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
+// sets all the bytes after the null terminator to null
+void __attribute__((always_inline)) clean_str_trailing_zeros(char *data, int string_size, int array_size) {
+    bool found_null = false;
+    #pragma unroll
+    for(int i=0; i != array_size; ++i) {
+        if(found_null || i >= string_size - 1) {
+            data[i] = 0;
+        } else if (data[i] == 0) {
+            found_null = true;
+        }
+    }
 }
 
-bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * pr_name) {
-    bool *entry = bpf_map_lookup_elem(&prctl_discarders, pr_name);
+void __attribute__((always_inline)) discard_pr_name(char *data) {
+    bool val = true;
+    int r = bpf_map_update_elem(&prctl_discarders, data, &val, BPF_ANY);
+    if (r != 0) {
+    }
+}
+
+bool __attribute__((always_inline)) is_prctl_pr_name_discarder(char * data) {
+    bool *entry = bpf_map_lookup_elem(&prctl_discarders, data);
     if (entry == NULL) {
         return false;
     }
-
     return true;
 }
 

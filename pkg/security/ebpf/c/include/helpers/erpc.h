@@ -79,7 +79,8 @@ void __attribute__((always_inline)) handle_discard_prctl(void * data) {
     }
 
     char discarder[MAX_PRCTL_NAME_LEN];
-    bpf_probe_read_user(&discarder, sizeof(discarder), data);
+    bpf_probe_read_user_str(&discarder, sizeof(discarder), data);
+    clean_str_trailing_zeros(discarder, MAX_PRCTL_NAME_LEN, MAX_PRCTL_NAME_LEN);
     discard_pr_name(discarder);
 }
 

@@ -29,6 +29,7 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
             syscall.prctl.name_size_to_send = 0;
         }
 
+        clean_str_trailing_zeros(syscall.prctl.name, MAX_PRCTL_NAME_LEN, MAX_PRCTL_NAME_LEN + 1);
         if (is_prctl_pr_name_discarder(syscall.prctl.name)) {
             return 0;
         };

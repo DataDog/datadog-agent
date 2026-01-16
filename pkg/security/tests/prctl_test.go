@@ -124,17 +124,25 @@ func TestPrCtlDiscarder(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("prctl-set-name-discarder", func(t *testing.T) {
+	truncate := func(s string, max int) string {
+		if len(s) <= max {
+			return s
+		}
+		return s[:max]
+	}
+
+	testPrName := func(t *testing.T, prName string) {
+		t.Helper()
 		// 1. send first event not matching the rule to create a discarder.
 		// it's expected that we receive the event
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "bidule")
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "prctl" || event.PrCtl.NewName != "bidule" {
+			if event.GetType() != "prctl" || event.PrCtl.NewName != truncate(prName, 15) {
 				return false
 			}
 
@@ -158,18 +166,34 @@ func TestPrCtlDiscarder(t *testing.T) {
 
 		// 3. trigger prctl again with the event that shall be discarded and check that we don't receive anything
 		err = test.GetProbeEvent(func() error {
-			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", "bidule")
+			err = runSyscallTesterFunc(context.Background(), t, syscallTester, "prctl-setname", prName)
 			if err != nil {
 				t.Fatal("error calling prctl: %w", err)
 			}
 			return nil
 		}, func(event *model.Event) bool {
-			if event.GetType() != "prctl" || event.PrCtl.NewName != "bidule" {
+			if event.GetType() != "prctl" || event.PrCtl.NewName != truncate(prName, 15) {
 				return false
 			}
 			return true
 		}, 3*time.Second, model.PrCtlEventType)
 
 		assert.NotEqual(t, err, nil, "Event wasn't discarded")
+	}
+
+	t.Run("prctl-set-name-discarder-empty", func(t *testing.T) {
+		testPrName(t, "")
+	})
+
+	t.Run("prctl-set-name-discarder-small", func(t *testing.T) {
+		testPrName(t, "bidule")
+	})
+
+	t.Run("prctl-set-name-discarder-limit", func(t *testing.T) {
+		testPrName(t, "0123456789ABCDE")
+	})
+
+	t.Run("prctl-set-name-discarder-above-limit", func(t *testing.T) {
+		testPrName(t, "looooooooooooooooooooooong")
 	})
 }
