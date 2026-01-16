@@ -104,7 +104,7 @@ type runConfig struct {
 	NetworkMode string            // Network mode to use for the container. If empty, the docker default will apply
 	PIDMode     string            // PID mode to use for the container. If empty, the docker default will apply
 	Privileged  bool              // Whether to run the container in privileged mode.
-	GPUs string // GPUs to use for the container
+	GPUs        string            // GPUs to use for the container
 }
 
 func (r runConfig) command() string {

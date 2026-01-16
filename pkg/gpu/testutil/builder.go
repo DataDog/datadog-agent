@@ -5,7 +5,7 @@
 
 // Package testutil contains helpers to build sample C binaries for testing.
 
-//go:build linux_bpf && test
+//go:build linux && test
 
 package testutil
 

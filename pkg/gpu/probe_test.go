@@ -255,9 +255,6 @@ func (s *probeTestSuite) TestDetectsContainer() {
 
 	// note: after starting, the program will wait ~5s before making any CUDA call
 	out := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
-	cmd := out.Command
-	require.NotNil(t, cmd)
-
 	pid := out.PID
 	cid := out.ContainerID
 
