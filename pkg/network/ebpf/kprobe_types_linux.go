@@ -59,20 +59,23 @@ type Batch struct {
 	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_sent_miscounts              uint64
-	Unbatched_tcp_close             uint64
-	Unbatched_udp_close             uint64
-	Udp_sends_processed             uint64
-	Udp_sends_missed                uint64
-	Udp_dropped_conns               uint64
-	Tcp_done_missing_pid            uint64
-	Tcp_connect_failed_tuple        uint64
-	Tcp_done_failed_tuple           uint64
-	Tcp_finish_connect_failed_tuple uint64
-	Tcp_close_target_failures       uint64
-	Tcp_done_connection_flush       uint64
-	Tcp_close_connection_flush      uint64
-	Tcp_syn_retransmit              uint64
+	Tcp_sent_miscounts                           uint64
+	Unbatched_tcp_close                          uint64
+	Unbatched_udp_close                          uint64
+	Udp_sends_processed                          uint64
+	Udp_sends_missed                             uint64
+	Udp_dropped_conns                            uint64
+	Tcp_done_missing_pid                         uint64
+	Tcp_connect_failed_tuple                     uint64
+	Tcp_done_failed_tuple                        uint64
+	Tcp_finish_connect_failed_tuple              uint64
+	Tcp_close_target_failures                    uint64
+	Tcp_done_connection_flush                    uint64
+	Tcp_close_connection_flush                   uint64
+	Tcp_syn_retransmit                           uint64
+	Protocol_classifier_calls                    uint64
+	Protocol_classifier_skipped_fully_classified uint64
+	Protocol_classifier_skipped_max_attempts     uint64
 }
 type PortBinding struct {
 	Netns     uint32
@@ -100,7 +103,8 @@ type ProtocolStack struct {
 type ProtocolStackWrapper struct {
 	Updated   uint64
 	Stack     ProtocolStack
-	Pad_cgo_0 [4]byte
+	Attempts  uint16
+	Pad_cgo_0 [2]byte
 }
 type TLSTags struct {
 	Chosen_version   uint16

@@ -137,6 +137,9 @@ typedef struct {
     __u64 tcp_done_connection_flush;
     __u64 tcp_close_connection_flush;
     __u64 tcp_syn_retransmit;
+    __u64 protocol_classifier_calls;
+    __u64 protocol_classifier_skipped_fully_classified;
+    __u64 protocol_classifier_skipped_max_attempts;
 } telemetry_t;
 
 typedef struct {

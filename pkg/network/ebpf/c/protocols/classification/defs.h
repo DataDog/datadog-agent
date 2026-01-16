@@ -110,6 +110,7 @@ typedef struct {
 typedef struct {
     __u64 updated;
     protocol_stack_t stack;
+    __u16 classification_attempts;
 } protocol_stack_wrapper_t;
 
 typedef enum {

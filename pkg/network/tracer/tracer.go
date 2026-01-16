@@ -609,6 +609,11 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 	tracerTelemetry.connStatsMapSize.Set(float64(entryCount))
 
+	// Log protocol classifier telemetry
+	if calls, skippedFullyClassified, skippedMaxAttempts := t.ebpfTracer.GetProtocolClassifierStats(); calls > 0 || skippedFullyClassified > 0 || skippedMaxAttempts > 0 {
+		log.Debugf("protocol classifier stats: calls=%d skipped_fully_classified=%d skipped_max_attempts=%d", calls, skippedFullyClassified, skippedMaxAttempts)
+	}
+
 	// Remove expired entries
 	t.removeEntries(expired)
 

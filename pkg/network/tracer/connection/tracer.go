@@ -69,6 +69,9 @@ type Tracer interface {
 	Describe(descs chan<- *prometheus.Desc)
 	// Collect returns the current state of all metrics of the collector
 	Collect(metrics chan<- prometheus.Metric)
+
+	// GetProtocolClassifierStats returns telemetry stats for the protocol classifier
+	GetProtocolClassifierStats() (calls, skippedFullyClassified, skippedMaxAttempts uint64)
 }
 
 // NewTracer returns a new Tracer

@@ -445,6 +445,12 @@ func (t *ebpfLessTracer) Describe(_ chan<- *prometheus.Desc) {}
 // Collect returns the current state of all metrics of the collector
 func (t *ebpfLessTracer) Collect(_ chan<- prometheus.Metric) {}
 
+// GetProtocolClassifierStats returns telemetry stats for the protocol classifier
+// ebpfless tracer doesn't have protocol classification, so always returns zeros
+func (t *ebpfLessTracer) GetProtocolClassifierStats() (calls, skippedFullyClassified, skippedMaxAttempts uint64) {
+	return 0, 0, 0
+}
+
 var _ Tracer = &ebpfLessTracer{}
 
 type udpProcessor struct {

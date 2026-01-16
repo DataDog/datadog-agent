@@ -59,20 +59,23 @@ type EbpfTracerTelemetryData struct {
 	udpSendsMissed    *prometheus.Desc
 	udpDroppedConns   *prometheus.Desc
 	// tcpDoneMissingPid is a counter measuring the number of TCP connections with a PID mismatch between tcp_connect and tcp_done
-	tcpDoneMissingPid           *prometheus.Desc
-	tcpConnectFailedTuple       *prometheus.Desc
-	tcpDoneFailedTuple          *prometheus.Desc
-	tcpFinishConnectFailedTuple *prometheus.Desc
-	tcpCloseTargetFailures      *prometheus.Desc
-	tcpDoneConnectionFlush      *prometheus.Desc
-	tcpCloseConnectionFlush     *prometheus.Desc
-	tcpFailedConnections        telemetry.Counter
-	tcpSynRetransmit            *prometheus.Desc
-	ongoingConnectPidCleaned    telemetry.Counter
-	PidCollisions               *telemetry.StatCounterWrapper
-	iterationDups               telemetry.Counter
-	iterationAborts             telemetry.Counter
-	sslCertMissed               telemetry.Counter
+	tcpDoneMissingPid                        *prometheus.Desc
+	tcpConnectFailedTuple                    *prometheus.Desc
+	tcpDoneFailedTuple                       *prometheus.Desc
+	tcpFinishConnectFailedTuple              *prometheus.Desc
+	tcpCloseTargetFailures                   *prometheus.Desc
+	tcpDoneConnectionFlush                   *prometheus.Desc
+	tcpCloseConnectionFlush                  *prometheus.Desc
+	tcpFailedConnections                     telemetry.Counter
+	tcpSynRetransmit                         *prometheus.Desc
+	protocolClassifierCalls                  *prometheus.Desc
+	protocolClassifierSkippedFullyClassified *prometheus.Desc
+	protocolClassifierSkippedMaxAttempts     *prometheus.Desc
+	ongoingConnectPidCleaned                 telemetry.Counter
+	PidCollisions                            *telemetry.StatCounterWrapper
+	iterationDups                            telemetry.Counter
+	iterationAborts                          telemetry.Counter
+	sslCertMissed                            telemetry.Counter
 
 	mu sync.Mutex
 
@@ -83,14 +86,17 @@ type EbpfTracerTelemetryData struct {
 	lastUDPSendsMissed    int64
 	lastUDPDroppedConns   int64
 	// lastTCPDoneMissingPid is a counter measuring the diff between the last two values of tcpDoneMissingPid
-	lastTCPDoneMissingPid           int64
-	lastTCPConnectFailedTuple       int64
-	lastTCPDoneFailedTuple          int64
-	lastTCPFinishConnectFailedTuple int64
-	lastTCPCloseTargetFailures      int64
-	lastTCPDoneConnectionFlush      int64
-	lastTCPCloseConnectionFlush     int64
-	lastTCPSynRetransmit            int64
+	lastTCPDoneMissingPid                        int64
+	lastTCPConnectFailedTuple                    int64
+	lastTCPDoneFailedTuple                       int64
+	lastTCPFinishConnectFailedTuple              int64
+	lastTCPCloseTargetFailures                   int64
+	lastTCPDoneConnectionFlush                   int64
+	lastTCPCloseConnectionFlush                  int64
+	lastTCPSynRetransmit                         int64
+	lastProtocolClassifierCalls                  int64
+	lastProtocolClassifierSkippedFullyClassified int64
+	lastProtocolClassifierSkippedMaxAttempts     int64
 }
 
 // EbpfTracerTelemetry holds telemetry from the EBPF tracer
@@ -111,12 +117,18 @@ var EbpfTracerTelemetry = EbpfTracerTelemetryData{
 	prometheus.NewDesc(connTracerModuleName+"__tcp_close_connection_flush", "Counter measuring the number of connection flushes performed in tcp_close", nil, nil),
 	telemetry.NewCounter(connTracerModuleName, "tcp_failed_connections", []string{"errno"}, "Gauge measuring the number of unsupported failed TCP connections"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_syn_retransmit", "Counter measuring the number of tcp retransmits of syn packets", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_calls", "Counter measuring the number of times protocol_classifier_entrypoint was called", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_fully_classified", "Counter measuring the number of times protocol classification was skipped because connection was fully classified", nil, nil),
+	prometheus.NewDesc(connTracerModuleName+"__protocol_classifier_skipped_max_attempts", "Counter measuring the number of times protocol classification was skipped because max attempts was exceeded", nil, nil),
 	telemetry.NewCounter(connTracerModuleName, "ongoing_connect_pid_cleaned", []string{}, "Counter measuring the number of tcp_ongoing_connect_pid entries cleaned in userspace"),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
 	telemetry.NewCounter(connTracerModuleName, "__ssl_cert_missed", []string{}, "Counter measuring the number of times the agent tried to fetch a cert that was missing from the cert info map (probably because it was full)"),
 	sync.Mutex{},
+	0,
+	0,
+	0,
 	0,
 	0,
 	0,
@@ -217,7 +229,8 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 	begin, end := network.EphemeralRange()
 	mgrOptions.ConstantEditors = append(mgrOptions.ConstantEditors,
 		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
-		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)},
+		manager.ConstantEditor{Name: "max_protocol_classification_attempts", Value: uint64(config.MaxProtocolClassificationAttempts)})
 
 	connPool := ddsync.NewDefaultTypedPool[network.ConnectionStats]()
 	var extractor *batchExtractor
@@ -687,6 +700,9 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- EbpfTracerTelemetry.tcpDoneConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpCloseConnectionFlush
 	ch <- EbpfTracerTelemetry.tcpSynRetransmit
+	ch <- EbpfTracerTelemetry.protocolClassifierCalls
+	ch <- EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified
+	ch <- EbpfTracerTelemetry.protocolClassifierSkippedMaxAttempts
 }
 
 // Collect returns the current state of all metrics of the collector
@@ -754,6 +770,18 @@ func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	EbpfTracerTelemetry.lastTCPSynRetransmit = int64(ebpfTelemetry.Tcp_syn_retransmit)
 	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.tcpSynRetransmit, prometheus.CounterValue, float64(delta))
 
+	delta = int64(ebpfTelemetry.Protocol_classifier_calls) - EbpfTracerTelemetry.lastProtocolClassifierCalls
+	EbpfTracerTelemetry.lastProtocolClassifierCalls = int64(ebpfTelemetry.Protocol_classifier_calls)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierCalls, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified) - EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassified
+	EbpfTracerTelemetry.lastProtocolClassifierSkippedFullyClassified = int64(ebpfTelemetry.Protocol_classifier_skipped_fully_classified)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedFullyClassified, prometheus.CounterValue, float64(delta))
+
+	delta = int64(ebpfTelemetry.Protocol_classifier_skipped_max_attempts) - EbpfTracerTelemetry.lastProtocolClassifierSkippedMaxAttempts
+	EbpfTracerTelemetry.lastProtocolClassifierSkippedMaxAttempts = int64(ebpfTelemetry.Protocol_classifier_skipped_max_attempts)
+	ch <- prometheus.MustNewConstMetric(EbpfTracerTelemetry.protocolClassifierSkippedMaxAttempts, prometheus.CounterValue, float64(delta))
+
 	// Collect the TCP failure telemetry
 	for k, v := range t.getTCPFailureTelemetry() {
 		EbpfTracerTelemetry.tcpFailedConnections.Add(float64(v), strconv.Itoa(int(k)))
@@ -768,6 +796,15 @@ func (t *ebpfTracer) DumpMaps(w io.Writer, maps ...string) error {
 // Type returns the type of the underlying ebpf tracer that is currently loaded
 func (t *ebpfTracer) Type() TracerType {
 	return t.ebpfTracerType
+}
+
+// GetProtocolClassifierStats returns telemetry stats for the protocol classifier
+func (t *ebpfTracer) GetProtocolClassifierStats() (calls, skippedFullyClassified, skippedMaxAttempts uint64) {
+	tm := t.getEBPFTelemetry()
+	if tm == nil {
+		return 0, 0, 0
+	}
+	return tm.Protocol_classifier_calls, tm.Protocol_classifier_skipped_fully_classified, tm.Protocol_classifier_skipped_max_attempts
 }
 
 func (t *ebpfTracer) initializePortBindingMaps() error {

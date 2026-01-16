@@ -28,6 +28,9 @@ enum telemetry_counter {
     tcp_done_connection_flush,
     tcp_close_connection_flush,
     tcp_syn_retransmit,
+    protocol_classifier_calls,
+    protocol_classifier_skipped_fully_classified,
+    protocol_classifier_skipped_max_attempts,
 };
 
 static __always_inline void __increment_telemetry_count(enum telemetry_counter counter_name, int times) {
@@ -77,6 +80,15 @@ static __always_inline void __increment_telemetry_count(enum telemetry_counter c
         break;
     case tcp_syn_retransmit:
         __sync_fetch_and_add(&val->tcp_syn_retransmit, times);
+        break;
+    case protocol_classifier_calls:
+        __sync_fetch_and_add(&val->protocol_classifier_calls, times);
+        break;
+    case protocol_classifier_skipped_fully_classified:
+        __sync_fetch_and_add(&val->protocol_classifier_skipped_fully_classified, times);
+        break;
+    case protocol_classifier_skipped_max_attempts:
+        __sync_fetch_and_add(&val->protocol_classifier_skipped_max_attempts, times);
         break;
     }
 }
