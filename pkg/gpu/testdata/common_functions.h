@@ -87,6 +87,27 @@ cudaError_t cuLaunchKernel(const void *func, unsigned int grid_x, unsigned int g
     (void)block_y;
     (void)block_z;
     (void)shared_mem;
+    (void)stream;
+    (void)kernel_params;
+    (void)extra;
+    return 0;
+}
+
+// CUlaunchConfig struct for cuLaunchKernelEx
+typedef struct {
+    unsigned int gridDimX, gridDimY, gridDimZ;
+    unsigned int blockDimX, blockDimY, blockDimZ;
+    unsigned int sharedMemBytes;
+    cudaStream_t hStream;
+    void *attrs;
+    unsigned int numAttrs;
+} CUlaunchConfig;
+
+cudaError_t cuLaunchKernelEx(const CUlaunchConfig *config, const void *func, void **kernelParams, void **extra) {
+    (void)config;
+    (void)func;
+    (void)kernelParams;
+    (void)extra;
     return 0;
 }
 

@@ -28,6 +28,16 @@ BPF_LRU_MAP(cuda_event_query_cache, __u64, __u64, 1024) // maps PID/TGID -> even
 BPF_LRU_MAP(cuda_memcpy_cache, __u64, __u64, 1024) // maps PID/TGID -> stream
 BPF_HASH_MAP(cuda_event_to_stream, cuda_event_key_t, cuda_event_value_t, 1024) // maps PID + event -> stream id
 
+// CUlaunchConfig struct from CUDA driver API, used by cuLaunchKernelEx.
+// Only includes fields we need to read; attrs and numAttrs are omitted.
+typedef struct {
+    __u32 gridDimX, gridDimY, gridDimZ;
+    __u32 blockDimX, blockDimY, blockDimZ;
+    __u32 sharedMemBytes;
+    __u32 _pad; // align hStream to 8 bytes
+    __u64 hStream;
+} cu_launch_config_t;
+
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
 // a 64 bit register with the x and y values in the lower and upper 32 bits respectively,
 // and the z value in a separate register. This function decodes those values into a dim3 struct.
@@ -129,6 +139,34 @@ int BPF_UPROBE(uprobe__cuLaunchKernel, const void *func, __u32 grid_x, __u32 gri
 
     log_debug("cuLaunchKernel: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
     log_debug("cuLaunchKernel: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
+
+    return 0;
+}
+
+SEC("uprobe/cuLaunchKernelEx")
+int BPF_UPROBE(uprobe__cuLaunchKernelEx, const void *config, const void *func) {
+    cuda_kernel_launch_t launch_data = { 0 };
+    cu_launch_config_t cfg = { 0 };
+
+    if (bpf_probe_read_user_with_telemetry(&cfg, sizeof(cfg), config)) {
+        log_debug("cuLaunchKernelEx: failed to read config struct");
+        return 0;
+    }
+
+    launch_data.grid_size.x = cfg.gridDimX;
+    launch_data.grid_size.y = cfg.gridDimY;
+    launch_data.grid_size.z = cfg.gridDimZ;
+    launch_data.block_size.x = cfg.blockDimX;
+    launch_data.block_size.y = cfg.blockDimY;
+    launch_data.block_size.z = cfg.blockDimZ;
+    launch_data.kernel_addr = (uint64_t)func;
+    launch_data.shared_mem_size = cfg.sharedMemBytes;
+    fill_header(&launch_data.header, cfg.hStream, cuda_kernel_launch);
+
+    log_debug("cuLaunchKernelEx: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cuLaunchKernelEx: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
 
     bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
 
