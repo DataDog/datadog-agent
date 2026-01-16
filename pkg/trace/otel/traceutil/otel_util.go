@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package traceutil provides utilities for converting OTel semantics to DD semantics.
 package traceutil
 
 import (
