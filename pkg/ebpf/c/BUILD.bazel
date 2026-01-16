@@ -1,0 +1,56 @@
+"""eBPF telemetry programs."""
+
+load("//bazel/rules:ebpf.bzl", "ebpf_co_re_program")
+
+# Collect all header files in this directory
+filegroup(
+    name = "ebpf_headers",
+    srcs = glob(["*.h"]),
+    visibility = ["//visibility:public"],
+)
+
+# Common eBPF CO-RE compilation flags
+EBPF_COPTS = [
+    "-g",
+    "-O2",
+    "-D__KERNEL__",
+    "-D__BPF_TRACING__",
+    "-DCOMPILE_CORE",
+    "-D__TARGET_ARCH_x86",
+    "-D__x86_64__",
+    "-DKBUILD_MODNAME=\"ddsysprobe\"",
+    "-Wno-unused-value",
+    "-Wno-pointer-sign",
+    "-Wno-compare-distinct-pointer-types",
+    "-Wunused",
+    "-Wall",
+    "-Werror",
+    "-fno-stack-protector",
+    "-fno-color-diagnostics",
+    "-fno-unwind-tables",
+    "-fno-asynchronous-unwind-tables",
+    "-fno-jump-tables",
+    "-fmerge-all-constants",
+]
+
+# Lock contention telemetry program
+ebpf_co_re_program(
+    name = "lock_contention",
+    src = "lock_contention.c",
+    out = "lock_contention.o",
+    hdrs = [":ebpf_headers"],
+    copts = EBPF_COPTS,
+    includes = ["pkg/ebpf/c"],
+    visibility = ["//visibility:public"],
+)
+
+# Kernel symbols iterator telemetry program
+ebpf_co_re_program(
+    name = "ksyms_iter",
+    src = "ksyms_iter.c",
+    out = "ksyms_iter.o",
+    hdrs = [":ebpf_headers"],
+    copts = EBPF_COPTS,
+    includes = ["pkg/ebpf/c"],
+    visibility = ["//visibility:public"],
+)

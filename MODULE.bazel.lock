@@ -217,6 +217,22 @@
   },
   "selectedYankedVersions": {},
   "moduleExtensions": {
+    "//bazel/toolchains/llvm:llvm_configure.bzl%llvm_toolchain_extension": {
+      "general": {
+        "bzlTransitiveDigest": "QQ/DE7cx8+53ts8Hzj9SvM9chtW5wO3o8nXkvu2LvKY=",
+        "usagesDigest": "Foe8A0gkEx0zkndQb8DetHuRHnoyVbqJUODiKByeYVg=",
+        "recordedFileInputs": {},
+        "recordedDirentsInputs": {},
+        "envVariables": {},
+        "generatedRepoSpecs": {
+          "llvm_toolchain": {
+            "repoRuleId": "@@//bazel/toolchains/llvm:llvm_configure.bzl%download_llvm_toolchain",
+            "attributes": {}
+          }
+        },
+        "recordedRepoMappingEntries": []
+      }
+    },
     "//bazel/toolchains/otool:otool_configure.bzl%find_system_otool": {
       "general": {
         "bzlTransitiveDigest": "68iERr/kCkKOV3vSc2q4LzpEgt7vSpOMHMX9EL+4l7g=",
