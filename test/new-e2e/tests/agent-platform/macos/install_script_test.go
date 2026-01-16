@@ -54,7 +54,8 @@ func (m *macosInstallSuite) TestInstallAgent() {
 	}, 20*time.Second, 1*time.Second)
 
 	// check that there is no world-writable files or directories in /opt/datadog-agent
-	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002")
+	// exclude /opt/datadog-agent/run/ipc which is intentionally world-writable for multi-user GUI sockets
+	worldWritableFiles, err := macosTestClient.Execute("sudo find /opt/datadog-agent \\( -type f -o -type d \\) -perm -002 ! -path '/opt/datadog-agent/run/ipc' ! -path '/opt/datadog-agent/run/ipc/*'")
 	assert.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(worldWritableFiles))
 }

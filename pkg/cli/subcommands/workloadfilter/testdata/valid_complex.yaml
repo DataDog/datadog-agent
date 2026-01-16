@@ -1,0 +1,16 @@
+---
+# Complex valid configuration with grouped logic
+- products:
+    - metrics
+  rules:
+    containers:
+      - container.name == "redis" && (container.pod.namespace == "production" || container.pod.namespace == "staging")
+      - container.image.reference.matches("nginx")
+      - container.pod.name.startsWith("my-app")
+      - container.pod.annotations["exclude"] == "true"
+- products:
+    - logs
+  rules:
+    containers:
+      - container.name == "sidecar"
+      - '!container.pod.namespace.matches("prod")'

@@ -398,10 +398,6 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 
-### [comp/metadata/inventoryotel](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryotel)
-
-Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
-
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
 *Datadog Team*: agent-delivery
@@ -770,7 +766,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core ndm-integrations
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 

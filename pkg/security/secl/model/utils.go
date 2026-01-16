@@ -78,11 +78,11 @@ func UnmarshalString(data []byte, size int) (string, error) {
 
 // NullTerminatedString returns null-terminated string
 func NullTerminatedString(d []byte) string {
-	idx := bytes.IndexByte(d, 0)
-	if idx == -1 {
+	before, _, ok := bytes.Cut(d, []byte{0})
+	if !ok {
 		return string(d)
 	}
-	return string(d[:idx])
+	return string(before)
 }
 
 // UnmarshalPrintableString unmarshal printable string
