@@ -1,0 +1,18 @@
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+index 76b547e..f8228ea 100644
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -114,10 +114,10 @@ def _impl(ctx):
+                         flags = [
+                             "-Wl,-z,relro,-z,now",
+                             "-pass-exit-codes",
+                             "-lm",
+-                            "-ldl",
+-                            "-lrt",
+-                            "-pthread",
++                            #"-ldl",
++                            #"-lrt",
++                            #"-pthread",
+                         ],
+                     ),
+                 ],
