@@ -244,6 +244,7 @@ func (r result) Type() string {
 }
 
 func (d *directSender) start() error {
+	d.log.Info("direct sender started")
 	d.resolver.start(d.ctx)
 	go d.submitLoop()
 	go func() {
@@ -264,6 +265,7 @@ func (d *directSender) start() error {
 
 func (d *directSender) stop() error {
 	d.cancelFunc()
+	d.log.Info("direct sender stopped")
 	return nil
 }
 
