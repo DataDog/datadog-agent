@@ -533,10 +533,10 @@ func TestGetStatsMultiDeviceActiveTime(t *testing.T) {
 		stream := addStream(t, streamHandlers, pid, streamID, uuid, "")
 		stream.ended = false
 		// Each device has different active time starting from ktime
-		activeSeconds := time.Duration((i + 1) * 2)
+		activeTime := time.Duration((i + 1) * 2)
 		stream.pendingKernelSpans <- &kernelSpan{
 			startKtime:     uint64(ktime),
-			endKtime:       uint64(ktime + int64(activeSeconds*time.Second)),
+			endKtime:       uint64(ktime + int64(activeTime*time.Second)),
 			avgThreadCount: 100,
 			numKernels:     1,
 		}

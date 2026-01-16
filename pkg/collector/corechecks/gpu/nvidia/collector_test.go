@@ -12,7 +12,6 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
@@ -451,8 +450,8 @@ func TestRemoveDuplicateMetrics(t *testing.T) {
 // TestConfiguredMetricPriority ensures that the priority is as defined for certain critical metrics
 func TestConfiguredMetricPriority(t *testing.T) {
 	const pid = 123
-	device := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		device.GetProcessUtilizationFunc = func(lastTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
+	device := setupMockDeviceWithLibOpts(t, func(device *nvmlmock.Device) *nvmlmock.Device {
+		device.GetProcessUtilizationFunc = func(_ uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
 			return []nvml.ProcessUtilizationSample{
 				{
 					Pid:    pid,

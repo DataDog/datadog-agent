@@ -8,6 +8,7 @@
 package gpu
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -129,7 +130,7 @@ func (g *statsGenerator) getStats(nowKtime int64) (*model.GPUStats, error) {
 
 func (g *statsGenerator) computeProcessMetrics(intervalNs int64) ([]model.ProcessStatsTuple, error) {
 	if intervalNs <= 0 {
-		return nil, fmt.Errorf("intervalNs is less than or equal to 0")
+		return nil, errors.New("intervalNs is less than or equal to 0")
 	}
 
 	rawStats := make([]model.ProcessStatsTuple, 0, len(g.aggregators))
@@ -169,7 +170,7 @@ func (g *statsGenerator) computeProcessMetrics(intervalNs int64) ([]model.Proces
 
 func (g *statsGenerator) computeDeviceMetrics(intervalNs int64) ([]model.DeviceStatsTuple, error) {
 	if intervalNs <= 0 {
-		return nil, fmt.Errorf("intervalNs is less than or equal to 0")
+		return nil, errors.New("intervalNs is less than or equal to 0")
 	}
 
 	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(g.deviceIntervals))
