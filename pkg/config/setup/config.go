@@ -1354,6 +1354,14 @@ func agent(config pkgconfigmodel.Setup) {
 	// The possible values are: full, basic, end_user_device.
 	config.BindEnvAndSetDefault("infrastructure_mode", "full")
 
+	// Infrastructure full mode section (default mode, allows all checks)
+	// integration.full.allowed: empty means all checks are allowed
+	config.BindEnvAndSetDefault("integration.full.allowed", []string{})
+
+	// Infrastructure end_user_device mode section
+	// integration.end_user_device.allowed: empty means all checks are allowed
+	config.BindEnvAndSetDefault("integration.end_user_device.allowed", []string{})
+
 	// Infrastructure basic mode section [UNDOCUMENTED]
 	// Note: All checks starting with "custom_" are always allowed.
 	// integration.basic.allowed: default allowed checks (internal, should not need user configuration)
