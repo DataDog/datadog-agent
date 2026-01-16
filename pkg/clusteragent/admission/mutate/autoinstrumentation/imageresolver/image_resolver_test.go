@@ -104,11 +104,11 @@ func (m *mockRCClient) setBlocking(block bool) {
 	m.blockGetConfigs = block
 }
 
-func TestNewImageResolver(t *testing.T) {
+func TestNew(t *testing.T) {
 	t.Run("with_remote_config_client", func(t *testing.T) {
 		mockClient := newMockRCClient("image_resolver_multi_repo.json")
 		mockConfig := NewConfig(config.NewMock(t), mockClient)
-		resolver := NewImageResolver(mockConfig)
+		resolver := New(mockConfig)
 
 		_, ok := resolver.(*rcResolver)
 		assert.True(t, ok, "Should return remoteConfigImageResolver when rcClient is not nil")
@@ -116,7 +116,7 @@ func TestNewImageResolver(t *testing.T) {
 
 	t.Run("without_remote_config_client__typed_nil", func(t *testing.T) {
 		mockConfig := NewConfig(config.NewMock(t), (*mockRCClient)(nil))
-		resolver := NewImageResolver(mockConfig)
+		resolver := New(mockConfig)
 
 		_, ok := resolver.(*noOpResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
@@ -124,7 +124,7 @@ func TestNewImageResolver(t *testing.T) {
 
 	t.Run("without_remote_config_client__untyped_nil", func(t *testing.T) {
 		mockConfig := NewConfig(config.NewMock(t), nil)
-		resolver := NewImageResolver(mockConfig)
+		resolver := New(mockConfig)
 
 		_, ok := resolver.(*noOpResolver)
 		assert.True(t, ok, "Should return noOpImageResolver when rcClient is nil")
