@@ -464,7 +464,7 @@ new-e2e-npm-packages:
   variables:
     TARGETS: ./tests/npm
     TEAM: cloud-network-monitoring
-    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit|VMDirect)Suite"
     ON_NIGHTLY_FIPS: "true"
 
 new-e2e-npm-docker:
