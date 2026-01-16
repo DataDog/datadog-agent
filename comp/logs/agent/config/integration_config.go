@@ -375,10 +375,12 @@ func (c *LogsConfig) validateTailingMode() error {
 	if !found && c.TailingMode != "" {
 		return fmt.Errorf("invalid tailing mode '%v' for %v", c.TailingMode, c.Path)
 	}
-	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
-		if c.FingerprintConfig == nil || c.FingerprintConfig.FingerprintStrategy == "disabled" {
-			log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
-		}
+
+	isWildcardWithBeginning := ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning)
+	noFingerprinting := c.FingerprintConfig == nil || c.FingerprintConfig.FingerprintStrategy == "disabled"
+
+	if isWildcardWithBeginning && noFingerprinting {
+		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
 	}
 	return nil
 }
