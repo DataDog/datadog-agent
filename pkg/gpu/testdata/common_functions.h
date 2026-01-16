@@ -95,11 +95,12 @@ cudaError_t cuLaunchKernel(const void *func, unsigned int grid_x, unsigned int g
 
 // CUlaunchConfig struct for cuLaunchKernelEx
 typedef struct {
-    unsigned int gridDimX, gridDimY, gridDimZ;
+    void* attrs;
     unsigned int blockDimX, blockDimY, blockDimZ;
+    unsigned int gridDimX, gridDimY, gridDimZ;
     unsigned int sharedMemBytes;
-    cudaStream_t hStream;
-    void *attrs;
+    void* hStream;
+    unsigned int attrs;
     unsigned int numAttrs;
 } CUlaunchConfig;
 

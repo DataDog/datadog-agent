@@ -29,13 +29,17 @@ BPF_LRU_MAP(cuda_memcpy_cache, __u64, __u64, 1024) // maps PID/TGID -> stream
 BPF_HASH_MAP(cuda_event_to_stream, cuda_event_key_t, cuda_event_value_t, 1024) // maps PID + event -> stream id
 
 // CUlaunchConfig struct from CUDA driver API, used by cuLaunchKernelEx.
-// Only includes fields we need to read; attrs and numAttrs are omitted.
 typedef struct {
-    __u32 gridDimX, gridDimY, gridDimZ;
-    __u32 blockDimX, blockDimY, blockDimZ;
-    __u32 sharedMemBytes;
-    __u32 _pad; // align hStream to 8 bytes
-    __u64 hStream;
+    void* attrs;
+    unsigned int blockDimX;
+    unsigned int blockDimY;
+    unsigned int blockDimZ;
+    unsigned int gridDimX;
+    unsigned int gridDimY;
+    unsigned int gridDimZ;
+    void* hStream;
+    unsigned int numAttrs;
+    unsigned int sharedMemBytes
 } cu_launch_config_t;
 
 // cudaLaunchKernel receives the dim3 argument by value, which gets translated as
