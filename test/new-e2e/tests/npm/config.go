@@ -19,6 +19,11 @@ import (
 //go:embed config/npm.yaml
 var systemProbeConfigNPM string
 
+// systemProbeConfigNPM define the embedded minimal configuration for NPM in direct send mode
+//
+//go:embed config/npm-direct.yaml
+var systemProbeConfigNPMDirect string
+
 // systemProbeConfigNPMHelmValues define the embedded minimal configuration for NPM
 //
 //go:embed config/npm-helm-values.yaml
