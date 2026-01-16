@@ -13,6 +13,11 @@ common --incompatible_strict_action_env # Do not leak local environment variable
 common --test_output=errors # Print test errors to console output instead of only capturing them in buried test.log
 common --verbose_failures
 
+# Rust Build options ---------------------------------------------------------------------------------------------------
+build --@rules_rust//rust/settings:lto=fat # Enable fat LTO for Rust targets (matches Cargo.toml release profile)
+build --@rules_rust//rust/settings:extra_rustc_flag=-Copt-level=z # Optimize for size
+build --@rules_rust//rust/settings:extra_rustc_flag=-Ccodegen-units=1 # Single codegen unit for maximum optimization
+
 # Linux config ---------------------------------------------------------------------------------------------------------
 common:linux --strategy=sandboxed
 common:linux --remote_local_fallback_strategy=sandboxed

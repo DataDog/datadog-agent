@@ -2,6 +2,14 @@ load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library", "rust_shared_library", "rust_test")
 
+# Rust optimization flags matching Cargo.toml [profile.release]
+# These are always applied to ensure production binaries are optimized
+# Note: LTO, opt-level, and codegen-units are configured globally in .bazelrc
+RELEASE_RUSTC_FLAGS = [
+    "-C", "strip=symbols",     # Strip debug symbols
+    "-C", "panic=abort",       # Remove stack unwinding for smaller binaries
+]
+
 # ============================================================================
 # Library Targets (rlib + cdylib)
 # ============================================================================
@@ -64,6 +72,7 @@ rust_shared_library(
     crate_name = "dd_discovery",
     crate_root = "src/lib.rs",
     edition = "2024",
+    rustc_flags = RELEASE_RUSTC_FLAGS,
     target_compatible_with = [
         "@platforms//os:linux",
     ],
@@ -110,6 +119,7 @@ rust_binary(
         "src/main.rs",
     ],
     edition = "2024",
+    rustc_flags = RELEASE_RUSTC_FLAGS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
@@ -147,6 +157,7 @@ rust_binary(
     name = "disco",
     srcs = ["src/bin/disco.rs"],
     edition = "2024",
+    rustc_flags = RELEASE_RUSTC_FLAGS,
     visibility = ["//visibility:public"],
     deps = [
         ":dd_discovery",
