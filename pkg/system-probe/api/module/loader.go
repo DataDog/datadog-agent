@@ -21,6 +21,7 @@ import (
 )
 
 var l *loader
+var setModuleGauge func(string)
 
 func init() {
 	l = &loader{
@@ -102,6 +103,11 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 		l.modules[factory.Name] = module
 
 		log.Infof("module %s started", factory.Name)
+
+		// Set telemetry gauge for running modules
+		if setModuleGauge != nil {
+			setModuleGauge(string(factory.Name))
+		}
 	}
 
 	if err := postRegister(cfg, enabledModulesFactories); err != nil {
@@ -214,4 +220,9 @@ func updateStats() {
 		then = now
 		now = <-ticker.C
 	}
+}
+
+// SetModuleGaugeCallback sets the callback function to set the module running gauge
+func SetModuleGaugeCallback(callback func(string)) {
+	setModuleGauge = callback
 }
