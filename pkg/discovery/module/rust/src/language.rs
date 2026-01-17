@@ -32,7 +32,7 @@ pub enum Language {
     Unknown,
     #[serde(rename = "jvm")]
     Java,
-    Node,
+    NodeJS,
     Python,
     Ruby,
     DotNet,
@@ -89,7 +89,7 @@ impl Language {
         match comm {
             "py" | "python" => return Some(Self::Python),
             "java" => return Some(Self::Java),
-            "npm" | "node" => return Some(Self::Node),
+            "npm" | "node" => return Some(Self::NodeJS),
             "dotnet" => return Some(Self::DotNet),
             "ruby" | "rubyw" => return Some(Self::Ruby),
             "php" | "php-fpm" => return Some(Self::PHP),
@@ -163,7 +163,7 @@ impl Language {
         let n = file.read(&mut lang).ok()?;
 
         match lang.get(..n)? {
-            b"nodejs" | b"js" | b"node" => Some(Self::Node),
+            b"nodejs" | b"js" | b"node" => Some(Self::NodeJS),
             b"php" => Some(Self::PHP),
             b"jvm" | b"java" => Some(Self::Java),
             b"python" => Some(Self::Python),
@@ -458,8 +458,8 @@ mod tests {
         assert_lang!(Language::Python, Language::from_command("py"));
         assert_lang!(Language::Python, Language::from_command("python"));
         assert_lang!(Language::Java, Language::from_command("java"));
-        assert_lang!(Language::Node, Language::from_command("npm"));
-        assert_lang!(Language::Node, Language::from_command("node"));
+        assert_lang!(Language::NodeJS, Language::from_command("npm"));
+        assert_lang!(Language::NodeJS, Language::from_command("node"));
         assert_lang!(Language::DotNet, Language::from_command("dotnet"));
         assert_lang!(Language::Ruby, Language::from_command("ruby"));
         assert_lang!(Language::Ruby, Language::from_command("rubyw"));
@@ -627,9 +627,9 @@ mod tests {
         use crate::procfs::fd::OpenFilesInfo;
 
         let test_cases = vec![
-            ("nodejs", Language::Node),
-            ("js", Language::Node),
-            ("node", Language::Node),
+            ("nodejs", Language::NodeJS),
+            ("js", Language::NodeJS),
+            ("node", Language::NodeJS),
             ("php", Language::PHP),
             ("jvm", Language::Java),
             ("java", Language::Java),
