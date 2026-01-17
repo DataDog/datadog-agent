@@ -49,27 +49,18 @@ type MutationResult struct {
 	Context MutationContext
 }
 
-// ResolvedImage contains an image reference and its canonical version.
-// The canonical version is the human-readable version (e.g., "1.2.3") as opposed
-// to a digest (e.g., "sha256:abc123"). It's used for annotations/telemetry.
-type ResolvedImage struct {
-	// Image is the full image reference (e.g., "gcr.io/datadoghq/dd-lib-java-init@sha256:abc123").
-	Image string
-	// CanonicalVersion is the human-readable version (e.g., "1.2.3"), empty if not resolved.
-	CanonicalVersion string
-}
-
 // InjectorConfig contains the configuration needed to inject the APM injector component.
 type InjectorConfig struct {
-	ResolvedImage
+	// Package contains the OCI package reference.
+	Package LibraryImage
 }
 
 // LibraryConfig contains the configuration needed to inject a language-specific tracing library.
 type LibraryConfig struct {
 	// Language is the programming language (e.g., "java", "python", "js").
 	Language string
-	// ResolvedImage contains the image reference and canonical version.
-	ResolvedImage
+	// Package contains the OCI package reference.
+	Package LibraryImage
 	// ContainerName is the target container name (empty means all containers).
 	ContainerName string
 	// Context contains data from a previous InjectInjector call.
@@ -117,7 +108,7 @@ type LibraryInjectionConfig struct {
 //
 // Different implementations can use different mechanisms:
 // - InitContainerProvider: Uses init containers with EmptyDir volumes
-// - (future) CSI provider: Uses a CSI driver to mount library files
+// - CSIProvider: Uses a CSI driver to mount library files
 type LibraryInjectionProvider interface {
 	// InjectInjector mutates the pod to add the APM injector component.
 	// The injector is responsible for the LD_PRELOAD mechanism that enables auto-instrumentation.

@@ -18,6 +18,9 @@ rust_library(
     ),
     crate_name = "dd_discovery",
     edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@crates//:anyhow",
@@ -61,6 +64,9 @@ rust_shared_library(
     crate_name = "dd_discovery",
     crate_root = "src/lib.rs",
     edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@crates//:anyhow",
