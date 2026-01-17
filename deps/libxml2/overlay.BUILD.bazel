@@ -143,7 +143,7 @@ cc_shared_library(
     dynamic_deps = [
         "@zlib//:z",
         "@xz//:lzma",
-    ]
+    ],
 )
 
 so_symlink(

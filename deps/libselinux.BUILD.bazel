@@ -6,11 +6,10 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 cc_library(
     name = "libselinux",
     hdrs = glob(["include/selinux/*.h"]),
-    srcs = glob(["src/*.c", "src/*.h"], exclude=[
+    srcs = glob(["src/*.c", "src/*.h"], exclude = [
         "src/audit2why.c",
         "src/label_backends_android.c",
-    ])
-    ,
+    ]),
     deps = [
         "@libsepol//:libsepol",
         "@pcre2//:pcre2",

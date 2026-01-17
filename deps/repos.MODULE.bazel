@@ -300,17 +300,17 @@ http_archive(
         "BUILD.bazel": "//deps:dbus/dbus.BUILD.bazel",
     },
     sha256 = "0ba2a1a4b16afe7bceb2c07e9ce99a8c2c3508e5dec290dbb643384bd6beb7e2",
-    url = "https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz",
     strip_prefix = "dbus-1.16.2",
+    url = "https://dbus.freedesktop.org/releases/dbus/dbus-1.16.2.tar.xz",
 )
 
 http_archive(
     name = "lua",
-    sha256 = "7d5ea1b9cb6aa0b59ca3dde1c6adcb57ef83a1ba8e5432c0ecd06bf439b3ad88",
-    url = "https://www.lua.org/ftp/lua-5.4.6.tar.gz",
-    strip_prefix = "lua-5.4.6",
     files = {
         "BUILD.bazel": "//deps:lua/lua.BUILD.bazel",
         "license_file": "//deps:lua/license",
     },
+    sha256 = "7d5ea1b9cb6aa0b59ca3dde1c6adcb57ef83a1ba8e5432c0ecd06bf439b3ad88",
+    strip_prefix = "lua-5.4.6",
+    url = "https://www.lua.org/ftp/lua-5.4.6.tar.gz",
 )
