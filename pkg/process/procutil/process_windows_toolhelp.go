@@ -234,18 +234,21 @@ type cachedProcess struct {
 
 func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error) {
 	var isProtected bool
+
+	// do not override err below, otherwise the handle will be leaked.
 	cp.procHandle, isProtected, err = OpenProcessHandle(int32(pe32.Th32ProcessID))
 	if err != nil {
 		return err
 	}
+
 	var usererr error
 	cp.userName, usererr = GetUsernameForProcess(cp.procHandle)
 	if usererr != nil {
-		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, err)
+		log.Debugf("Couldn't get process username %v %v", pe32.Th32ProcessID, usererr)
 	}
-	imagePath, err := winutil.GetImagePathForProcess(cp.procHandle)
-	if err != nil {
-		log.Debugf("Error retrieving exe path for pid %v %v", pe32.Th32ProcessID, err)
+	imagePath, imgerr := winutil.GetImagePathForProcess(cp.procHandle)
+	if imgerr != nil {
+		log.Debugf("Error retrieving exe path for pid %v %v", pe32.Th32ProcessID, imgerr)
 	} else {
 		cp.comm = getFileDescriptionCached(imagePath)
 	}
@@ -267,7 +270,7 @@ func (cp *cachedProcess) fillFromProcEntry(pe32 *w32.PROCESSENTRY32) (err error)
 		log.Warnf("Failed to parse the cmdline:%s for pid:%d", cp.commandLine, pe32.Th32ProcessID)
 	}
 
-	return
+	return err
 }
 
 func (cp *cachedProcess) close() {
