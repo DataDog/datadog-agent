@@ -1152,6 +1152,68 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			},
 		},
 		{
+			name: "validate method sent as literal key (plain text)",
+			// The purpose of this test is to verify our ability to identify methods which were sent with a key
+			// sent by value (:method in plain text format).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// methodHeaderField is created with a key sent by value (:method) and the value POST.
+				// 0x40 = Literal Header Field with Incremental Indexing
+				// 0x07 = key length (7 for ":method")
+				// 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64 = ":method" in ASCII
+				// 0x04 = value length (4 for "POST")
+				// 0x50, 0x4f, 0x53, 0x54 = "POST" in ASCII
+				methodHeaderField := []byte{0x40, 0x07, 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x04, 0x50, 0x4f, 0x53, 0x54}
+				headersFrame = append(methodHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
+			name: "validate method sent as literal key (Huffman encoded)",
+			// The purpose of this test is to verify our ability to identify methods which were sent with a key
+			// sent by value (:method with Huffman encoded format).
+			messageBuilder: func() [][]byte {
+				headerFields := removeHeaderFieldByKey(testHeaders(), ":method")
+				headersFrame, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: headerFields})
+				require.NoError(t, err, "could not create headers frame")
+				// methodHeaderField is created with a key sent by value (:method Huffman encoded) and the value POST.
+				// 0x40 = Literal Header Field with Incremental Indexing
+				// 0x85 = Huffman flag (0x80) + length 5 for Huffman encoded ":method"
+				// 0xb9, 0x49, 0x53, 0x39, 0xe4 = ":method" Huffman encoded
+				// 0x04 = value length (4 for "POST")
+				// 0x50, 0x4f, 0x53, 0x54 = "POST" in ASCII
+				methodHeaderField := []byte{0x40, 0x85, 0xb9, 0x49, 0x53, 0x39, 0xe4, 0x04, 0x50, 0x4f, 0x53, 0x54}
+				headersFrame = append(methodHeaderField, headersFrame...)
+				framer := newFramer()
+				return [][]byte{
+					framer.
+						writeRawHeaders(t, 1, endHeaders, headersFrame).
+						writeData(t, 1, endStream, emptyBody).
+						bytes(),
+				}
+			},
+			expectedEndpoints: map[usmhttp.Key]int{
+				{
+					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
+					Method: usmhttp.MethodPost,
+				}: 1,
+			},
+		},
+		{
 			name: "Interesting frame header sent separately from frame payload",
 			// Testing the scenario in which the frame header (of an interesting type) is sent separately from the frame payload.
 			messageBuilder: func() [][]byte {
