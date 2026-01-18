@@ -138,26 +138,33 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
         char b[HTTP2_METHOD_MAX_LEN];
         pktbuf_load_bytes_from_current_offset(pkt, b, HTTP2_METHOD_MAX_LEN);
 
-        // Detect :path header
-        // Plain: ':path' (5 bytes)
-        // Huffman: 0xb9, 0x58, 0xd3, 0x3f (4 bytes)
-        if ((str_len == HTTP2_HEADER_PATH_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH, HTTP2_HEADER_PATH_LEN) == 0) ||
-            (is_huffman_encoded && str_len == HTTP2_HEADER_PATH_HUFFMAN_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH_HUFFMAN, HTTP2_HEADER_PATH_HUFFMAN_LEN) == 0)) {
-            index = 4; // :path maps to static table index 4
-        }
-        // Detect :method header
-        // Plain: ':method' (7 bytes)
-        // Huffman: 0xb9, 0x49, 0x53, 0x39, 0xe4 (5 bytes)
-        else if ((str_len == HTTP2_HEADER_METHOD_LEN && bpf_memcmp(b, HTTP2_HEADER_METHOD, HTTP2_HEADER_METHOD_LEN) == 0) ||
-                 (is_huffman_encoded && str_len == HTTP2_HEADER_METHOD_HUFFMAN_LEN && bpf_memcmp(b, HTTP2_HEADER_METHOD_HUFFMAN, HTTP2_HEADER_METHOD_HUFFMAN_LEN) == 0)) {
-            index = 2; // :method maps to static table index 2 (GET)
-        }
-        // Detect :status header
-        // Plain: ':status' (7 bytes)
-        // Huffman: 0xb8, 0x84, 0x8d, 0x36, 0xa3 (5 bytes)
-        else if ((str_len == HTTP2_HEADER_STATUS_LEN && bpf_memcmp(b, HTTP2_HEADER_STATUS, HTTP2_HEADER_STATUS_LEN) == 0) ||
-                 (is_huffman_encoded && str_len == HTTP2_HEADER_STATUS_HUFFMAN_LEN && bpf_memcmp(b, HTTP2_HEADER_STATUS_HUFFMAN, HTTP2_HEADER_STATUS_HUFFMAN_LEN) == 0)) {
-            index = 8; // :status maps to static table index 8 (200)
+        // Split paths by is_huffman_encoded to reduce verifier complexity (avoids OR conditions)
+        if (is_huffman_encoded) {
+            // Huffman encoded header names
+            // :path Huffman: 4 bytes, :method/:status Huffman: 5 bytes
+            if (str_len == HTTP2_HEADER_PATH_HUFFMAN_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH_HUFFMAN, HTTP2_HEADER_PATH_HUFFMAN_LEN) == 0) {
+                index = kEmptyPath; // :path
+            } else if (str_len == HTTP2_HEADER_METHOD_HUFFMAN_LEN) {
+                // Both :method and :status have 5 byte Huffman encoding
+                if (bpf_memcmp(b, HTTP2_HEADER_METHOD_HUFFMAN, HTTP2_HEADER_METHOD_HUFFMAN_LEN) == 0) {
+                    index = kGET; // :method
+                } else if (bpf_memcmp(b, HTTP2_HEADER_STATUS_HUFFMAN, HTTP2_HEADER_STATUS_HUFFMAN_LEN) == 0) {
+                    index = k200; // :status
+                }
+            }
+        } else {
+            // Plain text header names
+            // :path (5 bytes), :method/:status (7 bytes)
+            if (str_len == HTTP2_HEADER_PATH_LEN && bpf_memcmp(b, HTTP2_HEADER_PATH, HTTP2_HEADER_PATH_LEN) == 0) {
+                index = kEmptyPath; // :path
+            } else if (str_len == HTTP2_HEADER_METHOD_LEN) {
+                // Both :method and :status are 7 bytes
+                if (bpf_memcmp(b, HTTP2_HEADER_METHOD, HTTP2_HEADER_METHOD_LEN) == 0) {
+                    index = kGET; // :method
+                } else if (bpf_memcmp(b, HTTP2_HEADER_STATUS, HTTP2_HEADER_STATUS_LEN) == 0) {
+                    index = k200; // :status
+                }
+            }
         }
 
         pktbuf_advance(pkt, str_len);
