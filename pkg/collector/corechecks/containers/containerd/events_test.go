@@ -9,7 +9,7 @@ package containerd
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -102,7 +102,7 @@ func TestCheckEvents(t *testing.T) {
 	ev := sub.Flush(time.Now().Unix())
 	assert.Len(t, ev, 1)
 	assert.Equal(t, ev[0].Topic, "/tasks/paused")
-	errorsCh <- fmt.Errorf("chan breaker")
+	errorsCh <- errors.New("chan breaker")
 
 	require.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
 
@@ -211,7 +211,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 					Image: "nginx:latest",
 				}, nil
 			}
-			return containers.Container{}, fmt.Errorf("container not found")
+			return containers.Container{}, errors.New("container not found")
 		},
 		MockIsSandbox: func(namespace string, ctn containerd.Container) (bool, error) {
 			return namespace == testNamespace && (ctn.ID() == existingPauseContainerID || ctn.ID() == newPauseContainerID), nil
@@ -284,7 +284,7 @@ func TestCheckEvents_PauseContainers(t *testing.T) {
 			cha <- &eventContainerDelete
 
 			// Stop the subscriber before checking events to avoid race condition
-			errorsCh <- fmt.Errorf("stop subscriber")
+			errorsCh <- errors.New("stop subscriber")
 			assert.Eventually(t, func() bool { return !sub.isRunning() }, testTimeout, testTicker)
 
 			flushed := sub.Flush(time.Now().Unix())

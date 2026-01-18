@@ -15,10 +15,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-	"github.com/DataDog/test-infra-definitions/components/datadog/apps/cpustress"
-	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
-	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,11 +23,19 @@ import (
 	kubeClient "k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/cpustress"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
+	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
 )
 
 // helmTemplate define the embedded minimal configuration for NPM
@@ -72,12 +76,19 @@ func TestK8sTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awskubernetes.KindProvisioner(
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-			}),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)),
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+					}),
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", 80, "", false, nil)
+					}),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+				),
+			),
+		),
 	}
 
 	e2e.Run(t, &K8sSuite{}, options...)
@@ -118,6 +129,7 @@ func (s *K8sSuite) TestManualProcessDiscoveryCheck() {
 func (s *K8sSuite) TestManualContainerCheck() {
 	checkOutput := execProcessAgentCheck(s.T(), s.Env().KubernetesCluster, "container")
 	assertManualContainerCheck(s.T(), checkOutput, "stress-ng")
+	assertAbsentManualContainerCheck(s.T(), checkOutput, "nginx")
 }
 
 func (s *K8sSuite) TestProcessDiscoveryCheck() {
@@ -128,11 +140,13 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 	})
 	require.NoError(t, err)
 
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	s.UpdateEnv(provkindvm.Provisioner(
+		provkindvm.WithRunOptions(
+			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+			}),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+		),
 	))
 
 	var status AgentStatus
@@ -170,12 +184,16 @@ func TestK8sCoreAgentTestSuite(t *testing.T) {
 	require.NoError(t, err)
 
 	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awskubernetes.KindProvisioner(
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-			}),
-			awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		)),
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+					}),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+				),
+			),
+		),
 	}
 
 	e2e.Run(t, &K8sCoreAgentSuite{}, options...)
@@ -231,11 +249,13 @@ func (s *K8sCoreAgentSuite) TestProcessCheckInCoreAgentWithNPM() {
 	})
 	require.NoError(t, err)
 
-	s.UpdateEnv(awskubernetes.KindProvisioner(
-		awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-			return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
-		}),
-		awskubernetes.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+	s.UpdateEnv(provkindvm.Provisioner(
+		provkindvm.WithRunOptions(
+			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
+			}),
+			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+		),
 	))
 
 	var status AgentStatus

@@ -24,8 +24,9 @@ func Default() types.LoggerInterface {
 	// the default seelog logger is an asynchronous loop logger, prints to stdout,
 	// with the default format
 	formatter := formatters.Template(defaultMsgFormat)
-	handler := handlers.NewFormat(formatter, os.Stdout)
-	return NewAsyncWrapper(handler)
+	stdoutHandler := handlers.NewFormat(formatter, os.Stdout)
+	asyncHandler := handlers.NewAsync(stdoutHandler)
+	return NewWrapperWithCloseAndFlush(asyncHandler, asyncHandler.Flush, asyncHandler.Close)
 }
 
 // LoggerFromWriterWithMinLevelAndFormat creates a new logger from a writer, a minimum log level, and a template format.

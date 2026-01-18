@@ -8,7 +8,7 @@ package auditorimpl
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -133,6 +133,15 @@ func (a *registryAuditor) Stop() {
 	a.cleanupRegistry()
 	if err := a.flushRegistry(); err != nil {
 		a.log.Warn(err)
+	}
+}
+
+// Flush immediately writes the current registry to disk.
+// This is useful to ensure all file positions are committed before a restart,
+// preventing duplicate log processing.
+func (a *registryAuditor) Flush() {
+	if err := a.flushRegistry(); err != nil {
+		a.log.Warnf("Failed to flush auditor registry: %v", err)
 	}
 }
 
@@ -401,7 +410,7 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	}
 	version, exists := r["Version"].(float64)
 	if !exists {
-		return nil, fmt.Errorf("registry retrieved from disk must have a version number")
+		return nil, errors.New("registry retrieved from disk must have a version number")
 	}
 	// ensure backward compatibility
 	switch int(version) {
@@ -412,6 +421,6 @@ func (a *registryAuditor) unmarshalRegistry(b []byte) (map[string]*RegistryEntry
 	case 0:
 		return unmarshalRegistryV0(b)
 	default:
-		return nil, fmt.Errorf("invalid registry version number")
+		return nil, errors.New("invalid registry version number")
 	}
 }

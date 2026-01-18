@@ -8,6 +8,7 @@ package replayimpl
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -274,7 +275,7 @@ func (tc *TrafficCaptureWriter) Enqueue(msg *replay.CaptureBuffer) bool {
 // RegisterSharedPoolManager registers the shared pool manager with the TrafficCaptureWriter.
 func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager[packets.Packet]) error {
 	if tc.sharedPacketPoolManager != nil {
-		return fmt.Errorf("OOB Pool Manager already registered with the writer")
+		return errors.New("OOB Pool Manager already registered with the writer")
 	}
 
 	tc.sharedPacketPoolManager = p
@@ -285,7 +286,7 @@ func (tc *TrafficCaptureWriter) RegisterSharedPoolManager(p *packets.PoolManager
 // RegisterOOBPoolManager registers the OOB shared pool manager with the TrafficCaptureWriter.
 func (tc *TrafficCaptureWriter) RegisterOOBPoolManager(p *packets.PoolManager[[]byte]) error {
 	if tc.oobPacketPoolManager != nil {
-		return fmt.Errorf("OOB Pool Manager already registered with the writer")
+		return errors.New("OOB Pool Manager already registered with the writer")
 	}
 
 	tc.oobPacketPoolManager = p

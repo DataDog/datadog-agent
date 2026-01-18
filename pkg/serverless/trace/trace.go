@@ -7,7 +7,6 @@ package trace
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
@@ -98,11 +97,11 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 
 // StartServerlessTraceAgentArgs are the arguments for the StartServerlessTraceAgent method
 type StartServerlessTraceAgentArgs struct {
-	Enabled             bool
-	LoadConfig          Load
-	AzureServerlessTags string
-	FunctionTags        string
-	RCService           *remoteconfig.CoreAgentService
+	Enabled               bool
+	LoadConfig            Load
+	AdditionalProfileTags map[string]string
+	FunctionTags          string
+	RCService             *remoteconfig.CoreAgentService
 }
 
 // Start starts the agent
@@ -125,7 +124,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			context, cancel := context.WithCancel(context.Background())
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
-			tc.AzureServerlessTags = args.AzureServerlessTags
+			tc.AdditionalProfileTags = args.AdditionalProfileTags
 			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 
 			// Check if trace stats should be disabled for serverless
@@ -233,7 +232,7 @@ func filterSpan(span *pb.Span) bool {
 	// Filters out TCP spans to internal infrastructure
 	if tcpHost, ok := span.Meta[tcpRemoteHostMetaKey]; ok {
 		if tcpPort, ok := span.Meta[tcpRemotePortMetaKey]; ok {
-			tcpURLPrefix := fmt.Sprint("http://" + tcpHost + ":" + tcpPort)
+			tcpURLPrefix := "http://" + tcpHost + ":" + tcpPort
 			if strings.HasPrefix(tcpURLPrefix, agentURLPrefix) {
 				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
 				return true

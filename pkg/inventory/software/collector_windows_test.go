@@ -191,7 +191,7 @@ func TestTrimVersion(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("input_%s", tt.input), func(t *testing.T) {
+		t.Run("input_"+tt.input, func(t *testing.T) {
 			result := trimVersion(tt.input)
 			assert.Equal(t, tt.expected, result, "trimVersion(%q) should return %q", tt.input, tt.expected)
 		})

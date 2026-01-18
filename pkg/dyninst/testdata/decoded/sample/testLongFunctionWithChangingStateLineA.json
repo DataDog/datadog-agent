@@ -18,12 +18,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 208
+            "lineNumber": 211
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -46,16 +46,17 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 208
+            "line": 211
           }
         },
         "captures": {
           "lines": {
-            "208": {}
+            "211": {}
           }
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   }
 ]

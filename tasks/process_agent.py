@@ -133,16 +133,6 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
 
 
 @task
-def go_generate(ctx):
-    """
-    Run the go generate directives inside the /pkg/process directory
-
-    """
-    with ctx.cd("./pkg/process/events/model"):
-        ctx.run("go generate ./...")
-
-
-@task
 def gen_mocks(ctx):
     """
     Generate mocks

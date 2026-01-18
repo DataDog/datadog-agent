@@ -19,8 +19,6 @@ const (
 	ComputeStatsKey = "_dd.compute_stats"
 	// ComputeStatsValue is the tag value indicating trace stats should be computed
 	ComputeStatsValue = "1"
-
-	resourceKey = "resource"
 )
 
 // currentExtensionVersion represents the current version of the Datadog Lambda Extension.
@@ -32,8 +30,8 @@ var currentExtensionVersion = "xxx"
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {
-		splitTags := strings.Split(tag, ",")
-		for _, singleTag := range splitTags {
+		splitTags := strings.SplitSeq(tag, ",")
+		for singleTag := range splitTags {
 			tagMap = addTag(tagMap, singleTag)
 		}
 	}
@@ -53,20 +51,6 @@ func MergeWithOverwrite(tags map[string]string, overwritingTags map[string]strin
 	maps.Copy(merged, tags)
 	maps.Copy(merged, overwritingTags)
 	return merged
-}
-
-// BuildTracerTags builds a map of tag from an existing map of tag removing useless tags for traces
-func BuildTracerTags(tags map[string]string) map[string]string {
-	return buildTags(tags, []string{resourceKey})
-}
-
-func buildTags(tags map[string]string, tagsToSkip []string) map[string]string {
-	tagsMap := make(map[string]string)
-	maps.Copy(tagsMap, tags)
-	for _, blackListKey := range tagsToSkip {
-		delete(tagsMap, blackListKey)
-	}
-	return tagsMap
 }
 
 // GetExtensionVersion returns the extension version which is fed at build time

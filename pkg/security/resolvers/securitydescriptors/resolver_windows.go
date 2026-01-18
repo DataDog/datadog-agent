@@ -7,6 +7,7 @@
 package securitydescriptors
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -120,18 +121,18 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 	re := regexp.MustCompile(`\(([^\)]+)\)`)
 	matches := re.FindAllStringSubmatch(sddl, -1)
 	if matches == nil {
-		return "", fmt.Errorf("no ACEs found in DACL")
+		return "", errors.New("no ACEs found in DACL")
 	}
 
 	builder.WriteString("DACL:\n")
 	for _, match := range matches {
 		if len(match) != 2 {
-			return "", fmt.Errorf("invalid ACE format")
+			return "", errors.New("invalid ACE format")
 		}
 		ace := match[1]
 		fields := strings.Split(ace, ";")
 		if len(fields) != 6 {
-			return "", fmt.Errorf("invalid ACE format")
+			return "", errors.New("invalid ACE format")
 		}
 
 		aceType := fields[0]

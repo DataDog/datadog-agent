@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -704,11 +705,12 @@ func (p *Profile) ListAllVersionStates() {
 		fmt.Printf("### Profile: %+v\n", p.GetSelectorStr())
 		orderedVersions := p.getTimeOrderedVersionContexts()
 
-		versions := ""
+		var versionsBuilder strings.Builder
 		for version := range p.versionContexts {
-			versions += version + " "
+			versionsBuilder.WriteString(version)
+			versionsBuilder.WriteString(" ")
 		}
-		fmt.Printf("Versions: %s\n", versions)
+		fmt.Printf("Versions: %s\n", versionsBuilder.String())
 
 		fmt.Printf("Global state: %s\n", p.getGlobalState().String())
 		for i, version := range orderedVersions {
@@ -725,7 +727,7 @@ func (p *Profile) ListAllVersionStates() {
 		p.InstancesLock.Lock()
 		defer p.InstancesLock.Unlock()
 		for _, instance := range p.Instances {
-			fmt.Printf("  - %+v\n", instance.ContainerID)
+			fmt.Printf("  - %+v\n", instance.ContainerContext.ContainerID)
 		}
 
 	}

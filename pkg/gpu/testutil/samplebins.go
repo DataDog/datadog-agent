@@ -80,7 +80,7 @@ type CudaSampleArgs struct {
 // Env returns the environment variables for the CUDA sample binary
 func (a *CudaSampleArgs) Env() []string {
 	if a.CudaVisibleDevicesEnv != "" {
-		return []string{fmt.Sprintf("CUDA_VISIBLE_DEVICES=%s", a.CudaVisibleDevicesEnv)}
+		return []string{"CUDA_VISIBLE_DEVICES=" + a.CudaVisibleDevicesEnv}
 	}
 	return nil
 }
@@ -215,7 +215,7 @@ func RunSampleInDocker(t testing.TB, sample Sample, image dockerImage) (int, str
 // RunSampleInDockerWithArgs executes the sample binary in a Docker container and returns the PID of the main container process, and the container ID
 func RunSampleInDockerWithArgs(t testing.TB, sample Sample, image dockerImage, args SampleArgs) (int, string) {
 	builtBin := getBuiltSamplePath(t, sample)
-	containerName := fmt.Sprintf("gpu-testutil-%s", utils.RandString(10))
+	containerName := "gpu-testutil-" + utils.RandString(10)
 	scanner, err := procutil.NewScanner(sample.StartPattern, sample.FinishedPattern)
 	require.NoError(t, err, "failed to create pattern scanner")
 

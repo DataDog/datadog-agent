@@ -185,7 +185,7 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 		return nil
 	}
 
-	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
+	openmetricsEndpoint := c.instance.OpenmetricsEndpoint + "/v1/metrics"
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
 		return err
@@ -205,10 +205,6 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 
 	for _, mf := range parsedMetrics {
 		for _, sample := range mf.Samples {
-			if sample == nil {
-				continue
-			}
-
 			metric := sample.Metric
 
 			metricName, ok := metric["__name__"]
@@ -217,10 +213,10 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 				continue
 			}
 
-			transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+			transform, found := defaultContainerdOpenmetricsTransformers[metricName]
 
 			if found {
-				transform(sender, string(metricName), *sample)
+				transform(sender, metricName, sample)
 			}
 		}
 	}

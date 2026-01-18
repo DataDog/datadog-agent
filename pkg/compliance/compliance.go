@@ -102,7 +102,7 @@ func StartCompliance(log log.Component,
 func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName string) *time.Ticker {
 	// Retrieve the agent version using a dedicated package
 	tags := []string{
-		fmt.Sprintf("version:%s", version.AgentVersion),
+		"version:" + version.AgentVersion,
 		constants.CardinalityTagPrefix + "none",
 	}
 

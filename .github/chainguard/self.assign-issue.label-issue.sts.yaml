@@ -4,11 +4,13 @@ issuer: https://token.actions.githubusercontent.com
 subject: repo:DataDog/datadog-agent:environment:main
 
 claim_pattern:
-  event_name: (issues|workflow_dispatch)
+  event_name: (issues|issue_comment|workflow_dispatch|workflow_run)
   ref: refs/heads/main
   ref_protected: "true"
-  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/assign_issue\.yml@refs/heads/main
+  job_workflow_ref: DataDog/datadog-agent/\.github/workflows/(assign_issue_triage|check_issue_status)\.yml@refs/heads/main
 
 permissions:
+  actions: read
   contents: read
   issues: write
+  members: read

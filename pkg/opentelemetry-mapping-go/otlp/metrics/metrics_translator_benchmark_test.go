@@ -44,7 +44,7 @@ var inputTable = []struct {
 	{input: 10000000},
 }
 
-func newBenchmarkTranslator(b *testing.B, _ *zap.Logger, opts ...TranslatorOption) *Translator {
+func newBenchmarkTranslator(b *testing.B, _ *zap.Logger, opts ...TranslatorOption) *defaultTranslator {
 	options := append([]TranslatorOption{
 		WithFallbackSourceProvider(testProvider("fallbackHostname")),
 		WithHistogramMode(HistogramModeDistributions),

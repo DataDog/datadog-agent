@@ -1,0 +1,207 @@
+# deploy mutable image tags stage
+# Contains jobs which deploy Agent 7 related mutable image tags to the registries. That means - not uploading the image, but only creating the tags.
+
+# https://github.com/DataDog/datadog-agent/pull/43846
+#deploy_latest_rc_only:
+#  stage: deploy_mutable_image_tags
+#  tags: ["arch:amd64", "specific:true"]
+#  rules:
+#    !reference [.on_deploy_rc]
+#  needs: []
+#  script:
+#    - ./tools/ci/check_latest_rc.sh
+
+.deploy_mutable_image_tags_base:
+  extends: .docker_publish_job_definition
+  stage: deploy_mutable_image_tags
+  dependencies: []
+  before_script:
+    - VERSION="$(dda inv -- agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${AGENT_REPOSITORY}:${VERSION}${SUFFIX}
+    - if [[ -z "$IMG_NEW_TAGS" ]]; then export IMG_NEW_TAGS=${TAG_BASE}${SUFFIX}; fi
+
+.deploy_mutable_image_tags_7-rc:
+  extends: .deploy_mutable_image_tags_base
+  dependencies: []
+  variables:
+    TAG_BASE: "7-rc"
+
+.deploy_mutable_image_tags_7:
+  extends: .deploy_mutable_image_tags_base
+  dependencies: []
+  variables:
+    TAG_BASE: "7"
+
+# Jobs [.on_deploy_rc]
+
+deploy_mutable_image_tags-a7-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7
+      artifacts: false
+# https://github.com/DataDog/datadog-agent/pull/43846
+#    - job: deploy_latest_rc_only
+#      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - ""
+          - "-jmx"
+          - "-servercore"
+          - "-servercore-jmx"
+          - "-linux"
+          - "-linux-jmx"
+
+deploy_mutable_image_tags-a7-win-only-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-win-only
+      artifacts: false
+# https://github.com/DataDog/datadog-agent/pull/43846
+#    - job: deploy_latest_rc_only
+#      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-ltsc2019"
+          - "-servercore-ltsc2019"
+          - "-ltsc2022"
+          - "-servercore-ltsc2022"
+          - "-ltsc2019-jmx"
+          - "-servercore-ltsc2019-jmx"
+          - "-ltsc2022-jmx"
+          - "-servercore-ltsc2022-jmx"
+          - "-ltsc2025"
+          - "-servercore-ltsc2025"
+          - "-ltsc2025-jmx"
+          - "-servercore-ltsc2025-jmx"
+
+deploy_mutable_image_tags-a7-full-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-full
+      artifacts: false
+# https://github.com/DataDog/datadog-agent/pull/43846
+#    - job: deploy_latest_rc_only
+#      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX: ["-full"]
+
+deploy_mutable_image_tags-a7-fips-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_rc]
+  needs:
+    - job: deploy_containers-a7-fips
+      artifacts: false
+# https://github.com/DataDog/datadog-agent/pull/43846
+#    - job: deploy_latest_rc_only
+#      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_internal_rc]
+
+deploy_mutable_image_tags-a7_internal-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-a7_internal-rc
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX: [""]
+
+deploy_mutable_image_tags-a7-fips_internal-rc:
+  extends: .deploy_mutable_image_tags_7-rc
+  rules:
+    !reference [.on_deploy_internal_rc]
+  needs:
+    - job: deploy_containers-a7-fips_internal-rc
+      artifacts: false
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_internal_manual_final]
+
+deploy_mutable_image_tags-a7_internal:
+  extends: .deploy_mutable_image_tags_7
+  rules:
+    !reference [.on_deploy_internal_manual_final]
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-jmx"
+          - "-full"
+          - "-fips-jmx"
+
+# Jobs [.on_deploy_manual_final]
+
+deploy_mutable_image_tags-a7:
+  extends: .deploy_mutable_image_tags_base
+  rules:
+    !reference [.on_deploy_manual_final]
+  parallel:
+    matrix:
+      - SUFFIX: [""]
+        IMG_NEW_TAGS: ["7,latest"]
+      - SUFFIX: ["-jmx"]
+        IMG_NEW_TAGS: ["7-jmx,latest-jmx"]
+      - SUFFIX: ["-servercore"]
+        IMG_NEW_TAGS: ["7-servercore,latest-servercore"]
+      - SUFFIX: ["-servercore-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-jmx,latest-servercore-jmx"]
+      - SUFFIX: ["-ltsc2019"]
+        IMG_NEW_TAGS: ["7-ltsc2019,latest-ltsc2019"]
+      - SUFFIX: ["-ltsc2022"]
+        IMG_NEW_TAGS: ["7-ltsc2022,latest-ltsc2022"]
+      - SUFFIX: ["-ltsc2025"]
+        IMG_NEW_TAGS: ["7-ltsc2025,latest-ltsc2025"]
+      - SUFFIX: ["-servercore-ltsc2019"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2019,latest-servercore-ltsc2019"]
+      - SUFFIX: ["-servercore-ltsc2022"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2022,latest-servercore-ltsc2022"]
+      - SUFFIX: ["-servercore-ltsc2025"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2025,latest-servercore-ltsc2025"]
+      - SUFFIX: "-servercore-ltsc2019-jmx"
+        IMG_NEW_TAGS: ["7-servercore-ltsc2019-jmx,latest-servercore-ltsc2019-jmx"]
+      - SUFFIX: ["-servercore-ltsc2022-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2022-jmx,latest-servercore-ltsc2022-jmx"]
+      - SUFFIX: ["-servercore-ltsc2025-jmx"]
+        IMG_NEW_TAGS: ["7-servercore-ltsc2025-jmx,latest-servercore-ltsc2025-jmx"]
+      - SUFFIX: ["-full"]
+        IMG_NEW_TAGS: ["7-full,latest-full"]
+
+deploy_mutable_image_tags-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: deploy_mutable_image_tags
+  rules:
+    !reference [.on_deploy_manual_final]
+  before_script:
+    - VERSION="$(dda inv agent.version --url-safe --pipeline-id $PARENT_PIPELINE_ID)" || exit $?
+    - export IMG_TAG_REFERENCE=${DSD_REPOSITORY}:${VERSION}
+    - export IMG_NEW_TAGS=7,latest
+
+deploy_mutable_image_tags-a7-fips:
+  extends: .deploy_mutable_image_tags_7
+  rules:
+    !reference [.on_deploy_manual_final]
+  parallel:
+    matrix:
+      - SUFFIX:
+          - "-fips"
+          - "-fips-jmx"

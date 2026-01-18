@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -43,7 +44,7 @@ func readClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error)
 	// Parse the cluster CA cert
 	block, _ := pem.Decode(caCertPEM)
 	if block == nil {
-		return nil, nil, fmt.Errorf("unable to decode cluster CA cert PEM")
+		return nil, nil, errors.New("unable to decode cluster CA cert PEM")
 	}
 	caCert, err = x509.ParseCertificate(block.Bytes)
 	if err != nil {
@@ -53,7 +54,7 @@ func readClusterCA(caCertPath, caKeyPath string) (*x509.Certificate, any, error)
 	// Parse the cluster CA key
 	block, _ = pem.Decode(caKeyPEM)
 	if block == nil {
-		return nil, nil, fmt.Errorf("unable to decode cluster CA key PEM")
+		return nil, nil, errors.New("unable to decode cluster CA key PEM")
 	}
 
 	var caPrivKey any
@@ -117,7 +118,7 @@ func (c *clusterCAData) buildClusterClientTLSConfig() (*tls.Config, error) {
 	// If TLS verification is enabled, configure proper certificate validation
 	// It's not possible to have TLS verification enabled without a CA certificate
 	if c.caCert == nil || c.caPrivKey == nil {
-		return nil, fmt.Errorf("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
+		return nil, errors.New("cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path or cluster_trust_chain.ca_key_file_path is not set")
 	}
 
 	clusterClientCertPool := x509.NewCertPool()
@@ -168,7 +169,7 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 		// If the process is a CLC Runner, add the CLC Runner host to the SANs
 		clcRunnerHost := config.GetString("clc_runner_host")
 		if clcRunnerHost == "" {
-			return fmt.Errorf("clc_runner_host is not set")
+			return errors.New("clc_runner_host is not set")
 		}
 		serverHost = clcRunnerHost
 	}

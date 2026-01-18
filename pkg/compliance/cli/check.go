@@ -17,6 +17,8 @@ import (
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/spf13/pflag"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -29,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/spf13/pflag"
 )
 
 // CheckParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -90,12 +91,17 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	if checkArgs.OverrideRegoInput != "" {
 		resolver = newFakeResolver(checkArgs.OverrideRegoInput)
 	} else {
+		var reflectorStore *compliance.ReflectorStore
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			reflectorStore = startComplianceReflectorStore(context.Background())
+		}
 		resolver = compliance.NewResolver(context.Background(), compliance.ResolverOptions{
 			Hostname:           hname,
 			HostRoot:           os.Getenv("HOST_ROOT"),
 			DockerProvider:     compliance.DefaultDockerProvider,
 			LinuxAuditProvider: compliance.DefaultLinuxAuditProvider,
 			KubernetesProvider: complianceKubernetesProvider,
+			ReflectorStore:     reflectorStore,
 			StatsdClient:       statsdClient,
 		})
 	}
@@ -107,7 +113,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 	if checkArgs.File != "" {
 		benchDir, benchGlob = filepath.Dir(checkArgs.File), filepath.Base(checkArgs.File)
 	} else if checkArgs.Framework != "" {
-		benchDir, benchGlob = configDir, fmt.Sprintf("%s.yaml", checkArgs.Framework)
+		benchDir, benchGlob = configDir, checkArgs.Framework+".yaml"
 	} else {
 		ruleFilter = compliance.MakeDefaultRuleFilter(ipc)
 		benchDir, benchGlob = configDir, "*.yaml"

@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-log-pipelines/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 const eventuallyWithTickDuration = 5 * time.Second
@@ -43,9 +43,11 @@ var randomLogger []byte
 func TestVMJournaldTailingSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awshost.Provisioner(
-			awshost.WithAgentOptions(
-				agentparams.WithLogs(),
-				agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig))))),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(
+					agentparams.WithLogs(),
+					agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig))))),
+		),
 	}
 
 	e2e.Run(t, &LinuxJournaldFakeintakeSuite{}, options...)
@@ -68,9 +70,11 @@ func (s *LinuxJournaldFakeintakeSuite) TestJournald() {
 }
 
 func (s *LinuxJournaldFakeintakeSuite) journaldIncludeServiceLogCollection() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
-		agentparams.WithLogs(),
-		agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(
+		ec2.WithAgentOptions(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", string(logIncludeConfig)))),
+	))
 
 	vm := s.Env().RemoteHost
 	t := s.T()

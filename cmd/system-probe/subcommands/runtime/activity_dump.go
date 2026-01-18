@@ -10,7 +10,6 @@ package runtime
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -63,14 +62,14 @@ func activityDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{activityDumpCmd}
 }
 
-func listCommands(_ *command.GlobalParams) []*cobra.Command {
+func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	activityDumpListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "get the list of running activity dumps",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
@@ -93,7 +92,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(stopActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
@@ -146,7 +145,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(generateActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
@@ -224,7 +223,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 			return fxutil.OneShot(generateEncodingFromActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
@@ -285,7 +284,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(diffActivityDump,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(""),
+					ConfigParams: config.NewAgentParams(globalParams.DatadogConfFilePath()),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
@@ -430,13 +429,13 @@ func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, 
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		fmt.Print(buffer.String())
 	case "protobuf":
 		buffer, err := diff.EncodeSecDumpProtobuf()
 		if err != nil {
 			return err
 		}
-		os.Stdout.Write(buffer.Bytes())
+		fmt.Print(buffer.String())
 	case "json":
 		buffer, err := diff.EncodeJSON("  ")
 		if err != nil {

@@ -6,9 +6,9 @@
 package boundport
 
 import (
-	"fmt"
+	"errors"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
@@ -28,5 +28,5 @@ func boundPortsUnix(host *components.RemoteHost) ([]BoundPort, error) {
 		return FromSs(out)
 	}
 
-	return nil, fmt.Errorf("no ss found")
+	return nil, errors.New("no ss found")
 }

@@ -518,6 +518,8 @@ type AgentConfig struct {
 
 	// ContainerTags ...
 	ContainerTags func(cid string) ([]string, error) `json:"-"`
+	// ContainerTagsBuffer enables buffering of payloads until full container tags extraction
+	ContainerTagsBuffer bool
 
 	// ContainerIDFromOriginInfo ...
 	ContainerIDFromOriginInfo func(originInfo origindetection.OriginInfo) (string, error) `json:"-"`
@@ -531,9 +533,8 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// Azure serverless apps tags, in the form of a comma-separated list of
-	// key-value pairs, starting with a comma
-	AzureServerlessTags string
+	// Additional profile tags are statically defined tags to attach to proxied profiles, this is primarily used by serverless
+	AdditionalProfileTags map[string]string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
@@ -555,6 +556,9 @@ type AgentConfig struct {
 
 	// SendAllInternalStats enables all internal stats to be published, otherwise some less-frequently-used stats will be omitted when zero to save costs
 	SendAllInternalStats bool
+
+	// APMMode specifies whether using "edge" APM mode. May support other modes in the future. If unset, it has no impact.
+	APMMode string
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -636,6 +640,7 @@ func New() *AgentConfig {
 		Proxy:                     http.ProxyFromEnvironment,
 		OTLPReceiver:              &OTLP{},
 		ContainerTags:             noopContainerTagsFunc,
+		ContainerTagsBuffer:       false, // disabled here for otlp collector exporter, enabled in comp/trace-agent
 		ContainerIDFromOriginInfo: NoopContainerIDFromOriginInfoFunc,
 		TelemetryConfig: &TelemetryConfig{
 			Endpoints: []*Endpoint{{Host: TelemetryEndpointPrefix + "datadoghq.com"}},
@@ -662,7 +667,7 @@ func computeGlobalTags() map[string]string {
 
 	tags := make(map[string]string)
 	if inECSManagedInstancesSidecar() {
-		tags["origin"] = "ecs_managed_instances"
+		tags["_dd.origin"] = "ecs_managed_instances"
 	}
 	return tags
 }

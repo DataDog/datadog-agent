@@ -338,10 +338,9 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					programID: eff.programID,
 				},
 			}
-		} else {
-			return eventProgramLoadingFailed{
-				programID: eff.programID,
-			}
+		}
+		return eventProgramLoadingFailed{
+			programID: eff.programID,
 		}
 
 	case effectAttachToProcess:
@@ -354,11 +353,10 @@ func (pts *propertyTestState) completeRandomEffect() event {
 					processID: eff.processID,
 				},
 			}
-		} else {
-			return eventProgramAttachingFailed{
-				programID: eff.programID,
-				processID: eff.processID,
-			}
+		}
+		return eventProgramAttachingFailed{
+			programID: eff.programID,
+			processID: eff.processID,
 		}
 
 	case effectDetachFromProcess:

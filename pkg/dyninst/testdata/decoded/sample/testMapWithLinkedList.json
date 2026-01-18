@@ -268,8 +268,15 @@
             }
           }
         }
-      }
+      },
+      "evaluationErrors": [
+        {
+          "expr": "@duration",
+          "message": "not available: function has no body"
+        }
+      ]
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "map[true: {val: 1, b: {val: 2, b: {val: 3, b: {val: 4, b: {val: 5, b: {val: 6, b: {val: 7, b: {val: 8, b: {val: 9, b: {val: 10, b: {val: 11, b: {val: 12, b: {val: 13, b: {val: 14, b: {val: 15, b: {val: 16, b: {val: 17, b: {val: 18, b: {val: 19, b: {val: 20, b: nil}}}}}}}}}}}}}}}}}}}}]"
   }
 ]

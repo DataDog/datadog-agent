@@ -7,7 +7,10 @@
 package backend
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -17,18 +20,21 @@ import (
 	"testing"
 	"time"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/avast/retry-go/v4"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/mod/semver"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 // RemoteConfigState is the state of the remote config.
 type RemoteConfigState struct {
-	Packages []RemoteConfigStatePackage `json:"remote_config_state"`
+	Packages      []RemoteConfigStatePackage `json:"remote_config_state"`
+	SecretsPubKey string                     `json:"secrets_pub_key,omitempty"`
 }
 
 // RemoteConfigStatePackage is the state of a package in the remote config.
@@ -76,14 +82,48 @@ type FileOperation struct {
 	Patch             json.RawMessage   `json:"patch,omitempty"`
 }
 
+// getSecretsPubKey gets the public key for the secrets.
+func (b *Backend) getSecretsPubKey() (*[32]byte, error) {
+	// Get public signing key
+	rcStatus, err := b.RemoteConfigStatus()
+	if err != nil {
+		return nil, fmt.Errorf("error getting remote config status: %w", err)
+	}
+	publicKey, err := base64.StdEncoding.DecodeString(rcStatus.SecretsPubKey)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding secrets public key: %w", err)
+	}
+	if len(publicKey) != 32 {
+		return nil, fmt.Errorf("unexpected public key length: got %d, want 32", len(publicKey))
+	}
+	var pk [32]byte
+	copy(pk[:], publicKey)
+	return &pk, nil
+}
+
 // StartConfigExperiment starts a config experiment for the given package.
-func (b *Backend) StartConfigExperiment(operations ConfigOperations) error {
+func (b *Backend) StartConfigExperiment(operations ConfigOperations, secrets map[string]string) error {
 	b.t().Logf("Starting config experiment")
 	rawOperations, err := json.Marshal(operations)
 	if err != nil {
 		return err
 	}
-	output, err := b.runDaemonCommandWithRestart("start-config-experiment", "datadog-agent", string(rawOperations))
+
+	flags := []string{"datadog-agent", string(rawOperations)}
+	if len(secrets) > 0 {
+		publicKey, err := b.getSecretsPubKey()
+		require.NoError(b.t(), err)
+		// For each secret, encrypt it with the public key and add the flag to the list
+		for key, secret := range secrets {
+			encryptedSecret, err := box.SealAnonymous(nil, []byte(secret), publicKey, rand.Reader)
+			if err != nil {
+				return fmt.Errorf("error encrypting secret: %w", err)
+			}
+			flags = append(flags, fmt.Sprintf("--secret=%s=%s", key, base64.StdEncoding.EncodeToString(encryptedSecret)))
+		}
+	}
+
+	output, err := b.runDaemonCommandWithRestart("start-config-experiment", flags...)
 	if err != nil {
 		return fmt.Errorf("%w, output: %s", err, output)
 	}
@@ -266,7 +306,7 @@ func (b *Backend) Catalog() *Catalog {
 func (b *Backend) getCatalog() (*Catalog, error) {
 	var catalog Catalog
 
-	urls := []string{fmt.Sprintf("installtesting.datad0g.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))}
+	urls := []string{"installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")}
 	var prodTags []string
 	err := retry.Do(func() error {
 		var err error
@@ -277,7 +317,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		return nil, err
 	}
 	for _, tag := range prodTags {
-		urls = append(urls, fmt.Sprintf("install.datadoghq.com/agent-package:%s", tag))
+		urls = append(urls, "install.datadoghq.com/agent-package:"+tag)
 	}
 	for _, url := range urls {
 		var version string
@@ -303,7 +343,7 @@ func (b *Backend) getCatalog() (*Catalog, error) {
 		catalog.packages = append(catalog.packages, catalogEntry{
 			Package: "datadog-agent",
 			Version: version,
-			URL:     fmt.Sprintf("oci://%s", url),
+			URL:     "oci://" + url,
 			branch:  branch,
 		})
 	}
@@ -351,7 +391,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	case e2eos.LinuxFamily:
 		sanitizeCharacter = `\"`
 		baseCommand = "sudo datadog-installer daemon"
-		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s --help", baseCommand))
+		_, err := b.host.RemoteHost.Execute(baseCommand + " --help")
 		if err != nil {
 			if !strings.Contains(err.Error(), "unknown command") {
 				return "", err
@@ -366,7 +406,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 	}
 
 	err := retry.Do(func() error {
-		_, err := b.host.RemoteHost.Execute(fmt.Sprintf("%s rc-status", baseCommand))
+		_, err := b.host.RemoteHost.Execute(baseCommand + " rc-status")
 		return err
 	})
 	if err != nil {
@@ -413,7 +453,7 @@ func (b *Backend) getDaemonPID() (int, error) {
 		return 0, err
 	}
 	if pid == "0" {
-		return 0, fmt.Errorf("daemon PID is 0")
+		return 0, errors.New("daemon PID is 0")
 	}
 	return strconv.Atoi(pid)
 }

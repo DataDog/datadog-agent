@@ -55,11 +55,11 @@ func parseRepoDigest(repoDigest string) (string, string, string) {
 		imageName = repoDigest[:digestStart]
 	}
 
-	registryEnd := strings.Index(imageName, "/")
+	before, after, ok := strings.Cut(imageName, "/")
 	// e.g <registry>/<repository>
-	if registryEnd != -1 {
-		registry = imageName[:registryEnd]
-		repository = imageName[registryEnd+len("/"):]
+	if ok {
+		registry = before
+		repository = after
 		// e.g <registry>
 	} else {
 		registry = imageName

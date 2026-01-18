@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
 const (
@@ -45,6 +46,12 @@ const (
 	// UDP connection type
 	UDP ConnectionType = 1
 )
+
+// ConnectionTypeFromString is a map from a lowercase string to ConnectionType
+var ConnectionTypeFromString = map[string]ConnectionType{
+	"tcp": TCP,
+	"udp": UDP,
+}
 
 var (
 	tcpLabels = map[string]string{"ip_proto": TCP.String()}
@@ -114,10 +121,17 @@ type BufferedData struct {
 	buffer *ClientBuffer
 }
 
+// ContainerID uniquely represents a container. Nil represents the host.
+type ContainerID = *intern.Value
+
+// ResolvConf is an interned string representing the contents of resolv.conf
+type ResolvConf = *utilintern.StringValue
+
 // Connections wraps a collection of ConnectionStats
 type Connections struct {
 	BufferedData
 	DNS                         map[util.Address][]dns.Hostname
+	ResolvConfs                 map[ContainerID]ResolvConf
 	ConnTelemetry               map[ConnTelemetryType]int64
 	CompilationTelemetryByAsset map[string]RuntimeCompilationTelemetry
 	KernelHeaderFetchResult     int32

@@ -8,6 +8,7 @@
 package pdhutil
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -99,7 +100,7 @@ func mockCounterFromHandle(hCounter PDH_HCOUNTER) (mockCounter, error) {
 		}
 	}
 	if !ok {
-		return ctr, fmt.Errorf("Invalid handle")
+		return ctr, errors.New("Invalid handle")
 	}
 	return ctr, nil
 

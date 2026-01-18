@@ -65,7 +65,9 @@ __attribute__((always_inline)) int flush_network_stats(u32 pid, struct active_fl
 
     evt->flows_count = 0;
 
+#ifndef USE_FENTRY
 #pragma unroll
+#endif
     for (int i = 0; i < ACTIVE_FLOWS_MAX_SIZE; i++) {
         if (i >= entry->cursor) {
             break;

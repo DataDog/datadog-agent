@@ -68,6 +68,30 @@ static u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset; // offsetof(struct mount, mnt_id)
 }
 
+u32 __attribute__((always_inline)) get_mount_offset_of_mount_id_unique(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_id_unique_offset", offset);
+    return offset; // offsetof(struct mount, mnt_id_unique)
+}
+
+u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_ns_offset", offset);
+    return offset; // offsetof(struct mount, mnt_ns)
+}
+
+u32 __attribute__((always_inline)) get_mount_offset_of_nscommon_inum(void) {
+    u64 offset;
+    LOAD_CONSTANT("ns_common_inum_offset", offset);
+    return offset; // offsetof(struct ns_common, inum)
+}
+
+u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
+    u64 offset;
+    LOAD_CONSTANT("mnt_namespace_ns", offset);
+    return offset; // offsetof(struct mnt_namespace, ns)
+}
+
 static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
     int mount_id;
     // bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + offsetof(struct mount, mnt_id) - offsetof(struct mount, mnt));
@@ -119,6 +143,26 @@ static struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry
     struct dentry *dentry;
     bpf_probe_read(&dentry, sizeof(dentry), (void *)mnt + mount_mnt_mountpoint_offset);
     return dentry;
+}
+
+u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
+    u64 mount_id;
+
+    bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
+    return mount_id;
+}
+
+u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
+    void* mnt_ns = NULL;
+    u32   inum = 0;
+
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+    if (!mnt_ns) {
+        return 0;
+    }
+
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_mount_offset_of_nscommon_inum());
+    return inum;
 }
 
 static struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {

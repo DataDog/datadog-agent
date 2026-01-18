@@ -8,9 +8,11 @@ package model
 
 import (
 	"fmt"
+	"maps"
 	"math"
 	"math/bits"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -1291,9 +1293,7 @@ func initKernelCapabilityConstants() {
 }
 
 func initPtraceConstants() {
-	for k, v := range ptraceArchConstants {
-		ptraceConstants[k] = v
-	}
+	maps.Copy(ptraceConstants, ptraceArchConstants)
 
 	for k, v := range ptraceConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
@@ -1315,9 +1315,7 @@ func initProtConstansts() {
 }
 
 func initMMapFlagsConstants() {
-	for k, v := range mmapFlagArchConstants {
-		mmapFlagConstants[k] = v
-	}
+	maps.Copy(mmapFlagConstants, mmapFlagArchConstants)
 
 	for k, v := range mmapFlagConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
@@ -1432,7 +1430,7 @@ func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {
 	}
 
 	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
+		strs = append(strs, strconv.Itoa(bitmask&^result))
 	}
 
 	sort.Strings(strs)
@@ -1459,7 +1457,7 @@ func bitmaskU64ToStringArray(bitmask uint64, intToStrMap map[uint64]string) []st
 	}
 
 	if result != bitmask {
-		strs = append(strs, fmt.Sprintf("%d", bitmask&^result))
+		strs = append(strs, strconv.FormatUint(bitmask&^result, 10))
 	}
 
 	sort.Strings(strs)
@@ -2388,4 +2386,11 @@ type PrCtlOption int
 
 func (p PrCtlOption) String() string {
 	return prctlOptionStrings[int(p)]
+}
+
+// RlimitResource is used to define the resource type in rlimit calls
+type RlimitResource int
+
+func (r RlimitResource) String() string {
+	return rlimitStrings[int(r)]
 }

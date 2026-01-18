@@ -90,7 +90,7 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 		// Get expVar server address
 		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
-			status["error"] = fmt.Sprintf("%v", err.Error())
+			status["error"] = err.Error()
 			return status
 		}
 
@@ -103,21 +103,21 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 
 	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
 	if err != nil {
-		status["error"] = fmt.Sprintf("%v", err.Error())
+		status["error"] = err.Error()
 		return status
 	}
 
 	bytes, err := json.Marshal(agentStatus)
 	if err != nil {
 		return map[string]interface{}{
-			"error": fmt.Sprintf("%v", err.Error()),
+			"error": err.Error(),
 		}
 	}
 
 	err = json.Unmarshal(bytes, &status)
 	if err != nil {
 		return map[string]interface{}{
-			"error": fmt.Sprintf("%v", err.Error()),
+			"error": err.Error(),
 		}
 	}
 

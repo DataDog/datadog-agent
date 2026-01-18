@@ -166,7 +166,7 @@ func WaitOutTombstone(ctx context.Context, tombstoneFilePath string, knobs ...Wa
 	}
 
 	if remainingWait > 0 {
-		log.Warnf("tombstone file detected (previous errors: %d), waiting %s before installing probes", contents.ErrorNumber, remainingWait)
+		log.Warnf("tombstone file detected (previous errors: %d), waiting %s before installing probes: %s", contents.ErrorNumber, remainingWait, tombstoneFilePath)
 		if onSleep != nil {
 			onSleep()
 		}
@@ -177,7 +177,7 @@ func WaitOutTombstone(ctx context.Context, tombstoneFilePath string, knobs ...Wa
 			return
 		}
 	} else {
-		log.Infof("tombstone file detected (previous errors: %d), backoff period already elapsed", contents.ErrorNumber)
+		log.Infof("tombstone file detected (previous errors: %d), backoff period already elapsed: %s", contents.ErrorNumber, tombstoneFilePath)
 	}
 
 	// Increment error number and update timestamp. If we crash again, we'll

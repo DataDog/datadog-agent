@@ -25,13 +25,6 @@ const (
 	SSHAuthMethodPublicKey
 )
 
-var (
-	// UserSessionTypes are the supported user session types
-
-	// UserSessionTypeStrings is used to
-	UserSessionTypeStrings = map[Type]string{}
-)
-
 // Type is used to identify the User Session type
 type Type uint8
 

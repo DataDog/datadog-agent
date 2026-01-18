@@ -90,6 +90,7 @@ AGENT_CORECHECKS = [
     "discovery",
     "versa",
     "network_config_management",
+    "battery",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -138,7 +139,6 @@ def build(
     rtloader_root=None,
     python_home_3=None,
     exclude_rtloader=False,
-    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -206,7 +206,6 @@ def build(
                 flavor=flavor,
                 build_include=build_include,
                 build_exclude=build_exclude,
-                include_sds=include_sds,
             )
 
             all_tags |= set(build_tags)
@@ -453,6 +452,7 @@ def hacky_dev_image_build(
     trace_agent=False,
     system_probe=False,
     security_agent=False,
+    trace_loader=False,
     push=False,
     race=False,
     signed_pull=False,
@@ -472,7 +472,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
+        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -481,7 +481,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+        base_image = f"registry.datadoghq.com/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
@@ -523,11 +523,36 @@ def hacky_dev_image_build(
         trace_agent_build(ctx)
         copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
+    if trace_loader:
+        from tasks.loader import build as trace_loader_build
+
+        trace_loader_build(ctx)
+        copy_extra_agents += "COPY bin/trace-loader/trace-loader /opt/datadog-agent/embedded/bin/trace-loader\n"
+
+    copy_ebpf_assets = ""
+    copy_ebpf_assets_final = ""
     if system_probe:
+        from tasks.libs.types.arch import Arch
         from tasks.system_probe import build as system_probe_build
+        from tasks.system_probe import get_ebpf_build_dir, get_ebpf_runtime_dir
 
         system_probe_build(ctx)
+
+        build_arch = Arch.from_str(arch)
+        build_dir = get_ebpf_build_dir(build_arch)
+        runtime_dir = get_ebpf_runtime_dir()
+
         copy_extra_agents += "COPY bin/system-probe/system-probe /opt/datadog-agent/embedded/bin/system-probe\n"
+        copy_ebpf_assets = f"""
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+RUN mkdir -p /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+COPY {build_dir}/*.o         /opt/datadog-agent/embedded/share/system-probe/ebpf/
+COPY {build_dir}/co-re/*.o   /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+COPY {runtime_dir}/*.c       /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/
+"""
+        copy_ebpf_assets_final = """
+COPY --from=bin /opt/datadog-agent/embedded/share/system-probe/ebpf /opt/datadog-agent/embedded/share/system-probe/ebpf
+"""
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -549,6 +574,7 @@ COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/age
 COPY bin/agent/dist/conf.d                      /etc/datadog-agent/conf.d
 COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+{copy_ebpf_assets}
 
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
 RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
@@ -584,6 +610,7 @@ COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
 COPY --from=bin /etc/datadog-agent/conf.d /etc/datadog-agent/conf.d
 {copy_extra_agents}
+{copy_ebpf_assets_final}
 RUN agent          completion bash > /usr/share/bash-completion/completions/agent
 RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
 RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent

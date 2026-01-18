@@ -8,7 +8,6 @@
 package nvidia
 
 import (
-	"slices"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -114,7 +113,7 @@ func testCollectWithInvalidCache(t *testing.T) {
 	dev := createMockDevice(t, testutil.DefaultGpuUUID)
 	cache := NewSystemProbeCache()
 
-	collector, err := newEbpfCollector(dev, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(dev, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -143,7 +142,7 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -156,23 +155,31 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(50), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreUsage.Tags)
+	require.Len(t, coreUsage.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(1024), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryUsage.Tags)
+	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
 
-	// Verify limit metrics have aggregated PID tags
+	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
 	assert.Equal(t, float64(testutil.DefaultGpuCores), coreLimit.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:3"}, coreLimit.Tags)
+	require.Len(t, coreLimit.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
 	assert.Equal(t, float64(testutil.DefaultTotalMemory), memoryLimit.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:3"}, memoryLimit.Tags)
+	require.Len(t, memoryLimit.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads[0].ID)
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
@@ -211,7 +218,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -220,18 +227,18 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	// Should have 6 metrics: 4 usage (2 per process) + 2 limit
 	assert.Len(t, metrics, 6)
 
-	// Verify limit metrics have aggregated PID tags
+	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "nspid:3", "pid:456", "nspid:33"}
-	slices.Sort(coreLimit.Tags)
-	slices.Sort(expectedPidTags)
-	assert.Equal(t, expectedPidTags, coreLimit.Tags)
+	require.Len(t, coreLimit.AssociatedWorkloads, 2)
+	workloadIDs := []string{coreLimit.AssociatedWorkloads[0].ID, coreLimit.AssociatedWorkloads[1].ID}
+	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	slices.Sort(memoryLimit.Tags)
-	assert.Equal(t, expectedPidTags, memoryLimit.Tags)
+	require.Len(t, memoryLimit.AssociatedWorkloads, 2)
+	workloadIDs = []string{memoryLimit.AssociatedWorkloads[0].ID, memoryLimit.AssociatedWorkloads[1].ID}
+	assert.ElementsMatch(t, []string{"123", "456"}, workloadIDs)
 }
 
 func testCollectWithInactiveProcesses(t *testing.T) {
@@ -255,7 +262,7 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	// First collect with process 123
@@ -276,17 +283,23 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	coreUsage := findMetric(metrics, "process.core.usage")
 	require.NotNil(t, coreUsage)
 	assert.Equal(t, float64(0), coreUsage.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreUsage.Tags)
+	require.Len(t, coreUsage.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(coreUsage.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", coreUsage.AssociatedWorkloads[0].ID)
 
 	memoryUsage := findMetric(metrics, "process.memory.usage")
 	require.NotNil(t, memoryUsage)
 	assert.Equal(t, float64(0), memoryUsage.Value)
-	assert.Equal(t, []string{"pid:123", "nspid:5"}, memoryUsage.Tags)
+	require.Len(t, memoryUsage.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(memoryUsage.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", memoryUsage.AssociatedWorkloads[0].ID)
 
-	// Verify limit metrics still include inactive process PID
+	// Verify limit metrics still include inactive process workload
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	assert.Equal(t, []string{"pid:123", "nspid:5"}, coreLimit.Tags)
+	require.Len(t, coreLimit.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(coreLimit.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", coreLimit.AssociatedWorkloads[0].ID)
 }
 
 func testCollectFiltersByDeviceUUID(t *testing.T) {
@@ -328,7 +341,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -339,7 +352,9 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
-		assert.Equal(t, []string{"pid:123", "nspid:7"}, metric.Tags)
+		require.Len(t, metric.AssociatedWorkloads, 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
+		assert.Equal(t, "123", metric.AssociatedWorkloads[0].ID)
 	}
 }
 
@@ -392,7 +407,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 		},
 	})
 
-	collector, err := newEbpfCollector(device, &NsPidCache{}, cache)
+	collector, err := newEbpfCollector(device, cache)
 	require.NoError(t, err)
 
 	metrics, err := collector.Collect()
@@ -401,26 +416,33 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	// Should have 8 metrics: 6 usage (2 per process) + 2 limit
 	assert.Len(t, metrics, 8)
 
-	// Verify limit metrics have all PID tags aggregated
+	// Verify limit metrics have all workloads aggregated
 	coreLimit := findMetric(metrics, "core.limit")
 	require.NotNil(t, coreLimit)
-	expectedPidTags := []string{"pid:123", "nspid:1", "pid:456", "nspid:11", "pid:789", "nspid:111"}
-	slices.Sort(coreLimit.Tags)
-	slices.Sort(expectedPidTags)
-	assert.Equal(t, expectedPidTags, coreLimit.Tags)
+	require.Len(t, coreLimit.AssociatedWorkloads, 3)
+	workloadIDs := []string{
+		coreLimit.AssociatedWorkloads[0].ID,
+		coreLimit.AssociatedWorkloads[1].ID,
+		coreLimit.AssociatedWorkloads[2].ID,
+	}
+	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
 	memoryLimit := findMetric(metrics, "memory.limit")
 	require.NotNil(t, memoryLimit)
-	slices.Sort(memoryLimit.Tags)
-	assert.Equal(t, expectedPidTags, memoryLimit.Tags)
+	require.Len(t, memoryLimit.AssociatedWorkloads, 3)
+	workloadIDs = []string{
+		memoryLimit.AssociatedWorkloads[0].ID,
+		memoryLimit.AssociatedWorkloads[1].ID,
+		memoryLimit.AssociatedWorkloads[2].ID,
+	}
+	assert.ElementsMatch(t, []string{"123", "456", "789"}, workloadIDs)
 
-	// Verify usage metrics have individual PID tags
+	// Verify usage metrics have individual workloads
 	usageMetrics := findAllMetricsWithName(metrics, "process.core.usage")
 	assert.Len(t, usageMetrics, 3)
 	for _, metric := range usageMetrics {
-		require.Len(t, metric.Tags, 2)
-		assert.Contains(t, metric.Tags[0], "pid:")
-		assert.Contains(t, metric.Tags[1], "nspid:")
+		require.Len(t, metric.AssociatedWorkloads, 1)
+		assert.Equal(t, "process", string(metric.AssociatedWorkloads[0].Kind))
 	}
 }
 

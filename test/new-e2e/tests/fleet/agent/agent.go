@@ -18,9 +18,9 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/stretchr/testify/require"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
 
@@ -79,7 +79,7 @@ func (a *Agent) InstalledIntegrations() (map[string]string, error) {
 		return nil, err
 	}
 	integrations := make(map[string]string)
-	for _, integration := range strings.Split(rawIntegrations, "\n") {
+	for integration := range strings.SplitSeq(rawIntegrations, "\n") {
 		integration = strings.TrimSpace(integration)
 		if strings.HasPrefix(integration, "datadog-") {
 			parts := strings.Split(integration, "==")
@@ -105,7 +105,7 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	}
 
 	err := retry.Do(func() error {
-		_, err := a.host.RemoteHost.Execute(fmt.Sprintf("%s config --all", baseCommand))
+		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
 		return err
 	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
 	if err != nil {
@@ -370,7 +370,7 @@ type Status struct {
 			} `json:"AnalyzedRateByServiceLegacy"`
 			AnalyzedSpansByService struct {
 			} `json:"AnalyzedSpansByService"`
-			AzureServerlessTags      string `json:"AzureServerlessTags"`
+			AdditionalProfileTags    string `json:"AdditionalProfileTags"`
 			BucketInterval           int64  `json:"BucketInterval"`
 			ClientStatsFlushInterval int    `json:"ClientStatsFlushInterval"`
 			ComputeStatsBySpanKind   bool   `json:"ComputeStatsBySpanKind"`
@@ -1014,8 +1014,6 @@ type Status struct {
 					Alloc int `json:"alloc"`
 				} `json:"memstats"`
 				Pid                             int    `json:"pid"`
-				PodQueueBytes                   int    `json:"pod_queue_bytes"`
-				PodQueueSize                    int    `json:"pod_queue_size"`
 				ProcessCount                    int    `json:"process_count"`
 				ProcessQueueBytes               int    `json:"process_queue_bytes"`
 				ProcessQueueSize                int    `json:"process_queue_size"`

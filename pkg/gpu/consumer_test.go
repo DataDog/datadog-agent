@@ -17,6 +17,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/cuda"
@@ -33,13 +34,63 @@ type mockFlusher struct {
 func (m *mockFlusher) Flush() {
 }
 
+type mockProcessMonitor struct {
+}
+
+func (m *mockProcessMonitor) SubscribeExit(_ func(uint32)) func() {
+	return func() {}
+}
+
+func (m *mockProcessMonitor) SubscribeExec(_ func(uint32)) func() {
+	return func() {}
+}
+
+type testConsumerOpts struct {
+	eventHandler ddebpf.EventHandler
+	telemetry    telemetry.Component
+}
+
+type testConsumerOpt func(*testConsumerOpts)
+
+func withEventHandler(handler ddebpf.EventHandler) testConsumerOpt {
+	return func(o *testConsumerOpts) {
+		o.eventHandler = handler
+	}
+}
+
+func withTelemetryMock(tm telemetry.Component) testConsumerOpt {
+	return func(o *testConsumerOpts) {
+		o.telemetry = tm
+	}
+}
+
+// newTestCudaEventConsumer creates a cudaEventConsumer with test mocks for ProcessMonitor and RingFlusher.
+func newTestCudaEventConsumer(t testing.TB, ctx *systemContext, cfg *config.Config, handlers *streamCollection, opts ...testConsumerOpt) *cudaEventConsumer {
+	options := &testConsumerOpts{
+		telemetry: testutil.GetTelemetryMock(t),
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return newCudaEventConsumer(cudaEventConsumerDependencies{
+		sysCtx:         ctx,
+		cfg:            cfg,
+		telemetry:      options.telemetry,
+		processMonitor: &mockProcessMonitor{},
+		streamHandlers: handlers,
+		eventHandler:   options.eventHandler,
+		ringFlusher:    &mockFlusher{},
+	})
+}
+
 func TestConsumerCanStartAndStop(t *testing.T) {
 	ddnvml.WithMockNVML(t, testutil.GetBasicNvmlMockWithOptions(testutil.WithMIGDisabled()))
 	handler := ddebpf.NewRingBufferHandler(consumerChannelSize)
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, streamHandlers, withEventHandler(handler))
 
 	consumer.Start()
 	require.Eventually(t, func() bool { return consumer.running.Load() }, 100*time.Millisecond, 10*time.Millisecond)
@@ -53,7 +104,7 @@ func TestGetStreamKeyUpdatesCorrectlyWhenChangingDevice(t *testing.T) {
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	cfg := config.New()
 	handlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, handlers)
 
 	pid := uint32(1)
 	pidTgid := uint64(pid)<<32 + uint64(pid)
@@ -156,7 +207,7 @@ func BenchmarkConsumer(b *testing.B) {
 				b.Cleanup(ctx.cudaKernelCache.Stop)
 			}
 
-			consumer := newCudaEventConsumer(ctx, handlers, nil, &mockFlusher{}, cfg, testutil.GetTelemetryMock(b))
+			consumer := newTestCudaEventConsumer(b, ctx, cfg, handlers)
 			b.ResetTimer()
 			injectEventsToConsumer(b, consumer, events, b.N)
 		})
@@ -189,7 +240,7 @@ func TestConsumerProcessExitChannel(t *testing.T) {
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, streamHandlers, withEventHandler(handler))
 
 	// Start the consumer
 	consumer.Start()
@@ -244,7 +295,7 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	cfg.ScanProcessesInterval = 100 * time.Millisecond // don't wait too long
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, streamHandlers, withEventHandler(handler))
 
 	// Start the consumer
 	consumer.Start()
@@ -264,7 +315,8 @@ func TestConsumerProcessExitViaCheckClosedProcesses(t *testing.T) {
 	// Remove the process from fake procfs (simulate process exit) by just deleting its folder
 	os.RemoveAll(filepath.Join(fakeProcFS, strconv.Itoa(int(pid))))
 
-	// Wait for the process sync ticker to trigger checkClosedProcesses and mark the stream as ended
+	// Wait for the background process checker to discover the closed process and send it through
+	// the processExitChannel, which will then be handled by the main consumer loop
 	require.Eventually(t, func() bool { return stream.ended }, 5*cfg.ScanProcessesInterval, 50*time.Millisecond)
 
 	// Stop the consumer
@@ -279,7 +331,7 @@ func TestHandleStreamEventHandlesGetStreamError(t *testing.T) {
 	cfg.StreamConfig.MaxActiveStreams = 0 // This will ensure that no streams are created and we will get an error when trying to get the stream
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, streamHandlers, withEventHandler(handler))
 
 	pid := 25
 	streamID := uint64(1)
@@ -305,7 +357,7 @@ func TestConsumerHandlesUnknownEventTypes(t *testing.T) {
 	cfg := config.New()
 	ctx := getTestSystemContext(t, withFatbinParsingEnabled(true))
 	streamHandlers := newStreamCollection(ctx, testutil.GetTelemetryMock(t), cfg)
-	consumer := newCudaEventConsumer(ctx, streamHandlers, handler, &mockFlusher{}, cfg, testutil.GetTelemetryMock(t))
+	consumer := newTestCudaEventConsumer(t, ctx, cfg, streamHandlers, withEventHandler(handler))
 
 	// Send an unknown event type
 	event := gpuebpf.CudaEventHeader{

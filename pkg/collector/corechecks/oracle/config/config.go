@@ -10,6 +10,7 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -311,7 +312,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 			instance.Username = instance.User
 			warnDeprecated("user", "username")
 		} else {
-			return nil, fmt.Errorf("`username` is not configured")
+			return nil, errors.New("`username` is not configured")
 		}
 	}
 
@@ -338,7 +339,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		service = initCfg.Service
 	}
 	if service != "" {
-		instance.Tags = append(instance.Tags, fmt.Sprintf("service:%s", service))
+		instance.Tags = append(instance.Tags, "service:"+service)
 	}
 
 	if shouldPropagateAgentTags(instance.PropagateAgentTags, initCfg.PropagateAgentTags) {
@@ -359,7 +360,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 // GetLogPrompt returns a config based prompt
 func GetLogPrompt(c InstanceConfig) string {
-	return fmt.Sprintf("%s>", GetConnectData(c))
+	return GetConnectData(c) + ">"
 }
 
 // GetConnectData returns the connection configuration

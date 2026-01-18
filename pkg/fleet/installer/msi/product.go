@@ -146,7 +146,7 @@ func FindAllProductCodes(productName string) ([]Product, error) {
 	}
 
 	if len(products) == 0 {
-		return nil, fmt.Errorf("no products found")
+		return nil, errors.New("no products found")
 	}
 
 	return products, nil

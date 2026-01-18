@@ -6,7 +6,7 @@
 package inventoryhostimpl
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,7 +99,7 @@ func pkgSigningMock(_ log.Component) (bool, bool) { return true, false }
 
 func cpuErrorMock() *cpu.Info                  { return &cpu.Info{} }
 func memoryErrorMock() *memory.Info            { return &memory.Info{} }
-func networkErrorMock() (*network.Info, error) { return nil, fmt.Errorf("err") }
+func networkErrorMock() (*network.Info, error) { return nil, errors.New("err") }
 func platformErrorMock() *platform.Info        { return &platform.Info{} }
 
 func setupHostMetadataMock(t *testing.T) {

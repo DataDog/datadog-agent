@@ -124,10 +124,10 @@ func (bfh *BaseFieldHandlers) ResolveHostname(_ *model.Event, _ *model.BaseEvent
 // ResolveSource resolves the source of the event
 func (bfh *BaseFieldHandlers) ResolveSource(ev *model.Event, _ *model.BaseEvent) string {
 	if ev.Source == "" {
-		if ev.IsSnapshotEvent() {
-			ev.Source = "snapshot"
+		if ev.IsEventFromReplay() {
+			ev.Source = model.EventSourceReplay
 		} else {
-			ev.Source = "runtime"
+			ev.Source = model.EventSourceRuntime
 		}
 	}
 	return ev.Source

@@ -32,6 +32,7 @@ const (
 const (
 	Deployment PodOwnerType = iota
 	ReplicaSet
+	StatefulSet
 	Unsupported
 )
 

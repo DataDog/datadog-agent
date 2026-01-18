@@ -125,12 +125,12 @@ func (c *Check) ProcessMemory() error {
 			tags = append(tags, "osuser:"+r.OsUser.String)
 		}
 		if c.config.ProcessMemory.Enabled {
-			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_used_memory", common.IntegrationName), r.PGAUsedMem, tags)
-			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_allocated_memory", common.IntegrationName), r.PGAAllocMem, tags)
-			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_freeable_memory", common.IntegrationName), r.PGAFreeableMem, tags)
-			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_max_memory", common.IntegrationName), r.PGAMaxMem, tags)
+			sendMetric(c, gauge, common.IntegrationName+".process.pga_used_memory", r.PGAUsedMem, tags)
+			sendMetric(c, gauge, common.IntegrationName+".process.pga_allocated_memory", r.PGAAllocMem, tags)
+			sendMetric(c, gauge, common.IntegrationName+".process.pga_freeable_memory", r.PGAFreeableMem, tags)
+			sendMetric(c, gauge, common.IntegrationName+".process.pga_max_memory", r.PGAMaxMem, tags)
 			// we send pga_maximum_memory for backward compatibility with the old Oracle integration
-			sendMetric(c, gauge, fmt.Sprintf("%s.process.pga_maximum_memory", common.IntegrationName), r.PGAMaxMem, tags)
+			sendMetric(c, gauge, common.IntegrationName+".process.pga_maximum_memory", r.PGAMaxMem, tags)
 		}
 
 		if c.config.InactiveSessions.Enabled && r.Status.Valid && r.Status.String == "INACTIVE" && r.LastCallEt.Valid {
@@ -140,7 +140,7 @@ func (c *Check) ProcessMemory() error {
 			if r.ClientInfo.Valid {
 				tags = append(tags, "client_info:"+r.ClientInfo.String)
 			}
-			sendMetric(c, gauge, fmt.Sprintf("%s.session.inactive_seconds", common.IntegrationName), float64(r.LastCallEt.Int64), tags)
+			sendMetric(c, gauge, common.IntegrationName+".session.inactive_seconds", float64(r.LastCallEt.Int64), tags)
 		}
 	}
 

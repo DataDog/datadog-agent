@@ -57,7 +57,7 @@ type Demultiplexer interface {
 
 	// SetSamplersFilterList triggers a reconfiguration of the filterlist
 	// applied in the time samplers.
-	SetSamplersFilterList(filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher)
+	SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher)
 
 	// Senders API, mainly used by collectors/checks
 	// --

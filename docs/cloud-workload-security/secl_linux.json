@@ -38,6 +38,11 @@
           "property_doc_link": "event-service-doc"
         },
         {
+          "name": "event.signature",
+          "definition": "Signature of the process pid and its cgroup with agent secret key",
+          "property_doc_link": "event-signature-doc"
+        },
+        {
           "name": "event.source",
           "definition": "[Experimental] Source of the event. Can be either 'runtime' or 'snapshot'.",
           "property_doc_link": "event-source-doc"
@@ -503,6 +508,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "process.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "process.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -534,23 +544,33 @@
         },
         {
           "name": "process.ancestors.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "process.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "process.ancestors.user_session.session_type",
@@ -560,22 +580,27 @@
         {
           "name": "process.ancestors.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "process.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "process.ancestors.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "process.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "process.ancestors.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "process.args",
@@ -1028,6 +1053,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "process.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "process.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -1478,6 +1508,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "process.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "process.parent.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -1509,23 +1544,33 @@
         },
         {
           "name": "process.parent.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "process.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "process.parent.user_session.session_type",
@@ -1535,22 +1580,27 @@
         {
           "name": "process.parent.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "process.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "process.parent.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "process.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "process.parent.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "process.pid",
@@ -1584,23 +1634,33 @@
         },
         {
           "name": "process.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "process.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "process.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "process.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "process.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "process.user_session.session_type",
@@ -1610,22 +1670,27 @@
         {
           "name": "process.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "process.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "process.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "process.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "process.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "process.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -2567,6 +2632,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
+        },
+        {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l3_protocol-doc"
@@ -3106,6 +3176,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "exec.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "exec.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -3142,23 +3217,33 @@
         },
         {
           "name": "exec.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "exec.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "exec.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "exec.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "exec.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "exec.user_session.session_type",
@@ -3168,22 +3253,27 @@
         {
           "name": "exec.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "exec.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "exec.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "exec.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "exec.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "exec.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -3655,6 +3745,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "exit.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "exit.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -3686,23 +3781,33 @@
         },
         {
           "name": "exit.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "exit.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "exit.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "exit.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "exit.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "exit.user_session.session_type",
@@ -3712,22 +3817,27 @@
         {
           "name": "exit.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "exit.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "exit.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "exit.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "exit.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "exit.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -3797,6 +3907,11 @@
           "name": "network.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
         },
         {
           "name": "network.l3_protocol",
@@ -4732,6 +4847,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "network_flow_monitor.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
+        },
+        {
           "name": "network_flow_monitor.flows.destination.ip",
           "definition": "IP address",
           "property_doc_link": "common-ipportcontext-ip-doc"
@@ -5000,6 +5120,11 @@
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
         },
         {
+          "name": "network.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
+        },
+        {
           "name": "network.l3_protocol",
           "definition": "L3 protocol of the network packet",
           "property_doc_link": "common-networkcontext-l3_protocol-doc"
@@ -5058,6 +5183,11 @@
           "name": "packet.device.ifname",
           "definition": "Interface ifname",
           "property_doc_link": "common-networkdevicecontext-ifname-doc"
+        },
+        {
+          "name": "packet.device.netns",
+          "definition": "Interface NetNS ID",
+          "property_doc_link": "common-networkdevicecontext-netns-doc"
         },
         {
           "name": "packet.filter",
@@ -5613,6 +5743,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -5644,23 +5779,33 @@
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.session_type",
@@ -5670,22 +5815,27 @@
         {
           "name": "ptrace.tracee.ancestors.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "ptrace.tracee.ancestors.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "ptrace.tracee.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "ptrace.tracee.args",
@@ -6138,6 +6288,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "ptrace.tracee.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -6588,6 +6743,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "ptrace.tracee.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -6619,23 +6779,33 @@
         },
         {
           "name": "ptrace.tracee.parent.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.session_type",
@@ -6645,22 +6815,27 @@
         {
           "name": "ptrace.tracee.parent.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "ptrace.tracee.parent.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "ptrace.tracee.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "ptrace.tracee.parent.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "ptrace.tracee.pid",
@@ -6694,23 +6869,33 @@
         },
         {
           "name": "ptrace.tracee.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "ptrace.tracee.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "ptrace.tracee.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "ptrace.tracee.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "ptrace.tracee.user_session.session_type",
@@ -6720,22 +6905,27 @@
         {
           "name": "ptrace.tracee.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "ptrace.tracee.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "ptrace.tracee.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "ptrace.tracee.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "ptrace.tracee.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -7897,6 +8087,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -7928,23 +8123,33 @@
         },
         {
           "name": "setrlimit.target.ancestors.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.session_type",
@@ -7954,22 +8159,27 @@
         {
           "name": "setrlimit.target.ancestors.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "setrlimit.target.ancestors.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "setrlimit.target.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "setrlimit.target.ancestors.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "setrlimit.target.args",
@@ -8422,6 +8632,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "setrlimit.target.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -8872,6 +9087,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "setrlimit.target.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -8903,23 +9123,33 @@
         },
         {
           "name": "setrlimit.target.parent.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.session_type",
@@ -8929,22 +9159,27 @@
         {
           "name": "setrlimit.target.parent.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "setrlimit.target.parent.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "setrlimit.target.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "setrlimit.target.parent.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "setrlimit.target.pid",
@@ -8978,23 +9213,33 @@
         },
         {
           "name": "setrlimit.target.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "setrlimit.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "setrlimit.target.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "setrlimit.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "setrlimit.target.user_session.session_type",
@@ -9004,22 +9249,27 @@
         {
           "name": "setrlimit.target.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "setrlimit.target.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "setrlimit.target.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "setrlimit.target.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "setrlimit.target.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "setrlimit.target.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         }
       ]
     },
@@ -9032,22 +9282,22 @@
       "properties": [
         {
           "name": "setsockopt.filter_hash",
-          "definition": "Hash of the socket filter using sha256",
+          "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_hash-doc"
         },
         {
           "name": "setsockopt.filter_instructions",
-          "definition": "Filter instructions",
+          "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_instructions-doc"
         },
         {
           "name": "setsockopt.filter_len",
-          "definition": "Length of the filter",
+          "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-filter_len-doc"
         },
         {
           "name": "setsockopt.is_filter_truncated",
-          "definition": "Indicates that the filter is truncated",
+          "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-is_filter_truncated-doc"
         },
         {
@@ -9082,7 +9332,7 @@
         },
         {
           "name": "setsockopt.used_immediates",
-          "definition": "List of immediate values used in the filter",
+          "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
           "property_doc_link": "setsockopt-used_immediates-doc"
         }
       ]
@@ -9758,6 +10008,11 @@
           "property_doc_link": "common-string-length-doc"
         },
         {
+          "name": "signal.target.ancestors.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "signal.target.ancestors.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -9789,23 +10044,33 @@
         },
         {
           "name": "signal.target.ancestors.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.session_type",
@@ -9815,22 +10080,27 @@
         {
           "name": "signal.target.ancestors.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "signal.target.ancestors.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "signal.target.ancestors.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "signal.target.ancestors.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.target.args",
@@ -10283,6 +10553,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "signal.target.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "signal.target.parent.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -10733,6 +11008,11 @@
           "property_doc_link": "common-process-is_thread-doc"
         },
         {
+          "name": "signal.target.parent.netns",
+          "definition": "NetNS ID of the process",
+          "property_doc_link": "common-pidcontext-netns-doc"
+        },
+        {
           "name": "signal.target.parent.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -10764,23 +11044,33 @@
         },
         {
           "name": "signal.target.parent.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "signal.target.parent.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.parent.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.parent.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "signal.target.parent.user_session.session_type",
@@ -10790,22 +11080,27 @@
         {
           "name": "signal.target.parent.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "signal.target.parent.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "signal.target.parent.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "signal.target.parent.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "signal.target.parent.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.target.pid",
@@ -10839,23 +11134,33 @@
         },
         {
           "name": "signal.target.user_session.id",
-          "definition": "Unique identifier of the user session on the host",
+          "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
           "property_doc_link": "common-usersessioncontext-id-doc"
+        },
+        {
+          "name": "signal.target.user_session.identity",
+          "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
+          "property_doc_link": "common-usersessioncontext-identity-doc"
         },
         {
           "name": "signal.target.user_session.k8s_groups",
           "definition": "Kubernetes groups of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_session_id",
+          "definition": "Unique identifier of the kubernetes session",
+          "property_doc_link": "common-k8ssessioncontext-k8s_session_id-doc"
         },
         {
           "name": "signal.target.user_session.k8s_uid",
           "definition": "Kubernetes UID of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_uid-doc"
         },
         {
           "name": "signal.target.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+          "property_doc_link": "common-k8ssessioncontext-k8s_username-doc"
         },
         {
           "name": "signal.target.user_session.session_type",
@@ -10865,22 +11170,27 @@
         {
           "name": "signal.target.user_session.ssh_auth_method",
           "definition": "SSH authentication method used by the user",
-          "property_doc_link": "common-usersessioncontext-ssh_auth_method-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_auth_method-doc"
         },
         {
           "name": "signal.target.user_session.ssh_client_ip",
           "definition": "SSH client IP of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_client_ip-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_client_ip-doc"
         },
         {
-          "name": "signal.target.user_session.ssh_port",
-          "definition": "SSH port of the user that executed the process",
-          "property_doc_link": "common-usersessioncontext-ssh_port-doc"
+          "name": "signal.target.user_session.ssh_client_port",
+          "definition": "SSH client port of the user that executed the process",
+          "property_doc_link": "common-sshsessioncontext-ssh_client_port-doc"
         },
         {
           "name": "signal.target.user_session.ssh_public_key",
           "definition": "SSH public key used for authentication (if applicable)",
-          "property_doc_link": "common-usersessioncontext-ssh_public_key-doc"
+          "property_doc_link": "common-sshsessioncontext-ssh_public_key-doc"
+        },
+        {
+          "name": "signal.target.user_session.ssh_session_id",
+          "definition": "Unique identifier of the SSH user session on the host",
+          "property_doc_link": "common-sshsessioncontext-ssh_session_id-doc"
         },
         {
           "name": "signal.type",
@@ -12574,8 +12884,33 @@
     {
       "name": "*.id",
       "link": "common-usersessioncontext-id-doc",
-      "type": "int",
-      "definition": "Unique identifier of the user session on the host",
+      "type": "string",
+      "definition": "Unique identifier of the user session, alias for either ssh_session_id or k8s_session_id, depending on the session type",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.identity",
+      "link": "common-usersessioncontext-identity-doc",
+      "type": "string",
+      "definition": "User identity of the user session, alias for either ssh_client_ip and ssh_client_port or k8s_username, depending on the session type",
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
@@ -12855,7 +13190,7 @@
     },
     {
       "name": "*.k8s_groups",
-      "link": "common-usersessioncontext-k8s_groups-doc",
+      "link": "common-k8ssessioncontext-k8s_groups-doc",
       "type": "string",
       "definition": "Kubernetes groups of the user that executed the process",
       "prefixes": [
@@ -12879,8 +13214,33 @@
       "examples": []
     },
     {
+      "name": "*.k8s_session_id",
+      "link": "common-k8ssessioncontext-k8s_session_id-doc",
+      "type": "int",
+      "definition": "Unique identifier of the kubernetes session",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.k8s_uid",
-      "link": "common-usersessioncontext-k8s_uid-doc",
+      "link": "common-k8ssessioncontext-k8s_uid-doc",
       "type": "string",
       "definition": "Kubernetes UID of the user that executed the process",
       "prefixes": [
@@ -12905,7 +13265,7 @@
     },
     {
       "name": "*.k8s_username",
-      "link": "common-usersessioncontext-k8s_username-doc",
+      "link": "common-k8ssessioncontext-k8s_username-doc",
       "type": "string",
       "definition": "Kubernetes username of the user that executed the process",
       "prefixes": [
@@ -13423,6 +13783,45 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-networkdevicecontext-netns-doc",
+      "type": "int",
+      "definition": "Interface NetNS ID",
+      "prefixes": [
+        "network.device",
+        "network_flow_monitor.device",
+        "packet.device"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.netns",
+      "link": "common-pidcontext-netns-doc",
+      "type": "int",
+      "definition": "NetNS ID of the process",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.network_direction",
@@ -14101,8 +14500,8 @@
         "signal.target.parent.user_session",
         "signal.target.user_session"
       ],
-      "constants": "UserSessionTypes",
-      "constants_link": "usersessiontypes",
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -14120,7 +14519,7 @@
     },
     {
       "name": "*.ssh_auth_method",
-      "link": "common-usersessioncontext-ssh_auth_method-doc",
+      "link": "common-sshsessioncontext-ssh_auth_method-doc",
       "type": "int",
       "definition": "SSH authentication method used by the user",
       "prefixes": [
@@ -14145,7 +14544,7 @@
     },
     {
       "name": "*.ssh_client_ip",
-      "link": "common-usersessioncontext-ssh_client_ip-doc",
+      "link": "common-sshsessioncontext-ssh_client_ip-doc",
       "type": "IP/CIDR",
       "definition": "SSH client IP of the user that executed the process",
       "prefixes": [
@@ -14169,10 +14568,10 @@
       "examples": []
     },
     {
-      "name": "*.ssh_port",
-      "link": "common-usersessioncontext-ssh_port-doc",
+      "name": "*.ssh_client_port",
+      "link": "common-sshsessioncontext-ssh_client_port-doc",
       "type": "int",
-      "definition": "SSH port of the user that executed the process",
+      "definition": "SSH client port of the user that executed the process",
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
@@ -14195,9 +14594,34 @@
     },
     {
       "name": "*.ssh_public_key",
-      "link": "common-usersessioncontext-ssh_public_key-doc",
+      "link": "common-sshsessioncontext-ssh_public_key-doc",
       "type": "string",
       "definition": "SSH public key used for authentication (if applicable)",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "setrlimit.target.ancestors.user_session",
+        "setrlimit.target.parent.user_session",
+        "setrlimit.target.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ssh_session_id",
+      "link": "common-sshsessioncontext-ssh_session_id-doc",
+      "type": "int",
+      "definition": "Unique identifier of the SSH user session on the host",
       "prefixes": [
         "exec.user_session",
         "exit.user_session",
@@ -15033,6 +15457,18 @@
       "link": "event-service-doc",
       "type": "string",
       "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.signature",
+      "link": "event-signature-doc",
+      "type": "string",
+      "definition": "Signature of the process pid and its cgroup with agent secret key",
       "prefixes": [
         ""
       ],
@@ -15932,7 +16368,7 @@
       "name": "setsockopt.filter_hash",
       "link": "setsockopt-filter_hash-doc",
       "type": "string",
-      "definition": "Hash of the socket filter using sha256",
+      "definition": "Hash of the currently attached filter using sha256. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -15944,7 +16380,7 @@
       "name": "setsockopt.filter_instructions",
       "link": "setsockopt-filter_instructions-doc",
       "type": "string",
-      "definition": "Filter instructions",
+      "definition": "Instructions of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -15956,7 +16392,7 @@
       "name": "setsockopt.filter_len",
       "link": "setsockopt-filter_len-doc",
       "type": "int",
-      "definition": "Length of the filter",
+      "definition": "Length of the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -15968,7 +16404,7 @@
       "name": "setsockopt.is_filter_truncated",
       "link": "setsockopt-is_filter_truncated-doc",
       "type": "bool",
-      "definition": "Indicates that the filter is truncated",
+      "definition": "Indicates that the currently attached filter is truncated. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],
@@ -16040,7 +16476,7 @@
       "name": "setsockopt.used_immediates",
       "link": "setsockopt-used_immediates-doc",
       "type": "int",
-      "definition": "List of immediate values used in the filter",
+      "definition": "List of immediate values used in the currently attached filter. Only available if the optname is `SO_ATTACH_FILTER`",
       "prefixes": [
         "setsockopt"
       ],

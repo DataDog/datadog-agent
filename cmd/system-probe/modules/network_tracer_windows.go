@@ -8,10 +8,12 @@
 package modules
 
 import (
+	"os"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
 )
@@ -25,6 +27,14 @@ var NetworkTracer = &module.Factory{
 	Fn:               createNetworkTracerModule,
 }
 
-func inactivityEventLog(duration time.Duration) {
-	winutil.LogEventViewer(config.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, duration.String())
+func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
+	if !nt.cfg.DirectSend {
+		nt.restartTimer = time.AfterFunc(inactivityRestartDuration, func() {
+			log.Criticalf("%v since the process-agent last queried for data. It may not be configured correctly and/or running. Exiting system-probe to save system resources.", inactivityRestartDuration)
+			winutil.LogEventViewer(config.ServiceName, messagestrings.MSG_SYSPROBE_RESTART_INACTIVITY, inactivityRestartDuration.String())
+			nt.Close()
+			os.Exit(1)
+		})
+	}
+	return nil
 }

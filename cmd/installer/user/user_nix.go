@@ -10,6 +10,7 @@ package user
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"syscall"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // ErrRootRequired is the error returned when an operation requires root privileges.
-var ErrRootRequired = fmt.Errorf("operation requires root privileges")
+var ErrRootRequired = errors.New("operation requires root privileges")
 
 // IsRoot returns true if the process is running as root.
 func IsRoot() bool {

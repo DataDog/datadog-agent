@@ -71,11 +71,6 @@ func (f NoopForwarder) SubmitProcessDiscoveryChecks(_ transaction.BytesPayloads,
 	return nil, nil
 }
 
-// SubmitProcessEventChecks does nothing
-func (f NoopForwarder) SubmitProcessEventChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
-	return nil, nil
-}
-
 // SubmitRTProcessChecks does nothing.
 func (f NoopForwarder) SubmitRTProcessChecks(_ transaction.BytesPayloads, _ http.Header) (chan Response, error) {
 	return nil, nil

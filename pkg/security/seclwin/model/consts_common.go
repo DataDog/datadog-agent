@@ -65,8 +65,8 @@ const (
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump
 
-	// EventFlagsIsSnapshot is true if the event is generated from a snapshot
-	EventFlagsIsSnapshot
+	// EventFlagsFromReplay is true if the event is generated from a replay
+	EventFlagsFromReplay
 )
 
 const (
@@ -84,6 +84,18 @@ const (
 	IMDSIBMCloudProvider = "ibm"
 	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
 	IMDSOracleCloudProvider = "oracle"
+)
+
+// EventSource is the source of the event
+type EventSource = string
+
+const (
+	// EventSourceRuntime is used to report that the event is generated from a runtime
+	EventSourceRuntime EventSource = "runtime"
+	// EventSourceReplay is used to report that the event is generated from a replay
+	EventSourceReplay EventSource = "replay"
+	// EventSourceRelated is used to report that the event is generated from a related event
+	EventSourceRelated EventSource = "related"
 )
 
 var (
@@ -474,9 +486,9 @@ var (
 	fileTypeStrings            = map[FileType]string{}
 	linkageTypeStrings         = map[LinkageType]string{}
 	// UserSessionTypeStrings are the supported user session types
-	UserSessionTypeStrings = map[usersession.Type]string{}
+	userSessionTypeStrings = map[usersession.Type]string{}
 	// SSHAuthMethodStrings are the supported SSH authentication methods
-	SSHAuthMethodStrings = map[usersession.AuthType]string{}
+	sshAuthMethodStrings = map[usersession.AuthType]string{}
 )
 
 // File flags
@@ -626,19 +638,17 @@ func initLinkageTypeConstants() {
 	}
 }
 
-// InitUserSessionTypes initialize the constants for user session types
-func InitUserSessionTypes() {
+func initUserSessionTypes() {
 	for k, v := range UserSessionTypes {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		UserSessionTypeStrings[v] = k
+		userSessionTypeStrings[v] = k
 	}
 }
 
-// InitSSHAuthMethodConstants initialize the constants for SSH auth methods
-func InitSSHAuthMethodConstants() {
+func initSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
-		SSHAuthMethodStrings[v] = k
+		sshAuthMethodStrings[v] = k
 	}
 }
 
@@ -689,8 +699,8 @@ func initConstants() {
 	initSocketFamilyConstants()
 	initSocketProtocolConstants()
 	initPrCtlOptionConstants()
-	InitUserSessionTypes()
-	InitSSHAuthMethodConstants()
+	initUserSessionTypes()
+	initSSHAuthMethodConstants()
 }
 
 // RetValError represents a syscall return error value
@@ -1174,4 +1184,25 @@ func (l LinkageType) String() string {
 		initLinkageTypeConstants()
 	}
 	return linkageTypeStrings[l]
+}
+
+// UserSessionTypeToString converts a usersession.Type to its string representation
+func UserSessionTypeToString(t usersession.Type) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := userSessionTypeStrings[t]; ok {
+		return val
+	}
+	return ""
+}
+
+func SSHAuthMethodToString(t usersession.AuthType) string {
+	// init constants if needed
+	SECLConstants()
+
+	if val, ok := sshAuthMethodStrings[t]; ok {
+		return val
+	}
+	return ""
 }

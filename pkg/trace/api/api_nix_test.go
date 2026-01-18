@@ -125,7 +125,7 @@ func TestHTTPReceiverStart(t *testing.T) {
 			socket := filepath.Join(t.TempDir(), "agent.sock")
 			return true, 0, socket, []string{
 				"HTTP receiver disabled by config (apm_config.receiver_port: 0)",
-				fmt.Sprintf("Listening for traces at unix://%s", socket),
+				"Listening for traces at unix://" + socket,
 			}
 		},
 		"both": func() (bool, int, string, []string) {
@@ -133,7 +133,7 @@ func TestHTTPReceiverStart(t *testing.T) {
 			socket := filepath.Join(t.TempDir(), "agent.sock")
 			return true, port, socket, []string{
 				fmt.Sprintf("Listening for traces at http://localhost:%d", port),
-				fmt.Sprintf("Listening for traces at unix://%s", socket),
+				"Listening for traces at unix://" + socket,
 			}
 		},
 	} {

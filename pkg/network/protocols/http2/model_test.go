@@ -29,26 +29,26 @@ func TestHTTP2LongPath(t *testing.T) {
 	}{
 		{
 			name:           "Long path with huffman with bigger out buffer",
-			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			rawPath:        "/" + strings.Repeat("a", maxHTTP2Path+1),
 			huffmanEnabled: true,
 		},
 		{
 			name:           "Long path with huffman with shorter out buffer",
-			rawPath:        fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
-			expectedPath:   fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			rawPath:        "/" + strings.Repeat("a", maxHTTP2Path+1),
+			expectedPath:   "/" + strings.Repeat("a", 19),
 			huffmanEnabled: true,
 			outBufSize:     20,
 		},
 		{
 			name:    "Long path without huffman with bigger out buffer",
-			rawPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
+			rawPath: "/" + strings.Repeat("a", maxHTTP2Path+1),
 			// The path is truncated to maxHTTP2Path (including the leading '/')
-			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path-1)),
+			expectedPath: "/" + strings.Repeat("a", maxHTTP2Path-1),
 		},
 		{
 			name:         "Long path without huffman with shorter out buffer",
-			rawPath:      fmt.Sprintf("/%s", strings.Repeat("a", maxHTTP2Path+1)),
-			expectedPath: fmt.Sprintf("/%s", strings.Repeat("a", 19)),
+			rawPath:      "/" + strings.Repeat("a", maxHTTP2Path+1),
+			expectedPath: "/" + strings.Repeat("a", 19),
 			outBufSize:   20,
 		},
 	}

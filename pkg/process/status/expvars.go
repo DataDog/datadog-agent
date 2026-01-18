@@ -39,13 +39,9 @@ var (
 	infoProcessQueueSize      atomic.Int64
 	infoRTProcessQueueSize    atomic.Int64
 	infoConnectionsQueueSize  atomic.Int64
-	infoEventQueueSize        atomic.Int64
-	infoPodQueueSize          atomic.Int64
 	infoProcessQueueBytes     atomic.Int64
 	infoRTProcessQueueBytes   atomic.Int64
 	infoConnectionsQueueBytes atomic.Int64
-	infoEventQueueBytes       atomic.Int64
-	infoPodQueueBytes         atomic.Int64
 	infoSubmissionErrorCount  atomic.Int64
 	infoEnabledChecks         []string
 	infoDropCheckPayloads     []string
@@ -133,13 +129,9 @@ type QueueStats struct {
 	ProcessQueueSize      int
 	RtProcessQueueSize    int
 	ConnectionsQueueSize  int
-	EventQueueSize        int
-	PodQueueSize          int
 	ProcessQueueBytes     int64
 	RtProcessQueueBytes   int64
 	ConnectionsQueueBytes int64
-	EventQueueBytes       int64
-	PodQueueBytes         int64
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -147,13 +139,9 @@ func UpdateQueueStats(stats *QueueStats) {
 	infoProcessQueueSize.Store(int64(stats.ProcessQueueSize))
 	infoRTProcessQueueSize.Store(int64(stats.RtProcessQueueSize))
 	infoConnectionsQueueSize.Store(int64(stats.ConnectionsQueueSize))
-	infoEventQueueSize.Store(int64(stats.EventQueueSize))
-	infoPodQueueSize.Store(int64(stats.PodQueueSize))
 	infoProcessQueueBytes.Store(stats.ProcessQueueBytes)
 	infoRTProcessQueueBytes.Store(stats.RtProcessQueueBytes)
 	infoConnectionsQueueBytes.Store(stats.ConnectionsQueueBytes)
-	infoEventQueueBytes.Store(stats.EventQueueBytes)
-	infoPodQueueBytes.Store(stats.PodQueueBytes)
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -274,13 +262,9 @@ func InitExpvars(config config.Component, hostname string, processModuleEnabled,
 		processExpvars.Set("process_queue_size", publishInt(&infoProcessQueueSize))
 		processExpvars.Set("rtprocess_queue_size", publishInt(&infoRTProcessQueueSize))
 		processExpvars.Set("connections_queue_size", publishInt(&infoConnectionsQueueSize))
-		processExpvars.Set("event_queue_size", publishInt(&infoEventQueueSize))
-		processExpvars.Set("pod_queue_size", publishInt(&infoPodQueueSize))
 		processExpvars.Set("process_queue_bytes", publishInt(&infoProcessQueueBytes))
 		processExpvars.Set("rtprocess_queue_bytes", publishInt(&infoRTProcessQueueBytes))
 		processExpvars.Set("connections_queue_bytes", publishInt(&infoConnectionsQueueBytes))
-		processExpvars.Set("event_queue_bytes", publishInt(&infoEventQueueBytes))
-		processExpvars.Set("pod_queue_bytes", publishInt(&infoPodQueueBytes))
 		processExpvars.Set("container_id", expvar.Func(publishContainerID))
 		processExpvars.Set("enabled_checks", expvar.Func(publishEnabledChecks))
 		processExpvars.Set("endpoints", expvar.Func(publishEndpoints(config)))

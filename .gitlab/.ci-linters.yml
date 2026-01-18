@@ -5,8 +5,8 @@
 needs-rules:
   allowed-stages:
     - .pre
+    - .post
     - lint
-    - notify
     - deploy_dca
     - deploy_dca_mutable_tags
     - deploy_containers
@@ -94,12 +94,12 @@ job-owners:
     - new-e2e-unit-tests
     - publish_fakeintake
     - publish_fakeintake_latest
-    - rc_kubernetes_deploy
     - revert_latest_7
     - send_pipeline_stats
     - send_pkg_size
     - setup_agent_version
     - single-machine-performance-regression_detector
+    - single-machine-performance-metal-runners-regression_detector
     - single-machine-performance-regression_detector-pr-comment
     - test_install_script
     - trace-agent-v04-2cpus-normal_load-fixed_sps

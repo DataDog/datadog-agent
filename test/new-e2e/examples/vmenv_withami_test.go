@@ -8,13 +8,13 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
-	"github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +26,7 @@ type vmSuiteEx2 struct {
 func TestVMSuiteEx2(t *testing.T) {
 	e2e.Run(t, &vmSuiteEx2{}, e2e.WithProvisioner(
 		awshost.ProvisionerNoAgentNoFakeIntake(
-			awshost.WithEC2InstanceOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium")),
+			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithAMI("ami-05fab674de2157a80", os.AmazonLinux2, os.ARM64Arch), ec2.WithInstanceType("c6g.medium"))),
 		),
 	))
 }

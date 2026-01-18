@@ -8,7 +8,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"testing"
@@ -34,7 +33,7 @@ func TestNetworkProcessEventMonitoring(t *testing.T) {
 		{network: true, netProcEvents: false, enabled: false},
 		{network: true, netProcEvents: true, enabled: true},
 	} {
-		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			os.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLED", strconv.FormatBool(te.network))
 			os.Setenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED", strconv.FormatBool(te.netProcEvents))
 			defer os.Unsetenv("DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
@@ -74,6 +73,14 @@ func TestEventStreamEnabledForSupportedKernelsLinux(t *testing.T) {
 	} else {
 		require.False(t, cfg.GetBool("event_monitoring_config.network_process.enabled"))
 	}
+}
+
+func TestHTTP2MonitoringEnabledForSupportedKernelsLinux(t *testing.T) {
+	t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_ENABLED", strconv.FormatBool(true))
+	cfg := mock.NewSystemProbe(t)
+	Adjust(cfg)
+
+	require.Equal(t, HTTP2MonitoringSupported(), cfg.GetBool("service_monitoring_config.http2.enabled"))
 }
 
 func TestNPMEnabled(t *testing.T) {

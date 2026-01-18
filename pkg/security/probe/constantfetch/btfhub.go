@@ -11,6 +11,7 @@ package constantfetch
 import (
 	_ "embed" // for go:embed
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"strings"
@@ -109,12 +110,12 @@ type kernelInfos struct {
 func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 	distribution, ok := kv.OsRelease["ID"]
 	if !ok {
-		return nil, fmt.Errorf("failed to collect os-release ID")
+		return nil, errors.New("failed to collect os-release ID")
 	}
 
 	version, ok := kv.OsRelease["VERSION_ID"]
 	if !ok {
-		return nil, fmt.Errorf("failed to collect os-release VERSION_ID")
+		return nil, errors.New("failed to collect os-release VERSION_ID")
 	}
 
 	// HACK: fix mapping of version for oracle-linux and amazon linux 2018
@@ -127,7 +128,7 @@ func newKernelInfos(kv *kernel.Version) (*kernelInfos, error) {
 
 	arch, ok := archMapping[runtime.GOARCH]
 	if !ok {
-		return nil, fmt.Errorf("failed to map runtime arch to btf arch")
+		return nil, errors.New("failed to map runtime arch to btf arch")
 	}
 
 	return &kernelInfos{

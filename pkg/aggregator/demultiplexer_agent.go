@@ -183,7 +183,7 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, agg.tagFilterList)
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -254,7 +254,7 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 		if d.aggregator.hostname != "" {
 			// Send startup event only when we have a valid hostname
 			d.aggregator.eventIn <- event.Event{
-				Text:           fmt.Sprintf("Version %s", agentVersion),
+				Text:           "Version " + agentVersion,
 				SourceTypeName: "System",
 				Host:           d.aggregator.hostname,
 				EventType:      "Agent Startup",
@@ -504,7 +504,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the samplers.
-func (d *AgentDemultiplexer) SetSamplersFilterList(filterList *utilstrings.Matcher, histoFilterList *utilstrings.Matcher) {
+func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
 
 	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
 	// Histogram metrics need aggregating before we determine the correct name to be filtered.

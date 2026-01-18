@@ -153,7 +153,7 @@ b:
 func TestUnknownVarsWarning(t *testing.T) {
 	test := func(v string, unknown bool, additional []string) func(*testing.T) {
 		return func(t *testing.T) {
-			env := []string{fmt.Sprintf("%s=foo", v)}
+			env := []string{v + "=foo"}
 			var exp []string
 			if unknown {
 				exp = append(exp, v)
@@ -472,6 +472,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
@@ -490,6 +491,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "datadoghq.com/dbm:true")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "datadoghq.com/global_view_db")
 			},
 		},
 		{
@@ -498,6 +500,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_TAGS", "foo:bar other:tag")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DBM_TAG", "usedbm")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_GLOBAL_VIEW_DB_TAG", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -505,6 +508,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar", "other:tag"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 		{
@@ -527,6 +531,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.query_timeout", 4)
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.tags", []string{"foo:bar"})
 				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.dbm_tag", "usedbm")
+				config.SetWithoutSource("database_monitoring.autodiscovery.aurora.global_view_db_tag", "dbtag")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
@@ -534,6 +539,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 4)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"foo:bar"})
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.dbm_tag"), "usedbm")
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.global_view_db_tag"), "dbtag")
 			},
 		},
 	}
@@ -655,13 +661,67 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.input_chan_size"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.processing_chan_size"))
-	assert.Equal(t, 5000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
-	assert.Equal(t, 16*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
-	assert.Equal(t, 5*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
+	assert.Equal(t, 1000, config.GetInt("network_path.collector.pathtest_contexts_limit"))
+	assert.Equal(t, 70*time.Minute, config.GetDuration("network_path.collector.pathtest_ttl"))
+	assert.Equal(t, 30*time.Minute, config.GetDuration("network_path.collector.pathtest_interval"))
 	assert.Equal(t, 10*time.Second, config.GetDuration("network_path.collector.flush_interval"))
 	assert.Equal(t, true, config.GetBool("network_path.collector.reverse_dns_enrichment.enabled"))
 	assert.Equal(t, 5000, config.GetInt("network_path.collector.reverse_dns_enrichment.timeout"))
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
+}
+
+func TestInfrastructureModeLegacyAliases(t *testing.T) {
+	// Test that legacy allowed_additional_checks is aliased to mode-specific
+	// key via applyInfrastructureModeOverrides
+	datadogYaml := `
+infrastructure_mode: basic
+allowed_additional_checks:
+  - prometheus
+  - redis
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// Legacy allowed_additional_checks should be merged into integration.additional
+	additional := config.GetStringSlice("integration.additional")
+	assert.Contains(t, additional, "prometheus")
+	assert.Contains(t, additional, "redis")
+}
+
+func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be a list of maps")
+	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+
+	// Check that the first filter is the deny-all rule
+	assert.Equal(t, "*", filtersList[0]["match_domain"])
+	assert.Equal(t, "exclude", filtersList[0]["type"])
+
+	// Check that some expected SaaS domains are present
+	var foundGoogle, foundSlack, foundGitHub bool
+	for _, filter := range filtersList {
+		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
+			foundGoogle = true
+		}
+		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
+			foundSlack = true
+		}
+		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
+			foundGitHub = true
+		}
+	}
+	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
+	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
+	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
+
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1000,6 +1060,18 @@ func TestPeerTagsEnv(t *testing.T) {
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }
 
+func TestAdditionalProfileTagsEnv(t *testing.T) {
+	testConfig := newTestConf(t)
+	require.Empty(t, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+
+	t.Setenv("DD_APM_ADDITIONAL_PROFILE_TAGS", `{"_dd.origin":"appservice","env":"staging"}`)
+	testConfig = newTestConf(t)
+	require.Equal(t, map[string]string{
+		"_dd.origin": "appservice",
+		"env":        "staging",
+	}, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+}
+
 func TestLogDefaults(t *testing.T) {
 	// New config
 	c := newEmptyMockConf(t)
@@ -1130,9 +1202,9 @@ func configRetrieveFromPath(cfg pkgconfigmodel.Config, settingPath string) (inte
 			if err != nil {
 				return nil, err
 			}
-			if leaf, match := node.(nodetreemodel.LeafNode); match {
+			if node.IsLeafNode() {
 				// if we find a leaf, can't get a child of it
-				leafValue := leaf.Get()
+				leafValue := node.Get()
 				if leafMap, isMap := leafValue.(map[string]interface{}); isMap {
 					remain := strings.Join(parts[i:], ".")
 					return leafMap[remain], nil
@@ -1265,7 +1337,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver to modify a 2nd config with a different origin
-	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "")
+	diffYaml, err := resolver.Resolve(testMinimalDiffConf, "diff_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 
@@ -1275,7 +1347,7 @@ use_proxy_for_cloud_metadata: true
 	assert.YAMLEq(t, expectedYaml, string(yamlConf))
 
 	// use resolver again, but with the original origin now
-	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "")
+	diffYaml, err = resolver.Resolve(testMinimalDiffConf, "unit_test", "", "", true)
 	assert.NoError(t, err)
 	assert.YAMLEq(t, expectedDiffYaml, string(diffYaml))
 

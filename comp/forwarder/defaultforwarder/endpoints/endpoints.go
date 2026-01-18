@@ -33,6 +33,8 @@ var (
 	ServiceChecksEndpoint = transaction.Endpoint{Route: "/api/v2/service_checks", Name: "services_checks_v2"}
 	// SketchSeriesEndpoint is the v2 endpoint used to send sketches
 	SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/beta/sketches", Name: "sketches_v2"}
+	// V3SketchSeriesEndpoint is the v2 endpoint used to send sketches
+	V3SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v3/sketches", Name: "sketches_v3"}
 	// HostMetadataEndpoint is the v2 endpoint used to send host medatada
 	HostMetadataEndpoint = transaction.Endpoint{Route: "/api/v2/host_metadata", Name: "host_metadata_v2"}
 
@@ -40,8 +42,6 @@ var (
 	ProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "process"}
 	// ProcessDiscoveryEndpoint is a v1 endpoint used to sends process discovery checks
 	ProcessDiscoveryEndpoint = transaction.Endpoint{Route: "/api/v1/discovery", Name: "process_discovery"}
-	// ProcessLifecycleEndpoint is a v2 endpoint used to send process lifecycle events
-	ProcessLifecycleEndpoint = transaction.Endpoint{Route: "/api/v2/proclcycle", Name: "process_lifecycle"}
 	// RtProcessesEndpoint is a v1 endpoint used to send real time process checks
 	RtProcessesEndpoint = transaction.Endpoint{Route: "/api/v1/collector", Name: "rtprocess"}
 	// ContainerEndpoint is a v1 endpoint used to send container checks

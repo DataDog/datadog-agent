@@ -7,7 +7,7 @@ package cpu
 
 import (
 	"errors"
-	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"golang.org/x/sys/unix"
@@ -31,7 +31,7 @@ func getSysctlString(key string) utils.Value[string] {
 
 // type returned by sysctl is uint32, stored as string
 func getSysctlInt32String(key string) utils.Value[string] {
-	castFun := func(val uint32) string { return fmt.Sprintf("%d", val) }
+	castFun := func(val uint32) string { return strconv.FormatUint(uint64(val), 10) }
 	return getSysctl(unix.SysctlUint32, castFun, key)
 }
 

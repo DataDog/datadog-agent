@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/twmb/murmur3"
@@ -178,7 +179,7 @@ func (c *Check) Run() error {
 		return errors.New("kubelet config not found in workloadmeta store")
 	}
 
-	rv := fmt.Sprint(murmur3.Sum64(rawKubeletConfig))
+	rv := strconv.FormatUint(murmur3.Sum64(rawKubeletConfig), 10)
 
 	tags := []string{}
 
@@ -214,7 +215,7 @@ func (c *Check) Run() error {
 }
 
 // Interval returns the scheduling time for the check.
-func Interval() time.Duration {
+func (c *Check) Interval() time.Duration {
 	return collectionInterval
 }
 

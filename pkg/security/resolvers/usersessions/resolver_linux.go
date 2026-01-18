@@ -15,7 +15,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -52,6 +51,9 @@ func (e *UserSessionData) UnmarshalBinary(data []byte) error {
 	}
 
 	e.SessionType = usersession.Type(data[0])
+	if e.SessionType != usersession.UserSessionTypeK8S {
+		seclog.Debugf("not k8s session: %v", e.SessionType)
+	}
 	e.RawData += model.NullTerminatedString(data[1:240])
 	return nil
 }
@@ -88,7 +90,7 @@ type sshSessionParsed struct {
 // Resolver is used to resolve the user sessions context
 type Resolver struct {
 	sync.RWMutex
-	userSessions *simplelru.LRU[uint64, *model.UserSessionContext]
+	k8suserSessions *simplelru.LRU[uint64, *model.K8SSessionContext]
 
 	userSessionsMap *ebpf.Map
 
@@ -98,13 +100,13 @@ type Resolver struct {
 
 // NewResolver returns a new instance of Resolver
 func NewResolver(cacheSize int) (*Resolver, error) {
-	lru, err := simplelru.NewLRU[uint64, *model.UserSessionContext](cacheSize, nil)
+	lru, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create User Session resolver cache: %v", err)
 	}
 
 	return &Resolver{
-		userSessions: lru,
+		k8suserSessions: lru,
 	}, nil
 }
 
@@ -127,8 +129,8 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 	return nil
 }
 
-// ResolveUserSession returns the user session associated to the provided ID
-func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
+// ResolveK8SUserSession returns the user session associated to the provided ID
+func (r *Resolver) ResolveK8SUserSession(id uint64) *model.K8SSessionContext {
 	if id == 0 {
 		return nil
 	}
@@ -138,7 +140,7 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 	defer r.Unlock()
 
 	// is this session already in cache ?
-	if session, ok := r.userSessions.Get(id); ok {
+	if session, ok := r.k8suserSessions.Get(id); ok {
 		return session
 	}
 
@@ -158,10 +160,12 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		// the session doesn't exist, leave now
 		return nil
 	}
-
-	ctx := &model.UserSessionContext{
-		ID:          id,
-		SessionType: int(value.SessionType),
+	sessionType := int(value.SessionType)
+	if sessionType != int(usersession.UserSessionTypeK8S) {
+		seclog.Debugf("session %d is not a k8s session: %v", id, sessionType)
+	}
+	ctx := &model.K8SSessionContext{
+		K8SSessionID: id,
 	}
 	// parse the content of the user session context
 	err = json.Unmarshal([]byte(value.RawData), ctx)
@@ -170,10 +174,10 @@ func (r *Resolver) ResolveUserSession(id uint64) *model.UserSessionContext {
 		return nil
 	}
 
-	ctx.Resolved = true
+	ctx.K8SResolved = true
 
 	// cache resolved context
-	r.userSessions.Add(id, ctx)
+	r.k8suserSessions.Add(id, ctx)
 	return ctx
 }
 
@@ -196,7 +200,8 @@ func (ifr *incrementalFileReader) Init(f *os.File) error {
 	ifr.ino = inodeOf(st)
 	_, err = ifr.f.Seek(ifr.offset, io.SeekStart)
 	if err != nil {
-		ifr.close(false)
+		// Comment: already in an error path
+		_ = ifr.close(false)
 		ifr.f = nil
 	}
 	return err
@@ -404,7 +409,7 @@ func (ifr *incrementalFileReader) reloadIfRotated() error {
 		}
 		f, err := os.Open(ifr.path)
 		if err != nil {
-			ifr.close(false)
+			_ = ifr.close(false)
 			ifr.f = nil
 			return err
 		}
@@ -447,7 +452,7 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 	if path == "" {
 		// // Don't want to continue in case there is no log file
 		// TODO : use journalctl instead
-		seclog.Warnf("no ssh log file found")
+		seclog.Trace("no ssh log file found")
 		return nil
 	}
 	// Initialize the SSH log reader
@@ -473,34 +478,6 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 	go r.startReading()
 	// Note: the file is not closed here, as the sshLogReader manage it
 	return nil
-}
-
-// ResolveSSHUserSession resolves the ssh user session from the auth log
-func (r *Resolver) ResolveSSHUserSession(ctx *model.UserSessionContext) *model.UserSessionContext {
-	id := ctx.ID
-	if id == 0 {
-		return nil
-	}
-
-	r.Lock()
-
-	defer r.Unlock()
-
-	key := SSHSessionKey{
-		IP:   ctx.SSHClientIP.IP.String(),
-		Port: strconv.Itoa(ctx.SSHPort),
-	}
-	r.SSHSessionParsed.Mu.Lock()
-	value, ok := r.SSHSessionParsed.Lru.Get(key)
-	r.SSHSessionParsed.Mu.Unlock()
-	if !ok {
-		ctx.Resolved = true
-		return nil
-	}
-	ctx.SSHAuthMethod = int(value.AuthenticationMethod)
-	ctx.SSHPublicKey = value.PublicKey
-	ctx.Resolved = true
-	return ctx
 }
 
 // Close closes the resolver

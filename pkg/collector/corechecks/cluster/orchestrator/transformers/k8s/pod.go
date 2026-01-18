@@ -211,7 +211,7 @@ func FillK8sPodResourceVersion(p *model.Pod) error {
 
 	// Replace the payload metadata field with the custom version.
 	version := murmur3.Sum64(jsonPodModel)
-	p.Metadata.ResourceVersion = fmt.Sprint(version)
+	p.Metadata.ResourceVersion = strconv.FormatUint(version, 10)
 
 	return nil
 }

@@ -43,13 +43,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.BaseEvent.ProcessContext.Process)
-	_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
-	_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
+	_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
+	_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession.K8SSessionContext)
+	_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 	if !forADs {
 		_ = ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
+		_ = ev.FieldHandlers.ResolveSignature(ev)
 		_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
 	}
@@ -89,11 +91,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.BaseEvent.ProcessContext.Parent)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
 	}
 	if ev.BaseEvent.ProcessContext.HasParent() && ev.BaseEvent.ProcessContext.Parent.HasInterpreter() {
 		_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
@@ -274,11 +277,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exec.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Exec.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Exec.Process.UserSession)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exec.Process.ContainerContext)
@@ -343,11 +347,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Exit.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Exit.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Exit.Process.UserSession)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Exit.Process.ContainerContext)
@@ -552,11 +557,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.PTrace.Tracee.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.PTrace.Tracee.Process)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.PTrace.Tracee.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.PTrace.Tracee.Process.UserSession)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.PTrace.Tracee.Process.ContainerContext)
@@ -590,11 +596,12 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.PTrace.Tracee.Parent)
 			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.PTrace.Tracee.Parent)
-			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.PTrace.Tracee.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.PTrace.Tracee.Parent.UserSession)
 		}
 		if ev.PTrace.Tracee.HasParent() && ev.PTrace.Tracee.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
@@ -753,11 +760,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Setrlimit.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Setrlimit.Target.Process)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Setrlimit.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Setrlimit.Target.Process.UserSession)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Setrlimit.Target.Process)
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Setrlimit.Target.Process.ContainerContext)
@@ -791,11 +799,12 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Setrlimit.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Setrlimit.Target.Parent)
-			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Setrlimit.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Setrlimit.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Setrlimit.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Setrlimit.Target.Parent.UserSession)
 		}
 		if ev.Setrlimit.Target.HasParent() && ev.Setrlimit.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Setrlimit.Target.Parent.LinuxBinprm.FileEvent)
@@ -902,11 +911,12 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.Signal.Target.Process)
 		_ = ev.FieldHandlers.ResolveProcessIsThread(ev, &ev.Signal.Target.Process)
-		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Process.UserSession)
-		_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Signal.Target.Process.UserSession)
+		_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession.K8SSessionContext)
+		_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Signal.Target.Process.UserSession)
 		if !forADs {
 			_ = ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
 			_ = ev.FieldHandlers.ResolveContainerTags(ev, &ev.Signal.Target.Process.ContainerContext)
@@ -940,11 +950,12 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Signal.Target.Parent)
 			_ = ev.FieldHandlers.ResolveProcessIsThread(ev, ev.Signal.Target.Parent)
-			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHClientIP(ev, &ev.Signal.Target.Parent.UserSession)
-			_ = ev.FieldHandlers.ResolveSSHPort(ev, &ev.Signal.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionID(ev, &ev.Signal.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveSessionIdentity(ev, &ev.Signal.Target.Parent.UserSession)
+			_ = ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession.K8SSessionContext)
+			_ = ev.FieldHandlers.ResolveSessionType(ev, &ev.Signal.Target.Parent.UserSession)
 		}
 		if ev.Signal.Target.HasParent() && ev.Signal.Target.Parent.HasInterpreter() {
 			_ = ev.FieldHandlers.ResolveFileExtension(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
@@ -1106,9 +1117,9 @@ type FieldHandlers interface {
 	ResolveHashesFromEvent(ev *Event, e *FileEvent) []string
 	ResolveHostname(ev *Event, e *BaseEvent) string
 	ResolveIsIPPublic(ev *Event, e *IPPortContext) bool
-	ResolveK8SGroups(ev *Event, e *UserSessionContext) []string
-	ResolveK8SUID(ev *Event, e *UserSessionContext) string
-	ResolveK8SUsername(ev *Event, e *UserSessionContext) string
+	ResolveK8SGroups(ev *Event, e *K8SSessionContext) []string
+	ResolveK8SUID(ev *Event, e *K8SSessionContext) string
+	ResolveK8SUsername(ev *Event, e *K8SSessionContext) string
 	ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string
 	ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string
 	ResolveMountPointPath(ev *Event, e *MountEvent) string
@@ -1151,9 +1162,10 @@ type FieldHandlers interface {
 	ResolveProcessIsThread(ev *Event, e *Process) bool
 	ResolveRights(ev *Event, e *FileFields) int
 	ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string
-	ResolveSSHClientIP(ev *Event, e *UserSessionContext) net.IPNet
-	ResolveSSHPort(ev *Event, e *UserSessionContext) int
 	ResolveService(ev *Event, e *BaseEvent) string
+	ResolveSessionID(ev *Event, e *UserSessionContext) string
+	ResolveSessionIdentity(ev *Event, e *UserSessionContext) string
+	ResolveSessionType(ev *Event, e *UserSessionContext) int
 	ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string
 	ResolveSetSockOptFilterInstructions(ev *Event, e *SetSockOptEvent) string
 	ResolveSetSockOptUsedImmediates(ev *Event, e *SetSockOptEvent) []int
@@ -1163,6 +1175,7 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSignature(ev *Event) string
 	ResolveSource(ev *Event, e *BaseEvent) string
 	ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxArgsInt2(ev *Event, e *SyscallContext) int
@@ -1269,13 +1282,13 @@ func (dfh *FakeFieldHandlers) ResolveHostname(ev *Event, e *BaseEvent) string {
 func (dfh *FakeFieldHandlers) ResolveIsIPPublic(ev *Event, e *IPPortContext) bool {
 	return bool(e.IsPublic)
 }
-func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *UserSessionContext) []string {
+func (dfh *FakeFieldHandlers) ResolveK8SGroups(ev *Event, e *K8SSessionContext) []string {
 	return []string(e.K8SGroups)
 }
-func (dfh *FakeFieldHandlers) ResolveK8SUID(ev *Event, e *UserSessionContext) string {
+func (dfh *FakeFieldHandlers) ResolveK8SUID(ev *Event, e *K8SSessionContext) string {
 	return string(e.K8SUID)
 }
-func (dfh *FakeFieldHandlers) ResolveK8SUsername(ev *Event, e *UserSessionContext) string {
+func (dfh *FakeFieldHandlers) ResolveK8SUsername(ev *Event, e *K8SSessionContext) string {
 	return string(e.K8SUsername)
 }
 func (dfh *FakeFieldHandlers) ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string {
@@ -1400,14 +1413,17 @@ func (dfh *FakeFieldHandlers) ResolveRights(ev *Event, e *FileFields) int { retu
 func (dfh *FakeFieldHandlers) ResolveSELinuxBoolName(ev *Event, e *SELinuxEvent) string {
 	return string(e.BoolName)
 }
-func (dfh *FakeFieldHandlers) ResolveSSHClientIP(ev *Event, e *UserSessionContext) net.IPNet {
-	return net.IPNet(e.SSHClientIP)
-}
-func (dfh *FakeFieldHandlers) ResolveSSHPort(ev *Event, e *UserSessionContext) int {
-	return int(e.SSHPort)
-}
 func (dfh *FakeFieldHandlers) ResolveService(ev *Event, e *BaseEvent) string {
 	return string(e.Service)
+}
+func (dfh *FakeFieldHandlers) ResolveSessionID(ev *Event, e *UserSessionContext) string {
+	return string(e.ID)
+}
+func (dfh *FakeFieldHandlers) ResolveSessionIdentity(ev *Event, e *UserSessionContext) string {
+	return string(e.Identity)
+}
+func (dfh *FakeFieldHandlers) ResolveSessionType(ev *Event, e *UserSessionContext) int {
+	return int(e.SessionType)
 }
 func (dfh *FakeFieldHandlers) ResolveSetSockOptFilterHash(ev *Event, e *SetSockOptEvent) string {
 	return string(e.FilterHash)
@@ -1440,6 +1456,7 @@ func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) str
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string {
 	return string(e.User)
 }
+func (dfh *FakeFieldHandlers) ResolveSignature(ev *Event) string            { return string(ev.Signature) }
 func (dfh *FakeFieldHandlers) ResolveSource(ev *Event, e *BaseEvent) string { return string(e.Source) }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgsInt1(ev *Event, e *SyscallContext) int {
 	return int(e.IntArg1)

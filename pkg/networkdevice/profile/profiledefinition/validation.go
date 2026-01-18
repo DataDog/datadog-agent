@@ -139,7 +139,7 @@ func ValidateEnrichMetadata(metadata MetadataConfig) []string {
 	for resName := range metadata {
 		_, isValidRes := validMetadataResources[resName]
 		if !isValidRes {
-			errors = append(errors, fmt.Sprintf("invalid resource: %s", resName))
+			errors = append(errors, "invalid resource: "+resName)
 		} else {
 			res := metadata[resName]
 			for fieldName := range res.Fields {

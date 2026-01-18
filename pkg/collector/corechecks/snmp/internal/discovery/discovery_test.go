@@ -6,18 +6,21 @@
 package discovery
 
 import (
+	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"net"
 	"testing"
 	"time"
 
+	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+	snmpscanmanagermock "github.com/DataDog/datadog-agent/comp/snmpscanmanager/mock"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
+
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
-
-	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, timeout time.Duration) error {
@@ -60,7 +63,7 @@ func TestDiscovery(t *testing.T) {
 		IgnoredIPAddresses: map[string]bool{"192.168.0.5": true},
 		ProfileProvider:    profile.StaticProvider(nil),
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, config)
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 7, 2*time.Second))
 	discovery.Stop()
@@ -111,7 +114,7 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryWorkers:  1,
 		ProfileProvider:   profile.StaticProvider(nil),
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, config)
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
 	discovery.Stop()
@@ -144,7 +147,7 @@ func TestDiscoveryCache(t *testing.T) {
 		DiscoveryWorkers:  0, // no workers, the devices will be loaded from cache
 		ProfileProvider:   profile.StaticProvider(nil),
 	}
-	discovery2 := NewDiscovery(checkConfig, sessionFactory, config)
+	discovery2 := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery2.Start()
 	assert.NoError(t, waitForDiscoveredDevices(discovery2, 4, 2*time.Second))
 	discovery2.Stop()
@@ -187,7 +190,7 @@ func TestDiscoveryTicker(t *testing.T) {
 		DiscoveryWorkers:  1,
 		ProfileProvider:   profile.StaticProvider(nil),
 	}
-	discovery := NewDiscovery(checkConfig, sessionFactory, config)
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, nil)
 	discovery.Start()
 	time.Sleep(1500 * time.Millisecond)
 	discovery.Stop()
@@ -236,7 +239,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 	}
 
 	var sess *session.MockSession
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, config)
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, config, nil)
 
 	checkDeviceOnce := func() {
 		sess = session.CreateMockSession()
@@ -252,7 +255,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 
 	// session configuration error
 	discovery.sessionFactory = func(*checkconfig.CheckConfig) (session.Session, error) {
-		return nil, fmt.Errorf("some error")
+		return nil, errors.New("some error")
 	}
 
 	err = discovery.checkDevice(job)
@@ -262,7 +265,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 
 	// Test session.Connect() error
 	checkDeviceOnce()
-	sess.ConnectErr = fmt.Errorf("connection error")
+	sess.ConnectErr = errors.New("connection error")
 	err = discovery.checkDevice(job)
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
@@ -274,7 +277,7 @@ func TestDiscovery_checkDevice(t *testing.T) {
 		return sess, nil
 	}
 	var nilPacket *gosnmp.SnmpPacket
-	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, fmt.Errorf("get error"))
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(nilPacket, errors.New("get error"))
 	err = discovery.checkDevice(job) // check device with Get error
 	assert.Nil(t, err)
 	assert.Equal(t, 0, len(discovery.discoveredDevices))
@@ -327,7 +330,7 @@ func TestDiscovery_createDevice(t *testing.T) {
 		Namespace:                "default",
 		ProfileProvider:          profile.StaticProvider(nil),
 	}
-	discovery := NewDiscovery(checkConfig, session.NewMockSession, config)
+	discovery := NewDiscovery(checkConfig, session.NewMockSession, config, nil)
 	ipAddr, ipNet, err := net.ParseCIDR(checkConfig.Network)
 	assert.Nil(t, err)
 	startingIP := ipAddr.Mask(ipNet.Mask)
@@ -376,4 +379,57 @@ func TestDiscovery_createDevice(t *testing.T) {
 	assert.Equal(t, true, present)
 	discovery.deleteDevice(device1Digest, subnet) // really deletes the device
 	assert.Equal(t, 2, len(discovery.discoveredDevices))
+}
+
+func TestDeviceScansAreRequested(t *testing.T) {
+	config := agentconfig.NewMock(t)
+	config.SetWithoutSource("run_path", t.TempDir())
+
+	sess := session.CreateMockSession()
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.3.6.1.2.1.1.2.0",
+				Type:  gosnmp.ObjectIdentifier,
+				Value: "1.3.6.1.4.1.3375.2.1.3.4.1",
+			},
+		},
+	}
+	sess.On("Get", []string{"1.3.6.1.2.1.1.2.0"}).Return(&packet, nil)
+
+	checkConfig := &checkconfig.CheckConfig{
+		Network:           "192.168.0.0/30",
+		CommunityString:   "public",
+		DiscoveryInterval: 3600,
+		DiscoveryWorkers:  1,
+		ProfileProvider:   profile.StaticProvider(nil),
+	}
+
+	scanManager := snmpscanmanagermock.Mock(t)
+	mockScanManager, ok := scanManager.(*snmpscanmanagermock.SnmpScanManagerMock)
+	assert.True(t, ok)
+
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "192.168.0.0",
+	}, false).Once()
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "192.168.0.1",
+	}, false).Once()
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "192.168.0.2",
+	}, false).Once()
+	mockScanManager.On("RequestScan", snmpscanmanager.ScanRequest{
+		DeviceIP: "192.168.0.3",
+	}, false).Once()
+
+	discovery := NewDiscovery(checkConfig, sessionFactory, config, scanManager)
+	discovery.Start()
+	assert.NoError(t, waitForDiscoveredDevices(discovery, 4, 2*time.Second))
+	discovery.Stop()
+
+	mockScanManager.AssertExpectations(t)
 }

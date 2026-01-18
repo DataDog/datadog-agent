@@ -451,14 +451,24 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 			".ddog-gov.com",
 			true,
 		},
+		{ // Gov long-named
+			"https://app.xxxx99.ddog-gov.com",
+			".xxxx99.ddog-gov.com",
+			true,
+		},
 		{ // Additional site
 			"https://app.us2.datadoghq.com",
 			".us2.datadoghq.com",
 			true,
 		},
-		{ // arbitrary site
+		{ // Arbitrary site
 			"https://app.xx9.datadoghq.com",
 			".xx9.datadoghq.com",
+			true,
+		},
+		{ // Arbitrary long-named site
+			"https://app.xxxx99.datadoghq.com",
+			".xxxx99.datadoghq.com",
 			true,
 		},
 		{ // Custom DD URL: leave unchanged

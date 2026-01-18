@@ -18,12 +18,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -46,16 +46,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -67,7 +67,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -88,12 +89,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -116,16 +117,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -137,7 +138,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -158,12 +160,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -186,16 +188,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -207,7 +209,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -228,12 +231,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -256,16 +259,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -277,7 +280,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -298,12 +302,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -326,16 +330,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -347,7 +351,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -368,12 +373,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -396,16 +401,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -417,7 +422,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -438,12 +444,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -466,16 +472,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -487,7 +493,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -508,12 +515,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -536,16 +543,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -557,7 +564,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -578,12 +586,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -606,16 +614,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -627,7 +635,8 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   },
   {
     "service": "sample",
@@ -648,12 +657,12 @@
           {
             "function": "main.testLongFunctionWithChangingState",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 220
+            "lineNumber": 223
           },
           {
             "function": "main.executeComplexFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go",
-            "lineNumber": 289
+            "lineNumber": 292
           },
           {
             "function": "main.main",
@@ -676,16 +685,16 @@
           "location": {
             "method": "main.testLongFunctionWithChangingState",
             "file": "complex.go",
-            "line": 220
+            "line": 223
           }
         },
         "captures": {
           "lines": {
-            "220": {
+            "223": {
               "locals": {
-                "a": {
+                "aPerArch": {
                   "type": "int",
-                  "value": "55"
+                  "value": "[per-arch-value]"
                 },
                 "b": {
                   "type": "int",
@@ -697,6 +706,7 @@
         }
       }
     },
-    "timestamp": "[ts]"
+    "timestamp": "[ts]",
+    "message": "testLongFunctionWithChangingState"
   }
 ]

@@ -142,7 +142,7 @@ func TestGetEventsTestSuite(t *testing.T) {
 	testerNames := eventlog_test.GetEnabledAPITesters()
 
 	for _, tiName := range testerNames {
-		t.Run(fmt.Sprintf("%sAPI", tiName), func(t *testing.T) {
+		t.Run(tiName+"API", func(t *testing.T) {
 			if tiName == "Fake" {
 				t.Skip("Fake API does not implement EvtRenderValues")
 			}
@@ -652,7 +652,7 @@ start: now
 				s.channelPath))
 
 			if len(tc.confPriority) > 0 {
-				instanceConfig = append(instanceConfig, []byte(fmt.Sprintf("event_priority: %s", tc.confPriority))...)
+				instanceConfig = append(instanceConfig, []byte("event_priority: "+tc.confPriority)...)
 			}
 
 			check, err := s.newCheck(instanceConfig)

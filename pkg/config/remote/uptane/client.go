@@ -304,7 +304,7 @@ func (c *Client) unsafeTargetsMeta() ([]byte, error) {
 	}
 	targets, found := metas[metaTargets]
 	if !found {
-		return nil, fmt.Errorf("empty targets meta in director local store")
+		return nil, errors.New("empty targets meta in director local store")
 	}
 	return targets, nil
 }

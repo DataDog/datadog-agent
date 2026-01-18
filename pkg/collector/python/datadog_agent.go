@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/hosttags"
+	collectoraggregator "github.com/DataDog/datadog-agent/pkg/collector/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -225,12 +226,12 @@ func SendLog(logLine, checkID *C.char) {
 	line := C.GoString(logLine)
 	cid := C.GoString(checkID)
 
-	cc, err := getCheckContext()
+	cc, err := collectoraggregator.GetCheckContext()
 	if err != nil {
 		log.Errorf("Log submission failed: %s", err)
 	}
 
-	lr, ok := cc.logReceiver.Get()
+	lr, ok := cc.GetLogReceiver()
 	if !ok {
 		log.Error("Log submission failed: no receiver")
 		return
@@ -674,7 +675,7 @@ func EmitAgentTelemetry(checkName *C.char, metricName *C.char, metricValue C.dou
 func httpHeaders() map[string]string {
 	av, _ := version.Agent()
 	return map[string]string{
-		"User-Agent":   fmt.Sprintf("Datadog Agent/%s", av.GetNumber()),
+		"User-Agent":   "Datadog Agent/" + av.GetNumber(),
 		"Content-Type": "application/x-www-form-urlencoded",
 		"Accept":       "text/html, */*",
 	}

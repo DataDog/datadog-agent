@@ -13,13 +13,12 @@ import (
 	"strings"
 	"testing"
 
-	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/google/go-containerregistry/pkg/crane"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
 // TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
@@ -102,13 +101,13 @@ func installScriptInstallerEnv(env map[string]string, packagesConfig []TestPacka
 		name := strings.ToUpper(strings.ReplaceAll(pkg.Name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
 		if pkg.Registry != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.Registry
+			env["DD_INSTALLER_REGISTRY_URL_"+image] = pkg.Registry
 		}
 		if pkg.Auth != "" {
-			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.Auth
+			env["DD_INSTALLER_REGISTRY_AUTH_"+image] = pkg.Auth
 		}
 		if pkg.Version != "" && pkg.Version != "latest" {
-			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.Version
+			env["DD_INSTALLER_DEFAULT_PKG_VERSION_"+name] = pkg.Version
 		}
 	}
 }
@@ -151,7 +150,7 @@ func GetAPIKey() string {
 
 // PipelineAgentVersion returns the version of the pipeline agent
 func PipelineAgentVersion(t *testing.T) string {
-	ref := fmt.Sprintf("installtesting.datad0g.com/agent-package:pipeline-%s", os.Getenv("E2E_PIPELINE_ID"))
+	ref := "installtesting.datad0g.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	p := v1.Platform{
 		OS:           "linux",
 		Architecture: "amd64",

@@ -7,6 +7,7 @@ package oracle
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -71,7 +72,7 @@ func GetNTPHosts(ctx context.Context) []string {
 
 func getResponse(ctx context.Context, url string) (string, error) {
 	if !configutils.IsCloudProviderEnabled(CloudProviderName, pkgconfigsetup.Datadog()) {
-		return "", fmt.Errorf("cloud provider is disabled by configuration")
+		return "", errors.New("cloud provider is disabled by configuration")
 	}
 
 	res, err := httputils.Get(ctx, url, map[string]string{"Authorization": "Bearer Oracle"}, timeout, pkgconfigsetup.Datadog())

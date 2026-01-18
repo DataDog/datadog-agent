@@ -14,14 +14,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 type Meta struct {
@@ -147,7 +147,7 @@ func (v *baseHostnameSuite) TestWithIMDSv1() {
 ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
 
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+			awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		}
 		runHostnameTest(v, instanceOpts, tt)
 	}
@@ -201,8 +201,10 @@ func (v *baseHostnameSuite) TestWithoutIMDSv1() {
 ec2_imdsv2_transition_payload_enabled: %t`, tt.ec2PreferIMDSv2, tt.legacyResolutionHostname)
 
 		instanceOpts := []awshost.ProvisionerOption{
-			awshost.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
-			awshost.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()),
+			awshost.WithRunOptions(
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig)),
+				ec2.WithEC2InstanceOptions(ec2.WithIMDSv1Disable()),
+			),
 		}
 		runHostnameTest(v, instanceOpts, tt)
 	}

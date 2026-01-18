@@ -56,10 +56,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -92,10 +93,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					},
 				},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -128,10 +130,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 					},
 				},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -179,10 +182,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 						},
 					},
 				},
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -210,10 +214,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    true,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -241,10 +246,11 @@ func TestFromAgentConfigReceiver(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -306,9 +312,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -350,9 +357,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -400,9 +408,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -446,9 +455,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -489,9 +499,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -528,14 +539,15 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"protocols": map[string]interface{}{
 						"grpc": map[string]interface{}{
 							"endpoint":              "0.0.0.0:9999",
-							"max_recv_msg_size_mib": 10,
+							"max_recv_msg_size_mib": "10",
 						},
 					},
 				},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -570,9 +582,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    true,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -604,9 +617,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -638,9 +652,10 @@ func TestFromEnvironmentVariables(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -655,6 +670,42 @@ func TestFromEnvironmentVariables(t *testing.T) {
 					"tag_cardinality":                        "low",
 					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
 					"resource_attributes_as_tags":            true,
+					"instrumentation_scope_metadata_as_tags": true,
+				},
+				MetricsBatch: map[string]interface{}{
+					"min_size":      8192,
+					"max_size":      0,
+					"flush_timeout": "200ms",
+				},
+				Debug: map[string]interface{}{},
+			},
+		},
+		{
+			name: "disable trace infra-attr processor",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_TRACES_INFRA_ATTRIBUTES_ENABLED": "false",
+			},
+			cfg: PipelineConfig{
+				OTLPReceiverConfig: map[string]interface{}{},
+
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: false,
+				Logs: map[string]interface{}{
+					"enabled": false,
+					"batch": map[string]interface{}{
+						"min_size":      8192,
+						"max_size":      0,
+						"flush_timeout": "200ms",
+					},
+				},
+				TracePort: 5003,
+				Metrics: map[string]interface{}{
+					"enabled":                                true,
+					"tag_cardinality":                        "low",
+					"apm_stats_receiver_addr":                "http://localhost:8126/v0.6/stats",
+					"resource_attributes_as_tags":            false,
 					"instrumentation_scope_metadata_as_tags": true,
 				},
 				MetricsBatch: map[string]interface{}{
@@ -696,10 +747,11 @@ func TestFromAgentConfigMetrics(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 5678, 1234),
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    true,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  true,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": true,
 					"batch": map[string]interface{}{
@@ -761,11 +813,12 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			path:      "debug/empty_but_set_debug.yaml",
 			shouldSet: true,
 			cfg: PipelineConfig{
-				OTLPReceiverConfig: map[string]interface{}{},
-				TracePort:          5003,
-				MetricsEnabled:     true,
-				TracesEnabled:      true,
-				LogsEnabled:        false,
+				OTLPReceiverConfig:           map[string]interface{}{},
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -794,10 +847,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -826,10 +880,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{
@@ -858,10 +913,11 @@ func TestFromAgentConfigDebug(t *testing.T) {
 			cfg: PipelineConfig{
 				OTLPReceiverConfig: map[string]interface{}{},
 
-				TracePort:      5003,
-				MetricsEnabled: true,
-				TracesEnabled:  true,
-				LogsEnabled:    false,
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesEnabled:                true,
+				LogsEnabled:                  false,
+				TracesInfraAttributesEnabled: true,
 				Logs: map[string]interface{}{
 					"enabled": false,
 					"batch": map[string]interface{}{

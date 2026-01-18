@@ -369,8 +369,8 @@ func (t *Tailer) readForever() {
 // buildTailerTags groups the file tag, directory (if wildcard path) and user tags
 func (t *Tailer) buildTailerTags() []string {
 	tags := []string{
-		fmt.Sprintf("filename:%s", filepath.Base(t.file.Path)),
-		fmt.Sprintf("dirname:%s", filepath.Dir(t.file.Path)),
+		"filename:" + filepath.Base(t.file.Path),
+		"dirname:" + filepath.Dir(t.file.Path),
 	}
 	return tags
 }
@@ -476,4 +476,9 @@ func (t *Tailer) GetType() string {
 // GetInfo returns the tailer's status info registry
 func (t *Tailer) GetInfo() *status.InfoRegistry {
 	return t.info
+}
+
+// GetFingerprint returns the tailer's fingerprint
+func (t *Tailer) GetFingerprint() *logstypes.Fingerprint {
+	return t.fingerprint
 }

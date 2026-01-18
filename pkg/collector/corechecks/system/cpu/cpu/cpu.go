@@ -8,7 +8,7 @@
 package cpu
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"gopkg.in/yaml.v2"
@@ -103,7 +103,7 @@ func (c *Check) reportCPUMetricsPercent(sender sender.Sender, numCores int32) (e
 	}
 	log.Debugf("getCPUTimes(false): %s", cpuTimes)
 	if len(cpuTimes) == 0 {
-		err = fmt.Errorf("no cpu stats retrieve (empty results)")
+		err = errors.New("no cpu stats retrieve (empty results)")
 		log.Errorf("%s", err.Error())
 		return err
 	}
@@ -148,7 +148,7 @@ func (c *Check) reportCPUMetricsTotal(sender sender.Sender) (err error) {
 	}
 	log.Debugf("getCPUTimes(%t): %s", c.instanceConfig.ReportTotalPerCPU, cpuTimes)
 	for _, t := range cpuTimes {
-		tags := []string{fmt.Sprintf("core:%s", t.CPU)}
+		tags := []string{"core:" + t.CPU}
 		sender.Gauge("system.cpu.user.total", t.User, "", tags)
 		sender.Gauge("system.cpu.nice.total", t.Nice, "", tags)
 		sender.Gauge("system.cpu.system.total", t.System, "", tags)

@@ -8,10 +8,10 @@ package examples
 import (
 	"testing"
 
-	azurehost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/azure/host/windows"
+	azurehost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/azure/host/windows"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
 
 type azureVMSuite struct {

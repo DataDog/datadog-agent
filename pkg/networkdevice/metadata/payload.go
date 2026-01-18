@@ -106,6 +106,8 @@ const (
 	ManualScan ScanType = "manual"
 	// RCTriggeredScan represents a rc triggered scan
 	RCTriggeredScan ScanType = "rc_triggered"
+	// DefaultScan represents a default scan
+	DefaultScan ScanType = "default"
 )
 
 // ScanStatusMetadata contains scan status metadata

@@ -15,9 +15,11 @@ CACHE_VERSION = 2
 
 
 ENV_PASSHTROUGH = {
-    'CI': "dda may rely on this to be able to tell whether it's running on CI and adapt behavior",
+    'BAZELISK_HOME': "Runner-dependent cache path used by `bazelisk` to manage `bazel` installations",
+    'CI': "dda and `bazel` rely on this to be able to tell whether they're running on CI and adapt behavior",
     'DD_CC': 'Points at c compiler',
     'DD_CXX': 'Points at c++ compiler',
+    'SKIP_PKG_COMPRESSION': 'Skip package XZ compression (set to true for faster local builds)',
     'DD_CMAKE_TOOLCHAIN': 'Points at cmake toolchain',
     'DDA_NO_DYNAMIC_DEPS': 'Variable affecting dda behavior',
     'E2E_COVERAGE_PIPELINE': 'Used to do a special build of the agent to generate coverage data',
@@ -42,6 +44,7 @@ ENV_PASSHTROUGH = {
     'S3_OMNIBUS_CACHE_ANONYMOUS_ACCESS': 'Use to determine whether Omnibus can write to the artifact cache',
     'S3_OMNIBUS_CACHE_BUCKET': 'Points at bucket used for Omnibus source artifacts',
     'SSH_AUTH_SOCK': 'Developer environments configure Git to use SSH authentication',
+    'XDG_CACHE_HOME': "Runner-dependent cache path used by `bazel` (natively on POSIX OSes, emulated on Windows)",
     'rvm_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_bin_path': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',
     'rvm_prefix': 'rvm / Ruby stuff to make sure Omnibus itself runs correctly',

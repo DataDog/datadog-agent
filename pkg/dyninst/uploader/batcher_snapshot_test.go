@@ -11,6 +11,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -321,7 +322,7 @@ func (y *yamlBatchEvent) UnmarshalYAML(node *yaml.Node) error {
 		}
 		var err error
 		if !v.Success {
-			err = fmt.Errorf("failed")
+			err = errors.New("failed")
 		}
 		y.event = batchOutcomeEvent{id: batchID(v.ID), err: err}
 		y.advance = 0
@@ -356,9 +357,9 @@ func (se *snapshotEffects) sendBatch(id batchID, batch []json.RawMessage) {
 	}
 	n := &yaml.Node{Tag: "!send-batch", Kind: yaml.MappingNode, Style: yaml.FlowStyle}
 	n.Content = []*yaml.Node{
-		{Kind: yaml.ScalarNode, Value: "id"}, {Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", id)},
-		{Kind: yaml.ScalarNode, Value: "items"}, {Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", len(batch))},
-		{Kind: yaml.ScalarNode, Value: "bytes"}, {Kind: yaml.ScalarNode, Value: fmt.Sprintf("%d", batchSize(batch))},
+		{Kind: yaml.ScalarNode, Value: "id"}, {Kind: yaml.ScalarNode, Value: strconv.FormatUint(uint64(id), 10)},
+		{Kind: yaml.ScalarNode, Value: "items"}, {Kind: yaml.ScalarNode, Value: strconv.Itoa(len(batch))},
+		{Kind: yaml.ScalarNode, Value: "bytes"}, {Kind: yaml.ScalarNode, Value: strconv.Itoa(batchSize(batch))},
 	}
 	se.nodes = append(se.nodes, n)
 }

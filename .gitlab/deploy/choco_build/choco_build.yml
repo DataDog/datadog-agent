@@ -1,0 +1,55 @@
+---
+# choco_build stage
+# Contains jobs which build the chocolatey Agent package.
+
+# The choco job gets the msi package through the gitlab artifacts
+.windows_choco_7_x64:
+  rules:
+    !reference [.on_deploy_stable_or_beta_repo_branch]
+  stage: choco_build
+  extends: .windows_docker_default
+  variables:
+    ARCH: "x64"
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build-out) { remove-item -recurse -force build-out }
+    - >
+      docker run --rm
+      -v "$(Get-Location):c:\mnt"
+      -e CI
+      -e DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS="${DDA_FEATURE_FLAGS_CI_SSM_KEY_WINDOWS}"
+      -e CI_PROJECT_NAME
+      -e CI_PIPELINE_ID
+      -e BUCKET_BRANCH
+      -e AWS_NETWORKING=true
+      ${WINBUILDIMAGE}
+      powershell.exe -C "C:\mnt\tasks\winbuildscripts\Generate-Chocolatey-Package.ps1 -MSIDirectory c:\mnt\omnibus\pkg\pipeline-${CI_PIPELINE_ID} -Flavor $FLAVOR -InstallDeps 1"
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - $CopyNupkgToS3 = "$S3_CP_CMD --recursive --exclude '*' --include '*.nupkg' build-out $S3_RELEASE_ARTIFACTS_URI/choco/nupkg"
+    - Invoke-Expression $CopyNupkgToS3
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - omnibus/pkg/pipeline-$CI_PIPELINE_ID
+  # Sometimes Chocolatey is flakey
+  retry: 2
+
+windows_choco_7_x64:
+  extends: .windows_choco_7_x64
+  # On dev/PR branches:
+  #   - if the job is run manually it will create a package, but before the
+  #     package can be installed, the deploy_windows_testing-a7 job must
+  #     be run to push the MSI to the dd-agent-mstesting bucket.
+  needs: ["windows_msi_and_bosh_zip_x64-a7"]
+  variables:
+    FLAVOR: "datadog-agent"
+
+windows_choco_7_x64-fips:
+  extends: .windows_choco_7_x64
+  # On dev/PR branches:
+  #   - if the job is run manually it will create a package, but before the
+  #     package can be installed, the deploy_windows_testing-a7-fips job must
+  #     be run to push the MSI to the dd-agent-mstesting bucket.
+  needs: ["windows_msi_and_bosh_zip_x64-a7-fips"]
+  variables:
+    FLAVOR: "datadog-fips-agent"

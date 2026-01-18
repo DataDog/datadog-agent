@@ -418,7 +418,7 @@ func (r *domainResolver) GetAuthorizers() (res []authHeader) {
 	if r.IsLocal() {
 		res = append(res, authHeader{
 			key:   "Authorization",
-			value: fmt.Sprintf("Bearer %s", r.authToken),
+			value: "Bearer " + r.authToken,
 		})
 	} else {
 		for _, key := range r.GetAPIKeys() {

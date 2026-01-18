@@ -88,6 +88,7 @@
       }
     },
     "timestamp": "[ts]",
-    "duration": "[duration]"
+    "duration": "[duration]",
+    "message": "testReturnsPrimitives"
   }
 ]

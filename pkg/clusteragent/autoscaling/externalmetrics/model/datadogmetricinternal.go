@@ -268,7 +268,7 @@ func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string
 		if d.Error != nil {
 			return nil, d.Error
 		}
-		return nil, fmt.Errorf("DatadogMetric is invalid, missing error details")
+		return nil, errors.New("DatadogMetric is invalid, missing error details")
 	}
 
 	if d.IsStale(metricsMaxAge, time.UTC().Unix(), gracePeriod) {
