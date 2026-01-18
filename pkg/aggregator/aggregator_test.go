@@ -29,7 +29,6 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -834,7 +833,6 @@ type aggregatorDeps struct {
 	EventPlatformFwd eventplatform.Component
 	Compressor       compression.Component
 	Tagger           tagger.Component
-	FilterList       filterlist.Component
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
