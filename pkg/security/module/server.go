@@ -58,8 +58,10 @@ const (
 	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
 	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
 	//     time to trigger the kill and wait to catch the process exit)
-	maxRetry   = 62
-	retryDelay = time.Second
+	maxRetryForMsgWithActions    = 62
+	maxRetryForMsgWithSSHContext = 62
+	maxRetryForRegularMsgs       = 5
+	retryDelay                   = time.Second
 )
 
 type pendingMsg struct {
@@ -75,6 +77,20 @@ type pendingMsg struct {
 	retry           int
 
 	sshSessionPatcher sshSessionPatcher
+}
+
+func (p *pendingMsg) getMaxRetry() int {
+	retry := maxRetryForRegularMsgs
+
+	if len(p.actionReports) != 0 {
+		retry = max(retry, maxRetryForMsgWithActions)
+	}
+
+	if p.sshSessionPatcher != nil {
+		retry = max(retry, maxRetryForMsgWithSSHContext)
+	}
+
+	return retry
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -246,11 +262,12 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
 			return true
 		}
 
-		if msg.retry >= maxRetry {
+		msgMaxRetry := msg.getMaxRetry()
+		if msg.retry >= msgMaxRetry {
 			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
 			return true
 		}
-		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, maxRetry)
+		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, msgMaxRetry)
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -274,11 +291,17 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	// look for the service tag if we don't have one yet
 	if len(msg.Service) == 0 {
 		for _, tag := range msg.Tags {
-			if strings.HasPrefix(tag, "service:") {
-				msg.Service = strings.TrimPrefix(tag, "service:")
+			if after, ok := strings.CutPrefix(tag, "service:"); ok {
+				msg.Service = after
 				break
 			}
 		}
+	}
+}
+
+func (a *APIServer) updateMsgTrack(msg *api.SecurityEventMessage) {
+	if slices.Contains(events.AllSecInfoRuleIDs(), msg.RuleID) {
+		msg.Track = string(common.SecInfo)
 	}
 }
 
@@ -316,7 +339,7 @@ func (a *APIServer) start(ctx context.Context) {
 			a.dequeue(now, func(msg *pendingMsg) bool {
 				if msg.extTagsCb != nil {
 					tags, retryable := msg.extTagsCb()
-					if len(tags) == 0 && retryable && msg.retry < maxRetry {
+					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
 						return false
 					}
 
@@ -329,7 +352,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// not fully resolved, retry
-				if !msg.isResolved() && msg.retry < maxRetry {
+				if !msg.isResolved() && msg.retry < msg.getMaxRetry() {
 					return false
 				}
 
@@ -517,6 +540,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
+		a.updateMsgTrack(m)
 
 		a.msgSender.Send(m, a.expireEvent)
 	}

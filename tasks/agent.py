@@ -139,7 +139,6 @@ def build(
     rtloader_root=None,
     python_home_3=None,
     exclude_rtloader=False,
-    include_sds=False,
     go_mod="readonly",
     windows_sysprobe=False,
     cmake_options='',
@@ -207,7 +206,6 @@ def build(
                 flavor=flavor,
                 build_include=build_include,
                 build_exclude=build_exclude,
-                include_sds=include_sds,
             )
 
             all_tags |= set(build_tags)
@@ -474,7 +472,7 @@ def hacky_dev_image_build(
 
         # Try to guess what is the latest release of the agent
         latest_release = semver.VersionInfo(0)
-        tags = requests.get("https://gcr.io/v2/datadoghq/agent/tags/list", timeout=10)
+        tags = requests.get("https://registry.datadoghq.com/v2/agent/tags/list", timeout=10)
         for tag in tags.json()['tags']:
             if not semver.VersionInfo.isvalid(tag):
                 continue
@@ -483,7 +481,7 @@ def hacky_dev_image_build(
                 continue
             if ver > latest_release:
                 latest_release = ver
-        base_image = f"gcr.io/datadoghq/agent:{latest_release}"
+        base_image = f"registry.datadoghq.com/agent:{latest_release}"
 
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:

@@ -15,10 +15,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
@@ -106,88 +104,8 @@ type BATTERY_WAIT_STATUS struct {
 	HighCapacity uint32
 }
 
-//revive:enable:var-naming (const)
-//revive:enable:exported Windows API types intentionally match Windows naming
-
-// BatteryInfo contains battery information
-//
-//nolint:revive // Type name intentionally includes package name for clarity
-type BatteryInfo struct {
-	DesignedCapacity    float64
-	FullChargedCapacity float64
-	MaximumCapacityPct  float64
-	CycleCount          float64
-	CurrentChargePct    *float64
-	Voltage             *float64
-	ChargeRate          *float64
-	PowerState          []string
-	HasData             bool
-}
-
-// QueryBatteryInfo queries the battery information (mockable for tests)
-var QueryBatteryInfo = queryBatteryInfo
-
-// HasBatteryAvailable checks if a battery is available (mockable for tests)
-var HasBatteryAvailable = hasBatteryAvailable
-
 // ErrNotSystemBattery is returned when a battery is not a system battery
 var ErrNotSystemBattery = errors.New("battery is not a system battery")
-
-// Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
-		return err
-	}
-
-	// Check if battery is available before enabling the check
-	log.Debugf("Checking if battery is available")
-	hasBattery, err := HasBatteryAvailable()
-	if err != nil {
-		return err
-	}
-	if !hasBattery {
-		log.Infof("No battery available, skipping check")
-		return check.ErrSkipCheckInstance
-	}
-
-	return nil
-}
-
-// Run executes the check
-func (c *Check) Run() error {
-	sender, err := c.GetSender()
-	if err != nil {
-		return err
-	}
-
-	info, err := QueryBatteryInfo()
-	if err != nil {
-		return err
-	}
-
-	sender.Gauge("system.battery.designed_capacity", info.DesignedCapacity, "", nil)
-	sender.Gauge("system.battery.maximum_capacity", info.FullChargedCapacity, "", nil)
-	sender.Gauge("system.battery.maximum_capacity_pct", info.MaximumCapacityPct, "", nil)
-	sender.Gauge("system.battery.cycle_count", info.CycleCount, "", nil)
-	if info.CurrentChargePct != nil {
-		sender.Gauge("system.battery.current_charge_pct", *info.CurrentChargePct, "", nil)
-	}
-	if info.Voltage != nil {
-		sender.Gauge("system.battery.voltage", *info.Voltage, "", nil)
-	}
-	if info.ChargeRate != nil {
-		sender.Gauge("system.battery.charge_rate", *info.ChargeRate, "", nil)
-	}
-
-	if len(info.PowerState) > 0 {
-		sender.Gauge("system.battery.power_state", 1, "", info.PowerState)
-	} else {
-		sender.Gauge("system.battery.power_state", 0, "", []string{"power_state:unknown"})
-	}
-
-	sender.Commit()
-	return nil
-}
 
 // setupBatteryDeviceEnumeration sets up battery device enumeration and returns device info handle and interface data
 func setupBatteryDeviceEnumeration() (windows.DevInfo, *winutil.SP_DEVICE_INTERFACE_DATA, func(), error) {
@@ -257,10 +175,10 @@ func hasBatteryAvailable() (bool, error) {
 	return false, nil
 }
 
-// queryBatteryInfo queries the battery information for a given device path
+// getBatteryInfo queries the battery information for a given device path
 // It will return the battery info of the first system battery it finds
-func queryBatteryInfo() (*BatteryInfo, error) {
-	info := &BatteryInfo{}
+func getBatteryInfo() (*batteryInfo, error) {
+	info := &batteryInfo{}
 	hdev, ifData, cleanup, err := setupBatteryDeviceEnumeration()
 	if err != nil {
 		return nil, err
@@ -304,42 +222,43 @@ func queryBatteryInfo() (*BatteryInfo, error) {
 			continue
 		}
 
-		info.DesignedCapacity = float64(bi.DesignedCapacity)
-		info.FullChargedCapacity = float64(bi.FullChargedCapacity)
-		info.MaximumCapacityPct = math.Round((float64(bi.FullChargedCapacity) / float64(bi.DesignedCapacity)) * 100)
-		info.CycleCount = float64(bi.CycleCount)
+		designedCapacity := float64(bi.DesignedCapacity)
+		maximumCapacity := float64(bi.FullChargedCapacity)
+		maximumCapacityPct := math.Round((maximumCapacity / designedCapacity) * 100)
+		cycleCount := float64(bi.CycleCount)
+
+		info.designedCapacity = option.New(designedCapacity)
+		info.maximumCapacity = option.New(maximumCapacity)
+		info.maximumCapacityPct = option.New(maximumCapacityPct)
+		info.cycleCount = option.New(cycleCount)
 
 		if bs.Capacity == BATTERY_UNKNOWN_CAPACITY {
 			log.Debugf("Current charge percentage is unknown, metric not submitted")
-			info.CurrentChargePct = nil
+			info.currentChargePct = option.None[float64]()
 		} else {
 			currentChargePct := math.Round(float64(bs.Capacity) / float64(bi.FullChargedCapacity) * 100)
-			info.CurrentChargePct = &currentChargePct
+			info.currentChargePct = option.New(currentChargePct)
 		}
 		if bs.Voltage == BATTERY_UNKNOWN_VOLTAGE {
 			log.Debugf("Voltage is unknown, metric not submitted")
-			info.Voltage = nil
+			info.voltage = option.None[float64]()
 		} else {
 			voltage := float64(bs.Voltage)
-			info.Voltage = &voltage
+			info.voltage = option.New(voltage)
 		}
 		if bs.Rate == BATTERY_UNKNOWN_RATE {
 			log.Debugf("Charge rate is unknown, metric not submitted")
-			info.ChargeRate = nil
+			info.chargeRate = option.None[float64]()
 		} else {
 			chargeRate := float64(bs.Rate)
-			info.ChargeRate = &chargeRate
+			info.chargeRate = option.New(chargeRate)
 		}
 
-		info.PowerState = getPowerState(bs.PowerState)
-		info.HasData = true
+		info.powerState = getPowerState(bs.PowerState)
 
 		return info, nil
 	}
 
-	if !info.HasData {
-		return nil, errors.New("no battery info found")
-	}
 	return info, nil
 }
 

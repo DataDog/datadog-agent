@@ -58,7 +58,7 @@ func TestK8SUserSession(t *testing.T) {
 			args = []string{"-k8s-user-session", "-user-session-executable", executable, "-user-session-open-path", testFile}
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc(syscallTester, args, envs)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
@@ -94,6 +94,6 @@ func TestK8SUserSession(t *testing.T) {
 			// Check that user session data is well set
 			assert.Equal(t, event.ProcessContext.UserSession.Identity, event.ProcessContext.UserSession.K8SUsername)
 			assert.Equal(t, event.ProcessContext.UserSession.ID, strconv.FormatUint(uint64(event.ProcessContext.UserSession.K8SSessionID), 16))
-		})
+		}, "test_k8s_user_session_exec")
 	})
 }

@@ -44,8 +44,23 @@ var hostRoot = funcs.MemoizeNoError(func() string {
 
 var stringInterner = utilintern.NewStringInterner()
 
+type resolvConfReader interface {
+	readResolvConf(entry *events.Process) (string, error)
+}
+
 type containerReader struct {
-	resolvStripper
+	resolvConfReader
+	isProcessStillRunning func(ctx context.Context, entry *events.Process) (bool, error)
+	debugLimit            *log.Limit
+}
+
+func newContainerReader(reader resolvConfReader, debugLimit *log.Limit) containerReader {
+	cr := containerReader{
+		resolvConfReader: reader,
+		debugLimit:       debugLimit,
+	}
+	cr.isProcessStillRunning = cr.isProcessStillRunningImpl
+	return cr
 }
 
 type readContainerItemResult struct {
@@ -54,20 +69,21 @@ type readContainerItemResult struct {
 }
 
 func (cr *containerReader) readContainerItem(ctx context.Context, entry *events.Process) (readContainerItemResult, error) {
-	resolvConf, err := cr.readResolvConf(entry)
-	if err != nil {
-		return readContainerItemResult{}, err
-	}
-
+	resolvConf, resolvConfErr := cr.readResolvConf(entry)
 	// we must check this last, to guarantee the result of readResolvConf is valid
-	isRunning, err := isProcessStillRunning(ctx, entry)
-	if err != nil {
-		return readContainerItemResult{}, err
+	isRunning, isRunningErr := cr.isProcessStillRunning(ctx, entry)
+	if isRunningErr != nil {
+		return readContainerItemResult{}, isRunningErr
 	}
 	if !isRunning {
 		return readContainerItemResult{
 			noDataReason: "process not running",
 		}, nil
+	}
+
+	// now that we know the PID was still running when we read resolv.conf, we can check its result
+	if resolvConfErr != nil {
+		return readContainerItemResult{}, resolvConfErr
 	}
 
 	item := containerStoreItem{
@@ -92,12 +108,16 @@ type resolvStripper struct {
 	buf []byte
 }
 
-func makeResolvStripper(size int) resolvStripper {
-	return resolvStripper{
+func makeResolvStripper(size int) *resolvStripper {
+	return &resolvStripper{
 		buf: make([]byte, 0, size),
 	}
 }
 
+// readResolvConf reads and strips a process's resolv.conf.
+// If the resolv.conf is missing, it returns "<missing>" instead of an error.
+// It can return various OS errors when the PID stopped running, so it needs to be
+// followed up by a call to isProcessStillRunning
 func (r *resolvStripper) readResolvConf(entry *events.Process) (string, error) {
 	rootPath := hostRoot()
 	if entry.ContainerID != nil {
@@ -170,9 +190,17 @@ func (r *resolvStripper) stripResolvConf(size int, f io.Reader) (string, error) 
 	return resolvConf, nil
 }
 
-func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, error) {
+// errIsProcessNotRunning checks if an error is a process not running error
+// gopsutil returns various errors when the process is not running, so we need to check for them all
+func errIsProcessNotRunning(err error) bool {
+	return errors.Is(err, process.ErrorProcessNotRunning) ||
+		errors.Is(err, os.ErrProcessDone) ||
+		errors.Is(err, os.ErrNotExist)
+}
+
+func (cr *containerReader) isProcessStillRunningImpl(ctx context.Context, entry *events.Process) (bool, error) {
 	proc, err := process.NewProcessWithContext(ctx, int32(entry.Pid))
-	if errors.Is(err, process.ErrorProcessNotRunning) {
+	if errIsProcessNotRunning(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -180,7 +208,7 @@ func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, er
 	}
 
 	createTime, err := proc.CreateTimeWithContext(ctx)
-	if errors.Is(err, process.ErrorProcessNotRunning) {
+	if errIsProcessNotRunning(err) {
 		return false, nil
 	}
 	if err != nil {
@@ -191,7 +219,7 @@ func isProcessStillRunning(ctx context.Context, entry *events.Process) (bool, er
 
 	// detect (rare) PID reuse by comparing the StartTime
 	if entry.StartTime != createTime {
-		if log.ShouldLog(log.DebugLvl) {
+		if log.ShouldLog(log.DebugLvl) && cr.debugLimit.ShouldLog() {
 			logDetectedProcessReuse(entry, createTime)
 		}
 		return false, nil

@@ -1,6 +1,7 @@
 """libacl"""
 
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
@@ -13,17 +14,17 @@ package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
 VERSION = "2.3.1"
 
-PURL = "pkg:generic/acl@{version}?download_url=https://download.savannah.nongnu.org/releases/acl/acl-{version}.tar.xz".format(
-    version = VERSION,
-)
-
 package_metadata(
     name = "package_metadata",
     attributes = [
         ":license",
         ":ship_source_offer",
     ],
-    purl = PURL,
+    purl = purl_for_generic(
+        package = "acl",
+        version = VERSION,
+        download_url = "https://download.savannah.nongnu.org/releases/acl/acl-{version}.tar.xz",
+    ),
 )
 
 ship_source_offer(name = "ship_source_offer")

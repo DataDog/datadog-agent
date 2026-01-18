@@ -1,12 +1,42 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
 load("@bazel_skylib//rules:native_binary.bzl", "native_test")
+load("@package_metadata//licenses/rules:license.bzl", "license")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
-package(default_visibility = ["//packages:__subpackages__"])
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["@@//packages:__subpackages__", "@@//deps:__pkg__"],
+)
+
+VERSION = "10.46"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "libsepol",
+        version = VERSION,
+        # It is OK to point to the download URL where you retrieved the file, rather than the
+        # canonical upstream version. It might even be preferable. PURLs are pretty much an
+        # instance of https://xkcd.com/927.
+        download_url = "https://dd-agent-omnibus.s3.amazonaws.com/bazel/pcre2-{version}.tar.bz2",
+    ),
+)
+
+license(
+    name = "license",
+    kind = "@rules_license//licenses/spdx:BSD-3-Clause",
+    text = "LICENCE.md",
+    visibility = ["//visibility:public"],
+)
 
 copy_file(
     name = "config_h_generic",
@@ -186,7 +216,7 @@ expand_template(
         "@exec_prefix@": "${prefix}",
         "@libdir@": "${prefix}/lib",
         "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "10.46",
+        "@PACKAGE_VERSION@": VERSION,
         "@LIB_POSTFIX@": "",
         "@PTHREAD_CFLAGS@": "",
         "@PTHREAD_LIBS@": "",
@@ -203,7 +233,7 @@ expand_template(
         "@exec_prefix@": "${prefix}",
         "@libdir@": "${prefix}/lib",
         "@includedir@": "${prefix}/include",
-        "@PACKAGE_VERSION@": "10.46",
+        "@PACKAGE_VERSION@": VERSION,
         "@LIB_POSTFIX@": "",
         "@PTHREAD_CFLAGS@": "",
         "@PTHREAD_LIBS@": "",
@@ -223,11 +253,13 @@ pkg_files(
 cc_shared_library(
     name = "pcre2_so",
     deps = [":pcre2"],
+    visibility = ["//visibility:public"],
 )
 
 cc_shared_library(
     name = "pcre2posix_so",
     deps = [":pcre2-posix"],
+    visibility = ["//visibility:public"],
 )
 
 so_symlink(

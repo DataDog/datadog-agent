@@ -106,6 +106,8 @@ def build_binaries(
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if parallel == 0:
         parallel = multiprocessing.cpu_count()
@@ -228,6 +230,7 @@ def build_binaries(
         "use_prebuilt_binaries": "Use pre-built test binaries instead of building on the fly",
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
+        "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
     },
 )
 def run(
@@ -244,7 +247,7 @@ def run(
     cws_supported_osdescriptors="",
     src_agent_version="",
     dest_agent_version="",
-    keep_stacks=False,
+    keep_stack=False,
     extra_flags="",
     cache=False,
     junit_tar="",
@@ -266,6 +269,8 @@ def run(
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if "test" not in tags:
+        tags = tags + ["test"]
 
     if shutil.which("pulumi") is None:
         raise Exit(
@@ -289,7 +294,10 @@ def run(
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
-                to_skip = executor.tests_to_skip(os.getenv("CI_JOB_NAME"), changed_packages + changed_files)
+                test_job_name = os.getenv("CI_JOB_NAME")
+                if test_job_name.endswith("-init"):
+                    test_job_name = test_job_name.removesuffix("-init")
+                to_skip = executor.tests_to_skip(test_job_name, changed_packages + changed_files)
                 ctx.run(f"datadog-ci measure --level job --measures 'e2e.skipped_tests:{len(to_skip)}'", warn=True)
                 print(color_message(f"The following tests will be skipped: {to_skip}", "yellow"))
                 skip.extend(to_skip)
@@ -378,7 +386,7 @@ def run(
             f"--raw-command {os.path.join(os.path.dirname(__file__), 'tools', 'gotest-scrubbed.sh')} {{packages}}"
         )
 
-    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{keep_stacks}} {{extra_flags}}'
+    cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -404,7 +412,6 @@ def run(
         else "",
         "src_agent_version": f"-src-agent-version {src_agent_version}" if src_agent_version else "",
         "dest_agent_version": f"-dest-agent-version {dest_agent_version}" if dest_agent_version else "",
-        "keep_stacks": '-keep-stacks' if keep_stacks else "",
         "extra_flags": extra_flags,
     }
 
@@ -418,6 +425,9 @@ def run(
             env_vars["E2E_SKIP_DELETE_ON_FAILURE"] = "true"
         else:
             env_vars.pop("E2E_SKIP_DELETE_ON_FAILURE", None)
+
+        if keep_stack is True:
+            env_vars["E2E_DEV_MODE"] = "true"
 
         partial_result_json = f"{result_json}.{attempt}.part"
         result_jsons.append(partial_result_json)
@@ -609,14 +619,113 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
         _clean_output()
 
 
+def _get_pulumi_backend_url(ctx: Context) -> str | None:
+    """
+    Get the Pulumi backend URL using 'pulumi whoami --json'.
+    Returns the backend URL or None if it cannot be determined.
+    """
+    res = ctx.run(
+        "pulumi whoami --json",
+        hide=True,
+        warn=True,
+        env=_get_default_env(),
+    )
+    if res is None or res.exited != 0:
+        return None
+    try:
+        whoami = json.loads(res.stdout)
+        return whoami.get("url")
+    except json.JSONDecodeError:
+        return None
+
+
+def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks directly from S3 backend.
+    Much faster than 'pulumi stack ls' for buckets with many stacks.
+
+    Args:
+        backend_url: S3 backend URL (e.g., 's3://bucket-name' or 's3://bucket-name/path')
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key matching pulumi stack ls format
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+
+    # Parse S3 URL: s3://bucket-name/optional/path
+    s3_path = backend_url.removeprefix("s3://")
+    parts = s3_path.split("/", 1)
+    bucket_name = parts[0]
+    base_prefix = parts[1] if len(parts) > 1 else ""
+    bucket_name = bucket_name.split("?")[0]  # Remove query parameters for AWS url
+
+    # Pulumi stores stacks at: {base_prefix}/.pulumi/stacks/{project}/
+    stacks_prefix = f"{base_prefix}/.pulumi/stacks/{project}/".lstrip("/")
+
+    try:
+        s3_client = boto3.client('s3')
+        stacks = []
+
+        paginator = s3_client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=stacks_prefix)
+
+        for page in page_iterator:
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                # Stack files are {stack_name}.json (skip .json.bak files)
+                if key.endswith('.json'):
+                    # Extract stack name from path
+                    filename = key.split('/')[-1]
+                    stack_name = filename.removesuffix('.json')
+                    stacks.append(
+                        {
+                            'name': f"organization/{project}/{stack_name}",
+                            'lastUpdate': obj.get('LastModified', '').isoformat() if obj.get('LastModified') else None,
+                        }
+                    )
+
+        return stacks
+
+    except ClientError as e:
+        print(f"Failed to list stacks from S3: {e}")
+        return []
+
+
+def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks. Uses S3 SDK for S3 backends (much faster),
+    falls back to pulumi CLI for other backends.
+
+    Args:
+        ctx: Invoke context
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key
+    """
+    backend_url = _get_pulumi_backend_url(ctx)
+
+    if backend_url and backend_url.startswith("s3://"):
+        return _list_stacks_from_s3(backend_url, project)
+
+    # Fallback to pulumi CLI for non-S3 backends (local, etc.)
+    res = ctx.run(
+        "pulumi stack ls --all --json",
+        hide=True,
+        warn=True,
+    )
+    if res is None or res.exited != 0:
+        return []
+    return json.loads(res.stdout)
+
+
 @task
-def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
+def cleanup_remote_stacks(ctx, stack_regex):
     """
     Clean up remote stacks created by the pipeline
     """
-    if not running_in_ci():
-        raise Exit("This task should be run in CI only", 1)
-
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -625,35 +734,22 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 
     stack_regex = re.compile(stack_regex)
 
-    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
-    # Once the bucket is cleaned up we can switch to the pulumi CLI
-    res = ctx.run(
-        "pulumi stack ls --all --json",
-        hide=True,
-        warn=True,
-    )
-    if res.exited != 0:
-        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
+    # Use S3 SDK for listing stacks (much faster than pulumi CLI)
+    stacks = list_stacks(ctx)
+    if not stacks:
+        print("No stacks found or failed to list stacks")
         return
     to_delete_stacks = set()
-    stacks = json.loads(res.stdout)
-    print(stacks)
     for stack in stacks:
-        stack_id = (
-            stack.get("name", "")
-            .split("/")[-1]
-            .replace(".json.bak", "")
-            .replace(".json", "")
-            .replace(".pulumi/stacks/e2eci", "")
-        )
-        if stack_regex.match(stack_id):
-            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+        if stack_regex.match(stack["name"].split("/")[-1]):
+            to_delete_stacks.add(stack["name"])
 
     if len(to_delete_stacks) == 0:
         print("No stacks to delete")
         return
 
     print("About to delete the following stacks:", to_delete_stacks)
+
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)

@@ -7,9 +7,10 @@ package agenttests
 
 import (
 	"os"
+	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
-
 	scenwin "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
@@ -17,8 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 	windowscommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 	windowsagent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
-
-	"testing"
 )
 
 const (
@@ -33,6 +32,8 @@ type testAgentUpgradeOnDCSuite struct {
 
 // TestAgentUpgradesOnDC tests the usage of the Datadog installer to upgrade the Datadog Agent package on a Domain Controller.
 func TestAgentUpgradesOnDC(t *testing.T) {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-2075.
+	flake.Mark(t)
 	e2e.Run(t, &testAgentUpgradeOnDCSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(
@@ -135,6 +136,8 @@ type testUpgradeWithMissingPasswordSuite struct {
 //  3. Upgrade to current version, expect it to fail
 //  4. Assert missing password error is reported and Agent+Installer are still running
 func TestUpgradeWithMissingPassword(t *testing.T) {
+	// TODO(WINA-2078): domain controller promotion is flaky
+	flake.Mark(t)
 	s := &testUpgradeWithMissingPasswordSuite{}
 	s.testAgentUpgradeSuite.BaseSuite.CreateStableAgent = s.createStableAgent
 	e2e.Run(t, s,
@@ -260,6 +263,8 @@ type testAgentUpgradesAfterDCPromotionSuite struct {
 // This converts all accounts from local accounts to domain accounts, i.e. hostname\username -> domain\username,
 // so we test that our username code handles this change appropriately.
 func TestAgentUpgradesAfterDCPromotion(t *testing.T) {
+	// TODO(WINA-2055): domain controller promotion is flaky
+	flake.Mark(t)
 	e2e.Run(t, &testAgentUpgradesAfterDCPromotionSuite{},
 		e2e.WithProvisioner(
 			winawshost.ProvisionerNoAgentNoFakeIntake(),

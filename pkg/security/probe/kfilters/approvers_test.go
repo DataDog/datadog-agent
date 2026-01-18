@@ -9,9 +9,12 @@
 package kfilters
 
 import (
+	"maps"
 	"testing"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -383,4 +386,20 @@ func TestApproversSetSockOpt(t *testing.T) {
 			tc.assertionsCb(t, rs, approvers)
 		})
 	}
+}
+
+func TestLastApproverEventType(t *testing.T) {
+	approversCopy := maps.Clone(KFilterGetters)
+
+	for eventType := model.FirstEventType; eventType <= model.LastApproverEventType; eventType++ {
+		delete(approversCopy, eventType.String())
+	}
+
+	var approverTypesNotInRange []string
+
+	for eventType := range approversCopy {
+		approverTypesNotInRange = append(approverTypesNotInRange, eventType)
+	}
+
+	assert.Len(t, approverTypesNotInRange, 0, "event types %q are not part the [FirstEventType; LastApproverEventType] range", approverTypesNotInRange)
 }
