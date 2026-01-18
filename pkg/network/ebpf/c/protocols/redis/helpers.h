@@ -6,7 +6,7 @@
 
 // Checks the buffer represent a standard response (OK) or any of redis commands
 // https://redis.io/commands/
-static __always_inline bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+static __always_inline __maybe_unused bool check_supported_ascii_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
     char current_char;
     int i = index_to_start_from;
@@ -39,7 +39,7 @@ static __always_inline __maybe_unused void convert_method_to_upper_case(char* me
 }
 
 // Checks the buffer represents an error according to https://redis.io/docs/reference/protocol-spec/#resp-errors
-static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
+static __always_inline __maybe_unused bool check_err_prefix(const char* buf, __u32 buf_size) {
 #define ERR "-ERR "
 #define WRONGTYPE "-WRONGTYPE "
 
@@ -52,7 +52,7 @@ static __always_inline bool check_err_prefix(const char* buf, __u32 buf_size) {
     return match;
 }
 
-static __always_inline bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
+static __always_inline __maybe_unused bool check_integer_and_crlf(const char* buf, __u32 buf_size, int index_to_start_from) {
     bool found_cr = false;
     char current_char;
     int i = index_to_start_from;
