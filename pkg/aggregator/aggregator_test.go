@@ -168,7 +168,9 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	filterlistComponent := filterlistmock.NewMockFilterList()
+
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistComponent)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -201,7 +203,8 @@ func TestAddEventDefaultValues(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval)
+	filterlistComponent := filterlistmock.NewMockFilterList()
+	agg := NewBufferedAggregator(s, nil, nil, taggerComponent, "resolved-hostname", DefaultFlushInterval, filterlistComponent)
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -251,7 +254,8 @@ func TestDefaultData(t *testing.T) {
 
 	s := &MockSerializerIterableSerie{}
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval)
+	filterlistComponent := filterlistmock.NewMockFilterList()
+	agg := NewBufferedAggregator(s, nil, haagentmock.NewMockHaAgent(), taggerComponent, "hostname", DefaultFlushInterval, filterlistComponent)
 
 	start := time.Now()
 
@@ -297,7 +301,9 @@ func TestDefaultSeries(t *testing.T) {
 	mockHaAgent.SetEnabled(true)
 	mockHaAgent.SetState(haagent.Active)
 
-	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval)
+	filterlistComponent := filterlistmock.NewMockFilterList()
+
+	agg := NewBufferedAggregator(s, nil, mockHaAgent, taggerComponent, "hostname", DefaultFlushInterval, filterlistComponent)
 
 	start := time.Now()
 
@@ -652,7 +658,9 @@ func TestTags(t *testing.T) {
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 			mockHaAgent.SetEnabled(tt.haAgentEnabled)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second)
+			filterlistComponent := filterlistmock.NewMockFilterList()
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, tt.hostname, time.Second, filterlistComponent)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))
@@ -684,7 +692,9 @@ func TestConfigIDTags(t *testing.T) {
 			taggerComponent := taggerfxmock.SetupFakeTagger(t)
 			mockHaAgent := haagentmock.NewMockHaAgent().(haagentmock.Component)
 
-			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second)
+			filterlistComponent := filterlistmock.NewMockFilterList()
+
+			agg := NewBufferedAggregator(nil, nil, mockHaAgent, taggerComponent, "my-hostname", time.Second, filterlistComponent)
 			assert.ElementsMatch(t, tt.want, agg.configIDTags())
 		})
 	}
@@ -716,7 +726,8 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
 	taggerComponent := taggerfxmock.SetupFakeTagger(t)
-	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval)
+	filterlistComponent := filterlistmock.NewMockFilterList()
+	NewBufferedAggregator(s, nil, nil, taggerComponent, "hostname", DefaultFlushInterval, filterlistComponent)
 
 	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
 		Name:   "datadog.djm.agent_host",

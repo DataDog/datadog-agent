@@ -296,7 +296,7 @@ func NewFlushAndSerializeInParallel(config model.Config) FlushAndSerializeInPara
 }
 
 // NewBufferedAggregator instantiates a BufferedAggregator
-func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
+func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, haAgent haagent.Component, tagger tagger.Component, hostname string, flushInterval time.Duration, filterList filterlist.Component) *BufferedAggregator {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
@@ -357,11 +357,17 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan: make(chan utilstrings.Matcher),
-		tagFilterList:  loadTagFilterList(),
+		filterListChan:    make(chan utilstrings.Matcher),
+		tagfilterListChan: make(chan filterlist.TagMatcher),
 	}
 
+	filterList.OnUpdateTagFilterList(aggregator.updateTagFilterlist)
+
 	return aggregator
+}
+
+func (agg *BufferedAggregator) updateTagFilterlist(tagmatcher filterlist.TagMatcher) {
+	agg.tagfilterListChan <- tagmatcher
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -801,6 +807,8 @@ func (agg *BufferedAggregator) run() {
 
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
+		case matcher := <-agg.tagfilterListChan:
+			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)

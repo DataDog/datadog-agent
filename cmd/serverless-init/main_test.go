@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 
 	compressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -44,7 +45,7 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	_, _, traceAgent, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	_, _, traceAgent, metricAgent, _ := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, filterlistimpl.NewNoopFilterList(), fakeCompression, fakeHostname)
 	defer traceAgent.Stop()
 	defer metricAgent.Stop()
 	assert.Subset(t, metricAgent.GetExtraTags(), allTags)

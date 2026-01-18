@@ -13,4 +13,6 @@ import utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 
 type Component interface {
 	OnUpdateMetricFilterList(func(utilstrings.Matcher, utilstrings.Matcher))
+	OnUpdateTagFilterList(func(TagMatcher))
+	GetTagFilterList() TagMatcher
 }

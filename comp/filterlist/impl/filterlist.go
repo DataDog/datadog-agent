@@ -53,8 +53,8 @@ type FilterList struct {
 	histoFilterList        utilstrings.Matcher
 
 	updateTagMtx        sync.RWMutex
-	tagFilterListUpdate []func(TagMatcher)
-	tagFilterList       TagMatcher
+	tagFilterListUpdate []func(filterlist.TagMatcher)
+	tagFilterList       tagMatcher
 
 	tlmFilterListUpdates telemetry.SimpleCounter
 	tlmFilterListSize    telemetry.SimpleGauge
@@ -82,7 +82,7 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		"Filter list size",
 	)
 
-	tagMatcher := loadTagFilterList()
+	tagMatcher := loadTagFilterList(config, log)
 
 	fl := &FilterList{
 		localFilterListConfig: localFilterListConfig,
@@ -101,8 +101,8 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 }
 
 // loadTagFilterList loads the tag filterlist from the config file.
-func loadTagFilterList(config config.Component, log log.Component) TagMatcher {
-	tagFilterListInterface := config.Datadog().GetStringMap("metric_tag_filterlist")
+func loadTagFilterList(config config.Component, log log.Component) tagMatcher {
+	tagFilterListInterface := config.GetStringMap("metric_tag_filterlist")
 
 	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
 	for metricName, tags := range tagFilterListInterface {
@@ -123,7 +123,11 @@ func loadTagFilterList(config config.Component, log log.Component) TagMatcher {
 			}
 		}
 	}
-	return NewTagMatcher(tagFilterList)
+	return newTagMatcher(tagFilterList)
+}
+
+func (fl *FilterList) GetTagFilterList() filterlist.TagMatcher {
+	return &fl.tagFilterList
 }
 
 // create a list based on all `metricNames` but only containing metric names
@@ -157,6 +161,21 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 	return histoMetricNames
 }
 
+func (fl *FilterList) SetTagFilterList(tags map[string]hashedMetricTagList) {
+	fl.log.Debugf("SetTagFilterList with %d metrics", len(tags))
+
+	fl.updateMetricMtx.RLock()
+	defer fl.updateMetricMtx.RUnlock()
+
+	fl.tagFilterList = tagMatcher{
+		Metrics: tags,
+	}
+
+	for _, update := range fl.tagFilterListUpdate {
+		update(&fl.tagFilterList)
+	}
+}
+
 // SetFilterList updates the metric names filter on all running worker.
 func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	fl.log.Debugf("SetFilterList with %d metrics", len(metricNames))
@@ -173,7 +192,7 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()
 
-	for _, update := range fl.filterListUpdate {
+	for _, update := range fl.metricFilterListUpdate {
 		update(fl.filterList, fl.histoFilterList)
 	}
 }
@@ -198,12 +217,12 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
-func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(TagMatcher)) {
+func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)) {
 	fl.updateTagMtx.Lock()
 	defer fl.updateTagMtx.Unlock()
 
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
-	onUpdate(fl.tagFilterList)
+	onUpdate(&fl.tagFilterList)
 }
 
 func NewFilterListReq(req Requires) Provides {
@@ -212,6 +231,7 @@ func NewFilterListReq(req Requires) Provides {
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{
 		state.ProductMetricControl: filterList.onFilterListUpdateCallback,
+		state.ProductTagControl:    filterList.onTagFilterListUpdateCallback,
 	}
 
 	return Provides{

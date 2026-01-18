@@ -18,5 +18,24 @@ func NewNoopFilterList() filterlist.Component {
 }
 
 // OnUpdateMetricFilterList does nothing.
-func (*noopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {
+func (*noopFilterList) OnUpdateMetricFilterList(_ func(utilstrings.Matcher, utilstrings.Matcher)) {}
+
+// OnUpdateTagFilterList does nothing.
+func (*noopFilterList) OnUpdateTagFilterList(_ func(filterlist.TagMatcher)) {}
+
+// GetTagFilterList does nothing.
+func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
+	return NewNoopTagMatcher()
+}
+
+type noopTagMatcher struct{}
+
+func NewNoopTagMatcher() filterlist.TagMatcher {
+	return &noopTagMatcher{}
+}
+
+func (*noopTagMatcher) ShouldStripTags(_ string) (func(tag string) bool, bool) {
+	return func(_ string) bool {
+		return true
+	}, false
 }

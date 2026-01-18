@@ -25,6 +25,7 @@ import (
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	cluster "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
@@ -209,9 +210,9 @@ func main() {
 	/*
 	 * Initialize the aggregator
 	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
-	 * That’s why we need a big enough flush interval
+	 * That's why we need a big enough flush interval
 	 */
-	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour, filterlistimpl.NewNoopFilterList())
 
 	/*
 	 * Wait for informers to get populated
