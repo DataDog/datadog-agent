@@ -25,6 +25,13 @@ type MetricTagList struct {
 	Action string   `yaml:"action"`
 }
 
+// MetricTagListEntry is for loading the new list-based configuration format.
+type MetricTagListEntry struct {
+	MetricName string   `mapstructure:"metric_name"`
+	Action     string   `mapstructure:"action"`
+	Tags       []string `mapstructure:"tags"`
+}
+
 type action bool
 
 const (

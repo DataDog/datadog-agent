@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
-	"gopkg.in/yaml.v2"
 )
 
 // Requires contains the config for RC
@@ -101,28 +101,59 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 }
 
 // loadTagFilterList loads the tag filterlist from the config file.
-func loadTagFilterList(config config.Component, log log.Component) tagMatcher {
-	tagFilterListInterface := config.GetStringMap("metric_tag_filterlist")
+// Configuration schema is a list of objects with fields:
+// - metric_name: the name of the metric
+// - action: either "include" or "exclude"
+// - tags: array of tags to include/exclude
+func loadTagFilterList(cfg config.Component, log log.Component) tagMatcher {
+	var entries []MetricTagListEntry
+	err := structure.UnmarshalKey(cfg, "metric_tag_filterlist", &entries)
+	if err != nil {
+		log.Errorf("error loading metric_tag_filterlist configuration: %s", err)
+		return newTagMatcher(nil)
+	}
 
-	tagFilterList := make(map[string]MetricTagList, len(tagFilterListInterface))
-	for metricName, tags := range tagFilterListInterface {
-		// Tags can be configured as an object with fields:
-		// tags - array of tags
-		// action - either `include` or `exclude`.
-		// Roundtrip the struct through yaml to load it.
-		tagBytes, err := yaml.Marshal(tags)
-		if err != nil {
-			log.Errorf("invalid configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
+	// Build map with merging logic:
+	// - If multiple entries have same metric_name and same action: merge tags
+	// - If different action: keep only exclude tags (overwrite with exclude)
+	tagFilterList := make(map[string]MetricTagList)
+	for _, entry := range entries {
+		if entry.MetricName == "" {
+			log.Warn("skipping metric_tag_filterlist entry with empty metric_name")
+			continue
+		}
+
+		existing, exists := tagFilterList[entry.MetricName]
+		if !exists {
+			// First entry for this metric
+			tagFilterList[entry.MetricName] = MetricTagList{
+				Tags:   entry.Tags,
+				Action: entry.Action,
+			}
+			continue
+		}
+
+		// Merge logic
+		if existing.Action == entry.Action {
+			// Same action: merge tags
+			tagFilterList[entry.MetricName] = MetricTagList{
+				Tags:   append(existing.Tags, entry.Tags...),
+				Action: existing.Action,
+			}
 		} else {
-			var tags MetricTagList
-			err = yaml.Unmarshal(tagBytes, &tags)
-			if err != nil {
-				log.Errorf("error loading configuration for %q: %s", "metric_tag_filterlist."+metricName, err)
-			} else {
-				tagFilterList[metricName] = tags
+			// Different actions: keep only exclude tags
+			if entry.Action == "exclude" {
+				tagFilterList[entry.MetricName] = MetricTagList{
+					Tags:   entry.Tags,
+					Action: "exclude",
+				}
+			} else if existing.Action == "exclude" {
+				// Keep existing exclude, ignore new include
+				continue
 			}
 		}
 	}
+
 	return newTagMatcher(tagFilterList)
 }
 

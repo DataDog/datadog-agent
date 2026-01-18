@@ -361,13 +361,7 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagfilterListChan: make(chan filterlist.TagMatcher),
 	}
 
-	filterList.OnUpdateTagFilterList(aggregator.updateTagFilterlist)
-
 	return aggregator
-}
-
-func (agg *BufferedAggregator) updateTagFilterlist(tagmatcher filterlist.TagMatcher) {
-	agg.tagfilterListChan <- tagmatcher
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {

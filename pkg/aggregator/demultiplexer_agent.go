@@ -301,6 +301,7 @@ func (d *AgentDemultiplexer) run() {
 	// to make sure they are running to receive the initial filter list and any
 	// updates
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
+	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 
 	d.flushLoop() // this is the blocking call
 }
@@ -512,6 +513,19 @@ func (d *AgentDemultiplexer) GetEventsAndServiceChecksChannels() (chan []*event.
 // GetEventPlatformForwarder returns underlying events and service checks channels.
 func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarder, error) {
 	return d.aggregator.GetEventPlatformForwarder()
+}
+
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.TagMatcher) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.aggregator == nil {
+		// The demultiplexer has stopped and the workers and aggregator are no longer available
+		// to receive updates.
+		return
+	}
+
+	d.aggregator.tagfilterListChan <- tagmatcher
 }
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
