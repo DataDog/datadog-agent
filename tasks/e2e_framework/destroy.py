@@ -1,5 +1,4 @@
 import subprocess
-from typing import List, Optional, Tuple
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -15,8 +14,8 @@ def destroy(
     ctx: Context,
     *,
     scenario_name: str,
-    config_path: Optional[str] = None,
-    stack: Optional[str] = None,
+    config_path: str | None = None,
+    stack: str | None = None,
 ):
     """
     Destroy an environment
@@ -33,7 +32,7 @@ def destroy(
     try:
         config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}")
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     if stack is not None:
         if stack in short_stack_names:
@@ -62,13 +61,13 @@ def destroy(
             ctx.run(cmd, pty=pty)
 
 
-def _get_existing_stacks(pulumi_dir_flag: List[str]) -> Tuple[List[str], List[str]]:
+def _get_existing_stacks(pulumi_dir_flag: list[str]) -> tuple[list[str], list[str]]:
     output = subprocess.check_output(["pulumi", *pulumi_dir_flag, "stack", "ls", "--all"])
     output = output.decode("utf-8")
     lines = output.splitlines()
     lines = lines[1:]  # skip headers
-    stacks: List[str] = []
-    full_stacks: List[str] = []
+    stacks: list[str] = []
+    full_stacks: list[str] = []
     stack_name_prefix = get_stack_name_prefix()
     for line in lines:
         # the stack has an asterisk if it is currently selected

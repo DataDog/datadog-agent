@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -36,21 +34,21 @@ scenario_name = "aws/kind"
 )
 def create_kind(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    install_agent_with_operator: Optional[bool] = None,
-    install_argorollout: Optional[bool] = False,
-    agent_version: Optional[str] = None,
-    architecture: Optional[str] = None,
-    use_fakeintake: Optional[bool] = False,
-    use_loadBalancer: Optional[bool] = False,
-    interactive: Optional[bool] = True,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    helm_config: Optional[str] = None,
-    kube_version: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    install_agent: bool | None = True,
+    install_agent_with_operator: bool | None = None,
+    install_argorollout: bool | None = False,
+    agent_version: str | None = None,
+    architecture: str | None = None,
+    use_fakeintake: bool | None = False,
+    use_loadBalancer: bool | None = False,
+    interactive: bool | None = True,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    helm_config: str | None = None,
+    kube_version: str | None = None,
 ):
     """
     Create a kind environment.
@@ -88,7 +86,7 @@ def create_kind(
     _show_connection_message(ctx, full_stack_name, interactive)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: Optional[bool]):
+def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     remoteHost = tool.RemoteHost("aws-kind", outputs)
     host = remoteHost.address
@@ -110,8 +108,8 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
 )
 def destroy_kind(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
 ):
     """
     Destroy an environment created by invoke aws.create-kind.
@@ -124,7 +122,7 @@ def destroy_kind(
     )
 
 
-def _get_architecture(architecture: Optional[str]) -> str:
+def _get_architecture(architecture: str | None) -> str:
     architectures = get_architectures()
     if architecture is None:
         architecture = get_default_architecture()

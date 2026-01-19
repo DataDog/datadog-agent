@@ -1,11 +1,12 @@
 import json
-from typing import Optional, Tuple
 
+import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
+from pydantic import ValidationError
 
-from tasks.e2e_framework import doc
+from tasks.e2e_framework import config, doc, tool
 from tasks.e2e_framework.aws import doc as aws_doc
 from tasks.e2e_framework.aws.common import (
     get_architectures,
@@ -54,28 +55,28 @@ remote_hostname = "aws-vm"
 )
 def create_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    pipeline_id: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    install_installer: Optional[bool] = False,
-    agent_version: Optional[str] = None,
-    debug: Optional[bool] = False,
-    os_family: Optional[str] = None,
-    os_version: Optional[str] = None,
-    use_fakeintake: Optional[bool] = False,
-    use_loadBalancer: Optional[bool] = False,
-    ami_id: Optional[str] = None,
-    architecture: Optional[str] = None,
-    interactive: Optional[bool] = True,
-    instance_type: Optional[str] = None,
-    no_verify: Optional[bool] = False,
-    ssh_user: Optional[str] = None,
-    add_known_host: Optional[bool] = True,
-    agent_flavor: Optional[str] = None,
-    agent_config_path: Optional[str] = None,
-    local_package: Optional[str] = None,
-    latest_ami: Optional[bool] = False,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    pipeline_id: str | None = None,
+    install_agent: bool | None = True,
+    install_installer: bool | None = False,
+    agent_version: str | None = None,
+    debug: bool | None = False,
+    os_family: str | None = None,
+    os_version: str | None = None,
+    use_fakeintake: bool | None = False,
+    use_loadBalancer: bool | None = False,
+    ami_id: str | None = None,
+    architecture: str | None = None,
+    interactive: bool | None = True,
+    instance_type: str | None = None,
+    no_verify: bool | None = False,
+    ssh_user: str | None = None,
+    add_known_host: bool | None = True,
+    agent_flavor: str | None = None,
+    agent_config_path: str | None = None,
+    local_package: str | None = None,
+    latest_ami: bool | None = False,
 ) -> None:
     """
     Create a new virtual machine on aws.
@@ -146,9 +147,9 @@ def create_vm(
 )
 def destroy_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    clean_known_hosts: Optional[bool] = True,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    clean_known_hosts: bool | None = True,
 ):
     """
     Destroy a new virtual machine on aws.
@@ -174,7 +175,7 @@ def destroy_vm(
 )
 def show_vm(
     ctx: Context,
-    stack_name: Optional[str] = None,
+    stack_name: str | None = None,
 ):
     """
     Show connection details of an aws host.
@@ -183,7 +184,7 @@ def show_vm(
     print(json.dumps(host.__dict__, indent=4))
 
 
-def _get_os_family(os_family: Optional[str]) -> str:
+def _get_os_family(os_family: str | None) -> str:
     os_families = get_os_families()
     if not os_family:
         os_family = get_default_os_family()
@@ -192,7 +193,7 @@ def _get_os_family(os_family: Optional[str]) -> str:
     return os_family
 
 
-def _get_architecture(architecture: Optional[str]) -> str:
+def _get_architecture(architecture: str | None) -> str:
     architectures = get_architectures()
     if not architecture:
         architecture = get_default_architecture()
@@ -202,8 +203,8 @@ def _get_architecture(architecture: Optional[str]) -> str:
 
 
 def _get_os_information(
-    ctx: Context, os_family: Optional[str], arch: Optional[str], ami_id: Optional[str]
-) -> Tuple[str, Optional[str]]:
+    ctx: Context, os_family: str | None, arch: str | None, ami_id: str | None
+) -> tuple[str, str | None]:
     family, architecture = os_family, None
     if ami_id is not None:
         image = get_image_description(ctx, ami_id)
@@ -218,7 +219,7 @@ def _get_os_information(
                 family = next(os for os in os_families if os in image_info)
 
             except StopIteration:
-                raise Exit("We failed to guess the family of your AMI ID. Please provide it with option -o")
+                raise Exit("We failed to guess the family of your AMI ID. Please provide it with option -o") from None
         architecture = image["Architecture"]
         if arch is not None and architecture != arch:
             raise Exit(f"The provided architecture is {arch} but the image is {architecture}.")
@@ -226,3 +227,125 @@ def _get_os_information(
         family = _get_os_family(os_family)
         architecture = _get_architecture(arch)
     return family, architecture
+
+
+def _filter_aws_resource(resource, instance_id: str | None = None, ip: str | None = None):
+    if instance_id and resource["id"] != instance_id:
+        return None
+    if ip and resource["outputs"]["privateIp"] != ip:
+        return None
+    return resource
+
+
+def _get_windows_password(
+    ctx: Context,
+    cfg: config.Config,
+    full_stack_name: str,
+    use_aws_vault: bool | None = True,
+    instance_id: str | None = None,
+    ip: str | None = None,
+):
+    resources = tool.get_stack_json_resources(ctx, full_stack_name)
+    vms = []
+    for r in resources:
+        if not r["type"].startswith("aws:ec2/instance:Instance"):
+            continue
+        vms.append(r)
+    if not vms:
+        raise Exit("No VM found in the stack.")
+
+    out = []
+    for r in vms:
+        if not _filter_aws_resource(r, instance_id, ip):
+            continue
+        vm_id = r["id"]
+        aws_account = cfg.get_aws().get_account()
+        # TODO: could xref with r['inputs']['keyName']
+        key_path = cfg.get_aws().privateKeyPath
+        if not key_path:
+            raise Exit("No privateKeyPath found in the config.")
+        password = tool.get_aws_instance_password_data(
+            ctx, vm_id, key_path, aws_account=aws_account, use_aws_vault=use_aws_vault
+        )
+        if password:
+            out.append({"vm_id": vm_id, "resource": r, "password": password})
+    return out
+
+
+@task(
+    help={
+        "config_path": doc.config_path,
+        "stack_name": "Name of stack that contains hosts to RDP into",
+        "use_aws_vault": doc.use_aws_vault,
+        "ip": "Filter to VM with this IP address",
+        "instance_id": "Filter to VM with this id",
+    }
+)
+def get_vm_password(
+    ctx: Context,
+    stack_name: str | None = None,
+    config_path: str | None = None,
+    ip: str | None = None,
+    instance_id: str | None = None,
+    use_aws_vault: bool | None = True,
+):
+    """
+    Get the password of a new virtual machine in a stack.
+    """
+    try:
+        cfg = config.get_local_config(config_path)
+    except ValidationError as e:
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
+
+    if not stack_name:
+        raise Exit("Please provide a stack name to connect to.")
+
+    out = _get_windows_password(ctx, cfg, stack_name, use_aws_vault=use_aws_vault, instance_id=instance_id, ip=ip)
+    if not out:
+        raise Exit(
+            "No VM found in the stack, or no password available. Verify that keyPairName and publicKeyPath are an RSA key. run `inv setup.debug` for automated help."
+        )
+    for vm in out:
+        vm_id = vm["vm_id"]
+        vm_ip = vm["resource"]["outputs"]["privateIp"]
+        password = vm["password"]
+        print(f"Password for VM {vm_id} ({vm_ip}): {password}")
+
+
+@task(
+    help={
+        "config_path": doc.config_path,
+        "stack_name": "Name of stack that contains hosts to RDP into",
+        "use_aws_vault": doc.use_aws_vault,
+        "ip": "Filter to VM with this IP address",
+        "instance_id": "Filter to VM with this id",
+    }
+)
+def rdp_vm(
+    ctx: Context,
+    stack_name: str | None = None,
+    config_path: str | None = None,
+    ip: str | None = None,
+    instance_id: str | None = None,
+    use_aws_vault: bool | None = True,
+):
+    """
+    Open an RDP connection to a new virtual machine in a stack.
+    """
+
+    if not stack_name:
+        raise Exit("Please provide a stack name to connect to.")
+
+    out = tool.get_stack_json_outputs(ctx, stack_name)
+    if not out:
+        raise Exit("No VM found in the stack.")
+
+    for vm_id, vm in out.items():
+        if "address" not in vm:
+            continue
+        vm_ip = vm["address"]
+        password = vm["password"]
+        tool.rdp(ctx, vm_ip)
+        print(f"Password for VM {vm_id} ({vm_ip}): {password}")
+        print("Username is Administrator, password has been copied to clipboard")
+        pyperclip.copy(password)

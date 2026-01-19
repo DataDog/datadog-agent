@@ -4,7 +4,7 @@ import os
 import pathlib
 import platform
 from io import StringIO
-from typing import Any, List, Optional
+from typing import Any
 
 import pyperclip
 from invoke.context import Context
@@ -74,7 +74,7 @@ def get_default_workload_install() -> bool:
     return True
 
 
-def get_stack_name(stack_name: Optional[str], scenario_name: str) -> str:
+def get_stack_name(stack_name: str | None, scenario_name: str) -> str:
     if stack_name is None:
         stack_name = scenario_name.replace("/", "-")
     # The scenario name cannot start with the stack name because ECS
@@ -91,7 +91,7 @@ def get_stack_name_prefix() -> str:
 def get_stack_json_outputs(ctx: Context, full_stack_name: str) -> Any:
     buffer = StringIO()
 
-    cmd_parts: List[str] = [
+    cmd_parts: list[str] = [
         "pulumi",
         "stack",
         "output",
@@ -127,8 +127,8 @@ def get_aws_wrapper(
 
 def get_aws_cmd(
     cmd: str,
-    use_aws_vault: Optional[bool] = True,
-    aws_account: Optional[str] = None,
+    use_aws_vault: bool | None = True,
+    aws_account: str | None = None,
 ) -> str:
     wrapper = ""
     if use_aws_vault:
@@ -150,7 +150,7 @@ def is_wsl():
 
 
 def get_aws_instance_password_data(
-    ctx: Context, vm_id: str, key_path: str, aws_account: Optional[str] = None, use_aws_vault: Optional[bool] = True
+    ctx: Context, vm_id: str, key_path: str, aws_account: str | None = None, use_aws_vault: bool | None = True
 ) -> str:
     buffer = StringIO()
     with ctx.cd(_get_root_path()):
@@ -224,7 +224,7 @@ def notify_windows():
 # ensure we run pulumi from a directory with a Pulumi.yaml file
 # defaults to the project root directory
 def get_pulumi_dir_flag():
-    root_path = os.path.join(_get_root_path(),"test", "e2e-framework", "run")
+    root_path = os.path.join(_get_root_path(), "test", "e2e-framework", "run")
     current_path = os.getcwd()
     if not os.path.isfile(os.path.join(current_path, "Pulumi.yaml")):
         return f"-C {root_path}"
@@ -246,7 +246,7 @@ class RemoteHost:
 
 
 def show_connection_message(
-    ctx: Context, remote_host_name: str, full_stack_name: str, copy_to_clipboard: Optional[bool] = True
+    ctx: Context, remote_host_name: str, full_stack_name: str, copy_to_clipboard: bool | None = True
 ):
     outputs = get_stack_json_outputs(ctx, full_stack_name)
     remoteHost = RemoteHost(remote_host_name, outputs)
@@ -285,7 +285,7 @@ def clean_known_hosts(ctx: Context, host: str) -> None:
     ctx.run(f"ssh-keygen -R {host}", hide=True)
 
 
-def get_host(ctx: Context, remote_host_name: str, scenario_name: str, stack_name: Optional[str] = None) -> RemoteHost:
+def get_host(ctx: Context, remote_host_name: str, scenario_name: str, stack_name: str | None = None) -> RemoteHost:
     """
     Get the host of the VM.
     """

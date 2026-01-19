@@ -1,5 +1,6 @@
 import os
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 import boto3
 from invoke.context import Context
@@ -14,24 +15,24 @@ from .config import Config, get_full_profile_path
 def deploy(
     ctx: Context,
     scenario_name: str,
-    config_path: Optional[str] = None,
+    config_path: str | None = None,
     app_key_required: bool = False,
-    stack_name: Optional[str] = None,
-    pipeline_id: Optional[str] = None,
-    install_agent: Optional[bool] = None,
-    install_installer: Optional[bool] = None,
-    install_workload: Optional[bool] = None,
-    agent_version: Optional[str] = None,
-    debug: Optional[bool] = False,
-    extra_flags: Optional[Dict[str, Any]] = None,
-    use_fakeintake: Optional[bool] = False,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    agent_config_path: Optional[str] = None,
-    agent_env: Optional[str] = None,
-    helm_config: Optional[str] = None,
-    local_package: Optional[str] = None,
+    stack_name: str | None = None,
+    pipeline_id: str | None = None,
+    install_agent: bool | None = None,
+    install_installer: bool | None = None,
+    install_workload: bool | None = None,
+    agent_version: str | None = None,
+    debug: bool | None = False,
+    extra_flags: dict[str, Any] | None = None,
+    use_fakeintake: bool | None = False,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    agent_config_path: str | None = None,
+    agent_env: str | None = None,
+    helm_config: str | None = None,
+    local_package: str | None = None,
 ) -> str:
     flags = extra_flags if extra_flags else {}
 
@@ -143,16 +144,16 @@ def _create_stack(ctx: Context, stack_name: str, global_flags: str):
 
 def _deploy(
     ctx: Context,
-    stack_name: Optional[str],
-    flags: Dict[str, Any],
-    debug: Optional[bool],
-    log_level: Optional[int],
-    log_to_stderr: Optional[bool],
+    stack_name: str | None,
+    flags: dict[str, Any],
+    debug: bool | None,
+    log_level: int | None,
+    log_to_stderr: bool | None,
 ) -> str:
     stack_name = tool.get_stack_name(stack_name, flags["scenario"])
     # make sure the stack name is safe
     stack_name = stack_name.replace(" ", "-").lower()
-    global_flags_array: List[str] = []
+    global_flags_array: list[str] = []
     up_flags = ""
 
     # Check we are in a pulumi project
@@ -187,22 +188,22 @@ def _deploy(
     return stack_name
 
 
-def _get_api_key(cfg: Optional[Config]) -> str:
+def _get_api_key(cfg: Config | None) -> str:
     return _get_key("API KEY", cfg, lambda c: c.get_agent().apiKey, "E2E_API_KEY", 32)
 
 
-def _get_app_key(cfg: Optional[Config]) -> str:
+def _get_app_key(cfg: Config | None) -> str:
     return _get_key("APP KEY", cfg, lambda c: c.get_agent().appKey, "E2E_APP_KEY", 40)
 
 
 def _get_key(
     key_name: str,
-    cfg: Optional[Config],
-    get_key: Callable[[Config], Optional[str]],
+    cfg: Config | None,
+    get_key: Callable[[Config], str | None],
     env_key_name: str,
     expected_size: int,
 ) -> str:
-    key: Optional[str] = None
+    key: str | None = None
 
     # first try in config
     if cfg is not None:

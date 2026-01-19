@@ -1,5 +1,3 @@
-from typing import Optional
-
 import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -31,17 +29,17 @@ scenario_name = "aws/dockervm"
 )
 def create_docker(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    agent_version: Optional[str] = None,
-    architecture: Optional[str] = None,
-    use_fakeintake: Optional[bool] = False,
-    use_loadBalancer: Optional[bool] = False,
-    interactive: Optional[bool] = True,
-    full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    agent_env: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    install_agent: bool | None = True,
+    agent_version: str | None = None,
+    architecture: str | None = None,
+    use_fakeintake: bool | None = False,
+    use_loadBalancer: bool | None = False,
+    interactive: bool | None = True,
+    full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    agent_env: str | None = None,
 ):
     """
     Create a docker environment.
@@ -73,7 +71,7 @@ def create_docker(
     _show_connection_message(ctx, full_stack_name, interactive)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: Optional[bool]):
+def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     remoteHost = tool.RemoteHost("aws-vm", outputs)
     host = remoteHost.address
@@ -99,8 +97,8 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
 )
 def destroy_docker(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
 ):
     """
     Destroy an environment created by invoke aws.create-docker.
@@ -113,7 +111,7 @@ def destroy_docker(
     )
 
 
-def _get_architecture(architecture: Optional[str]) -> str:
+def _get_architecture(architecture: str | None) -> str:
     architectures = get_architectures()
     if architecture is None:
         architecture = get_default_architecture()

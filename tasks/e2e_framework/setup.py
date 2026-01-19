@@ -5,7 +5,7 @@ import os
 import os.path
 import shutil
 from pathlib import Path
-from typing import NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import pyperclip
 from invoke.context import Context
@@ -22,7 +22,7 @@ supported_key_types = ["rsa", "ed25519"]
 
 @task(help={"config_path": doc.config_path, "interactive": doc.interactive, "debug": doc.debug}, default=True)
 def setup(
-    ctx: Context, config_path: Optional[str] = None, interactive: Optional[bool] = True, debug: Optional[bool] = False
+    ctx: Context, config_path: str | None = None, interactive: bool | None = True, debug: bool | None = False
 ) -> None:
     """
     Setup a local environment, interactively by default
@@ -259,7 +259,7 @@ credential_process = aws-vault exec {profile_name} --json
 
 
 @task
-def aws_sso(ctx: Context, config_path: Optional[str] = None):
+def aws_sso(ctx: Context, config_path: str | None = None):
     """
     Setup AWS SSO profile for the agent-sandbox account if it doesn't exist
 
@@ -270,7 +270,7 @@ def aws_sso(ctx: Context, config_path: Optional[str] = None):
     except Exception as e:
         error(f"{e}")
         error("Failed to load config")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     _setup_aws_sso_config(config)
 
@@ -418,13 +418,13 @@ def setupPulumiConfig(config):
 
 def resolve_keypair_opts(
     config: Config,
-    keypair_name: Optional[str] = None,
-    key_type: Optional[str] = None,
-    key_format: Optional[str] = None,
-    private_key_path: Optional[Path | str] = None,
-    public_key_path: Optional[Path | str] = None,
-    require_key_type: Optional[bool] = False,
-    require_keyfile_exists: Optional[bool] = False,
+    keypair_name: str | None = None,
+    key_type: str | None = None,
+    key_format: str | None = None,
+    private_key_path: Path | str | None = None,
+    public_key_path: Path | str | None = None,
+    require_key_type: bool | None = False,
+    require_keyfile_exists: bool | None = False,
 ):
     """
     Resolve key pair options, in decreasing order of priority:
@@ -514,7 +514,7 @@ def resolve_keypair_opts(
 
 def update_config_aws_keypair(
     config: Config,
-    config_path: Optional[str] = None,
+    config_path: str | None = None,
 ) -> None:
     if config.configParams is None or config.configParams.aws is None:
         raise Exit("Config is missing aws section")
@@ -529,8 +529,8 @@ def update_config_aws_keypair(
 def check_existing_aws_keypair(
     ctx: Context,
     keypair_name: str,
-    use_aws_vault: Optional[bool] = False,
-    aws_account_name: Optional[str] = None,
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
 ) -> bool:
     """
     Check if aws key pair already exists.
@@ -561,13 +561,13 @@ def check_existing_aws_keypair(
 @task
 def aws_create_keypair(
     ctx: Context,
-    keypair_name: Optional[str] = None,
-    key_type: Optional[str] = None,
-    private_key_path: Optional[str] = None,
-    public_key_path: Optional[str] = None,
-    use_aws_vault: Optional[bool] = False,
-    aws_account_name: Optional[str] = None,
-    config_path: Optional[str] = None,
+    keypair_name: str | None = None,
+    key_type: str | None = None,
+    private_key_path: str | None = None,
+    public_key_path: str | None = None,
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
+    config_path: str | None = None,
 ) -> None:
     """
     Create a new key pair using the AWS CLI, save the key pair to disk, and update the local config.
@@ -582,7 +582,7 @@ def aws_create_keypair(
     except Exception as e:
         error(f"{e}")
         error("Failed to load config")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     _aws_create_keypair(
         ctx=ctx,
@@ -604,12 +604,12 @@ def aws_create_keypair(
 def _aws_create_keypair(
     ctx: Context,
     config: Config,
-    keypair_name: Optional[str] = None,
-    key_type: Optional[str] = None,
-    private_key_path: Optional[str] = None,
-    public_key_path: Optional[str] = None,
-    use_aws_vault: Optional[bool] = False,
-    aws_account_name: Optional[str] = None,
+    keypair_name: str | None = None,
+    key_type: str | None = None,
+    private_key_path: str | None = None,
+    public_key_path: str | None = None,
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
 ) -> None:
     if config.configParams is None or config.configParams.aws is None:
         raise Exit("Config is missing aws section")
@@ -680,12 +680,12 @@ def _aws_create_keypair(
 @task
 def aws_import_keypair(
     ctx: Context,
-    keypair_name: Optional[str] = None,
-    private_key_path: Optional[str] = None,
-    public_key_path: Optional[str] = None,
-    use_aws_vault: Optional[bool] = False,
-    aws_account_name: Optional[str] = None,
-    config_path: Optional[str] = None,
+    keypair_name: str | None = None,
+    private_key_path: str | None = None,
+    public_key_path: str | None = None,
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
+    config_path: str | None = None,
 ) -> None:
     """
     Import an existing key pair to AWS and update the config.
@@ -700,7 +700,7 @@ def aws_import_keypair(
     except Exception as e:
         error(f"{e}")
         error("Failed to load config")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     _aws_import_keypair(
         ctx=ctx,
@@ -721,11 +721,11 @@ def aws_import_keypair(
 def _aws_import_keypair(
     ctx: Context,
     config: Config,
-    keypair_name: Optional[str] = None,
-    private_key_path: Optional[str] = None,
-    public_key_path: Optional[str] = None,
-    use_aws_vault: Optional[bool] = False,
-    aws_account_name: Optional[str] = None,
+    keypair_name: str | None = None,
+    private_key_path: str | None = None,
+    public_key_path: str | None = None,
+    use_aws_vault: bool | None = False,
+    aws_account_name: str | None = None,
 ) -> None:
     if config.configParams is None or config.configParams.aws is None:
         raise Exit("Config is missing aws section")
@@ -772,7 +772,7 @@ def _get_safe_dd_key(key: str) -> str:
     return "*" * len(key)
 
 
-def _pulumi_version(ctx: Context) -> Tuple[str, bool]:
+def _pulumi_version(ctx: Context) -> tuple[str, bool]:
     """
     Returns True if pulumi is installed and up to date, False otherwise
     Will return True if PULUMI_SKIP_UPDATE_CHECK=1
@@ -906,7 +906,7 @@ def load_ec2_keypairs(ctx: Context) -> dict:
     return keypairs
 
 
-def find_matching_ec2_keypair(ctx: Context, keypairs: dict, path: Path) -> Tuple[Optional[KeyInfo], Optional[dict]]:
+def find_matching_ec2_keypair(ctx: Context, keypairs: dict, path: Path) -> tuple[KeyInfo | None, dict | None]:
     if not os.path.exists(path):
         warn(f"WARNING: Key file {path} does not exist")
         return None, None
@@ -953,7 +953,7 @@ def _ssh_agent_supported():
 
 
 @task(help={"config_path": doc.config_path})
-def debug_keys(ctx: Context, config_path: Optional[str] = None):
+def debug_keys(ctx: Context, config_path: str | None = None):
     """
     Debug E2E and test-infra-definitions SSH keys
     """
@@ -964,7 +964,7 @@ def debug_keys(ctx: Context, config_path: Optional[str] = None):
         except UnexpectedExit as e:
             error(f"{e}")
             error("ssh-agent not available or no keys are loaded, please start it and load your keys")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     found = False
     keypairs = load_ec2_keypairs(ctx)
@@ -977,7 +977,7 @@ def debug_keys(ctx: Context, config_path: Optional[str] = None):
     except Exception as e:
         error(f"{e}")
         error("Failed to load config")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
     if config.configParams is None:
         error("configParams missing from config")
         raise Exit(code=1)
@@ -1093,7 +1093,7 @@ def debug_keys(ctx: Context, config_path: Optional[str] = None):
 
 
 @task(name="debug", help={"config_path": doc.config_path})
-def debug_env(ctx, config_path: Optional[str] = None):
+def debug_env(ctx, config_path: str | None = None):
     """
     Debug E2E and test-infra-definitions required tools and configuration
     """
@@ -1103,16 +1103,16 @@ def debug_env(ctx, config_path: Optional[str] = None):
     except UnexpectedExit as e:
         error(f"{e}")
         error("Pulumi CLI not found, please install it: https://www.pulumi.com/docs/get-started/install/")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
     info(f"Pulumi version: {out.stdout.strip()}")
 
     # Check pulumi credentials
     try:
         out = ctx.run("pulumi whoami", hide=True)
-    except UnexpectedExit:
+    except UnexpectedExit as e:
         error("No pulumi credentials found")
         info("Please login, e.g. pulumi login --local")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     # check awscli version
     out = ctx.run("aws --version", hide=True)
@@ -1130,7 +1130,7 @@ def debug_env(ctx, config_path: Optional[str] = None):
     except UnexpectedExit as e:
         error(f"{e}")
         error("aws-vault not found, please install it")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
     info(f"aws-vault version: {out.stderr.strip()}")
 
     print()
@@ -1171,7 +1171,7 @@ def debug_env(ctx, config_path: Optional[str] = None):
     except UnexpectedExit as e:
         error(f"{e}")
         error("No AWS credentials found or they are expired, please configure and/or login")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     print()
 

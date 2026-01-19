@@ -1,6 +1,6 @@
 import os
 import subprocess
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -17,27 +17,27 @@ default_private_path_key_name = "ddinfra:aws/defaultPrivateKeyPath"
 def deploy(
     ctx: Context,
     scenario_name: str,
-    config_path: Optional[str] = None,
+    config_path: str | None = None,
     key_pair_required: bool = False,
     public_key_required: bool = False,
     app_key_required: bool = False,
-    stack_name: Optional[str] = None,
-    pipeline_id: Optional[str] = None,
-    install_agent: Optional[bool] = None,
-    install_installer: Optional[bool] = None,
-    install_workload: Optional[bool] = None,
-    agent_version: Optional[str] = None,
-    debug: Optional[bool] = False,
-    extra_flags: Optional[Dict[str, Any]] = None,
-    use_fakeintake: Optional[bool] = False,
-    deploy_job: Optional[str] = None,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    agent_config_path: Optional[str] = None,
-    agent_env: Optional[str] = None,
-    helm_config: Optional[str] = None,
-    local_package: Optional[str] = None,
+    stack_name: str | None = None,
+    pipeline_id: str | None = None,
+    install_agent: bool | None = None,
+    install_installer: bool | None = None,
+    install_workload: bool | None = None,
+    agent_version: str | None = None,
+    debug: bool | None = False,
+    extra_flags: dict[str, Any] | None = None,
+    use_fakeintake: bool | None = False,
+    deploy_job: str | None = None,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    agent_config_path: str | None = None,
+    agent_env: str | None = None,
+    helm_config: str | None = None,
+    local_package: str | None = None,
 ) -> str:
     flags = extra_flags if extra_flags else {}
 
@@ -100,11 +100,11 @@ def deploy(
     )
 
 
-def _check_key_pair(key_pair_to_search: Optional[str]):
+def _check_key_pair(key_pair_to_search: str | None):
     if key_pair_to_search is None or key_pair_to_search == "":
         raise Exit("This scenario requires to define 'defaultKeyPairName' in the configuration file")
     output = subprocess.check_output(["ssh-add", "-L"])
-    key_pairs: List[str] = []
+    key_pairs: list[str] = []
     output = output.decode("utf-8")
     for line in output.splitlines():
         parts = line.split(" ")
@@ -121,7 +121,7 @@ def _check_key_pair(key_pair_to_search: Optional[str]):
         )
 
 
-def _get_public_path_key_name(cfg: Config, require: bool) -> Optional[str]:
+def _get_public_path_key_name(cfg: Config, require: bool) -> str | None:
     defaultPublicKeyPath = cfg.get_aws().publicKeyPath
     if require and defaultPublicKeyPath is None:
         raise Exit(f"Your scenario requires to define {default_public_path_key_name} in the configuration file")

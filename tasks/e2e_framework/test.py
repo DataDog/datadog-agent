@@ -28,7 +28,7 @@ def check_xslt(_, xslt, replacements=None, xml="domain"):
     try:
         import lxml.etree as etree
     except ImportError:
-        raise Exit("lxml is not installed. Please install it with `pip install lxml`")
+        raise Exit("lxml is not installed. Please install it with `pip install lxml`") from None
 
     if os.path.exists(xml):
         xml_path = xml

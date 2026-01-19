@@ -1,5 +1,3 @@
-from typing import Optional
-
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -20,10 +18,10 @@ scenario_name = "aws/installer"
 )
 def create_installer_lab(
     ctx: Context,
-    debug: Optional[bool] = False,
-    pipeline_id: Optional[str] = None,
-    site: Optional[str] = "datad0g.com",
-    agent_flavor: Optional[str] = None,
+    debug: bool | None = False,
+    pipeline_id: str | None = None,
+    site: str | None = "datad0g.com",
+    agent_flavor: str | None = None,
 ):
     full_stack_name = deploy(
         ctx,

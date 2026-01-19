@@ -1,6 +1,6 @@
 import json
 from io import StringIO
-from typing import Any, List, Union
+from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -10,7 +10,7 @@ def get_default_os_family() -> str:
     return "ubuntu"
 
 
-def get_os_families() -> List[str]:
+def get_os_families() -> list[str]:
     return [
         get_default_os_family(),
         "windows",
@@ -44,7 +44,7 @@ def get_package_for_os(os: str) -> str:
     return package_map[os]
 
 
-def get_deploy_job(os: str, arch: Union[str, None], agent_version: Union[str, None] = None) -> str:
+def get_deploy_job(os: str, arch: str | None, agent_version: str | None = None) -> str:
     """
     Returns the deploy job name within the datadog agent repo that creates
     images used in create-vm
@@ -74,7 +74,7 @@ def get_deploy_job(os: str, arch: Union[str, None], agent_version: Union[str, No
     return f'deploy_{pkg}_testing{suffix}'
 
 
-def get_architectures() -> List[str]:
+def get_architectures() -> list[str]:
     return [get_default_architecture(), "arm64"]
 
 

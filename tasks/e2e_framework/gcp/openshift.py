@@ -1,5 +1,3 @@
-from typing import Optional
-
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -31,19 +29,19 @@ scenario_name = "gcp/openshiftvm"
 )
 def create_openshift(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    pull_secret_path: Optional[str] = None,
-    use_nested_virtualization: Optional[bool] = True,
-    install_agent: Optional[bool] = True,
-    install_workload: Optional[bool] = True,
-    use_fakeintake: Optional[bool] = False,
-    use_loadBalancer: Optional[bool] = False,
-    agent_version: Optional[str] = None,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    helm_config: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    pull_secret_path: str | None = None,
+    use_nested_virtualization: bool | None = True,
+    install_agent: bool | None = True,
+    install_workload: bool | None = True,
+    use_fakeintake: bool | None = False,
+    use_loadBalancer: bool | None = False,
+    agent_version: str | None = None,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    helm_config: str | None = None,
 ):
     """
     Create an OpenShift environment.
@@ -98,8 +96,8 @@ def create_openshift(
 )
 def destroy_openshift(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
 ):
     """
     Destroy an environment created by invoke gcp.create-openshift.

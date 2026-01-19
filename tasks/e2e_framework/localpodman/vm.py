@@ -1,5 +1,3 @@
-from typing import Optional
-
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -33,17 +31,17 @@ remote_hostname = "local-podman-vm"
 )
 def create_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    pipeline_id: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    agent_version: Optional[str] = None,
-    debug: Optional[bool] = False,
-    use_fakeintake: Optional[bool] = False,
-    interactive: Optional[bool] = True,
-    add_known_host: Optional[bool] = True,
-    agent_flavor: Optional[str] = None,
-    agent_config_path: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    pipeline_id: str | None = None,
+    install_agent: bool | None = True,
+    agent_version: str | None = None,
+    debug: bool | None = False,
+    use_fakeintake: bool | None = False,
+    interactive: bool | None = True,
+    add_known_host: bool | None = True,
+    agent_flavor: str | None = None,
+    agent_config_path: str | None = None,
 ) -> None:
     """
     Create a new virtual machine on local podman.
@@ -95,9 +93,9 @@ def create_vm(
 )
 def destroy_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    clean_known_hosts: Optional[bool] = True,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    clean_known_hosts: bool | None = True,
 ):
     """
     Destroy a new virtual machine on aws.

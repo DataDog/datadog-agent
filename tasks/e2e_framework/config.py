@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
 import yaml
 from invoke.exceptions import Exit
@@ -19,12 +19,12 @@ class Config(BaseModel):
 
         class Aws(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
-            keyPairName: Optional[str]
-            publicKeyPath: Optional[str]
-            privateKeyPath: Optional[str] = None
-            privateKeyPassword: Optional[str] = None
-            account: Optional[str]
-            teamTag: Optional[str]
+            keyPairName: str | None
+            publicKeyPath: str | None
+            privateKeyPath: str | None = None
+            privateKeyPassword: str | None = None
+            account: str | None
+            teamTag: str | None
 
             def get_account(self) -> str:
                 if self.account is None:
@@ -41,58 +41,58 @@ You should consider moving to the agent-sandbox account. Please follow https://d
                     )
                 return self.account
 
-        aws: Optional[Aws]
+        aws: Aws | None
 
         class Azure(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
-            publicKeyPath: Optional[str] = None
-            account: Optional[str] = _DEFAULT_ACCOUNT
+            publicKeyPath: str | None = None
+            account: str | None = _DEFAULT_ACCOUNT
 
-        azure: Optional[Azure] = None
+        azure: Azure | None = None
 
         class GCP(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
             _DEFAULT_ACCOUNT = "agent-sandbox"
-            publicKeyPath: Optional[str] = None
-            pullSecretPath: Optional[str] = None
-            account: Optional[str] = _DEFAULT_ACCOUNT
+            publicKeyPath: str | None = None
+            pullSecretPath: str | None = None
+            account: str | None = _DEFAULT_ACCOUNT
 
-        gcp: Optional[GCP] = None
+        gcp: GCP | None = None
 
         class Local(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
-            publicKeyPath: Optional[str] = None
+            publicKeyPath: str | None = None
 
-        local: Optional[Local] = None
+        local: Local | None = None
 
         class Agent(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
-            apiKey: Optional[str]
-            appKey: Optional[str]
+            apiKey: str | None
+            appKey: str | None
             verifyCodeSignature: Optional[bool] = True  # noqa used in e2e tests
 
-        agent: Optional[Agent]
+        agent: Agent | None
 
         class Pulumi(BaseModel):
             model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
-            logLevel: Optional[int] = None
-            logToStdErr: Optional[bool] = None
+            logLevel: int | None = None
+            logToStdErr: bool | None = None
             verboseProgressStreams: Optional[bool] = None  # noqa used in e2e tests
 
-        pulumi: Optional[Pulumi] = None
+        pulumi: Pulumi | None = None
 
         devMode: Optional[bool] = False  # noqa used in e2e tests
 
-    configParams: Optional[Params] = None
+    configParams: Params | None = None
 
-    stackParams: Optional[Dict[str, Dict[str, str]]] = None
+    stackParams: dict[str, dict[str, str]] | None = None
 
     class Options(BaseModel):
         model_config = ConfigDict(extra="forbid")  # noqa: vulture thinks it is unused
-        checkKeyPair: Optional[bool]
+        checkKeyPair: bool | None
 
-    options: Optional[Options] = None
+    options: Options | None = None
 
     def get_options(self) -> Options:
         if self.options is None:
@@ -151,22 +151,22 @@ You should consider moving to the agent-sandbox account. Please follow https://d
             return default
         return self.configParams.pulumi
 
-    def get_stack_params(self) -> Dict[str, Dict[str, str]]:
+    def get_stack_params(self) -> dict[str, dict[str, str]]:
         if self.stackParams is None:
             return {}
         return self.stackParams
 
-    def save_to_local_config(self, config_path: Optional[str] = None):
+    def save_to_local_config(self, config_path: str | None = None):
         profile_path = get_full_profile_path(config_path)
         try:
             with open(profile_path, "w") as outfile:
                 yaml.dump(self.dict(), outfile)
         except Exception as e:
-            raise Exit(f"Error saving config file {profile_path}: {e}")
+            raise Exit(f"Error saving config file {profile_path}: {e}") from e
         info(f"Configuration file saved at {profile_path}")
 
 
-def get_local_config(profile_path: Optional[str] = None) -> Config:
+def get_local_config(profile_path: str | None = None) -> Config:
     profile_path = get_full_profile_path(profile_path)
     try:
         with open(profile_path) as f:
@@ -177,7 +177,7 @@ def get_local_config(profile_path: Optional[str] = None) -> Config:
         return Config.model_validate({})
 
 
-def get_full_profile_path(profile_path: Optional[str] = None) -> str:
+def get_full_profile_path(profile_path: str | None = None) -> str:
     if profile_path:
         return str(
             Path(profile_path).expanduser().absolute()

@@ -1,6 +1,5 @@
 import json
 import os
-from typing import Optional
 
 import pyperclip
 import yaml
@@ -43,26 +42,26 @@ scenario_name = "aws/eks"
 )
 def create_eks(
     ctx: Context,
-    config_path: Optional[str] = None,
-    debug: Optional[bool] = False,
-    stack_name: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    install_workload: Optional[bool] = True,
-    install_argorollout: Optional[bool] = False,
-    agent_version: Optional[str] = None,
+    config_path: str | None = None,
+    debug: bool | None = False,
+    stack_name: str | None = None,
+    install_agent: bool | None = True,
+    install_workload: bool | None = True,
+    install_argorollout: bool | None = False,
+    agent_version: str | None = None,
     linux_node_group: bool = True,
     linux_arm_node_group: bool = False,
     bottlerocket_node_group: bool = True,
     windows_node_group: bool = False,
     gpu_node_group: bool = False,
-    gpu_instance_type: Optional[str] = None,
-    instance_type: Optional[str] = None,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    agent_flavor: Optional[str] = None,
-    helm_config: Optional[str] = None,
-    local_chart_path: Optional[str] = None,
-    kube_version: Optional[str] = None,
+    gpu_instance_type: str | None = None,
+    instance_type: str | None = None,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    agent_flavor: str | None = None,
+    helm_config: str | None = None,
+    local_chart_path: str | None = None,
+    kube_version: str | None = None,
 ):
     """
     Create a new EKS environment. It lasts around 20 minutes.
@@ -116,7 +115,7 @@ def create_eks(
     _show_connection_message(ctx, full_stack_name, config_path)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, config_path: Optional[str]):
+def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_output)
@@ -128,7 +127,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: Op
     try:
         local_config = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}")
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     command = f"KUBECONFIG={kubeconfig} {get_aws_wrapper(local_config.get_aws().get_account())} kubectl get nodes"
 
@@ -139,7 +138,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, config_path: Op
 
 
 @task(help={"stack_name": doc.stack_name})
-def destroy_eks(ctx: Context, stack_name: Optional[str] = None):
+def destroy_eks(ctx: Context, stack_name: str | None = None):
     """
     Destroy a EKS environment created with invoke aws.create-eks.
     """

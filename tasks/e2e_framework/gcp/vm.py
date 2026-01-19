@@ -1,5 +1,3 @@
-from typing import Optional, Tuple
-
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -53,25 +51,25 @@ remote_hostname = "gcp-vm"
 )
 def create_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    install_installer: Optional[bool] = False,
-    agent_version: Optional[str] = None,
-    debug: Optional[bool] = False,
-    interactive: Optional[bool] = True,
-    ssh_user: Optional[str] = None,
-    account: Optional[str] = None,
-    os_family: Optional[str] = None,
-    os_version: Optional[str] = None,
-    architecture: Optional[str] = None,
-    instance_type: Optional[str] = None,
-    deploy_job: Optional[str] = None,
-    no_verify: Optional[bool] = False,
-    use_fakeintake: Optional[bool] = False,
-    add_known_host: Optional[bool] = True,
-    agent_flavor: Optional[str] = None,
-    agent_config_path: Optional[str] = None,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    install_agent: bool | None = True,
+    install_installer: bool | None = False,
+    agent_version: str | None = None,
+    debug: bool | None = False,
+    interactive: bool | None = True,
+    ssh_user: str | None = None,
+    account: str | None = None,
+    os_family: str | None = None,
+    os_version: str | None = None,
+    architecture: str | None = None,
+    instance_type: str | None = None,
+    deploy_job: str | None = None,
+    no_verify: bool | None = False,
+    use_fakeintake: bool | None = False,
+    add_known_host: bool | None = True,
+    agent_flavor: str | None = None,
+    agent_config_path: str | None = None,
 ) -> None:
     """
     Create a new virtual machine on gcp.
@@ -137,9 +135,9 @@ def create_vm(
 )
 def destroy_vm(
     ctx: Context,
-    config_path: Optional[str] = None,
-    stack_name: Optional[str] = None,
-    clean_known_hosts: Optional[bool] = True,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+    clean_known_hosts: bool | None = True,
 ):
     """
     Destroy a new virtual machine on gcp.
@@ -158,11 +156,11 @@ def destroy_vm(
         clean_known_hosts_func(ctx, host.address)
 
 
-def _get_os_information(os_family: Optional[str], arch: Optional[str]) -> Tuple[str, Optional[str]]:
+def _get_os_information(os_family: str | None, arch: str | None) -> tuple[str, str | None]:
     return _get_os_family(os_family), _get_architecture(arch)
 
 
-def _get_os_family(os_family: Optional[str]) -> str:
+def _get_os_family(os_family: str | None) -> str:
     os_families = get_os_families()
     if not os_family:
         os_family = get_default_os_family()
@@ -171,7 +169,7 @@ def _get_os_family(os_family: Optional[str]) -> str:
     return os_family
 
 
-def _get_architecture(architecture: Optional[str]) -> str:
+def _get_architecture(architecture: str | None) -> str:
     architectures = get_architectures()
     if not architecture:
         architecture = get_default_architecture()

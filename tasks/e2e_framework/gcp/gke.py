@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 import pyperclip
 import yaml
@@ -29,22 +28,22 @@ scenario_name = "gcp/gke"
 )
 def create_gke(
     ctx: Context,
-    debug: Optional[bool] = False,
-    stack_name: Optional[str] = None,
-    install_agent: Optional[bool] = True,
-    install_workload: Optional[bool] = True,
-    agent_version: Optional[str] = None,
-    config_path: Optional[str] = None,
-    account: Optional[str] = None,
-    interactive: Optional[bool] = True,
-    full_image_path: Optional[str] = None,
-    cluster_agent_full_image_path: Optional[str] = None,
-    use_fakeintake: Optional[bool] = False,
-    use_autopilot: Optional[bool] = False,
-    agent_flavor: Optional[str] = None,
-    helm_config: Optional[str] = None,
-    local_chart_path: Optional[str] = None,
-    kube_version: Optional[str] = None,
+    debug: bool | None = False,
+    stack_name: str | None = None,
+    install_agent: bool | None = True,
+    install_workload: bool | None = True,
+    agent_version: str | None = None,
+    config_path: str | None = None,
+    account: str | None = None,
+    interactive: bool | None = True,
+    full_image_path: str | None = None,
+    cluster_agent_full_image_path: str | None = None,
+    use_fakeintake: bool | None = False,
+    use_autopilot: bool | None = False,
+    agent_flavor: str | None = None,
+    helm_config: str | None = None,
+    local_chart_path: str | None = None,
+    kube_version: str | None = None,
 ) -> None:
     """
     Create a new GKE environment.
@@ -88,14 +87,14 @@ def create_gke(
 
 
 @task(help={"stack_name": doc.stack_name})
-def destroy_gke(ctx: Context, stack_name: Optional[str] = None, config_path: Optional[str] = None):
+def destroy_gke(ctx: Context, stack_name: str | None = None, config_path: str | None = None):
     """
     Destroy a GKE environment created with invoke gcp.create-gke.
     """
     destroy(ctx, scenario_name=scenario_name, stack=stack_name, config_path=config_path)
 
 
-def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: Optional[bool]):
+def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None):
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     kubeconfig_output = yaml.safe_load(outputs["dd-Cluster-gcp-gke"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_output)
