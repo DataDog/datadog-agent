@@ -10,7 +10,9 @@ package nvml
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.uber.org/fx"
@@ -32,6 +34,8 @@ const (
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
+var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
 
 type collector struct {
 	id                                 string
@@ -55,9 +59,10 @@ func (c *collector) getGPUDeviceInfo(device ddnvml.Device) (*workloadmeta.GPU, e
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: devInfo.Name,
 		},
-		Vendor: nvidiaVendor,
-		Device: devInfo.Name,
-		Index:  devInfo.Index,
+		Vendor:  nvidiaVendor,
+		Device:  devInfo.Name,
+		GPUType: extractGPUType(devInfo.Name),
+		Index:   devInfo.Index,
 		ComputeCapability: workloadmeta.GPUComputeCapability{
 			Major: int(devInfo.SMVersion / 10),
 			Minor: int(devInfo.SMVersion % 10),
@@ -381,6 +386,28 @@ func gpuArchToString(nvmlArch nvml.DeviceArchitecture) string {
 		// to add a new case for a new architecture.
 		return "invalid"
 	}
+}
+
+func extractGPUType(deviceName string) string {
+	if deviceName == "" {
+		return ""
+	}
+
+	// Normalize case/whitespace and remove leading/trailing noise so regex matching is stable.
+	normalizedName := strings.ToLower(strings.TrimSpace(deviceName))
+	// Collapse any non-alphanumeric separators (spaces, dashes, quotes, punctuation) into underscores.
+	normalizedName = gpuNameSeparatorRegex.ReplaceAllString(normalizedName, "_")
+	// Trim underscores added by leading/trailing separators.
+	normalizedName = strings.Trim(normalizedName, "_")
+
+	// Extract the optional RTX prefix and the GPU model token.
+	matches := gpuTypeRegex.FindStringSubmatch(normalizedName)
+	if len(matches) == 0 {
+		return ""
+	}
+
+	// Combine optional RTX prefix with the model token (e.g., rtx_3090).
+	return matches[1] + matches[2]
 }
 
 func gpuVirtModeToString(nvmlVirtMode nvml.GpuVirtualizationMode) string {
