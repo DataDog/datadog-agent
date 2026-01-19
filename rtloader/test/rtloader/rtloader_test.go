@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
@@ -35,13 +34,8 @@ func TestGetPyInfo(t *testing.T) {
 	helpers.ResetMemoryStats()
 
 	ver, path := getPyInfo()
-	prefix := "3."
-	if common.UsingTwo {
-		prefix = "2.7."
-	}
-
-	if !strings.HasPrefix(ver, prefix) {
-		t.Errorf("Version doesn't start with `%s`: %s", prefix, ver)
+	if !strings.HasPrefix(ver, "3.") {
+		t.Errorf("Version doesn't start with `3.`: %s", ver)
 	}
 
 	if path == "" {
@@ -152,11 +146,7 @@ func TestGetError(t *testing.T) {
 	helpers.ResetMemoryStats()
 
 	errorStr := getError()
-	expected := "unable to import module 'foo': No module named 'foo'"
-	if common.UsingTwo {
-		expected = "unable to import module 'foo': No module named foo"
-	}
-	if errorStr != expected {
+	if errorStr != "unable to import module 'foo': No module named 'foo'" {
 		t.Fatalf("Wrong error string returned: %s", errorStr)
 	}
 

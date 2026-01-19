@@ -5,6 +5,9 @@ exporters:
       site: "datadoghq.eu"
 
 extensions:
+  datadog/dd-autoconfigured:
+    api:
+      key: "ggggg77777"
   ddflare/dd-autoconfigured:
   health_check/dd-autoconfigured:
   pprof/dd-autoconfigured:
@@ -42,6 +45,7 @@ service:
     - zpages/dd-autoconfigured
     - health_check/dd-autoconfigured
     - ddflare/dd-autoconfigured
+    - datadog/dd-autoconfigured
   pipelines:
     logs:
       receivers:

@@ -30,12 +30,12 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: false,
 		},
 		{
-			name:      "check in mode-specific excluded returns false",
+			name:      "check in excluded list returns false",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.full.excluded", []string{"disk", "memory"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.excluded", []string{"disk", "memory"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
@@ -69,13 +69,13 @@ func TestIsCheckAllowed(t *testing.T) {
 			wantResult: false,
 		},
 		{
-			name:      "check in mode-specific additional returns true",
+			name:      "check in additional list returns true",
 			checkName: "postgres",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.basic.allowed", []string{"cpu", "memory"}, pkgconfigmodel.SourceFile)
-				cfg.Set("integration.basic.additional", []string{"postgres"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.additional", []string{"postgres"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
 		},
@@ -85,7 +85,7 @@ func TestIsCheckAllowed(t *testing.T) {
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.full.excluded", []string{"custom_excluded"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.excluded", []string{"custom_excluded"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
@@ -105,7 +105,7 @@ func TestIsCheckAllowed(t *testing.T) {
 				cfg.Set("integration.enabled", true, pkgconfigmodel.SourceFile)
 				cfg.Set("infrastructure_mode", "basic", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.basic.allowed", []string{"cpu", "disk", "memory"}, pkgconfigmodel.SourceFile)
-				cfg.Set("integration.basic.excluded", []string{"disk"}, pkgconfigmodel.SourceFile)
+				cfg.Set("integration.excluded", []string{"disk"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},

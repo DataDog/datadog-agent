@@ -161,7 +161,7 @@ Invoke-BuildScript `
             Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination C:\mnt
             }
-            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "tototot2"
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
             & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json C:\mnt\$test_output_file
             if($LASTEXITCODE -ne 0){
                 throw "junit upload failed with exit code $LASTEXITCODE"

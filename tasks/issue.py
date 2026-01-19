@@ -2,6 +2,7 @@ import json
 import os
 import random
 import re
+from collections import defaultdict
 
 from invoke.tasks import task
 
@@ -31,15 +32,15 @@ def ask_reviews(_, pr_id):
         emojis = client.emoji_list()
         waves = [emoji for emoji in emojis.data['emoji'] if 'wave' in emoji and 'microwave' not in emoji]
 
-        channels = set()
+        channels = defaultdict(list)
         for reviewer in reviewers:
             channel = next(
                 (chan for team, chan in GITHUB_SLACK_REVIEW_MAP.items() if team.casefold() == reviewer.casefold()),
                 DEFAULT_SLACK_CHANNEL,
             )
-            channels.add((channel, reviewer))
+            channels[channel].append(reviewer)
 
-        for channel, reviewer in channels:
+        for channel, reviewers in channels.items():
             stop_updating = ""
             if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
                 "chore(deps): update integrations-core"
@@ -47,7 +48,7 @@ def ask_reviews(_, pr_id):
                 stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
             message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
             if channel == DEFAULT_SLACK_CHANNEL:
-                message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {reviewer}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+                message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {', '.join(reviewers)}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
             try:
                 client.chat_postMessage(channel=channel, text=message)
             except Exception as e:
