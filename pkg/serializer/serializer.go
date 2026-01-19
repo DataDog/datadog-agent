@@ -12,6 +12,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -327,31 +328,249 @@ func (s *Serializer) SendAgentchecksMetadata(m marshaler.JSONMarshaler) error {
 }
 
 func (s *Serializer) sendMetadata(m marshaler.JSONMarshaler, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
-	// Serialize the payload
+	// Serialize the payload to JSON
 	payload, err := m.MarshalJSON()
 	if err != nil {
 		return fmt.Errorf("could not serialize metadata payload: %s", err)
 	}
 
-	// Compress the payload
-	compressedPayload, err := s.Strategy.Compress(payload)
-	if err != nil {
-		return fmt.Errorf("could not compress metadata payload: %s", err)
-	}
-
 	s.logger.Debugf("Sending metadata payload, content: %v", string(payload))
 
-	// Check if payload exceeds limits
-	metadataLimits := limits.Get(limits.Metadata, nil)
-	if metadataLimits.Exceeds(len(compressedPayload), len(payload)) {
-		return fmt.Errorf("metadata payload was too big to send (%d bytes compressed, %d bytes uncompressed), metadata payloads cannot be split", len(compressedPayload), len(payload))
+	// Fast path: if uncompressed payload is under the target batch size, send as-is
+	if len(payload) <= limits.MetadataTargetBatch {
+		compressedPayload, err := s.Strategy.Compress(payload)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata payload: %s", err)
+		}
+
+		if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression); err != nil {
+			return err
+		}
+
+		s.logger.Debugf("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
+		return nil
 	}
 
-	if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression); err != nil {
-		return err
+	// Slow path: payload exceeds target size, need to batch
+	return s.sendBatchedMetadata(payload, submit)
+}
+
+// sendBatchedMetadata splits a large metadata payload into multiple batches and sends them sequentially.
+// This is necessary because the intake server enforces a 1MB uncompressed limit on metadata payloads.
+//
+// Note on partial failures: If batch N fails after batches 1..N-1 have been sent, those earlier batches
+// are already submitted to the forwarder. The backend must handle partial batch sets gracefully.
+func (s *Serializer) sendBatchedMetadata(payload []byte, submit func(payload transaction.BytesPayloads, extra http.Header) error) error {
+	// Parse payload as generic map to access check_metadata
+	var payloadMap map[string]interface{}
+	if err := json.Unmarshal(payload, &payloadMap); err != nil {
+		return fmt.Errorf("could not parse metadata payload for batching: %s", err)
 	}
 
-	s.logger.Debugf("Sent metadata payload, size (raw/compressed): %d/%d bytes.", len(payload), len(compressedPayload))
+	// Get check_metadata, which is what we'll batch
+	checkMetadataRaw, hasCheckMetadata := payloadMap["check_metadata"]
+	if !hasCheckMetadata {
+		// No check_metadata to batch. Send as-is and let intake handle it.
+		compressedPayload, err := s.Strategy.Compress(payload)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata payload: %s", err)
+		}
+		if len(payload) > limits.MetadataMaxUncompressed {
+			s.logger.Warnf("Metadata payload exceeds %d bytes (%d bytes) but has no check_metadata to batch",
+				limits.MetadataMaxUncompressed, len(payload))
+		}
+		return submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression)
+	}
+
+	checkMetadata, ok := checkMetadataRaw.(map[string]interface{})
+	if !ok {
+		// check_metadata is not a map, can't batch. Send as-is.
+		compressedPayload, err := s.Strategy.Compress(payload)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata payload: %s", err)
+		}
+		s.logger.Warnf("Metadata payload exceeds limit but check_metadata is not a map, sending as-is")
+		return submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression)
+	}
+
+	// If check_metadata is empty, send the original payload as-is
+	if len(checkMetadata) == 0 {
+		compressedPayload, err := s.Strategy.Compress(payload)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata payload: %s", err)
+		}
+		if len(payload) > limits.MetadataMaxUncompressed {
+			s.logger.Warnf("Metadata payload exceeds %d bytes (%d bytes) but check_metadata is empty",
+				limits.MetadataMaxUncompressed, len(payload))
+		}
+		return submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression)
+	}
+
+	// Calculate base payload size (everything except check_metadata content)
+	// Include batch metadata fields in the base size estimate
+	basePayloadMap := make(map[string]interface{})
+	for k, v := range payloadMap {
+		if k != "check_metadata" {
+			basePayloadMap[k] = v
+		}
+	}
+	basePayloadMap["check_metadata"] = map[string]interface{}{}
+	// Reserve space for batch metadata fields: "_dd_batch_index":N,"_dd_batch_total":N
+	// Estimate ~50 bytes for these fields (conservative)
+	basePayload, err := json.Marshal(basePayloadMap)
+	if err != nil {
+		s.logger.Warnf("Failed to marshal base payload for size estimation: %v", err)
+		basePayload = []byte("{}")
+	}
+	baseSize := len(basePayload) + 50 // +50 for batch metadata fields
+
+	// Build batches by iterating over check_metadata in sorted order for deterministic batching
+	var batches []map[string]interface{}
+	currentBatch := make(map[string]interface{})
+	currentBatchSize := baseSize
+
+	// Sort check names for deterministic batch composition
+	checkNames := make([]string, 0, len(checkMetadata))
+	for checkName := range checkMetadata {
+		checkNames = append(checkNames, checkName)
+	}
+	sort.Strings(checkNames)
+
+	for _, checkName := range checkNames {
+		instances := checkMetadata[checkName]
+		instancesSlice, ok := instances.([]interface{})
+		if !ok {
+			// Not a slice, add entire entry to current batch
+			entryJSON, err := json.Marshal(map[string]interface{}{checkName: instances})
+			if err != nil {
+				s.logger.Warnf("Failed to marshal check entry %q for size estimation: %v", checkName, err)
+				continue
+			}
+			entrySize := len(entryJSON)
+
+			// Drop entries that exceed the max payload size - they can never fit in a batch
+			if entrySize > limits.MetadataMaxUncompressed {
+				s.logger.Warnf("Dropping check entry %q: size %d bytes exceeds maximum %d bytes",
+					checkName, entrySize, limits.MetadataMaxUncompressed)
+				continue
+			}
+
+			if currentBatchSize+entrySize > limits.MetadataTargetBatch && len(currentBatch) > 0 {
+				batches = append(batches, currentBatch)
+				currentBatch = make(map[string]interface{})
+				currentBatchSize = baseSize
+			}
+			currentBatch[checkName] = instances
+			currentBatchSize += entrySize
+			continue
+		}
+
+		// Batch individual instances within this check
+		var currentInstances []interface{}
+		for _, instance := range instancesSlice {
+			instanceJSON, err := json.Marshal(instance)
+			if err != nil {
+				s.logger.Warnf("Failed to marshal instance in check %q for size estimation: %v", checkName, err)
+				continue
+			}
+			// Add overhead for JSON structure: "checkName":[ and ],
+			instanceSize := len(instanceJSON) + len(checkName) + 10
+
+			// Drop instances that exceed the max payload size - they can never fit in a batch
+			if instanceSize > limits.MetadataMaxUncompressed {
+				s.logger.Warnf("Dropping instance in check %q: size %d bytes exceeds maximum %d bytes",
+					checkName, instanceSize, limits.MetadataMaxUncompressed)
+				continue
+			}
+
+			if currentBatchSize+instanceSize > limits.MetadataTargetBatch {
+				// Current batch is full
+				if len(currentInstances) > 0 {
+					currentBatch[checkName] = currentInstances
+				}
+				if len(currentBatch) > 0 {
+					batches = append(batches, currentBatch)
+					currentBatch = make(map[string]interface{})
+					currentBatchSize = baseSize
+				}
+				currentInstances = nil
+			}
+
+			currentInstances = append(currentInstances, instance)
+			currentBatchSize += instanceSize
+		}
+
+		if len(currentInstances) > 0 {
+			currentBatch[checkName] = currentInstances
+		}
+	}
+
+	if len(currentBatch) > 0 {
+		batches = append(batches, currentBatch)
+	}
+
+	// If no batches were created (e.g., all entries failed to marshal), send original payload
+	if len(batches) == 0 {
+		s.logger.Warnf("No batches created from check_metadata, sending original payload")
+		compressedPayload, err := s.Strategy.Compress(payload)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata payload: %s", err)
+		}
+		return submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}), s.jsonExtraHeadersWithCompression)
+	}
+
+	// Build all batch payloads first to catch serialization errors before sending any
+	type preparedBatch struct {
+		json       []byte
+		compressed []byte
+	}
+	preparedBatches := make([]preparedBatch, 0, len(batches))
+
+	for i, batch := range batches {
+		// Build the batch payload, preserving the original UUID and adding batch correlation metadata
+		batchPayload := make(map[string]interface{})
+		for k, v := range payloadMap {
+			if k == "check_metadata" {
+				batchPayload[k] = batch
+			} else {
+				// Preserve all original fields including UUID for backend correlation
+				batchPayload[k] = v
+			}
+		}
+		// Add batch metadata for backend correlation and reassembly
+		// Use _dd_ prefix to avoid collision with user-defined fields
+		batchPayload["_dd_batch_index"] = i
+		batchPayload["_dd_batch_total"] = len(batches)
+
+		batchJSON, err := json.Marshal(batchPayload)
+		if err != nil {
+			return fmt.Errorf("could not serialize metadata batch %d: %s", i+1, err)
+		}
+
+		batchCompressed, err := s.Strategy.Compress(batchJSON)
+		if err != nil {
+			return fmt.Errorf("could not compress metadata batch %d: %s", i+1, err)
+		}
+
+		if len(batchJSON) > limits.MetadataMaxUncompressed {
+			s.logger.Warnf("Metadata batch %d/%d exceeds %d bytes (%d bytes), sending anyway",
+				i+1, len(batches), limits.MetadataMaxUncompressed, len(batchJSON))
+		}
+
+		preparedBatches = append(preparedBatches, preparedBatch{json: batchJSON, compressed: batchCompressed})
+	}
+
+	// Send each batch
+	s.logger.Infof("Splitting metadata payload (%d bytes) into %d batches", len(payload), len(batches))
+
+	for i, pb := range preparedBatches {
+		if err := submit(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&pb.compressed}), s.jsonExtraHeadersWithCompression); err != nil {
+			return fmt.Errorf("failed to submit metadata batch %d/%d: %w", i+1, len(preparedBatches), err)
+		}
+
+		s.logger.Debugf("Sent metadata batch %d/%d, size (raw/compressed): %d/%d bytes", i+1, len(preparedBatches), len(pb.json), len(pb.compressed))
+	}
+
 	return nil
 }
 
