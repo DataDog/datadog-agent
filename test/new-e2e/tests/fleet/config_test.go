@@ -303,7 +303,7 @@ func (s *configSuite) TestConfigRollbackDeploymentID() {
 		FileOperations: []backend.FileOperation{
 			{FileOperationType: backend.FileOperationMergePatch, FilePath: "/datadog.yaml", Patch: []byte(`{"log_level": "debug"}`)},
 		},
-	}, nil)
+	})
 	require.NoError(s.T(), err)
 
 	// Verify config changed during experiment
