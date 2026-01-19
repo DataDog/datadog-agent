@@ -370,7 +370,7 @@ type Status struct {
 			} `json:"AnalyzedRateByServiceLegacy"`
 			AnalyzedSpansByService struct {
 			} `json:"AnalyzedSpansByService"`
-			AdditionalProfileTags    string `json:"AdditionalProfileTags"`
+			AzureServerlessTags      string `json:"AzureServerlessTags"`
 			BucketInterval           int64  `json:"BucketInterval"`
 			ClientStatsFlushInterval int    `json:"ClientStatsFlushInterval"`
 			ComputeStatsBySpanKind   bool   `json:"ComputeStatsBySpanKind"`
