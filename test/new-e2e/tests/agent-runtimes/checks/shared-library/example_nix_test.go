@@ -39,13 +39,14 @@ func (v *linuxSharedLibrarySuite) TestCheckExample() {
 	v.testExampleRunAndMetrics()
 }
 
-func (v *linuxSharedLibrarySuite) TestInvalidPermissions() {
-	// others have access to the library
+func (v *linuxSharedLibrarySuite) TestInvalidPermissions_OthersHaveRights() {
 	permissions := perms.NewUnixPermissions(perms.WithPermissions("0777"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, permissions)
 	v.testExampleRunExpectError("'others' have rights on it or 'group' has write permissions on it")
+}
 
-	permissions = perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+func (v *linuxSharedLibrarySuite) TestInvalidPermissions_NotAllowedOwner() {
+	permissions := perms.NewUnixPermissions(perms.WithPermissions("0777"), perms.WithOwner("ubuntu"), perms.WithGroup("ubuntu"))
 	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, permissions)
-	v.testExampleRunExpectError("'others' have rights on it or 'group' has write permissions on it")
+	v.testExampleRunExpectError("file owner is neither `root`, `dd-agent` or current user")
 }
