@@ -866,7 +866,7 @@ func (c *safeConfig) GetSubfields(key string) []string {
 	c.Lock()
 	defer c.Unlock()
 
-	res := []string{}
+	var res []string
 	for _, s := range model.Sources {
 		if s == model.SourceEnvVar {
 			// Viper doesn't store env vars in the actual configSource layer, instead
