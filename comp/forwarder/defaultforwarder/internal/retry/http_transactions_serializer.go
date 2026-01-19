@@ -24,17 +24,13 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const transactionsSerializerVersion = 3
+const transactionsSerializerVersion = 2
 
-// Use a valid UTF-8 character as a separator (Unicode Private Use Area character U+E000).
-// This should neither appear in an HTTP header value nor in a URL.
-const squareChar = "\uE000"
+// Use a non US ASCII char as a separator (Should neither appear in an HTTP header value nor in a URL).
+// Note: This is not valid UTF-8, but the proto fields using it are defined as `bytes` to avoid UTF-8 validation.
+const squareChar = "\xfe"
 const placeHolderPrefix = squareChar + "API_KEY" + squareChar
 const placeHolderFormat = placeHolderPrefix + "%v" + squareChar
-
-// Old placeholder used in version 2 (invalid UTF-8, kept for backwards compatibility during deserialization)
-const squareCharV2 = "\xfe"
-const placeHolderPrefixV2 = squareCharV2 + "API_KEY" + squareCharV2
 
 var tlmV1TransactionsDeserialized = telemetry.NewCounterWithOpts("transactions", "v1deserialized", []string{}, "", telemetry.Options{DefaultMetric: true})
 
@@ -110,7 +106,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
 		Domain:      "",
-		Endpoint:    &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
+		Endpoint:    &EndpointProto{Route: []byte(s.replaceAPIKeys(endpoint.Route)), Name: endpoint.Name},
 		Headers:     s.toHeaderProto(transaction.Headers),
 		Payload:     payload,
 		ErrorCount:  int64(transaction.ErrorCount),
@@ -167,7 +163,7 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 
 		priority, err := fromTransactionPriorityProto(tr.Priority)
 		if err == nil {
-			route, err = s.restoreAPIKeys(e.Route, collection.Version)
+			route, err = s.restoreAPIKeys(string(e.Route), collection.Version)
 			if err == nil {
 				proto, err = s.fromHeaderProto(tr.Headers, collection.Version)
 				if err == nil { // TODO: the reason for this nesting pattern is unclear to me
@@ -235,8 +231,7 @@ func (s *HTTPTransactionsSerializer) restoreAPIKeys(str string, protoVersion int
 		s.placeholderMutex.RUnlock()
 	}
 
-	// Check for unreplaced placeholders (both current and legacy v2 format)
-	if strings.Contains(newStr, placeHolderPrefix) || strings.Contains(newStr, placeHolderPrefixV2) {
+	if strings.Contains(newStr, placeHolderPrefix) {
 		return "", errors.New("cannot restore the transaction as an API Key is missing")
 	}
 	return newStr, nil
@@ -247,7 +242,7 @@ func (s *HTTPTransactionsSerializer) fromHeaderProto(headersProto map[string]*He
 	for key, headerValuesProto := range headersProto {
 		var headerValues []string
 		for _, v := range headerValuesProto.Values {
-			value, err := s.restoreAPIKeys(v, protoVersion)
+			value, err := s.restoreAPIKeys(string(v), protoVersion)
 			if err != nil {
 				return nil, err
 			}
@@ -285,7 +280,13 @@ func fromTransactionDestinationProto(destination TransactionDestinationProto) (t
 func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[string]*HeaderValuesProto {
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
-		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
+		// Convert strings to bytes after replacing API keys
+		strValues := common.StringSliceTransform(headerValues, s.replaceAPIKeys)
+		byteValues := make([][]byte, len(strValues))
+		for i, v := range strValues {
+			byteValues[i] = []byte(v)
+		}
+		headerValuesProto := HeaderValuesProto{Values: byteValues}
 		headersProto[key] = &headerValuesProto
 	}
 	return headersProto

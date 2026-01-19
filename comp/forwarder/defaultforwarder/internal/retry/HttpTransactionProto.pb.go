@@ -119,8 +119,9 @@ func (TransactionDestinationProto) EnumDescriptor() ([]byte, []int) {
 }
 
 type HeaderValuesProto struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Values        []string               `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Using bytes instead of string to allow non-UTF-8 placeholder characters for API key scrubbing
+	Values        [][]byte `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -155,7 +156,7 @@ func (*HeaderValuesProto) Descriptor() ([]byte, []int) {
 	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *HeaderValuesProto) GetValues() []string {
+func (x *HeaderValuesProto) GetValues() [][]byte {
 	if x != nil {
 		return x.Values
 	}
@@ -163,9 +164,10 @@ func (x *HeaderValuesProto) GetValues() []string {
 }
 
 type EndpointProto struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Route         string                 `protobuf:"bytes,1,opt,name=route,proto3" json:"route,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Using bytes instead of string to allow non-UTF-8 placeholder characters for API key scrubbing
+	Route         []byte `protobuf:"bytes,1,opt,name=route,proto3" json:"route,omitempty"`
+	Name          string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -200,11 +202,11 @@ func (*EndpointProto) Descriptor() ([]byte, []int) {
 	return file_HttpTransactionProto_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *EndpointProto) GetRoute() string {
+func (x *EndpointProto) GetRoute() []byte {
 	if x != nil {
 		return x.Route
 	}
-	return ""
+	return nil
 }
 
 func (x *EndpointProto) GetName() string {
@@ -388,9 +390,9 @@ const file_HttpTransactionProto_proto_rawDesc = "" +
 	"\n" +
 	"\x1aHttpTransactionProto.proto\x12\x05retry\"+\n" +
 	"\x11HeaderValuesProto\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\"9\n" +
+	"\x06values\x18\x01 \x03(\fR\x06values\"9\n" +
 	"\rEndpointProto\x12\x14\n" +
-	"\x05route\x18\x01 \x01(\tR\x05route\x12\x12\n" +
+	"\x05route\x18\x01 \x01(\fR\x05route\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"\x93\x04\n" +
 	"\x14HttpTransactionProto\x12\x16\n" +
 	"\x06Domain\x18\x01 \x01(\tR\x06Domain\x120\n" +
