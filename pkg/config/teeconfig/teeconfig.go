@@ -196,6 +196,24 @@ func (t *teeConfig) AllKeysLowercased() []string {
 
 func (t *teeConfig) compareResult(key, method string, base, compare interface{}) {
 	if !reflect.DeepEqual(base, compare) {
+		if compare == nil {
+			// Viper and NTM differ in behavior around empty types. Viper fully instantiate each value while NTM
+			// returns nil. To the caller this doesn't change anything but DeepEqual doesn't consider them equal.
+			switch t := base.(type) {
+			case []string:
+				if len(t) == 0 {
+					return
+				}
+			case map[string]string:
+				if len(t) == 0 {
+					return
+				}
+			case map[string][]string:
+				if len(t) == 0 {
+					return
+				}
+			}
+		}
 		log.Warnf("difference in config: %s(%s) -> base[%s]: %#v | compare[%s] %#v | from %s", method, key, t.baseline.GetSource(key), base, t.compare.GetSource(key), compare, getLocation(2))
 	}
 }
@@ -503,7 +521,7 @@ func (t *teeConfig) ConfigFileUsed() string {
 func (t *teeConfig) GetSubfields(key string) []string {
 	base := t.baseline.GetSubfields(key)
 	compare := t.compare.GetSubfields(key)
-	t.compareResult("", "GetSubfields", base, compare)
+	t.compareResult(key, "GetSubfields", base, compare)
 	return base
 }
 

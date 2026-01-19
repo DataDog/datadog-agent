@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from invoke.exceptions import Exit
 
@@ -159,3 +159,64 @@ def get_ci_test_events(query, days):
                 break  # No pagination metadata, assume single page
 
     return all_events
+
+
+def query_metrics(query, from_time, to_time):
+    """
+    Query Datadog metrics timeseries.
+
+    Args:
+        query: Metrics query string (e.g., "avg:metric.name{tag:value} by {group}")
+        from_time: Start time as Unix timestamp (seconds) or relative string like "now-1d"
+        to_time: End time as Unix timestamp (seconds) or relative string like "now"
+
+    Returns:
+        List of series data with scope, values, etc.
+    """
+    from datadog_api_client import ApiClient, Configuration
+    from datadog_api_client.v1.api.metrics_api import MetricsApi
+
+    # Parse relative time strings to Unix timestamps
+    def parse_time(time_str):
+        if isinstance(time_str, int):
+            return time_str
+        if time_str == "now":
+            return int(datetime.now(timezone.utc).timestamp())
+        if time_str.startswith("now-"):
+            duration = time_str[4:]
+            if duration.endswith("d"):
+                delta = timedelta(days=int(duration[:-1]))
+            elif duration.endswith("h"):
+                delta = timedelta(hours=int(duration[:-1]))
+            elif duration.endswith("m"):
+                delta = timedelta(minutes=int(duration[:-1]))
+            else:
+                raise ValueError(f"Unknown time format: {time_str}")
+            return int((datetime.now(timezone.utc) - delta).timestamp())
+        raise ValueError(f"Unknown time format: {time_str}")
+
+    start = parse_time(from_time)
+    end = parse_time(to_time)
+
+    with ApiClient(Configuration(enable_retry=True)) as api_client:
+        api_instance = MetricsApi(api_client)
+        response = api_instance.query_metrics(
+            _from=start,
+            to=end,
+            query=query,
+        )
+
+        # Extract series data from response
+        series_list = []
+        if not response.series:
+            return series_list
+
+        for series in response.series:
+            series_data = {
+                "scope": series.scope or "",
+                "pointlist": series.pointlist or [],
+                "expression": series.expression or "",
+            }
+            series_list.append(series_data)
+
+        return series_list
