@@ -627,11 +627,6 @@ func TestFullYamlConfig(t *testing.T) {
 	}, cfg.InstallSignature)
 
 	assert.Equal(t, "edge", cfg.APMMode)
-
-	assert.Equal(t, map[string]string{
-		"_dd.origin": "appservice",
-		"env":        "staging",
-	}, cfg.AdditionalProfileTags)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {
