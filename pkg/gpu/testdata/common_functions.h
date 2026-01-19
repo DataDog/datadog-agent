@@ -98,10 +98,9 @@ typedef struct {
     void* attrs;
     unsigned int blockDimX, blockDimY, blockDimZ;
     unsigned int gridDimX, gridDimY, gridDimZ;
-    unsigned int sharedMemBytes;
     void* hStream;
-    unsigned int attrs;
     unsigned int numAttrs;
+    unsigned int sharedMemBytes;
 } CUlaunchConfig;
 
 cudaError_t cuLaunchKernelEx(const CUlaunchConfig *config, const void *func, void **kernelParams, void **extra) {
