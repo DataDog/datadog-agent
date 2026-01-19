@@ -200,8 +200,9 @@ func TestFilterListUpdateWithValidTags(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839205,
 							"metric_name": "test.distribution",
 							"exclude_tag_mode": true,
 							"tags": ["env", "host"]
@@ -249,8 +250,9 @@ func TestFilterListUpdateWithMergedTags(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "test.metric",
 							"exclude_tag_mode": true,
 							"tags": ["env", "host"]
@@ -262,8 +264,9 @@ func TestFilterListUpdateWithMergedTags(t *testing.T) {
 		"config2": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839205,
 							"metric_name": "test.metric",
 							"exclude_tag_mode": true,
 							"tags": ["pod", "cluster"]
@@ -314,8 +317,9 @@ func TestFilterListUpdateWithConflictingActions(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839205,
 							"metric_name": "test.metric",
 							"exclude_tag_mode": false,
 							"tags": ["env", "host"]
@@ -327,8 +331,9 @@ func TestFilterListUpdateWithConflictingActions(t *testing.T) {
 		"config2": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839205,
 							"metric_name": "test.metric",
 							"exclude_tag_mode": true,
 							"tags": ["pod"]
@@ -387,8 +392,9 @@ func TestFilterListUpdateWithCombinedMetricsAndTags(t *testing.T) {
 			},
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "dist.metric",
 							"exclude_tag_mode": true,
 							"tags": ["env", "version"]
@@ -441,8 +447,9 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 			},
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "rc.distribution",
 							"exclude_tag_mode": true,
 							"tags": ["rc_tag"]
@@ -484,8 +491,9 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 			},
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "rc.distribution",
 							"exclude_tag_mode": true,
 							"tags": ["rc_tag"]
@@ -537,8 +545,9 @@ func TestFilterListUpdateWithIncludeMode(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "test.metric",
 							"exclude_tag_mode": false,
 							"tags": ["important_tag"]
@@ -582,18 +591,21 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 		"config1": {Config: []byte(`{
 			"tag_filterlist": {
 				"by_name": {
-					"by_name": [
+					"values": [
 						{
+                                                        "created_at": 1768839203,
 							"metric_name": "metric.one",
 							"exclude_tag_mode": true,
 							"tags": ["env"]
 						},
 						{
+                                                        "created_at": 1768839204,
 							"metric_name": "metric.two",
 							"exclude_tag_mode": false,
 							"tags": ["host"]
 						},
 						{
+                                                        "created_at": 1768839205,
 							"metric_name": "metric.three",
 							"exclude_tag_mode": true,
 							"tags": ["pod", "cluster"]

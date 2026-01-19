@@ -25,7 +25,7 @@ type filteredTags struct {
 }
 
 type tagByName struct {
-	Metrics []tagEntry `json:"by_name"`
+	Metrics []tagEntry `json:"values"`
 }
 
 type tagEntry struct {
