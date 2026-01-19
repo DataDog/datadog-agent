@@ -96,6 +96,7 @@ extensions:
           build_only: true
           options:
             disable_bia: true
+            disable_failure_notifications: true
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml

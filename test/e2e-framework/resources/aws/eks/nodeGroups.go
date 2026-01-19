@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	amazonLinux2023AMD64AmiType = "AL2023_x86_64_STANDARD"
-	amazonLinux2023ARM64AmiType = "AL2023_ARM_64_STANDARD"
-	bottlerocketAmiType         = "BOTTLEROCKET_x86_64"
-	windowsAmiType              = "WINDOWS_CORE_2022_x86_64"
+	amazonLinux2023AMD64AmiType      = "AL2023_x86_64_STANDARD"
+	amazonLinux2023ARM64AmiType      = "AL2023_ARM_64_STANDARD"
+	amazonLinux2023NVIDIAGPUAmiType  = "AL2023_x86_64_NVIDIA"
+	bottlerocketAmiType              = "BOTTLEROCKET_x86_64"
+	windowsAmiType                   = "WINDOWS_CORE_2022_x86_64"
 )
 
 func NewAL2023LinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
@@ -54,6 +55,23 @@ func NewBottlerocketNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole 
 
 func NewWindowsNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	return newManagedNodeGroup(e, "windows", cluster, nodeRole, windowsAmiType, e.DefaultInstanceType(), nil, opts...)
+}
+
+// NewGPULinuxNodeGroup creates a GPU-enabled Linux node group using Amazon Linux 2023 with NVIDIA GPU support.
+// The node group uses the AL2023_x86_64_NVIDIA AMI which has pre-installed NVIDIA drivers.
+// Note: AL2_x86_64_GPU is only supported for Kubernetes 1.32 or earlier, so we use AL2023_x86_64_NVIDIA for K8s 1.33+.
+func NewGPULinuxNodeGroup(e aws.Environment, cluster *eks.Cluster, nodeRole *awsIam.Role, instanceType string, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+	name := "linux-gpu"
+	lt, err := newAL2023LaunchTemplate(e, name+"-launch-template", opts...)
+	if err != nil {
+		return nil, err
+	}
+	labels := map[string]string{
+		// Mimic NFD (Node Feature Discovery) label for GPU nodes
+		// This allows the NVIDIA device plugin to use its default affinity
+		"nvidia.com/gpu.present": "true",
+	}
+	return newManagedNodeGroupWithLabels(e, name, cluster, nodeRole, amazonLinux2023NVIDIAGPUAmiType, instanceType, lt, labels, opts...)
 }
 
 func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.ResourceOption) (*awsEc2.LaunchTemplate, error) {
@@ -118,6 +136,11 @@ func newAL2023LaunchTemplate(e aws.Environment, name string, opts ...pulumi.Reso
 }
 
 func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
+	return newManagedNodeGroupWithLabels(e, name, cluster, nodeRole, amiType, instanceType, launchTemplate, nil, opts...)
+}
+
+// newManagedNodeGroupWithLabels creates a managed node group with optional node labels.
+func newManagedNodeGroupWithLabels(e aws.Environment, name string, cluster *eks.Cluster, nodeRole *awsIam.Role, amiType, instanceType string, launchTemplate *awsEc2.LaunchTemplate, labels map[string]string, opts ...pulumi.ResourceOption) (*eks.ManagedNodeGroup, error) {
 	taints := awsEks.NodeGroupTaintArray{}
 	if strings.Contains(amiType, "WINDOWS") {
 		taints = append(taints,
@@ -129,8 +152,20 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 		)
 	}
 
+	releaseVersion, err := GetNodesVersion(amiType, e.KubernetesVersion())
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert labels to pulumi.StringMap
+	pulumiLabels := pulumi.StringMap{}
+	for k, v := range labels {
+		pulumiLabels[k] = pulumi.String(v)
+	}
+
 	// common args
 	args := &eks.ManagedNodeGroupArgs{
+		ReleaseVersion:      pulumi.String(releaseVersion),
 		AmiType:             pulumi.StringPtr(amiType),
 		Cluster:             cluster.Core,
 		InstanceTypes:       pulumi.ToStringArray([]string{instanceType}),
@@ -143,6 +178,7 @@ func newManagedNodeGroup(e aws.Environment, name string, cluster *eks.Cluster, n
 		},
 		NodeRole: nodeRole,
 		Taints:   taints,
+		Labels:   pulumiLabels,
 	}
 
 	if launchTemplate != nil {

@@ -5,6 +5,8 @@
 
 package connfilter
 
+// getDefaultConnFilters returns the default connection filters
+// more default filters are added for EUDM mode and can be found in `pkg/config/setup/config.go`.
 func getDefaultConnFilters(site string, monitorIPWithoutDomain bool) []Config {
 	defaultConfig := []Config{
 		{
