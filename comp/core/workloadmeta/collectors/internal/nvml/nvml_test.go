@@ -117,10 +117,12 @@ func TestExtractGPUType(t *testing.T) {
 		{deviceName: "NVIDIA A100-SXM4-40GB", expected: "a100"},
 		// instances: a2-highgpu-1g, a2-highgpu-2g, a2-highgpu-4g, a2-highgpu-8g, a2-megagpu-16g, a2-ultragpu-1g, a2-ultragpu-2g, a2-ultragpu-4g, a2-ultragpu-8g, p4d.24xlarge, p4de.24xlarge, standard_nc24ads_a100_v4, standard_nc48ads_a100_v4, standard_nc96ads_a100_v4, standard_nd96amsr_a100_v4, standard_nd96asr_v4
 		{deviceName: "NVIDIA_A100-SXM4-40GB", expected: "a100"},
+		{deviceName: "NVIDIA A100 80GB PCIe MIG 3g.40gb", expected: "a100"},
 		// instances: a3-edgegpu-8g, a3-edgegpu-8g-nolssd, a3-highgpu-1g, a3-highgpu-2g, a3-highgpu-4g, a3-highgpu-8g, a3-megagpu-8g, p5.48xlarge, p5.4xlarge, standard_nc40ads_h100_v5, standard_nc80adis_h100_v5, standard_ncc40ads_h100_v5, standard_nd96isr_h100_v5
 		{deviceName: "NVIDIA H100-PCIE", expected: "h100"},
 		// instances: a3-edgegpu-8g, a3-edgegpu-8g-nolssd, a3-highgpu-1g, a3-highgpu-2g, a3-highgpu-4g, a3-highgpu-8g, a3-megagpu-8g, p5.48xlarge, p5.4xlarge, standard_nc40ads_h100_v5, standard_nc80adis_h100_v5, standard_ncc40ads_h100_v5, standard_nd96isr_h100_v5
 		{deviceName: "NVIDIA_H100-PCIE", expected: "h100"},
+		{deviceName: "NVIDIA H100 NVL MIG 3g.47gb", expected: "h100"},
 		// instances: a3-ultragpu-8g, a3-ultragpu-8g-nolssd, p5en.48xlarge, standard_nd96isr_h200_v5
 		{deviceName: "NVIDIA H200", expected: "h200"},
 		// instances: a3-ultragpu-8g, a3-ultragpu-8g-nolssd, p5en.48xlarge, standard_nd96isr_h200_v5
