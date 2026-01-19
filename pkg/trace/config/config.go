@@ -533,8 +533,9 @@ type AgentConfig struct {
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
-	// Additional profile tags are statically defined tags to attach to proxied profiles, this is primarily used by serverless
-	AdditionalProfileTags map[string]string
+	// Azure serverless apps tags, in the form of a comma-separated list of
+	// key-value pairs, starting with a comma
+	AzureServerlessTags string
 
 	// AuthToken is the auth token for the agent
 	AuthToken string `json:"-"`
