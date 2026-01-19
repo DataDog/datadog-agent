@@ -86,7 +86,7 @@ def main():
     if args.output:
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(content)
+        output_path.write_text(content, newline="\n")
         print(f"Generated {args.output}", file=sys.stderr)
     else:
         sys.stdout.write(content)
