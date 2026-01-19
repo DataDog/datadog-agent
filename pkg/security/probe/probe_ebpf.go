@@ -125,7 +125,7 @@ type EBPFProbe struct {
 	event          *model.Event
 	dnsLayer       *layers.DNS
 	monitors       *EBPFMonitors
-	profileManager *securityprofile.Manager
+	profileManager securityprofile.ProfileManager
 	fieldHandlers  *EBPFFieldHandlers
 	eventPool      *ddsync.TypedPool[model.Event]
 	numCPU         int
@@ -567,9 +567,16 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
-	if err != nil {
-		return err
+	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.ipc, p.sendAnomalyDetection)
+		if err != nil {
+			return err
+		}
+	} else {
+		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
+		if err != nil {
+			return err
+		}
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
@@ -585,7 +592,9 @@ func (p *EBPFProbe) Init() error {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
-			p.profileManager.Start(p.ctx)
+			if p.profileManager != nil {
+				p.profileManager.Start(p.ctx)
+			}
 		}()
 	}
 
@@ -886,12 +895,18 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.probe.logTraceEvent(event.GetEventType(), event)
 
 	// filter out event if already present on a profile
-	p.profileManager.LookupEventInProfiles(event)
+	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		p.profileManager.LookupEventInProfiles(event)
 
-	// mark the events that have an associated activity dump
-	// this is needed for auto suppressions performed by the CWS rule engine
-	if p.profileManager.HasActiveActivityDump(event) {
-		event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		// mark the events that have an associated activity dump
+		// this is needed for auto suppressions performed by the CWS rule engine
+		if p.profileManager.HasActiveActivityDump(event) {
+			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
+		}
+	} else {
+		if event.Error == nil {
+			p.profileManager.ProcessEvent(event)
+		}
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
@@ -903,34 +918,36 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	// handle anomaly detections
-	if event.IsAnomalyDetectionEvent() {
-		var workloadID containerutils.WorkloadID
-		var imageTag string
-		if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
-			workloadID = containerID
-			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-		} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
-			workloadID = containerutils.CGroupID(cgroupID)
-			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
-			if err != nil {
-				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
-				return
+	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		if event.IsAnomalyDetectionEvent() {
+			var workloadID containerutils.WorkloadID
+			var imageTag string
+			if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
+				workloadID = containerID
+				imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
+			} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
+				workloadID = containerutils.CGroupID(cgroupID)
+				tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+				if err != nil {
+					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
+					return
+				}
+				imageTag = utils.GetTagValue("version", tags)
 			}
-			imageTag = utils.GetTagValue("version", tags)
-		}
 
-		if workloadID != nil {
-			p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
-		}
+			if workloadID != nil {
+				p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
+			}
 
-		if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-			p.sendAnomalyDetection(event)
+			if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
+				p.sendAnomalyDetection(event)
+			}
+		} else if event.Error == nil {
+			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
+			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
-		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-		p.profileManager.ProcessEvent(event)
+		p.monitors.ProcessEvent(event, p.probe.scrubber)
 	}
-	p.monitors.ProcessEvent(event, p.probe.scrubber)
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -939,8 +956,10 @@ func (p *EBPFProbe) SendStats() error {
 
 	p.processKiller.SendStats(p.statsdClient)
 
-	if err := p.profileManager.SendStats(); err != nil {
-		return err
+	if p.profileManager != nil {
+		if err := p.profileManager.SendStats(); err != nil {
+			return err
+		}
 	}
 
 	value := p.BPFFilterTruncated.Swap(0)
@@ -1022,7 +1041,9 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, cgroupContext mo
 func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		p.profileManager.SyncTracedCgroups()
+		if p.profileManager != nil {
+			p.profileManager.SyncTracedCgroups()
+		}
 	}
 }
 
@@ -1698,7 +1719,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 				event.CgroupTracing.ContainerContext.ContainerID = containerID
 			}
 
-			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+			if p.profileManager != nil {
+				p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+			}
 		}
 		return false
 	case model.UnshareMountNsEventType:
@@ -3050,8 +3073,8 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 	return uint64(argc)
 }
 
-// GetProfileManager returns the security profile manager
-func (p *EBPFProbe) GetProfileManager() *securityprofile.Manager {
+// GetProfileManager returns the V1 security profile manager.
+func (p *EBPFProbe) GetProfileManager() securityprofile.ProfileManager {
 	return p.profileManager
 }
 

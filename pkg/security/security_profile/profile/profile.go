@@ -86,6 +86,24 @@ type Profile struct {
 	// Instances is the list of workload instances to witch the profile should apply
 	InstancesLock sync.Mutex
 	Instances     []*tags.Workload
+
+	// V2
+	// First has been sent
+	hasAlreadyBeenSent bool
+}
+
+// HasAlreadyBeenSent returns true if the profile has already been sent
+func (p *Profile) HasAlreadyBeenSent() bool {
+	p.Lock()
+	defer p.Unlock()
+	return p.hasAlreadyBeenSent
+}
+
+// SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
+func (p *Profile) SetHasAlreadyBeenSent() {
+	p.Lock()
+	defer p.Unlock()
+	p.hasAlreadyBeenSent = true
 }
 
 // Opts defines the options to create a new profile
@@ -643,16 +661,32 @@ func (p *Profile) ComputeSyscallsList() []uint32 {
 
 // MatchesSelector is used to control how an event should be added to a profile
 func (p *Profile) MatchesSelector(entry *model.ProcessCacheEntry) bool {
+	if entry == nil {
+		return false
+	}
+
 	p.InstancesLock.Lock()
 	defer p.InstancesLock.Unlock()
 
+	// Check against tracked instances (V1: workloads linked via linkProfile)
 	for _, workload := range p.Instances {
-		// Check if the workload IDs match
 		workloadID := workload.GetWorkloadID()
 		if workloadID != nil && (workloadID == entry.ContainerContext.ContainerID || workloadID == entry.CGroup.CGroupID) {
 			return true
 		}
 	}
+
+	// If no instances, check against Metadata (V2: profiles created on-the-fly from events)
+	// V2 doesn't use Instances; instead it stores the container/cgroup ID in Metadata when the profile is created
+	if len(p.Instances) == 0 {
+		if len(p.Metadata.ContainerID) > 0 && p.Metadata.ContainerID == entry.ContainerContext.ContainerID {
+			return true
+		}
+		if len(p.Metadata.CGroupContext.CGroupID) > 0 && p.Metadata.CGroupContext.CGroupID == entry.CGroup.CGroupID {
+			return true
+		}
+	}
+
 	return false
 }
 

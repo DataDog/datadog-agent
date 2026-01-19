@@ -471,6 +471,64 @@ var (
 	// MetricNameTruncated is the name of the metric used to report truncated name used in prctl
 	// Tags: -
 	MetricNameTruncated = newRuntimeMetric(".prctl.name_truncated")
+
+	// Security Profile V2 metrics
+
+	// Event Processing metrics
+
+	// MetricSecurityProfileV2EventsTotalReceived is the name of the metric used to report total events received by ProcessEvent (after filters)
+	// Tags: -
+	MetricSecurityProfileV2EventsTotalReceived = newRuntimeMetric(".security_profile_v2.events.total_received")
+
+	// MetricSecurityProfileV2EventsTotalImmediate is the name of the metric used to report total events processed immediately (tags already resolved)
+	// Tags: -
+	MetricSecurityProfileV2EventsTotalImmediate = newRuntimeMetric(".security_profile_v2.events.total_immediate")
+
+	// MetricSecurityProfileV2EventsTotalQueued is the name of the metric used to report total events queued (count, not gauge)
+	// Tags: -
+	MetricSecurityProfileV2EventsTotalQueued = newRuntimeMetric(".security_profile_v2.events.total_queued")
+
+	// Tag Resolution metrics
+
+	// MetricSecurityProfileV2TagResolutionEventsQueued is the name of the metric used to report the total events queued waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionEventsQueued = newRuntimeMetric(".security_profile_v2.tag_resolution.events_queued")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsPending is the name of the metric used to report the number of cgroups waiting for tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
+
+	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
+
+	// MetricSecurityProfileV2TagResolutionLatency is the name of the metric used to report the time between first event and successful tag resolution
+	// Tags: -
+	MetricSecurityProfileV2TagResolutionLatency = newRuntimeMetric(".security_profile_v2.tag_resolution.latency")
+
+	// Event Processing metrics
+
+	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
+	// Tags: image_name
+	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
+
+	// MetricSecurityProfileV2ProfileLateInsertions is the name of the metric used to report events inserted into a profile after it was already sent
+	// Tags: image_name, time_bucket
+	MetricSecurityProfileV2ProfileLateInsertions = newRuntimeMetric(".security_profile_v2.profile.late_insertions")
+
+	// Persistence metrics
+
+	// MetricSecurityProfileV2SizeInBytes is the name of the metric used to report the size of generated security profiles in bytes
+	// Tags: format, storage_type, compression
+	MetricSecurityProfileV2SizeInBytes = newRuntimeMetric(".security_profile_v2.size_in_bytes")
+
+	// MetricSecurityProfileV2PersistedProfiles is the name of the metric used to report the number of profiles that were persisted
+	// Tags: format, storage_type, compression
+	MetricSecurityProfileV2PersistedProfiles = newRuntimeMetric(".security_profile_v2.persisted_profiles")
 )
 
 var (
