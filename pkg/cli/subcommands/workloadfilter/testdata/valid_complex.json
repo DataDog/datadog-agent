@@ -1,0 +1,13 @@
+[
+  {
+    "products": [
+      "metrics"
+    ],
+    "rules": {
+      "containers": [
+        "container.name == \"redis\" && (container.pod.namespace == \"production\" || container.pod.namespace == \"staging\")",
+        "container.image.reference.matches(\"nginx\")"
+      ]
+    }
+  }
+]

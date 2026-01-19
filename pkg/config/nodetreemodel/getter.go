@@ -52,6 +52,11 @@ func (c *ntmConfig) GetEnvVars() []string {
 	for _, v := range c.configEnvVars {
 		vars = append(vars, v...)
 	}
+
+	// Removing duplicate as multiple setting can use the same env var.
+	// Example: "site" and "system_probe_config.internal_profiling.site" both use "DD_SITE".
+	slices.Sort(vars)
+	vars = slices.Compact(vars)
 	return vars
 }
 
