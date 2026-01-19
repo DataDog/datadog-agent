@@ -57,7 +57,10 @@ cc_library(
         "lib/ttyutils.c",
         "lib/xxhash.c",
     ] + ["generated/config.h"],
-    hdrs = glob(["include/*.h"]),
+    hdrs = glob(["include/*.h"]) + [
+        ":blkid_h",
+    ],
+    include_prefix = "blkid",
     includes = [
         "include",
     ],
