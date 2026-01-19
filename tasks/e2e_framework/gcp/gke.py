@@ -8,10 +8,10 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 from pydantic_core._pydantic_core import ValidationError
 
-from tasks import config, doc, tool
-from tasks.config import get_full_profile_path
-from tasks.deploy import deploy
-from tasks.destroy import destroy
+from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework.config import get_full_profile_path
+from tasks.e2e_framework.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "gcp/gke"
 

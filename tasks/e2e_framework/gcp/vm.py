@@ -5,25 +5,25 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 from pydantic_core._pydantic_core import ValidationError
 
-from tasks import config, doc, tool
-from tasks.config import get_full_profile_path
-from tasks.deploy import deploy
-from tasks.destroy import destroy
-from tasks.gcp import doc as gcp_doc
-from tasks.gcp.common import (
+from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework.config import get_full_profile_path
+from tasks.e2e_framework.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
+from tasks.e2e_framework.gcp import doc as gcp_doc
+from tasks.e2e_framework.gcp.common import (
     get_architectures,
     get_default_architecture,
     get_default_os_family,
     get_deploy_job,
     get_os_families,
 )
-from tasks.tool import (
+from tasks.e2e_framework.tool import (
     add_known_host as add_known_hosts_func,
 )
-from tasks.tool import (
+from tasks.e2e_framework.tool import (
     clean_known_hosts as clean_known_hosts_func,
 )
-from tasks.tool import (
+from tasks.e2e_framework.tool import (
     get_host,
     show_connection_message,
 )

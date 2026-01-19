@@ -5,21 +5,21 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 from pydantic_core._pydantic_core import ValidationError
 
-from tasks import config, doc, tool
-from tasks.azure import doc as azure_doc
-from tasks.azure.common import (
+from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework.azure import doc as azure_doc
+from tasks.e2e_framework.azure.common import (
     get_architectures,
     get_default_architecture,
     get_default_os_family,
     get_deploy_job,
     get_os_families,
 )
-from tasks.config import get_full_profile_path
-from tasks.deploy import deploy
-from tasks.destroy import destroy
-from tasks.tool import add_known_host as add_known_host_func
-from tasks.tool import clean_known_hosts as clean_known_hosts_func
-from tasks.tool import get_host, show_connection_message
+from tasks.e2e_framework.config import get_full_profile_path
+from tasks.e2e_framework.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
+from tasks.e2e_framework.tool import add_known_host as add_known_host_func
+from tasks.e2e_framework.tool import clean_known_hosts as clean_known_hosts_func
+from tasks.e2e_framework.tool import get_host, show_connection_message
 
 scenario_name = "az/vm"
 remote_hostname = "az-vm"

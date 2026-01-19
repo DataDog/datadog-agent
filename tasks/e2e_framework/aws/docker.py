@@ -5,11 +5,11 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks import doc, tool
-from tasks.aws import doc as aws_doc
-from tasks.aws.common import get_architectures, get_default_architecture
-from tasks.aws.deploy import deploy
-from tasks.destroy import destroy
+from tasks.e2e_framework import doc, tool
+from tasks.e2e_framework.aws import doc as aws_doc
+from tasks.e2e_framework.aws.common import get_architectures, get_default_architecture
+from tasks.e2e_framework.aws.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/dockervm"
 

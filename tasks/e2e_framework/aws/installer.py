@@ -3,9 +3,9 @@ from typing import Optional
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks import doc
-from tasks.aws.deploy import deploy
-from tasks.destroy import destroy
+from tasks.e2e_framework import doc
+from tasks.e2e_framework.aws.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/installer"
 

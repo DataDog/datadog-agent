@@ -81,6 +81,10 @@ from tasks import (
     windows_dev_env,
     worktree,
 )
+# e2e-framework tasks - imported directly to root namespace
+from tasks.e2e_framework import aws as e2e_aws, azure as e2e_azure, gcp as e2e_gcp, localpodman as e2e_localpodman
+from tasks.e2e_framework import ci as e2e_ci, test as e2e_test
+from tasks.e2e_framework import setup as e2e_setup
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
@@ -170,9 +174,7 @@ ns.add_task(send_unit_tests_stats)
 ns.add_task(mod_diffs)
 ns.add_task(build_and_upload_fuzz)
 # To deprecate
-ns.add_task(lint_go)
-
-# add namespaced tasks to the root
+ns.add_task(lint_go)# add namespaced tasks to the root
 ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
@@ -245,6 +247,20 @@ ns.add_collection(worktree)
 ns.add_collection(sbomgen)
 ns.add_collection(pkg_template)
 ns.add_collection(virustotal)
+
+# e2e-framework collections (from test/e2e-framework)
+ns.add_collection(e2e_aws.collection, "aws")
+ns.add_collection(e2e_azure.collection, "az")
+ns.add_collection(e2e_gcp.collection, "gcp")
+ns.add_collection(e2e_localpodman.collection, "localpodman")
+
+# e2e namespace with setup, ci, and test
+e2e_ns = Collection("e2e")
+e2e_ns.add_collection(e2e_setup)
+e2e_ns.add_collection(e2e_ci)
+e2e_ns.add_collection(e2e_test)
+ns.add_collection(e2e_ns)
+
 ns.configure(
     {
         "run": {

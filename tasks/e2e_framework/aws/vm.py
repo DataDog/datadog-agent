@@ -5,9 +5,9 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks import doc
-from tasks.aws import doc as aws_doc
-from tasks.aws.common import (
+from tasks.e2e_framework import doc
+from tasks.e2e_framework.aws import doc as aws_doc
+from tasks.e2e_framework.aws.common import (
     get_architectures,
     get_default_architecture,
     get_default_os_family,
@@ -15,11 +15,11 @@ from tasks.aws.common import (
     get_image_description,
     get_os_families,
 )
-from tasks.aws.deploy import deploy
-from tasks.destroy import destroy
-from tasks.tool import add_known_host as add_known_host_func
-from tasks.tool import clean_known_hosts as clean_known_hosts_func
-from tasks.tool import get_host, notify, show_connection_message
+from tasks.e2e_framework.aws.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
+from tasks.e2e_framework.tool import add_known_host as add_known_host_func
+from tasks.e2e_framework.tool import clean_known_hosts as clean_known_hosts_func
+from tasks.e2e_framework.tool import get_host, notify, show_connection_message
 
 default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
 scenario_name = "aws/vm"

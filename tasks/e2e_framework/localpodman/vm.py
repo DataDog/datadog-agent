@@ -5,12 +5,12 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 from pydantic_core._pydantic_core import ValidationError
 
-from tasks import config, doc
-from tasks.deploy import deploy
-from tasks.destroy import destroy
-from tasks.tool import add_known_host as add_known_host_func
-from tasks.tool import clean_known_hosts as clean_known_hosts_func
-from tasks.tool import get_host, notify, show_connection_message
+from tasks.e2e_framework import config, doc
+from tasks.e2e_framework.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
+from tasks.e2e_framework.tool import add_known_host as add_known_host_func
+from tasks.e2e_framework.tool import clean_known_hosts as clean_known_hosts_func
+from tasks.e2e_framework.tool import get_host, notify, show_connection_message
 
 scenario_name = "localpodman/vm"
 remote_hostname = "local-podman-vm"

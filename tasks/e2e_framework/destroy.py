@@ -5,7 +5,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from pydantic import ValidationError
 
-from tasks import tool
+from tasks.e2e_framework import tool
 
 from . import config
 from .tool import error, get_stack_name, get_stack_name_prefix, info

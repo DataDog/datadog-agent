@@ -1,11 +1,11 @@
 from invoke.collection import Collection
 
-from tasks.aws.docker import create_docker, destroy_docker
-from tasks.aws.ecs import create_ecs, destroy_ecs
-from tasks.aws.eks import create_eks, destroy_eks
-from tasks.aws.installer import create_installer_lab, destroy_installer_lab
-from tasks.aws.kind import create_kind, destroy_kind
-from tasks.aws.vm import create_vm, destroy_vm, show_vm
+from tasks.e2e_framework.aws.docker import create_docker, destroy_docker
+from tasks.e2e_framework.aws.ecs import create_ecs, destroy_ecs
+from tasks.e2e_framework.aws.eks import create_eks, destroy_eks
+from tasks.e2e_framework.aws.installer import create_installer_lab, destroy_installer_lab
+from tasks.e2e_framework.aws.kind import create_kind, destroy_kind
+from tasks.e2e_framework.aws.vm import create_vm, destroy_vm, show_vm
 
 collection = Collection()
 collection.add_task(destroy_vm)

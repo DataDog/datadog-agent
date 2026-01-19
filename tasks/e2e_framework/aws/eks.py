@@ -9,11 +9,11 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 from pydantic import ValidationError
 
-from tasks import config, doc, tool
-from tasks.aws import doc as aws_doc
-from tasks.aws.common import get_aws_wrapper
-from tasks.aws.deploy import deploy
-from tasks.destroy import destroy
+from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework.aws import doc as aws_doc
+from tasks.e2e_framework.aws.common import get_aws_wrapper
+from tasks.e2e_framework.aws.deploy import deploy
+from tasks.e2e_framework.destroy import destroy
 
 scenario_name = "aws/eks"
 

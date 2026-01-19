@@ -6,9 +6,9 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from pydantic_core._pydantic_core import ValidationError
 
-from tasks import config, tool
-from tasks.config import Config, get_full_profile_path
-from tasks.deploy import deploy as common_deploy
+from tasks.e2e_framework import config, tool
+from tasks.e2e_framework.config import Config, get_full_profile_path
+from tasks.e2e_framework.deploy import deploy as common_deploy
 
 default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
 default_private_path_key_name = "ddinfra:aws/defaultPrivateKeyPath"
