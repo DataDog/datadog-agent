@@ -112,6 +112,8 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
+	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -257,6 +259,7 @@ func run(log log.Component,
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
+	_ dogstatsdhttp.Component,
 	_ replay.Component,
 	_ defaultforwarder.Component,
 	wmeta workloadmeta.Component,
@@ -448,6 +451,7 @@ func getSharedFxOption() fx.Option {
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
+		dogstatsdhttpfx.Module(),
 		fx.Provide(func(logsagent option.Option[logsAgent.Component]) option.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {
 				return option.New[logsagentpipeline.Component](la)
