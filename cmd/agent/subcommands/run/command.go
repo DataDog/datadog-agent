@@ -254,7 +254,7 @@ func run(log log.Component,
 	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
-	_ sysprobeconfig.Component,
+	sysprobeConf sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
 	_ defaultforwarder.Component,
@@ -303,7 +303,7 @@ func run(log log.Component,
 	traceroute traceroute.Component,
 ) error {
 	defer func() {
-		stopAgent()
+		stopAgent(cfg, sysprobeConf)
 	}()
 
 	// Setup a channel to catch OS signals
@@ -355,6 +355,7 @@ func run(log log.Component,
 		logReceiver,
 		collector,
 		cfg,
+		sysprobeConf,
 		jmxlogger,
 		settings,
 		agenttelemetryComponent,
@@ -576,6 +577,7 @@ func startAgent(
 	logReceiver option.Option[integrations.Component],
 	collectorComponent collector.Component,
 	cfg config.Component,
+	sysprobeConf sysprobeconfig.Component,
 	jmxLogger jmxlogger.Component,
 	settings settings.Component,
 	agenttelemetryComponent agenttelemetry.Component,
@@ -713,18 +715,18 @@ func startAgent(
 	// start dependent services
 	// must run in background go command because the agent might be in service start pending
 	// and not service running yet, and as such, the call will block or fail
-	go startDependentServices()
+	go startDependentServices(cfg, sysprobeConf)
 
 	return nil
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults() {
-	stopAgent()
+func StopAgentWithDefaults(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
+	stopAgent(cfg, sysprobeConf)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent() {
+func stopAgent(cfg config.Component, sysprobeConf sysprobeconfig.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -744,7 +746,7 @@ func stopAgent() {
 	cancel()
 
 	// shutdown dependent services
-	stopDependentServices()
+	stopDependentServices(cfg, sysprobeConf)
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
