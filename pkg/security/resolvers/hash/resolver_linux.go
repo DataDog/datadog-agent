@@ -277,7 +277,26 @@ func (resolver *Resolver) HashFileEvent(eventType model.EventType, ctrID contain
 	if resolver.cgroupResolver != nil {
 		w, ok := resolver.cgroupResolver.GetContainerWorkload(ctrID)
 		if ok {
+			// Always include the PID from the event (and PID 1) as fallback candidates.
+			// On some systems / during policy replay, the workload PID list can be empty or stale.
 			rootPIDs = w.GetPIDs()
+			if len(rootPIDs) == 0 {
+				rootPIDs = []uint32{1, pid}
+			} else {
+				seen := make(map[uint32]struct{}, len(rootPIDs)+2)
+				for _, p := range rootPIDs {
+					seen[p] = struct{}{}
+				}
+				if pid != 0 {
+					if _, exists := seen[pid]; !exists {
+						rootPIDs = append(rootPIDs, pid)
+						seen[pid] = struct{}{}
+					}
+				}
+				if _, exists := seen[1]; !exists {
+					rootPIDs = append(rootPIDs, 1)
+				}
+			}
 		}
 	}
 

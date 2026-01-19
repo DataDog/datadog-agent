@@ -207,6 +207,20 @@ func (cr *Resolver) pushNewCacheEntry(process *model.ProcessCacheEntry) {
 	// create new entry now
 	newCGroup := cgroupModel.NewCacheEntry(process.ContainerContext, process.CGroup, process.Pid)
 
+	// Best-effort: hydrate the PID set from cgroupfs once at creation time so container-scope actions
+	// (e.g., kill container) are correct even if the agent attaches after the container started.
+	if cr.cgroupFS != nil && process.CGroup.CGroupID != "" {
+		if pids, err := cr.cgroupFS.GetCgroupPids(string(process.CGroup.CGroupID)); err == nil {
+			for _, pid := range pids {
+				newCGroup.PIDs[pid] = true
+			}
+			// Ensure those pids are not part of other cgroups
+			newCGroup.Lock()
+			cr.cleanupPidsWithMultipleCgroups(pids, newCGroup)
+			newCGroup.Unlock()
+		}
+	}
+
 	// add the new CGroup to the cache
 	if process.ContainerContext.ContainerID != "" {
 		cr.containerWorkloads.Add(process.ContainerContext.ContainerID, newCGroup)
@@ -352,6 +366,13 @@ func (cr *Resolver) GetContainerWorkload(id containerutils.ContainerID) (*cgroup
 	defer cr.Unlock()
 
 	return cr.containerWorkloads.Get(id)
+}
+
+// GetCgroupPids is kept for backward compatibility with older call sites.
+// It intentionally does NOT query cgroupfs: the cgroup resolver PID cache should be hydrated during
+// workload creation and via process events / snapshots.
+func (cr *Resolver) GetCgroupPids(_ containerutils.CGroupID) ([]uint32, error) {
+	return nil, errors.New("GetCgroupPids is deprecated; use the resolver PID cache")
 }
 
 // GetHostWorkload returns the workload referenced by the provided cgroup ID
