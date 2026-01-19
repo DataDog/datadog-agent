@@ -10,7 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/test/fakeintake v0.56.0-rc.3
 	github.com/DataDog/datadog-agent/test/new-e2e v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-api-client-go/v2 v2.52.0
-	github.com/Masterminds/semver v1.5.0
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/alessio/shellescape v1.4.2
 	github.com/aws/aws-sdk-go-v2 v1.41.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
@@ -22,7 +22,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.4
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/docker/cli v28.2.2+incompatible
+	github.com/docker/cli v29.0.3+incompatible
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
