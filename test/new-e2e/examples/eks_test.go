@@ -13,17 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-	tifeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
+	scenarioeks "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/eks"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	proveks "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/eks"
 
 	// "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
-	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -34,16 +30,15 @@ type myEKSSuite struct {
 
 func TestMyEKSSuite(t *testing.T) {
 	e2e.Run(t, &myEKSSuite{}, e2e.WithProvisioner(
-		awskubernetes.EKSProvisioner(
-			awskubernetes.WithEKSOptions(
-				tifeks.WithLinuxNodeGroup(),
-				tifeks.WithWindowsNodeGroup(),
-				tifeks.WithBottlerocketNodeGroup(),
-				tifeks.WithLinuxARMNodeGroup(),
+		proveks.Provisioner(
+			proveks.WithRunOptions(
+				scenarioeks.WithEKSOptions(
+					scenarioeks.WithLinuxNodeGroup(),
+					scenarioeks.WithWindowsNodeGroup(),
+					scenarioeks.WithBottlerocketNodeGroup(),
+					scenarioeks.WithLinuxARMNodeGroup(),
+				),
 			),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
-			}),
 		)))
 }
 

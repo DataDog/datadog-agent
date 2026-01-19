@@ -17,7 +17,7 @@ load(
 )
 load("//compliance/rules:ship_source_offer.bzl", "SHIP_SOURCE_ATTR_KIND")
 
-DEBUG_LEVEL = 1
+DEBUG_LEVEL = 0
 
 def update_attribute_to_consumers(attribute_to_consumers, file, target):
     """Maintains map of metadata attribute files to the targets using them.
@@ -163,6 +163,9 @@ def _license_csv_impl(ctx):
         # buildifier: disable=print
         print(t_m_i)
 
+    if ctx.attr.offers_dir and ctx.outputs.offers_out:
+        fail("You can not set both offers_dir and offsets_out.")
+
     inputs = []
     outputs = []
 
@@ -179,15 +182,20 @@ def _license_csv_impl(ctx):
         args.add("--csv_out", ctx.outputs.csv_out.path)
         outputs.append(ctx.outputs.csv_out)
         output_groups["csv"] = [ctx.outputs.csv_out]
-    if ctx.outputs.offers_out:
-        args.add("--offers_out", ctx.outputs.offers_out.path)
-        outputs.append(ctx.outputs.offers_out)
-        output_groups["offers"] = [ctx.outputs.offers_out]
     if ctx.attr.licenses_dir:
         copy_dir = ctx.actions.declare_directory(ctx.attr.licenses_dir)
         args.add("--licenses_dir", copy_dir.path)
         outputs.append(copy_dir)
         output_groups["licenses"] = [copy_dir]
+    if ctx.attr.offers_dir:
+        offers_dir = ctx.actions.declare_directory(ctx.attr.offers_dir)
+        args.add("--offers_dir", offers_dir.path)
+        outputs.append(offers_dir)
+        output_groups["offers"] = [offers_dir]
+    if ctx.outputs.offers_out:
+        args.add("--offers_out", ctx.outputs.offers_out.path)
+        outputs.append(ctx.outputs.offers_out)
+        output_groups["offers"] = [ctx.outputs.offers_out]
 
     report.append("Top label: %s" % str(ctx.attr.target.label))
     if hasattr(t_m_i, "target"):
@@ -278,6 +286,9 @@ license_csv = rule(
         "csv_out": attr.output(
             doc = """LICENSES.csv style output file.""",
             mandatory = True,
+        ),
+        "offers_dir": attr.string(
+            doc = """Name of folder to write ship source offers to.""",
         ),
         "offers_out": attr.output(
             doc = """Output file for ship source offers.""",

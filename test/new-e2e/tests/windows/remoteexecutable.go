@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // RemoteExecutable is a helper struct to run tests on a remote host
@@ -147,7 +147,7 @@ func executeAndLogOutput(t *testing.T, vm *components.RemoteHost, command string
 
 	// log the output
 	if assert.NoError(t, err) {
-		for _, line := range strings.Split(string(outbytes[:]), "\n") {
+		for line := range strings.SplitSeq(string(outbytes[:]), "\n") {
 			t.Logf("TestSuite: %s", line)
 		}
 	}

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 func isProcessRunningUnix(host *components.RemoteHost, processName string) (bool, error) {
@@ -33,7 +33,7 @@ func findPIDUnix(host *components.RemoteHost, processName string) ([]int, error)
 	}
 
 	pids := []int{}
-	for _, strPid := range strings.Split(out, "\n") {
+	for strPid := range strings.SplitSeq(out, "\n") {
 		strPid = strings.TrimSpace(strPid)
 		if strPid == "" {
 			continue

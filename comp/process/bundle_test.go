@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -52,6 +53,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
 		core.MockBundle(),
+		hostnameimpl.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		coreStatusImpl.Module(),
@@ -109,6 +111,7 @@ func TestBundleOneShot(t *testing.T) {
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),
+		remotetraceroute.Module(),
 		npcollectorimpl.Module(),
 		statsd.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // Service API constants
@@ -222,6 +222,21 @@ func GetServicePID(host *components.RemoteHost, service string) (int, error) {
 	}
 	out = strings.TrimSpace(out)
 	return strconv.Atoi(out)
+}
+
+// GetProcessStartTimeAsFileTimeUtc returns the start time of the process as a FileTimeUtc
+//
+// A Windows file time is a 64-bit value that represents the number of 100-nanosecond intervals that have elapsed since 12:00 midnight, January 1, 1601 A.D. (C.E.) Coordinated Universal Time (UTC).
+//
+// https://learn.microsoft.com/en-us/dotnet/api/system.datetime.tofiletimeutc
+func GetProcessStartTimeAsFileTimeUtc(host *components.RemoteHost, pid int) (int64, error) {
+	cmd := fmt.Sprintf("(Get-Process -Id %d).StartTime.ToFileTimeUtc()", pid)
+	out, err := host.Execute(cmd)
+	if err != nil {
+		return 0, err
+	}
+	out = strings.TrimSpace(out)
+	return strconv.ParseInt(out, 10, 64)
 }
 
 // GetServiceImagePath returns the image path (command line) of the service

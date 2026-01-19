@@ -19,11 +19,10 @@ default_version "1.1.43"
 
 license "MIT"
 license_file "COPYING"
-skip_transitive_dependency_licensing true
 
 dependency "libxml2"
-dependency "liblzma"
-dependency "config_guess"
+
+skip_transitive_dependency_licensing true
 
 # versions_list: url=https://download.gnome.org/sources/libxslt/1.1/ filter=*.tar.xz
 version("1.1.43") { source sha256: "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a" }
@@ -33,33 +32,10 @@ source url: "https://download.gnome.org/sources/libxslt/1.1/libxslt-#{version}.t
 relative_path "libxslt-#{version}"
 
 build do
-  update_config_guess
-
-  env = with_standard_compiler_flags(with_embedded_path)
-
-  patch source: "libxslt-solaris-configure.patch", env: env if solaris2? || omnios? || smartos?
-  patch source: "0001-disable-doc-tests.patch", env: env
-
-  if windows?
-    patch source: "libxslt-windows-relocate.patch", env: env
-  end
-
-  # the libxslt configure script iterates directories specified in
-  # --with-libxml-prefix looking for the libxml2 config script. That
-  # iteration treats colons as a delimiter so we are using a cygwin
-  # style path to accomodate
-  configure_commands = [
-    "--with-libxml-prefix=#{install_dir.sub("C:", "/C")}/embedded",
-    "--without-python",
-    "--without-crypto",
-    "--without-profiler",
-    "--without-debugger",
-    "--disable-static",
-    "--without-debug",
-  ]
-
-  configure(*configure_commands, env: env)
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libxslt.pc" \
+    " #{install_dir}/embedded/lib/pkgconfig/libexslt.pc" \
+    " #{install_dir}/embedded/lib/libxslt.so" \
+    " #{install_dir}/embedded/lib/libexslt.so"
 end

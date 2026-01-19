@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
 // Host is a remote host environment.
@@ -102,11 +102,16 @@ func (h *Host) InstallDocker() {
 		return
 	}
 
-	switch h.os.Flavor {
-	case e2eos.AmazonLinux:
-		h.remote.MustExecute(`sudo sh -c "yum -y install docker"`)
+	switch h.pkgManager {
+	case "apt":
+		h.remote.MustExecute("sudo apt-get update -qq")
+		h.remote.MustExecute("sudo apt-get install -y docker.io")
+	case "yum":
+		h.remote.MustExecute("sudo yum install -y docker")
+	case "zypper":
+		h.remote.MustExecute("sudo zypper install -y docker")
 	default:
-		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
+		h.t().Fatalf("unsupported package manager: %s", h.pkgManager)
 	}
 }
 
@@ -116,13 +121,7 @@ func (h *Host) GetDockerRuntimePath(runtime string) string {
 		return ""
 	}
 
-	var cmd string
-	switch h.os.Flavor {
-	case e2eos.AmazonLinux, e2eos.Suse:
-		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
-	default:
-		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
-	}
+	cmd := "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
 	return strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf(cmd, runtime)))
 }
 
@@ -204,7 +203,7 @@ func (h *Host) WaitForUnitActivating(t *testing.T, units ...string) {
 func (h *Host) WaitForUnitExited(t *testing.T, exitCode int, units ...string) {
 	for _, unit := range units {
 		assert.Eventually(t, func() bool {
-			_, err := h.remote.Execute(fmt.Sprintf("grep -q \"(code=exited, status=%d/\" <(sudo systemctl status %s)", exitCode, unit))
+			_, err := h.remote.Execute(fmt.Sprintf("systemctl show -p ExecMainCode -p ExecMainStatus %[2]s | xargs | grep -q 'ExecMainCode=1 ExecMainStatus=%[1]d'", exitCode, unit))
 			return err == nil
 		}, time.Second*90, time.Second*2, "unit %s did not exit or exit with expected code. logs: %s", unit, h.remote.MustExecute("sudo journalctl -xeu "+unit))
 	}

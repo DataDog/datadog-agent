@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	utiltest "github.com/DataDog/datadog-agent/pkg/util/testutil"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -85,14 +86,7 @@ func buildBinaries(verbose bool) error {
 	if verbose {
 		log.Printf("agent: installing in %s...", binpath)
 	}
-	// Set environment variables to prevent go build commands from accessing
-	// the module cache concurrently, which can cause timeouts.
-	env := append(os.Environ(),
-		"GOPRIVATE=*",
-		"GOPROXY=off",
-	)
-	cmd := exec.Command("go", "build", "-tags", "otlp", "-o", binpath, "github.com/DataDog/datadog-agent/cmd/trace-agent")
-	cmd.Env = env
+	cmd := utiltest.IsolatedGoBuildCmd(tmpDir, binpath, "-tags", "otlp", "github.com/DataDog/datadog-agent/cmd/trace-agent")
 	o, err := cmd.CombinedOutput()
 	if err != nil {
 		if verbose {
@@ -103,8 +97,7 @@ func buildBinaries(verbose bool) error {
 	}
 
 	binSecrets := filepath.Join(tmpDir, SecretBackendBinary)
-	cmd = exec.Command("go", "build", "-o", binSecrets, "./testdata/secretscript.go")
-	cmd.Env = env
+	cmd = utiltest.IsolatedGoBuildCmd(tmpDir, binSecrets, "./testdata/secretscript.go")
 	o, err = cmd.CombinedOutput()
 	if err != nil {
 		if verbose {

@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
+	ec2docker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -68,13 +69,15 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
-			awsdocker.WithAgentOptions(
-				dockeragentparams.WithLogs(),
-				dockeragentparams.WithJMX(),
-				choice(fips, dockeragentparams.WithFIPS(), none),
-				dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+			awsdocker.WithRunOptions(
+				ec2docker.WithAgentOptions(
+					dockeragentparams.WithLogs(),
+					dockeragentparams.WithJMX(),
+					choice(fips, dockeragentparams.WithFIPS(), none),
+					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+				),
+				choice(mtls, ec2docker.WithPreAgentInstallHook(fetchCertificates), none),
 			),
-			choice(mtls, awsdocker.WithPreAgentInstallHook(fetchCertificates), none),
 		)),
 		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
 	}

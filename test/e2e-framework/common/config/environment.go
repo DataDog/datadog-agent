@@ -66,7 +66,6 @@ const (
 	DDAgentAPPKeyParamName               = "appKey"
 	DDAgentFakeintake                    = "fakeintake"
 	DDAgentDualShipping                  = "dualshipping"
-	DDAgentFakeintakeStoreType           = "fakeintakeStoreType"
 	DDAGentFakeintakeRetentionPeriod     = "fakeintakeRetentionPeriod"
 	DDAgentSite                          = "site"
 	DDAgentMajorVersion                  = "majorVersion"
@@ -232,11 +231,11 @@ func (e *CommonEnvironment) InfraOSImageIDUseLatest() bool {
 }
 
 func (e *CommonEnvironment) KubernetesVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.32")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKubernetesVersion, "1.34")
 }
 
 func (e *CommonEnvironment) KindVersion() string {
-	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.30.0")
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraKindVersion, "v0.31.0")
 }
 
 func (e *CommonEnvironment) KubeNodeURL() string {
@@ -380,10 +379,6 @@ func (e *CommonEnvironment) AgentUseDualShipping() bool {
 	return e.GetBoolWithDefault(e.AgentConfig, DDAgentDualShipping, false)
 }
 
-func (e *CommonEnvironment) AgentFakeintakeStoreType() string {
-	return e.GetStringWithDefault(e.AgentConfig, DDAgentFakeintakeStoreType, "memory")
-}
-
 func (e *CommonEnvironment) AgentFakeintakeRetentionPeriod() string {
 	return e.AgentConfig.Get(DDAGentFakeintakeRetentionPeriod)
 }
@@ -405,9 +400,9 @@ func (e *CommonEnvironment) AgentExtraEnvVars() map[string]string {
 		return result
 	}
 
-	extraEnvVarsList := strings.Split(strings.Trim(envVars, " "), ",")
+	extraEnvVarsList := strings.SplitSeq(strings.Trim(envVars, " "), ",")
 
-	for _, envVar := range extraEnvVarsList {
+	for envVar := range extraEnvVarsList {
 		name, value, ok := strings.Cut(envVar, "=")
 		if !ok {
 			e.Ctx().Log.Warn(fmt.Sprintf("Invalid extraEnvVar format: %s", envVar), nil)

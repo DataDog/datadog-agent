@@ -12,6 +12,7 @@ import (
 	"time"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -56,17 +57,21 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
+	healthPlatform          healthplatform.Component
+	watchdogWarningTimeout  time.Duration
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
 	checksTracker *tracker.RunningChecksTracker,
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if checksTracker == nil {
@@ -89,7 +94,9 @@ func NewWorker(
 		shouldAddCheckStatsFunc,
 		senderManager.GetDefaultSender,
 		haAgent,
+		healthPlatform,
 		pollingInterval,
+		watchdogWarningTimeout,
 	)
 }
 
@@ -104,7 +111,9 @@ func newWorkerWithOptions(
 	shouldAddCheckStatsFunc func(id checkid.ID) bool,
 	getDefaultSenderFunc func() (sender.Sender, error),
 	haAgent haagent.Component,
+	healthPlatform healthplatform.Component,
 	utilizationTickInterval time.Duration,
+	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
 	if getDefaultSenderFunc == nil {
@@ -122,7 +131,9 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
+		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
+		watchdogWarningTimeout:  watchdogWarningTimeout,
 	}, nil
 }
 
@@ -151,6 +162,13 @@ func (w *Worker) Run() {
 		if !w.checksTracker.AddCheck(check) {
 			checkLogger.Debug("Check is already running, skipping execution...")
 			continue
+		}
+
+		var watchdogTimer *time.Timer
+		if w.watchdogWarningTimeout > 0 {
+			watchdogTimer = time.AfterFunc(w.watchdogWarningTimeout, func() {
+				log.Warnf("Check %s is running for longer than the watchdog warning timeout of %s", check.ID(), w.watchdogWarningTimeout)
+			})
 		}
 
 		checkStartTime := time.Now()
@@ -214,11 +232,15 @@ func (w *Worker) Run() {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent, w.healthPlatform)
 			}
 		}
 
 		checkLogger.CheckFinished()
+
+		if watchdogTimer != nil {
+			watchdogTimer.Stop()
+		}
 	}
 
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)

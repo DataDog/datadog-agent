@@ -17,6 +17,5 @@
 name "zlib"
 
 build do
-  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- @zlib//:install_license --destdir='#{install_dir}/LICENSES'"
+  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}'"
 end

@@ -12,9 +12,10 @@ import (
 	"strings"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -33,6 +34,7 @@ const (
 	securityUnitXP  = "datadog-agent-security-exp.service"
 	dataPlaneUnit   = "datadog-agent-data-plane.service"
 	dataPlaneUnitXP = "datadog-agent-data-plane-exp.service"
+	installerUnit   = "datadog-agent-installer.service"
 )
 
 type packageAgentSuite struct {
@@ -41,7 +43,7 @@ type packageAgentSuite struct {
 
 func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageAgentSuite{
-		packageBaseSuite: newPackageSuite("agent", os, arch, method, awshost.WithoutFakeIntake()),
+		packageBaseSuite: newPackageSuite("agent", os, arch, method, awshost.WithRunOptions(scenec2.WithoutFakeIntake())),
 	}
 }
 
@@ -495,4 +497,43 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 
 	s.T().Log("Successfully installed agent with NSS-managed user/group")
+}
+
+func (s *packageAgentSuite) TestInstallFips() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Can't install datadog-fips-agent test version with Ansible")
+	}
+
+	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_AGENT_FLAVOR=datadog-fips-agent")
+	defer s.Purge()
+	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
+
+	// Important: the installer daemon shouldn't start if FIPS is enabled. Remote Config will be disabled and the unit will exit with code 255.
+	s.host.WaitForUnitExited(s.T(), 255, installerUnit)
+
+	state := s.host.State()
+	s.assertUnits(state, true)
+
+	state.AssertFileExistsAnyUser("/etc/datadog-agent/install_info", 0644)
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
+
+	agentVersion := s.host.AgentStableVersion()
+	agentDir := "/opt/datadog-agent"
+	agentRunSymlink := "/opt/datadog-packages/run/datadog-agent/" + agentVersion
+	installerSymlink := path.Join(agentDir, "embedded/bin/installer")
+	agentSymlink := path.Join(agentDir, "bin/agent/agent")
+
+	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
+
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
+	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
+	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
+	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
+	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }

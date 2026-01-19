@@ -13,11 +13,12 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
 type linuxRuntimeSecretSuite struct {
@@ -40,11 +41,11 @@ secret_backend_config:
 
 	unixPermission := perms.NewUnixPermissions(perms.WithPermissions("0400"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithAgentOptions(
+		awshost.WithRunOptions(scenec2.WithAgentOptions(
 			agentparams.WithFileWithPermissions("/tmp/secrets.yaml", embeddedSecretFile, true, unixPermission),
 			agentparams.WithSkipAPIKeyInConfig(),
 			agentparams.WithAgentConfig(config),
-		),
+		)),
 	))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

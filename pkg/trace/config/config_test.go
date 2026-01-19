@@ -142,3 +142,10 @@ func TestInECSManagedInstancesSidecar(t *testing.T) {
 
 	assert.True(t, isSidecar)
 }
+
+func TestDefaultAPMMode(t *testing.T) {
+	t.Run("default-empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.APMMode)
+	})
+}

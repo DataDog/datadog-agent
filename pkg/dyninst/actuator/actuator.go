@@ -192,6 +192,10 @@ func (a *effects) loadProgram(
 			programID, executable, processID, probes,
 		)
 		if err != nil {
+			log.Infof(
+				"failed to load program %v for process %v: %v",
+				programID, processID, err,
+			)
 			a.sendEvent(eventProgramLoadingFailed{
 				programID: programID,
 			})

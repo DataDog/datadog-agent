@@ -14,14 +14,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
 	installer "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/unix"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
 )
@@ -260,9 +260,9 @@ func (d *DatadogInstaller) Install(opts ...MsiOption) error {
 
 	// MSI can install from a URL or a local file
 	remoteMSIPath := params.installerURL
-	if strings.HasPrefix(remoteMSIPath, "file://") {
+	if after, ok := strings.CutPrefix(remoteMSIPath, "file://"); ok {
 		// developer provided a local file, put it on the remote host
-		localMSIPath := strings.TrimPrefix(remoteMSIPath, "file://")
+		localMSIPath := after
 		remoteMSIPath, err = windowsCommon.GetTemporaryFile(d.env.RemoteHost)
 		if err != nil {
 			return err
@@ -343,8 +343,8 @@ func createFileRegistryFromLocalOCI(host *components.RemoteHost, localPackagePat
 func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConfig) (TestPackageConfig, error) {
 	url := pkg.URL()
 	// If the URL is a file, upload it to the remote host
-	if strings.HasPrefix(url, "file://") {
-		localPath := strings.TrimPrefix(url, "file://")
+	if after, ok := strings.CutPrefix(url, "file://"); ok {
+		localPath := after
 		outPath, err := createFileRegistryFromLocalOCI(host, localPath)
 		if err != nil {
 			return pkg, err

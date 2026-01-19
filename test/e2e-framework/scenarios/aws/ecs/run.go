@@ -17,11 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/tracegen"
 	fakeintakeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 
-	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ssm"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+
+	resourcesAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
+
+// isEC2ProviderSet checks whether at least one EC2 capacity provider is set in the given params
+// An EC2 provider is considered set if at least one of its node groups is enabled.
+func isEC2ProviderSet(params *Params) bool {
+	return params.LinuxNodeGroup || params.LinuxARMNodeGroup || params.WindowsNodeGroup || params.LinuxBottleRocketNodeGroup
+
+}
 
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := resourcesAws.NewEnvironment(ctx)
@@ -29,43 +38,47 @@ func Run(ctx *pulumi.Context) error {
 		return err
 	}
 
-	// Create cluster
-	ecsOpts := buildClusterOptionsFromConfigMap(awsEnv)
-	cluster, err := NewCluster(awsEnv, "ecs", ecsOpts...)
+	env, _, _, err := environments.CreateEnv[environments.ECS]()
 	if err != nil {
 		return err
 	}
 
-	err = cluster.Export(ctx, nil)
+	params := ParamsFromEnvironment(awsEnv)
+	return RunWithEnv(ctx, awsEnv, env, params)
+}
+
+// RunWithEnv deploys an ECS environment using provided env and params
+func RunWithEnv(ctx *pulumi.Context, awsEnv resourcesAws.Environment, env *environments.ECS, params *RunParams) error {
+	// Create cluster
+	cluster, err := NewCluster(awsEnv, params.Name, params.ecsOptions...)
+	if err != nil {
+		return err
+	}
+	if err := cluster.Export(ctx, &env.ECSCluster.ClusterOutput); err != nil {
+		return err
+	}
+
+	// Read back cluster params to know if Fargate is enabled
+	clusterParams, err := NewParams(params.ecsOptions...)
 	if err != nil {
 		return err
 	}
 
 	var apiKeyParam *ssm.Parameter
 	var fakeIntake *fakeintakeComp.Fakeintake
-	// Create task and service
+
 	if awsEnv.AgentDeploy() {
-		if awsEnv.AgentUseFakeintake() {
-			fakeIntakeOptions := []fakeintake.Option{}
-			if awsEnv.InfraShouldDeployFakeintakeWithLB() {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
-			}
-
-			if storeType := awsEnv.AgentFakeintakeStoreType(); storeType != "" {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithStoreType(storeType))
-			}
-
-			if retentionPeriod := awsEnv.AgentFakeintakeRetentionPeriod(); retentionPeriod != "" {
-				fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithRetentionPeriod(retentionPeriod))
-			}
-
-			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", fakeIntakeOptions...); err != nil {
+		if params.fakeintakeOptions != nil {
+			if fakeIntake, err = fakeintake.NewECSFargateInstance(awsEnv, "ecs", params.fakeintakeOptions...); err != nil {
 				return err
 			}
-			if err := fakeIntake.Export(awsEnv.Ctx(), nil); err != nil {
+			if err := fakeIntake.Export(awsEnv.Ctx(), &env.FakeIntake.FakeintakeOutput); err != nil {
 				return err
 			}
+		} else {
+			env.FakeIntake = nil
 		}
+
 		apiKeyParam, err = ssm.NewParameter(ctx, awsEnv.Namer.ResourceName("agent-apikey"), &ssm.ParameterArgs{
 			Name:      awsEnv.CommonNamer().DisplayName(1011, pulumi.String("agent-apikey")),
 			Type:      ssm.ParameterTypeSecureString,
@@ -76,51 +89,60 @@ func Run(ctx *pulumi.Context) error {
 			return err
 		}
 
-		_, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn)
-		if err != nil {
+		if _, err := agent.ECSLinuxDaemonDefinition(awsEnv, "ec2-linux-dd-agent", apiKeyParam.Name, fakeIntake, cluster.ClusterArn, params.agentOptions...); err != nil {
 			return err
 		}
 
+		// Fargate workloads provided explicitly (only if capacity provider is enabled)
+		if clusterParams.FargateCapacityProvider {
+			for _, fargateApp := range params.fargateWorkloadAppFuncs {
+				if _, err := fargateApp(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+					return err
+				}
+			}
+		}
+	} else {
+		env.FakeIntake = nil
 	}
 
-	// Deploy testing workload
-	if awsEnv.TestingWorkloadDeploy() {
+	// Testing workload if at least one EC2 node group is present
+	if params.testingWorkload && isEC2ProviderSet(clusterParams) {
 		if _, err := nginx.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
-
 		if _, err := redis.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
-
 		if _, err := cpustress.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
-
 		if _, err := dogstatsd.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
-
 		if _, err := prometheus.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
-
 		if _, err := tracegen.EcsAppDefinition(awsEnv, cluster.ClusterArn); err != nil {
 			return err
 		}
 	}
 
-	// Deploy Fargate Agents
-	if awsEnv.TestingWorkloadDeploy() && awsEnv.AgentDeploy() {
+	// User-defined EC2 apps
+	for _, appFunc := range params.workloadAppFuncs {
+		if _, err := appFunc(awsEnv, cluster.ClusterArn); err != nil {
+			return err
+		}
+	}
+
+	// Deploy Fargate test apps when enabled
+	if params.testingWorkload && clusterParams.FargateCapacityProvider {
 		if _, err := redis.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
-
-		if _, err = nginx.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+		if _, err := nginx.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
-
-		if _, err = aspnetsample.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
+		if _, err := aspnetsample.FargateAppDefinition(awsEnv, cluster.ClusterArn, apiKeyParam.Name, fakeIntake); err != nil {
 			return err
 		}
 	}

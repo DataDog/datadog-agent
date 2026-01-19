@@ -370,7 +370,7 @@ func run(e commonConfig.CommonEnvironment) (*ScenarioDone, error) {
 			return nil, err
 		}
 
-		if _, err := provisionLocalMicroVMs(vmCollections, e); err != nil {
+		if _, err := provisionLocalMicroVMs(vmCollections); err != nil {
 			return nil, err
 		}
 	}

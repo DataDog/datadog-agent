@@ -9,9 +9,12 @@
 package kfilters
 
 import (
+	"maps"
 	"testing"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -299,4 +302,104 @@ func TestApproversConnect(t *testing.T) {
 			tc.assertionsCb(t, rs, approvers)
 		})
 	}
+}
+
+func TestApproversSetSockOpt(t *testing.T) {
+	enabled := map[eval.EventType]bool{"*": true}
+
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+
+	testCases := []struct {
+		name            string
+		ruleExpressions []string
+		assertionsCb    func(_ *testing.T, _ *rules.RuleSet, _ rules.Approvers)
+	}{
+		{
+			name:            "setsockopt-level",
+			ruleExpressions: []string{`setsockopt.level == SOL_SOCKET`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				values, exists := approvers["setsockopt.level"]
+				if !exists || len(values) != 1 {
+					t.Fatal("expected approver values not found")
+				}
+
+				if values[0].Value != unix.SOL_SOCKET {
+					t.Fatalf("expected SOL_SOCKET, got %v", values[0].Value)
+				}
+			},
+		},
+		{
+			name:            "setsockopt-optname",
+			ruleExpressions: []string{`setsockopt.optname == SO_ATTACH_FILTER`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				values, exists := approvers["setsockopt.optname"]
+				if !exists || len(values) != 1 {
+					t.Fatal("expected approver values not found")
+				}
+
+				if values[0].Value != unix.SO_ATTACH_FILTER {
+					t.Fatalf("expected SO_ATTACH_FILTER, got %v", values[0].Value)
+				}
+			},
+		},
+		{
+			name:            "setsockopt-level-and-optname",
+			ruleExpressions: []string{`setsockopt.level == SOL_SOCKET`, `setsockopt.optname == SO_ATTACH_FILTER`},
+			assertionsCb: func(t *testing.T, _ *rules.RuleSet, approvers rules.Approvers) {
+				levelValues, levelExists := approvers["setsockopt.level"]
+				if !levelExists || len(levelValues) != 1 {
+					t.Fatal("expected level approver values not found")
+				}
+
+				if levelValues[0].Value != unix.SOL_SOCKET {
+					t.Fatalf("expected SOL_SOCKET, got %v", levelValues[0].Value)
+				}
+				optnameValues, optnameExists := approvers["setsockopt.optname"]
+				if !optnameExists || len(optnameValues) != 1 {
+					t.Fatal("expected optname approver values not found")
+				}
+
+				if optnameValues[0].Value != unix.SO_ATTACH_FILTER {
+					t.Fatalf("expected SO_ATTACH_FILTER, got %v", optnameValues[0].Value)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+			for _, expr := range tc.ruleExpressions {
+				rules.AddTestRuleExpr(t, rs, expr)
+			}
+
+			capabilities, exists := allCapabilities["setsockopt"]
+			if !exists {
+				t.Fatal("no capabilities for setsockopt")
+			}
+
+			approvers, _, _, err := rs.GetEventTypeApprovers("setsockopt", capabilities)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tc.assertionsCb(t, rs, approvers)
+		})
+	}
+}
+
+func TestLastApproverEventType(t *testing.T) {
+	approversCopy := maps.Clone(KFilterGetters)
+
+	for eventType := model.FirstEventType; eventType <= model.LastApproverEventType; eventType++ {
+		delete(approversCopy, eventType.String())
+	}
+
+	var approverTypesNotInRange []string
+
+	for eventType := range approversCopy {
+		approverTypesNotInRange = append(approverTypesNotInRange, eventType)
+	}
+
+	assert.Len(t, approverTypesNotInRange, 0, "event types %q are not part the [FirstEventType; LastApproverEventType] range", approverTypesNotInRange)
 }

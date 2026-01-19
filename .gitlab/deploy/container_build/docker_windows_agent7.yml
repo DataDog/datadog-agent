@@ -1,0 +1,113 @@
+---
+# Base configurations for each Windows variant + OS type combination
+# Change base images here to update all builds
+.windows_1809_nanoserver: &windows_1809_nanoserver
+  VARIANT: "1809"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:lts-nanoserver-1809"
+  WINDOWS_RUNNER: "windows-v2:2019"
+  OS_TYPE: "nano"
+  OS_DISPLAY_NAME: "windows nanoserver"
+
+.windows_1809_servercore: &windows_1809_servercore
+  VARIANT: "1809"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/powershell:windowsservercore-1809"
+  WINDOWS_RUNNER: "windows-v2:2019"
+  OS_TYPE: "core"
+  OS_DISPLAY_NAME: "windows server core"
+  SERVERCORE: "-servercore"
+
+.windows_ltsc2022_nanoserver: &windows_ltsc2022_nanoserver
+  VARIANT: "ltsc2022"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2022"
+  WINDOWS_RUNNER: "windows-v2:2022"
+  OS_TYPE: "nano"
+  OS_DISPLAY_NAME: "windows nanoserver"
+
+.windows_ltsc2022_servercore: &windows_ltsc2022_servercore
+  VARIANT: "ltsc2022"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2022"
+  WINDOWS_RUNNER: "windows-v2:2022"
+  OS_TYPE: "core"
+  OS_DISPLAY_NAME: "windows server core"
+  SERVERCORE: "-servercore"
+
+.windows_ltsc2025_nanoserver: &windows_ltsc2025_nanoserver
+  VARIANT: "ltsc2025"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-nanoserver-ltsc2025"
+  WINDOWS_RUNNER: "windows-v2:2025"
+  OS_TYPE: "nano"
+  OS_DISPLAY_NAME: "windows nanoserver"
+
+.windows_ltsc2025_servercore: &windows_ltsc2025_servercore
+  VARIANT: "ltsc2025"
+  SERVER_BASE_IMAGE: "mcr.microsoft.com/dotnet/sdk:9.0-windowsservercore-ltsc2025"
+  WINDOWS_RUNNER: "windows-v2:2025"
+  OS_TYPE: "core"
+  OS_DISPLAY_NAME: "windows server core"
+  SERVERCORE: "-servercore"
+
+# All Windows builds
+docker_build_agent7_windows:
+  extends: .docker_build_agent7_windows_common
+  parallel:
+    matrix:
+      # 1809 nanoserver
+      - <<: *windows_1809_nanoserver
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_1809_nanoserver
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+      # ltsc2022 nanoserver
+      - <<: *windows_ltsc2022_nanoserver
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_ltsc2022_nanoserver
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+      # ltsc2025 nanoserver
+      - <<: *windows_ltsc2025_nanoserver
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_ltsc2025_nanoserver
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+      # 1809 servercore
+      - <<: *windows_1809_servercore
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_1809_servercore
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+      # ltsc2022 servercore
+      - <<: *windows_ltsc2022_servercore
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_ltsc2022_servercore
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+      # ltsc2025 servercore
+      - <<: *windows_ltsc2025_servercore
+        TAG_SUFFIX: "-7"
+        WITH_JMX: "false"
+      - <<: *windows_ltsc2025_servercore
+        TAG_SUFFIX: "-7-jmx"
+        WITH_JMX: "true"
+  tags: [$WINDOWS_RUNNER]
+  variables:
+    OVERRIDE_GIT_STRATEGY: "clone"
+
+# FIPS builds: ltsc2022 only (with/without JMX)
+docker_build_fips_agent7_windows:
+  extends: .docker_build_fips_agent7_windows_common
+  parallel:
+    matrix:
+      - <<: *windows_ltsc2022_servercore
+        TAG_SUFFIX: "-7-fips"
+        WITH_JMX: "false"
+      - <<: *windows_ltsc2022_servercore
+        TAG_SUFFIX: "-7-fips-jmx"
+        WITH_JMX: "true"
+  tags: [$WINDOWS_RUNNER]
+  variables:
+    OVERRIDE_GIT_STRATEGY: "clone"
