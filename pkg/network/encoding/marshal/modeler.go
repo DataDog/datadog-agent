@@ -104,6 +104,7 @@ func (c *ConnectionsModeler) modelConnections(builder *model.ConnectionsBuilder,
 			if route.Interface != nil {
 				w.SetInterface(func(w *model.InterfaceBuilder) {
 					w.SetHardwareAddr(route.Interface.HardwareAddr)
+					// test
 				})
 			}
 		})
