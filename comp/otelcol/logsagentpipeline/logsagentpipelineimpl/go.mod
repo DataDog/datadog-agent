@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl
 
-go 1.24.0
+go 1.24.9
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.1
@@ -50,11 +50,21 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.64.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.3 // indirect
@@ -95,6 +105,7 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
@@ -118,6 +129,8 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -216,9 +229,17 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/automaton => ../../../../pkg/logs/patterns/automaton
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering => ../../../../pkg/logs/patterns/clustering
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging => ../../../../pkg/logs/patterns/clustering/merging
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/eviction => ../../../../pkg/logs/patterns/eviction
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/processor => ../../../../pkg/logs/patterns/processor
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/tags => ../../../../pkg/logs/patterns/tags
+	github.com/DataDog/datadog-agent/pkg/logs/patterns/token => ../../../../pkg/logs/patterns/token
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline => ../../../../pkg/logs/pipeline
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils

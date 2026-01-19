@@ -120,6 +120,9 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
+	// DefaultLogsStreamLifetime is the default gRPC stream lifetime in seconds (15 minutes)
+	DefaultLogsStreamLifetime = 900
+
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -1963,6 +1966,20 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
+	// Log Pattern Eviction
+	config.BindEnvAndSetDefault("logs_config.patterns.max_pattern_count", 700)
+	config.BindEnvAndSetDefault("logs_config.patterns.max_memory_bytes", 4*1024*1024) // 4MB
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_high_watermark", 0.80) // Trigger eviction at 80% capacity
+	config.BindEnvAndSetDefault("logs_config.patterns.eviction_low_watermark", 0.70)  // Evict back to 70%
+	config.BindEnvAndSetDefault("logs_config.patterns.age_decay_factor", 0.5)
+
+	// Log Tag Eviction
+	config.BindEnvAndSetDefault("logs_config.tags.max_tag_count", 700)
+	config.BindEnvAndSetDefault("logs_config.tags.max_memory_bytes", 4*1024*1024) // 4MB
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_high_watermark", 0.80) // Trigger eviction at 80% capacity
+	config.BindEnvAndSetDefault("logs_config.tags.eviction_low_watermark", 0.70)  // Evict back to 70%
+	config.BindEnvAndSetDefault("logs_config.tags.age_decay_factor", 0.5)
+
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	logsPipelines := min(4, runtime.GOMAXPROCS(0))
 	config.BindEnvAndSetDefault("logs_config.pipelines", logsPipelines)
@@ -3088,6 +3105,8 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_interval", DefaultForwarderRecoveryInterval)
 	config.BindEnvAndSetDefault(prefix+"sender_recovery_reset", false)
 	config.BindEnvAndSetDefault(prefix+"use_v2_api", true)
+	config.BindEnvAndSetDefault(prefix+"use_grpc", false)
+	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
 	config.SetKnown(prefix + "dev_mode_no_ssl") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 }
 

@@ -29,6 +29,8 @@ TOOL_LIST = [
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
     'github.com/golang/protobuf/protoc-gen-go',
+    'google.golang.org/protobuf/cmd/protoc-gen-go',
+    'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',
@@ -38,6 +40,20 @@ TOOLS = {
     'internal/tools': TOOL_LIST,
     'internal/tools/proto': TOOL_LIST_PROTO,
 }
+
+
+def _go_bin_dir():
+    """
+    Resolve the Go bin directory used by go install.
+    Preference order: GOBIN, GOPATH/bin, then ~/go/bin.
+    """
+    gobin = os.getenv('GOBIN')
+    if gobin:
+        return gobin
+    gopath = os.getenv('GOPATH')
+    if gopath:
+        return os.path.join(gopath, "bin")
+    return os.path.join(Path.home(), "go", "bin")
 
 
 @task
@@ -62,6 +78,14 @@ def install_tools(ctx: Context, max_retry: int = 3):
                 with ctx.cd(path):
                     for tool in tools:
                         run_command_with_retry(ctx, f"go install {tool}", max_retry=max_retry)
+                        # Preserve both legacy and v2 protoc-gen-go binaries by renaming the legacy one.
+                        if tool == 'github.com/golang/protobuf/protoc-gen-go':
+                            go_bin = _go_bin_dir()
+                            legacy_src = os.path.join(go_bin, "protoc-gen-go")
+                            legacy_dst = os.path.join(go_bin, "protoc-gen-go-legacy")
+                            if os.path.exists(legacy_src):
+                                # Overwrite any previous legacy copy to keep it in sync.
+                                shutil.move(legacy_src, legacy_dst)
         # Always install the custom golangci-lint not to fail on custom linters run (e.g pkgconfigusage)
         install_custom_golanci_lint(ctx)
 

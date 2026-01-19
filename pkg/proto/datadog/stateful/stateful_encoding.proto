@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package datadog.intake.stateful;
+option go_package = "pkg/proto/pbgo/statefulpb";
+
+// ---------------------------------------------------------------------------
+// Dictionary-encoded
+// ---------------------------------------------------------------------------
+
+message DictEntryDefine {
+  uint64 id = 1;
+  string value = 2;
+}
+
+message DictEntryDelete {
+  uint64 id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Pattern dictionary
+// ---------------------------------------------------------------------------
+
+// pos_list is used to indicate where dynamic values should be inserted
+// it's more accurate than a marker
+// PatternDefine is also used to signal a update to an existing pattern.
+message PatternDefine {
+  uint64 pattern_id = 1;
+  string template = 2;
+  uint32 param_count = 3;
+  repeated uint32 pos_list = 4;
+}
+
+message PatternDelete {
+  uint64 pattern_id = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Log payload
+// ---------------------------------------------------------------------------
+
+message TagSet {
+  DynamicValue tagset = 1;
+}
+
+message Tag {
+  DynamicValue key = 1;
+  DynamicValue value = 2;
+}
+
+message Log {
+  sint64 timestamp = 1;
+  oneof content {
+    StructuredLog structured = 2;
+    string raw = 3;
+  }
+  // TODO: right now we are assuming logs are attached per tag - in the future we may have common tags in the stream
+  // state and auto-populate them downstream.
+  // Required tags: `service`, `hostname`,
+  // Other tags on agent payload: `status`, `source`
+  // All tags are joined together sent as a single tagset
+  TagSet tags = 4;
+}
+
+message StructuredLog {
+  uint64 pattern_id = 1;
+  repeated DynamicValue dynamic_values = 2;
+  bytes json_context = 3;
+}
+
+message DynamicValue {
+  oneof value {
+    int64 int_value = 1;
+    double float_value = 2;
+    string string_value = 3;
+    uint64 dict_index = 4;
+  }
+}
+
+// We could choose to delta encode at batch level or at stream level.
+// If at stream level, then we need to send the delta encoding related state
+// to resync the Intake on stream restart
+// Currently we are doing it at batch level. This message below is not used,
+// we declare it here for future use.
+message DeltaEncodingSync {
+  uint64 timestamp = 1;
+  uint64 pattern_id = 2;
+  TagSet tags = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Streaming envelope
+// ---------------------------------------------------------------------------
+
+message Datum {
+  oneof data {
+    PatternDefine pattern_define = 1;
+    PatternDelete pattern_delete = 2;
+    DictEntryDefine dict_entry_define = 3;
+    DictEntryDelete dict_entry_delete = 4;
+    DeltaEncodingSync delta_encoding_sync = 5;
+    Log logs = 6;
+  }
+}
+
+// DatumSequence wraps a sequence of Datum messages
+// Used for serialization in application-level compression
+message DatumSequence {
+  repeated Datum data = 1;
+}
+
+// data is sequence of pattern/dictionary changes + logs
+// the ordering is significant, must be processed in order
+message StatefulBatch {
+  uint32 batch_id = 1;
+
+  // Bytes of a serialized and compressed DatumSequence.
+  // This allows for Datums to be compressed while they are buffered in memory before being acked by the server.
+  bytes data = 2;
+}
+
+message BatchStatus {
+  uint32 batch_id = 1;
+
+  // TODO: only OK is used right now - should we just remove this enum?
+  enum Status {
+    UNKNOWN = 0;
+    OK = 1;
+  }
+  Status status = 2;
+}
+
+// ---------------------------------------------------------------------------
+// gRPC service definition (bi-directional streaming)
+// ---------------------------------------------------------------------------
+
+service StatefulLogsService {
+  rpc LogsStream(stream StatefulBatch) returns (stream BatchStatus);
+}
