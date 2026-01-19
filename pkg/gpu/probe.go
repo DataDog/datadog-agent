@@ -267,7 +267,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, err
 	}
 
-	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
+	p.telemetry.sentEntries.Add(float64(len(stats.ProcessMetrics)))
 	p.cleanupFinished(now)
 
 	return stats, nil
