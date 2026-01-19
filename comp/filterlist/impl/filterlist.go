@@ -211,8 +211,8 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 func (fl *FilterList) SetTagFilterList(tags map[string]hashedMetricTagList) {
 	fl.log.Debugf("SetTagFilterList with %d metrics", len(tags))
 
-	fl.updateMetricMtx.RLock()
-	defer fl.updateMetricMtx.RUnlock()
+	fl.updateTagMtx.RLock()
+	defer fl.updateTagMtx.RUnlock()
 
 	fl.tagFilterList = tagMatcher{
 		Metrics: tags,
@@ -276,17 +276,17 @@ func (fl *FilterList) restoreFilterListFromLocalConfig() {
 
 func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
 	fl.updateMetricMtx.Lock()
-	defer fl.updateMetricMtx.Unlock()
-
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
+	fl.updateMetricMtx.Unlock()
+
 	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
 func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)) {
 	fl.updateTagMtx.Lock()
-	defer fl.updateTagMtx.Unlock()
-
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
+	fl.updateTagMtx.Unlock()
+
 	onUpdate(&fl.tagFilterList)
 }
 
