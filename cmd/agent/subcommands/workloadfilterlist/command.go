@@ -8,7 +8,7 @@ package workloadfilterlist
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
-	workloadfilterlistcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/workloadfilterlist"
+	workloadfilterlistcmd "github.com/DataDog/datadog-agent/pkg/cli/subcommands/workloadfilter"
 
 	"github.com/spf13/cobra"
 )
