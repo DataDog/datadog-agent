@@ -170,7 +170,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
@@ -478,11 +477,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component, cfg config.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, cfg.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -598,17 +597,17 @@ func startAgent(
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := coredump.Setup(pkgconfigsetup.Datadog()); err != nil {
+	if err := coredump.Setup(cfg); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if v := pkgconfigsetup.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
+	if v := cfg.GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, pkgconfigsetup.Datadog(), "")
+	common.SetupInternalProfiling(settings, cfg, "")
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
 
@@ -632,7 +631,7 @@ func startAgent(
 		actionsController := datastreams.NewActionsController(ac, rcclient)
 		ac.AddConfigProvider(actionsController, false, 0)
 
-		if pkgconfigsetup.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
+		if cfg.GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
@@ -643,7 +642,7 @@ func startAgent(
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
-	if pkgconfigsetup.Datadog().GetBool("cluster_agent.enabled") && pkgconfigsetup.Datadog().GetBool("clc_runner_enabled") {
+	if cfg.GetBool("cluster_agent.enabled") && cfg.GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}, ac, ipc); err != nil {
@@ -652,7 +651,7 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	if pkgconfigsetup.Datadog().GetBool("leader_election") {
+	if cfg.GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
