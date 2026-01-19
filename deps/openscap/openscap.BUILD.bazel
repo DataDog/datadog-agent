@@ -91,7 +91,7 @@ ENABLED_FEATURES = [
 ]
 
 expand_template(
-    name = "config_h",
+    name = "gen_config_h",
     template = "config.h.in",
     out = "config.h",
     substitutions = {
@@ -124,17 +124,37 @@ COMMON_INCLUDE_DIRS = [
 ]
 
 cc_library(
-    name = "compat",
-    srcs = [
-        "compat/dev_to_tty.c",
-        ":config_h",
-    ] + PUBLIC_HEADERS,
+    name = "config_h",
+    hdrs = [
+        ":gen_config_h",
+    ],
+    includes = ["."],
+)
+
+cc_library(
+    name = "compat_hdrs",
     hdrs = [
         "compat/compat.h",
         "compat/oscap_platforms.h",
     ],
+    includes = [
+        "compat"
+    ],
+)
+
+cc_library(
+    name = "compat",
+    srcs = [
+        "compat/dev_to_tty.c",
+    ] + PUBLIC_HEADERS,
     local_defines = [
         "HAVE_CONFIG_H",
+    ],
+    deps = [
+        ":compat_hdrs",
+    ],
+    implementation_deps = [
+        ":config_h",
     ],
     includes = COMMON_INCLUDE_DIRS + [
         "compat/",
@@ -333,7 +353,6 @@ cc_library(
         "src/OVAL/results/oval_resultTestIterator.c",
         "src/OVAL/results/oval_status_counter.c",
         "src/OVAL/results/oval_status_counter.h",
-        ":config_h",
     ],
     hdrs = PUBLIC_HEADERS,
     deps = [
@@ -355,7 +374,10 @@ cc_library(
         "@xmlsec//:libxmlsec1",
         "@xmlsec//:libxmlsec1-openssl",
         "@acl//:libacl",
+    ],
+    implementation_deps = [
         ":compat",
+        ":config_h",
     ],
     includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS + [
         ".",
@@ -395,7 +417,6 @@ cc_library(
     ],
     deps = [
         "@libxml2//:libxml2",
-        ":compat",
     ]
 )
 
@@ -426,6 +447,54 @@ cc_shared_library(
     ]
 )
 
+cc_binary(
+    name = "oscap",
+    srcs = glob([
+        "utils/*.c",
+        "utils/*.h",
+        "src/common/*.h",
+    ]) + PUBLIC_HEADERS,
+    deps = [
+        ":config_h",
+        ":compat_hdrs",
+        # ":compat",
+        # ":libopenscap",
+    ],
+    linkstatic = False,
+    dynamic_deps = [
+        ":openscap",
+        '@attr//:attr',
+        '@bzip2//:bz2',
+        "@curl//:curl",
+        # dbus is only needed by openscap and is linked statically
+        '@gcrypt//:gcrypt',
+        '@libselinux//:selinux',
+        '@libsepol//:sepol',
+        '@libxslt//:xslt',
+        '@libxslt//:exslt',
+        '@libyaml//:yaml',
+        '@pcre2//:pcre2-8',
+        '@popt//:popt',
+        '@rpm//:rpm',
+        '@rpm//:rpmio',
+        '@util-linux//:blkid',
+        "@libxml2//:xml2",
+        "@xmlsec//:xmlsec1",
+        "@xmlsec//:xmlsec1-openssl",
+        "@acl//:acl",
+        "@sqlite3//:sqlite3",
+        "@openssl//:openssl_shared",
+        "@xz//:lzma",
+        "@zlib//:z",
+        "@nghttp2//:nghttp2_shared",
+    ],
+    includes = COMMON_INCLUDE_DIRS + PUBLIC_HEADERS_DIRS,
+    local_defines = [
+        "HAVE_CONFIG_H",
+        "_GNU_SOURCE",
+    ],
+)
+
 pkg_files(
     name = "hdr_files",
     srcs = PUBLIC_HEADERS,
@@ -438,7 +507,6 @@ so_symlink(
     libname = "librpmio",
     version = "9.4.0",
 )
-
 
 pkg_files(
     name = "lib_files",
