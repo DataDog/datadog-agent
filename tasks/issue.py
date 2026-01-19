@@ -6,7 +6,7 @@ from collections import defaultdict
 
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_api import GithubAPI, get_event_info
+from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.pipeline.notifications import (
     DEFAULT_SLACK_CHANNEL,
@@ -15,7 +15,7 @@ from tasks.libs.pipeline.notifications import (
 
 
 @task
-def ask_reviews(_, pr_id):
+def ask_reviews(_, pr_id, teams_requested=None, reviewer_requested=None):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
     if 'backport' in pr.title.casefold():
@@ -24,19 +24,10 @@ def ask_reviews(_, pr_id):
     if any(label.name == 'no-review' for label in pr.get_labels()):
         print("This PR has the no-review label, we don't need to ask for reviews.")
         return
-    events = list(pr.get_issue_events())
-    actor, event_type, target = get_event_info(events[-1])
-    print(f"Actor: {actor}, target: {target}, event_type: {event_type}")
-    if event_type == "unique_reviewer_request":
-        print("This is a unique reviewer request, we ignore it.")
-        return
-    if event_type == "labeled" and not any(label.name == "ask-review" for label in pr.get_labels()):
-        print("This is a labeled event, but the label is not 'ask-review', we ignore it.")
-        return
-    if target:  # This is a review request event, only a single team is concerned
-        reviewers = [f"@datadog/{target}"]
+    if teams_requested is not None:
+        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(teams_requested)]
     else:
-        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(os.environ['PR_REQUESTED_TEAMS'])]
+        reviewers = [f"@datadog/{reviewer_requested}"]
     print(f"Reviewers: {reviewers}")
 
     from slack_sdk import WebClient
@@ -53,6 +44,9 @@ def ask_reviews(_, pr_id):
         )
         channels[channel].append(reviewer)
 
+    events = list(pr.get_issue_events())
+    last_event = events[-1]
+    actor = last_event.actor.name or last_event.actor.login
     for channel, reviewers in channels.items():
         stop_updating = ""
         if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(
