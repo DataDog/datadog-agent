@@ -255,6 +255,7 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 		"http.iis.site":     {},
 		"http.iis.sitename": {},
 		"http.iis.app_pool": {},
+		"http.iis.subsite":  {},
 	}
 
 	const (
