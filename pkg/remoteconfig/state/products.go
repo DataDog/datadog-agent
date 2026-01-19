@@ -112,10 +112,6 @@ const (
 	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductMetricControl receives configuration for the metrics control.
 	ProductMetricControl = "METRIC_CONTROL"
-
-	// ProductMetricControl receives configuration for the metrics control.
-	ProductTagControl = "TAG_CONTROL"
-
 	// ProductDataStreamsLiveMessages is used for capturing messages from Kafka
 	ProductDataStreamsLiveMessages = "DSM_LIVE_MESSAGES"
 	// ProductDataStreamsKafkaActions is used for executing Kafka actions remotely

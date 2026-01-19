@@ -8,6 +8,7 @@
 package filterlistimpl
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -44,7 +46,6 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	reset := func() updateRes { return updateRes{} }
 
 	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	logComponent := logmock.New(t)
 	configComponent := config.NewMockWithOverrides(t, cfg)
@@ -136,4 +137,515 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 		Unknowns: 0,
 	})
 	results = reset()
+}
+
+// TestFilterListUpdateWithValidMetrics tests the callback with valid metric filter list updates
+func TestFilterListUpdateWithValidMetrics(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Valid metric filter list update
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [
+						{"metric_name": "test.metric.1"},
+						{"metric_name": "test.metric.2"},
+						{"metric_name": "test.metric.1"}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// Verify metrics were set in config
+	metricNames := configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"test.metric.1", "test.metric.2"}, metricNames)
+}
+
+// TestFilterListUpdateWithValidTags tests the callback with valid tag filter list updates
+func TestFilterListUpdateWithValidTags(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Valid tag filter list update with exclude mode
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.distribution",
+							"exclude_tag_mode": true,
+							"tags": ["env", "host"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// Verify tag filter list was set in config with unhashed tag names
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal(MetricTagListEntry{
+		MetricName: "test.distribution",
+		Action:     "exclude",
+		Tags:       []string{"env", "host"},
+	}, tagEntries[0])
+}
+
+// TestFilterListUpdateWithMergedTags tests tag merging logic
+func TestFilterListUpdateWithMergedTags(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Multiple updates with same metric name and same action - should merge tags
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tag_mode": true,
+							"tags": ["env", "host"]
+						}
+					]
+				}
+			}
+		}`)},
+		"config2": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tag_mode": true,
+							"tags": ["pod", "cluster"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 2)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// Verify tags were merged
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	slices.Sort(tagEntries[0].Tags)
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "test.metric",
+			Action:     "exclude",
+			Tags:       []string{"cluster", "env", "host", "pod"},
+		}, tagEntries[0])
+
+}
+
+// TestFilterListUpdateWithConflictingActions tests that exclude takes precedence over include
+func TestFilterListUpdateWithConflictingActions(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// First include, then exclude - exclude should win
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tag_mode": false,
+							"tags": ["env", "host"]
+						}
+					]
+				}
+			}
+		}`)},
+		"config2": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tag_mode": true,
+							"tags": ["pod"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 2)
+
+	// Verify exclude action was kept with new tags
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "test.metric",
+			Action:     "exclude",
+			Tags:       []string{"pod"},
+		},
+		tagEntries[0],
+	)
+
+}
+
+// TestFilterListUpdateWithCombinedMetricsAndTags tests both metric and tag filter list updates
+func TestFilterListUpdateWithCombinedMetricsAndTags(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Update with both blocked metrics and tag filterlist
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [
+						{"metric_name": "blocked.metric.1"},
+						{"metric_name": "blocked.metric.2"}
+					]
+				}
+			},
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "dist.metric",
+							"exclude_tag_mode": true,
+							"tags": ["env", "version"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// Verify both were set
+	metricNames := configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"blocked.metric.1", "blocked.metric.2"}, metricNames)
+
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal("dist.metric", tagEntries[0].MetricName)
+}
+
+// TestFilterListUpdateEmptyRestoresLocal tests that empty updates restore local config
+func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+	cfg["metric_filterlist"] = []string{"local.metric.1", "local.metric.2"}
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	// First, set RC config
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": [{"metric_name": "rc.metric"}]
+				}
+			},
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "rc.distribution",
+							"exclude_tag_mode": true,
+							"tags": ["rc_tag"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	// Verify RC config was set
+	metricNames := configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"rc.metric"}, metricNames)
+
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "rc.distribution",
+			Action:     "exclude",
+			Tags:       []string{"rc_tag"},
+		},
+		tagEntries[0],
+	)
+
+	// Now send empty update - should trigger restoration logic
+	results = updateRes{}
+	emptyUpdates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"blocked_metrics": {
+				"by_name": {
+					"values": []
+				}
+			},
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "rc.distribution",
+							"exclude_tag_mode": true,
+							"tags": ["rc_tag"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+	filterList.onFilterListUpdateCallback(emptyUpdates, callback)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// metric filterlist has been reset to default
+	metricNames = configComponent.GetStringSlice("metric_filterlist")
+	require.ElementsMatch([]string{"local.metric.1", "local.metric.2"}, metricNames)
+
+	// tag entries should be as configured through RC
+	err = structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "rc.distribution",
+			Action:     "exclude",
+			Tags:       []string{"rc_tag"},
+		},
+		tagEntries[0],
+	)
+}
+
+// TestFilterListUpdateWithIncludeMode tests include mode for tag filtering
+func TestFilterListUpdateWithIncludeMode(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Update with include mode
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "test.metric",
+							"exclude_tag_mode": false,
+							"tags": ["important_tag"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	// Verify include action was set
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal("include", tagEntries[0].Action)
+}
+
+// TestFilterListUpdateMultipleMetrics tests handling of multiple different metrics
+func TestFilterListUpdateMultipleMetrics(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Update with multiple different metrics in tag filterlist
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"by_name": [
+						{
+							"metric_name": "metric.one",
+							"exclude_tag_mode": true,
+							"tags": ["env"]
+						},
+						{
+							"metric_name": "metric.two",
+							"exclude_tag_mode": false,
+							"tags": ["host"]
+						},
+						{
+							"metric_name": "metric.three",
+							"exclude_tag_mode": true,
+							"tags": ["pod", "cluster"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+
+	// Verify all metrics were stored
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 3)
+
+	// Verify each metric
+	metricMap := make(map[string]MetricTagListEntry)
+	for _, entry := range tagEntries {
+		metricMap[entry.MetricName] = entry
+	}
+
+	require.Contains(metricMap, "metric.one")
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "metric.one",
+			Action:     "exclude",
+			Tags:       []string{"env"},
+		},
+		metricMap["metric.one"],
+	)
+
+	require.Contains(metricMap, "metric.two")
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "metric.two",
+			Action:     "include",
+			Tags:       []string{"host"},
+		},
+		metricMap["metric.two"],
+	)
+
+	require.Contains(metricMap, "metric.three")
+	require.Equal(
+		MetricTagListEntry{
+			MetricName: "metric.three",
+			Action:     "exclude",
+			Tags:       []string{"pod", "cluster"},
+		},
+		metricMap["metric.three"],
+	)
 }

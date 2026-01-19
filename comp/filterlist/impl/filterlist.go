@@ -36,8 +36,9 @@ type Provides struct {
 }
 
 type localFilterListConfig struct {
-	metricNames []string
-	matchPrefix bool
+	metricNames   []string
+	matchPrefix   bool
+	tagFilterList []MetricTagListEntry
 }
 
 type FilterList struct {
@@ -56,8 +57,11 @@ type FilterList struct {
 	tagFilterListUpdate []func(filterlist.TagMatcher)
 	tagFilterList       tagMatcher
 
-	tlmFilterListUpdates telemetry.SimpleCounter
-	tlmFilterListSize    telemetry.SimpleGauge
+	tlmMetricFilterListUpdates telemetry.SimpleCounter
+	tlmMetricFilterListSize    telemetry.SimpleGauge
+
+	tlmTagFilterListUpdates telemetry.SimpleCounter
+	tlmTagFilterListSize    telemetry.SimpleGauge
 }
 
 // Load the config, registers with RC
@@ -70,27 +74,46 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		filterlistPrefix = config.GetBool("statsd_metric_blocklist_match_prefix")
 	}
 
-	localFilterListConfig := localFilterListConfig{
-		metricNames: filterlist,
-		matchPrefix: filterlistPrefix,
+	// Load tag filter list from config
+	var tagFilterListEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(config, "metric_tag_filterlist", &tagFilterListEntries)
+	if err != nil {
+		log.Errorf("error loading metric_tag_filterlist configuration: %s", err)
+		tagFilterListEntries = nil
 	}
 
-	tlmFilterListUpdates := telemetrycomp.NewSimpleCounter("filterlist", "updates",
-		"Incremented when a reconfiguration of the filterlist happened",
+	localFilterListConfig := localFilterListConfig{
+		metricNames:   filterlist,
+		matchPrefix:   filterlistPrefix,
+		tagFilterList: tagFilterListEntries,
+	}
+
+	tlmMetricFilterListUpdates := telemetrycomp.NewSimpleCounter("filterlist", "updates",
+		"Incremented when a reconfiguration of the metric filterlist happened",
 	)
-	tlmFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "size",
-		"Filter list size",
+	tlmMetricFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "size",
+		"Metric filter list size",
 	)
 
-	tagMatcher := loadTagFilterList(config, log)
+	tlmTagFilterListUpdates := telemetrycomp.NewSimpleCounter("tag_filterlist", "updates",
+		"Incremented when a reconfiguration of the tag filterlist happened",
+	)
+
+	tlmTagFilterListSize := telemetrycomp.NewSimpleGauge("tag_filterlist", "size",
+		"Tag filter list size",
+	)
+
+	tagMatcher := loadTagFilterList(localFilterListConfig.tagFilterList, log)
 
 	fl := &FilterList{
-		localFilterListConfig: localFilterListConfig,
-		config:                config,
-		log:                   log,
-		telemetrycomp:         telemetrycomp,
-		tlmFilterListUpdates:  tlmFilterListUpdates,
-		tlmFilterListSize:     tlmFilterListSize,
+		localFilterListConfig:      localFilterListConfig,
+		config:                     config,
+		log:                        log,
+		telemetrycomp:              telemetrycomp,
+		tlmMetricFilterListUpdates: tlmMetricFilterListUpdates,
+		tlmMetricFilterListSize:    tlmMetricFilterListSize,
+		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
+		tlmTagFilterListSize:       tlmTagFilterListSize,
 
 		tagFilterList: tagMatcher,
 	}
@@ -100,19 +123,12 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 	return fl
 }
 
-// loadTagFilterList loads the tag filterlist from the config file.
+// loadTagFilterList loads the tag filterlist from the provided entries.
 // Configuration schema is a list of objects with fields:
 // - metric_name: the name of the metric
 // - action: either "include" or "exclude"
 // - tags: array of tags to include/exclude
-func loadTagFilterList(cfg config.Component, log log.Component) tagMatcher {
-	var entries []MetricTagListEntry
-	err := structure.UnmarshalKey(cfg, "metric_tag_filterlist", &entries)
-	if err != nil {
-		log.Errorf("error loading metric_tag_filterlist configuration: %s", err)
-		return newTagMatcher(nil)
-	}
-
+func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatcher {
 	// Build map with merging logic:
 	// - If multiple entries have same metric_name and same action: merge tags
 	// - If different action: keep only exclude tags (overwrite with exclude)
@@ -228,16 +244,34 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 	}
 }
 
+func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) {
+	fl.log.Debugf("SetTagFilterListFromEntries with %d entries", len(entries))
+
+	fl.tagFilterList = loadTagFilterList(entries, fl.log)
+
+	fl.updateTagMtx.RLock()
+	defer fl.updateTagMtx.RUnlock()
+
+	for _, update := range fl.tagFilterListUpdate {
+		update(&fl.tagFilterList)
+	}
+}
+
 func (fl *FilterList) restoreFilterListFromLocalConfig() {
 	fl.log.Debug("Restoring filterlist with local config.")
 
-	fl.tlmFilterListUpdates.Inc()
-	fl.tlmFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
+	fl.tlmMetricFilterListUpdates.Inc()
+	fl.tlmMetricFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
 
 	fl.SetFilterList(
 		fl.localFilterListConfig.metricNames,
 		fl.localFilterListConfig.matchPrefix,
 	)
+
+	fl.tlmTagFilterListUpdates.Inc()
+	fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
+
+	fl.SetTagFilterListFromEntries(fl.localFilterListConfig.tagFilterList)
 }
 
 func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
@@ -262,7 +296,6 @@ func NewFilterListReq(req Requires) Provides {
 	var rcListener rctypes.ListenerProvider
 	rcListener.ListenerProvider = rctypes.RCListener{
 		state.ProductMetricControl: filterList.onFilterListUpdateCallback,
-		state.ProductTagControl:    filterList.onTagFilterListUpdateCallback,
 	}
 
 	return Provides{

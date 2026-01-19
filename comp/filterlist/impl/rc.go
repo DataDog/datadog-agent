@@ -46,6 +46,7 @@ type metricEntry struct {
 	Name string `json:"metric_name"`
 }
 
+// onFilterListUpdateCallback receives both metric and tag filterlist configurations.
 func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
 
@@ -56,11 +57,13 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
+		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
 		fl.restoreFilterListFromLocalConfig()
 		return
 	}
 
-	var filterListUpdates []filteredMetrics
+	var metricFilterListUpdates []filteredMetrics
+	var tagFilterListUpdates []filteredTags
 
 	// unmarshal all the configurations received from
 	// the RC platform
@@ -83,22 +86,17 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 
 		// this one has no metric in its list, strange but
 		// not an error
-		if len(config.FilteredMetrics.ByName.Metrics) == 0 {
+		if len(config.FilteredMetrics.ByName.Metrics) == 0 &&
+			len(config.FilteredTags.ByName.Metrics) == 0 {
+
 			fl.log.Debug("received a filterlist configuration with no metrics")
 			continue
 		}
-		filterListUpdates = append(filterListUpdates, config.FilteredMetrics)
+		metricFilterListUpdates = append(metricFilterListUpdates, config.FilteredMetrics)
+		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
 
-	// build a map with all the received metrics
-	// and then use the values as a filterlist
-	m := make(map[string]struct{})
-	for _, update := range filterListUpdates {
-		for _, metric := range update.ByName.Metrics {
-			m[metric.Name] = struct{}{}
-		}
-	}
-	metricNames := slices.Collect(maps.Keys(m))
+	metricNames := fl.buildMetricFilterListConfig(metricFilterListUpdates)
 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent
@@ -111,119 +109,141 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		}
 
 		// apply this new blocklist to all the running workers
-		fl.tlmFilterListUpdates.Inc()
-		fl.tlmFilterListSize.Set(float64(len(metricNames)))
+		fl.tlmMetricFilterListUpdates.Inc()
+		fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
 		fl.SetFilterList(metricNames, false)
 	} else {
-		// special case: if the metric names list is empty, fallback to local
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-		fl.restoreFilterListFromLocalConfig()
+
+		fl.tlmMetricFilterListUpdates.Inc()
+		fl.tlmMetricFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
+		fl.SetFilterList(
+			fl.localFilterListConfig.metricNames,
+			fl.localFilterListConfig.matchPrefix,
+		)
+	}
+
+	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
+
+	if len(tags) > 0 {
+		// Convert map to slice for config storage
+		tagEntriesSlice := make([]MetricTagListEntry, 0, len(tagEntries))
+		for _, entry := range tagEntries {
+			tagEntriesSlice = append(tagEntriesSlice, entry)
+		}
+
+		// update the runtime config to be consistent
+		// in `agent config` calls.
+		fl.config.Set("metric_tag_filterlist", tagEntriesSlice, model.SourceRC)
+
+		// apply this new blocklist to all the running workers
+		fl.tlmTagFilterListUpdates.Inc()
+		fl.tlmTagFilterListSize.Set(float64(len(tags)))
+		fl.SetTagFilterList(tags)
+	} else {
+		// special case: if the metric names list is empty, fallback to local
+		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
+		fl.tlmTagFilterListUpdates.Inc()
+		fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
+		fl.SetTagFilterListFromEntries(fl.localFilterListConfig.tagFilterList)
 	}
 }
 
-func (fl *FilterList) onTagFilterListUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
-
-	// special case: we received a response from RC, but RC didn't have any
-	// configuration for this agent, let's restore the local config and return
-	if len(updates) == 0 {
-		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		// TODO restore tag filterlist.
-		//fl.restoreFilterListFromLocalConfig()
-		return
-	}
-
-	var tagFilterListUpdates []filteredTags
-
-	// unmarshal all the configurations received from
-	// the RC platform
-	for configPath, v := range updates {
-		fl.log.Debugf("received tag filterlist config: %q", string(v.Config))
-		var config statsdFilterListUpdate
-		if err := json.Unmarshal(v.Config, &config); err != nil {
-			applyStateCallback(configPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: "error unmarshalling payload",
-			})
-			fl.log.Errorf("can't unmarshal received tag filterlist config: %v", err)
-			continue
+// buildMetricFilterListConfig builds the metrics to be used for the metric filterlist,
+// Metric names are deduped.
+func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filteredMetrics) []string {
+	metrics := make(map[string]struct{})
+	for _, update := range metricFilterListUpdates {
+		for _, metric := range update.ByName.Metrics {
+			metrics[metric.Name] = struct{}{}
 		}
-
-		// from here, the configuration is usable
-		applyStateCallback(configPath, state.ApplyStatus{
-			State: state.ApplyStateAcknowledged,
-		})
-
-		// this one has no metric in its list, strange but
-		// not an error
-		if len(config.FilteredTags.ByName.Metrics) == 0 {
-			fl.log.Debug("received a tag filterlist configuration with no metrics")
-			continue
-		}
-		tagFilterListUpdates = append(tagFilterListUpdates, config.FilteredTags)
 	}
+	metricNames := slices.Collect(maps.Keys(metrics))
+	return metricNames
+}
 
-	// build a map with all the received metrics
-	// and then use the values as a filterlist
-	m := make(map[string]hashedMetricTagList)
+// buildConfig builds the configuration to use.
+// The first result contains the hashed tags that the filterlist uses, second result is the entry with unhashed tags
+// used to override the configuration file entry.
+//
+// There is nothing stopping the tags for a given metric name being configured multiple times. Conflicts are handled
+// by the following rules:
+// - If the action is the same for both metrics, the list of tags is merged.
+// - If the action is different, always take the exclude list.
+func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, map[string]MetricTagListEntry) {
+	tags := make(map[string]hashedMetricTagList)
+	tagEntries := make(map[string]MetricTagListEntry)
+
 	for _, update := range tagFilterListUpdates {
 		for _, metric := range update.ByName.Metrics {
-			current, ok := m[metric.Name]
+			currentHashed, ok := tags[metric.Name]
+			currentEntry := tagEntries[metric.Name]
+
+			actionStr := "include"
+			if metric.ExcludeTag {
+				actionStr = "exclude"
+			}
+
 			if ok {
 				// Metric has already been defined, merge it.
-				if (current.action == Exclude) == metric.ExcludeTag {
+				if (currentHashed.action == Exclude) == metric.ExcludeTag {
 					// Both metrics define the same action so we can just merge the list.
+					hashedTags := currentHashed.tags
 					for _, tag := range metric.Tags {
-						current.tags = append(current.tags, murmur3.StringSum64(tag))
+						hashedTags = append(hashedTags, murmur3.StringSum64(tag))
 					}
-				} else if current.action == Include {
+					currentHashed.tags = hashedTags
+					tags[metric.Name] = currentHashed
+
+					// Merge unhashed tags too
+					currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
+					tagEntries[metric.Name] = currentEntry
+				} else if currentHashed.action == Include {
 					// We always prefer the exclude tag, overwrite the existing config with this one.
-					current.action = Exclude
-					tags := make([]uint64, 0, len(metric.Tags))
+					currentHashed.action = Exclude
+					hashedTags := make([]uint64, 0, len(metric.Tags))
 					for _, tag := range metric.Tags {
-						tags = append(tags, murmur3.StringSum64(tag))
+						hashedTags = append(hashedTags, murmur3.StringSum64(tag))
 					}
-					current.tags = tags
-					fl.log.Debug("tag filterlist configures conflicting tags for metric %v", metric.Name)
+					currentHashed.tags = hashedTags
+					tags[metric.Name] = currentHashed
+
+					// Overwrite unhashed entry with exclude
+					tagEntries[metric.Name] = MetricTagListEntry{
+						MetricName: metric.Name,
+						Action:     "exclude",
+						Tags:       metric.Tags,
+					}
+					fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
 				} else {
 					// We always prefer the exclude tag, ignore this include tag configuration.
-					fl.log.Debug("tag filterlist configures conflicting tags for metric %v", metric.Name)
+					fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
 				}
 			} else {
-				tags := make([]uint64, 0, len(metric.Tags))
+				hashedTags := make([]uint64, 0, len(metric.Tags))
 				for _, tag := range metric.Tags {
-					tags = append(tags, murmur3.StringSum64(tag))
+					hashedTags = append(hashedTags, murmur3.StringSum64(tag))
 				}
-				var action action
+				var rcAction action
 				if metric.ExcludeTag {
-					action = Exclude
+					rcAction = Exclude
 				} else {
-					action = Include
+					rcAction = Include
 				}
-				m[metric.Name] = hashedMetricTagList{
-					action: action,
-					tags:   tags,
+				tags[metric.Name] = hashedMetricTagList{
+					action: rcAction,
+					tags:   hashedTags,
+				}
+
+				// Store unhashed entry
+				tagEntries[metric.Name] = MetricTagListEntry{
+					MetricName: metric.Name,
+					Action:     actionStr,
+					Tags:       metric.Tags,
 				}
 			}
 		}
 	}
-
-	if len(m) > 0 {
-		// update the runtime config to be consistent
-		// in `agent config` calls.
-		// fl.config.Set("metric_tag_filterlist", metricNames, model.SourceRC)
-
-		// apply this new blocklist to all the running workers
-		fl.tlmFilterListUpdates.Inc()
-		fl.tlmFilterListSize.Set(float64(len(m)))
-		fl.SetTagFilterList(m)
-	} else {
-		// special case: if the metric names list is empty, fallback to local
-		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		// TODO update local
-		// fl.restoreFilterListFromLocalConfig()
-	}
+	return tags, tagEntries
 }
