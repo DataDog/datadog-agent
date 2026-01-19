@@ -126,6 +126,14 @@ func TestSetFieldValue(t *testing.T) {
 	for _, field := range event.GetFields() {
 		// use a fresh event to not get polluted by previous SetFieldValue
 		event = NewFakeEvent()
+		eventType, _, _, _, err := event.GetFieldMetadata(field)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if evt, _ := ParseEvalEventType(eventType); evt != UnknownEventType {
+			event.Type = uint32(evt)
+		}
 
 		_, kind, _, _, err := event.GetFieldMetadata(field)
 		if err != nil {
