@@ -71,6 +71,9 @@ type safeConfig struct {
 	existingTransformers map[string]bool
 }
 
+// GetLibType return "viper"
+func (c *safeConfig) GetLibType() string { return "viper" }
+
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -866,7 +869,7 @@ func (c *safeConfig) GetSubfields(key string) []string {
 	c.Lock()
 	defer c.Unlock()
 
-	res := []string{}
+	var res []string
 	for _, s := range model.Sources {
 		if s == model.SourceEnvVar {
 			// Viper doesn't store env vars in the actual configSource layer, instead
