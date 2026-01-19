@@ -16,13 +16,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
+	perms "github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams/filepermissions"
 	osVM "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	checkutils "github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -37,28 +38,27 @@ type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor  osVM.Descriptor
 	checksdPath string
-	permissions option.Option[filepermissions.FilePermissions]
 }
 
-func (v *sharedLibrarySuite) getAgentDefaultOptions() []func(*agentparams.Params) error {
-	// agent configuration
+func (v *sharedLibrarySuite) newProvisionerWithAgentOptions(agentOptions ...agentparams.Option) provisioners.Provisioner {
 	agentConfig := `shared_library_check:
   enabled: true
   library_folder_path: ` + v.checksdPath
 
-	var agentOptions []func(*agentparams.Params) error
-	agentOptions = append(agentOptions, agentparams.WithAgentConfig(agentConfig))
+	var allAgentOptions []agentparams.Option
+	allAgentOptions = append(allAgentOptions, agentparams.WithAgentConfig(agentConfig))
+	allAgentOptions = append(allAgentOptions, agentOptions...)
 
-	return agentOptions
-}
-
-func (v *sharedLibrarySuite) getProvisionerWithOptions(agentOptions ...func(*agentparams.Params) error) provisioners.TypedProvisioner[environments.Host] {
 	return awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
 			ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
-			ec2.WithAgentOptions(agentOptions...),
+			ec2.WithAgentOptions(allAgentOptions...),
 		),
 	)
+}
+
+func (v *sharedLibrarySuite) getSuiteOptions() e2e.SuiteOption {
+	return e2e.WithProvisioner(v.newProvisionerWithAgentOptions())
 }
 
 func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
@@ -79,31 +79,26 @@ func (v *sharedLibrarySuite) resolveSharedLibraryFileName(name string) string {
 	return libraryPrefix + name + "." + libraryExtension
 }
 
-func (v *sharedLibrarySuite) updateEnvWithCheck(name string, config string) {
+func (v *sharedLibrarySuite) updateEnvWithCheckConfigAndLibrary(name string, config string, permissions option.Option[perms.FilePermissions]) {
 	// find the corresponding local shared library and use it on the remote host
 	libraryName := v.resolveSharedLibraryFileName(name)
 	libraryContent, err := os.ReadFile(path.Join("files", libraryName))
 	require.NoError(v.T(), err)
 
 	libraryPath := path.Join(v.checksdPath, libraryName)
-	file := agentparams.WithFileWithPermissions(libraryPath, string(libraryContent), true, v.permissions)
+	file := agentparams.WithFileWithPermissions(libraryPath, string(libraryContent), true, permissions)
 
 	// give the corresponding configuration to the Agent
 	integration := agentparams.WithIntegration(name+".d", config)
 
 	// update the remote agent with all options
-	var agentOptions []func(*agentparams.Params) error
-	agentOptions = append(agentOptions, v.getAgentDefaultOptions()...)
-	agentOptions = append(agentOptions, file)
-	agentOptions = append(agentOptions, integration)
+	agentOptions := []agentparams.Option{file, integration}
 
-	v.UpdateEnv(v.getProvisionerWithOptions(agentOptions...))
+	v.UpdateEnv(v.newProvisionerWithAgentOptions(agentOptions...))
 }
 
 // Test the shared library code and check it returns the right metrics
-func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
-	v.T().Log("Running Shared Library Check Example test")
-
+func (v *sharedLibrarySuite) testExampleRunAndMetrics() {
 	// execute the check and retrieve the metrics
 	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"example", "--json"}))
 	data := checkutils.ParseJSONOutput(v.T(), []byte(check))
@@ -135,7 +130,7 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	assert.Equal(v.T(), "info", event.AlertType)
 }
 
-func (v *sharedLibrarySuite) testCheckExampleRun() {
-	v.updateEnvWithCheck("example", exampleCheckConfig)
-	v.testCheckExecutionAndVerifyMetrics()
+func (v *sharedLibrarySuite) testExampleRunExpectError(expectedErrorMsg string) {
+	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"example"}))
+	assert.ErrorContains(v.T(), err, expectedErrorMsg)
 }

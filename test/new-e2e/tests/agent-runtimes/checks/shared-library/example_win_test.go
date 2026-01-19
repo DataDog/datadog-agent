@@ -15,6 +15,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
+var windowsDefaultPermissions = perms.NewWindowsPermissions(
+	perms.WithIcaclsCommand(`/grant "ddagentuser:(D,WDAC,RX,RA)" /grant "Administrators:(RX)" /grant "SYSTEM:(RX)"`),
+	perms.WithDisableInheritance(),
+)
+
 type windowsSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
@@ -22,20 +27,27 @@ type windowsSharedLibrarySuite struct {
 func TestWindowsSharedLibraryCheckSuite(t *testing.T) {
 	t.Parallel()
 
-	icaclsCmd := `/grant "ddagentuser:(D,WDAC,RX,RA)" /grant "Administrators:(RX)" /grant "SYSTEM:(RX)"`
-	permissions := perms.NewWindowsPermissions(perms.WithIcaclsCommand(icaclsCmd), perms.WithDisableInheritance())
-
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
 			checksdPath: "C:/Temp/Datadog/checks.d",
-			permissions: permissions,
 		},
 	}
 
-	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
+	e2e.Run(t, suite, suite.getSuiteOptions())
 }
 
 func (v *windowsSharedLibrarySuite) TestCheckExample() {
-	v.testCheckExampleRun()
+	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, windowsDefaultPermissions)
+	v.testExampleRunAndMetrics()
+}
+
+func (v *windowsSharedLibrarySuite) TestInvalidPermissions() {
+	permissions := perms.NewWindowsPermissions(
+		perms.WithIcaclsCommand(`/grant "ddagentuser:(D,WDAC,RX,RA)" /grant "Administrator:(RX)" /grant "SYSTEM:(RX)"`),
+		perms.WithDisableInheritance(),
+	)
+
+	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, permissions)
+	v.testExampleRunExpectError("other users/groups than LOCAL_SYSTEM, Administrators or")
 }

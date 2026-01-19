@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 )
 
+var linuxDefaultPermissions = perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+
 type linuxSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
@@ -22,19 +24,28 @@ type linuxSharedLibrarySuite struct {
 func TestLinuxSharedLibraryCheckSuite(t *testing.T) {
 	t.Parallel()
 
-	permissions := perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
-
 	suite := &linuxSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.UbuntuDefault,
 			checksdPath: "/tmp/datadog-agent/checks.d",
-			permissions: permissions,
 		},
 	}
 
-	e2e.Run(t, suite, e2e.WithProvisioner(suite.getProvisionerWithOptions()))
+	e2e.Run(t, suite, suite.getSuiteOptions())
 }
 
 func (v *linuxSharedLibrarySuite) TestCheckExample() {
-	v.testCheckExampleRun()
+	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, linuxDefaultPermissions)
+	v.testExampleRunAndMetrics()
+}
+
+func (v *linuxSharedLibrarySuite) TestInvalidPermissions() {
+	// others have access to the library
+	permissions := perms.NewUnixPermissions(perms.WithPermissions("0777"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, permissions)
+	v.testExampleRunExpectError("'others' have rights on it or 'group' has write permissions on it")
+
+	permissions = perms.NewUnixPermissions(perms.WithPermissions("0740"), perms.WithOwner("dd-agent"), perms.WithGroup("dd-agent"))
+	v.updateEnvWithCheckConfigAndLibrary("example", exampleCheckConfig, permissions)
+	v.testExampleRunExpectError("'others' have rights on it or 'group' has write permissions on it")
 }
