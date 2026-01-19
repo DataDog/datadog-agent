@@ -43,7 +43,7 @@ func newNoOpImageResolver() ImageResolver {
 // ResolveImage returns the original image reference.
 func (r *noOpImageResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	log.Debugf("Cannot resolve %s/%s:%s without remote config", registry, repository, tag)
-	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionDisabled, tag)
+	metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 	return nil, false
 }
 
@@ -123,14 +123,14 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 
 	if len(r.imageMappings) == 0 {
 		log.Debugf("Cache empty, no resolution available")
-		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 		return nil, false
 	}
 
 	repoCache, exists := r.imageMappings[repository]
 	if !exists {
 		log.Debugf("No mapping found for repository %s", repository)
-		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 		return nil, false
 	}
 
@@ -139,12 +139,12 @@ func (r *remoteConfigImageResolver) Resolve(registry string, repository string, 
 	resolved, exists := repoCache[normalizedTag]
 	if !exists {
 		log.Debugf("No mapping found for %s:%s", repository, normalizedTag)
-		metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, tag)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
 		return nil, false
 	}
 	resolvedImage := newResolvedImage(registry, repository, resolved)
 	log.Debugf("Resolved %s/%s:%s -> %s", registry, repository, tag, resolvedImage.FullImageRef)
-	metrics.ImageResolutionAttempts.Inc(registry, repository, metrics.DigestResolutionEnabled, resolved.Digest)
+	metrics.ImageResolutionAttempts.Inc(repository, tag, resolved.Digest)
 	return resolvedImage, true
 }
 

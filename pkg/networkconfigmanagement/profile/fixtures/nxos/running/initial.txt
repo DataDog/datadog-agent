@@ -1,0 +1,82 @@
+!Command: show running-config
+!Running configuration last done at: Tue Jan  6 14:21:03 2026
+!Time: Tue Jan  6 14:22:10 2026
+
+version 9.3(8)
+hostname N9K-LEAF-01
+
+feature interface-vlan
+feature lacp
+feature ospf
+feature bgp
+feature vpc
+feature nxapi
+feature tacacs+
+
+username admin password 5 $5$abcdefghijk role network-admin
+
+ip domain-name example.com
+ip name-server 8.8.8.8 8.8.4.4
+
+clock timezone UTC 0 0
+
+tacacs-server host 192.0.2.10 key 7 1234567890ABCDEF
+tacacs-server timeout 5
+tacacs-server deadtime 10
+
+aaa group server tacacs+ TACACS-GROUP
+  server 192.0.2.10
+  use-vrf management
+
+aaa authentication login default group TACACS-GROUP local
+aaa authorization commands default group TACACS-GROUP local
+
+vrf context management
+  ip route 0.0.0.0/0 192.0.2.1
+
+vlan 10
+  name USERS
+vlan 20
+  name SERVERS
+
+interface Vlan10
+  description Users-SVI
+  ip address 10.10.10.1/24
+  no shutdown
+
+interface Vlan20
+  description Servers-SVI
+  ip address 10.20.20.1/24
+  no shutdown
+
+interface Ethernet1/1
+  description Uplink-to-Spine-01
+  switchport
+  switchport mode trunk
+  switchport trunk allowed vlan 10,20
+  spanning-tree port type network
+  no shutdown
+
+interface Ethernet1/10
+  description Server01
+  switchport
+  switchport mode access
+  switchport access vlan 20
+  spanning-tree port type edge
+  no shutdown
+
+router ospf 100
+  router-id 1.1.1.1
+  network 10.10.10.0/24 area 0.0.0.0
+  network 10.20.20.0/24 area 0.0.0.0
+
+router bgp 65001
+  router-id 1.1.1.1
+  address-family ipv4 unicast
+    network 10.10.10.0/24
+    network 10.20.20.0/24
+
+logging server 192.0.2.20 use-vrf management
+snmp-server community public group network-operator
+
+end

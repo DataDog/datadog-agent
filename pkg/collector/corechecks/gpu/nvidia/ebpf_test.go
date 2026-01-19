@@ -41,9 +41,9 @@ func TestSystemProbeCache(t *testing.T) {
 
 				// Mock successful refresh by manually setting stats
 				testStats := &model.GPUStats{
-					Metrics: []model.StatsTuple{
+					ProcessMetrics: []model.ProcessStatsTuple{
 						{
-							Key: model.StatsKey{
+							Key: model.ProcessStatsKey{
 								PID:        123,
 								DeviceUUID: testutil.DefaultGpuUUID,
 							},
@@ -100,6 +100,14 @@ func TestEbpfCollectorCollect(t *testing.T) {
 			name:     "collect_aggregates_pid_tags_for_limits",
 			testFunc: testCollectAggregatesPidTagsForLimits,
 		},
+		{
+			name:     "collect_emits_sm_active_metrics",
+			testFunc: testCollectEmitsSmActiveMetrics,
+		},
+		{
+			name:     "collect_emits_device_sm_active_metric",
+			testFunc: testCollectEmitsDeviceSmActiveMetric,
+		},
 	}
 
 	for _, tt := range tests {
@@ -127,9 +135,9 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
-	cache := createMockCacheWithStats([]model.StatsTuple{
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        123,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -148,8 +156,8 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 4 metrics: 2 usage + 2 limit
-	assert.Len(t, metrics, 4)
+	// Should have 5 metrics: 3 usage (core, memory, sm_active) + 2 limit
+	assert.Len(t, metrics, 5)
 
 	// Verify usage metrics
 	coreUsage := findMetric(metrics, "process.core.usage")
@@ -191,9 +199,9 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
-	cache := createMockCacheWithStats([]model.StatsTuple{
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        123,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -205,7 +213,7 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 			},
 		},
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        456,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -224,8 +232,8 @@ func testCollectWithMultipleActiveProcesses(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 6 metrics: 4 usage (2 per process) + 2 limit
-	assert.Len(t, metrics, 6)
+	// Should have 8 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit
+	assert.Len(t, metrics, 8)
 
 	// Verify limit metrics have aggregated workloads
 	coreLimit := findMetric(metrics, "core.limit")
@@ -247,9 +255,9 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
-	cache := createMockCacheWithStats([]model.StatsTuple{
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        123,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -268,16 +276,16 @@ func testCollectWithInactiveProcesses(t *testing.T) {
 	// First collect with process 123
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
-	assert.Len(t, metrics, 4)
+	assert.Len(t, metrics, 5)
 
 	// Now collect with empty stats (process became inactive)
-	cache.stats = &model.GPUStats{Metrics: []model.StatsTuple{}}
+	cache.stats = &model.GPUStats{ProcessMetrics: []model.ProcessStatsTuple{}}
 
 	metrics, err = collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 4 metrics: 2 zero usage + 2 limit
-	assert.Len(t, metrics, 4)
+	// Should have 5 metrics: 3 zero usage (core, memory, sm_active) + 2 limit
+	assert.Len(t, metrics, 5)
 
 	// Verify zero usage metrics for inactive process
 	coreUsage := findMetric(metrics, "process.core.usage")
@@ -314,9 +322,9 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	device2UUID := "device-2-uuid"
 
 	device := createMockDevice(t, device1UUID)
-	cache := createMockCacheWithStats([]model.StatsTuple{
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        123,
 				DeviceUUID: device1UUID, // This device
 			},
@@ -328,7 +336,7 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 			},
 		},
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        456,
 				DeviceUUID: device2UUID, // Different device
 			},
@@ -347,8 +355,8 @@ func testCollectFiltersByDeviceUUID(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should only have metrics for device1UUID (4 metrics: 2 usage + 2 limit)
-	assert.Len(t, metrics, 4)
+	// Should only have metrics for device1UUID (5 metrics: 3 usage + 2 limit)
+	assert.Len(t, metrics, 5)
 
 	// All metrics should be for PID 123 only
 	for _, metric := range metrics {
@@ -368,9 +376,9 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	kernel.WithFakeProcFS(t, procRoot)
 
 	device := createMockDevice(t, testutil.DefaultGpuUUID)
-	cache := createMockCacheWithStats([]model.StatsTuple{
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        123,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -382,7 +390,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 			},
 		},
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        456,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -394,7 +402,7 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 			},
 		},
 		{
-			Key: model.StatsKey{
+			Key: model.ProcessStatsKey{
 				PID:        789,
 				DeviceUUID: testutil.DefaultGpuUUID,
 			},
@@ -413,8 +421,8 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
 
-	// Should have 8 metrics: 6 usage (2 per process) + 2 limit
-	assert.Len(t, metrics, 8)
+	// Should have 11 metrics: 9 usage (3 per process: core, memory, sm_active) + 2 limit
+	assert.Len(t, metrics, 11)
 
 	// Verify limit metrics have all workloads aggregated
 	coreLimit := findMetric(metrics, "core.limit")
@@ -446,6 +454,122 @@ func testCollectAggregatesPidTagsForLimits(t *testing.T) {
 	}
 }
 
+func testCollectEmitsSmActiveMetrics(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe}})
+	kernel.WithFakeProcFS(t, procRoot)
+
+	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	cache := createMockCacheWithStats([]model.ProcessStatsTuple{
+		{
+			Key: model.ProcessStatsKey{
+				PID:        123,
+				DeviceUUID: testutil.DefaultGpuUUID,
+			},
+			UtilizationMetrics: model.UtilizationMetrics{
+				UsedCores:     50,
+				ActiveTimePct: 75.5,
+				Memory: model.MemoryMetrics{
+					CurrentBytes: 1024,
+				},
+			},
+		},
+	})
+
+	collector, err := newEbpfCollector(device, cache)
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+
+	// Should have 5 metrics: 3 usage (core, memory, sm_active) + 2 limit
+	assert.Len(t, metrics, 5)
+
+	// Verify process.sm_active metric
+	smActive := findMetric(metrics, "process.sm_active")
+	require.NotNil(t, smActive, "process.sm_active metric not found")
+	assert.Equal(t, 75.5, smActive.Value)
+	assert.Equal(t, Low, smActive.Priority, "process.sm_active should have Low priority")
+	require.Len(t, smActive.AssociatedWorkloads, 1)
+	assert.Equal(t, "process", string(smActive.AssociatedWorkloads[0].Kind))
+	assert.Equal(t, "123", smActive.AssociatedWorkloads[0].ID)
+}
+
+func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
+	exe := "/bin/test"
+	procRoot := kernel.CreateFakeProcFS(t, []kernel.FakeProcFSEntry{
+		{Pid: 123, NsPid: 3, Cmdline: exe, Command: exe, Exe: exe},
+		{Pid: 456, NsPid: 4, Cmdline: exe, Command: exe, Exe: exe},
+	})
+	kernel.WithFakeProcFS(t, procRoot)
+
+	device := createMockDevice(t, testutil.DefaultGpuUUID)
+	cache := &SystemProbeCache{
+		stats: &model.GPUStats{
+			ProcessMetrics: []model.ProcessStatsTuple{
+				{
+					Key: model.ProcessStatsKey{
+						PID:        123,
+						DeviceUUID: testutil.DefaultGpuUUID,
+					},
+					UtilizationMetrics: model.UtilizationMetrics{
+						UsedCores:     50,
+						ActiveTimePct: 60.0,
+						Memory: model.MemoryMetrics{
+							CurrentBytes: 1024,
+						},
+					},
+				},
+				{
+					Key: model.ProcessStatsKey{
+						PID:        456,
+						DeviceUUID: testutil.DefaultGpuUUID,
+					},
+					UtilizationMetrics: model.UtilizationMetrics{
+						UsedCores:     30,
+						ActiveTimePct: 40.0,
+						Memory: model.MemoryMetrics{
+							CurrentBytes: 512,
+						},
+					},
+				},
+			},
+			DeviceMetrics: []model.DeviceStatsTuple{
+				{
+					DeviceUUID: testutil.DefaultGpuUUID,
+					Metrics: model.DeviceUtilizationMetrics{
+						ActiveTimePct: 85.0, // Device-wide active time (may be less than sum due to overlaps)
+					},
+				},
+			},
+		},
+	}
+
+	collector, err := newEbpfCollector(device, cache)
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+
+	// Should have 9 metrics: 6 usage (3 per process: core, memory, sm_active) + 2 limit + 1 device sm_active
+	assert.Len(t, metrics, 9)
+
+	// Verify device-level sm_active metric
+	deviceSmActive := findMetric(metrics, "sm_active")
+	require.NotNil(t, deviceSmActive, "sm_active metric not found")
+	assert.Equal(t, 85.0, deviceSmActive.Value)
+	assert.Equal(t, Low, deviceSmActive.Priority, "sm_active should have Low priority")
+	assert.Empty(t, deviceSmActive.AssociatedWorkloads, "device-level sm_active should not have associated workloads")
+
+	// Verify per-process sm_active metrics
+	processSmActiveMetrics := findAllMetricsWithName(metrics, "process.sm_active")
+	assert.Len(t, processSmActiveMetrics, 2)
+	for _, metric := range processSmActiveMetrics {
+		assert.Equal(t, Low, metric.Priority)
+		require.Len(t, metric.AssociatedWorkloads, 1)
+	}
+}
+
 // Helper functions
 
 func createMockDevice(t *testing.T, deviceUUID string) ddnvml.Device {
@@ -474,10 +598,10 @@ func createMockDevice(t *testing.T, deviceUUID string) ddnvml.Device {
 	return devices[0]
 }
 
-func createMockCacheWithStats(statsTuples []model.StatsTuple) *SystemProbeCache {
+func createMockCacheWithStats(statsTuples []model.ProcessStatsTuple) *SystemProbeCache {
 	cache := NewSystemProbeCache()
 	cache.stats = &model.GPUStats{
-		Metrics: statsTuples,
+		ProcessMetrics: statsTuples,
 	}
 	return cache
 }

@@ -71,14 +71,6 @@ func TestShowMetadataInventoryChecksCommand(t *testing.T) {
 		func(_ core.BundleParams) {})
 }
 
-func TestShowMetadataInventoryOtelCommand(t *testing.T) {
-	fxutil.TestOneShotSubcommand(t,
-		Commands(&command.GlobalParams{}),
-		[]string{"diagnose", "show-metadata", "inventory-otel"},
-		printPayload,
-		func(_ core.BundleParams) {})
-}
-
 func TestShowMetadataHaAgentCommand(t *testing.T) {
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
@@ -132,7 +133,7 @@ func TestKworker(t *testing.T) {
 			t.Error(err)
 		}
 
-		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }); err != nil {
+		if err := retry.Do(func() error { return unix.DeleteModule("xt_LED", 0) }, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay)); err != nil {
 			t.Error(err)
 		}
 	}()

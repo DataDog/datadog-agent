@@ -59,7 +59,7 @@ func TestSelfTests(t *testing.T) {
 		})
 
 		return nil
-	}, retry.Attempts(20), retry.Delay(2*time.Second))
+	}, retry.Attempts(20), retry.Delay(2*time.Second), retry.DelayType(retry.FixedDelay))
 
 	assert.NoError(t, err)
 }

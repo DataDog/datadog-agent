@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os/exec"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +86,7 @@ func TestSBOM(t *testing.T) {
 					return fmt.Errorf("report hasn't been generated for '%s'", dockerWrapper.containerID)
 				}
 				return nil
-			})
+			}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
 			cmd := cmdFunc("/bin/touch", []string{"/usr/lib/os-release"}, nil)
 			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {

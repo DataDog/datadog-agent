@@ -109,6 +109,10 @@ func populateConfig(config config.Component) map[string]string {
 	conf["log_level"] = config.GetString("log_level")
 	conf["confd_path"] = config.GetString("confd_path")
 	conf["additional_checksd"] = config.GetString("additional_checksd")
+	// We only display the configuration lib used if it's not the default one.
+	if t := config.GetLibType(); t != "viper" {
+		conf["libType"] = t
+	}
 
 	isFipsAgent, _ := fips.Enabled()
 	conf["fips_proxy_enabled"] = strconv.FormatBool(config.GetBool("fips.enabled") && !isFipsAgent)

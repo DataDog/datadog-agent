@@ -24,7 +24,7 @@ import (
 
 type YamlConfigTestSuite struct {
 	suite.Suite
-	config model.Config
+	config model.BuildableConfig
 }
 
 func (suite *YamlConfigTestSuite) SetupTest() {
@@ -150,6 +150,7 @@ func (suite *YamlConfigTestSuite) TestEnvConfigDDURL() {
 
 func (suite *YamlConfigTestSuite) TestEnvConfigAdditionalEndpoints() {
 	suite.T().Setenv("DD_ORCHESTRATOR_ADDITIONAL_ENDPOINTS", `{"https://process1.com": ["key1"], "https://process2.com": ["key2"]}`)
+	suite.config.BuildSchema()
 
 	expected := map[string]string{
 		"key1": "process1.com",

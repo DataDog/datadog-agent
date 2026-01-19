@@ -762,7 +762,7 @@ func (suite *KubeletTestSuite) TestPodListExpire() {
 
 func TestKubeletTestSuite(t *testing.T) {
 	// NOTE: This test suite fails using configmock.New(t), TODO: investigate and fix this
-	cfg := create.NewConfig("test")
+	cfg := create.NewConfig("test", "")
 	pkglogsetup.SetupLogger(
 		pkglogsetup.LoggerName("test"),
 		"trace",

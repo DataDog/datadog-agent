@@ -106,7 +106,7 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) *healthplatfor
 		Severity:    severity,
 		DetectedAt:  "",
 		Source:      source,
-		Extra: map[any]any{
+		Extra: map[string]any{
 			"check_name":    checkName,
 			"error_message": errorMessage,
 			"total_errors":  totalErrors,

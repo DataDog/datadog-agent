@@ -136,7 +136,7 @@ func initConn(probeAddr string, nbAttempts uint) (net.Conn, error) {
 	err = retry.Do(func() error {
 		client, err = net.DialTCP("tcp", nil, tcpAddr)
 		return err
-	}, retry.Delay(time.Second), retry.Attempts(nbAttempts))
+	}, retry.Delay(time.Second), retry.Attempts(nbAttempts), retry.DelayType(retry.FixedDelay))
 	if err != nil {
 		return nil, err
 	}

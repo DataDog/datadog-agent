@@ -123,7 +123,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD")
+			pkgconfig := create.NewConfig("DD", "")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 

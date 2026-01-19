@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build test
+
 package healthplatformimpl
 
 import (
@@ -15,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -67,11 +70,14 @@ func testRequires(t *testing.T, lifecycle *mockLifecycle) Requires {
 		lifecycle = newMockLifecycle()
 	}
 
+	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+
 	return Requires{
 		Lifecycle: lifecycle,
 		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  hostnameMock,
 	}
 }
 
@@ -385,11 +391,14 @@ func TestComponentDisabled(t *testing.T) {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("health_platform.enabled", false)
 
+	hostnameMock, _ := hostnameinterface.NewMock("test-hostname")
+
 	reqs := Requires{
 		Lifecycle: newMockLifecycle(),
 		Config:    cfg,
 		Log:       logmock.New(t),
 		Telemetry: nooptelemetry.GetCompatComponent(),
+		Hostname:  hostnameMock,
 	}
 
 	provides, err := NewComponent(reqs)

@@ -72,7 +72,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -108,7 +107,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			config config.Component,
 			flare flare.Component,
 			telemetry telemetry.Component,
-			_ sysprobeconfig.Component,
+			sysprobeConf sysprobeconfig.Component,
 			server dogstatsdServer.Component,
 			_ replay.Component,
 			wmeta workloadmeta.Component,
@@ -126,7 +125,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
-			_ inventoryotel.Component,
 			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
@@ -149,7 +147,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
 		) error {
-			defer StopAgentWithDefaults()
+			defer StopAgentWithDefaults(config, sysprobeConf)
 
 			err := startAgent(
 				log,
@@ -166,6 +164,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				logsReceiver,
 				collector,
 				config,
+				sysprobeConf,
 				jmxlogger,
 				settings,
 				agenttelemetryComponent,

@@ -29,7 +29,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// set the paths where a config file is expected
-	if len(confFilePath) != 0 {
+	if confFilePath != "" {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
 		config.AddConfigPath(confFilePath)

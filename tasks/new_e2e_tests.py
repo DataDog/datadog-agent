@@ -619,14 +619,113 @@ def clean(ctx, locks=True, stacks=False, output=False, skip_destroy=False):
         _clean_output()
 
 
+def _get_pulumi_backend_url(ctx: Context) -> str | None:
+    """
+    Get the Pulumi backend URL using 'pulumi whoami --json'.
+    Returns the backend URL or None if it cannot be determined.
+    """
+    res = ctx.run(
+        "pulumi whoami --json",
+        hide=True,
+        warn=True,
+        env=_get_default_env(),
+    )
+    if res is None or res.exited != 0:
+        return None
+    try:
+        whoami = json.loads(res.stdout)
+        return whoami.get("url")
+    except json.JSONDecodeError:
+        return None
+
+
+def _list_stacks_from_s3(backend_url: str, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks directly from S3 backend.
+    Much faster than 'pulumi stack ls' for buckets with many stacks.
+
+    Args:
+        backend_url: S3 backend URL (e.g., 's3://bucket-name' or 's3://bucket-name/path')
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key matching pulumi stack ls format
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+
+    # Parse S3 URL: s3://bucket-name/optional/path
+    s3_path = backend_url.removeprefix("s3://")
+    parts = s3_path.split("/", 1)
+    bucket_name = parts[0]
+    base_prefix = parts[1] if len(parts) > 1 else ""
+    bucket_name = bucket_name.split("?")[0]  # Remove query parameters for AWS url
+
+    # Pulumi stores stacks at: {base_prefix}/.pulumi/stacks/{project}/
+    stacks_prefix = f"{base_prefix}/.pulumi/stacks/{project}/".lstrip("/")
+
+    try:
+        s3_client = boto3.client('s3')
+        stacks = []
+
+        paginator = s3_client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=stacks_prefix)
+
+        for page in page_iterator:
+            for obj in page.get('Contents', []):
+                key = obj['Key']
+                # Stack files are {stack_name}.json (skip .json.bak files)
+                if key.endswith('.json'):
+                    # Extract stack name from path
+                    filename = key.split('/')[-1]
+                    stack_name = filename.removesuffix('.json')
+                    stacks.append(
+                        {
+                            'name': f"organization/{project}/{stack_name}",
+                            'lastUpdate': obj.get('LastModified', '').isoformat() if obj.get('LastModified') else None,
+                        }
+                    )
+
+        return stacks
+
+    except ClientError as e:
+        print(f"Failed to list stacks from S3: {e}")
+        return []
+
+
+def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
+    """
+    List Pulumi stacks. Uses S3 SDK for S3 backends (much faster),
+    falls back to pulumi CLI for other backends.
+
+    Args:
+        ctx: Invoke context
+        project: Pulumi project name (default: 'e2eci')
+
+    Returns:
+        List of stack dictionaries with 'name' key
+    """
+    backend_url = _get_pulumi_backend_url(ctx)
+
+    if backend_url and backend_url.startswith("s3://"):
+        return _list_stacks_from_s3(backend_url, project)
+
+    # Fallback to pulumi CLI for non-S3 backends (local, etc.)
+    res = ctx.run(
+        "pulumi stack ls --all --json",
+        hide=True,
+        warn=True,
+    )
+    if res is None or res.exited != 0:
+        return []
+    return json.loads(res.stdout)
+
+
 @task
-def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
+def cleanup_remote_stacks(ctx, stack_regex):
     """
     Clean up remote stacks created by the pipeline
     """
-    if not running_in_ci():
-        raise Exit("This task should be run in CI only", 1)
-
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -635,35 +734,22 @@ def cleanup_remote_stacks(ctx, stack_regex, pulumi_backend):
 
     stack_regex = re.compile(stack_regex)
 
-    # Ideally we'd use the pulumi CLI to list all the stacks. However we have way too much stacks in the bucket so the commands hang forever.
-    # Once the bucket is cleaned up we can switch to the pulumi CLI
-    res = ctx.run(
-        "pulumi stack ls --all --json",
-        hide=True,
-        warn=True,
-    )
-    if res.exited != 0:
-        print(f"Failed to list stacks in {pulumi_backend}:", res.stdout, res.stderr)
+    # Use S3 SDK for listing stacks (much faster than pulumi CLI)
+    stacks = list_stacks(ctx)
+    if not stacks:
+        print("No stacks found or failed to list stacks")
         return
     to_delete_stacks = set()
-    stacks = json.loads(res.stdout)
-    print(stacks)
     for stack in stacks:
-        stack_id = (
-            stack.get("name", "")
-            .split("/")[-1]
-            .replace(".json.bak", "")
-            .replace(".json", "")
-            .replace(".pulumi/stacks/e2eci", "")
-        )
-        if stack_regex.match(stack_id):
-            to_delete_stacks.add(f"organization/e2eci/{stack_id}")
+        if stack_regex.match(stack["name"].split("/")[-1]):
+            to_delete_stacks.add(stack["name"])
 
     if len(to_delete_stacks) == 0:
         print("No stacks to delete")
         return
 
     print("About to delete the following stacks:", to_delete_stacks)
+
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
         destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
         res = pool.map(destroy_func, to_delete_stacks)

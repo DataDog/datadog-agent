@@ -46,7 +46,7 @@ func TestNewFallbackClient(t *testing.T) {
 				"67890",
 			},
 		})
-	assert.True(t, cfg.IsSet(metricsRedundantEndpointConfig))
+	assert.True(t, cfg.IsConfigured(metricsRedundantEndpointConfig))
 	datadogClient, err := createDatadogClient(cfg, logger)
 	assert.NoError(t, err)
 	fallbackCl, ok := datadogClient.(*datadogFallbackClient)

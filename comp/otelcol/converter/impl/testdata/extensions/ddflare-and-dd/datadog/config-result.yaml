@@ -9,6 +9,9 @@ extensions:
   health_check/dd-autoconfigured:
   zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
+  datadog/dd-autoconfigured:
+    api:
+      key: "ggggg77777"
   ddflare/dd-autoconfigured:
 
 service:
@@ -17,6 +20,7 @@ service:
       pprof/dd-autoconfigured,
       zpages/dd-autoconfigured,
       health_check/dd-autoconfigured,
+      datadog/dd-autoconfigured,
       ddflare/dd-autoconfigured,
     ]
   pipelines:

@@ -214,7 +214,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case sbom := <-r.scanChan:
 				if err := retry.Do(func() error {
 					return r.analyzeWorkload(sbom)
-				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond)); err != nil {
+				}, retry.Attempts(maxSBOMGenerationRetries), retry.Delay(200*time.Millisecond), retry.DelayType(retry.FixedDelay)); err != nil {
 					if errors.Is(err, errNoProcessForContainerID) {
 						seclog.Debugf("Couldn't generate SBOM for '%s': %v", sbom.ContainerID, err)
 					} else {
