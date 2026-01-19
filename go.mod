@@ -22,6 +22,10 @@ replace (
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
+	// To update the Datadog/opentelemetry-ebpf-profiler dependency on latest commit on datadog branch, change the following line to:
+	// replace go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler datadog
+	// and run `go mod tidy`
+	go.opentelemetry.io/ebpf-profiler => github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da
 )
 
 require (
