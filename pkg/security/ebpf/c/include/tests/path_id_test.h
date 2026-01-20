@@ -1,29 +1,32 @@
 #ifndef _PATH_ID_TEST_H_
 #define _PATH_ID_TEST_H_
 
-SEC("test/path_id_mount_bump")
-int test_path_id_mount_bump() {
+SEC("test/path_id_mount_and_invalidation")
+int test_path_id_mount_and_invalidation() {
     u32 mount_id1 = 123;
     u32 mount_id2 = 456;
 
-    u32 initial_mount_1_path_id = get_path_id(0, mount_id1, 1, 0);
-    u32 initial_mount_2_path_id = get_path_id(0, mount_id2, 1, 0);
-
     // get path id mount 1 and invalidate the path
     u32 mount_1_path_id_after_invalidation = get_path_id(0, mount_id1, 1, 1);
-    assert_equals(mount_1_path_id_after_invalidation, initial_mount_1_path_id, "path id should be the same");
-    
+    assert_equals(mount_1_path_id_after_invalidation, PATH_ID(0, 0), "path id should be the same");
+
     u32 mount_1_next_path_id = get_path_id(0, mount_id1, 1, 0);
-    assert_equals(mount_1_next_path_id, mount_1_path_id_after_invalidation + 1, "path id should be incremented");
+    assert_equals(mount_1_next_path_id, PATH_ID(1, 0), "path id should have only high id incremented");
 
     u32 mount_2_path_id_after_mount_1_invalidation = get_path_id(0, mount_id2, 1, 0);
-    assert_equals(mount_2_path_id_after_mount_1_invalidation, initial_mount_2_path_id, "path id for mount 2 should be left unchanged");
+    assert_equals(mount_2_path_id_after_mount_1_invalidation, PATH_ID(1, 0), "path id should have only high id incremented");
+
+    // simulate a mount release
+    bump_path_id(mount_id1);
+
+    u32 mount_1_path_id_after_release = get_path_id(0, mount_id1, 1, 0);
+    assert_equals(mount_1_path_id_after_release, PATH_ID(1, 1), "path id should have low and high id incremented");
 
     return 1;
 }
 
-SEC("test/path_id_link_bump")
-int test_path_id_link_bump() {
+SEC("test/path_id_link_and_invalidation")
+int test_path_id_link_and_invalidation() {
     const u32 mount_id = 32;
 
     u64 inode_1 = 1;
@@ -40,6 +43,9 @@ int test_path_id_link_bump() {
 
     u32 inode2_path_id_with_link = get_path_id(inode_2, mount_id, 1, 0);
     assert_equals(inode2_path_id_with_link, initial_inode2_path_id, "path id for inode 2 should be left unchanged");
+
+    u32 inode2_path_id_with_link_and_invalidation = get_path_id(inode_2, mount_id, 2, 1);
+    assert_equals(inode2_path_id_with_link_and_invalidation, PATH_ID(1, 0), "path id for inode 2 should have high id incremented");
 
     return 1;
 }

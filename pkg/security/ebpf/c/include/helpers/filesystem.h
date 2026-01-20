@@ -12,7 +12,7 @@
 #include "discarders.h"
 
 static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
-    u32 key = mount_id % PATH_ID_MAP_SIZE;
+    u32 key = mount_id % PATH_ID_LOW_MAP_SIZE;
 
     u32 *id = bpf_map_lookup_elem(&path_id, &key);
     if (id) {
@@ -24,38 +24,36 @@ static __attribute__((always_inline)) void bump_path_id(u32 mount_id) {
 #define PATH_ID(high, low) ((u32)((high << 24) | (low & PATH_ID_LOW_MASK)))
 
 static __attribute__((always_inline)) u32 get_path_id(u64 ino, u32 mount_id, int nlink, int invalidate) {
-    u32 key = mount_id % PATH_ID_MAP_SIZE;
+    u32 key = mount_id % PATH_ID_LOW_MAP_SIZE;
 
-    u32 *id = bpf_map_lookup_elem(&path_id, &key);
-    if (!id) {
+    u32 *low_id_ptr = bpf_map_lookup_elem(&path_id, &key);
+    if (!low_id_ptr) {
         return 0;
     }
 
-    u32 id_value = *id;
+    u32 low_id_value = *low_id_ptr;
 
-    // need to invalidate the current path id for event which may change the association inode/name like
-    // unlink, rename, rmdir.
-    if (invalidate) {
-        __sync_fetch_and_add(id, 1);
+    key = ino % PATH_ID_HIGH_MAP_SIZE;
+    u32 *high_id_ptr = bpf_map_lookup_elem(&path_id_high, &key);
+    if (!high_id_ptr) {
+        // will never happen
+        return PATH_ID(0, low_id_value);
     }
-
-    u8 link_id_value;
 
     if (nlink > 1) {
-        u8 *link_id = bpf_map_lookup_elem(&hardlink_ids, &ino);
-        if (!link_id) {
-            link_id_value = 1; // start at 1 to avoid conflicts with the nlink <= 1 case
-        } else {
-            link_id_value = (*link_id) + 1;
-        }
-        bpf_map_update_elem(&hardlink_ids, &ino, &link_id_value, BPF_ANY);
-    } else {
-        link_id_value = 0;
+        __sync_fetch_and_add(high_id_ptr, 1);
     }
 
-    id_value = PATH_ID(link_id_value, id_value);
+    u32 high_id_value = *high_id_ptr % 0xFF;
 
-    return id_value;
+    // need to invalidate the current path id for event which may change the association inode/name like.
+    // After the operation, the path id should be incremented.
+    // unlink, rename, rmdir.
+    if (invalidate && nlink <= 1) {
+        __sync_fetch_and_add(high_id_ptr, 1);
+    }
+
+    return PATH_ID(high_id_value, low_id_value);
 }
 
 static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int nlink, int invalidate) {
