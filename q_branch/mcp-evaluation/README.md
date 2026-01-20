@@ -6,17 +6,7 @@ Automated evaluation framework for testing Claude Code's diagnostic capabilities
 
 - **Python 3.12+**
 - **uv** - Python package manager
-  ```bash
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  ```
 - **Lima** - Lightweight VM manager
-  ```bash
-  brew install lima
-  ```
-- **jq** - JSON processor (for VM scripts)
-  ```bash
-  brew install jq
-  ```
 - **Anthropic API key** - For Claude Code agent
 
 ## Setup
