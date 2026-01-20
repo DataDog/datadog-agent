@@ -66,7 +66,6 @@ func TestMIGParentChildCoreCount(t *testing.T) {
 		physDev, ok := device.(*safenvml.PhysicalDevice)
 		require.True(t, ok, "Device should be a PhysicalDevice")
 
-
 		if !physDev.HasMIGFeatureEnabled || len(physDev.MIGChildren) == 0 {
 			t.Logf("Physical device %s has no MIG children, core count is %d", physDev.GetDeviceInfo().UUID, physDev.GetDeviceInfo().CoreCount)
 			continue
