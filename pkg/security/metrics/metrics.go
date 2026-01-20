@@ -492,8 +492,8 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
 
-	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report total unique cgroups received (excluding systemd)
-	// Tags: -
+	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report current cgroups with resolved tags (actively profiled)
+	// Tags: - (Gauge)
 	MetricSecurityProfileV2TagResolutionCgroupsReceived = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_received")
 
 	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout

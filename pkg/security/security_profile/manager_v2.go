@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -77,7 +78,6 @@ type ManagerV2 struct {
 	pendingTimeout       *atomic.Uint64 // events dropped due to 10s stale timeout
 	queueSize            *atomic.Uint64 // total events currently queued (gauge)
 	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
-	cgroupsReceived      *atomic.Uint64 // unique cgroups received (excluding systemd)
 	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
 	lateInsertions       *atomic.Uint64 // events inserted after profile was sent
 
@@ -133,7 +133,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		pendingTimeout:            atomic.NewUint64(0),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
-		cgroupsReceived:           atomic.NewUint64(0),
 		eventsDroppedMaxSize:      atomic.NewUint64(0),
 		lateInsertions:            atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
@@ -151,6 +150,11 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 func (m *ManagerV2) Start(ctx context.Context) {
 	sendTickerChan := m.setupPersistenceTicker()
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
+
+	// Register listener for cgroup deletions to track active cgroups
+	if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted); err != nil {
+		seclog.Errorf("failed to register cgroup deletion listener: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -185,6 +189,14 @@ func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
 	}
 
 	return time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout).C
+}
+
+// onCGroupDeleted is called when a cgroup is deleted from the system
+func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
+	cgroupID := cgce.GetCGroupID()
+	m.seenCgroupsLock.Lock()
+	delete(m.seenCgroups, cgroupID)
+	m.seenCgroupsLock.Unlock()
 }
 
 // persistAllProfiles encodes and persists all profiles to configured storage backends
@@ -266,15 +278,6 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
 	sourceTags := []string{"source:" + source}
 
-	// Track unique cgroups received (excluding systemd)
-	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
-	m.seenCgroupsLock.Lock()
-	if _, seen := m.seenCgroups[cgroupID]; !seen {
-		m.seenCgroups[cgroupID] = struct{}{}
-		m.cgroupsReceived.Inc()
-	}
-	m.seenCgroupsLock.Unlock()
-
 	// Count events that pass initial filters
 	m.eventsReceived.Inc()
 	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, 1, sourceTags, 1.0); err != nil {
@@ -319,6 +322,13 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 // It also dequeues and processes any pending events for the same cgroup.
 func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+
+	// Track unique cgroups with resolved tags (cgroups we're actually profiling)
+	m.seenCgroupsLock.Lock()
+	if _, seen := m.seenCgroups[cgroupID]; !seen {
+		m.seenCgroups[cgroupID] = struct{}{}
+	}
+	m.seenCgroupsLock.Unlock()
 
 	// Dequeue and process pending events if any exist for this cgroup
 	if pendingEvents := m.profilePendingEvents[cgroupID]; pendingEvents != nil {
@@ -433,10 +443,13 @@ func (m *ManagerV2) SendStats() error {
 	}
 
 	// Note: cgroupsExpired is emitted directly in purgeStalePendingEvents with container_id tag
-	if value := m.cgroupsReceived.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsReceived, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
+
+	// Total unique cgroups seen (all time) - use gauge since it's a cumulative total
+	m.seenCgroupsLock.Lock()
+	totalCgroups := len(m.seenCgroups)
+	m.seenCgroupsLock.Unlock()
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsReceived, float64(totalCgroups), []string{}, 1.0); err != nil {
+		return err
 	}
 
 	// Event processing counts (swap to 0 after reading)
