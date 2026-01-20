@@ -28,7 +28,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.143.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tinylib/msgp v1.6.2
+	github.com/tinylib/msgp v1.6.3
 	github.com/vmihailenco/msgpack/v4 v4.3.13
 	go.opentelemetry.io/collector/component v1.49.0 // indirect
 	go.opentelemetry.io/collector/consumer v1.49.0
