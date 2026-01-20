@@ -74,7 +74,7 @@ type captureStatsdClient struct {
 	calls []countCall
 }
 
-func (c *captureStatsdClient) Count(name string, value int64, tags []string, rate float64) error {
+func (c *captureStatsdClient) Count(name string, value int64, tags []string, _ float64) error {
 	c.calls = append(c.calls, countCall{name: name, val: value, tags: append([]string(nil), tags...)})
 	return nil
 }
@@ -100,7 +100,6 @@ func TestRuleEngineNoMatchMetric(t *testing.T) {
 	ev.Type = uint32(model.ExecEventType)
 	engine.HandleEvent(ev)
 
-	// metric is emitted on stats flush (to avoid per-event overhead)
 	engine.SendStats()
 
 	var matched []countCall

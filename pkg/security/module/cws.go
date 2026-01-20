@@ -376,7 +376,6 @@ func (c *CWSConsumer) sendStats() {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
 
-	// userspace filtering metrics (aggregated counters, flushed periodically)
 	c.ruleEngine.SendStats()
 
 	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
