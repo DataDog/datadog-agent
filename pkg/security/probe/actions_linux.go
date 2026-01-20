@@ -111,8 +111,8 @@ type RawPacketActionReport struct {
 type RawPacketActionStatus string
 
 const (
-	RawPacketActionStatusApplied RawPacketActionStatus = "applied"
-	RawPacketActionStatusError   RawPacketActionStatus = "error"
+	RawPacketActionStatusPerformed RawPacketActionStatus = "performed"
+	RawPacketActionStatusError     RawPacketActionStatus = "error"
 )
 
 // IsResolved return if the action is resolved
