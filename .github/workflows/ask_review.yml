@@ -27,8 +27,18 @@ jobs:
         run: |
           options=()
           if [ "${{ github.event.action }}" == "labeled" ] && [ "${{ github.event.label.name }}" == "ask-review" ]; then
-            options+=(-t '${{ toJSON(github.event.pull_request.requested_teams) }}')
+            # ask_reviews uses @task(iterable=["team_slugs"]) so we pass --team-slugs multiple times
+            mapfile -t slugs < <(jq -r '.[].slug' <<< '${{ toJSON(github.event.pull_request.requested_teams) }}')
+            for slug in "${slugs[@]}"; do
+              options+=(--team-slugs "$slug")
+            done
           elif [ "${{ github.event.action }}" == "review_requested" ]; then
-            options+=(-r '${{ github.event.requested_team.slug }}')
+            # Only handle team review requests; ignore user review requests (requested_team is empty in that case)
+            if [ -n "${{ github.event.requested_team.slug }}" ]; then
+              options+=(--team-slugs "${{ github.event.requested_team.slug }}")
+            else
+              echo "review_requested for a user (no requested_team); skipping."
+              exit 0
+            fi
           fi
           dda inv -- -e issue.ask-reviews -p "${{ github.event.pull_request.number }}" "${options[@]}"

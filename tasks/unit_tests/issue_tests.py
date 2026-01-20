@@ -176,7 +176,7 @@ class TestAskReviews(unittest.TestCase):
         GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
         GITHUB_SLACK_REVIEW_MAP['@datadog/team2'] = 'channel2'
 
-        ask_reviews(MockContext(), 5, teams_requested='[{"slug": "team1"}, {"slug": "team2"}]')
+        ask_reviews(MockContext(), 5, team_slugs=["team1", "team2"])
         channels = [call.kwargs['channel'] for call in slack_client.chat_postMessage.mock_calls]
         self.assertIn('channel1', channels)
         self.assertIn('channel2', channels)
@@ -211,7 +211,7 @@ class TestAskReviews(unittest.TestCase):
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
-        ask_reviews(MockContext(), 11, teams_requested='[{"slug": "team1"}]')
+        ask_reviews(MockContext(), 11, team_slugs=["team1"])
 
         print_mock.assert_any_call("This PR has the no-review label, we don't need to ask for reviews.")
         slack_mock.assert_not_called()
@@ -244,7 +244,7 @@ class TestAskReviews(unittest.TestCase):
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
-        ask_reviews(MockContext(), 11, reviewer_requested="team1")
+        ask_reviews(MockContext(), 11, team_slugs=["team1"])
 
         print_mock.assert_any_call("This PR has the no-review label, we don't need to ask for reviews.")
         slack_mock.assert_not_called()
@@ -273,7 +273,8 @@ class TestAskReviews(unittest.TestCase):
         gh_instance.repo.get_pull.return_value = pr_mock
         gh_mock.return_value = gh_instance
 
-        ask_reviews(MockContext(), 6)
+        # team_slugs is required; value doesn't matter because backport returns early
+        ask_reviews(MockContext(), 6, team_slugs=["team1"])
         print_mock.assert_any_call("This is a backport PR, we don't need to ask for reviews.")
         slack_mock.assert_not_called()
 
@@ -311,7 +312,7 @@ class TestAskReviews(unittest.TestCase):
 
         # Clear the mapping so all reviewers fall back to DEFAULT_SLACK_CHANNEL
         GITHUB_SLACK_REVIEW_MAP.clear()
-        ask_reviews(MockContext(), 7, teams_requested='[{"slug": "newteam1"}, {"slug": "newteam2"}]')
+        ask_reviews(MockContext(), 7, team_slugs=["newteam1", "newteam2"])
 
         # Only one message because all reviewers fall back to DEFAULT_SLACK_CHANNEL
         slack_client.chat_postMessage.assert_called_once()
@@ -354,7 +355,7 @@ class TestAskReviews(unittest.TestCase):
         GITHUB_SLACK_REVIEW_MAP['@datadog/teamx'] = 'chan-shared'
         GITHUB_SLACK_REVIEW_MAP['@datadog/teamy'] = 'chan-shared'
 
-        ask_reviews(MockContext(), 8, teams_requested='[{"slug": "teamx"}, {"slug": "teamy"}]')
+        ask_reviews(MockContext(), 8, team_slugs=["teamx", "teamy"])
 
         # Only one message because both reviewers map to the same channel
         slack_client.chat_postMessage.assert_called_once()
@@ -396,7 +397,7 @@ class TestAskReviews(unittest.TestCase):
         GITHUB_SLACK_REVIEW_MAP.clear()
         GITHUB_SLACK_REVIEW_MAP['@datadog/team1'] = 'channel1'
 
-        ask_reviews(MockContext(), 9, reviewer_requested="team1")
+        ask_reviews(MockContext(), 9, team_slugs=["team1"])
 
         # Only one message should be sent (the requested team only)
         slack_client.chat_postMessage.assert_called_once()

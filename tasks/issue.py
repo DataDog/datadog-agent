@@ -1,4 +1,3 @@
-import json
 import os
 import random
 import re
@@ -14,8 +13,8 @@ from tasks.libs.pipeline.notifications import (
 )
 
 
-@task
-def ask_reviews(_, pr_id, teams_requested=None, reviewer_requested=None):
+@task(iterable=["team_slugs"])
+def ask_reviews(_, pr_id, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
     if 'backport' in pr.title.casefold():
@@ -24,10 +23,22 @@ def ask_reviews(_, pr_id, teams_requested=None, reviewer_requested=None):
     if any(label.name == 'no-review' for label in pr.get_labels()):
         print("This PR has the no-review label, we don't need to ask for reviews.")
         return
-    if teams_requested is not None:
-        reviewers = [f"@datadog/{team['slug']}" for team in json.loads(teams_requested)]
-    else:
-        reviewers = [f"@datadog/{reviewer_requested}"]
+    # team_slugs is a list[str] thanks to @task(iterable=["team_slugs"])
+    if not team_slugs:
+        print("No requested teams provided, skipping.")
+        return
+
+    cleaned = []
+    for slug in team_slugs:
+        slug = (slug or "").strip()
+        slug = slug.removeprefix("@datadog/").removeprefix("@DataDog/")  # tolerate callers passing full team handles
+        if slug:
+            cleaned.append(slug)
+    if not cleaned:
+        print("No requested teams provided, skipping.")
+        return
+
+    reviewers = [f"@datadog/{slug}" for slug in cleaned]
     print(f"Reviewers: {reviewers}")
 
     from slack_sdk import WebClient
@@ -55,7 +66,13 @@ def ask_reviews(_, pr_id, teams_requested=None, reviewer_requested=None):
             stop_updating = "Add the `stop-updating` label before trying to merge this PR, to prevent it from being updated by Renovate.\n"
         message = f'Hello :{random.choice(waves)}:!\n*{actor}* is asking review for PR <{pr.html_url}/s|{pr.title}>.\nCould you please have a look?\n{stop_updating}Thanks in advance!\n'
         if channel == DEFAULT_SLACK_CHANNEL:
-            message = f'Hello :{random.choice(waves)}:!\nA review channel is missing for {', '.join(reviewers)}, can you please ask them to update `github_slack_review_map.yaml` and transfer them this review <{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+            missing = ", ".join(reviewers)
+            message = (
+                f'Hello :{random.choice(waves)}:!\n'
+                f'A review channel is missing for {missing}, can you please ask them to update '
+                '`github_slack_review_map.yaml` and transfer them this review '
+                f'<{pr.html_url}/s|{pr.title}>?\n Thanks in advance!'
+            )
         try:
             client.chat_postMessage(channel=channel, text=message)
         except Exception as e:
