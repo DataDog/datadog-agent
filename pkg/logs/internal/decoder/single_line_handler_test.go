@@ -38,9 +38,9 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 		},
 		{
 			name:  "Truncation base case",
-			input: []string{"aaaaaaaaaaaaaaaaaaaa", "aaaaaaaa", "wait, how many a's?"},
+			input: []string{"aaaaaaaaaaaaaaaaaaaaa", "aaaaaaaa", "wait, how many a's?"},
 			expected: []string{
-				"aaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				"aaaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
 				string(message.TruncatedFlag) + "aaaaaaaa",
 				"wait, how many a's?",
 			},
@@ -49,9 +49,9 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 		},
 		{
 			name:  "Truncation with whitespace",
-			input: []string{"aaaaaaaaaaaaaaaa    ", "  aaaaaa", "wait, how many a's?"},
+			input: []string{"aaaaaaaaaaaaaaaaa    ", "  aaaaaa", "wait, how many a's?"},
 			expected: []string{
-				"aaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				"aaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
 				string(message.TruncatedFlag) + "aaaaaa",
 				"wait, how many a's?",
 			},
@@ -60,10 +60,10 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 		},
 		{
 			name:  "Triple trunc",
-			input: []string{"aaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaa", "wait, how many a's?"},
+			input: []string{"aaaaaaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaaaaaa", "wait, how many a's?"},
 			expected: []string{
-				"aaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
-				string(message.TruncatedFlag) + "aaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				"aaaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				string(message.TruncatedFlag) + "aaaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
 				string(message.TruncatedFlag) + "wait, how many a's?",
 			},
 			expTags:          [][]string{{truncateTag}, {truncateTag}, {truncateTag}},
@@ -71,9 +71,9 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 		},
 		{
 			name:  "Truncate tag disabled",
-			input: []string{"aaaaaaaaaaaaaaaaaaaa", "aaaaaaaa", "wait, how many a's?"},
+			input: []string{"aaaaaaaaaaaaaaaaaaaaa", "aaaaaaaa", "wait, how many a's?"},
 			expected: []string{
-				"aaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				"aaaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
 				string(message.TruncatedFlag) + "aaaaaaaa",
 				"wait, how many a's?",
 			},
@@ -93,6 +93,49 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 				h.process(msg)
 				assert.Equal(t, []byte(scenario.expected[idx]), processedMessage.GetContent(), "Unexpected message content for run %d", idx)
 				assert.Equal(t, scenario.expTags[idx], processedMessage.ParsingExtra.Tags, "Unexpected tag content for run %d", idx)
+			}
+		})
+	}
+}
+
+func TestSingleLineHandlerExactLimit(t *testing.T) {
+	scenarios := []struct {
+		name     string
+		input    []string
+		expected []string
+		expIsTruncated []bool
+	}{
+		{
+			name:           "Exactly at limit should not truncate",
+			input:          []string{"aaaaaaaaaaaaaaaaaaaa", "next log"},
+			expected:       []string{"aaaaaaaaaaaaaaaaaaaa", "next log"},
+			expIsTruncated: []bool{false, false},
+		},
+		{
+			name:  "One byte over limit should truncate",
+			input: []string{"aaaaaaaaaaaaaaaaaaaaa", "remainder"},
+			expected: []string{
+				"aaaaaaaaaaaaaaaaaaaaa" + string(message.TruncatedFlag),
+				string(message.TruncatedFlag) + "remainder",
+			},
+			expIsTruncated: []bool{true, true},
+		},
+	}
+
+	for _, scenario := range scenarios {
+		t.Run(scenario.name, func(t *testing.T) {
+			var processedMessage *message.Message
+			h := NewSingleLineHandler(func(m *message.Message) { processedMessage = m }, 20)
+
+			for idx, input := range scenario.input {
+				msg := message.NewMessage([]byte(input), nil, "", time.Now().UnixNano())
+				// For the "one byte over" case, the framer would have already set IsTruncated
+				if len(input) > 20 {
+					msg.ParsingExtra.IsTruncated = true
+				}
+				h.process(msg)
+				assert.Equal(t, []byte(scenario.expected[idx]), processedMessage.GetContent(), "Unexpected message content for run %d", idx)
+				assert.Equal(t, scenario.expIsTruncated[idx], processedMessage.ParsingExtra.IsTruncated, "Unexpected IsTruncated flag for run %d", idx)
 			}
 		})
 	}

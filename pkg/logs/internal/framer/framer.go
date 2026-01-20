@@ -122,6 +122,15 @@ func (fr *Framer) GetFrameCount() int64 {
 	return fr.frames.Load()
 }
 
+// detectMatcherTruncation checks if the matcher truncated at the content length limit.
+// This occurs when the matcher finds a newline beyond the limit and returns exactly
+// contentLenLimit bytes of content and consumes exactly contentLenLimit bytes
+// In normal cases where a newline is found within the limit, rawDataLen would be
+// len(content) + 1 (including the newline byte)
+func (fr *Framer) detectMatcherTruncation(content []byte, rawDataLen int) bool {
+	return len(content) == fr.contentLenLimit && rawDataLen == fr.contentLenLimit
+}
+
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
@@ -155,23 +164,37 @@ func (fr *Framer) Process(input *message.Message) {
 		buf := fr.buffer.Bytes()[framed:]
 
 		content, rawDataLen := fr.matcher.FindFrame(buf, seen-framed)
+		isTruncated := false
 		if content == nil {
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
 			if len(buf) >= contentLenLimit {
 				content, rawDataLen = buf[:contentLenLimit], contentLenLimit
-				input.ParsingExtra.IsTruncated = true
+				isTruncated = true
 			} else {
 				// matcher didn't find a frame, so leave the remainder in
 				// buffer
 				break
 			}
+		} else if fr.detectMatcherTruncation(content, rawDataLen) {
+			// The matcher found a newline beyond the contentLenLimit and truncated
+			isTruncated = true
 		}
 
 		// copy the data so that we can reuse fr.buffer (`content` is a slice
 		// of `fr.buffer`)
 		owned := make([]byte, len(content))
 		copy(owned, content)
+
+		// Create a fresh ParsingExtra for this frame with a deep copy
+		parsingExtra := message.ParsingExtra{
+			Timestamp:   input.ParsingExtra.Timestamp,
+			IsPartial:   input.ParsingExtra.IsPartial,
+			IsTruncated: isTruncated, // Set our detected truncation status
+			IsMultiLine: input.ParsingExtra.IsMultiLine,
+			IsMRFAllow:  input.ParsingExtra.IsMRFAllow,
+			Tags:        nil, // Start with empty tags, handler will add if needed
+		}
 
 		c := &message.Message{
 			MessageContent: message.MessageContent{
@@ -181,7 +204,7 @@ func (fr *Framer) Process(input *message.Message) {
 				Origin:             input.Origin,
 				Status:             input.Status,
 				IngestionTimestamp: input.IngestionTimestamp,
-				ParsingExtra:       input.ParsingExtra,
+				ParsingExtra:       parsingExtra,
 				ServerlessExtra:    input.ServerlessExtra,
 			},
 		}
