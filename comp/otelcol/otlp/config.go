@@ -87,6 +87,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	metricsEnabled := cfg.GetBool(coreconfig.OTLPMetricsEnabled)
 	tracesEnabled := cfg.GetBool(coreconfig.OTLPTracesEnabled)
 	logsEnabled := cfg.GetBool(coreconfig.OTLPLogsEnabled)
+	TracesInfraAttributesEnabled := cfg.GetBool(coreconfig.OTLPTracesInfraAttrEnabled)
+
 	if !metricsEnabled && !tracesEnabled && !logsEnabled {
 		errs = append(errs, errors.New("at least one OTLP signal needs to be enabled"))
 	}
@@ -114,6 +116,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
+<<<<<<< HEAD
 		OTLPReceiverConfig: otlpReceiverConfigMap,
 		TracePort:          tracePort,
 		MetricsEnabled:     metricsEnabled,
@@ -123,6 +126,28 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		MetricsBatch:       metricsBatchConfig.ToStringMap(),
 		Logs:               logsConfig.ToStringMap(),
 		Debug:              debugConfig.ToStringMap(),
+||||||| e6cb7d2812
+		OTLPReceiverConfig: otlpReceiverConfig.ToStringMap(),
+		TracePort:          tracePort,
+		MetricsEnabled:     metricsEnabled,
+		TracesEnabled:      tracesEnabled,
+		LogsEnabled:        logsEnabled,
+		Metrics:            mc,
+		MetricsBatch:       metricsBatchConfig.ToStringMap(),
+		Logs:               logsConfig.ToStringMap(),
+		Debug:              debugConfig.ToStringMap(),
+=======
+		OTLPReceiverConfig:           otlpReceiverConfig.ToStringMap(),
+		TracePort:                    tracePort,
+		MetricsEnabled:               metricsEnabled,
+		TracesEnabled:                tracesEnabled,
+		LogsEnabled:                  logsEnabled,
+		Metrics:                      mc,
+		TracesInfraAttributesEnabled: TracesInfraAttributesEnabled,
+		MetricsBatch:                 metricsBatchConfig.ToStringMap(),
+		Logs:                         logsConfig.ToStringMap(),
+		Debug:                        debugConfig.ToStringMap(),
+>>>>>>> main
 	}, multierr.Combine(errs...)
 }
 

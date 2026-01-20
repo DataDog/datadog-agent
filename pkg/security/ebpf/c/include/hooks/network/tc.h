@@ -100,12 +100,13 @@ int classifier_raw_packet_egress(struct __sk_buff *skb) {
     }
     resolve_pid(skb, pkt);
 
-    u64 sched_cls_has_current_cgroup_id_helper = 0;
-    LOAD_CONSTANT("sched_cls_has_current_cgroup_id_helper", sched_cls_has_current_cgroup_id_helper);
-    if (sched_cls_has_current_cgroup_id_helper) {
-        pkt->cgroup_id = bpf_get_current_cgroup_id();
-    } else {
-        pkt->cgroup_id = get_cgroup_id(pkt->pid);
+    pkt->cgroup_id = get_cgroup_id(pkt->pid);
+    if (!pkt->cgroup_id) {
+        u64 sched_cls_has_current_cgroup_id_helper = 0;
+        LOAD_CONSTANT("sched_cls_has_current_cgroup_id_helper", sched_cls_has_current_cgroup_id_helper);
+        if (sched_cls_has_current_cgroup_id_helper) {
+            pkt->cgroup_id = bpf_get_current_cgroup_id();
+        }
     }
 
     if (!prepare_raw_packet_event(skb, pkt)) {

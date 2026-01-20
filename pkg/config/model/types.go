@@ -130,6 +130,9 @@ type NotificationReceiver func(setting string, source Source, oldValue, newValue
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
+	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
+	GetLibType() string
+
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
