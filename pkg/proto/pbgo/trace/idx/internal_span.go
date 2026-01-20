@@ -214,6 +214,10 @@ func (x *TracerPayload) CompactStrings() {
 		}
 	}
 
+	// Always mark index 0 (empty string) first to ensure it stays at index 0.
+	// This is required because index 0 is used as a sentinel for "not found" in lookups.
+	markRef(0)
+
 	// Collect all used refs - TracerPayload level
 	markRef(x.ContainerIDRef)
 	markRef(x.LanguageNameRef)
