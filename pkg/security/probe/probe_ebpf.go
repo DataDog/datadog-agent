@@ -918,37 +918,22 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	}
 
 	// handle anomaly detections
-<<<<<<< HEAD
 	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		if event.IsAnomalyDetectionEvent() {
 			var workloadID containerutils.WorkloadID
 			var imageTag string
-			if containerID := event.FieldHandlers.ResolveContainerID(event, &event.ProcessContext.Process.ContainerContext); containerID != "" {
-				workloadID = containerID
+
+			if !event.ProcessContext.Process.ContainerContext.IsNull() {
+				workloadID = event.ProcessContext.Process.ContainerContext.ContainerID
 				imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-			} else if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.Process.CGroup); cgroupID != "" {
-				workloadID = containerutils.CGroupID(cgroupID)
+			} else if event.ProcessContext.Process.CGroup.IsResolved() {
+				workloadID = event.ProcessContext.Process.CGroup.CGroupID
 				tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 				if err != nil {
 					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
 					return
 				}
 				imageTag = utils.GetTagValue("version", tags)
-=======
-	if event.IsAnomalyDetectionEvent() {
-		var workloadID containerutils.WorkloadID
-		var imageTag string
-
-		if !event.ProcessContext.Process.ContainerContext.IsNull() {
-			workloadID = event.ProcessContext.Process.ContainerContext.ContainerID
-			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-		} else if event.ProcessContext.Process.CGroup.IsResolved() {
-			workloadID = event.ProcessContext.Process.CGroup.CGroupID
-			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
-			if err != nil {
-				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
-				return
->>>>>>> main
 			}
 
 			if workloadID != nil {
@@ -1725,23 +1710,18 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
-<<<<<<< HEAD
-			if p.profileManager != nil {
-				p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-			}
-=======
 		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(event.CgroupTracing.CGroupContext.CGroupPathKey.Inode)
 		if cacheEntry == nil {
 			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
 			return false
->>>>>>> main
 		}
 
 		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
 		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
 
-		p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-
+		if p.profileManager != nil {
+			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
+		}
 		return false
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
