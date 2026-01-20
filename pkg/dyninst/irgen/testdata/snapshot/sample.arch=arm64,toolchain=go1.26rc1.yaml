@@ -26358,7 +26358,19 @@ Types:
       GoRuntimeType: 1.003232e+06
       GoKind: 5
 MaxTypeID: 1557
-Issues: []
+Issues:
+    - probe_definition:
+        id: testInlinedFuncFromOtherPackage
+        version: 0
+        type: LOG_PROBE
+        where:
+            methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+        tags: ['issue:InvalidDWARF']
+        capture: {maxReferenceDepth: 1}
+        template: testInlinedFuncFromOtherPackage
+        segments: [testInlinedFuncFromOtherPackage]
+        captureSnapshot: true
+      issue: {Kind: 5, Message: ErrUnknownPC}
 GoModuledataInfo: {FirstModuledataAddr: "0x1321d00", TypesOffset: 296}
 CommonTypes:
     G: 23 StructureType runtime.g

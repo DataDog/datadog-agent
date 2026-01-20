@@ -2322,3 +2322,13 @@ probes:
         dsl: "@duration"
       - str: "ms"
     captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
+    captureSnapshot: true
+    tags:
+    - "issue:InvalidDWARF"
