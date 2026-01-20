@@ -50,20 +50,6 @@ type SampledChunksV1 struct {
 	EventCount    int64
 }
 
-var outPool = sync.Pool{}
-
-func getBS(size int) []byte {
-	b := outPool.Get()
-	if b == nil {
-		return make([]byte, size)
-	}
-	bs := b.([]byte)
-	if cap(bs) < size {
-		return make([]byte, size)
-	}
-	return bs[:size]
-}
-
 // TraceWriterV1 implements TraceWriterV1 interface, and buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriterV1 struct {
 	flushTicker *time.Ticker
@@ -326,10 +312,8 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.TracerPayload) {
 }
 
 func (w *TraceWriterV1) serialize(pl *pb.AgentPayload) {
-	b := getBS(pl.SizeVT())
-	defer outPool.Put(b)
-	n, err := pl.MarshalToSizedBufferVT(b)
-	b = b[:n]
+	// Use custom marshaler which compacts string tables during serialization
+	b, err := pb.MarshalAgentPayload(pl)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
