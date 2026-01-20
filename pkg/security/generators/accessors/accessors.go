@@ -119,6 +119,8 @@ func isBasicType(kind string) bool {
 	switch kind {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet":
 		return true
+	case "containerutils.ContainerID", "containerutils.CGroupID":
+		return true
 	}
 	return false
 }
