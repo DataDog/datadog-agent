@@ -16,7 +16,7 @@ import (
 
 // TagMatcher manages removing tags from metrics with a given name.
 type tagMatcher struct {
-	Metrics map[string]hashedMetricTagList
+	MetricTags map[string]hashedMetricTagList
 }
 
 // MetricTagList is for loading the data from the configuration.
@@ -47,7 +47,7 @@ type hashedMetricTagList struct {
 
 func NewEmptyTagMatcher() filterlist.TagMatcher {
 	matcher := tagMatcher{
-		Metrics: map[string]hashedMetricTagList{},
+		MetricTags: map[string]hashedMetricTagList{},
 	}
 	return &matcher
 }
@@ -90,7 +90,7 @@ func newTagMatcher(metrics map[string]MetricTagList) tagMatcher {
 	}
 
 	return tagMatcher{
-		Metrics: hashed,
+		MetricTags: hashed,
 	}
 }
 
@@ -108,7 +108,7 @@ func tagName(tag string) string {
 // from the given metric name. The returned tag list will be used to query
 // the tag.
 func (m *tagMatcher) ShouldStripTags(metricName string) (func(tag string) bool, bool) {
-	tm, ok := m.Metrics[metricName]
+	tm, ok := m.MetricTags[metricName]
 	if !ok {
 		return nil, false
 	}

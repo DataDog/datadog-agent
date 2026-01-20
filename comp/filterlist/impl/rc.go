@@ -30,7 +30,7 @@ type tagByName struct {
 
 type tagEntry struct {
 	Name       string   `json:"metric_name"`
-	ExcludeTag bool     `json:"exclude_tag_mode"`
+	ExcludeTag bool     `json:"exclude_tags_mode"`
 	Tags       []string `json:"tags"`
 }
 
@@ -58,7 +58,8 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
 		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.restoreFilterListFromLocalConfig()
+		fl.restoreMetricFilterListFromLocalConfig()
+		fl.restoreTagFilterListFromLocalConfig()
 		return
 	}
 
@@ -111,31 +112,23 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 		// apply this new blocklist to all the running workers
 		fl.tlmMetricFilterListUpdates.Inc()
 		fl.tlmMetricFilterListSize.Set(float64(len(metricNames)))
-		fl.SetFilterList(metricNames, false)
+		fl.SetMetricFilterList(metricNames, false)
 	} else {
 		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
 		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
 
-		fl.tlmMetricFilterListUpdates.Inc()
-		fl.tlmMetricFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
-		fl.SetFilterList(
-			fl.localFilterListConfig.metricNames,
-			fl.localFilterListConfig.matchPrefix,
-		)
+		fl.restoreMetricFilterListFromLocalConfig()
 	}
 
 	tags, tagEntries := fl.buildTagFilterListConfig(tagFilterListUpdates)
 
 	if len(tags) > 0 {
 		// Convert map to slice for config storage
-		tagEntriesSlice := make([]MetricTagListEntry, 0, len(tagEntries))
-		for _, entry := range tagEntries {
-			tagEntriesSlice = append(tagEntriesSlice, entry)
-		}
-
 		// update the runtime config to be consistent
 		// in `agent config` calls.
-		fl.config.Set("metric_tag_filterlist", tagEntriesSlice, model.SourceRC)
+		fl.config.Set("metric_tag_filterlist", tagEntries, model.SourceRC)
 
 		// apply this new blocklist to all the running workers
 		fl.tlmTagFilterListUpdates.Inc()
@@ -144,9 +137,7 @@ func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawCon
 	} else {
 		// special case: if the metric names list is empty, fallback to local
 		fl.config.UnsetForSource("metric_tag_filterlist", model.SourceRC)
-		fl.tlmTagFilterListUpdates.Inc()
-		fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
-		fl.SetTagFilterListFromEntries(fl.localFilterListConfig.tagFilterList)
+		fl.restoreTagFilterListFromLocalConfig()
 	}
 }
 
@@ -171,7 +162,7 @@ func (*FilterList) buildMetricFilterListConfig(metricFilterListUpdates []filtere
 // by the following rules:
 // - If the action is the same for both metrics, the list of tags is merged.
 // - If the action is different, always take the exclude list.
-func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, map[string]MetricTagListEntry) {
+func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTags) (map[string]hashedMetricTagList, []MetricTagListEntry) {
 	tags := make(map[string]hashedMetricTagList)
 	tagEntries := make(map[string]MetricTagListEntry)
 
@@ -245,5 +236,11 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 			}
 		}
 	}
-	return tags, tagEntries
+
+	tagEntriesSlice := make([]MetricTagListEntry, 0, len(tagEntries))
+	for _, entry := range tagEntries {
+		tagEntriesSlice = append(tagEntriesSlice, entry)
+	}
+
+	return tags, tagEntriesSlice
 }

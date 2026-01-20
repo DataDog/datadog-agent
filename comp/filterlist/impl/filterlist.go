@@ -103,8 +103,6 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		"Tag filter list size",
 	)
 
-	tagMatcher := loadTagFilterList(localFilterListConfig.tagFilterList, log)
-
 	fl := &FilterList{
 		localFilterListConfig:      localFilterListConfig,
 		config:                     config,
@@ -114,11 +112,10 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		tlmMetricFilterListSize:    tlmMetricFilterListSize,
 		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
 		tlmTagFilterListSize:       tlmTagFilterListSize,
-
-		tagFilterList: tagMatcher,
 	}
 
-	fl.SetFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
+	fl.SetTagFilterListFromEntries(localFilterListConfig.tagFilterList)
+	fl.SetMetricFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
 
 	return fl
 }
@@ -204,28 +201,28 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 		}
 	}
 
-	fl.log.Debugf("SetFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
+	fl.log.Debugf("SetMetricFilterList created a histograms subsets of %d metric names", len(histoMetricNames))
 	return histoMetricNames
 }
 
-func (fl *FilterList) SetTagFilterList(tags map[string]hashedMetricTagList) {
-	fl.log.Debugf("SetTagFilterList with %d metrics", len(tags))
+func (fl *FilterList) SetTagFilterList(metricTags map[string]hashedMetricTagList) {
+	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags))
+
+	fl.tagFilterList = tagMatcher{
+		MetricTags: metricTags,
+	}
 
 	fl.updateTagMtx.RLock()
 	defer fl.updateTagMtx.RUnlock()
-
-	fl.tagFilterList = tagMatcher{
-		Metrics: tags,
-	}
 
 	for _, update := range fl.tagFilterListUpdate {
 		update(&fl.tagFilterList)
 	}
 }
 
-// SetFilterList updates the metric names filter on all running worker.
-func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
-	fl.log.Debugf("SetFilterList with %d metrics", len(metricNames))
+// SetMetricFilterList updates the metric names filter on all running worker.
+func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool) {
+	fl.log.Debugf("SetMetricFilterList with %d metrics", len(metricNames))
 
 	// we will use two different filterlists:
 	// - one with all the metrics names, with all values from `metricNames`
@@ -257,16 +254,20 @@ func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) 
 	}
 }
 
-func (fl *FilterList) restoreFilterListFromLocalConfig() {
-	fl.log.Debug("Restoring filterlist with local config.")
+func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
+	fl.log.Debug("Restoring metric filterlist with local config.")
 
 	fl.tlmMetricFilterListUpdates.Inc()
 	fl.tlmMetricFilterListSize.Set(float64(len(fl.localFilterListConfig.metricNames)))
 
-	fl.SetFilterList(
+	fl.SetMetricFilterList(
 		fl.localFilterListConfig.metricNames,
 		fl.localFilterListConfig.matchPrefix,
 	)
+}
+
+func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
+	fl.log.Debug("Restoring metric filterlist with local config.")
 
 	fl.tlmTagFilterListUpdates.Inc()
 	fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
