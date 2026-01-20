@@ -35,7 +35,7 @@ type eudmSuite struct {
 
 func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Build agent options with EUDM mode configuration
-	// The wlan check is automatically loaded via StaticConfigListener
+	// Checks like wlan and battery are automatically loaded via StaticConfigListener
 	// (checks with ad_identifiers: [_end_user_device] are scheduled)
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"`),
@@ -58,23 +58,27 @@ func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 // Test Functions
 // ============================================================================
 
-// TestWLANCheckInEUDMMode verifies that the wlan check is scheduled and runs
+// TestEUDMChecks verifies that EUDM checks (wlan, battery) are scheduled and run
 // in EUDM (end_user_device) infrastructure mode.
-// Note: On EC2 instances without WiFi hardware, the check runs but emits no metrics
-// since there's no WLAN interface to monitor. This is expected behavior.
-func (s *eudmSuite) TestWLANCheckInEUDMMode() {
-	s.T().Run("wlan_check_scheduled", func(t *testing.T) {
-		t.Logf("Verifying wlan check is scheduled in EUDM mode...")
+// Note: On EC2 instances without WiFi/battery hardware, the checks run but emit no metrics
+// since there's no hardware to monitor. This is expected behavior.
+func (s *eudmSuite) TestEUDMChecks() {
+	checks := []string{"wlan", "battery"}
 
-		assert.EventuallyWithT(t, func(c *assert.CollectT) {
-			verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{"wlan"}, true)
-		}, 2*time.Minute, 10*time.Second, "wlan check should be scheduled in EUDM mode")
-	})
+	for _, checkName := range checks {
+		s.T().Run(checkName+"_scheduled", func(t *testing.T) {
+			t.Logf("Verifying %s check is scheduled in EUDM mode...", checkName)
 
-	s.T().Run("wlan_check_runs", func(t *testing.T) {
-		t.Logf("Verifying wlan check runs successfully...")
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{checkName}, true)
+			}, 2*time.Minute, 10*time.Second, "%s check should be scheduled in EUDM mode", checkName)
+		})
 
-		ran := verifyCheckRuns(t, s.Env(), "wlan")
-		assert.True(t, ran, "wlan check must run in EUDM mode")
-	})
+		s.T().Run(checkName+"_runs", func(t *testing.T) {
+			t.Logf("Verifying %s check runs successfully...", checkName)
+
+			ran := verifyCheckRuns(t, s.Env(), checkName)
+			assert.True(t, ran, "%s check must run in EUDM mode", checkName)
+		})
+	}
 }
