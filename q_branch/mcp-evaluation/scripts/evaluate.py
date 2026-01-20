@@ -26,24 +26,20 @@ MCP_EVAL_DIR = Path(__file__).parent.parent
 SCENARIOS_DIR = MCP_EVAL_DIR / "scenarios"
 RESULTS_DIR = MCP_EVAL_DIR / "results"
 SCRIPTS_DIR = MCP_EVAL_DIR / "scripts"
-# MODES = ["bash", "safe-shell", "tools"]
-MODES = ["tools"]
+MODES = ["bash", "safe-shell", "tools"]
 VM_PORTS = {"bash": 8081, "safe-shell": 8082, "tools": 8083}
 
 # Scenarios list
-# SCENARIOS = [
-#     # Easy
-#     "high-cpu-usage", "disk-space-full", "port-conflict",
-#     "zombie-processes", "dns-resolution-failure",
-#     # Medium
-#     "memory-leak", "connection-exhaustion", "log-rotation-failure",
-#     "swap-thrashing", "file-descriptor-leak",
-#     # Hard
-#     "tcp-close-wait", "io-wait", "context-switching-storm",
-#     "inode-exhaustion", "tcp-syn-flood"
-# ]
 SCENARIOS = [
-    "port-conflict"
+    # Easy
+    "high-cpu-usage", "disk-space-full", "port-conflict",
+    "zombie-processes", "dns-resolution-failure",
+    # Medium
+    "memory-leak", "connection-exhaustion", "log-rotation-failure",
+    "swap-thrashing", "file-descriptor-leak",
+    # Hard
+    "tcp-close-wait", "io-wait", "context-switching-storm",
+    "inode-exhaustion", "tcp-syn-flood"
 ]
 
 
