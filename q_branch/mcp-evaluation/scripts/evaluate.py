@@ -412,7 +412,8 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
                         }
                     },
                     allowed_tools=allowed_tools,
-                    permission_mode="bypassPermissions"
+                    permission_mode="bypassPermissions",
+                    max_buffer_size=50 * 1024 * 1024,  # 50MB buffer for large tool outputs
                 )
             ):
                 conversation.append(message)
