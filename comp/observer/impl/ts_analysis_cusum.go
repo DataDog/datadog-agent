@@ -113,8 +113,18 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	k := slackFactor * baselineStddev     // slack: ignore small deviations
 	h := thresholdFactor * baselineStddev // threshold: trigger level
 
+	// Build debug info
+	debugInfo := &observer.AnomalyDebugInfo{
+		BaselineStart:  series.Points[0].Timestamp,
+		BaselineEnd:    series.Points[baselineEnd-1].Timestamp,
+		BaselineMean:   baselineMean,
+		BaselineStddev: baselineStddev,
+		Threshold:      h,
+		SlackParam:     k,
+	}
+
 	// Run CUSUM and detect threshold crossing
-	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h)
+	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h, debugInfo)
 	if anomaly == nil {
 		return observer.TimeSeriesAnalysisResult{}
 	}
@@ -122,19 +132,37 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}}
 }
 
-// runCUSUM executes the CUSUM algorithm and returns an anomaly at the first threshold crossing.
+// runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.
+// It tracks both upward shifts (S_high) and downward shifts (S_low).
 // Returns nil if no threshold crossing is detected.
-func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64) *observer.AnomalyOutput {
-	var S float64
+func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64, debugInfo *observer.AnomalyDebugInfo) *observer.AnomalyOutput {
+	var sHigh, sLow float64
+	cusumValues := make([]float64, 0, len(series.Points))
 
 	for i, p := range series.Points {
-		S = math.Max(0, S+(p.Value-baselineMean-k))
+		// Upper CUSUM: detect increases
+		sHigh = math.Max(0, sHigh+(p.Value-baselineMean-k))
+		// Lower CUSUM: detect decreases
+		sLow = math.Max(0, sLow+(baselineMean-p.Value-k))
 
-		// Emit anomaly at first threshold crossing
-		if S > h {
-			// Calculate current deviation
+		// Track the dominant CUSUM value (whichever is larger)
+		if sHigh >= sLow {
+			cusumValues = append(cusumValues, sHigh)
+		} else {
+			cusumValues = append(cusumValues, -sLow) // negative for downward
+		}
+
+		// Check for upward shift
+		if sHigh > h {
 			deviation := (p.Value - baselineMean) / baselineStddev
-
+			debugInfo.CurrentValue = p.Value
+			debugInfo.DeviationSigma = deviation
+			// Keep last 50 CUSUM values for visualization
+			if len(cusumValues) > 50 {
+				debugInfo.CUSUMValues = cusumValues[len(cusumValues)-50:]
+			} else {
+				debugInfo.CUSUMValues = cusumValues
+			}
 			return &observer.AnomalyOutput{
 				Source: series.Name,
 				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
@@ -142,6 +170,28 @@ func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64
 					series.Name, p.Value, deviation, baselineMean),
 				Tags:      series.Tags,
 				Timestamp: series.Points[i].Timestamp,
+				DebugInfo: debugInfo,
+			}
+		}
+
+		// Check for downward shift
+		if sLow > h {
+			deviation := (baselineMean - p.Value) / baselineStddev
+			debugInfo.CurrentValue = p.Value
+			debugInfo.DeviationSigma = -deviation // negative for below baseline
+			if len(cusumValues) > 50 {
+				debugInfo.CUSUMValues = cusumValues[len(cusumValues)-50:]
+			} else {
+				debugInfo.CUSUMValues = cusumValues
+			}
+			return &observer.AnomalyOutput{
+				Source: series.Name,
+				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
+				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ below baseline of %.2f)",
+					series.Name, p.Value, deviation, baselineMean),
+				Tags:      series.Tags,
+				Timestamp: series.Points[i].Timestamp,
+				DebugInfo: debugInfo,
 			}
 		}
 	}
