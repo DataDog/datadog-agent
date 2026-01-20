@@ -15,7 +15,8 @@ from typing import Dict, List
 
 import httpx
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-from anthropic import Anthropic
+from anthropic import Anthropic, RateLimitError, APIError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_exception
 
 # Configuration
 # Script is at: q_branch/mcp-evaluation/scripts/evaluate.py
@@ -39,6 +40,38 @@ SCENARIOS = [
     "tcp-close-wait", "io-wait", "context-switching-storm",
     "inode-exhaustion", "tcp-syn-flood"
 ]
+
+
+def is_retryable_api_error(exception):
+    """Check if an API exception should be retried"""
+    if isinstance(exception, RateLimitError):
+        return True
+
+    if isinstance(exception, APIError):
+        # Check for specific retryable status codes
+        if hasattr(exception, 'status_code'):
+            status_code = exception.status_code
+            # 429 Too Many Requests
+            if status_code == 429:
+                return True
+            # 500 Internal Server Error
+            # 502 Bad Gateway
+            # 503 Service Unavailable
+            # 504 Gateway Timeout
+            # 529 Site Overloaded
+            if status_code in (500, 502, 503, 504, 529):
+                return True
+            # Any other 5xx server error
+            if 500 <= status_code < 600:
+                return True
+
+        # Also check error message for overloaded/rate limit keywords
+        error_message = str(exception).lower()
+        if any(keyword in error_message for keyword in ['overloaded', 'rate limit', 'too many requests']):
+            return True
+
+    return False
+
 
 class EvaluationRunner:
     # Class-level locks to serialize VM operations across all runners
@@ -291,8 +324,19 @@ class EvaluationRunner:
             raise subprocess.CalledProcessError(process.returncode or -1, str(setup_script))
         await asyncio.sleep(15)  # Wait for issue to manifest
 
+    @retry(
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        retry=retry_if_exception_type((RateLimitError, APIError)) & retry_if_exception(is_retryable_api_error),
+        before_sleep=lambda retry_state: print(
+            f"[{retry_state.kwargs.get('self').mode}] API error during investigation on attempt {retry_state.attempt_number}: "
+            f"{retry_state.outcome.exception() if retry_state.outcome else 'Unknown error'}. "
+            f"Retrying in {retry_state.next_action.sleep:.1f if retry_state.next_action and retry_state.next_action.sleep else 0}s..."
+        ) if retry_state.kwargs.get('self') else None,
+        reraise=True
+    )
     async def run_investigation(self, scenario: str) -> tuple[str | None, int, int, float | None]:
-        """Run Claude Code investigation via SDK"""
+        """Run Claude Code investigation via SDK (with retry on API errors)"""
         # Read prompt
         prompt_file = SCENARIOS_DIR / scenario / "PROMPT.md"
         base_prompt = prompt_file.read_text()
@@ -413,8 +457,19 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
 
         return None
 
+    @retry(
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=1, min=2, max=60),
+        retry=retry_if_exception_type((RateLimitError, APIError)) & retry_if_exception(is_retryable_api_error),
+        before_sleep=lambda retry_state: print(
+            f"[{retry_state.kwargs.get('self').mode}] API error on attempt {retry_state.attempt_number}: "
+            f"{retry_state.outcome.exception() if retry_state.outcome else 'Unknown error'}. "
+            f"Retrying in {retry_state.next_action.sleep:.1f if retry_state.next_action and retry_state.next_action.sleep else 0}s..."
+        ) if retry_state.kwargs.get('self') else None,
+        reraise=True
+    )
     async def grade_findings(self, scenario: str, findings: str) -> Dict:
-        """Grade findings using LLM and SCENARIO.md rubric"""
+        """Grade findings using LLM and SCENARIO.md rubric (with retry on API errors)"""
         # Read rubric
         scenario_file = SCENARIOS_DIR / scenario / "SCENARIO.md"
         rubric = scenario_file.read_text()
