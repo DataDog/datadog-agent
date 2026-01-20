@@ -41,7 +41,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("testdata", tc.provided)
+			inputPath := filepath.Join("td", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -56,7 +56,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			require.NoError(t, err, "converter failed for: %s", tc.provided)
 
 			// Load expected output
-			expectedPath := filepath.Join("testdata", tc.expected)
+			expectedPath := filepath.Join("td", tc.expected)
 			expectedData, err := os.ReadFile(expectedPath)
 			require.NoError(t, err, "failed to read expected file: %s", tc.expected)
 
@@ -78,7 +78,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("testdata", tc.provided)
+			inputPath := filepath.Join("td", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -101,138 +101,138 @@ func TestConverterWithAgent(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "adds-default-when-no-infraattributes",
-			provided: "with_agent_tests/adds-default-when-no-infraattributes/config.yaml",
-			expected: "with_agent_tests/adds-default-when-no-infraattributes/config-result.yaml",
+			provided: "agent/add-default-no-infra/in.yaml",
+			expected: "agent/add-default-no-infra/out.yaml",
 		},
 		{
 			name:     "ensures-infraattributes-config",
-			provided: "with_agent_tests/ensures-infraattributes-config/config.yaml",
-			expected: "with_agent_tests/ensures-infraattributes-config/config-result.yaml",
+			provided: "agent/ensure-infraattr-cfg/in.yaml",
+			expected: "agent/ensure-infraattr-cfg/out.yaml",
 		},
 		{
 			name:     "removes-resourcedetection",
-			provided: "with_agent_tests/removes-resourcedetection/config.yaml",
-			expected: "with_agent_tests/removes-resourcedetection/config-result.yaml",
+			provided: "agent/rm-resdetect/in.yaml",
+			expected: "agent/rm-resdetect/out.yaml",
 		},
 		{
 			name:     "removes-resourcedetection-custom-name",
-			provided: "with_agent_tests/removes-resourcedetection-custom-name/config.yaml",
-			expected: "with_agent_tests/removes-resourcedetection-custom-name/config-result.yaml",
+			provided: "agent/rm-resdetect-custom/in.yaml",
+			expected: "agent/rm-resdetect-custom/out.yaml",
 		},
 		{
 			name:     "handles-infraattributes-custom-name",
-			provided: "with_agent_tests/handles-infraattributes-custom-name/config.yaml",
-			expected: "with_agent_tests/handles-infraattributes-custom-name/config-result.yaml",
+			provided: "agent/infraattr-custom/in.yaml",
+			expected: "agent/infraattr-custom/out.yaml",
 		},
 		{
 			name:     "adds-hostprofiler-when-missing",
-			provided: "with_agent_tests/adds-hostprofiler-when-missing/config.yaml",
-			expected: "with_agent_tests/adds-hostprofiler-when-missing/config-result.yaml",
+			provided: "agent/add-prof-missing/in.yaml",
+			expected: "agent/add-prof-missing/out.yaml",
 		},
 		{
 			name:     "preserves-otlp-protocols",
-			provided: "with_agent_tests/preserves-otlp-protocols/config.yaml",
-			expected: "with_agent_tests/preserves-otlp-protocols/config-result.yaml",
+			provided: "agent/preserve-otlp-proto/in.yaml",
+			expected: "agent/preserve-otlp-proto/out.yaml",
 		},
 		{
 			name:     "creates-default-hostprofiler",
-			provided: "with_agent_tests/creates-default-hostprofiler/config.yaml",
-			expected: "with_agent_tests/creates-default-hostprofiler/config-result.yaml",
+			provided: "agent/create-default-prof/in.yaml",
+			expected: "agent/create-default-prof/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-disabled",
-			provided: "with_agent_tests/symbol-uploader-disabled/config.yaml",
-			expected: "with_agent_tests/symbol-uploader-disabled/config-result.yaml",
+			provided: "agent/symbol-up-disabled/in.yaml",
+			expected: "agent/symbol-up-disabled/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-with-string-keys",
-			provided: "with_agent_tests/symbol-uploader-with-string-keys/config.yaml",
-			expected: "with_agent_tests/symbol-uploader-with-string-keys/config-result.yaml",
+			provided: "agent/symbol-up-str-keys/in.yaml",
+			expected: "agent/symbol-up-str-keys/out.yaml",
 		},
 		{
 			name:     "converts-non-string-api-key",
-			provided: "with_agent_tests/converts-non-string-api-key/config.yaml",
-			expected: "with_agent_tests/converts-non-string-api-key/config-result.yaml",
+			provided: "agent/conv-nonstr-apikey/in.yaml",
+			expected: "agent/conv-nonstr-apikey/out.yaml",
 		},
 		{
 			name:     "converts-non-string-app-key",
-			provided: "with_agent_tests/converts-non-string-app-key/config.yaml",
-			expected: "with_agent_tests/converts-non-string-app-key/config-result.yaml",
+			provided: "agent/conv-nonstr-appkey/in.yaml",
+			expected: "agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
 			name:     "adds-hostprofiler-to-pipeline",
-			provided: "with_agent_tests/adds-hostprofiler-to-pipeline/config.yaml",
-			expected: "with_agent_tests/adds-hostprofiler-to-pipeline/config-result.yaml",
+			provided: "agent/add-prof-to-pipe/in.yaml",
+			expected: "agent/add-prof-to-pipe/out.yaml",
 		},
 		{
 			name:     "multiple-symbol-endpoints",
-			provided: "with_agent_tests/multiple-symbol-endpoints/config.yaml",
-			expected: "with_agent_tests/multiple-symbol-endpoints/config-result.yaml",
+			provided: "agent/multi-symbol-ep/in.yaml",
+			expected: "agent/multi-symbol-ep/out.yaml",
 		},
 		{
 			name:     "multiple-hostprofiler-receivers",
-			provided: "with_agent_tests/multiple-hostprofiler-receivers/config.yaml",
-			expected: "with_agent_tests/multiple-hostprofiler-receivers/config-result.yaml",
+			provided: "agent/multi-hostprof-recv/in.yaml",
+			expected: "agent/multi-hostprof-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
-			provided: "with_agent_tests/ensures-headers/config.yaml",
-			expected: "with_agent_tests/ensures-headers/config-result.yaml",
+			provided: "agent/ensures-headers/in.yaml",
+			expected: "agent/ensures-headers/out.yaml",
 		},
 		{
 			name:     "otlphttp-with-string-api-key",
-			provided: "with_agent_tests/otlphttp-with-string-api-key/config.yaml",
-			expected: "with_agent_tests/otlphttp-with-string-api-key/config-result.yaml",
+			provided: "agent/otlp-str-apikey/in.yaml",
+			expected: "agent/otlp-str-apikey/out.yaml",
 		},
 		{
 			name:     "otlphttp-converts-non-string-api-key",
-			provided: "with_agent_tests/otlphttp-converts-non-string-api-key/config.yaml",
-			expected: "with_agent_tests/otlphttp-converts-non-string-api-key/config-result.yaml",
+			provided: "agent/otlp-conv-nonstr-key/in.yaml",
+			expected: "agent/otlp-conv-nonstr-key/out.yaml",
 		},
 		{
 			name:     "multiple-otlphttp-exporters",
-			provided: "with_agent_tests/multiple-otlphttp-exporters/config.yaml",
-			expected: "with_agent_tests/multiple-otlphttp-exporters/config-result.yaml",
+			provided: "agent/multi-otlp-exp/in.yaml",
+			expected: "agent/multi-otlp-exp/out.yaml",
 		},
 		{
 			name:     "ignores-non-otlphttp",
-			provided: "with_agent_tests/ignores-non-otlphttp/config.yaml",
-			expected: "with_agent_tests/ignores-non-otlphttp/config-result.yaml",
+			provided: "agent/ignore-non-otlp/in.yaml",
+			expected: "agent/ignore-non-otlp/out.yaml",
 		},
 		{
 			name:     "overrides-hostname-override-true",
-			provided: "with_agent_tests/overrides-hostname-override-true/config.yaml",
-			expected: "with_agent_tests/overrides-hostname-override-true/config-result.yaml",
+			provided: "agent/override-hostname/in.yaml",
+			expected: "agent/override-hostname/out.yaml",
 		},
 		{
 			name:     "default-and-custom-infraattrs",
-			provided: "with_agent_tests/default-and-custom-infraattrs/config.yaml",
-			expected: "with_agent_tests/default-and-custom-infraattrs/config-result.yaml",
+			provided: "agent/default-custom-infra/in.yaml",
+			expected: "agent/default-custom-infra/out.yaml",
 		},
 		{
 			name:     "multiple-resourcedetection-processors",
-			provided: "with_agent_tests/multiple-resourcedetection-processors/config.yaml",
-			expected: "with_agent_tests/multiple-resourcedetection-processors/config-result.yaml",
+			provided: "agent/multi-resdetect-proc/in.yaml",
+			expected: "agent/multi-resdetect-proc/out.yaml",
 		},
 		{
 			name:     "headers-exist-but-wrong-type",
-			provided: "with_agent_tests/headers-exist-but-wrong-type/config.yaml",
-			expected: "with_agent_tests/headers-exist-but-wrong-type/config-result.yaml",
+			provided: "agent/headers-wrong-type/in.yaml",
+			expected: "agent/headers-wrong-type/out.yaml",
 		},
 		{
 			name:     "empty-string-processor-name",
-			provided: "with_agent_tests/empty-string-processor-name/config.yaml",
-			expected: "with_agent_tests/empty-string-processor-name/config-result.yaml",
+			provided: "agent/empty-proc-name/in.yaml",
+			expected: "agent/empty-proc-name/out.yaml",
 		},
 		{
 			name:     "processor-name-similar-not-exact",
-			provided: "with_agent_tests/processor-name-similar-not-exact/config.yaml",
-			expected: "with_agent_tests/processor-name-similar-not-exact/config-result.yaml",
+			provided: "agent/proc-name-similar/in.yaml",
+			expected: "agent/proc-name-similar/out.yaml",
 		},
 		{
 			name:     "global-processors-section-is-not-map",
-			provided: "with_agent_tests/global-processors-section-is-not-map/config.yaml",
-			expected: "with_agent_tests/global-processors-section-is-not-map/config-result.yaml",
+			provided: "agent/global-procs-notmap/in.yaml",
+			expected: "agent/global-procs-notmap/out.yaml",
 		},
 	}
 
@@ -243,32 +243,32 @@ func TestConverterWithAgentErrors(t *testing.T) {
 	tests := []errorTestCase{
 		{
 			name:          "non-string-receiver-name-in-pipeline",
-			provided:      "with_agent_tests/non-string-receiver-name-in-pipeline/config.yaml",
+			provided:      "agent/nonstr-recv-pipeline/in.yaml",
 			expectedError: "receiver name must be a string",
 		},
 		{
 			name:          "symbol-endpoints-wrong-type",
-			provided:      "with_agent_tests/symbol-endpoints-wrong-type/config.yaml",
+			provided:      "agent/symbol-ep-wrongtype/in.yaml",
 			expectedError: "symbol_endpoints must be a list",
 		},
 		{
 			name:          "errors-when-no-otlphttp",
-			provided:      "with_agent_tests/errors-when-no-otlphttp/config.yaml",
+			provided:      "agent/error-no-otlp/in.yaml",
 			expectedError: "no otlphttp exporter configured",
 		},
 		{
 			name:          "symbol-uploader-empty-endpoints",
-			provided:      "with_agent_tests/symbol-uploader-empty-endpoints/config.yaml",
+			provided:      "agent/symbol-up-empty-ep/in.yaml",
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
 			name:          "empty-pipeline",
-			provided:      "with_agent_tests/empty-pipeline/config.yaml",
+			provided:      "agent/empty-pipeline/in.yaml",
 			expectedError: "no otlphttp exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",
-			provided:      "with_agent_tests/non-string-processor-name-in-pipeline/config.yaml",
+			provided:      "agent/nonstr-proc-pipeline/in.yaml",
 			expectedError: "processor name must be a string",
 		},
 	}
@@ -280,103 +280,103 @@ func TestConverterWithoutAgent(t *testing.T) {
 	tests := []testCase{
 		{
 			name:     "processor-name-similar-not-exact",
-			provided: "without_agent_tests/processor-name-similar-not-exact/config.yaml",
-			expected: "without_agent_tests/processor-name-similar-not-exact/config-result.yaml",
+			provided: "no_agent/proc-name-similar/in.yaml",
+			expected: "no_agent/proc-name-similar/out.yaml",
 		},
 		{
 			name:     "removes-infraattributes-from-metrics-pipeline",
-			provided: "without_agent_tests/removes-infraattributes-from-metrics-pipeline/config.yaml",
-			expected: "without_agent_tests/removes-infraattributes-from-metrics-pipeline/config-result.yaml",
+			provided: "no_agent/rm-infraattr-metrics/in.yaml",
+			expected: "no_agent/rm-infraattr-metrics/out.yaml",
 		},
 		{
 			name:     "adds-hostprofiler-when-missing",
-			provided: "without_agent_tests/adds-hostprofiler-when-missing/config.yaml",
-			expected: "without_agent_tests/adds-hostprofiler-when-missing/config-result.yaml",
+			provided: "no_agent/add-prof-missing/in.yaml",
+			expected: "no_agent/add-prof-missing/out.yaml",
 		},
 		{
 			name:     "preserves-otlp-protocols",
-			provided: "without_agent_tests/preserves-otlp-protocols/config.yaml",
-			expected: "without_agent_tests/preserves-otlp-protocols/config-result.yaml",
+			provided: "no_agent/preserve-otlp-proto/in.yaml",
+			expected: "no_agent/preserve-otlp-proto/out.yaml",
 		},
 		{
 			name:     "creates-default-hostprofiler",
-			provided: "without_agent_tests/creates-default-hostprofiler/config.yaml",
-			expected: "without_agent_tests/creates-default-hostprofiler/config-result.yaml",
+			provided: "no_agent/create-default-prof/in.yaml",
+			expected: "no_agent/create-default-prof/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-disabled",
-			provided: "without_agent_tests/symbol-uploader-disabled/config.yaml",
-			expected: "without_agent_tests/symbol-uploader-disabled/config-result.yaml",
+			provided: "no_agent/symbol-up-disabled/in.yaml",
+			expected: "no_agent/symbol-up-disabled/out.yaml",
 		},
 		{
 			name:     "symbol-uploader-with-string-keys",
-			provided: "without_agent_tests/symbol-uploader-with-string-keys/config.yaml",
-			expected: "without_agent_tests/symbol-uploader-with-string-keys/config-result.yaml",
+			provided: "no_agent/symbol-up-str-keys/in.yaml",
+			expected: "no_agent/symbol-up-str-keys/out.yaml",
 		},
 		{
 			name:     "converts-non-string-api-key",
-			provided: "without_agent_tests/converts-non-string-api-key/config.yaml",
-			expected: "without_agent_tests/converts-non-string-api-key/config-result.yaml",
+			provided: "no_agent/conv-nonstr-apikey/in.yaml",
+			expected: "no_agent/conv-nonstr-apikey/out.yaml",
 		},
 		{
 			name:     "converts-non-string-app-key",
-			provided: "without_agent_tests/converts-non-string-app-key/config.yaml",
-			expected: "without_agent_tests/converts-non-string-app-key/config-result.yaml",
+			provided: "no_agent/conv-nonstr-appkey/in.yaml",
+			expected: "no_agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
 			name:     "adds-hostprofiler-to-pipeline",
-			provided: "without_agent_tests/adds-hostprofiler-to-pipeline/config.yaml",
-			expected: "without_agent_tests/adds-hostprofiler-to-pipeline/config-result.yaml",
+			provided: "no_agent/add-prof-to-pipe/in.yaml",
+			expected: "no_agent/add-prof-to-pipe/out.yaml",
 		},
 		{
 			name:     "multiple-symbol-endpoints",
-			provided: "without_agent_tests/multiple-symbol-endpoints/config.yaml",
-			expected: "without_agent_tests/multiple-symbol-endpoints/config-result.yaml",
+			provided: "no_agent/multi-symbol-ep/in.yaml",
+			expected: "no_agent/multi-symbol-ep/out.yaml",
 		},
 		{
 			name:     "multiple-hostprofiler-receivers",
-			provided: "without_agent_tests/multiple-hostprofiler-receivers/config.yaml",
-			expected: "without_agent_tests/multiple-hostprofiler-receivers/config-result.yaml",
+			provided: "no_agent/multi-hostprof-recv/in.yaml",
+			expected: "no_agent/multi-hostprof-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
-			provided: "without_agent_tests/ensures-headers/config.yaml",
-			expected: "without_agent_tests/ensures-headers/config-result.yaml",
+			provided: "no_agent/ensures-headers/in.yaml",
+			expected: "no_agent/ensures-headers/out.yaml",
 		},
 		{
 			name:     "with-string-api-key-exporter",
-			provided: "without_agent_tests/with-string-api-key-exporter/config.yaml",
-			expected: "without_agent_tests/with-string-api-key-exporter/config-result.yaml",
+			provided: "no_agent/str-key-exporter/in.yaml",
+			expected: "no_agent/str-key-exporter/out.yaml",
 		},
 		{
 			name:     "converts-non-string-api-key-exporter",
-			provided: "without_agent_tests/converts-non-string-api-key-exporter/config.yaml",
-			expected: "without_agent_tests/converts-non-string-api-key-exporter/config-result.yaml",
+			provided: "no_agent/conv-nonstr-key-exp/in.yaml",
+			expected: "no_agent/conv-nonstr-key-exp/out.yaml",
 		},
 		{
 			name:     "multiple-otlphttp-exporters",
-			provided: "without_agent_tests/multiple-otlphttp-exporters/config.yaml",
-			expected: "without_agent_tests/multiple-otlphttp-exporters/config-result.yaml",
+			provided: "no_agent/multi-otlp-exp/in.yaml",
+			expected: "no_agent/multi-otlp-exp/out.yaml",
 		},
 		{
 			name:     "ignores-non-otlphttp",
-			provided: "without_agent_tests/ignores-non-otlphttp/config.yaml",
-			expected: "without_agent_tests/ignores-non-otlphttp/config-result.yaml",
+			provided: "no_agent/ignore-non-otlp/in.yaml",
+			expected: "no_agent/ignore-non-otlp/out.yaml",
 		},
 		{
 			name:     "removes-agent-extensions",
-			provided: "without_agent_tests/removes-agent-extensions/config.yaml",
-			expected: "without_agent_tests/removes-agent-extensions/config-result.yaml",
+			provided: "no_agent/rm-agent-ext/in.yaml",
+			expected: "no_agent/rm-agent-ext/out.yaml",
 		},
 		{
 			name:     "global-processors-section-is-not-map",
-			provided: "without_agent_tests/global-processors-section-is-not-map/config.yaml",
-			expected: "without_agent_tests/global-processors-section-is-not-map/config-result.yaml",
+			provided: "no_agent/global-procs-notmap/in.yaml",
+			expected: "no_agent/global-procs-notmap/out.yaml",
 		},
 		{
 			name:     "headers-exist-but-wrong-type",
-			provided: "without_agent_tests/headers-exist-but-wrong-type/config.yaml",
-			expected: "without_agent_tests/headers-exist-but-wrong-type/config-result.yaml",
+			provided: "no_agent/headers-wrong-type/in.yaml",
+			expected: "no_agent/headers-wrong-type/out.yaml",
 		},
 	}
 
@@ -387,37 +387,37 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 	tests := []errorTestCase{
 		{
 			name:          "non-string-receiver-name-in-pipeline",
-			provided:      "without_agent_tests/non-string-receiver-name-in-pipeline/config.yaml",
+			provided:      "no_agent/nonstr-recv-pipeline/in.yaml",
 			expectedError: "receiver name must be a string",
 		},
 		{
 			name:          "symbol-endpoints-wrong-type",
-			provided:      "without_agent_tests/symbol-endpoints-wrong-type/config.yaml",
+			provided:      "no_agent/symbol-ep-wrongtype/in.yaml",
 			expectedError: "symbol_endpoints must be a list",
 		},
 		{
 			name:          "symbol-uploader-empty-endpoints",
-			provided:      "without_agent_tests/symbol-uploader-empty-endpoints/config.yaml",
+			provided:      "no_agent/symbol-up-empty-ep/in.yaml",
 			expectedError: "symbol_endpoints cannot be empty",
 		},
 		{
 			name:          "errors-when-no-otlphttp",
-			provided:      "without_agent_tests/errors-when-no-otlphttp/config.yaml",
+			provided:      "no_agent/error-no-otlp/in.yaml",
 			expectedError: "no otlphttp exporter configured",
 		},
 		{
 			name:          "empty-pipeline",
-			provided:      "without_agent_tests/empty-pipeline/config.yaml",
+			provided:      "no_agent/empty-pipeline/in.yaml",
 			expectedError: "no otlphttp exporter configured",
 		},
 		{
 			name:          "non-string-processor-name-in-pipeline",
-			provided:      "without_agent_tests/non-string-processor-name-in-pipeline/config.yaml",
+			provided:      "no_agent/nonstr-proc-pipeline/in.yaml",
 			expectedError: "processor name must be a string",
 		},
 		{
 			name:          "converter-error-propagation-from-ensure",
-			provided:      "without_agent_tests/converter-error-propagation-from-ensure/config.yaml",
+			provided:      "no_agent/conv-err-from-ensure/in.yaml",
 			expectedError: "path element \"pipelines\" is not a map",
 		},
 	}
