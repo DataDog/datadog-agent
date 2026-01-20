@@ -16,6 +16,7 @@ The design eliminates inheritance-based issues:
 """
 
 import os
+import tempfile
 import unittest
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -24,10 +25,16 @@ from invoke.exceptions import Exit
 
 from tasks.libs.package.size import InfraError
 from tasks.quality_gates import (
+    GateMetricsData,
+    _extract_gate_name_from_scope,
+    _get_latest_value_from_pointlist,
     display_pr_comment,
+    fetch_main_headroom,
+    fetch_pr_metrics,
     generate_new_quality_gate_config,
     get_change_metrics,
     get_pr_number_from_commit,
+    identify_failing_gates,
     parse_and_trigger_gates,
 )
 from tasks.static_quality_gates.gates import (
@@ -53,6 +60,18 @@ from tasks.static_quality_gates.gates import (
     read_byte_input,
     string_to_byte,
 )
+
+
+class MockPoint:
+    """Mock Point object matching datadog_api_client.v1.model.point.Point structure."""
+
+    def __init__(self, timestamp, metric_value):
+        self.value = [timestamp, metric_value]
+
+
+def make_pointlist(points: list) -> list:
+    """Convert [[timestamp, value], ...] to [MockPoint, ...] for tests."""
+    return [MockPoint(p[0], p[1]) for p in points]
 
 
 class TestDataClasses(unittest.TestCase):
@@ -726,61 +745,6 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             new_config["static_quality_gate_agent_deb_amd64"]["max_on_disk_size"],
             "4.77 MiB",
             f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}",
-        )
-
-    def test_exception_gate_bump(self):
-        with open("tasks/unit_tests/testdata/quality_gate_config_test.yml") as f:
-            new_config, saved_amount = generate_new_quality_gate_config(
-                f,
-                MockMetricHandler(
-                    {
-                        "static_quality_gate_agent_suse_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 50000000,
-                            "max_on_wire_size": 100000000,
-                            "relative_on_disk_size": 242424,
-                            "current_on_disk_size": 50000000,
-                            "max_on_disk_size": 100000000,
-                        },
-                        "static_quality_gate_agent_deb_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 4000000,
-                            "max_on_wire_size": 5000000,
-                            "relative_on_disk_size": 242424,
-                            "current_on_disk_size": 4000000,
-                            "max_on_disk_size": 5000000,
-                        },
-                        "static_quality_gate_docker_agent_amd64": {
-                            "relative_on_wire_size": 424242,
-                            "current_on_wire_size": 50000000,
-                            "max_on_wire_size": 100000000,
-                            "current_on_disk_size": 50000000,
-                            "relative_on_disk_size": 242424,
-                            "max_on_disk_size": 100000000,
-                        },
-                    }
-                ),
-                True,  # exception_gate_bump
-            )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_suse_amd64"]["max_on_wire_size"],
-            "95.77 MiB",
-            f"Expected 95.77 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_suse_amd64"]["max_on_disk_size"],
-            "95.6 MiB",
-            f"Expected 95.6 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_deb_amd64"]["max_on_wire_size"],
-            "5.17 MiB",
-            f"Expected 5.17 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_wire_size']}",
-        )
-        self.assertEqual(
-            new_config["static_quality_gate_agent_deb_amd64"]["max_on_disk_size"],
-            "5.0 MiB",
-            f"Expected 5.0 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}",
         )
 
 
@@ -1736,6 +1700,460 @@ class TestGetPrNumberFromCommit(unittest.TestCase):
 
         # Should extract 44639 (the revert PR), not 44326 (the original)
         self.assertEqual(result, "44639")
+
+
+class TestExceptionThresholdBumpHelpers(unittest.TestCase):
+    """Test helper functions for the new exception_threshold_bump implementation."""
+
+    def test_extract_gate_name_from_scope_valid(self):
+        """Should extract gate name from scope string."""
+        scope = "gate_name:static_quality_gate_agent_deb_amd64,pr_number:12345"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertEqual(result, "static_quality_gate_agent_deb_amd64")
+
+    def test_extract_gate_name_from_scope_single_tag(self):
+        """Should extract gate name when it's the only tag."""
+        scope = "gate_name:static_quality_gate_docker_agent_arm64"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertEqual(result, "static_quality_gate_docker_agent_arm64")
+
+    def test_extract_gate_name_from_scope_missing(self):
+        """Should return None when gate_name is not in scope."""
+        scope = "pr_number:12345,arch:amd64"
+        result = _extract_gate_name_from_scope(scope)
+        self.assertIsNone(result)
+
+    def test_extract_gate_name_from_scope_empty(self):
+        """Should return None for empty scope."""
+        result = _extract_gate_name_from_scope("")
+        self.assertIsNone(result)
+
+    def test_get_latest_value_from_pointlist_valid(self):
+        """Should get the latest non-null value from pointlist."""
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, 200.0]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertEqual(result, 200.0)
+
+    def test_get_latest_value_from_pointlist_with_nulls(self):
+        """Should skip null values and get the latest non-null value."""
+        pointlist = make_pointlist([[1704067200, 100.0], [1704153600, 150.0], [1704240000, None]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertEqual(result, 150.0)
+
+    def test_get_latest_value_from_pointlist_all_nulls(self):
+        """Should return None if all values are null."""
+        pointlist = make_pointlist([[1704067200, None], [1704153600, None]])
+        result = _get_latest_value_from_pointlist(pointlist)
+        self.assertIsNone(result)
+
+    def test_get_latest_value_from_pointlist_empty(self):
+        """Should return None for empty pointlist."""
+        result = _get_latest_value_from_pointlist([])
+        self.assertIsNone(result)
+
+
+class TestIdentifyFailingGates(unittest.TestCase):
+    """Test the identify_failing_gates function."""
+
+    def test_identifies_disk_failure(self):
+        """Should identify gate failing on disk size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,  # 200 MiB
+                max_on_disk_size=150 * 1024 * 1024,  # 150 MiB limit
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+
+    def test_identifies_wire_failure(self):
+        """Should identify gate failing on wire size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=120 * 1024 * 1024,  # 120 MiB
+                max_on_wire_size=100 * 1024 * 1024,  # 100 MiB limit
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+
+    def test_identifies_both_failures(self):
+        """Should identify gate failing on both disk and wire size."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=120 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 1)
+
+    def test_excludes_passing_gates(self):
+        """Should not include gates that are passing."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 0)
+
+    def test_handles_missing_values(self):
+        """Should handle gates with missing metric values."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=None,
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            )
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 0)
+
+    def test_multiple_gates_mixed(self):
+        """Should correctly identify failing gates among multiple."""
+        pr_metrics = {
+            "static_quality_gate_agent_deb_amd64": GateMetricsData(
+                current_on_disk_size=200 * 1024 * 1024,  # Failing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+            "static_quality_gate_docker_agent_amd64": GateMetricsData(
+                current_on_disk_size=100 * 1024 * 1024,  # Passing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+            "static_quality_gate_agent_rpm_amd64": GateMetricsData(
+                current_on_disk_size=160 * 1024 * 1024,  # Failing
+                max_on_disk_size=150 * 1024 * 1024,
+                current_on_wire_size=50 * 1024 * 1024,
+                max_on_wire_size=100 * 1024 * 1024,
+            ),
+        }
+        failing = identify_failing_gates(pr_metrics)
+        self.assertEqual(len(failing), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", failing)
+        self.assertIn("static_quality_gate_agent_rpm_amd64", failing)
+        self.assertNotIn("static_quality_gate_docker_agent_amd64", failing)
+
+
+class TestFetchPrMetrics(unittest.TestCase):
+    """Test the fetch_pr_metrics function."""
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_fetches_and_parses_metrics(self, mock_query):
+        """Should fetch metrics and parse them correctly with single API call."""
+        # Single API call returns all 4 metrics
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
+        self.assertEqual(len(result), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        gate = result["static_quality_gate_agent_deb_amd64"]
+        self.assertEqual(gate.current_on_disk_size, 100 * 1024 * 1024)
+        self.assertEqual(gate.current_on_wire_size, 50 * 1024 * 1024)
+        self.assertEqual(gate.max_on_disk_size, 150 * 1024 * 1024)
+        self.assertEqual(gate.max_on_wire_size, 75 * 1024 * 1024)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_returns_empty_when_no_metrics(self, mock_query):
+        """Should return empty dict when no metrics found."""
+        mock_query.return_value = []
+
+        result = fetch_pr_metrics(12345)
+
+        self.assertEqual(len(result), 0)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_handles_multiple_gates(self, mock_query):
+        """Should handle metrics for multiple gates in single API call."""
+        # Single API call returns metrics for multiple gates
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_docker_agent_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 80 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_pr_metrics(12345)
+
+        # Should make exactly 1 API call
+        mock_query.assert_called_once()
+        self.assertEqual(len(result), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        self.assertIn("static_quality_gate_docker_agent_amd64", result)
+
+
+class TestFetchMainHeadroom(unittest.TestCase):
+    """Test the fetch_main_headroom function."""
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_calculates_headroom_correctly(self, mock_query):
+        """Should calculate headroom as max - current."""
+        # Single API call returns all 4 metrics for the gate
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 50 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
+
+        self.assertEqual(len(result), 1)
+        self.assertIn("static_quality_gate_agent_deb_amd64", result)
+        headroom = result["static_quality_gate_agent_deb_amd64"]
+        # disk_headroom = 150 - 100 = 50 MiB
+        self.assertEqual(headroom["disk_headroom"], 50 * 1024 * 1024)
+        # wire_headroom = 75 - 50 = 25 MiB
+        self.assertEqual(headroom["wire_headroom"], 25 * 1024 * 1024)
+
+    @patch("tasks.quality_gates.query_metrics")
+    def test_headroom_never_negative(self, mock_query):
+        """Headroom should never be negative (clamped to 0)."""
+        # Single API call with current > max
+        mock_query.return_value = [
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 200 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 100 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_disk_size{...}",
+                "pointlist": make_pointlist([[1704240000, 150 * 1024 * 1024]]),
+            },
+            {
+                "scope": "gate_name:static_quality_gate_agent_deb_amd64",
+                "expression": "avg:datadog.agent.static_quality_gate.max_allowed_on_wire_size{...}",
+                "pointlist": make_pointlist([[1704240000, 75 * 1024 * 1024]]),
+            },
+        ]
+
+        result = fetch_main_headroom(["static_quality_gate_agent_deb_amd64"])
+
+        headroom = result["static_quality_gate_agent_deb_amd64"]
+        # disk_headroom = max(0, 150 - 200) = 0
+        self.assertEqual(headroom["disk_headroom"], 0)
+
+    def test_returns_empty_for_no_gates(self):
+        """Should return empty dict when no gates provided."""
+        result = fetch_main_headroom([])
+        self.assertEqual(result, {})
+
+
+class TestGateMetricsData(unittest.TestCase):
+    """Test the GateMetricsData dataclass."""
+
+    def test_default_values(self):
+        """Should have None as default for all fields."""
+        metrics = GateMetricsData()
+        self.assertIsNone(metrics.current_on_disk_size)
+        self.assertIsNone(metrics.current_on_wire_size)
+        self.assertIsNone(metrics.max_on_disk_size)
+        self.assertIsNone(metrics.max_on_wire_size)
+
+    def test_with_values(self):
+        """Should store provided values."""
+        metrics = GateMetricsData(
+            current_on_disk_size=100,
+            current_on_wire_size=50,
+            max_on_disk_size=150,
+            max_on_wire_size=75,
+        )
+        self.assertEqual(metrics.current_on_disk_size, 100)
+        self.assertEqual(metrics.current_on_wire_size, 50)
+        self.assertEqual(metrics.max_on_disk_size, 150)
+        self.assertEqual(metrics.max_on_wire_size, 75)
+
+
+class TestGenerateMetricReports(unittest.TestCase):
+    """Test the generate_metric_reports function for S3 upload behavior."""
+
+    def setUp(self):
+        """Create a temporary directory for test files."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.temp_report_file = os.path.join(self.temp_dir, "static_gate_report.json")
+
+    def tearDown(self):
+        """Clean up temporary files."""
+        if os.path.exists(self.temp_report_file):
+            os.remove(self.temp_report_file)
+        if os.path.exists(self.temp_dir):
+            os.rmdir(self.temp_dir)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_main_branch(self, mock_is_release):
+        """Should upload report to S3 when on main branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_uploads_to_s3_for_release_branch(self, mock_is_release):
+        """Should upload report to S3 when on a release branch (e.g., 7.54.x)."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(
+            run={
+                f'aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {self.temp_report_file} s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/abc123def456/{self.temp_report_file}': Result(
+                    "Done"
+                ),
+            }
+        )
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=False)
+
+        # Verify S3 upload was called
+        self.assertEqual(len(ctx.run.call_args_list), 1)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_feature_branch(self, mock_is_release):
+        """Should NOT upload report to S3 when on a feature branch."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("feature/my-branch", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(
+            ctx, filename=self.temp_report_file, branch="feature/my-branch", is_nightly=False
+        )
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_main(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds even on main."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {'CI_COMMIT_SHA': 'abc123def456'})
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_for_nightly_release(self, mock_is_release):
+        """Should NOT upload report to S3 for nightly builds on release branches."""
+        mock_is_release.return_value = True
+        handler = GateMetricHandler("7.54.x", "nightly")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="7.54.x", is_nightly=True)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
+
+    @patch.dict('os.environ', {}, clear=True)
+    @patch('tasks.static_quality_gates.gates.is_a_release_branch')
+    def test_no_upload_without_commit_sha(self, mock_is_release):
+        """Should NOT upload report to S3 when CI_COMMIT_SHA is not set."""
+        mock_is_release.return_value = False
+        handler = GateMetricHandler("main", "dev")
+        handler.metrics = {"test_gate": {"current_on_disk_size": 100}}
+        ctx = MockContext(run={})
+
+        handler.generate_metric_reports(ctx, filename=self.temp_report_file, branch="main", is_nightly=False)
+
+        # Verify S3 upload was NOT called
+        self.assertEqual(len(ctx.run.call_args_list), 0)
 
 
 if __name__ == '__main__':

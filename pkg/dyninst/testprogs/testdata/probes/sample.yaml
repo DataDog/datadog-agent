@@ -200,6 +200,18 @@ probes:
           ref: "x"
         dsl: "x"
     captureSnapshot: true
+  - id: testAtomicAdd
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testAtomicAdd
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
   - id: testSingleString
     type: LOG_PROBE
     tags:
@@ -2309,4 +2321,12 @@ probes:
           ref: "@duration"
         dsl: "@duration"
       - str: "ms"
+    captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
     captureSnapshot: true

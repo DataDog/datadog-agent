@@ -1079,6 +1079,9 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 	return &config
 }
 
+// GetLibType return "nodetreemodel"
+func (c *ntmConfig) GetLibType() string { return "nodetreemodel" }
+
 // ExtraConfigFilesUsed returns the additional config files used
 func (c *ntmConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()

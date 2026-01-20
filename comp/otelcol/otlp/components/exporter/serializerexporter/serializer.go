@@ -106,7 +106,7 @@ func setupSerializer(config pkgconfigmodel.Config, cfg *ExporterConfig) {
 
 	// Handle no_proxy environment variable
 	var noProxy []any
-	for _, v := range strings.Split(proxyConfig.NoProxy, ",") {
+	for v := range strings.SplitSeq(proxyConfig.NoProxy, ",") {
 		noProxy = append(noProxy, v)
 	}
 	config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceAgentRuntime)
@@ -123,7 +123,7 @@ func InitSerializer(logger *zap.Logger, cfg *ExporterConfig, sourceProvider sour
 		fx.Supply(logger),
 		fxutil.FxAgentBase(),
 		fx.Provide(func() config.Component {
-			pkgconfig := create.NewConfig("DD")
+			pkgconfig := create.NewConfig("DD", "")
 			pkgconfigsetup.InitConfig(pkgconfig)
 			pkgconfig.BuildSchema()
 

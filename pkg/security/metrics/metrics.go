@@ -39,6 +39,10 @@ var (
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
+	// MetricRulesNoMatch is the number of events that reached userspace but didn't match any rule
+	// Tags: event_type, category
+	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
+
 	// Rule action metrics
 
 	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched
@@ -306,12 +310,6 @@ var (
 	// MetricCGroupResolverFallbackFailed is the name of the metric used to report the number of failed fallbacks
 	// Tags: -
 	MetricCGroupResolverFallbackFailed = newRuntimeMetric(".cgroup_resolver.fallback_failed")
-	// MetricCGroupResolverAddPIDCgroupPresent is the name of the metric used to report the number of calls of ADDPid() with an cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupPresent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_present")
-	// MetricCGroupResolverAddPIDCgroupAbsent is the name of the metric used to report the number of calls of ADDPid() with no cgroup context
-	// Tags: -
-	MetricCGroupResolverAddPIDCgroupAbsent = newRuntimeMetric(".cgroup_resolver.addpid_cgroup_absent")
 
 	// Security Profile metrics
 
