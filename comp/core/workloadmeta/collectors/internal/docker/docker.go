@@ -12,9 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -43,12 +45,109 @@ import (
 const (
 	collectorID   = "docker"
 	componentName = "workloadmeta-docker"
+	// debugStatsInterval is how often we log debug statistics
+	debugStatsInterval = 30 * time.Second
 )
 
 // imageEventActionSbom is an event that we set to create a fake docker event.
 const imageEventActionSbom = events.Action("sbom")
 
 type resolveHook func(ctx context.Context, co container.InspectResponse) (string, error)
+
+// debugStats tracks statistics for debugging Docker collector performance issues
+type debugStats struct {
+	// Event counters
+	totalContainerEvents atomic.Int64
+	totalImageEvents     atomic.Int64
+	startEvents          atomic.Int64
+	dieEvents            atomic.Int64
+	healthStatusEvents   atomic.Int64
+	renameEvents         atomic.Int64
+	otherEvents          atomic.Int64
+
+	// Timing stats
+	totalInspectCalls  atomic.Int64
+	totalInspectTimeMs atomic.Int64
+	maxInspectTimeMs   atomic.Int64
+	inspectErrors      atomic.Int64
+
+	// Rate tracking
+	lastReportTime time.Time
+	lastEventCount int64
+
+	mu sync.Mutex
+}
+
+func (s *debugStats) recordInspectCall(duration time.Duration, err error) {
+	s.totalInspectCalls.Add(1)
+	durationMs := duration.Milliseconds()
+	s.totalInspectTimeMs.Add(durationMs)
+
+	// Update max (simple compare-and-swap loop)
+	for {
+		currentMax := s.maxInspectTimeMs.Load()
+		if durationMs <= currentMax {
+			break
+		}
+		if s.maxInspectTimeMs.CompareAndSwap(currentMax, durationMs) {
+			break
+		}
+	}
+
+	if err != nil {
+		s.inspectErrors.Add(1)
+	}
+}
+
+func (s *debugStats) recordContainerEvent(action events.Action) {
+	s.totalContainerEvents.Add(1)
+
+	switch action {
+	case events.ActionStart:
+		s.startEvents.Add(1)
+	case events.ActionDie, docker.ActionDied:
+		s.dieEvents.Add(1)
+	case events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy, events.ActionHealthStatus:
+		s.healthStatusEvents.Add(1)
+	case events.ActionRename:
+		s.renameEvents.Add(1)
+	default:
+		s.otherEvents.Add(1)
+	}
+}
+
+func (s *debugStats) logStats() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	elapsed := now.Sub(s.lastReportTime).Seconds()
+	currentTotal := s.totalContainerEvents.Load()
+	eventsSinceLastReport := currentTotal - s.lastEventCount
+	eventsPerSecond := float64(0)
+	if elapsed > 0 {
+		eventsPerSecond = float64(eventsSinceLastReport) / elapsed
+	}
+
+	totalInspects := s.totalInspectCalls.Load()
+	avgInspectMs := float64(0)
+	if totalInspects > 0 {
+		avgInspectMs = float64(s.totalInspectTimeMs.Load()) / float64(totalInspects)
+	}
+
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] === Stats Report (OS: %s) ===", runtime.GOOS)
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Container Events: total=%d, rate=%.2f/sec (last %.0fs)",
+		currentTotal, eventsPerSecond, elapsed)
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Event breakdown: start=%d, die=%d, health_status=%d, rename=%d, other=%d",
+		s.startEvents.Load(), s.dieEvents.Load(), s.healthStatusEvents.Load(),
+		s.renameEvents.Load(), s.otherEvents.Load())
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Image Events: total=%d", s.totalImageEvents.Load())
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Inspect calls: total=%d, errors=%d, avg_time=%.2fms, max_time=%dms",
+		totalInspects, s.inspectErrors.Load(), avgInspectMs, s.maxInspectTimeMs.Load())
+
+	s.lastReportTime = now
+	s.lastEventCount = currentTotal
+}
 
 type collector struct {
 	id      string
@@ -68,14 +167,21 @@ type collector struct {
 
 	// SBOM Scanning
 	sbomScanner *scanner.Scanner //nolint: unused
+
+	// Debug statistics for troubleshooting
+	stats *debugStats
 }
 
 // NewCollector returns a new docker collector provider and an error
 func NewCollector() (workloadmeta.CollectorProvider, error) {
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Creating new Docker collector (OS: %s)", runtime.GOOS)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:      collectorID,
 			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+			stats: &debugStats{
+				lastReportTime: time.Now(),
+			},
 		},
 	}, nil
 }
@@ -86,19 +192,27 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Start() called (OS: %s)", runtime.GOOS)
+
 	if !env.IsFeaturePresent(env.Docker) {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Docker feature not present, disabling collector")
 		return errorspkg.NewDisabled(componentName, "Agent is not running on Docker")
 	}
 
 	c.store = store
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Getting DockerUtil...")
+	startTime := time.Now()
 	var err error
 	c.dockerUtil, err = docker.GetDockerUtil()
 	if err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to get DockerUtil: %v", err)
 		return err
 	}
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] DockerUtil obtained in %v", time.Since(startTime))
 
 	if err = c.startSBOMCollection(ctx); err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to start SBOM collection: %v", err)
 		return err
 	}
 
@@ -107,23 +221,37 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Component) err
 		log.Warnf("Can't get pause container filter, no filtering will be applied: %v", err)
 	}
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Subscribing to Docker events...")
+	startTime = time.Now()
 	c.containerEventsCh, c.imageEventsCh, err = c.dockerUtil.SubscribeToEvents(componentName, filter)
 	if err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to subscribe to events: %v", err)
 		return err
 	}
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Subscribed to Docker events in %v", time.Since(startTime))
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Generating events from image list...")
+	startTime = time.Now()
 	err = c.generateEventsFromImageList(ctx)
 	if err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to generate image events: %v", err)
 		return err
 	}
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Generated image events in %v", time.Since(startTime))
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Generating events from container list...")
+	startTime = time.Now()
 	err = c.generateEventsFromContainerList(ctx, filter)
 	if err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to generate container events: %v", err)
 		return err
 	}
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Generated container events in %v", time.Since(startTime))
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Starting event stream goroutine...")
 	go c.stream(ctx)
 
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Docker collector started successfully")
 	return nil
 }
 
@@ -140,26 +268,62 @@ func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 }
 
 func (c *collector) stream(ctx context.Context) {
-	health := health.RegisterLiveness(componentName)
+	healthHandle := health.RegisterLiveness(componentName)
 	ctx, cancel := context.WithCancel(ctx)
+
+	// Ticker for periodic debug stats logging
+	statsTicker := time.NewTicker(debugStatsInterval)
+	defer statsTicker.Stop()
+
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Starting event stream processing loop (OS: %s)", runtime.GOOS)
 
 	for {
 		select {
-		case <-health.C:
+		case <-healthHandle.C:
+
+		case <-statsTicker.C:
+			// Log debug statistics periodically
+			c.stats.logStats()
 
 		case ev := <-c.containerEventsCh:
+			// Record the event for statistics
+			c.stats.recordContainerEvent(ev.Action)
+
+			// Log every event at debug level with timing
+			eventStart := time.Now()
+			log.Debugf("[DOCKER-COLLECTOR-DEBUG] Received container event: action=%s container_id=%s container_name=%s timestamp=%v",
+				ev.Action, ev.ContainerID, ev.ContainerName, ev.Timestamp)
+
 			err := c.handleContainerEvent(ctx, ev)
+			eventDuration := time.Since(eventStart)
+
 			if err != nil {
-				log.Warnf("%s", err.Error())
+				log.Warnf("[DOCKER-COLLECTOR-DEBUG] Error handling container event: action=%s container_id=%s duration=%v error=%s",
+					ev.Action, ev.ContainerID, eventDuration, err.Error())
+			} else {
+				log.Debugf("[DOCKER-COLLECTOR-DEBUG] Finished handling container event: action=%s container_id=%s duration=%v",
+					ev.Action, ev.ContainerID, eventDuration)
+			}
+
+			// Warn if event processing is slow
+			if eventDuration > 5*time.Second {
+				log.Warnf("[DOCKER-COLLECTOR-DEBUG] SLOW EVENT PROCESSING: action=%s container_id=%s duration=%v",
+					ev.Action, ev.ContainerID, eventDuration)
 			}
 
 		case ev := <-c.imageEventsCh:
+			c.stats.totalImageEvents.Add(1)
+			log.Debugf("[DOCKER-COLLECTOR-DEBUG] Received image event: action=%s image_id=%s", ev.Action, ev.ImageID)
+
 			err := c.handleImageEvent(ctx, ev, nil)
 			if err != nil {
-				log.Warnf("%s", err.Error())
+				log.Warnf("[DOCKER-COLLECTOR-DEBUG] Error handling image event: %s", err.Error())
 			}
 
 		case <-ctx.Done():
+			log.Warnf("[DOCKER-COLLECTOR-DEBUG] Context done, shutting down stream processing")
+			c.stats.logStats() // Final stats report
+
 			var err error
 
 			err = c.dockerUtil.UnsubscribeFromContainerEvents("DockerCollector")
@@ -167,7 +331,7 @@ func (c *collector) stream(ctx context.Context) {
 				log.Warnf("error unsubscribing from container events: %s", err)
 			}
 
-			err = health.Deregister()
+			err = healthHandle.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
 			}
@@ -184,19 +348,25 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 		return errors.New("Start was not called")
 	}
 
-	containers, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Listing containers...")
+	listStart := time.Now()
+	containerList, err := c.dockerUtil.RawContainerListWithFilter(ctx, container.ListOptions{}, filter, c.store)
 	if err != nil {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to list containers: %v", err)
 		return err
 	}
+	log.Warnf("[DOCKER-COLLECTOR-DEBUG] Listed %d containers in %v", len(containerList), time.Since(listStart))
 
-	evs := make([]workloadmeta.CollectorEvent, 0, len(containers))
-	for _, container := range containers {
+	evs := make([]workloadmeta.CollectorEvent, 0, len(containerList))
+	for i, cont := range containerList {
+		log.Debugf("[DOCKER-COLLECTOR-DEBUG] Processing initial container %d/%d: id=%s", i+1, len(containerList), cont.ID)
+
 		ev, err := c.buildCollectorEvent(ctx, &docker.ContainerEvent{
-			ContainerID: container.ID,
+			ContainerID: cont.ID,
 			Action:      events.ActionStart,
 		})
 		if err != nil {
-			log.Warnf("%s", err.Error())
+			log.Warnf("[DOCKER-COLLECTOR-DEBUG] Failed to build event for container %s: %s", cont.ID, err.Error())
 			continue
 		}
 
@@ -204,6 +374,7 @@ func (c *collector) generateEventsFromContainerList(ctx context.Context, filter 
 	}
 
 	if len(evs) > 0 {
+		log.Warnf("[DOCKER-COLLECTOR-DEBUG] Notifying store of %d initial container events", len(evs))
 		c.store.Notify(evs)
 	}
 
@@ -264,8 +435,28 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 
 	switch ev.Action {
 	case events.ActionStart, events.ActionRename, events.ActionHealthStatusRunning, events.ActionHealthStatusHealthy, events.ActionHealthStatusUnhealthy, events.ActionHealthStatus:
+		// Time the inspect call for debugging
+		inspectStart := time.Now()
+		log.Debugf("[DOCKER-COLLECTOR-DEBUG] Starting InspectNoCache for container %s (action=%s)", ev.ContainerID, ev.Action)
+
 		container, err := c.dockerUtil.InspectNoCache(ctx, ev.ContainerID, false)
+		inspectDuration := time.Since(inspectStart)
+
+		// Record stats
+		c.stats.recordInspectCall(inspectDuration, err)
+
+		// Log the inspect timing
+		if inspectDuration > 1*time.Second {
+			log.Warnf("[DOCKER-COLLECTOR-DEBUG] SLOW InspectNoCache: container_id=%s action=%s duration=%v",
+				ev.ContainerID, ev.Action, inspectDuration)
+		} else {
+			log.Debugf("[DOCKER-COLLECTOR-DEBUG] InspectNoCache completed: container_id=%s action=%s duration=%v",
+				ev.ContainerID, ev.Action, inspectDuration)
+		}
+
 		if err != nil {
+			log.Warnf("[DOCKER-COLLECTOR-DEBUG] InspectNoCache FAILED: container_id=%s action=%s duration=%v error=%v",
+				ev.ContainerID, ev.Action, inspectDuration, err)
 			return event, fmt.Errorf("could not inspect container %q: %s", ev.ContainerID, err)
 		}
 
