@@ -94,8 +94,8 @@ fn has_non_discovery_yaml_keys(yaml_doc: &Option<Yaml>) -> bool {
         Some(Yaml::Hash(map)) => {
             for (key, value) in map {
                 if let Yaml::String(s) = key {
-                    if s == "discovery" {
-                        // Discovery is allowed
+                    if s == "discovery" || s == "log_level" {
+                        // discovery and log_level are allowed
                         continue;
                     } else if s == "system_probe_config" {
                         // system_probe_config is allowed only if it contains just sysprobe_socket
@@ -204,6 +204,40 @@ pub fn get_sysprobe_socket_path(config: &Option<Yaml>) -> String {
 
     // Default fallback
     "/opt/datadog-agent/run/sysprobe.sock".to_string()
+}
+
+/// Parse a Go log level string into a log::Level
+/// Unknown levels silently default to Info
+fn parse_log_level(level: &str) -> log::Level {
+    match level.to_lowercase().as_str() {
+        "trace" => log::Level::Trace,
+        "debug" => log::Level::Debug,
+        "info" => log::Level::Info,
+        "warn" | "warning" => log::Level::Warn,
+        "error" | "critical" => log::Level::Error,
+        "off" => log::Level::Error, // Rust log crate doesn't have "off", use Error as minimal logging
+        _ => log::Level::Info,
+    }
+}
+
+/// Gets the log level from configuration.
+/// Priority: DD_LOG_LEVEL > LOG_LEVEL > YAML config > default Info
+pub fn get_log_level(config: &Result<Option<Yaml>>) -> log::Level {
+    if let Ok(level) = env::var("DD_LOG_LEVEL") {
+        return parse_log_level(&level);
+    }
+
+    if let Ok(level) = env::var("LOG_LEVEL") {
+        return parse_log_level(&level);
+    }
+
+    config
+        .as_ref()
+        .ok()
+        .and_then(|opt| opt.as_ref())
+        .and_then(|doc| get_yaml_string_option(doc, "log_level"))
+        .map(|level| parse_log_level(&level))
+        .unwrap_or(log::Level::Info)
 }
 
 /// Determines whether to run sd-agent, fallback to system-probe, or exit cleanly
@@ -755,5 +789,162 @@ system_probe_config:
                 assert_eq!(path, "/path/to/my socket.sock");
             },
         );
+    }
+
+    #[test]
+    fn test_get_log_level_default_when_no_config() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(level, log::Level::Info);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_from_dd_log_level_env() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", Some("debug")), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(level, log::Level::Debug);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_from_log_level_env_fallback() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", Some("trace"))],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(level, log::Level::Trace);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_dd_log_level_overrides_log_level() {
+        temp_env::with_vars(
+            vec![
+                ("DD_LOG_LEVEL", Some("error")),
+                ("LOG_LEVEL", Some("trace")),
+            ],
+            || {
+                let level = get_log_level(&Ok(None));
+                assert_eq!(
+                    level,
+                    log::Level::Error,
+                    "DD_LOG_LEVEL should take priority over LOG_LEVEL"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_from_yaml() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let yaml = r#"
+log_level: warn
+"#;
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                let level = get_log_level(&config);
+                assert_eq!(level, log::Level::Warn);
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_env_overrides_yaml() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("error"), || {
+            let yaml = r#"
+log_level: debug
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            let level = get_log_level(&config);
+            assert_eq!(
+                level,
+                log::Level::Error,
+                "DD_LOG_LEVEL should override YAML config"
+            );
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_empty_env_string_uses_env() {
+        temp_env::with_var("DD_LOG_LEVEL", Some(""), || {
+            let yaml = r#"
+log_level: warn
+"#;
+            let config_file = create_test_config(yaml);
+            let config = load_config(Some(config_file.path().to_path_buf()));
+            let level = get_log_level(&config);
+            assert_eq!(
+                level,
+                log::Level::Info,
+                "Empty string from env var should default to Info"
+            );
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_yaml_wrong_type() {
+        temp_env::with_vars(
+            vec![("DD_LOG_LEVEL", None::<&str>), ("LOG_LEVEL", None::<&str>)],
+            || {
+                let yaml = r#"
+log_level: 12345
+"#;
+                let config_file = create_test_config(yaml);
+                let config = load_config(Some(config_file.path().to_path_buf()));
+                let level = get_log_level(&config);
+                assert_eq!(
+                    level,
+                    log::Level::Info,
+                    "Should return default when YAML value is not a string"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn test_get_log_level_case_insensitive() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("ERROR"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(level, log::Level::Error, "Should parse case insensitively");
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_warning_variant() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("warning"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(level, log::Level::Warn, "Should accept 'warning' variant");
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_critical_level() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("critical"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(
+                level,
+                log::Level::Error,
+                "Should map 'critical' to Error level"
+            );
+        });
+    }
+
+    #[test]
+    fn test_get_log_level_off_level() {
+        temp_env::with_var("DD_LOG_LEVEL", Some("off"), || {
+            let level = get_log_level(&Ok(None));
+            assert_eq!(level, log::Level::Error, "Should map 'off' to Error level");
+        });
     }
 }

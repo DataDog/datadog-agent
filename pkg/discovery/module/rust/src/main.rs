@@ -298,13 +298,14 @@ async fn run_sd_agent(config: Option<yaml_rust2::Yaml>, pid_path: Option<PathBuf
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logger early
-    simple_logger::init_with_level(log::Level::Info)?;
-
     let args = Args::parse(env::args());
+    let config = config::load_config(args.config_path);
+    let log_level = config::get_log_level(&config);
+    simple_logger::init_with_level(log_level)?;
+    info!("Log level set to: {:?}", log_level);
 
-    // Determine config value based on whether fallback is configured
-    let config_value = if let Some(fallback_binary) = &args.fallback_binary {
+    // Handle fallback decision if fallback binary is configured
+    if let Some(fallback_binary) = &args.fallback_binary {
         // Do this check regardless of whether we're running sd-agent or not
         // since we may need it at some point if we fallback to system-probe and
         // we don't want to fail startup during another invocation.
@@ -314,9 +315,6 @@ async fn main() -> Result<()> {
                 fallback_binary.display()
             );
         }
-
-        // Load config once for both determine_action and run_sd_agent
-        let config = config::load_config(args.config_path);
 
         match config::determine_action(&config) {
             config::FallbackDecision::FallbackToSystemProbe => {
@@ -332,17 +330,14 @@ async fn main() -> Result<()> {
                 info!("Only discovery module enabled. Running sd-agent.");
             }
         }
+    }
 
-        // Convert Result<Option<Yaml>> to Option<Yaml> for run_sd_agent
-        config.unwrap_or(None)
-    } else {
-        // No fallback binary configured, run sd-agent directly without loading config
-        None
-    };
+    // Convert Result<Option<Yaml>> to Option<Yaml> for run_sd_agent.
+    let config = config.ok().flatten();
 
     // Run sd-agent server
     info!("Starting sd-agent");
-    let result = run_sd_agent(config_value, args.pid_path.clone()).await;
+    let result = run_sd_agent(config, args.pid_path.clone()).await;
 
     // Cleanup PID file on exit (defer pattern)
     // This ensures cleanup happens regardless of how we exit (signal, error, or normal completion)
