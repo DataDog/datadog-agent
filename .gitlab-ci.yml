@@ -1062,11 +1062,12 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
 
-.on_macos_gui_change:
+.on_macos_files_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - comp/core/gui/guiimpl/systray/**/*
+        - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
 .on_packaging_change:
