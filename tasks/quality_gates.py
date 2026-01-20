@@ -450,6 +450,7 @@ def display_pr_comment(
     # Sort gates by error_types to group in between NoError, AssertionError and StackTrace
     for gate in sorted(gate_states, key=lambda x: x["error_type"] is None):
         gate_name = gate['name'].replace("static_quality_gate_", "")
+        gate_metrics = metric_handler.metrics.get(gate['name'], {})
 
         # Get change metrics for on-disk (delta with percentage and limit bounds)
         change_str, limit_bounds, is_neutral = get_change_metrics(gate['name'], metric_handler, metric_type="disk")
@@ -483,7 +484,12 @@ def display_pr_comment(
             is_blocking = gate.get("blocking", True)
             status_char = FAIL_CHAR if is_blocking else WARNING_CHAR
 
-            body_error += f"|{status_char}|{gate_name}|{change_str}|{limit_bounds}|\n"
+            # This is probably way more convoluted than it should be, but the best we can do
+            # without refactoring the data structures involved
+            if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
+            if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
+                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             # Add to wire table for errors too
             body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
