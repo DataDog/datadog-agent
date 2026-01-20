@@ -14,7 +14,7 @@ import (
 	logimpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -52,7 +52,7 @@ type ServerlessDemultiplexer struct {
 }
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
-func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, filterList filterlist.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
+func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (*ServerlessDemultiplexer, error) {
 	bufferSize := pkgconfigsetup.Datadog().GetInt("aggregator_buffer_size")
 	logger := logimpl.NewTemporaryLoggerWithoutInit()
 	secrets := secretsnoop.NewComponent().Comp
@@ -69,7 +69,7 @@ func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, 
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, tagger, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
-	tagFilterList := filterList.GetTagFilterList()
+	tagFilterList := filterlist.NewEmptyTagMatcher()
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore, tagFilterList)
 
 	demux := &ServerlessDemultiplexer{

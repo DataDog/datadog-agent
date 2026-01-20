@@ -21,7 +21,6 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -89,9 +88,8 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	mockConfig := configmock.New(t)
 	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
 	mockConfig.SetDefault("dogstatsd_port", listeners.RandomPortName)
-	filterlist := filterlistimpl.NewNoopFilterList()
 
-	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), filterlist, false)
+	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
 	require.NoError(t, err, "cannot start Demultiplexer")
 
 	s, err := dogstatsdServer.NewServerlessServer(demux)

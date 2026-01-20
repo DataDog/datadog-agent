@@ -45,6 +45,13 @@ type hashedMetricTagList struct {
 	action action
 }
 
+func NewEmptyTagMatcher() filterlist.TagMatcher {
+	matcher := tagMatcher{
+		Metrics: map[string]hashedMetricTagList{},
+	}
+	return &matcher
+}
+
 func NewTagMatcher(metrics map[string]MetricTagList) filterlist.TagMatcher {
 	matcher := newTagMatcher(metrics)
 	return &matcher
