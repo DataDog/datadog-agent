@@ -66,7 +66,7 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
 	pod, err := l.Store().GetKubernetesPod(entity.GetID().ID)
 	if err != nil || pod == nil {
-		log.Warn("DEBUG: Pod not found in workloadmeta store, using pod from event")
+		log.Debugf("Failed to get kubernetes pod from workloadmeta store, using pod from event")
 		pod = entity.(*workloadmeta.KubernetesPod)
 	}
 
