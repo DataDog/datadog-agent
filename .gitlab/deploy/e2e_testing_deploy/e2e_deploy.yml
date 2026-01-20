@@ -267,7 +267,7 @@ export_testing_public_key:
 
 .deploy_dmg_testing-a7:
   rules:
-     - !reference [.on_macos_gui_change]
+     - !reference [.on_macos_files_change]
      - !reference [.on_packaging_change]
      - !reference [.on_main_or_release_branch]
      - !reference [.on_all_builds]

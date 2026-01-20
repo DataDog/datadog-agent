@@ -6,7 +6,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -14,23 +13,20 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-// NewGetHostInfosCommand adds a new command to get host infos
-func NewGetHostInfosCommand(cl **client.Client) (cmd *cobra.Command) {
+// NewGetHosts adds a new command to get host tags
+func NewGetHosts(cl **client.Client) (cmd *cobra.Command) {
 	cmd = &cobra.Command{
-		Use:   "host-infos",
-		Short: "Get Host infos",
+		Use:   "host",
+		Short: "Get Hosts",
 		RunE: func(*cobra.Command, []string) error {
-			hostInfos, err := (*cl).GetLatestHostInfos()
+			hosts, err := (*cl).GetHosts()
 			if err != nil {
 				return err
 			}
 
-			output, err := json.MarshalIndent(hostInfos, "", "  ")
-			if err != nil {
-				return err
+			for _, host := range hosts {
+				fmt.Println(host)
 			}
-
-			fmt.Println(string(output))
 
 			return nil
 		},

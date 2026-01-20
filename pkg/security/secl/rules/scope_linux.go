@@ -23,7 +23,7 @@ func DefaultStateScopes() map[Scope]VariableProviderFactory {
 	stateScopes := getCommonStateScopes()
 	stateScopes[ScopeCGroup] = func() VariableProvider {
 		return eval.NewScopedVariables(ScopeCGroup, func(ctx *eval.Context) eval.VariableScope {
-			if ctx.Event.(*model.Event).ProcessContext == nil || ctx.Event.(*model.Event).ProcessContext.Process.CGroup.CGroupFile.IsNull() {
+			if ctx.Event.(*model.Event).ProcessContext == nil || ctx.Event.(*model.Event).ProcessContext.Process.CGroup.IsNull() {
 				return nil
 			}
 			return &ctx.Event.(*model.Event).ProcessContext.CGroup
