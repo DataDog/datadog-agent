@@ -10,6 +10,7 @@ import stat
 import tempfile
 from dataclasses import dataclass
 from datetime import datetime
+from enum import IntFlag, auto
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -79,6 +80,28 @@ class FileInfo(SizeMixin):
         self._validate_size_bytes(self.size_bytes)
         if self.is_symlink and not self.symlink_target:
             raise ValueError("symlink_target must be provided when is_symlink is True")
+
+
+@dataclass(frozen=True)
+class FileChange:
+    """
+    Encapsulate a detected file change when comparing 2 inventories
+    """
+
+    class Flags(IntFlag):
+        Size = auto()
+        Permissions = auto()
+        Owner = auto()
+        Group = auto()
+
+    flags: Flags
+    previous: FileInfo
+    current: FileInfo
+    size_percent: float | None
+
+    def __post_init__(self):
+        if self.flags | FileChange.Flags.Size == 0 and self.size_percent is not None:
+            raise ValueError("size_percent can only be provided when the size change flag is set")
 
 
 @dataclass(frozen=True)
@@ -1360,3 +1383,42 @@ def measure_image_local(
     except Exception as e:
         print(color_message(f"❌ Image measurement failed: {e}", "red"))
         raise
+
+
+def compare_inventory(
+    previous_inventory: list[FileInfo], current_inventory: list[FileInfo]
+) -> tuple[list[FileInfo], list[FileInfo], dict[str, FileChange]]:
+    removed_files = []
+    added_files = []
+    changed_files = {}
+
+    previous_files = {info.relative_path: info for info in previous_inventory}
+    current_files = {info.relative_path: info for info in current_inventory}
+    for path, previous in previous_files.items():
+        if path not in current_files:
+            removed_files.append(previous)
+            continue
+        current = current_files[path]
+        size_change = previous.size_bytes - current.size_bytes
+        changed_flags = FileChange.Flags(0)
+        size_percent = None
+        if size_change:
+            size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            if size_percent > 10:
+                changed_flags |= FileChange.Flags.Size
+        if current.chmod != previous.chmod:
+            changed_flags |= FileChange.Flags.Permissions
+        if current.owner != previous.owner:
+            changed_flags |= FileChange.Flags.Owner
+        if current.group != previous.group:
+            changed_flags |= FileChange.Flags.Group
+
+        if changed_flags:
+            changed_files[path] = FileChange(
+                flags=changed_flags, previous=previous, current=current, size_percent=size_percent
+            )
+        # Remove entries that were present in both parent & current so that when we're done
+        # the current list only contains new files
+        del current_files[path]
+    added_files = list(current_files.values())
+    return added_files, removed_files, changed_files
