@@ -29,11 +29,14 @@ class TestFileInfo(unittest.TestCase):
 
     def test_file_info_creation_valid(self):
         """Test creating a valid FileInfo instance."""
-        file_info = FileInfo(relative_path="opt/datadog-agent/bin/agent", size_bytes=12345, checksum="sha256:abc123")
+        file_info = FileInfo(
+            relative_path="opt/datadog-agent/bin/agent", size_bytes=12345, checksum="sha256:abc123", chmod=0o644
+        )
 
         self.assertEqual(file_info.relative_path, "opt/datadog-agent/bin/agent")
         self.assertEqual(file_info.size_bytes, 12345)
         self.assertEqual(file_info.checksum, "sha256:abc123")
+        self.assertEqual(file_info.chmod, 0o644)
 
     def test_file_info_creation_minimal(self):
         """Test creating FileInfo with minimal required fields."""
@@ -42,6 +45,7 @@ class TestFileInfo(unittest.TestCase):
         self.assertEqual(file_info.relative_path, "etc/config.yaml")
         self.assertEqual(file_info.size_bytes, 1024)
         self.assertIsNone(file_info.checksum)
+        self.assertIsNone(file_info.chmod)
 
     def test_file_info_validation_empty_path(self):
         """Test FileInfo validation with empty relative_path."""
