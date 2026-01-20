@@ -40,11 +40,9 @@ namespace WixSetup
                 // Set custom output directory (WixSharp defaults to current directory)
                 cabcachedir = Path.Combine(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR"), cabcachedir);
             }
-            // NOTE: Using WiX 4+ via WixSharp_wix4 package. These compiler options are abstracted by WixSharp
-            // and should work with both WiX 3 and WiX 4+ toolchains.
-            Compiler.LightOptions += $"-sval -reusecab -cc \"{cabcachedir}\"";
-            // ServiceConfig functionality is documented in the Windows Installer SDK to "not [work] as expected." Consider replacing ServiceConfig with the WixUtilExtension ServiceConfig element.
-            Compiler.CandleOptions += "-sw1150 -arch x64";
+            // NOTE: Using WiX 4+ via WixSharp_wix4 package. WiX 4+ uses unified wix.exe instead of candle/light.
+            // WixOptions combines options that were previously split between LightOptions and CandleOptions.
+            Compiler.WixOptions += $"-sval -reusecab -cc \"{cabcachedir}\" -sw1150 -arch x64";
 
             // We don't use WixUI_InstallDir, so disable Wix# auto-handling of the INSTALLDIR property for this UI.
             // If we ever change this and want to use the Wix# auto-detection, we will have to set this value to

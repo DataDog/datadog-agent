@@ -2,9 +2,19 @@
 
 This document describes the migration from WiX 3 (via `WixSharp.bin`) to WiX 4+ (via `WixSharp_wix4.bin`).
 
-## Changes Made
+## Summary of Breaking Changes
 
-### 1. Package Reference Update
+The migration from WiX 3 to WiX 4+ involves several breaking API changes in WixSharp:
+
+1. **Target Framework**: Must use .NET Framework 4.7.2+ (up from 4.6.2)
+2. **Package Reference**: `WixSharp.bin` → `WixSharp_wix4.bin`
+3. **Compiler Options**: `Compiler.LightOptions`/`CandleOptions` → `Compiler.WixOptions`
+4. **Install Scope**: `InstallPrivileges.elevated` → `InstallScope.perMachine`
+5. **CustomAction Delegates**: Method references must be wrapped in lambdas
+
+## Detailed Changes
+
+### 1. Package and Framework Update
 **File**: `WixSetup/WixSetup.csproj`
 
 Changed from:
@@ -19,14 +29,27 @@ To:
 <PackageReference Include="WixSharp_wix4.bin" Version="2.12.0" />
 ```
 
-**Note**: The target framework was upgraded from .NET Framework 4.6.2 to 4.7.2 because WixSharp_wix4.bin requires .NET Framework 4.7.2 or higher.
+**Reason**: WixSharp_wix4.bin requires .NET Framework 4.7.2 or higher.
 
 ### 2. WiX Toolset Installation
 **File**: `tasks/msi.py`
 
 The build script now automatically installs WiX 5.0.2 globally if not already present. WixSharp_wix4 supports WiX 4.x and 5.x.
 
-### 3. Build Script Enhancement
+### 3. Compiler Options API Change
+**File**: `Program.cs`
+
+WiX 4+ uses unified `wix.exe` instead of separate `candle.exe`/`light.exe`:
+- Combined `Compiler.LightOptions` and `Compiler.CandleOptions` into single `Compiler.WixOptions`
+
+### 4. CustomAction Delegate Signatures
+**Files**: `AgentCustomActions.cs`, `DatadogInstallerCustomActions.cs`
+
+Fixed all ~45 custom action delegates to match WiX 4+ signature requirements:
+- Wrapped all method references in lambda expressions
+- Pattern: `CustomActions.Method` → `session => CustomActions.Method(session)`
+
+### 5. Build Script Enhancement
 **File**: `tasks/msi.py`
 
 Added `_ensure_wix_tools()` function that:
@@ -34,11 +57,6 @@ Added `_ensure_wix_tools()` function that:
 - Automatically installs WiX 5.0.2 globally if not found
 
 The function is automatically called at the beginning of the `_build()` function.
-
-### 4. Documentation Update
-**File**: `WixSetup/Program.cs`
-
-Added comments documenting that the project now uses WiX 4+ via `WixSharp_wix4` package.
 
 ## How to Build
 
@@ -122,6 +140,44 @@ If issues arise, rollback is straightforward:
    dda inv msi.build
    ```
 
+## API Changes Reference
+
+### Compiler Options (WiX 3 → WiX 4+)
+```csharp
+// WiX 3
+Compiler.LightOptions += "-sval -reusecab";
+Compiler.CandleOptions += "-sw1150 -arch x64";
+
+// WiX 4+
+Compiler.WixOptions += "-sval -reusecab -sw1150 -arch x64";
+```
+
+### Install Privileges (WiX 3 → WiX 4+)
+```csharp
+// WiX 3
+project.InstallPrivileges = InstallPrivileges.elevated;
+
+// WiX 4+
+project.InstallScope = InstallScope.perMachine;
+```
+
+### CustomAction Delegates (WiX 3 → WiX 4+)
+```csharp
+// WiX 3
+new CustomAction<CustomActions>(
+    new Id("MyAction"),
+    CustomActions.MyMethod,
+    Return.check
+)
+
+// WiX 4+
+new CustomAction<CustomActions>(
+    new Id("MyAction"),
+    session => CustomActions.MyMethod(session),
+    Return.check
+)
+```
+
 ## Testing Checklist
 
 Before considering the migration complete, test:
@@ -136,6 +192,7 @@ Before considering the migration complete, test:
 - [ ] All custom actions execute correctly
 - [ ] Services start correctly after installation
 - [ ] Agent configuration is preserved during upgrades
+- [ ] All ~45 custom actions work correctly
 
 ## References
 
