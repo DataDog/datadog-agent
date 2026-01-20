@@ -246,7 +246,11 @@ def update_ddtool(ctx) -> SetupResult:
     status = Status.OK
     message = ""
 
-    ctx.run('brew update && brew upgrade ddtool', hide=True)
+    try:
+        ctx.run('brew update && brew upgrade ddtool', hide=True)
+    except Exception as e:
+        message = f'Ddtool update failed: {e}'
+        status = Status.FAIL
 
     return SetupResult("Update ddtool", status, message)
 

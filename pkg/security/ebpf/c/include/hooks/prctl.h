@@ -21,6 +21,10 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
         }
     };
 
+    if (approve_syscall(&syscall, prctl_approvers) == DISCARDED) {
+        return 0;
+    }
+
     if(option == PR_SET_NAME) {
         int n = bpf_probe_read_str(&syscall.prctl.name, MAX_PRCTL_NAME_LEN + 1, arg2);
         syscall.prctl.name_size_to_send = n;
@@ -44,10 +48,6 @@ long __attribute__((always_inline)) trace__sys_prctl(u8 async, int option, void 
 int __attribute__((always_inline)) sys_prctl_ret(void *ctx, int retval) {
     struct syscall_cache_t *syscall = pop_syscall(EVENT_PRCTL);
     if (!syscall) {
-        return 0;
-    }
-
-    if (approve_syscall(syscall, prctl_approvers) == DISCARDED) {
         return 0;
     }
 

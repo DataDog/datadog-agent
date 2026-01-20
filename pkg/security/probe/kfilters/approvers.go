@@ -108,6 +108,21 @@ func newKFilterWithUInt64FlagsAndIndex(tableName string, index uint32, flags ...
 	}, nil
 }
 
+func newKFilterZeroFlagValue(tableName string, approve bool) (kFilter, error) {
+	mapValue := ebpf.BoolFalseMapItem
+	if approve {
+		mapValue = ebpf.BoolTrueMapItem
+	}
+
+	return &arrayKFilter{
+		approverType: FlagApproverType,
+		tableName:    tableName,
+		index:        uint32(0),
+		value:        mapValue,
+		zeroValue:    ebpf.BoolFalseMapItem,
+	}, nil
+}
+
 func getFlagsKFilter(tableName string, flags ...uint32) (kFilter, error) {
 	return newKFilterWithUInt32Flags(tableName, flags...)
 }
