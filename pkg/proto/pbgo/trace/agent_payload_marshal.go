@@ -365,7 +365,7 @@ func SizeAgentPayload(ap *AgentPayload) int {
 	// Field 10: rareSamplerEnabled (bool)
 	if ap.RareSamplerEnabled {
 		size += sizeTag(fieldRareSamplerEnabled, wireVarint)
-		size += 1 // bool is always 1 byte when true
+		size++ // bool is always 1 byte when true
 	}
 
 	// Field 11: idxTracerPayloads (repeated idx.TracerPayload)
@@ -573,7 +573,7 @@ func sizeTraceChunkWithMapper(chunk *idx.TraceChunk, mapper *stringRefMapper) in
 
 	if chunk.DroppedTrace {
 		size += sizeTag(fieldTCDroppedTrace, wireVarint)
-		size += 1
+		size++
 	}
 	if len(chunk.TraceID) > 0 {
 		size += sizeTag(fieldTCTraceID, wireLengthDelim)
