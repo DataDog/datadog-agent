@@ -28,21 +28,17 @@ MODES = ["bash", "safe-shell", "tools"]
 VM_PORTS = {"bash": 8081, "safe-shell": 8082, "tools": 8083}
 
 # Scenarios list
-# SCENARIOS = [
-#     # Easy
-#     "high-cpu-usage", "disk-space-full", "port-conflict",
-#     "zombie-processes", "dns-resolution-failure",
-#     # Medium
-#     "memory-leak", "connection-exhaustion", "log-rotation-failure",
-#     "swap-thrashing", "file-descriptor-leak",
-#     # Hard
-#     "tcp-close-wait", "io-wait", "context-switching-storm",
-#     "inode-exhaustion", "tcp-syn-flood"
-# ]
 SCENARIOS = [
-    "inode-exhaustion"
+    # Easy
+    "high-cpu-usage", "disk-space-full", "port-conflict",
+    "zombie-processes", "dns-resolution-failure",
+    # Medium
+    "memory-leak", "connection-exhaustion", "log-rotation-failure",
+    "swap-thrashing", "file-descriptor-leak",
+    # Hard
+    "tcp-close-wait", "io-wait", "context-switching-storm",
+    "inode-exhaustion", "tcp-syn-flood"
 ]
-
 
 class EvaluationRunner:
     # Class-level locks to serialize VM operations across all runners
