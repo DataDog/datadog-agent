@@ -22,7 +22,7 @@ type RemoteConfigClient interface {
 	Subscribe(product string, callback func(map[string]state.RawConfig, func(string, state.ApplyStatus)))
 }
 
-// Config contains information needed to create an ImageResolver
+// Config contains information needed to create a Resolver
 type Config struct {
 	Site           string
 	DDRegistries   map[string]struct{}
