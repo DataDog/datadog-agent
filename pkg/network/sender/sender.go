@@ -12,14 +12,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // Sender sends data directly to the backend for CNM/USM data
-type Sender interface{}
+type Sender interface {
+	Stop()
+}
 
 // Dependencies are all the component dependencies of the direct sender
 type Dependencies struct {
@@ -31,8 +32,6 @@ type Dependencies struct {
 	Hostname       hostname.Component
 	Forwarder      connectionsforwarder.Component
 	NPCollector    npcollector.Component
-
-	Lc compdef.Lifecycle
 }
 
 // ConnectionsSource is an interface for an object that can provide network connections data

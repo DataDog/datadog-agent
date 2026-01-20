@@ -70,7 +70,6 @@ func createNetworkTracerModule(_ *sysconfigtypes.Config, deps module.FactoryDepe
 			Hostname:       deps.Hostname,
 			Forwarder:      deps.ConnectionsForwarder,
 			NPCollector:    deps.NPCollector,
-			Lc:             deps.Lc,
 		})
 		if err != nil {
 			t.Stop()
@@ -237,6 +236,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 
 // Close will stop all system probe activities
 func (nt *networkTracer) Close() {
+	if nt.connsSender != nil {
+		nt.connsSender.Stop()
+	}
 	nt.tracer.Stop()
 	nt.cancelFunc()
 }

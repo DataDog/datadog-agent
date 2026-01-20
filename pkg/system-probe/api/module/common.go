@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
@@ -57,6 +56,4 @@ type FactoryDependencies struct {
 	Traceroute           traceroute.Component
 	ConnectionsForwarder connectionsforwarder.Component
 	NPCollector          npcollector.Component
-
-	Lc compdef.Lifecycle
 }
