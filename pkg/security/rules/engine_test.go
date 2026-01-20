@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	seclrules "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 // This test is less important now that remoteConfigProvidersFirst() exists, which enforces that the RC providers are first
@@ -83,8 +82,8 @@ func TestRuleEngineNoMatchMetric(t *testing.T) {
 	client := &captureStatsdClient{}
 
 	enabled := map[eval.EventType]bool{"*": true}
-	ruleOpts, evalOpts := seclrules.NewBothOpts(enabled)
-	rs := seclrules.NewRuleSet(&model.Model{}, func() eval.Event { return model.NewFakeEvent() }, ruleOpts, evalOpts)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
+	rs := rules.NewRuleSet(&model.Model{}, func() eval.Event { return model.NewFakeEvent() }, ruleOpts, evalOpts)
 
 	engine := &RuleEngine{
 		config:         &config.RuntimeSecurityConfig{},
