@@ -45,8 +45,6 @@ type SafeDevice interface {
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
-	// GetGpuInstancePossiblePlacements returns possible placements for a GPU instance profile
-	GetGpuInstancePossiblePlacements(info *nvml.GpuInstanceProfileInfo) ([]nvml.GpuInstancePlacement, error)
 	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
 	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
 	// GetIndex returns the index of the device
