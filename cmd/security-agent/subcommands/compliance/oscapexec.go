@@ -19,7 +19,7 @@ func oscapExecCommand(_ *command.GlobalParams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "oscap-exec <binary-path> [args...]",
 		Short:  "Execute oscap-io with dropped capabilities (internal use only)",
-		Long:   "Internal command that drops all capabilities except CAP_SYS_CHROOT before executing oscap-io. This command should not be called directly by users.",
+		Long:   "Internal command that drops capabilities before executing oscap-io. This command should not be called directly by users.",
 		Hidden: true,
 		Args:   cobra.MinimumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {

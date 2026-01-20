@@ -51,7 +51,7 @@ func RunOscapExec(args []string) error {
 	return nil
 }
 
-// dropCapabilities drops all capabilities except CAP_SYS_CHROOT
+// dropCapabilities drops all capabilities except CAP_SYS_CHROOT and CAP_DAC_OVERRIDE
 func dropCapabilities() error {
 	// Create a new capability set for the current process
 	caps, err := capability.NewPid2(0)
@@ -67,8 +67,8 @@ func dropCapabilities() error {
 	// Clear all capabilities in all sets
 	caps.Clear(capability.CAPS)
 
-	// Set CAP_SYS_CHROOT in all capability sets
-	caps.Set(capability.CAPS, capability.CAP_SYS_CHROOT)
+	// Set CAP_SYS_CHROOT and CAP_DAC_OVERRIDE in all capability sets
+	caps.Set(capability.CAPS, capability.CAP_SYS_CHROOT, capability.CAP_DAC_OVERRIDE)
 
 	// Apply the capability changes
 	if err := caps.Apply(capability.CAPS); err != nil {
