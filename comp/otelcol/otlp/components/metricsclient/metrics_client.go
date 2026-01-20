@@ -48,12 +48,14 @@ func InitializeMetricClient(mp metric.MeterProvider, source string) (statsd.Clie
 func (m *metricsClient) Gauge(name string, value float64, tags []string, _ float64) error {
 	// The last parameter is rate, but we're omitting it because rate does not have effect for gauge points: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/dedd44436ae064f5a0b43769d24adf897533957b/receiver/statsdreceiver/internal/protocol/metric_translator.go#L153-L156
 	m.mutex.Lock()
-	defer m.mutex.Unlock()
 	if _, ok := m.gauges[name]; ok {
 		m.gauges[name] = value
+		m.mutex.Unlock()
 		return nil
 	}
 	m.gauges[name] = value
+	// unlocking the mutex before calling into the meter provider, which may want to acquire another mutex
+	m.mutex.Unlock()
 	_, err := m.meter.Float64ObservableGauge(name, metric.WithFloat64Callback(func(_ context.Context, f metric.Float64Observer) error {
 		attr := m.attributeFromTags(tags)
 		m.mutex.Lock()

@@ -42,7 +42,6 @@ type OrchestratorConfig struct {
 	OrchestratorEndpoints          []apicfg.Endpoint
 	MaxPerMessage                  int
 	MaxWeightPerMessageBytes       int
-	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
 	ExtraTags                      []string
 	IsManifestCollectionEnabled    bool
 	BufferedManifestEnabled        bool
@@ -64,7 +63,6 @@ func NewDefaultOrchestratorConfig(extraTags []string) *OrchestratorConfig {
 		MaxPerMessage:            100,
 		MaxWeightPerMessageBytes: 10000000,
 		OrchestratorEndpoints:    []apicfg.Endpoint{{Endpoint: orchestratorEndpoint}},
-		PodQueueBytes:            15 * 1000 * 1000,
 	}
 	return &oc
 }
@@ -111,12 +109,6 @@ func (oc *OrchestratorConfig) Load() error {
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
 	setBoundedConfigIntValue(OrchestratorNSKey("max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
-	if k := key(processNS, "pod_queue_bytes"); pkgconfigsetup.Datadog().IsSet(k) {
-		if queueBytes := pkgconfigsetup.Datadog().GetInt(k); queueBytes > 0 {
-			oc.PodQueueBytes = queueBytes
-		}
-	}
-
 	// Orchestrator Explorer
 	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
@@ -130,11 +122,11 @@ func (oc *OrchestratorConfig) Load() error {
 }
 
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
-	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
+	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
-	} else if k := key(processNS, "orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsSet(k) {
+	} else if k := key(processNS, "orchestrator_additional_endpoints"); pkgconfigsetup.Datadog().IsConfigured(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
