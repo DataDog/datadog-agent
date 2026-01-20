@@ -166,7 +166,8 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
 }
 
-var azureServerlessTags = []string{
+var serverlessProfileTags = []string{
+	// Azure tags
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -178,14 +179,15 @@ var azureServerlessTags = []string{
 	"aas.subscription.id",
 	"aas.resource.group",
 	"aas.resource.id",
+	// Cloud-agnostic origin tag
 	"_dd.origin",
 }
 
 func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
-	azureTags := make(map[string]string)
-	for _, azureServerlessTag := range azureServerlessTags {
-		if value, ok := tags[azureServerlessTag]; ok {
-			azureTags[azureServerlessTag] = value
+	profileTags := make(map[string]string)
+	for _, serverlessProfileTag := range serverlessProfileTags {
+		if value, ok := tags[serverlessProfileTag]; ok {
+			profileTags[serverlessProfileTag] = value
 		}
 	}
 
@@ -194,7 +196,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
 		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
 		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		AdditionalProfileTags: azureTags,
+		AdditionalProfileTags: profileTags,
 		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
