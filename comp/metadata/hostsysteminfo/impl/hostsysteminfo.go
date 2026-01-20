@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
@@ -66,7 +65,6 @@ type Requires struct {
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
-	IPCClient  ipc.HTTPClient
 }
 
 type Provides struct {

@@ -240,22 +240,6 @@ This command print the inventory-host metadata payload. This payload is used by 
 		},
 	}
 
-	payloadInventoriesOtelCmd := &cobra.Command{
-		Use:   "inventory-otel",
-		Short: "Print the Inventory otel metadata payload.",
-		Long: `
-This command print the inventory-otel metadata payload. This payload is used by the 'OTel Agent' product.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("inventory-otel")),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-				secretnoopfx.Module(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-
 	payloadInventoriesHaAgentCmd := &cobra.Command{
 		Use:   "ha-agent",
 		Short: "Print the HA Agent Metadata payload.",
@@ -386,7 +370,6 @@ This command print the host system info metadata payload.`,
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadHostGpuCmd)
-	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHaAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)

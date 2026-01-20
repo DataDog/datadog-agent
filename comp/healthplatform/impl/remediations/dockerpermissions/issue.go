@@ -51,7 +51,7 @@ func (t *DockerPermissionIssue) BuildIssue(context map[string]string) *healthpla
 		Severity:    "medium",
 		DetectedAt:  "", // Will be filled by health platform
 		Source:      "logs",
-		Extra: map[any]any{
+		Extra: map[string]any{
 			"integration": "docker",
 			"dir_path":    dockerDir,
 			"os":          osName,

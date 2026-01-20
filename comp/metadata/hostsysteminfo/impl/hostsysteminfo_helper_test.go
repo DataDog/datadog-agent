@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -33,7 +32,6 @@ func getTestHostSystemInfo(t *testing.T, overrides map[string]any) *hostSystemIn
 		Config:     config.NewMockWithOverrides(t, overrides),
 		Serializer: serializermock.NewMetricSerializer(t),
 		Hostname:   hostname,
-		IPCClient:  ipcmock.New(t).GetClient(),
 	})
 
 	return p.Comp.(*hostSystemInfo)

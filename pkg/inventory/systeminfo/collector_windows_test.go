@@ -40,7 +40,7 @@ func TestGetChassisTypeName_NonVirtualMachines(t *testing.T) {
 	// Ensure physical machines are not incorrectly identified as VMs
 	nonVMCases := []struct {
 		name         string
-		chassisType  uint16
+		chassisType  int32
 		model        string
 		manufacturer string
 		expected     string
@@ -79,7 +79,7 @@ func TestGetChassisTypeName_NonVirtualMachines(t *testing.T) {
 func TestGetChassisTypeName_EdgeCases(t *testing.T) {
 	tests := []struct {
 		name         string
-		chassisType  uint16
+		chassisType  int32
 		model        string
 		manufacturer string
 		expected     string
@@ -122,9 +122,9 @@ func TestGetChassisTypeName_EdgeCases(t *testing.T) {
 	}
 }
 
-// TestCollect_Integration tests the actual WMI collection (integration test)
+// TestWMICollection tests the actual WMI collection (integration test)
 // This test will only pass on actual Windows systems with WMI available
-func TestCollect_Integration(t *testing.T) {
+func TestWMICollection(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}

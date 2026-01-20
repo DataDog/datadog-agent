@@ -553,6 +553,8 @@ class GithubAPI:
     def get_token_from_app(app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64'):
         app_id = os.environ.get(app_id_env)
         app_key_b64 = os.environ.get(pkey_env)
+        if app_id is None or app_key_b64 is None:
+            raise RuntimeError(f"Missing {app_id_env} or {pkey_env}")
         app_key = base64.b64decode(app_key_b64).decode("ascii")
 
         auth = Auth.AppAuth(app_id, app_key)
