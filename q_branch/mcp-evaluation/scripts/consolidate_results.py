@@ -74,12 +74,12 @@ def create_summary_stats(df: pd.DataFrame) -> pd.DataFrame:
         'overall_score': ['mean', 'min', 'max'],
         'duration_sec': 'mean',
         'turns': 'mean',
-        'cost': 'mean',
+        'cost': ['mean', 'sum'],
         'scenario': 'count'  # Count of completed scenarios
     }).round(2)
 
     # Flatten multi-level columns
-    summary.columns = ['avg_score', 'min_score', 'max_score', 'avg_duration_sec', 'avg_turns', 'avg_cost', 'completed_count']
+    summary.columns = ['avg_score', 'min_score', 'max_score', 'avg_duration_sec', 'avg_turns', 'avg_cost', 'total_cost', 'completed_count']
 
     # Add error count
     errors = df[df['status'] == 'error'].groupby('mode').size()
@@ -97,7 +97,7 @@ def create_summary_stats(df: pd.DataFrame) -> pd.DataFrame:
     summary = summary[[
         'mode', 'total_scenarios', 'completed_count', 'error_count',
         'avg_score', 'min_score', 'max_score',
-        'avg_duration_sec', 'avg_turns', 'avg_cost'
+        'avg_duration_sec', 'avg_turns', 'avg_cost', 'total_cost'
     ]]
 
     return summary
