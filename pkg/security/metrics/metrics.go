@@ -39,6 +39,10 @@ var (
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
+	// MetricRulesNoMatch is the number of events that reached userspace but didn't match any rule
+	// Tags: event_type, category
+	MetricRulesNoMatch = newRuntimeMetric(".rules.no_match")
+
 	// Rule action metrics
 
 	// MetricRuleActionPerformed is the name of the metric used to count actions performed after a rule was matched
