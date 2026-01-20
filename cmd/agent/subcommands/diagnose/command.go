@@ -349,6 +349,22 @@ This command print the security-agent metadata payload. This payload is used by 
 		},
 	}
 
+	payloadHostSystemInfoCmd := &cobra.Command{
+		Use:   "host-system-info",
+		Short: "[internal] Print the host system info metadata payload.",
+		Long: `
+This command print the host system info metadata payload.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("host-system-info")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+				secretnoopfx.Module(),
+				ipcfx.ModuleReadOnly(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
@@ -361,6 +377,7 @@ This command print the security-agent metadata payload. This payload is used by 
 	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	showPayloadCommand.AddCommand(agentTelemetryCmd)
 	showPayloadCommand.AddCommand(agentFullTelemetryCmd)
+	showPayloadCommand.AddCommand(payloadHostSystemInfoCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}

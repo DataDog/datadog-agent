@@ -228,6 +228,24 @@ func TestCompareGetEnvVars(t *testing.T) {
 		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
 		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
 	})
+
+	t.Run("Duplicate env vars", func(t *testing.T) {
+		viperConf, ntmConf := constructBothConfigs(dataYaml, false, func(cfg model.Setup) {
+			cfg.BindEnv("test", "ABC")  //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test2", "ABC") //nolint:forbidigo // testing behavior
+			cfg.BindEnv("test3")        //nolint:forbidigo // testing behavior
+		})
+
+		viperEnvVars := viperConf.GetEnvVars()
+		ntmEnvVars := ntmConf.GetEnvVars()
+
+		sort.Strings(viperEnvVars)
+		sort.Strings(ntmEnvVars)
+
+		expected := []string{"ABC", "DD_TEST3"}
+		assert.Equal(t, viperEnvVars, expected, "viper should return only known env vars")
+		assert.Equal(t, ntmEnvVars, expected, "ntm should return only known env vars")
+	})
 }
 
 func TestCompareAllSettings(t *testing.T) {

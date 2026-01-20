@@ -974,6 +974,27 @@ Probes:
       probeTemplate:
         TemplateString: testInlinedBCB
         Segments: [testInlinedBCB]
+    - id: testInlinedFuncFromOtherPackage
+      version: 0
+      type: LOG_PROBE
+      where:
+        methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+      template: testInlinedFuncFromOtherPackage
+      segments: [testInlinedFuncFromOtherPackage]
+      captureSnapshot: true
+      subprogram: {subprogram: 163}
+      events:
+        - Kind: Entry
+          Type: 1368 EventRootType Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
+          InjectionPoints:
+            - PC: "0xd02932"
+              Frameless: true
+            - PC: "0xd0548b"
+              Frameless: false
+          Condition: null
+      probeTemplate:
+        TemplateString: testInlinedFuncFromOtherPackage
+        Segments: [testInlinedFuncFromOtherPackage]
     - id: testInlinedPrint
       version: 0
       type: LOG_PROBE
@@ -7789,6 +7810,15 @@ Subprograms:
             - Range: 0xd04b8c..0xd04cc5
               Pieces: [{Size: 40, Op: {CfaOffset: -128}}]
           Role: Parameter
+    - ID: 163
+      Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+      OutOfLinePCRanges: []
+      InlinePCRanges:
+        - Ranges: [0xd0548b..0xd05492]
+          RootRanges: [0xd05340..0xd054ce]
+        - Ranges: [0xd02932..0xd02936, 0xd02937..0xd0293e]
+          RootRanges: [0xd02920..0xd0293f]
+      Variables: []
 Types:
     - __kind: PointerType
       ID: 132
@@ -10741,6 +10771,9 @@ Types:
       GoRuntimeType: 1.005632e+06
       GoKind: 22
       Pointee: 673 BaseType vendor/golang.org/x/net/idna.runeError
+    - __kind: EventRootType
+      ID: 1368
+      Name: Probe[github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc]
     - __kind: EventRootType
       ID: 1330
       Name: Probe[main.stackC]
@@ -24118,7 +24151,7 @@ Types:
       ByteSize: 4
       GoRuntimeType: 952224
       GoKind: 5
-MaxTypeID: 1367
+MaxTypeID: 1368
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x175d760", TypesOffset: 296}
 CommonTypes:
