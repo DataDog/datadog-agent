@@ -53,6 +53,7 @@ ALL_TAGS = {
     "netgo",
     "npm",
     "nvml",  # used for the nvidia go-nvml library
+    "observer",  # experimental observer component for anomaly detection
     "oracle",
     "orchestrator",
     "osusergo",

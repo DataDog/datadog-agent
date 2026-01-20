@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 // Package main provides the entry point for the observer test bench.
 // The test bench is a standalone tool for iterating on observer components
 // by loading scenarios and visualizing analysis results.
