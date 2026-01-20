@@ -105,7 +105,7 @@ func (f *Filter) MatchEntity(entity *Entity) bool {
 		return true
 	}
 
-	if entity == nil || *entity == nil {
+	if entity == nil {
 		return false
 	}
 
