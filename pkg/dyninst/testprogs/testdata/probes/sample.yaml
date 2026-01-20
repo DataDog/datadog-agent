@@ -200,6 +200,18 @@ probes:
           ref: "x"
         dsl: "x"
     captureSnapshot: true
+  - id: testAtomicAdd
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testAtomicAdd
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
   - id: testSingleString
     type: LOG_PROBE
     tags:

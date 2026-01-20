@@ -30,8 +30,8 @@ var currentExtensionVersion = "xxx"
 func ArrayToMap(tagArray []string) map[string]string {
 	tagMap := make(map[string]string)
 	for _, tag := range tagArray {
-		splitTags := strings.Split(tag, ",")
-		for _, singleTag := range splitTags {
+		splitTags := strings.SplitSeq(tag, ",")
+		for singleTag := range splitTags {
 			tagMap = addTag(tagMap, singleTag)
 		}
 	}
