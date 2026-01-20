@@ -688,22 +688,19 @@ func (m *ManagerV2) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]b
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
-	cgr.Iterate(func(cgce *cgroupModel.CacheEntry) bool {
-		cgce.Lock()
-		defer cgce.Unlock()
-
+	cgr.IterateCacheEntries(func(cgce *cgroupModel.CacheEntry) bool {
 		var cgceTags []string
 		var err error
 		var imageName, imageTag string
-		if cgce.ContainerContext.ContainerID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.ContainerContext.ContainerID)
+		if id := cgce.GetContainerID(); id != "" {
+			cgceTags, err = tagsResolver.ResolveWithErr(id)
 			if err != nil {
 				return false
 			}
 			imageName = utils.GetTagValue("image_name", cgceTags)
 			imageTag = utils.GetTagValue("image_tag", cgceTags)
-		} else if cgce.CGroupContext.CGroupID != "" {
-			cgceTags, err = tagsResolver.ResolveWithErr(cgce.CGroupContext.CGroupID)
+		} else if cgce.IsCGroupContextResolved() {
+			cgceTags, err = tagsResolver.ResolveWithErr(cgce.GetCGroupID())
 			if err != nil {
 				return false
 			}
@@ -721,9 +718,7 @@ func (m *ManagerV2) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]b
 			imageName: imageName,
 			imageTag:  imageTag,
 		}
-		for pid := range cgce.PIDs {
-			pids[imageTagKey] = append(pids[imageTagKey], pid)
-		}
+		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})
