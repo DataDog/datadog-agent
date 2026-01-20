@@ -18,7 +18,7 @@ import (
 )
 
 func TestWithAgentProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
-	result := loadAsAgentMode(t, "adds_default_when_no_infraattributes.yaml")
+	result := loadAsAgentMode(t, "with_agent/adds_default_when_no_infraattributes.yaml")
 
 	// Check that infraattributes/default was added
 	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/default::allow_hostname_override")
@@ -38,7 +38,7 @@ func TestWithAgentProcessorsAddsDefaultWhenNoInfraattributes(t *testing.T) {
 }
 
 func TestWithAgentCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
-	result := loadAsAgentMode(t, "ensures_infraattributes_config.yaml")
+	result := loadAsAgentMode(t, "with_agent/ensures_infraattributes_config.yaml")
 
 	// Check that allow_hostname_override was set correctly
 	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
@@ -52,7 +52,7 @@ func TestWithAgentCheckProcessorsEnsuresInfraattributesConfig(t *testing.T) {
 }
 
 func TestWithAgentCheckProcessorsRemovesResourcedetection(t *testing.T) {
-	result := loadAsAgentMode(t, "removes_resourcedetection.yaml")
+	result := loadAsAgentMode(t, "with_agent/removes_resourcedetection.yaml")
 
 	// Check that resourcedetection was removed
 	_, ok := Get[confMap](result, "processors::resourcedetection")
@@ -70,7 +70,7 @@ func TestWithAgentCheckProcessorsRemovesResourcedetection(t *testing.T) {
 }
 
 func TestWithAgentCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T) {
-	result := loadAsAgentMode(t, "removes_resourcedetection_custom_name.yaml")
+	result := loadAsAgentMode(t, "with_agent/removes_resourcedetection_custom_name.yaml")
 
 	// Check that resourcedetection/custom was removed
 	_, ok := Get[confMap](result, "processors::resourcedetection/custom")
@@ -89,7 +89,7 @@ func TestWithAgentCheckProcessorsRemovesResourcedetectionCustomName(t *testing.T
 }
 
 func TestWithAgentCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) {
-	result := loadAsAgentMode(t, "handles_infraattributes_custom_name.yaml")
+	result := loadAsAgentMode(t, "with_agent/handles_infraattributes_custom_name.yaml")
 
 	// Check that allow_hostname_override was set on custom infraattributes
 	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes/custom::allow_hostname_override")
@@ -108,7 +108,7 @@ func TestWithAgentCheckProcessorsHandlesInfraattributesCustomName(t *testing.T) 
 }
 
 func TestWithAgentCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
-	result := loadAsAgentMode(t, "adds_hostprofiler_when_missing.yaml")
+	result := loadAsAgentMode(t, "common/adds_hostprofiler_when_missing.yaml")
 
 	// Check that hostprofiler was added with symbol_uploader disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -122,7 +122,7 @@ func TestWithAgentCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversPreservesOtlpProtocols(t *testing.T) {
-	result := loadAsAgentMode(t, "preserves_otlp_protocols.yaml")
+	result := loadAsAgentMode(t, "common/preserves_otlp_protocols.yaml")
 
 	// Check that existing OTLP protocol config is preserved
 	endpoint, ok := Get[string](result, "receivers::otlp::protocols::grpc::endpoint")
@@ -131,7 +131,7 @@ func TestWithAgentCheckReceiversPreservesOtlpProtocols(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
-	result := loadAsAgentMode(t, "creates_default_hostprofiler.yaml")
+	result := loadAsAgentMode(t, "common/creates_default_hostprofiler.yaml")
 
 	// Check that hostprofiler was created with symbol_uploader disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -140,7 +140,7 @@ func TestWithAgentCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversSymbolUploaderDisabled(t *testing.T) {
-	result := loadAsAgentMode(t, "symbol_uploader_disabled.yaml")
+	result := loadAsAgentMode(t, "common/symbol_uploader_disabled.yaml")
 
 	// Check that symbol_uploader remains disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -149,7 +149,7 @@ func TestWithAgentCheckReceiversSymbolUploaderDisabled(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
-	result := loadAsAgentMode(t, "symbol_uploader_with_string_keys.yaml")
+	result := loadAsAgentMode(t, "common/symbol_uploader_with_string_keys.yaml")
 
 	// Get symbol endpoints and check the first endpoint
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -162,7 +162,7 @@ func TestWithAgentCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversConvertsNonStringApiKey(t *testing.T) {
-	result := loadAsAgentMode(t, "converts_non_string_api_key.yaml")
+	result := loadAsAgentMode(t, "common/converts_non_string_api_key.yaml")
 
 	// Check that api_key was converted to string
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -172,7 +172,7 @@ func TestWithAgentCheckReceiversConvertsNonStringApiKey(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversConvertsNonStringAppKey(t *testing.T) {
-	result := loadAsAgentMode(t, "converts_non_string_app_key.yaml")
+	result := loadAsAgentMode(t, "common/converts_non_string_app_key.yaml")
 
 	// Check that app_key was converted to string
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -182,7 +182,7 @@ func TestWithAgentCheckReceiversConvertsNonStringAppKey(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
-	result := loadAsAgentMode(t, "adds_hostprofiler_to_pipeline.yaml")
+	result := loadAsAgentMode(t, "common/adds_hostprofiler_to_pipeline.yaml")
 
 	// Verify hostprofiler was added to pipeline
 	receivers, ok := Get[[]any](result, "service::pipelines::profiles::receivers")
@@ -197,7 +197,7 @@ func TestWithAgentCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
 }
 
 func TestWithAgentCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
-	result := loadAsAgentMode(t, "multiple_symbol_endpoints.yaml")
+	result := loadAsAgentMode(t, "common/multiple_symbol_endpoints.yaml")
 
 	// Check that both endpoints were processed correctly
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -215,7 +215,7 @@ func TestWithAgentCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
 
 func TestWithAgentCheckReceiversNonStringReceiverName(t *testing.T) {
 	// Test that non-string receiver names in pipeline are rejected
-	path := filepath.Join("testdata", "non_string_receiver_name_in_pipeline.yaml")
+	path := filepath.Join("testdata", "common", "non_string_receiver_name_in_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -234,7 +234,7 @@ func TestWithAgentCheckReceiversNonStringReceiverName(t *testing.T) {
 
 func TestWithAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 	// Test that multiple hostprofiler receivers in pipeline are all processed
-	result := loadAsAgentMode(t, "multiple_hostprofiler_receivers.yaml")
+	result := loadAsAgentMode(t, "common/multiple_hostprofiler_receivers.yaml")
 
 	// Check first hostprofiler - keys should be converted to strings
 	endpoints1, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -255,7 +255,7 @@ func TestWithAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 
 func TestWithAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 	// Test that symbol_endpoints with wrong type (string not list) returns error
-	path := filepath.Join("testdata", "symbol_endpoints_wrong_type.yaml")
+	path := filepath.Join("testdata", "common", "symbol_endpoints_wrong_type.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -273,7 +273,7 @@ func TestWithAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 }
 
 func TestWithAgentCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
-	result := loadAsAgentMode(t, "ensures_headers.yaml")
+	result := loadAsAgentMode(t, "common/ensures_headers.yaml")
 
 	// Check that headers was created
 	_, ok := Get[confMap](result, "exporters::otlphttp::headers")
@@ -281,7 +281,7 @@ func TestWithAgentCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
 }
 
 func TestWithAgentCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
-	result := loadAsAgentMode(t, "otlphttp_with_string_api_key.yaml")
+	result := loadAsAgentMode(t, "common/otlphttp_with_string_api_key.yaml")
 
 	// Check that dd-api-key is preserved as string
 	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
@@ -290,7 +290,7 @@ func TestWithAgentCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
 }
 
 func TestWithAgentCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
-	result := loadAsAgentMode(t, "otlphttp_converts_non_string_api_key.yaml")
+	result := loadAsAgentMode(t, "common/otlphttp_converts_non_string_api_key.yaml")
 
 	// Check that dd-api-key was converted to string
 	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
@@ -299,7 +299,7 @@ func TestWithAgentCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
 }
 
 func TestWithAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
-	result := loadAsAgentMode(t, "multiple_otlphttp_exporters.yaml")
+	result := loadAsAgentMode(t, "common/multiple_otlphttp_exporters.yaml")
 
 	// Check prod exporter api key was converted to string
 	prodAPIKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
@@ -317,7 +317,7 @@ func TestWithAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 }
 
 func TestWithAgentCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
-	result := loadAsAgentMode(t, "ignores_non_otlphttp.yaml")
+	result := loadAsAgentMode(t, "common/ignores_non_otlphttp.yaml")
 
 	// Check that non-otlphttp exporters are preserved
 	_, ok := Get[confMap](result, "exporters::logging")
@@ -328,7 +328,7 @@ func TestWithAgentCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
 }
 
 func TestWithAgentCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
-	path := filepath.Join("testdata", "errors_when_no_otlphttp.yaml")
+	path := filepath.Join("testdata", "common", "errors_when_no_otlphttp.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -346,7 +346,7 @@ func TestWithAgentCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
 
 func TestWithAgentProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 	// Test that even if allow_hostname_override is explicitly set to false, we override it to true
-	result := loadAsAgentMode(t, "overrides_hostname_override_true.yaml")
+	result := loadAsAgentMode(t, "with_agent/overrides_hostname_override_true.yaml")
 
 	// Should be overridden to true
 	allowHostnameOverride, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
@@ -361,7 +361,7 @@ func TestWithAgentProcessorsOverridesAllowHostnameOverrideToTrue(t *testing.T) {
 
 func TestWithAgentProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T) {
 	// Edge case: both infraattributes and infraattributes/custom in pipeline
-	result := loadAsAgentMode(t, "default_and_custom_infraattrs.yaml")
+	result := loadAsAgentMode(t, "with_agent/default_and_custom_infraattrs.yaml")
 
 	// Both should have allow_hostname_override set to true
 	allowHostnameOverride1, ok := Get[bool](result, "processors::infraattributes::allow_hostname_override")
@@ -375,7 +375,7 @@ func TestWithAgentProcessorsWithBothDefaultAndCustomInfraattributes(t *testing.T
 
 func TestWithAgentProcessorsWithMultipleResourcedetectionProcessors(t *testing.T) {
 	// Multiple resourcedetection processors with different names - all should be removed
-	result := loadAsAgentMode(t, "multiple_resourcedetection_processors.yaml")
+	result := loadAsAgentMode(t, "with_agent/multiple_resourcedetection_processors.yaml")
 
 	// All resourcedetection processors should be removed
 	_, ok := Get[confMap](result, "processors::resourcedetection")
@@ -401,7 +401,7 @@ func TestWithAgentProcessorsWithMultipleResourcedetectionProcessors(t *testing.T
 
 func TestWithAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
-	path := filepath.Join("testdata", "symbol_uploader_empty_endpoints.yaml")
+	path := filepath.Join("testdata", "common", "symbol_uploader_empty_endpoints.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -419,7 +419,7 @@ func TestWithAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T)
 
 func TestWithAgentEmptyPipeline(t *testing.T) {
 	// Edge case: Empty everything in pipeline
-	path := filepath.Join("testdata", "empty_pipeline.yaml")
+	path := filepath.Join("testdata", "with_agent", "empty_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -439,7 +439,7 @@ func TestWithAgentEmptyPipeline(t *testing.T) {
 
 func TestWithAgentNonStringProcessorNameInPipeline(t *testing.T) {
 	// Edge case: Non-string value in processors list (should be handled gracefully)
-	path := filepath.Join("testdata", "non_string_processor_name_in_pipeline.yaml")
+	path := filepath.Join("testdata", "common", "non_string_processor_name_in_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -460,7 +460,7 @@ func TestWithAgentNonStringProcessorNameInPipeline(t *testing.T) {
 func TestWithAgentHeadersExistButWrongType(t *testing.T) {
 	// Tricky: exporter headers exist but are a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	result := loadAsAgentMode(t, "headers_exist_but_wrong_type.yaml")
+	result := loadAsAgentMode(t, "common/headers_exist_but_wrong_type.yaml")
 
 	// The invalid string should have been replaced with a map
 	headers, ok := Get[confMap](result, "exporters::otlphttp::headers")
@@ -476,7 +476,7 @@ func TestWithAgentHeadersExistButWrongType(t *testing.T) {
 
 func TestWithAgentEmptyStringProcessorName(t *testing.T) {
 	// Tricky: processor name is an empty string
-	result := loadAsAgentMode(t, "empty_string_processor_name.yaml")
+	result := loadAsAgentMode(t, "with_agent/empty_string_processor_name.yaml")
 
 	// Empty string should be preserved, infraattributes should be added
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
@@ -488,7 +488,7 @@ func TestWithAgentEmptyStringProcessorName(t *testing.T) {
 func TestWithAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	// Tests that similar names don't match - uses proper OTEL type/id parsing
 	// In OTEL specs, components must use type/id format (e.g., infraattributes/custom)
-	result := loadAsAgentMode(t, "processor_name_similar_not_exact.yaml")
+	result := loadAsAgentMode(t, "with_agent/processor_name_similar_not_exact.yaml")
 
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
@@ -518,7 +518,7 @@ func TestWithAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 func TestWithAgentGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Tricky: processors section exists but is a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	result := loadAsAgentMode(t, "global_processors_section_is_not_map.yaml")
+	result := loadAsAgentMode(t, "with_agent/global_processors_section_is_not_map.yaml")
 
 	// The invalid string should have been replaced with a valid map
 	processors, ok := Get[confMap](result, "processors")

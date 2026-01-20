@@ -19,7 +19,7 @@ import (
 
 func TestWithoutAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 	// Tests that similar names don't match - uses proper OTEL type/id parsing
-	result := loadAsStandaloneMode(t, "wo_agent_proc_name_similar_not_exact.yaml")
+	result := loadAsStandaloneMode(t, "without_agent/proc_name_similar_not_exact.yaml")
 
 	processorNames, ok := Get[[]any](result, "service::pipelines::profiles::processors")
 	require.True(t, ok)
@@ -44,7 +44,7 @@ func TestWithoutAgentProcessorNameSimilarButNotExactMatch(t *testing.T) {
 
 func TestWithoutAgentRemovesInfraattributesFromMetricsPipeline(t *testing.T) {
 	// Test that infraattributes is removed from metrics pipeline, not just profiles pipeline
-	result := loadAsStandaloneMode(t, "wo_agent_removes_infraattrs_metrics.yaml")
+	result := loadAsStandaloneMode(t, "without_agent/removes_infraattrs_metrics.yaml")
 
 	// Check that infraattributes processors were removed from global config
 	_, ok := Get[confMap](result, "processors::infraattributes")
@@ -71,7 +71,7 @@ func TestWithoutAgentRemovesInfraattributesFromMetricsPipeline(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
-	result := loadAsStandaloneMode(t, "adds_hostprofiler_when_missing.yaml")
+	result := loadAsStandaloneMode(t, "common/adds_hostprofiler_when_missing.yaml")
 
 	// Check that hostprofiler was added with symbol_uploader disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -85,7 +85,7 @@ func TestWithoutAgentCheckReceiversAddsHostprofilerWhenMissing(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversPreservesOtlpProtocols(t *testing.T) {
-	result := loadAsStandaloneMode(t, "preserves_otlp_protocols.yaml")
+	result := loadAsStandaloneMode(t, "common/preserves_otlp_protocols.yaml")
 
 	// Check that existing OTLP protocol config is preserved
 	endpoint, ok := Get[string](result, "receivers::otlp::protocols::grpc::endpoint")
@@ -94,7 +94,7 @@ func TestWithoutAgentCheckReceiversPreservesOtlpProtocols(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
-	result := loadAsStandaloneMode(t, "creates_default_hostprofiler.yaml")
+	result := loadAsStandaloneMode(t, "common/creates_default_hostprofiler.yaml")
 
 	// Check that hostprofiler was created with symbol_uploader disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -103,7 +103,7 @@ func TestWithoutAgentCheckReceiversCreatesDefaultHostprofiler(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversSymbolUploaderDisabled(t *testing.T) {
-	result := loadAsStandaloneMode(t, "symbol_uploader_disabled.yaml")
+	result := loadAsStandaloneMode(t, "common/symbol_uploader_disabled.yaml")
 
 	// Check that symbol_uploader remains disabled
 	enabled, ok := Get[bool](result, "receivers::hostprofiler::symbol_uploader::enabled")
@@ -112,7 +112,7 @@ func TestWithoutAgentCheckReceiversSymbolUploaderDisabled(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
-	result := loadAsStandaloneMode(t, "symbol_uploader_with_string_keys.yaml")
+	result := loadAsStandaloneMode(t, "common/symbol_uploader_with_string_keys.yaml")
 
 	// Get symbol endpoints and check the first endpoint
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -125,7 +125,7 @@ func TestWithoutAgentCheckReceiversSymbolUploaderWithStringKeys(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversConvertsNonStringApiKey(t *testing.T) {
-	result := loadAsStandaloneMode(t, "converts_non_string_api_key.yaml")
+	result := loadAsStandaloneMode(t, "common/converts_non_string_api_key.yaml")
 
 	// Check that api_key was converted to string
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -135,7 +135,7 @@ func TestWithoutAgentCheckReceiversConvertsNonStringApiKey(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversConvertsNonStringAppKey(t *testing.T) {
-	result := loadAsStandaloneMode(t, "converts_non_string_app_key.yaml")
+	result := loadAsStandaloneMode(t, "common/converts_non_string_app_key.yaml")
 
 	// Check that app_key was converted to string
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -145,7 +145,7 @@ func TestWithoutAgentCheckReceiversConvertsNonStringAppKey(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
-	result := loadAsStandaloneMode(t, "adds_hostprofiler_to_pipeline.yaml")
+	result := loadAsStandaloneMode(t, "common/adds_hostprofiler_to_pipeline.yaml")
 
 	// Verify hostprofiler was added to pipeline
 	receivers, ok := Get[[]any](result, "service::pipelines::profiles::receivers")
@@ -160,7 +160,7 @@ func TestWithoutAgentCheckReceiversAddsHostprofilerToPipeline(t *testing.T) {
 }
 
 func TestWithoutAgentCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
-	result := loadAsStandaloneMode(t, "multiple_symbol_endpoints.yaml")
+	result := loadAsStandaloneMode(t, "common/multiple_symbol_endpoints.yaml")
 
 	// Check that both endpoints were processed correctly
 	endpoints, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -178,7 +178,7 @@ func TestWithoutAgentCheckReceiversMultipleSymbolEndpoints(t *testing.T) {
 
 func TestWithoutAgentCheckReceiversNonStringReceiverName(t *testing.T) {
 	// Test that non-string receiver names in pipeline are rejected
-	path := filepath.Join("testdata", "non_string_receiver_name_in_pipeline.yaml")
+	path := filepath.Join("testdata", "common", "non_string_receiver_name_in_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -197,7 +197,7 @@ func TestWithoutAgentCheckReceiversNonStringReceiverName(t *testing.T) {
 
 func TestWithoutAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 	// Test that multiple hostprofiler receivers in pipeline are all processed
-	result := loadAsStandaloneMode(t, "multiple_hostprofiler_receivers.yaml")
+	result := loadAsStandaloneMode(t, "common/multiple_hostprofiler_receivers.yaml")
 
 	// Check first hostprofiler - keys should be converted to strings
 	endpoints1, ok := Get[[]any](result, "receivers::hostprofiler::symbol_uploader::symbol_endpoints")
@@ -218,7 +218,7 @@ func TestWithoutAgentCheckReceiversMultipleHostprofilers(t *testing.T) {
 
 func TestWithoutAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 	// Test that symbol_endpoints with wrong type (string not list) returns error
-	path := filepath.Join("testdata", "symbol_endpoints_wrong_type.yaml")
+	path := filepath.Join("testdata", "common", "symbol_endpoints_wrong_type.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -237,7 +237,7 @@ func TestWithoutAgentCheckReceiversSymbolEndpointsWrongType(t *testing.T) {
 
 func TestWithoutAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing.T) {
 	// Edge case: symbol_uploader enabled but endpoints list is empty - should error
-	path := filepath.Join("testdata", "symbol_uploader_empty_endpoints.yaml")
+	path := filepath.Join("testdata", "common", "symbol_uploader_empty_endpoints.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -258,7 +258,7 @@ func TestWithoutAgentReceiversSymbolUploaderEnabledWithEmptyEndpoints(t *testing
 // ============================================================================
 
 func TestWithoutAgentCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
-	result := loadAsStandaloneMode(t, "ensures_headers.yaml")
+	result := loadAsStandaloneMode(t, "common/ensures_headers.yaml")
 
 	// Check that headers was created
 	_, ok := Get[confMap](result, "exporters::otlphttp::headers")
@@ -266,7 +266,7 @@ func TestWithoutAgentCheckOtlpHttpExporterEnsuresHeaders(t *testing.T) {
 }
 
 func TestWithoutAgentCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
-	result := loadAsStandaloneMode(t, "otlphttp_with_string_api_key.yaml")
+	result := loadAsStandaloneMode(t, "common/otlphttp_with_string_api_key.yaml")
 
 	// Check that dd-api-key is preserved as string
 	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
@@ -275,7 +275,7 @@ func TestWithoutAgentCheckOtlpHttpExporterWithStringApiKey(t *testing.T) {
 }
 
 func TestWithoutAgentCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) {
-	result := loadAsStandaloneMode(t, "otlphttp_converts_non_string_api_key.yaml")
+	result := loadAsStandaloneMode(t, "common/otlphttp_converts_non_string_api_key.yaml")
 
 	// Check that dd-api-key was converted to string
 	apiKey, ok := Get[string](result, "exporters::otlphttp::headers::dd-api-key")
@@ -284,7 +284,7 @@ func TestWithoutAgentCheckOtlpHttpExporterConvertsNonStringApiKey(t *testing.T) 
 }
 
 func TestWithoutAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
-	result := loadAsStandaloneMode(t, "multiple_otlphttp_exporters.yaml")
+	result := loadAsStandaloneMode(t, "common/multiple_otlphttp_exporters.yaml")
 
 	// Check prod exporter api key was converted to string
 	prodAPIKey, ok := Get[string](result, "exporters::otlphttp/prod::headers::dd-api-key")
@@ -302,7 +302,7 @@ func TestWithoutAgentCheckOtlpHttpExporterMultipleExporters(t *testing.T) {
 }
 
 func TestWithoutAgentCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
-	result := loadAsStandaloneMode(t, "ignores_non_otlphttp.yaml")
+	result := loadAsStandaloneMode(t, "common/ignores_non_otlphttp.yaml")
 
 	// Check that non-otlphttp exporters are preserved
 	_, ok := Get[confMap](result, "exporters::logging")
@@ -313,7 +313,7 @@ func TestWithoutAgentCheckOtlpHttpExporterIgnoresNonOtlpHttp(t *testing.T) {
 }
 
 func TestWithoutAgentCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
-	path := filepath.Join("testdata", "errors_when_no_otlphttp.yaml")
+	path := filepath.Join("testdata", "common", "errors_when_no_otlphttp.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -332,7 +332,7 @@ func TestWithoutAgentCheckExportersErrorsWhenNoOtlpHttp(t *testing.T) {
 func TestWithoutAgentHeadersExistButWrongType(t *testing.T) {
 	// Tricky: exporter headers exist but are a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	result := loadAsStandaloneMode(t, "headers_exist_but_wrong_type.yaml")
+	result := loadAsStandaloneMode(t, "common/headers_exist_but_wrong_type.yaml")
 
 	// The invalid string should have been replaced with a map
 	headers, ok := Get[confMap](result, "exporters::otlphttp::headers")
@@ -347,7 +347,7 @@ func TestWithoutAgentHeadersExistButWrongType(t *testing.T) {
 }
 
 func TestWithoutAgentRemovesAgentExtensions(t *testing.T) {
-	result := loadAsStandaloneMode(t, "wo_agent_removes_extensions.yaml")
+	result := loadAsStandaloneMode(t, "without_agent/removes_extensions.yaml")
 
 	// Check that all agent extensions were removed from definitions (both base and custom names)
 	extensions, ok := Get[confMap](result, "extensions")
@@ -377,7 +377,7 @@ func TestWithoutAgentRemovesAgentExtensions(t *testing.T) {
 func TestWithoutAgentGlobalProcessorsSectionIsNotMap(t *testing.T) {
 	// Tricky: processors section exists but is a string, not a map
 	// Ensure silently replaces wrong-typed values with correct empty types
-	result := loadAsStandaloneMode(t, "wo_agent_global_procs_not_map.yaml")
+	result := loadAsStandaloneMode(t, "without_agent/global_procs_not_map.yaml")
 
 	// The invalid string should have been replaced with a valid map
 	processors, ok := Get[confMap](result, "processors")
@@ -391,7 +391,7 @@ func TestWithoutAgentGlobalProcessorsSectionIsNotMap(t *testing.T) {
 
 func TestWithoutAgentEmptyPipeline(t *testing.T) {
 	// Edge case: Empty everything in pipeline
-	path := filepath.Join("testdata", "without_agent_empty_pipeline.yaml")
+	path := filepath.Join("testdata", "without_agent", "empty_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -411,7 +411,7 @@ func TestWithoutAgentEmptyPipeline(t *testing.T) {
 
 func TestWithoutAgentNonStringProcessorNameInPipeline(t *testing.T) {
 	// Edge case: Non-string value in processors list (should be handled gracefully)
-	path := filepath.Join("testdata", "non_string_processor_name_in_pipeline.yaml")
+	path := filepath.Join("testdata", "common", "non_string_processor_name_in_pipeline.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
@@ -432,7 +432,7 @@ func TestWithoutAgentNonStringProcessorNameInPipeline(t *testing.T) {
 func TestWithoutAgentConverterErrorPropagationFromEnsure(t *testing.T) {
 	// Test that converter properly propagates errors from Ensure
 	// This tests the full integration path
-	path := filepath.Join("testdata", "error_pipelines_not_map.yaml")
+	path := filepath.Join("testdata", "common", "error_pipelines_not_map.yaml")
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 
