@@ -14,7 +14,8 @@ import (
 )
 
 func SetCorrectRight(path string) {
-	exec.Command("powershell", "test/setAcl.ps1",
+	// error not checked
+	_ = exec.Command("powershell", "test/setAcl.ps1",
 		"-file", path,
 		"-removeAllUser", "1",
 		"-removeAdmin", "0",
