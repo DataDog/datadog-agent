@@ -41,8 +41,9 @@ import (
 )
 
 type pendingProfile struct {
-	firstSeen time.Time
-	events    *list.List
+	firstSeen   time.Time
+	events      *list.List
+	containerID string // stored for metrics tagging when expired
 }
 
 type ManagerV2 struct {
@@ -76,9 +77,13 @@ type ManagerV2 struct {
 	pendingTimeout       *atomic.Uint64 // events dropped due to 10s stale timeout
 	queueSize            *atomic.Uint64 // total events currently queued (gauge)
 	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
-	cgroupsExpired       *atomic.Uint64 // cgroups cleaned up after 60s timeout
+	cgroupsReceived      *atomic.Uint64 // unique cgroups received (excluding systemd)
 	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
 	lateInsertions       *atomic.Uint64 // events inserted after profile was sent
+
+	// Track unique cgroups seen
+	seenCgroups     map[containerutils.CGroupID]struct{}
+	seenCgroupsLock sync.Mutex
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
@@ -128,7 +133,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		pendingTimeout:            atomic.NewUint64(0),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
-		cgroupsExpired:            atomic.NewUint64(0),
+		cgroupsReceived:           atomic.NewUint64(0),
 		eventsDroppedMaxSize:      atomic.NewUint64(0),
 		lateInsertions:            atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
@@ -139,6 +144,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
+		seenCgroups:               make(map[containerutils.CGroupID]struct{}),
 	}, nil
 }
 
@@ -149,7 +155,7 @@ func (m *ManagerV2) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	seclog.Infof("security profile manager started")
+	seclog.Infof("security profile manager v2 started")
 
 	for {
 		select {
@@ -256,8 +262,24 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	// Resolve event source (runtime or replay)
+	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
+	sourceTags := []string{"source:" + source}
+
+	// Track unique cgroups received (excluding systemd)
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	m.seenCgroupsLock.Lock()
+	if _, seen := m.seenCgroups[cgroupID]; !seen {
+		m.seenCgroups[cgroupID] = struct{}{}
+		m.cgroupsReceived.Inc()
+	}
+	m.seenCgroupsLock.Unlock()
+
 	// Count events that pass initial filters
 	m.eventsReceived.Inc()
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, 1, sourceTags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalReceived, err)
+	}
 
 	// Cleanup: purge pending entries that have been waiting too long (60s)
 	m.purgeStalePendingEvents(event.Timestamp)
@@ -268,9 +290,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 
 	if tagsResolved {
 		m.eventsImmediate.Inc()
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalImmediate, 1, sourceTags, 1.0); err != nil {
+			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalImmediate, err)
+		}
 		m.processEventWithResolvedTags(event)
 	} else {
-		m.queueEventForTagResolution(event)
+		m.queueEventForTagResolution(event, sourceTags)
 	}
 }
 
@@ -280,7 +305,12 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 		if currentTimestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
 			delete(m.profilePendingEvents, cgroupID)
 			m.pendingProfiles.Dec()
-			m.cgroupsExpired.Inc()
+
+			// Emit metric with containerID tag
+			tags := []string{"container_id:" + pendingEvents.containerID}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, 1, tags, 1.0); err != nil {
+				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, err)
+			}
 		}
 	}
 }
@@ -314,15 +344,16 @@ func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 }
 
 // queueEventForTagResolution queues an event while waiting for tag resolution
-func (m *ManagerV2) queueEventForTagResolution(event *model.Event) {
+func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []string) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 	pendingEvents := m.profilePendingEvents[cgroupID]
 
 	// Create pending entry if it doesn't exist
 	if pendingEvents == nil {
 		pendingEvents = &pendingProfile{
-			firstSeen: event.Timestamp,
-			events:    list.New(),
+			firstSeen:   event.Timestamp,
+			events:      list.New(),
+			containerID: string(event.ProcessContext.Process.ContainerContext.ContainerID),
 		}
 		m.profilePendingEvents[cgroupID] = pendingEvents
 		m.pendingProfiles.Inc()
@@ -335,6 +366,10 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event) {
 		if pendingEvents.events.Len() > 0 {
 			pendingEvents.events.Init()
 			m.pendingTimeout.Inc()
+			// Emit dropped metric with source tag
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(pendingEvents.events.Len()), sourceTags, 1.0); err != nil {
+				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+			}
 		}
 		return
 	}
@@ -345,6 +380,9 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event) {
 	pendingEvents.events.PushBack(cpy)
 	m.queueSize.Inc()
 	m.eventsQueued.Inc()
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalQueued, 1, sourceTags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalQueued, err)
+	}
 }
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
@@ -383,22 +421,8 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 }
 
 func (m *ManagerV2) SendStats() error {
-	// Event processing counts (swap to 0 after reading)
-	if value := m.eventsReceived.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
-	}
-	if value := m.eventsImmediate.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalImmediate, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
-	}
-	if value := m.eventsQueued.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalQueued, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
-	}
+	// Note: events.total_received, events.total_immediate, events.total_queued, and
+	// tag_resolution.events_dropped are emitted directly in ProcessEvent with source tags
 
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {
@@ -408,14 +432,9 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Tag resolution counts (swap to 0 after reading)
-	if value := m.pendingTimeout.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
-	}
-	if value := m.cgroupsExpired.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsExpired, int64(value), []string{}, 1.0); err != nil {
+	// Note: cgroupsExpired is emitted directly in purgeStalePendingEvents with container_id tag
+	if value := m.cgroupsReceived.Swap(0); value > 0 {
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionCgroupsReceived, int64(value), []string{}, 1.0); err != nil {
 			return err
 		}
 	}

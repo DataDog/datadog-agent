@@ -477,15 +477,15 @@ var (
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2EventsTotalReceived is the name of the metric used to report total events received by ProcessEvent (after filters)
-	// Tags: -
+	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2EventsTotalReceived = newRuntimeMetric(".security_profile_v2.events.total_received")
 
 	// MetricSecurityProfileV2EventsTotalImmediate is the name of the metric used to report total events processed immediately (tags already resolved)
-	// Tags: -
+	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2EventsTotalImmediate = newRuntimeMetric(".security_profile_v2.events.total_immediate")
 
 	// MetricSecurityProfileV2EventsTotalQueued is the name of the metric used to report total events queued (count, not gauge)
-	// Tags: -
+	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2EventsTotalQueued = newRuntimeMetric(".security_profile_v2.events.total_queued")
 
 	// Tag Resolution metrics
@@ -498,12 +498,16 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
 
-	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
+	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report total unique cgroups received (excluding systemd)
 	// Tags: -
+	MetricSecurityProfileV2TagResolutionCgroupsReceived = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_received")
+
+	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
+	// Tags: source (runtime or replay)
 	MetricSecurityProfileV2TagResolutionEventsDropped = newRuntimeMetric(".security_profile_v2.tag_resolution.events_dropped")
 
 	// MetricSecurityProfileV2TagResolutionCgroupsExpired is the name of the metric used to report cgroups cleaned up after 60s without ever resolving tags
-	// Tags: -
+	// Tags: container_id
 	MetricSecurityProfileV2TagResolutionCgroupsExpired = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_expired")
 
 	// MetricSecurityProfileV2TagResolutionLatency is the name of the metric used to report the time between first event and successful tag resolution
