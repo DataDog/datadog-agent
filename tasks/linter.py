@@ -214,6 +214,41 @@ def releasenote(ctx):
 
 
 @task
+def rst_releasenotes(_, files=None):
+    """Check release notes for RST formatting issues.
+
+    Validates that release notes use proper reStructuredText (RST) formatting
+    instead of Markdown, using docutils as the reference RST parser.
+
+    Args:
+        files: Optional comma-separated list of files to lint. If not provided,
+               lints all .yaml files in releasenotes/notes/ and releasenotes-dca/notes/.
+    """
+    from tasks.libs.linter.releasenotes import lint_releasenotes
+
+    if files:
+        file_list = [f.strip() for f in files.split(',') if f.strip()]
+    else:
+        file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
+
+    if not file_list:
+        print(color_message("No release note files to lint", "yellow"))
+        return
+
+    results = lint_releasenotes(file_list)
+
+    if results:
+        print(color_message("RST formatting issues found in release notes:", "red"))
+        print()
+        for result in results:
+            print(result.format_output())
+            print()
+        raise Exit(code=1)
+
+    print(color_message(f"All {len(file_list)} release note files have valid RST formatting", "green"))
+
+
+@task
 def github_actions_shellcheck(
     ctx,
     exclude=DEFAULT_SHELLCHECK_EXCLUDES,
