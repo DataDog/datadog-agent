@@ -22,19 +22,21 @@ if TYPE_CHECKING:
 
 # Known reno sections that can contain RST content
 # See: https://docs.openstack.org/reno/latest/user/usage.html#editing-a-release-note
-RENO_SECTIONS = frozenset([
-    'features',
-    'issues',
-    'upgrade',
-    'deprecations',
-    'critical',
-    'security',
-    'fixes',
-    'other',
-    'enhancements',
-    'known_issues',
-    'prelude',
-])
+RENO_SECTIONS = frozenset(
+    [
+        'features',
+        'issues',
+        'upgrade',
+        'deprecations',
+        'critical',
+        'security',
+        'fixes',
+        'other',
+        'enhancements',
+        'known_issues',
+        'prelude',
+    ]
+)
 
 # Markdown patterns that indicate contributor confusion
 # Each tuple contains (pattern, description)
@@ -142,11 +144,13 @@ def detect_markdown_patterns(text: str) -> list[RSTLintError]:
                 else:
                     formatted_desc = description
 
-                errors.append(RSTLintError(
-                    line=line_num,
-                    level='error',
-                    message=f'Markdown detected: {formatted_desc}',
-                ))
+                errors.append(
+                    RSTLintError(
+                        line=line_num,
+                        level='error',
+                        message=f'Markdown detected: {formatted_desc}',
+                    )
+                )
 
     return errors
 
@@ -224,21 +228,31 @@ def validate_reno_structure(content: dict, file_path: str) -> list[ReleasenoteEr
     errors = []
 
     if not isinstance(content, dict):
-        return [ReleasenoteError(
-            section='yaml',
-            errors=[RSTLintError(line=None, level='error', message=f'Release note must be a YAML mapping, got {type(content).__name__}')],
-        )]
+        return [
+            ReleasenoteError(
+                section='yaml',
+                errors=[
+                    RSTLintError(
+                        line=None,
+                        level='error',
+                        message=f'Release note must be a YAML mapping, got {type(content).__name__}',
+                    )
+                ],
+            )
+        ]
 
     # Check for unknown sections
     unknown_sections = set(content.keys()) - RENO_SECTIONS
     if unknown_sections:
         section_errors = []
         for section in sorted(unknown_sections):
-            section_errors.append(RSTLintError(
-                line=None,
-                level='error',
-                message=f"Unknown reno section '{section}'. Valid sections: {', '.join(sorted(RENO_SECTIONS))}",
-            ))
+            section_errors.append(
+                RSTLintError(
+                    line=None,
+                    level='error',
+                    message=f"Unknown reno section '{section}'. Valid sections: {', '.join(sorted(RENO_SECTIONS))}",
+                )
+            )
         errors.append(ReleasenoteError(section='structure', errors=section_errors))
 
     # Check section content structure
@@ -249,31 +263,39 @@ def validate_reno_structure(content: dict, file_path: str) -> list[ReleasenoteEr
         section_errors = []
 
         if section_content is None:
-            section_errors.append(RSTLintError(
-                line=None,
-                level='warning',
-                message=f"Section '{section}' is empty (null). Remove it or add content.",
-            ))
+            section_errors.append(
+                RSTLintError(
+                    line=None,
+                    level='warning',
+                    message=f"Section '{section}' is empty (null). Remove it or add content.",
+                )
+            )
         elif not isinstance(section_content, list):
-            section_errors.append(RSTLintError(
-                line=None,
-                level='error',
-                message=f"Section '{section}' must be a list of strings, got {type(section_content).__name__}",
-            ))
+            section_errors.append(
+                RSTLintError(
+                    line=None,
+                    level='error',
+                    message=f"Section '{section}' must be a list of strings, got {type(section_content).__name__}",
+                )
+            )
         else:
             for i, item in enumerate(section_content):
                 if not isinstance(item, str):
-                    section_errors.append(RSTLintError(
-                        line=None,
-                        level='error',
-                        message=f"Item {i} in section '{section}' must be a string, got {type(item).__name__}",
-                    ))
+                    section_errors.append(
+                        RSTLintError(
+                            line=None,
+                            level='error',
+                            message=f"Item {i} in section '{section}' must be a string, got {type(item).__name__}",
+                        )
+                    )
                 elif not item.strip():
-                    section_errors.append(RSTLintError(
-                        line=None,
-                        level='warning',
-                        message=f"Item {i} in section '{section}' is empty or whitespace-only",
-                    ))
+                    section_errors.append(
+                        RSTLintError(
+                            line=None,
+                            level='warning',
+                            message=f"Item {i} in section '{section}' is empty or whitespace-only",
+                        )
+                    )
 
         if section_errors:
             errors.append(ReleasenoteError(section=section, errors=section_errors))
@@ -301,12 +323,20 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     except yaml.YAMLError as e:
         return ReleasenoteFileResult(
             file_path=str(file_path),
-            section_errors=[ReleasenoteError(section='yaml', errors=[RSTLintError(line=None, level='error', message=f'YAML parsing error: {e}')])],
+            section_errors=[
+                ReleasenoteError(
+                    section='yaml', errors=[RSTLintError(line=None, level='error', message=f'YAML parsing error: {e}')]
+                )
+            ],
         )
     except OSError as e:
         return ReleasenoteFileResult(
             file_path=str(file_path),
-            section_errors=[ReleasenoteError(section='file', errors=[RSTLintError(line=None, level='error', message=f'File read error: {e}')])],
+            section_errors=[
+                ReleasenoteError(
+                    section='file', errors=[RSTLintError(line=None, level='error', message=f'File read error: {e}')]
+                )
+            ],
         )
 
     if content is None:

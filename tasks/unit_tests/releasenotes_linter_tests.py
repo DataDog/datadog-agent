@@ -544,7 +544,9 @@ class TestReleasenoteFileResult(unittest.TestCase):
 
         result = ReleasenoteFileResult(
             file_path='test.yaml',
-            section_errors=[ReleasenoteError(section='features', errors=[RSTLintError(line=1, level='warning', message='test')])],
+            section_errors=[
+                ReleasenoteError(section='features', errors=[RSTLintError(line=1, level='warning', message='test')])
+            ],
         )
         self.assertTrue(result.has_errors)
 
