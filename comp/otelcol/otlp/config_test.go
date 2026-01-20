@@ -930,3 +930,77 @@ func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
 	http, _ := protocols["http"].(map[string]interface{})
 	assert.Equal(t, "127.0.0.1:4320", http["endpoint"])
 }
+
+func TestADPOTLPProxyEmptyEndpointErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		configFile  string
+		expectedErr error
+	}{
+		{
+			name:        "empty grpc endpoint",
+			configFile:  "./testdata/adp_proxy_empty_grpc.yaml",
+			expectedErr: ErrProxyGRPCEndpointNotConfigured,
+		},
+		{
+			name:        "empty http endpoint",
+			configFile:  "./testdata/adp_proxy_empty_http.yaml",
+			expectedErr: ErrProxyHTTPEndpointNotConfigured,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := testutil.LoadConfig(t, tt.configFile)
+			require.NoError(t, err)
+			_, err = FromAgentConfig(cfg)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.expectedErr)
+		})
+	}
+}
+
+func TestADPOTLPProxyEndpointCollisionErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		env         map[string]string
+		expectedErr error
+	}{
+		{
+			name: "grpc endpoint collision",
+			env: map[string]string{
+				"DD_DATA_PLANE_OTLP_PROXY_ENABLED":                          "true",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":           "0.0.0.0:4317",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT":           "0.0.0.0:4318",
+				"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "0.0.0.0:4317",
+				"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "127.0.0.1:4320",
+			},
+			expectedErr: ErrProxyGRPCEndpointCollision,
+		},
+		{
+			name: "http endpoint collision",
+			env: map[string]string{
+				"DD_DATA_PLANE_OTLP_PROXY_ENABLED":                          "true",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":           "0.0.0.0:4317",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_HTTP_ENDPOINT":           "0.0.0.0:4318",
+				"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "127.0.0.1:4319",
+				"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_HTTP_ENDPOINT": "0.0.0.0:4318",
+			},
+			expectedErr: ErrProxyHTTPEndpointCollision,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
+
+			cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
+			require.NoError(t, err)
+			_, err = FromAgentConfig(cfg)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.expectedErr)
+		})
+	}
+}

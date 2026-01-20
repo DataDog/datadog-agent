@@ -1,0 +1,17 @@
+otlp_config:
+  receiver:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+data_plane:
+  otlp:
+    proxy:
+      enabled: true
+      receiver:
+        protocols:
+          grpc:
+            endpoint: "127.0.0.1:4319"
+          http:
+            endpoint: ""
