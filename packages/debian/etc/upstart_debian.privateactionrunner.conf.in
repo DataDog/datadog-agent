@@ -16,7 +16,7 @@ env DD_LOG_TO_CONSOLE=false
 setuid dd-agent
 
 script
-  exec {install_dir}/embedded/bin/privateactionrunner --cfgpath={etc_dir}/datadog.yaml --pid={install_dir}/run/privateactionrunner.pid
+  exec {install_dir}/embedded/bin/privateactionrunner run --cfgpath={etc_dir}/datadog.yaml --pid={install_dir}/run/privateactionrunner.pid
 end script
 
 post-stop script
