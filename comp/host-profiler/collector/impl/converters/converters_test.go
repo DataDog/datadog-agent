@@ -8,7 +8,6 @@
 package converters
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,44 +27,6 @@ func loadTestData(t *testing.T, filename string) confMap {
 
 	conf, err := retrieved.AsConf()
 	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
-
-	return conf.ToStringMap()
-}
-
-func loadAsAgentMode(t *testing.T, filename string) confMap {
-	t.Helper()
-	path := filepath.Join("testdata", filename)
-	data, err := os.ReadFile(path)
-	require.NoError(t, err, "failed to read test data file: %s", filename)
-
-	retrieved, err := confmap.NewRetrievedFromYAML(data)
-	require.NoError(t, err, "failed to parse YAML from: %s", filename)
-
-	conf, err := retrieved.AsConf()
-	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
-
-	converter := &converterWithAgent{}
-	err = converter.Convert(context.Background(), conf)
-	require.NoError(t, err, "converter failed for: %s", filename)
-
-	return conf.ToStringMap()
-}
-
-func loadAsStandaloneMode(t *testing.T, filename string) confMap {
-	t.Helper()
-	path := filepath.Join("testdata", filename)
-	data, err := os.ReadFile(path)
-	require.NoError(t, err, "failed to read test data file: %s", filename)
-
-	retrieved, err := confmap.NewRetrievedFromYAML(data)
-	require.NoError(t, err, "failed to parse YAML from: %s", filename)
-
-	conf, err := retrieved.AsConf()
-	require.NoError(t, err, "failed to convert to confmap from: %s", filename)
-
-	converter := &converterWithoutAgent{}
-	err = converter.Convert(context.Background(), conf)
-	require.NoError(t, err, "converter failed for: %s", filename)
 
 	return conf.ToStringMap()
 }
