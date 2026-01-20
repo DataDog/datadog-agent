@@ -18,7 +18,7 @@ fi
 rm -f /tmp/cache_manager.log
 sudo rm -rf /opt/cache_manager
 # This may take time if many files were created
-rm -rf /tmp/cache_files
+sudo rm -rf /tmp/cache_files
 EOF
 
 echo "Teardown complete."

@@ -28,16 +28,19 @@ MODES = ["bash", "safe-shell", "tools"]
 VM_PORTS = {"bash": 8081, "safe-shell": 8082, "tools": 8083}
 
 # Scenarios list
+# SCENARIOS = [
+#     # Easy
+#     "high-cpu-usage", "disk-space-full", "port-conflict",
+#     "zombie-processes", "dns-resolution-failure",
+#     # Medium
+#     "memory-leak", "connection-exhaustion", "log-rotation-failure",
+#     "swap-thrashing", "file-descriptor-leak",
+#     # Hard
+#     "tcp-close-wait", "io-wait", "context-switching-storm",
+#     "inode-exhaustion", "tcp-syn-flood"
+# ]
 SCENARIOS = [
-    # Easy
-    "high-cpu-usage", "disk-space-full", "port-conflict",
-    "zombie-processes", "dns-resolution-failure",
-    # Medium
-    "memory-leak", "connection-exhaustion", "log-rotation-failure",
-    "swap-thrashing", "file-descriptor-leak",
-    # Hard
-    "tcp-close-wait", "io-wait", "context-switching-storm",
-    "inode-exhaustion", "tcp-syn-flood"
+    "inode-exhaustion"
 ]
 
 
@@ -47,12 +50,13 @@ class EvaluationRunner:
     _restart_lock = asyncio.Lock()
     _teardown_lock = asyncio.Lock()
 
-    def __init__(self, mode: str):
+    def __init__(self, mode: str, run_dir: Path):
         self.mode = mode
         self.vm_name = f"mcp-eval-{mode}"
         self.port = VM_PORTS[mode]
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.results_file = RESULTS_DIR / f"evaluation-{mode}-{timestamp}.jsonl"
+        self.run_dir = run_dir
+        self.results_file = run_dir / f"evaluation-{mode}.jsonl"
+        self.transcripts_dir = run_dir / "transcripts" / mode
 
     async def get_vm_status(self):
         """Get the status of the VM, returns None if VM doesn't exist"""
@@ -377,7 +381,7 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
             conversation.append({"error": str(e)})
 
         # Save full transcript as proper JSON
-        transcript_file = RESULTS_DIR / "transcripts" / self.mode / f"{scenario}.json"
+        transcript_file = self.transcripts_dir / f"{scenario}.json"
         transcript_file.parent.mkdir(parents=True, exist_ok=True)
 
         # Convert messages to dictionaries for JSON serialization
@@ -522,8 +526,12 @@ async def main():
     print(f"Total evaluations: {len(SCENARIOS) * len(MODES)}")
     print("="*60 + "\n")
 
-    # Create results directory
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Create timestamped run directory
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = RESULTS_DIR / f"run-{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Run directory: {run_dir}\n")
 
     # Check for API key
     if not os.getenv("ANTHROPIC_API_KEY"):
@@ -537,7 +545,7 @@ async def main():
     print("="*60)
     runners = []
     for mode in MODES:
-        runner = EvaluationRunner(mode)
+        runner = EvaluationRunner(mode, run_dir)
         await runner.setup_vm()
         runners.append(runner)
 
@@ -551,7 +559,9 @@ async def main():
     print("\n" + "="*60)
     print("All evaluations complete!")
     print("="*60)
-    print(f"Results directory: {RESULTS_DIR}")
+    print(f"Run directory: {run_dir}")
+    print(f"\nTo consolidate results:")
+    print(f"  python scripts/consolidate_results.py {run_dir}")
     print("="*60 + "\n")
 
 
