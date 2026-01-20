@@ -1348,7 +1348,7 @@ service:
   foo: bar
 `,
 			wantErr: true,
-			errMsg:  "'structure.serviceConfig' has invalid keys: apikey, foo, name",
+			errMsg:  "has invalid keys: apikey, foo, name",
 		},
 	}
 
