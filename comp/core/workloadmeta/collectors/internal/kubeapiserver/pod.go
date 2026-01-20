@@ -9,6 +9,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/framer"
@@ -48,7 +49,7 @@ import (
 // We can only use this approach when protobuf is disabled. When protobuf is
 // enabled, we fall back to the typed client approach.
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
+var jsoniterConfig = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // MinimalPod contains only the fields we actually use from a Pod. This is used
 // to reduce memory allocations during JSON unmarshalling by avoiding allocation
@@ -196,47 +197,88 @@ func (p *MinimalPodList) DeepCopyObject() runtime.Object {
 	return out
 }
 
+// minimalPodDecoder decodes watch events using a reusable buffer to avoid
+// per-event allocations.
 type minimalPodDecoder struct {
-	reader  io.ReadCloser
-	decoder *jsoniter.Decoder
+	reader io.ReadCloser
+	iter   *jsoniter.Iterator
+	buf    []byte
 }
 
-func newMinimalPodDecoder(body io.ReadCloser) *minimalPodDecoder {
+// This defines the initial size of the buffer for pods received from the API
+// server. It will grow as needed. One thing to note is that if we receive a
+// very large pod, the buffer will grow and stay large for the duration of the
+// process. We can add a cleanup mechanism to shrink the buffer later if needed.
+const iteratorBufferSize = 64 * 1024
+
+func newMinimalPodDecoder(reader io.ReadCloser) *minimalPodDecoder {
 	return &minimalPodDecoder{
-		reader:  body,
-		decoder: json.NewDecoder(body),
+		reader: reader,
+		iter:   jsoniter.NewIterator(jsoniterConfig),
+		buf:    make([]byte, iteratorBufferSize),
 	}
 }
 
-// Decode implements watch.Decoder interface
+// Decode implements watch.Decoder interface.
+// It reads one complete frame from the framed reader into a reusable buffer to
+// avoid allocations on every event
 func (d *minimalPodDecoder) Decode() (watch.EventType, runtime.Object, error) {
-	var event metav1.WatchEvent
-	if err := d.decoder.Decode(&event); err != nil {
-		return "", nil, err
-	}
+	// Read one complete frame from the framed reader.
+	// The framer returns io.ErrShortBuffer if the buffer is too small,
+	// so we accumulate data across multiple reads.
+	var totalRead int
+	for {
+		n, err := d.reader.Read(d.buf[totalRead:])
+		totalRead += n
+		if errors.Is(err, io.ErrShortBuffer) {
+			// Buffer too small, grow it and continue reading
+			newBuf := make([]byte, len(d.buf)*2)
+			copy(newBuf, d.buf[:totalRead])
+			d.buf = newBuf
+			continue
+		}
+		if err != nil {
+			return "", nil, err
+		}
 
-	eventType := watch.EventType(event.Type)
+		d.iter.ResetBytes(d.buf[:totalRead])
+		break
+	}
+	iter := d.iter
+
+	var obj runtime.Object
+
+	// Read first field: must be "type"
+	field := iter.ReadObject()
+	if field != "type" {
+		return "", nil, fmt.Errorf("expected watch event field \"type\", got %q", field)
+	}
+	eventType := watch.EventType(iter.ReadString())
+
+	// Read second field: must be "object"
+	field = iter.ReadObject()
+	if field != "object" {
+		return "", nil, fmt.Errorf("expected watch event field \"object\", got %q", field)
+	}
 
 	switch eventType {
-	case watch.Added, watch.Modified, watch.Deleted, watch.Error, watch.Bookmark:
-	default:
-		return "", nil, fmt.Errorf("got invalid watch event type: %v", event.Type)
-	}
-
-	if eventType == watch.Error {
+	case watch.Added, watch.Modified, watch.Deleted, watch.Bookmark:
+		var pod MinimalPod
+		iter.ReadVal(&pod)
+		obj = &pod
+	case watch.Error:
 		var status metav1.Status
-		if err := json.Unmarshal(event.Object.Raw, &status); err != nil {
-			return "", nil, fmt.Errorf("unable to decode watch event status: %v", err)
-		}
-		return eventType, &status, nil
+		iter.ReadVal(&status)
+		obj = &status
+	default:
+		return "", nil, fmt.Errorf("invalid watch event type: %v", eventType)
 	}
 
-	var pod MinimalPod
-	if err := json.Unmarshal(event.Object.Raw, &pod); err != nil {
-		return "", nil, fmt.Errorf("unable to decode pod in watch event: %v", err)
+	if end := iter.ReadObject(); end != "" {
+		return "", nil, fmt.Errorf("unexpected extra field %q in watch event", end)
 	}
 
-	return eventType, &pod, nil
+	return eventType, obj, nil
 }
 
 // Close closes the underlying reader
@@ -373,7 +415,7 @@ func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader,
 
 		framedReader := framer.NewJSONFramedReader(resp) // Needed to decode individual objects
 		decoder := newMinimalPodDecoder(framedReader)
-		errorReporter := errors.NewClientErrorReporter(http.StatusInternalServerError, "GET", "PodWatchDecoding")
+		errorReporter := k8serrors.NewClientErrorReporter(http.StatusInternalServerError, "GET", "PodWatchDecoding")
 
 		return watch.NewStreamWatcher(decoder, errorReporter), nil
 	}

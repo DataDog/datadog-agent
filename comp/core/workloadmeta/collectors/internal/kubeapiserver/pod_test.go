@@ -8,7 +8,11 @@
 package kubeapiserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +22,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/framer"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -372,4 +379,229 @@ func Test_ParsersProduceSameOutput(t *testing.T) {
 	minimalParserResult := minimalParser.Parse(minimalPod)
 
 	assert.Equal(t, fullParserResult, minimalParserResult)
+}
+
+func Test_MinimalPodDecoder(t *testing.T) {
+	tests := []struct {
+		name           string
+		eventType      watch.EventType
+		object         interface{} // corev1.Pod or metav1.Status (for errors)
+		expectedPod    *MinimalPod
+		expectedStatus *metav1.Status
+		expectError    bool
+	}{
+		{
+			name:      "added event",
+			eventType: watch.Added,
+			object: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "default",
+					UID:       types.UID("test-uid"),
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "main",
+						},
+					},
+				},
+				Status: corev1.PodStatus{
+					Phase: corev1.PodRunning,
+					PodIP: "10.0.0.1",
+				},
+			},
+			expectedPod: &MinimalPod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-pod",
+					Namespace: "default",
+					UID:       types.UID("test-uid"),
+				},
+				Spec: MinimalPodSpec{
+					Containers: []MinimalContainer{
+						{
+							Name: "main",
+						},
+					},
+				},
+				Status: MinimalPodStatus{
+					Phase: corev1.PodRunning,
+					PodIP: "10.0.0.1",
+				},
+			},
+		},
+		{
+			name:      "modified event",
+			eventType: watch.Modified,
+			object: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					UID:  types.UID("test-uid"),
+				},
+			},
+			expectedPod: &MinimalPod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					UID:  types.UID("test-uid"),
+				},
+			},
+		},
+		{
+			name:      "deleted event",
+			eventType: watch.Deleted,
+			object: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					UID:  types.UID("test-uid"),
+				},
+			},
+			expectedPod: &MinimalPod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "test-pod",
+					UID:  types.UID("test-uid"),
+				},
+			},
+		},
+		{
+			name:      "bookmark event",
+			eventType: watch.Bookmark,
+			object: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "12345",
+				},
+			},
+			expectedPod: &MinimalPod{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "12345",
+				},
+			},
+		},
+		{
+			name:      "error event",
+			eventType: watch.Error,
+			object: &metav1.Status{
+				Status:  "Failure",
+				Message: "too old",
+				Reason:  metav1.StatusReasonExpired,
+				Code:    410,
+			},
+			expectedStatus: &metav1.Status{
+				Status:  "Failure",
+				Message: "too old",
+				Reason:  metav1.StatusReasonExpired,
+				Code:    410,
+			},
+		},
+		{
+			name:      "invalid event type",
+			eventType: watch.EventType("INVALID"),
+			object: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-pod"},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			input := marshalWatchEvent(t, test.eventType, test.object)
+			framedReader := framer.NewJSONFramedReader(io.NopCloser(bytes.NewReader(input)))
+			decoder := newMinimalPodDecoder(framedReader)
+
+			eventType, obj, err := decoder.Decode()
+
+			if test.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, test.eventType, eventType)
+
+			if test.expectedStatus != nil {
+				status, ok := obj.(*metav1.Status)
+				require.True(t, ok)
+				assert.Equal(t, test.expectedStatus, status)
+			} else {
+				pod, ok := obj.(*MinimalPod)
+				require.True(t, ok)
+				assert.Equal(t, test.expectedPod, pod)
+			}
+		})
+	}
+}
+
+func Test_MinimalPodDecoder_LargeEvent(t *testing.T) {
+	// Test that the decoder handles events larger than the initial buffer
+	// by growing the buffer as needed and continuing to work for the next events
+
+	// Create a large annotation to make the event larger than the buffer
+	largeValue := strings.Repeat("x", iteratorBufferSize+10*1024) // 10KB larger
+
+	smallPod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "small-pod-1",
+			UID:  "uid-1",
+		},
+	}
+	largePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "large-pod",
+			UID:         "uid-2",
+			Annotations: map[string]string{"large-annotation": largeValue},
+		},
+	}
+	smallPod2 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "small-pod-2",
+			UID:  "uid-3",
+		},
+	}
+
+	smallEvent1 := marshalWatchEvent(t, watch.Added, smallPod1)
+	largeEvent := marshalWatchEvent(t, watch.Modified, largePod)
+	smallEvent2 := marshalWatchEvent(t, watch.Deleted, smallPod2)
+	require.Greater(t, len(largeEvent), iteratorBufferSize, "large event should be bigger than initial buffer size")
+
+	allEvents := bytes.Join([][]byte{smallEvent1, largeEvent, smallEvent2}, []byte("\n"))
+	framedReader := framer.NewJSONFramedReader(io.NopCloser(bytes.NewReader(allEvents)))
+	decoder := newMinimalPodDecoder(framedReader)
+
+	// First small event
+	eventType, obj, err := decoder.Decode()
+	require.NoError(t, err)
+	assert.Equal(t, watch.Added, eventType)
+	pod := obj.(*MinimalPod)
+	assert.Equal(t, "small-pod-1", pod.Name)
+
+	// Large event (triggers buffer growth)
+	eventType, obj, err = decoder.Decode()
+	require.NoError(t, err)
+	assert.Equal(t, watch.Modified, eventType)
+	pod = obj.(*MinimalPod)
+	assert.Equal(t, "large-pod", pod.Name)
+	assert.Equal(t, largeValue, pod.Annotations["large-annotation"])
+
+	// Second small event (verifies decoder still works after buffer growth)
+	eventType, obj, err = decoder.Decode()
+	require.NoError(t, err)
+	assert.Equal(t, watch.Deleted, eventType)
+	pod = obj.(*MinimalPod)
+	assert.Equal(t, "small-pod-2", pod.Name)
+}
+
+// marshalWatchEvent creates a watch event JSON from the given event type and
+// object.
+func marshalWatchEvent(t *testing.T, eventType watch.EventType, obj interface{}) []byte {
+	objJSON, err := json.Marshal(obj)
+	require.NoError(t, err)
+
+	event := metav1.WatchEvent{
+		Type:   string(eventType),
+		Object: runtime.RawExtension{Raw: objJSON},
+	}
+	eventJSON, err := json.Marshal(event)
+	require.NoError(t, err)
+
+	return eventJSON
 }
