@@ -631,7 +631,6 @@ func (k *KSMCheck) transformKubeDeploymentRolloutDurationWithTracker(s sender.Se
 
 	// Calculate actual rollout duration using instance rollout tracker
 	duration := k.rolloutTracker.GetRolloutDuration(namespace, deploymentName)
-	log.Debugf("[MetricEmit] Deployment %s/%s: emitting kubernetes_state.deployment.rollout_duration = %.2f seconds", namespace, deploymentName, duration)
 	s.Gauge(ksmMetricPrefix+"deployment.rollout_duration", duration, hostname, tags)
 }
 
@@ -651,7 +650,6 @@ func (k *KSMCheck) transformKubeStatefulSetRolloutDurationWithTracker(s sender.S
 
 	// Calculate actual rollout duration using instance rollout tracker
 	duration := k.rolloutTracker.GetStatefulSetRolloutDuration(namespace, statefulSetName)
-	log.Debugf("[MetricEmit] StatefulSet %s/%s: emitting kubernetes_state.statefulset.rollout_duration = %.2f seconds", namespace, statefulSetName, duration)
 	s.Gauge(ksmMetricPrefix+"statefulset.rollout_duration", duration, hostname, tags)
 }
 
@@ -670,6 +668,5 @@ func (k *KSMCheck) transformKubeDaemonSetRolloutDurationWithTracker(s sender.Sen
 	}
 
 	duration := k.rolloutTracker.GetDaemonSetRolloutDuration(namespace, daemonSetName)
-	log.Debugf("[MetricEmit] DaemonSet %s/%s: emitting kubernetes_state.daemonset.rollout_duration = %.2f seconds", namespace, daemonSetName, duration)
 	s.Gauge(ksmMetricPrefix+"daemonset.rollout_duration", duration, hostname, tags)
 }

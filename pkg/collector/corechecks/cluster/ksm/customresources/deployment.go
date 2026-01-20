@@ -23,7 +23,6 @@ import (
 	generator "k8s.io/kube-state-metrics/v2/pkg/metric_generator"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
@@ -83,10 +82,6 @@ func (f *deploymentRolloutFactory) MetricFamilyGenerators() []generator.FamilyGe
 				// This is acceptable - we only need to report rollouts that are ongoing when checked.
 				isOngoing := (revisionChanged && (generationMismatch || hasRolloutCondition)) ||
 					(isActivelyTracked && hasRolloutCondition)
-
-				key := d.Namespace + "/" + d.Name
-				log.Debugf("[DeploymentRollout] %s: revision=%s, gen=%d, observedGen=%d, genMismatch=%v, revChanged=%v, tracked=%v, rolloutCond=%v => isOngoing=%v",
-					key, currentRevision, d.Generation, d.Status.ObservedGeneration, generationMismatch, revisionChanged, isActivelyTracked, hasRolloutCondition, isOngoing)
 
 				// Always update the last seen revision to track state across scrapes
 				// This must be called regardless of isOngoing to maintain accurate revision tracking
