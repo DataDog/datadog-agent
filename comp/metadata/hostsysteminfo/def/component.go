@@ -3,16 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package lib
+// Package hostsysteminfo exposes the interface for the component to generate the 'host_system_info' metadata payload for inventory.
+package hostsysteminfo
 
-var dummy int
+// team: windows-products
 
-//go:noinline
-func Foo() {
-	dummy++
-	InlinedFunc()
-}
-
-func InlinedFunc() {
-	dummy++
+// Component is the component type.
+type Component interface {
 }

@@ -3,16 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package lib
+//go:build !windows
 
-var dummy int
+package systeminfo
 
-//go:noinline
-func Foo() {
-	dummy++
-	InlinedFunc()
-}
-
-func InlinedFunc() {
-	dummy++
+func collect() (*SystemInfo, error) {
+	return nil, nil
 }
