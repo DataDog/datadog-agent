@@ -342,7 +342,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggest/jsonschema-go v0.3.70
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
-	github.com/tinylib/msgp v1.6.2
+	github.com/tinylib/msgp v1.6.3
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/twmb/franz-go v1.20.6
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
