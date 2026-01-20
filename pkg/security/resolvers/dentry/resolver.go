@@ -251,15 +251,20 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 }
 
 // ResolveName resolves an inode/mount ID pair to a file basename
-func (dr *Resolver) ResolveName(pathKey model.PathKey) string {
-	name, err := dr.ResolveNameFromCache(pathKey)
-	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, err = dr.ResolveNameFromMap(pathKey)
+func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
+	var (
+		name string
+		err  error
+	)
+
+	if cache {
+		name, err = dr.ResolveNameFromCache(pathKey)
 	}
 
-	if err != nil {
-		name = ""
+	if err != nil && dr.config.MapDentryResolutionEnabled {
+		name, _ = dr.ResolveNameFromMap(pathKey)
 	}
+
 	return name
 }
 
