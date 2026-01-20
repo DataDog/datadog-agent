@@ -110,7 +110,7 @@ Enhancement Notes
   to one with a description, eg. "500 Internal Server Error" instead of just "500".
   Users who relied on the error message to extract the status code should use ``http.response.status_code`` instead.
   
-  Additionally, the error message is no longer sourced from the deprecated `http.status_text` attribute.
+  Additionally, the error message is no longer sourced from the deprecated ``http.status_text`` attribute.
   This behavior can be overridden by explicitly setting the span's status message.
 
 - On Windows, adds process name to live processes via file properties.
@@ -174,7 +174,7 @@ Bug Fixes
 - Fixes a rare crash on Windows during the Wi-Fi check when the  
   Agent cannot find a matching Wi-Fi adapter on some computers.
 
-- Fixed ownership and permissions for the `/opt/datadog-agent/run` directory 
+- Fixed ownership and permissions for the ``/opt/datadog-agent/run`` directory 
   in Agent and Cluster Agent Docker images. This resolves permission errors 
   encountered by Remote Configuration when running as a non-root user 
   (UID 100), such as in AWS ECS Fargate environments.
