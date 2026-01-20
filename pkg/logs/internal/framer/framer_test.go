@@ -266,7 +266,7 @@ func TestContentLenLimit(t *testing.T) {
 		input := []byte(strings.Repeat("a", contentLenLimit) + "\n")
 		lines := []string{strings.Repeat("a", contentLenLimit)}
 		lens := []int{contentLenLimit + 1}
-	
+
 		gotContent := []string{}
 		gotLens := []int{}
 		gotTruncated := []bool{}
@@ -278,12 +278,12 @@ func TestContentLenLimit(t *testing.T) {
 		fr := NewFramer(outputFn, UTF8Newline, contentLenLimit)
 		logMessage := message.NewMessage(input, nil, "", 0)
 		fr.Process(logMessage)
-	
+
 		require.Equal(t, lines, gotContent)
 		require.Equal(t, lens, gotLens)
 		require.Equal(t, []bool{false}, gotTruncated, "Log exactly at limit should NOT be truncated")
 	})
-	
+
 	t.Run("one-byte-over-should-truncate", func(t *testing.T) {
 		input := []byte(strings.Repeat("a", contentLenLimit+1) + "\n")
 		lines := []string{strings.Repeat("a", contentLenLimit), "a"}

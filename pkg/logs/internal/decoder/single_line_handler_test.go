@@ -100,9 +100,9 @@ func TestSingleLineHandlerProcess(t *testing.T) {
 
 func TestSingleLineHandlerExactLimit(t *testing.T) {
 	scenarios := []struct {
-		name     string
-		input    []string
-		expected []string
+		name           string
+		input          []string
+		expected       []string
 		expIsTruncated []bool
 	}{
 		{
