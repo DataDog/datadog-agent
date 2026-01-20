@@ -34,11 +34,12 @@ def run_make_command(ctx, command=""):
 @task
 def make(ctx, install_prefix=None, cmake_options=''):
     dev_path = get_dev_path()
+    prefix = install_prefix or dev_path
 
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
 
-    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={install_prefix or dev_path}"
+    cmake_args = cmake_options + f" -DBUILD_DEMO:BOOL=OFF -DCMAKE_INSTALL_PREFIX:PATH={prefix}"
     if os.getenv('DD_CMAKE_TOOLCHAIN'):
         cmake_args += f' --toolchain {os.getenv("DD_CMAKE_TOOLCHAIN")}'
 
@@ -46,6 +47,12 @@ def make(ctx, install_prefix=None, cmake_options=''):
 
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"
+    elif sys.platform == 'linux':
+        # Set RPATH so that libdatadog-agent-rtloader.so can find libdatadog-agent-three.so
+        # at runtime without needing LD_LIBRARY_PATH. This matches what omnibus builds do.
+        lib_path = os.path.join(prefix, 'lib')
+        cmake_args += f' -DCMAKE_INSTALL_RPATH="{lib_path}"'
+        cmake_args += ' -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=TRUE'
 
     # Perform "out of the source build" in `rtloader_build_path` folder.
     try:
