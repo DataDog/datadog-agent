@@ -62,7 +62,8 @@ func TestGetInstallerOCIWithDifferentSite(t *testing.T) {
 func TestGetInstallerOCIWithUnsupportedVersion(t *testing.T) {
 	ctx := context.Background()
 	testEnv := &env.Env{
-		AgentVersion: "7.50.0", // Below minimum version 7.65.0
+		AgentMajorVersion: "7",
+		AgentMinorVersion: "50.0", // Below minimum version 7.65.0
 	}
 
 	_, err := getInstallerOCI(ctx, testEnv)
