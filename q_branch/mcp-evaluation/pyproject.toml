@@ -7,4 +7,6 @@ dependencies = [
     "claude-agent-sdk>=0.1.0",
     "anthropic>=0.40.0",
     "httpx>=0.27.0",
+    "pandas>=2.0.0",
+    "openpyxl>=3.1.0",
 ]
