@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"

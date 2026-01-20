@@ -15,7 +15,7 @@ processors:
 
 exporters:
   datadog:
-    api: 
+    api:
 
 extensions:
   pprof/user-defined:
@@ -23,10 +23,11 @@ extensions:
   zpages/user-defined:
     endpoint: "localhost:55679"
   ddflare/user-defined:
+  datadog/user-defined:
 
 
 service:
-  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined]
+  extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined, ddflare/user-defined, datadog/user-defined]
   pipelines:
     traces:
       receivers: [otlp]
