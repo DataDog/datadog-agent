@@ -38,7 +38,6 @@ const (
 
 	DataPlaneOTLPProxyReceiverSection               = DataPlaneOTLPProxySection + ".receiver"
 	DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint = DataPlaneOTLPProxyReceiverSection + ".protocols.grpc.endpoint"
-	DataPlaneOTLPProxyReceiverProtocolsHTTPEndpoint = DataPlaneOTLPProxyReceiverSection + ".protocols.http.endpoint"
 )
 
 // OTLP related configuration.

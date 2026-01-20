@@ -27,9 +27,7 @@ import (
 // errors for ADP OTLP proxy configuration validation
 var (
 	ErrProxyGRPCEndpointNotConfigured = errors.New("ADP OTLP proxy enabled but grpc endpoint is not configured")
-	ErrProxyHTTPEndpointNotConfigured = errors.New("ADP OTLP proxy enabled but http endpoint is not configured")
 	ErrProxyGRPCEndpointCollision     = errors.New("ADP OTLP proxy grpc endpoint conflicts with receiver endpoint")
-	ErrProxyHTTPEndpointCollision     = errors.New("ADP OTLP proxy http endpoint conflicts with receiver endpoint")
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -50,34 +48,23 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	otlpReceiverConfigMap := otlpReceiverConfig.ToStringMap()
 
 	if proxyEnabled {
-		// ADP OTLP proxy will own the configured endpoints, so we need to assign different endpoints to be used by the core agent
+		// ADP OTLP proxy will own the configured gRPC endpoint, so we need to assign a different endpoint to be used by the core agent
 		protocols := otlpReceiverConfigMap["protocols"].(map[string]interface{})
 		grpc := protocols["grpc"].(map[string]interface{})
-		http := protocols["http"].(map[string]interface{})
 
 		proxyGRPCEndpoint := cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint)
-		proxyHTTPEndpoint := cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsHTTPEndpoint)
-
 		originalGRPCEndpoint, _ := grpc["endpoint"].(string)
-		originalHTTPEndpoint, _ := http["endpoint"].(string)
 
 		if proxyGRPCEndpoint == "" {
 			errs = append(errs, ErrProxyGRPCEndpointNotConfigured)
 		}
-		if proxyHTTPEndpoint == "" {
-			errs = append(errs, ErrProxyHTTPEndpointNotConfigured)
-		}
 
-		// Check for endpoint collisions
+		// Check for endpoint collision
 		if proxyGRPCEndpoint != "" && proxyGRPCEndpoint == originalGRPCEndpoint {
 			errs = append(errs, fmt.Errorf("%w: %q", ErrProxyGRPCEndpointCollision, proxyGRPCEndpoint))
 		}
-		if proxyHTTPEndpoint != "" && proxyHTTPEndpoint == originalHTTPEndpoint {
-			errs = append(errs, fmt.Errorf("%w: %q", ErrProxyHTTPEndpointCollision, proxyHTTPEndpoint))
-		}
 
 		grpc["endpoint"] = proxyGRPCEndpoint
-		http["endpoint"] = proxyHTTPEndpoint
 	}
 
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))

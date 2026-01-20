@@ -1281,9 +1281,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
-	// When the ADP OTLP proxy is enabled, ADP owns the endpoints configured for the receiver (default :4317/:4318) and the core agent uses the endpoints below
+	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
-	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.http.endpoint", "127.0.0.1:4320")
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
