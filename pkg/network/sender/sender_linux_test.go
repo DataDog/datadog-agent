@@ -30,7 +30,6 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -85,7 +84,6 @@ func mockDirectSender(t *testing.T) *directSender {
 		Hostname:       hostnameComp,
 		Forwarder:      connectionsforwardermock.Mock(t),
 		NPCollector:    npcollectorimpl.NewMock().Comp,
-		Lc:             compdef.NewTestLifecycle(t),
 	})
 	require.NoError(t, err)
 	return d.(*directSender)

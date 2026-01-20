@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -175,15 +174,7 @@ func New(
 		checkInterval: checkInterval,
 	}
 
-	deps.Lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			return ds.start()
-		},
-		OnStop: func(_ context.Context) error {
-			return ds.stop()
-		},
-	})
-
+	ds.start()
 	return &ds, nil
 }
 
@@ -243,7 +234,7 @@ func (r result) Type() string {
 	return "connections"
 }
 
-func (d *directSender) start() error {
+func (d *directSender) start() {
 	d.log.Info("direct sender started")
 	d.resolver.start(d.ctx)
 	go d.submitLoop()
@@ -260,13 +251,12 @@ func (d *directSender) start() error {
 			}
 		}
 	}()
-	return nil
 }
 
-func (d *directSender) stop() error {
+// Stop stops the direct sender
+func (d *directSender) Stop() {
 	d.cancelFunc()
 	d.log.Info("direct sender stopped")
-	return nil
 }
 
 func (d *directSender) submitLoop() {
