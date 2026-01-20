@@ -1,0 +1,24 @@
+[package]
+name = "pm_engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "pm_engine"
+crate-type = ["rlib", "cdylib"]
+
+[[bin]]
+name = "dd-procmgrd"
+path = "src/bin/daemon.rs"
+
+[dependencies]
+prost = "0.12"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tonic = { version = "0.11", features = ["transport"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tower = "0.4"
+http = "0.2"
+hyper = "0.14"
+
+[build-dependencies]
+tonic-build = "0.11"

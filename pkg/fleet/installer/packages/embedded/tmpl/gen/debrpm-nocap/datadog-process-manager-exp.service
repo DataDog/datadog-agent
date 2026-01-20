@@ -1,0 +1,20 @@
+[Unit]
+Description=Datadog Process Manager Experiment
+After=network.target
+
+[Service]
+Type=simple
+# dd-procmgrd runs as root to handle user switching for child processes
+# Child processes (agent, trace-agent, etc.) run as dd-agent via YAML config
+# KillMode=control-group ensures all child processes are killed when dd-procmgrd dies
+# This prevents orphaned processes running without supervision
+KillMode=control-group
+EnvironmentFile=-/etc/datadog-agent-exp/environment
+Environment="DD_PM_CONFIG_DIR=/etc/datadog-agent-exp/process-manager/processes.d"
+RuntimeDirectory=datadog
+StartLimitInterval=10
+StartLimitBurst=5
+Restart=on-failure
+ExecStart=/opt/datadog-agent/bin/dd-procmgrd
+
+

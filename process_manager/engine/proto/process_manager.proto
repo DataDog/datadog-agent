@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package process_manager;
+
+// Minimal Process Manager API for grpc server/client skeletons.
+service ProcessManager {
+  // (no methods yet)
+}

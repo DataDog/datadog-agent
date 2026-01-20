@@ -5,6 +5,8 @@ Dockerfiles/dogstatsd/alpine/static/
 vendor/
 .vendor-new/
 bin/
+!process_manager/**
+process_manager/target/
 /dev/
 /site/
 __pycache__
