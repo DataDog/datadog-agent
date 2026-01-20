@@ -35,7 +35,7 @@ type eudmSuite struct {
 
 func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Build agent options with EUDM mode configuration
-	// Checks like wlan and battery are automatically loaded via StaticConfigListener
+	// The wlan check is automatically loaded via StaticConfigListener
 	// (checks with ad_identifiers: [_end_user_device] are scheduled)
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"`),
@@ -58,12 +58,14 @@ func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 // Test Functions
 // ============================================================================
 
-// TestEUDMChecks verifies that EUDM checks (wlan, battery) are scheduled and run
+// TestEUDMChecks verifies that EUDM checks are scheduled and run
 // in EUDM (end_user_device) infrastructure mode.
-// Note: On EC2 instances without WiFi/battery hardware, the checks run but emit no metrics
-// since there's no hardware to monitor. This is expected behavior.
+// Note: On EC2 instances without WiFi hardware, the wlan check runs but emits no metrics
+// since there's no WLAN interface to monitor. This is expected behavior.
+// Note: The battery check is also configured for EUDM mode but cannot be tested on EC2
+// instances since they don't have battery hardware - the check skips itself during Configure().
 func (s *eudmSuite) TestEUDMChecks() {
-	checks := []string{"wlan", "battery"}
+	checks := []string{"wlan"}
 
 	for _, checkName := range checks {
 		s.T().Run(checkName+"_scheduled", func(t *testing.T) {
