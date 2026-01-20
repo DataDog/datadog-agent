@@ -116,28 +116,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	debugConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPDebug)
 
 	return PipelineConfig{
-<<<<<<< HEAD
-		OTLPReceiverConfig: otlpReceiverConfigMap,
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		LogsEnabled:        logsEnabled,
-		Metrics:            mc,
-		MetricsBatch:       metricsBatchConfig.ToStringMap(),
-		Logs:               logsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
-||||||| e6cb7d2812
-		OTLPReceiverConfig: otlpReceiverConfig.ToStringMap(),
-		TracePort:          tracePort,
-		MetricsEnabled:     metricsEnabled,
-		TracesEnabled:      tracesEnabled,
-		LogsEnabled:        logsEnabled,
-		Metrics:            mc,
-		MetricsBatch:       metricsBatchConfig.ToStringMap(),
-		Logs:               logsConfig.ToStringMap(),
-		Debug:              debugConfig.ToStringMap(),
-=======
-		OTLPReceiverConfig:           otlpReceiverConfig.ToStringMap(),
+		OTLPReceiverConfig:           otlpReceiverConfigMap,
 		TracePort:                    tracePort,
 		MetricsEnabled:               metricsEnabled,
 		TracesEnabled:                tracesEnabled,
@@ -147,7 +126,6 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		MetricsBatch:                 metricsBatchConfig.ToStringMap(),
 		Logs:                         logsConfig.ToStringMap(),
 		Debug:                        debugConfig.ToStringMap(),
->>>>>>> main
 	}, multierr.Combine(errs...)
 }
 
