@@ -28,7 +28,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.143.0"
+OCB_VERSION = "0.144.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -53,7 +53,7 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-# TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
+# TODO(songy23): OCB is not released in v0.144.0, revert this in the next release
 BASE_URL = (
     "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
 )
@@ -514,7 +514,7 @@ class CollectorVersionUpdater:
             MANIFEST_FILE,
             "./comp/otelcol/collector/impl/collector.go",
             "./tasks/collector.py",
-            "./.gitlab/integration_test/otel.yml",
+            "./.gitlab/test/integration_test/otel.yml",
             "./test/otel/testdata/ocb_build_script.sh",
         ]
         for root, _, testfiles in os.walk("./tasks/unit_tests/testdata/collector"):
