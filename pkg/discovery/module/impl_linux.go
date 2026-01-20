@@ -39,7 +39,8 @@ import (
 )
 
 const (
-	pathServices = "/services"
+	pathServices    = "/services"
+	pathConnections = "/connections"
 )
 
 var (
@@ -88,6 +89,7 @@ func (s *discovery) Register(httpMux *module.Router) error {
 	httpMux.HandleFunc("/status", s.handleStatusEndpoint)
 	httpMux.HandleFunc("/state", s.handleStateEndpoint)
 	httpMux.HandleFunc(pathServices, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleServices))
+	httpMux.HandleFunc(pathConnections, utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, s.handleConnections))
 
 	return nil
 }
@@ -150,7 +152,8 @@ type namespaceInfo struct {
 
 // Lifted from pkg/network/proc_net.go
 const (
-	tcpListen uint64 = 10
+	tcpEstablished uint64 = 1
+	tcpListen      uint64 = 10
 
 	// tcpClose is also used to indicate a UDP connection where the other end hasn't been established
 	tcpClose  uint64 = 7
@@ -592,4 +595,273 @@ func detectAPMInjectorFromMapsReader(reader io.Reader) bool {
 	}
 
 	return false
+}
+
+// handleConnections handles the /discovery/connections endpoint.
+func (s *discovery) handleConnections(w http.ResponseWriter, _ *http.Request) {
+	connections, err := s.getConnections()
+	if err != nil {
+		_ = log.Errorf("failed to handle /discovery%s: %v", pathConnections, err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	utils.WriteAsJSON(w, connections, utils.CompactOutput)
+}
+
+// establishedConnInfo stores information about an established TCP connection.
+type establishedConnInfo struct {
+	localIP    string
+	localPort  uint16
+	remoteIP   string
+	remotePort uint16
+	family     string // "v4" or "v6"
+}
+
+// parseEstablishedConnLine parses a single line from /proc/net/tcp{,6} for ESTABLISHED connections.
+// It returns connection info including local/remote addresses.
+func parseEstablishedConnLine(fields []string, family string) (*establishedConnInfo, uint64, error) {
+	if len(fields) < 10 {
+		return nil, 0, errInvalidLine
+	}
+
+	state, err := strconv.ParseUint(fields[3], 16, 64)
+	if err != nil {
+		return nil, 0, errInvalidState
+	}
+	if state != tcpEstablished {
+		return nil, 0, errUnsupportedState
+	}
+
+	// Parse local address (fields[1] is "IP:PORT")
+	localParts := strings.Split(fields[1], ":")
+	if len(localParts) != 2 {
+		return nil, 0, errInvalidLocalIP
+	}
+	localIP, err := parseHexIP(localParts[0], family)
+	if err != nil {
+		return nil, 0, errInvalidLocalIP
+	}
+	localPort, err := strconv.ParseUint(localParts[1], 16, 16)
+	if err != nil {
+		return nil, 0, errInvalidLocalPort
+	}
+
+	// Parse remote address (fields[2] is "IP:PORT")
+	remoteParts := strings.Split(fields[2], ":")
+	if len(remoteParts) != 2 {
+		return nil, 0, errors.New("invalid remote ip format")
+	}
+	remoteIP, err := parseHexIP(remoteParts[0], family)
+	if err != nil {
+		return nil, 0, errors.New("invalid remote ip format")
+	}
+	remotePort, err := strconv.ParseUint(remoteParts[1], 16, 16)
+	if err != nil {
+		return nil, 0, errors.New("invalid remote port format")
+	}
+
+	inode, err := strconv.ParseUint(fields[9], 0, 64)
+	if err != nil {
+		return nil, 0, errInvalidInode
+	}
+
+	return &establishedConnInfo{
+		localIP:    localIP,
+		localPort:  uint16(localPort),
+		remoteIP:   remoteIP,
+		remotePort: uint16(remotePort),
+		family:     family,
+	}, inode, nil
+}
+
+// parseHexIP converts a hexadecimal IP address from /proc/net/tcp{,6} to a human-readable string.
+func parseHexIP(hexIP string, family string) (string, error) {
+	if family == "v6" {
+		// IPv6 is 32 hex chars (128 bits), stored in network byte order per 32-bit word
+		if len(hexIP) != 32 {
+			return "", errors.New("invalid IPv6 length")
+		}
+		// IPv6 in /proc/net/tcp6 is stored as 4 little-endian 32-bit words
+		var parts [8]uint16
+		for i := 0; i < 4; i++ {
+			word := hexIP[i*8 : (i+1)*8]
+			// Reverse byte order within each 32-bit word
+			b0, _ := strconv.ParseUint(word[6:8], 16, 8)
+			b1, _ := strconv.ParseUint(word[4:6], 16, 8)
+			b2, _ := strconv.ParseUint(word[2:4], 16, 8)
+			b3, _ := strconv.ParseUint(word[0:2], 16, 8)
+			parts[i*2] = uint16(b0<<8 | b1)
+			parts[i*2+1] = uint16(b2<<8 | b3)
+		}
+		return fmt.Sprintf("%x:%x:%x:%x:%x:%x:%x:%x",
+			parts[0], parts[1], parts[2], parts[3],
+			parts[4], parts[5], parts[6], parts[7]), nil
+	}
+
+	// IPv4 is 8 hex chars (32 bits), stored in little-endian
+	if len(hexIP) != 8 {
+		return "", errors.New("invalid IPv4 length")
+	}
+	b0, _ := strconv.ParseUint(hexIP[6:8], 16, 8)
+	b1, _ := strconv.ParseUint(hexIP[4:6], 16, 8)
+	b2, _ := strconv.ParseUint(hexIP[2:4], 16, 8)
+	b3, _ := strconv.ParseUint(hexIP[0:2], 16, 8)
+	return fmt.Sprintf("%d.%d.%d.%d", b0, b1, b2, b3), nil
+}
+
+// getEstablishedConnections reads established TCP connections from /proc/net/tcp{,6}.
+// Returns a map of inode -> connection info.
+func getEstablishedConnections(pid int, family string) (map[uint64]*establishedConnInfo, error) {
+	var filename string
+	if family == "v6" {
+		filename = kernel.HostProc(fmt.Sprintf("%d/net/tcp6", pid))
+	} else {
+		filename = kernel.HostProc(fmt.Sprintf("%d/net/tcp", pid))
+	}
+
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	connections := make(map[uint64]*establishedConnInfo)
+	lr := io.LimitReader(f, readLimit)
+	scanner := bufio.NewScanner(lr)
+	scanner.Scan() // skip header line
+	for scanner.Scan() {
+		fields := strings.Fields(scanner.Text())
+		connInfo, inode, err := parseEstablishedConnLine(fields, family)
+		if err != nil {
+			continue
+		}
+		connections[inode] = connInfo
+	}
+
+	return connections, scanner.Err()
+}
+
+// getConnections collects all established TCP connections from all processes.
+func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+
+	// Get the list of listening ports to determine direction
+	context := newParsingContext()
+	listeningPorts := make(map[uint16]struct{})
+
+	// We need to scan processes to find all sockets and their owners
+	procDir, err := os.Open(kernel.HostProc())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open /proc: %w", err)
+	}
+	defer procDir.Close()
+
+	entries, err := procDir.Readdirnames(-1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read /proc entries: %w", err)
+	}
+
+	var connections []model.Connection
+
+	// Track seen connections to avoid duplicates (same connection from different process views)
+	type connKey struct {
+		localIP    string
+		localPort  uint16
+		remoteIP   string
+		remotePort uint16
+	}
+	seenConns := make(map[connKey]struct{})
+
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry)
+		if err != nil {
+			continue // not a PID directory
+		}
+
+		// Get network namespace info (for listening ports)
+		ns, err := netns.GetNetNsInoFromPid(context.procRoot, pid)
+		if err != nil {
+			continue
+		}
+
+		// Cache listening ports per namespace
+		if _, ok := context.netNsInfo[ns]; !ok {
+			nsInfo, err := getNsInfo(pid)
+			if err != nil {
+				continue
+			}
+			context.netNsInfo[ns] = nsInfo
+			// Add listening ports to the global set
+			for _, info := range nsInfo.tcpSockets {
+				listeningPorts[info.port] = struct{}{}
+			}
+		}
+
+		// Get established connections for IPv4 and IPv6
+		for _, family := range []string{"v4", "v6"} {
+			establishedConns, err := getEstablishedConnections(pid, family)
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) && family == "v6" {
+					// IPv6 may be disabled
+					continue
+				}
+				log.Debugf("couldn't get established connections for pid %d family %s: %v", pid, family, err)
+				continue
+			}
+
+			// Get the socket inodes owned by this process
+			openFileInfo, err := getOpenFilesInfo(int32(pid), context.readlinkBuffer)
+			if err != nil {
+				continue
+			}
+
+			// Match socket inodes to established connections
+			for _, socketInode := range openFileInfo.sockets {
+				connInfo, ok := establishedConns[socketInode]
+				if !ok {
+					continue
+				}
+
+				// Skip if we've already seen this connection
+				key := connKey{
+					localIP:    connInfo.localIP,
+					localPort:  connInfo.localPort,
+					remoteIP:   connInfo.remoteIP,
+					remotePort: connInfo.remotePort,
+				}
+				if _, seen := seenConns[key]; seen {
+					continue
+				}
+				seenConns[key] = struct{}{}
+
+				// Determine direction based on whether local port is a listening port
+				direction := "outgoing"
+				if _, isListening := listeningPorts[connInfo.localPort]; isListening {
+					direction = "incoming"
+				}
+
+				connections = append(connections, model.Connection{
+					Laddr: model.Address{
+						IP:   connInfo.localIP,
+						Port: connInfo.localPort,
+					},
+					Raddr: model.Address{
+						IP:   connInfo.remoteIP,
+						Port: connInfo.remotePort,
+					},
+					Family:    connInfo.family,
+					Type:      0, // TCP
+					Direction: direction,
+					PID:       uint32(pid),
+					NetNS:     ns,
+				})
+			}
+		}
+	}
+
+	return &model.ConnectionsResponse{
+		Connections: connections,
+	}, nil
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
@@ -51,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/kubeletconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/sbom"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/connections"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/battery"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/cpu/cpu"
@@ -67,12 +69,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component,
+	traceroute traceroute.Component, connForwarder option.Option[connectionsforwarder.Component],
 ) {
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
@@ -131,6 +134,13 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
+
+	// Register disco_connections check (forwarder is optional - check will log if not available)
+	var fwd connectionsforwarder.Component
+	if f, ok := connForwarder.Get(); ok {
+		fwd = f
+	}
+	corecheckLoader.RegisterCheck(connections.CheckName, connections.Factory(tagger, fwd))
 
 	registerSystemProbeChecks(tagger)
 }

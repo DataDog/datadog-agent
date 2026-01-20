@@ -214,6 +214,13 @@ func GetCheck[T any](client *CheckClient, module types.ModuleName) (T, error) {
 	return request[T](client, http.MethodGet, "/check", nil, module)
 }
 
+// GetEndpoint makes a GET request to a module endpoint and returns data unmarshalled
+// from JSON to T.  The endpoint parameter should be the path relative to the
+// module (e.g., "/check", "/connections").
+func GetEndpoint[T any](client *CheckClient, endpoint string, module types.ModuleName) (T, error) {
+	return request[T](client, http.MethodGet, endpoint, nil, module)
+}
+
 // Post makes a POST request to a module endpoint with an optional JSON
 // request body and returns data unmarshalled from JSON to T.  The endpoint
 // parameter should be the path relative to the module (e.g., "/check",
