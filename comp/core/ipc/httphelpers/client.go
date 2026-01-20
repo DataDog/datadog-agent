@@ -94,8 +94,8 @@ func roundTripAdapter(next http.RoundTripper) http.RoundTripper {
 			return nil, errors.New("ipc client: unix socket: no request URL")
 		}
 
-		scheme := strings.TrimSuffix(req.URL.Scheme, "+unix")
-		if scheme == req.URL.Scheme {
+		scheme, found := strings.CutSuffix(req.URL.Scheme, "+unix")
+		if !found {
 			return nil, fmt.Errorf("ipc client: unix socket: : missing '+unix' suffix in scheme %s", req.URL.Scheme)
 		}
 
