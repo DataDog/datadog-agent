@@ -13,8 +13,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // RevisionAnnotationKey is the annotation key used by Kubernetes to track deployment revisions
@@ -142,7 +140,6 @@ func (rt *RolloutTracker) StoreReplicaSet(rs *appsv1.ReplicaSet, ownerName, owne
 		OwnerUID:     ownerUID,
 		OwnerName:    ownerName,
 	}
-
 }
 
 // GetRolloutDuration calculates rollout duration using stored start time.
@@ -158,12 +155,10 @@ func (rt *RolloutTracker) GetRolloutDuration(namespace, deploymentName string) f
 	// Use stored start time - set when deployment revision changes (new rollout or rollback)
 	deploymentStartTime, hasStartTime := rt.deploymentStartTime[deploymentKey]
 	if !hasStartTime || deploymentStartTime.IsZero() {
-		log.Debugf("[RolloutTracker] Deployment %s: no start time found, returning 0 duration", deploymentKey)
 		return 0
 	}
 
 	duration := time.Since(deploymentStartTime)
-	log.Debugf("[RolloutTracker] Deployment %s: duration=%.2fs (startTime=%v)", deploymentKey, duration.Seconds(), deploymentStartTime)
 	return duration.Seconds()
 }
 
@@ -185,16 +180,9 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 		// Otherwise use Progressing condition or now (rollback or agent restart)
 		startTime := rt.determineDeploymentStartTime(dep)
 		rt.deploymentStartTime[key] = startTime
-		log.Infof("[RolloutTracker] Deployment %s: NEW tracking started, revision=%s, gen=%d, observedGen=%d, startTime=%v",
-			key, currentRevision, dep.Generation, dep.Status.ObservedGeneration, startTime)
 	} else if storedRevision != currentRevision {
 		// Revision changed - this is a new rollout or rollback
 		rt.deploymentStartTime[key] = time.Now()
-		log.Infof("[RolloutTracker] Deployment %s: REVISION CHANGED from %s to %s (rollout/rollback detected), gen=%d, observedGen=%d, startTime reset to now",
-			key, storedRevision, currentRevision, dep.Generation, dep.Status.ObservedGeneration)
-	} else {
-		log.Debugf("[RolloutTracker] Deployment %s: continuing rollout, revision=%s unchanged, gen=%d, observedGen=%d",
-			key, currentRevision, dep.Generation, dep.Status.ObservedGeneration)
 	}
 	// Note: Generation-only changes (scaling, pause) don't reset start time
 
@@ -251,12 +239,8 @@ func (rt *RolloutTracker) determineDeploymentStartTime(dep *appsv1.Deployment) t
 		age := now.Sub(rsCreationTime)
 		if age < RecentCreationThreshold {
 			// RS is recent - likely a forward rollout, use RS creation time
-			log.Debugf("[RolloutTracker] Deployment %s/%s: using recent RS creation time %v (age: %v)",
-				dep.Namespace, dep.Name, rsCreationTime, age)
 			return rsCreationTime
 		}
-		log.Debugf("[RolloutTracker] Deployment %s/%s: RS creation time %v is too old (age: %v), checking Progressing condition",
-			dep.Namespace, dep.Name, rsCreationTime, age)
 	}
 
 	// RS is old or not found - try Progressing condition, fall back to now
@@ -270,7 +254,6 @@ func (rt *RolloutTracker) CleanupDeployment(namespace, name string) {
 	defer rt.deploymentMutex.Unlock()
 
 	key := namespace + "/" + name
-	lastRev := rt.lastSeenRevision[key]
 
 	// Remove from active tracking
 	delete(rt.deploymentMap, key)
@@ -282,8 +265,6 @@ func (rt *RolloutTracker) CleanupDeployment(namespace, name string) {
 			delete(rt.replicaSetMap, rsKey)
 		}
 	}
-
-	log.Infof("[RolloutTracker] Deployment %s: CLEANUP (rollout complete), lastSeenRevision=%s preserved for future detection", key, lastRev)
 
 	// NOTE: Do NOT delete rt.lastSeenRevision[key]
 	// This is preserved to detect actual rollouts vs scaling after cleanup
@@ -332,17 +313,10 @@ func (rt *RolloutTracker) HasRevisionChanged(namespace, name, currentRevision st
 
 	// If never seen, it's a new deployment - consider it a new rollout
 	if !seen {
-		log.Debugf("[RolloutTracker] Deployment %s: revision never seen before (current=%s), treating as changed", key, currentRevision)
 		return true
 	}
 
-	changed := lastRevision != currentRevision
-	if changed {
-		log.Debugf("[RolloutTracker] Deployment %s: revision CHANGED from %s to %s", key, lastRevision, currentRevision)
-	} else {
-		log.Debugf("[RolloutTracker] Deployment %s: revision unchanged (%s)", key, currentRevision)
-	}
-	return changed
+	return lastRevision != currentRevision
 }
 
 // UpdateLastSeenRevision updates the last seen revision for a deployment.
@@ -369,7 +343,6 @@ func (rt *RolloutTracker) StoreControllerRevision(cr *appsv1.ControllerRevision,
 		OwnerUID:     ownerUID,
 		OwnerName:    ownerName,
 	}
-
 }
 
 // GetStatefulSetRolloutDuration calculates StatefulSet rollout duration using stored start time.
@@ -385,12 +358,10 @@ func (rt *RolloutTracker) GetStatefulSetRolloutDuration(namespace, statefulSetNa
 	// Use stored start time - set when updateRevision changes (new rollout or rollback)
 	statefulSetStartTime, hasStartTime := rt.statefulSetStartTime[statefulSetKey]
 	if !hasStartTime || statefulSetStartTime.IsZero() {
-		log.Debugf("[RolloutTracker] StatefulSet %s: no start time found, returning 0 duration", statefulSetKey)
 		return 0
 	}
 
 	duration := time.Since(statefulSetStartTime)
-	log.Debugf("[RolloutTracker] StatefulSet %s: duration=%.2fs (startTime=%v)", statefulSetKey, duration.Seconds(), statefulSetStartTime)
 	return duration.Seconds()
 }
 
@@ -412,16 +383,9 @@ func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
 		// Otherwise use now (rollback or agent restart)
 		startTime := rt.determineStatefulSetStartTime(sts)
 		rt.statefulSetStartTime[key] = startTime
-		log.Infof("[RolloutTracker] StatefulSet %s: NEW tracking started, updateRevision=%s, currentRevision=%s, gen=%d, observedGen=%d, startTime=%v",
-			key, currentUpdateRevision, sts.Status.CurrentRevision, sts.Generation, sts.Status.ObservedGeneration, startTime)
 	} else if storedRevision != currentUpdateRevision {
 		// UpdateRevision changed - this is a new rollout or rollback
 		rt.statefulSetStartTime[key] = time.Now()
-		log.Infof("[RolloutTracker] StatefulSet %s: UPDATE_REVISION CHANGED from %s to %s (rollout/rollback detected), gen=%d, observedGen=%d, startTime reset to now",
-			key, storedRevision, currentUpdateRevision, sts.Generation, sts.Status.ObservedGeneration)
-	} else {
-		log.Debugf("[RolloutTracker] StatefulSet %s: continuing rollout, updateRevision=%s unchanged, gen=%d, observedGen=%d",
-			key, currentUpdateRevision, sts.Generation, sts.Status.ObservedGeneration)
 	}
 	// Note: Generation-only changes (scaling, partition changes) don't reset start time
 
@@ -463,12 +427,8 @@ func (rt *RolloutTracker) determineStatefulSetStartTime(sts *appsv1.StatefulSet)
 		age := now.Sub(crCreationTime)
 		if age < RecentCreationThreshold {
 			// CR is recent - likely a forward rollout, use CR creation time
-			log.Debugf("[RolloutTracker] StatefulSet %s/%s: using recent ControllerRevision creation time %v (age: %v)",
-				sts.Namespace, sts.Name, crCreationTime, age)
 			return crCreationTime
 		}
-		log.Debugf("[RolloutTracker] StatefulSet %s/%s: ControllerRevision creation time %v is too old (age: %v), using current time",
-			sts.Namespace, sts.Name, crCreationTime, age)
 	}
 
 	// CR is old or not found - use current time
@@ -482,7 +442,6 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 	defer rt.statefulSetMutex.Unlock()
 
 	key := namespace + "/" + name
-	lastRev := rt.lastSeenUpdateRevision[key]
 
 	// Remove from active tracking
 	delete(rt.statefulSetMap, key)
@@ -494,8 +453,6 @@ func (rt *RolloutTracker) CleanupStatefulSet(namespace, name string) {
 			delete(rt.controllerRevisionMap, crKey)
 		}
 	}
-
-	log.Infof("[RolloutTracker] StatefulSet %s: CLEANUP (rollout complete), lastSeenUpdateRevision=%s preserved for future detection", key, lastRev)
 
 	// NOTE: Do NOT delete rt.lastSeenUpdateRevision[key]
 	// This is preserved to detect actual rollouts vs scaling after cleanup
@@ -581,17 +538,10 @@ func (rt *RolloutTracker) HasStatefulSetRevisionChanged(namespace, name, current
 
 	// If never seen, it's a new StatefulSet - consider it a new rollout
 	if !seen {
-		log.Debugf("[RolloutTracker] StatefulSet %s: updateRevision never seen before (current=%s), treating as changed", key, currentUpdateRevision)
 		return true
 	}
 
-	changed := lastRevision != currentUpdateRevision
-	if changed {
-		log.Debugf("[RolloutTracker] StatefulSet %s: updateRevision CHANGED from %s to %s", key, lastRevision, currentUpdateRevision)
-	} else {
-		log.Debugf("[RolloutTracker] StatefulSet %s: updateRevision unchanged (%s)", key, currentUpdateRevision)
-	}
-	return changed
+	return lastRevision != currentUpdateRevision
 }
 
 // UpdateLastSeenStatefulSetRevision updates the last seen updateRevision for a StatefulSet.
@@ -621,16 +571,9 @@ func (rt *RolloutTracker) StoreDaemonSet(ds *appsv1.DaemonSet) {
 		// Otherwise use now (rollback or agent restart)
 		startTime := rt.determineDaemonSetStartTime(ds)
 		rt.daemonSetStartTime[key] = startTime
-		log.Infof("[RolloutTracker] DaemonSet %s: NEW tracking started, gen=%d, observedGen=%d, startTime=%v",
-			key, ds.Generation, ds.Status.ObservedGeneration, startTime)
 	} else if existingDs.Generation != ds.Generation {
 		// Generation changed - this is a new rollout
 		rt.daemonSetStartTime[key] = time.Now()
-		log.Infof("[RolloutTracker] DaemonSet %s: GENERATION CHANGED from %d to %d (rollout detected), startTime reset to now",
-			key, existingDs.Generation, ds.Generation)
-	} else {
-		log.Debugf("[RolloutTracker] DaemonSet %s: continuing rollout, gen=%d unchanged, observedGen=%d",
-			key, ds.Generation, ds.Status.ObservedGeneration)
 	}
 
 	rt.daemonSetMap[key] = ds.DeepCopy()
@@ -650,7 +593,6 @@ func (rt *RolloutTracker) StoreDaemonSetControllerRevision(cr *appsv1.Controller
 		OwnerUID:     ownerUID,
 		OwnerName:    ownerName,
 	}
-
 }
 
 // GetDaemonSetRolloutDuration calculates DaemonSet rollout duration using stored start time.
@@ -666,12 +608,10 @@ func (rt *RolloutTracker) GetDaemonSetRolloutDuration(namespace, daemonSetName s
 	// Use stored start time - set when generation changes (new rollout)
 	daemonSetStartTime, hasStartTime := rt.daemonSetStartTime[daemonSetKey]
 	if !hasStartTime || daemonSetStartTime.IsZero() {
-		log.Debugf("[RolloutTracker] DaemonSet %s: no start time found, returning 0 duration", daemonSetKey)
 		return 0
 	}
 
 	duration := time.Since(daemonSetStartTime)
-	log.Debugf("[RolloutTracker] DaemonSet %s: duration=%.2fs (startTime=%v)", daemonSetKey, duration.Seconds(), daemonSetStartTime)
 	return duration.Seconds()
 }
 
@@ -691,8 +631,6 @@ func (rt *RolloutTracker) CleanupDaemonSet(namespace, name string) {
 			delete(rt.daemonSetControllerRevisionMap, crKey)
 		}
 	}
-
-	log.Infof("[RolloutTracker] DaemonSet %s: CLEANUP (rollout complete)", key)
 }
 
 // CleanupDaemonSetControllerRevision removes a deleted ControllerRevision from tracking
@@ -737,12 +675,8 @@ func (rt *RolloutTracker) determineDaemonSetStartTime(ds *appsv1.DaemonSet) time
 		age := now.Sub(crCreationTime)
 		if age < RecentCreationThreshold {
 			// CR is recent - likely a forward rollout, use CR creation time
-			log.Debugf("[RolloutTracker] DaemonSet %s/%s: using recent ControllerRevision creation time %v (age: %v)",
-				ds.Namespace, ds.Name, crCreationTime, age)
 			return crCreationTime
 		}
-		log.Debugf("[RolloutTracker] DaemonSet %s/%s: ControllerRevision creation time %v is too old (age: %v), using current time",
-			ds.Namespace, ds.Name, crCreationTime, age)
 	}
 
 	// CR is old or not found - use current time
@@ -788,4 +722,3 @@ func (rt *RolloutTracker) HasDaemonSetRolloutCondition(ds *appsv1.DaemonSet) boo
 
 	return false
 }
-
