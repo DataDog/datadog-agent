@@ -132,8 +132,13 @@ func (fl *FilterList) SetFilterList(metricNames []string, matchPrefix bool) {
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := fl.createHistogramsFilterList(metricNames)
-	fl.filterList = utilstrings.NewMatcher(metricNames, matchPrefix)
-	fl.histoFilterList = utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
+	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+
+	fl.updateMtx.Lock()
+	fl.filterList = filterList
+	fl.histoFilterList = histoFilterList
+	fl.updateMtx.Unlock()
 
 	fl.updateMtx.RLock()
 	defer fl.updateMtx.RUnlock()
