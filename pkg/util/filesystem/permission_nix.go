@@ -84,6 +84,20 @@ func getDatadogUserUID() (uint32, error) {
 	return 0, errors.New("user 'dd-agent' not found")
 }
 
+func (p *Permission) isAllowedOwner(uid uint32) bool {
+	// check if its 'root' or the current user
+	if uid == 0 || uid == uint32(os.Getuid()) {
+		return true
+	}
+
+	// check if it 'dd-agent' if it exists
+	ddUserUID, err := getDatadogUserUID()
+	if err != nil {
+		return false
+	}
+	return uid == ddUserUID
+}
+
 // CheckOwner verifies that the file/directory is owned by either 'root', 'dd-agent' or current user
 func (p *Permission) CheckOwner(path string) error {
 	var stat syscall.Stat_t
@@ -91,21 +105,9 @@ func (p *Permission) CheckOwner(path string) error {
 		return err
 	}
 
-	// check for root UID
-	if stat.Uid == 0 {
-		return nil
+	if !p.isAllowedOwner(stat.Uid) {
+		return errors.New("file owner is neither `root`, `dd-agent` or current user")
 	}
 
-	// check for current user UID
-	if stat.Uid == uint32(os.Getuid()) {
-		return nil
-	}
-
-	// check for 'dd-agent' user UID if it exists
-	ddAgentUID, err := getDatadogUserUID()
-	if err == nil && stat.Uid == ddAgentUID {
-		return nil
-	}
-
-	return errors.New("file owner is neither `root`, `dd-agent` or current user")
+	return nil
 }

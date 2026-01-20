@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"os"
@@ -14,22 +14,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-func setCorrectRight(path string) {
-	exec.Command("powershell", "test/setAcl.ps1",
-		"-file", path,
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
-}
+// TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
+// function to make it work for Windows tests
+func TestMain(m *testing.M) {
+	// Windows-only fix for running on CI. Instead of checking the registry for
+	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
+	// function that gets permissions info directly from the current User
+	TestCheckRightsStub()
 
-func testCheckRightsStub() {
-	// Stub for CI since running as Administrator and no installer data
-	getDDAgentUserSID = winutil.GetSidFromUser
+	os.Exit(m.Run())
 }
 
 func TestWrongPath(t *testing.T) {

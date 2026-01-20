@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"errors"

@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"os"
@@ -13,14 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
-
-func setCorrectRight(path string) {
-	os.Chmod(path, 0700)
-}
-
-// testCheckRightsStub is a dummy CheckRights stub for *nix
-func testCheckRightsStub() {
-}
 
 func TestWrongPath(t *testing.T) {
 	require.NotNil(t, CheckRights("does not exists", false))

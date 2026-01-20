@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+
 //go:build windows
 
 package filesystem
@@ -70,6 +71,12 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return p.RestrictAccessToUser(path)
 }
 
+func (p *Permission) isAllowedOwner(sid *windows.SID) bool {
+	return windows.EqualSid(sid, p.administratorSid) ||
+		windows.EqualSid(sid, p.ddUserSid) ||
+		windows.EqualSid(sid, p.systemSid)
+}
+
 // CheckOwner verifies that the file/directory is owned by either 'Administrator', system or dd user
 func (p *Permission) CheckOwner(path string) error {
 	var ownerSid *windows.SID
@@ -83,10 +90,9 @@ func (p *Permission) CheckOwner(path string) error {
 		return err
 	}
 
-	if !windows.EqualSid(ownerSid, p.administratorSid) &&
-		!windows.EqualSid(ownerSid, p.systemSid) &&
-		!windows.EqualSid(ownerSid, p.ddUserSid) {
+	if !p.isAllowedOwner(ownerSid) {
 		return errors.New("file owner is neither `Administrator`, system or dd user")
 	}
+
 	return nil
 }

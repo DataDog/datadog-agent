@@ -29,7 +29,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/def v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.61.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.68.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0 // indirect

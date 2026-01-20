@@ -8,7 +8,6 @@
 package ffi
 
 import (
-	secretsimpl "github.com/DataDog/datadog-agent/comp/core/secrets/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
@@ -22,5 +21,5 @@ func checkOwnerAndPermissions(path string) error {
 		return err
 	}
 
-	return secretsimpl.CheckRights(path, true)
+	return filesystem.CheckRights(path, true)
 }
