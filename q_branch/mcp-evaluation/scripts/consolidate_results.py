@@ -7,10 +7,10 @@ Creates a multi-sheet Excel file with:
 - Individual sheets per mode: Detailed results for each scenario
 
 Usage:
-    python consolidate_results.py [output.xlsx]
+    python consolidate_results.py [run_directory]
 
-If output file is not specified, writes to results/results.xlsx
-Google Sheets can import this Excel file directly.
+If run directory is not specified, uses the latest run in results/
+Google Sheets can import the generated Excel file directly.
 """
 
 import sys
@@ -20,11 +20,19 @@ from typing import Dict, List, Any
 import pandas as pd
 
 
-def load_results(results_dir: Path) -> List[Dict[str, Any]]:
-    """Load all JSONL result files from the results directory"""
+def get_latest_run_dir(results_dir: Path) -> Path:
+    """Get the most recent run directory"""
+    run_dirs = sorted(results_dir.glob("run-*"), reverse=True)
+    if not run_dirs:
+        raise FileNotFoundError(f"No run directories found in {results_dir}")
+    return run_dirs[0]
+
+
+def load_results(run_dir: Path) -> List[Dict[str, Any]]:
+    """Load all JSONL result files from the run directory"""
     all_results = []
 
-    for jsonl_file in results_dir.glob("evaluation-*.jsonl"):
+    for jsonl_file in run_dir.glob("evaluation-*.jsonl"):
         print(f"Loading {jsonl_file.name}...")
         with open(jsonl_file, 'r') as f:
             for line in f:
@@ -159,22 +167,32 @@ def main():
     # Determine paths
     script_dir = Path(__file__).parent
     mcp_eval_dir = script_dir.parent
-    results_dir = mcp_eval_dir / "results"
+    results_base_dir = mcp_eval_dir / "results"
 
-    # Determine output file
+    # Determine run directory
     if len(sys.argv) > 1:
-        output_file = Path(sys.argv[1])
+        run_dir = Path(sys.argv[1])
+        if not run_dir.is_absolute():
+            run_dir = results_base_dir / run_dir
     else:
-        output_file = results_dir / "results.xlsx"
+        print("No run directory specified, using latest run...")
+        run_dir = get_latest_run_dir(results_base_dir)
 
-    print(f"Results directory: {results_dir}")
+    if not run_dir.exists():
+        print(f"Error: Run directory does not exist: {run_dir}")
+        return 1
+
+    # Output file goes in the run directory
+    output_file = run_dir / "results.xlsx"
+
+    print(f"Run directory: {run_dir}")
     print(f"Output file: {output_file}\n")
 
     # Load and consolidate
-    results = load_results(results_dir)
+    results = load_results(run_dir)
 
     if not results:
-        print("No evaluation results found in results directory")
+        print(f"No evaluation results found in {run_dir}")
         return 1
 
     # Write Excel
