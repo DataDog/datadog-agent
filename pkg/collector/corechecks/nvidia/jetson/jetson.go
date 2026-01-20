@@ -192,11 +192,17 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, da
 		return err
 	}
 
+	// fallback to the default path is none is provided
+	if conf.TegraStatsPath != "" {
+		c.tegraStatsPath = conf.TegraStatsPath
+	} else {
+		c.tegraStatsPath = defaultTegraStatsPath
+	}
+
 	// Validate tegrastats path
-	if err := validateTegraStatsPath(conf.TegraStatsPath); err != nil {
+	if err := validateTegraStatsPath(c.tegraStatsPath); err != nil {
 		return fmt.Errorf("invalid tegrastats configuration: %w", err)
 	}
-	c.tegraStatsPath = conf.TegraStatsPath
 
 	// We run tegrastats once and then kill the process. However, we set the interval to 500ms
 	// because it will take tegrastats <interval> to produce its first output.
