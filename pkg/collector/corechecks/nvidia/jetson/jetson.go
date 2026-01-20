@@ -38,7 +38,12 @@ const (
 	kb = 1024
 	mb = kb * 1024
 	gb = mb * 1024
+
+	defaultTegraStatsPath = "/usr/bin/tegrastats"
 )
+
+// shellMetacharRegex matches whitespace and shell metacharacters that should be rejected
+var shellMetacharRegex = regexp.MustCompile(`[\s\x00~!#$&*?;|(){}[\]<>\x60'"\n\r\\]`)
 
 // The configuration for the jetson check
 type checkCfg struct {
@@ -106,12 +111,19 @@ func getSizeMultiplier(unit string) float64 {
 	}
 }
 
-// validPath verifies if the path is absolute and doesn't contain special characters
-func validPath(path string) bool {
-	if strings.ContainsAny(path, "\x00~!#$&*?;|(){}[]<>`'\"\n\r\\") {
-		return false
+// validateTegraStatsPath verifies if the path doesn't contain invalid characters and is absolute
+func validateTegraStatsPath(path string) error {
+	// Reject values containing whitespace, shell metacharacters, or non-path characters
+	if shellMetacharRegex.MatchString(path) {
+		return fmt.Errorf("tegrastats_path contains invalid characters: %q", path)
 	}
-	return filepath.IsAbs(path)
+
+	// Check if it's an absolute path
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("tegrastats_path should be absolute: %q", path)
+	}
+
+	return nil
 }
 
 // Parses the output of tegrastats
@@ -133,10 +145,6 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	if !validPath(c.tegraStatsPath) {
-		return fmt.Errorf("Not a valid path: %s", c.tegraStatsPath)
-	}
-
 	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval)
@@ -183,11 +191,12 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, da
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		return err
 	}
-	if conf.TegraStatsPath != "" {
-		c.tegraStatsPath = conf.TegraStatsPath
-	} else {
-		c.tegraStatsPath = "/usr/bin/tegrastats"
+
+	// Validate tegrastats path
+	if err := validateTegraStatsPath(conf.TegraStatsPath); err != nil {
+		return fmt.Errorf("invalid tegrastats configuration: %w", err)
 	}
+	c.tegraStatsPath = conf.TegraStatsPath
 
 	// We run tegrastats once and then kill the process. However, we set the interval to 500ms
 	// because it will take tegrastats <interval> to produce its first output.

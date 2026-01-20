@@ -27,150 +27,69 @@ const (
 	orinSample        = `RAM 2448/62840MB (lfb 2x4MB) SWAP 0/31420MB (cached 0MB) CPU [0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201,0%@2201] GR3D_FREQ 0% cpu@42C soc2@37.843C soc0@39.187C gpu@37.75C tj@42C soc1@37.937C VDD_GPU_SOC 4940mW/4940mW VDD_CPU_CV 988mW/988mW VIN_SYS_5V0 4442mW/4442mW`
 )
 
-func TestValidPath(t *testing.T) {
+func TestValidateTegraStatsPath(t *testing.T) {
 	tests := []struct {
 		name  string
 		path  string
 		valid bool
 	}{
-		// Valid paths
-		{
-			name:  "valid absolute path",
-			path:  "/usr/bin/tegrastats",
-			valid: true,
-		},
-		{
-			name:  "valid path with underscores",
-			path:  "/usr/bin/tegra_stats",
-			valid: true,
-		},
-		{
-			name:  "valid path with hyphens",
-			path:  "/usr/bin/tegra-stats",
-			valid: true,
-		},
-		{
-			name:  "space in path",
-			path:  "/usr/bin/tegra stats",
-			valid: true,
-		},
+		// valid paths
+		{name: "default path", path: "/usr/bin/tegrastats", valid: true},
+		{name: "custom absolute path", path: "/usr/bin/tegrastats_custom", valid: true},
+		{name: "valid path with underscores", path: "/usr/bin/tegra_stats", valid: true},
+		{name: "valid path with hyphens", path: "/usr/bin/tegra-stats", valid: true},
+		{name: "path with dots", path: "/usr/bin/tegrastats.bin", valid: true},
+		{name: "deep nested path", path: "/opt/nvidia/jetson/bin/tegrastats", valid: true},
 
-		// Invalid paths
-		{
-			name:  "empty path",
-			path:  "",
-			valid: false,
-		},
-		{
-			name:  "relative",
-			path:  "./usr/bin/tegrastats",
-			valid: false,
-		},
-		{
-			name:  "newline character",
-			path:  "/usr/bin/tegra\nstats",
-			valid: false,
-		},
-		{
-			name:  "semicolon",
-			path:  "/usr/bin/tegrastats;",
-			valid: false,
-		},
-		{
-			name:  "pipe",
-			path:  "/usr/bin/tegrastats|",
-			valid: false,
-		},
-		{
-			name:  "ampersand",
-			path:  "/usr/bin/tegra&stats",
-			valid: false,
-		},
-		{
-			name:  "backtick",
-			path:  "/usr/bin/`tegrastats`",
-			valid: false,
-		},
-		{
-			name:  "dollar sign",
-			path:  "/usr/bin/$tegrastats",
-			valid: false,
-		},
-		{
-			name:  "output redirection",
-			path:  "/usr/bin/tegrastats>",
-			valid: false,
-		},
-		{
-			name:  "input redirection",
-			path:  "/usr/bin/tegrastats<",
-			valid: false,
-		},
-		{
-			name:  "single quote",
-			path:  "/usr/bin/tegra'stats",
-			valid: false,
-		},
-		{
-			name:  "double quote",
-			path:  "/usr/bin/tegra\"stats",
-			valid: false,
-		},
-		{
-			name:  "parentheses",
-			path:  "/usr/bin/(tegrastats)",
-			valid: false,
-		},
-		{
-			name:  "curly braces",
-			path:  "/usr/bin/{tegrastats}",
-			valid: false,
-		},
-		{
-			name:  "square brackets",
-			path:  "/usr/bin/tegra[stats]",
-			valid: false,
-		},
-		{
-			name:  "wildcard",
-			path:  "/usr/bin/tegra*",
-			valid: false,
-		},
-		{
-			name:  "question mark",
-			path:  "/usr/bin/tegra?stats",
-			valid: false,
-		},
-		{
-			name:  "escape character",
-			path:  "/usr/bin/tegra\\stats",
-			valid: false,
-		},
-		{
-			name:  "exclamation",
-			path:  "/usr/bin/tegra!stats",
-			valid: false,
-		},
-		{
-			name:  "comment",
-			path:  "/usr/bin/tegra#stats",
-			valid: false,
-		},
-		{
-			name:  "tilde",
-			path:  "/usr/bin/tegra~stats",
-			valid: false,
-		},
-		{
-			name:  "null byte",
-			path:  "/usr/bin/tegra\x00stats",
-			valid: false,
-		},
+		// not absolute
+		{name: "empty path", path: "", valid: false},
+		{name: "relative path", path: "./usr/bin/tegrastats", valid: false},
+		{name: "relative without dot", path: "usr/bin/tegrastats", valid: false},
+
+		// whitespace
+		{name: "space in path", path: "/usr/bin/tegra stats", valid: false},
+		{name: "tab in path", path: "/usr/bin/tegra\tstats", valid: false},
+		{name: "newline character", path: "/usr/bin/tegra\nstats", valid: false},
+		{name: "carriage return", path: "/usr/bin/tegra\rstats", valid: false},
+
+		// command injection
+		{name: "semicolon", path: "/usr/bin/tegrastats;echo pwned", valid: false},
+		{name: "pipe", path: "/usr/bin/tegrastats|cat", valid: false},
+		{name: "ampersand", path: "/usr/bin/tegra&stats", valid: false},
+		{name: "backtick", path: "/usr/bin/`tegrastats`", valid: false},
+		{name: "dollar sign", path: "/usr/bin/$tegrastats", valid: false},
+		{name: "output redirection", path: "/usr/bin/tegrastats>/tmp/out", valid: false},
+		{name: "input redirection", path: "/usr/bin/tegrastats</etc/passwd", valid: false},
+
+		// quotes
+		{name: "single quote", path: "/usr/bin/tegra'stats", valid: false},
+		{name: "double quote", path: "/usr/bin/tegra\"stats", valid: false},
+
+		// brackets and braces
+		{name: "parentheses", path: "/usr/bin/(tegrastats)", valid: false},
+		{name: "curly braces", path: "/usr/bin/{tegrastats}", valid: false},
+		{name: "square brackets", path: "/usr/bin/tegra[stats]", valid: false},
+
+		// glob patterns
+		{name: "wildcard asterisk", path: "/usr/bin/tegra*", valid: false},
+		{name: "wildcard question mark", path: "/usr/bin/tegra?stats", valid: false},
+
+		// others
+		{name: "backslash", path: "/usr/bin/tegra\\stats", valid: false},
+		{name: "exclamation", path: "/usr/bin/tegra!stats", valid: false},
+		{name: "hash comment", path: "/usr/bin/tegra#stats", valid: false},
+		{name: "tilde", path: "~/bin/tegrastats", valid: false},
+		{name: "null byte", path: "/usr/bin/tegra\x00stats", valid: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.valid, validPath(tt.path))
+			err := validateTegraStatsPath(tt.path)
+			if tt.valid {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 		})
 	}
 }
