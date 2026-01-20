@@ -1,6 +1,6 @@
 # MCP Evaluation Framework
 
-Automated evaluation framework for testing Claude Code's diagnostic capabilities across 15 SRE scenarios in three modes (bash, safe-shell, tools).
+Automated evaluation framework for testing three MCP modes (bash, self-shell, tools) across 15 SRE scenarios using Claude as the agent.
 
 ## Requirements
 
