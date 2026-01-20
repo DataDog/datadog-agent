@@ -32,7 +32,7 @@ type EBPFLessResolvers struct {
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
 func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, opts Opts) (*EBPFLessResolvers, error) {
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil, nil)
 	if err != nil {
 		return nil, err
 	}

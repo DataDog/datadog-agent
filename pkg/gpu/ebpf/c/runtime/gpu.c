@@ -135,6 +135,34 @@ int BPF_UPROBE(uprobe__cuLaunchKernel, const void *func, __u32 grid_x, __u32 gri
     return 0;
 }
 
+SEC("uprobe/cuLaunchKernelEx")
+int BPF_UPROBE(uprobe__cuLaunchKernelEx, const void *config, const void *func) {
+    cuda_kernel_launch_t launch_data = { 0 };
+    cu_launch_config_t cfg = { 0 };
+
+    if (bpf_probe_read_user_with_telemetry(&cfg, sizeof(cfg), config)) {
+        log_debug("cuLaunchKernelEx: failed to read config struct");
+        return 0;
+    }
+
+    launch_data.grid_size.x = cfg.gridDimX;
+    launch_data.grid_size.y = cfg.gridDimY;
+    launch_data.grid_size.z = cfg.gridDimZ;
+    launch_data.block_size.x = cfg.blockDimX;
+    launch_data.block_size.y = cfg.blockDimY;
+    launch_data.block_size.z = cfg.blockDimZ;
+    launch_data.kernel_addr = (uint64_t)func;
+    launch_data.shared_mem_size = cfg.sharedMemBytes;
+    fill_header(&launch_data.header, (uint64_t)cfg.hStream, cuda_kernel_launch);
+
+    log_debug("cuLaunchKernelEx: EMIT[1/2] pid_tgid=%llu, ts=%llu", launch_data.header.pid_tgid, launch_data.header.ktime_ns);
+    log_debug("cuLaunchKernelEx: EMIT[2/2] kernel_addr=0x%llx, shared_mem=%llu, stream_id=%llu", launch_data.kernel_addr, launch_data.shared_mem_size, launch_data.header.stream_id);
+
+    bpf_ringbuf_output_with_telemetry(&cuda_events, &launch_data, sizeof(launch_data), get_ringbuf_flags(sizeof(launch_data)));
+
+    return 0;
+}
+
 SEC("uprobe/cudaMalloc")
 int BPF_UPROBE(uprobe__cudaMalloc, void **devPtr, size_t size) {
     __u64 pid_tgid = bpf_get_current_pid_tgid();

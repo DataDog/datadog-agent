@@ -117,7 +117,7 @@ func (s *probeTestSuite) waitForExpectedCudasampleEvents(probe *Probe, pid int) 
 	require.True(t, ok)
 
 	expectedEvents := map[string]int{
-		ebpf.CudaEventTypeKernelLaunch.String():      3,
+		ebpf.CudaEventTypeKernelLaunch.String():      4, // cudaLaunchKernel x2, cuLaunchKernel, cuLaunchKernelEx
 		ebpf.CudaEventTypeSetDevice.String():         1,
 		ebpf.CudaEventTypeMemory.String():            2,
 		ebpf.CudaEventTypeSync.String():              4, // cudaStreamSynchronize, cudaEventQuery, cudaEventSynchronize, cuStreamSynchronize
@@ -176,7 +176,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Equal(t, 2, len(streamPastData.kernels))
 	for i := range 2 {
 		span := streamPastData.kernels[i]
-		require.Equal(t, uint64(2-i), span.numKernels) // first kernel launch has 2 kernels, second has 1
+		require.Equal(t, uint64(3-i*2), span.numKernels) // first kernel launch has 3 kernels, second has 1
 		require.Equal(t, uint64(1*2*3*4*5*6), span.avgThreadCount)
 		require.Greater(t, span.endKtime, span.startKtime)
 	}
@@ -487,16 +487,17 @@ func (s *probeTestSuite) TestDebugCollectorEvents() {
 	// Line 33: cudaSetDevice(device) -> CudaEventTypeSetDevice
 	// Line 34: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
 	// Line 35: cuLaunchKernel(...) -> CudaEventTypeKernelLaunch
-	// Line 37: cudaMalloc(&ptr, 100) -> CudaEventTypeMemory (alloc)
-	// Line 38: cudaFree(ptr) -> CudaEventTypeMemory (free)
-	// Line 39: cudaStreamSynchronize(stream) -> CudaEventTypeSync
-	// Line 40: cuStreamSynchronize(stream) -> CudaEventTypeSync
-	// Line 45: cudaMemcpy(...) -> CudaEventTypeSyncDevice
-	// Line 48: cudaEventQuery(event) -> CudaEventTypeSync
-	// Line 49: cudaEventSynchronize(event) -> CudaEventTypeSync
-	// Line 53: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
-	// Line 55: cudaDeviceSynchronize() -> CudaEventTypeSyncDevice
-	// Line 57: setenv("CUDA_VISIBLE_DEVICES", "42", 1) -> CudaEventTypeVisibleDevicesSet
+	// Line 36-37: cuLaunchKernelEx(...) -> CudaEventTypeKernelLaunch
+	// Line 38: cudaMalloc(&ptr, 100) -> CudaEventTypeMemory (alloc)
+	// Line 39: cudaFree(ptr) -> CudaEventTypeMemory (free)
+	// Line 40: cudaStreamSynchronize(stream) -> CudaEventTypeSync
+	// Line 41: cuStreamSynchronize(stream) -> CudaEventTypeSync
+	// Line 47: cudaMemcpy(...) -> CudaEventTypeSyncDevice
+	// Line 49: cudaEventQuery(event) -> CudaEventTypeSync
+	// Line 50: cudaEventSynchronize(event) -> CudaEventTypeSync
+	// Line 54: cudaLaunchKernel(...) -> CudaEventTypeKernelLaunch
+	// Line 56: cudaDeviceSynchronize() -> CudaEventTypeSyncDevice
+	// Line 58: setenv("CUDA_VISIBLE_DEVICES", "42", 1) -> CudaEventTypeVisibleDevicesSet
 	deviceIdx := int32(0) // default device index used by RunSample
 	kernelAddr := uint64(0x1234)
 	allocSize := uint64(100)
@@ -512,6 +513,13 @@ func (s *probeTestSuite) TestDebugCollectorEvents() {
 			Shared_mem_size: 10,
 		},
 		&ebpf.CudaKernelLaunch{
+			Header:          ebpf.CudaEventHeader{Type: uint32(ebpf.CudaEventTypeKernelLaunch), Stream_id: streamID},
+			Kernel_addr:     kernelAddr,
+			Grid_size:       ebpf.Dim3{X: 1, Y: 2, Z: 3},
+			Block_size:      ebpf.Dim3{X: 4, Y: 5, Z: 6},
+			Shared_mem_size: 10,
+		},
+		&ebpf.CudaKernelLaunch{ // cuLaunchKernelEx
 			Header:          ebpf.CudaEventHeader{Type: uint32(ebpf.CudaEventTypeKernelLaunch), Stream_id: streamID},
 			Kernel_addr:     kernelAddr,
 			Grid_size:       ebpf.Dim3{X: 1, Y: 2, Z: 3},

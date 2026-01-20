@@ -190,6 +190,8 @@ github.com/DataDog/nikos v1.12.12 h1:72YrdzMeQT3wcXIDgiS1ClU53SzUdR7uAbp5FSSpo5k
 github.com/DataDog/nikos v1.12.12/go.mod h1:kZGOhfE76+nXS7V5PAlIw3MRxWKM70ynET4VeuZ4U4k=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da h1:ZBmMIv7/Xqdmw6WSs4lRXF75TOQCrnQdvnL5k8uk/t8=
+github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20251209111023-a403a55f78da/go.mod h1:6Y2/ixrHEY2qmt0eJVdG6pP7CPb9p5ypxnKj2t3kPJU=
 github.com/DataDog/sketches-go v1.4.7 h1:eHs5/0i2Sdf20Zkj0udVFWuCrXGRFig2Dcfm5rtcTxc=
 github.com/DataDog/sketches-go v1.4.7/go.mod h1:eAmQ/EBmtSO+nQp7IZMZVRPT4BQTmIc5RZQ+deGlTPM=
 github.com/DataDog/trivy v0.0.0-20251216175138-81422df93657 h1:UuMA1oxXCY6cVoVIGLYNU18YDchvxS3n57PjGysxxPg=
@@ -2122,8 +2124,6 @@ go.opentelemetry.io/contrib/propagators/b3 v1.39.0 h1:PI7pt9pkSnimWcp5sQhUA9OzLb
 go.opentelemetry.io/contrib/propagators/b3 v1.39.0/go.mod h1:5gV/EzPnfYIwjzj+6y8tbGW2PKWhcsz5e/7twptRVQY=
 go.opentelemetry.io/contrib/zpages v0.63.0 h1:TppOKuZGbqXMgsfjqq3i09N5Vbo1JLtLImUqiTPGnX4=
 go.opentelemetry.io/contrib/zpages v0.63.0/go.mod h1:5F8uugz75ay/MMhRRhxAXY33FuaI8dl7jTxefrIy5qk=
-go.opentelemetry.io/ebpf-profiler v0.0.202547 h1:x9gxrUIIZCiVUJws5JsTS7fj2t8eD/1188Wp3JKM/l8=
-go.opentelemetry.io/ebpf-profiler v0.0.202547/go.mod h1:bYhWgro0or2UhzNw7Y8KgdIWhZEmSS0IH74h1Dg+xPU=
 go.opentelemetry.io/otel v1.39.0 h1:8yPrr/S0ND9QEfTfdP9V+SiwT4E0G7Y5MO7p85nis48=
 go.opentelemetry.io/otel v1.39.0/go.mod h1:kLlFTywNWrFyEdH0oj2xK0bFYZtHRYUdv1NklR/tgc8=
 go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.14.0 h1:OMqPldHt79PqWKOMYIAQs3CxAi7RLgPxwfFSwr4ZxtM=

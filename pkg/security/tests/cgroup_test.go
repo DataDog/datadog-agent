@@ -291,7 +291,7 @@ func TestCGroupSnapshot(t *testing.T) {
 
 		// Check that both testsuite and syscall tester share the same cgroup
 		assert.Equal(t, testsuiteEntry.CGroup.CGroupID, syscallTesterEntry.CGroup.CGroupID)
-		assert.Equal(t, testsuiteEntry.CGroup.CGroupFile, syscallTesterEntry.CGroup.CGroupFile)
+		assert.Equal(t, testsuiteEntry.CGroup.CGroupPathKey, syscallTesterEntry.CGroup.CGroupPathKey)
 
 		// Check that we have the right cgroup inode
 		cgroupFS := utils.DefaultCGroupFS()
@@ -306,7 +306,7 @@ func TestCGroupSnapshot(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupFile.Inode)
+		assert.Equal(t, stats.Ino, testsuiteEntry.CGroup.CGroupPathKey.Inode)
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the testsuite process
 		var newEntry *model.ProcessCacheEntry
@@ -316,7 +316,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupPathKey.Inode)
 		}
 
 		// Check we filled the kernel maps correctly with the same values than userspace for the syscall tester process
@@ -326,7 +326,7 @@ func TestCGroupSnapshot(t *testing.T) {
 		})
 		assert.NotNil(t, newEntry)
 		if newEntry != nil {
-			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupFile.Inode)
+			assert.Equal(t, stats.Ino, newEntry.CGroup.CGroupPathKey.Inode)
 		}
 	}, "test_cgroup_snapshot")
 }

@@ -532,9 +532,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {

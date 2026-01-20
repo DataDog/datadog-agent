@@ -1572,15 +1572,15 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
+	if !event.ProcessContext.ContainerContext.IsNull() {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        string(ctx.ContainerID),
-			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
 		}
 	}
 
-	if cgroupID := event.FieldHandlers.ResolveCGroupID(event, &event.ProcessContext.CGroup); cgroupID != "" {
+	if !event.ProcessContext.CGroup.IsNull() {
 		s.CGroupContextSerializer = &CGroupContextSerializer{
 			ID:        string(event.ProcessContext.CGroup.CGroupID),
 			Variables: newVariablesContext(event, rule, "cgroup."),
