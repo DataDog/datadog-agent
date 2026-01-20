@@ -21,6 +21,23 @@ type Component interface {
 	GetClient() *remoteflags.Client
 }
 
+// RemoteFlagSubscriber is the fx wrapper for components that subscribe to remote flags.
+// Components that want to subscribe to remote flags should return this from their
+// fx.Provide function.
+type RemoteFlagSubscriber struct {
+	fx.Out
+
+	Subscriber remoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
+}
+
+// NewRemoteFlagSubscriber creates a RemoteFlagSubscriber for fx registration.
+// Pass a component that implements remoteflags.RemoteFlagSubscriber.
+func NewRemoteFlagSubscriber(subscriber remoteflags.RemoteFlagSubscriber) RemoteFlagSubscriber {
+	return RemoteFlagSubscriber{
+		Subscriber: subscriber,
+	}
+}
+
 // NoneModule returns a None optional type for remoteflags.Component.
 func NoneModule() fxutil.Module {
 	return fxutil.Component(fx.Provide(func() option.Option[Component] {
