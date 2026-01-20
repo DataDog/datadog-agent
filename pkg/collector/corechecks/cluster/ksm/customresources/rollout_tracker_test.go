@@ -1990,3 +1990,395 @@ func TestAgentRestartDuringRollout(t *testing.T) {
 	tracker.StoreDeployment(deployment)
 	assert.True(t, tracker.HasActiveRollout(deployment), "Should now be actively tracked")
 }
+
+// =============================================================================
+// Tests for RecentCreationThreshold heuristic
+// =============================================================================
+
+// TestDetermineDeploymentStartTime_RecentRS tests that a recent ReplicaSet's
+// creation time is used for new deployments (agent restart during forward rollout)
+func TestDetermineDeploymentStartTime_RecentRS(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "test-deployment"
+
+	// Add a ReplicaSet created 2 minutes ago (within threshold)
+	recentRSCreationTime := time.Now().Add(-2 * time.Minute)
+	tracker.deploymentMutex.Lock()
+	tracker.replicaSetMap[namespace+"/test-rs"] = &ReplicaSetInfo{
+		Name:         "test-rs",
+		Namespace:    namespace,
+		OwnerName:    deploymentName,
+		OwnerUID:     "dep-123",
+		CreationTime: recentRSCreationTime,
+	}
+	tracker.deploymentMutex.Unlock()
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+	}
+
+	// Call determineDeploymentStartTime
+	tracker.deploymentMutex.Lock()
+	startTime := tracker.determineDeploymentStartTime(deployment)
+	tracker.deploymentMutex.Unlock()
+
+	// Should use the RS creation time since it's recent
+	assert.Equal(t, recentRSCreationTime, startTime,
+		"Should use recent RS creation time for start time")
+}
+
+// TestDetermineDeploymentStartTime_OldRS tests that when the RS is old,
+// we fall back to Progressing condition or now (agent restart during rollback)
+func TestDetermineDeploymentStartTime_OldRS(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "test-deployment"
+
+	// Add a ReplicaSet created 10 minutes ago (outside threshold)
+	oldRSCreationTime := time.Now().Add(-10 * time.Minute)
+	tracker.deploymentMutex.Lock()
+	tracker.replicaSetMap[namespace+"/test-rs"] = &ReplicaSetInfo{
+		Name:         "test-rs",
+		Namespace:    namespace,
+		OwnerName:    deploymentName,
+		OwnerUID:     "dep-123",
+		CreationTime: oldRSCreationTime,
+	}
+	tracker.deploymentMutex.Unlock()
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+	}
+
+	beforeCall := time.Now()
+	tracker.deploymentMutex.Lock()
+	startTime := tracker.determineDeploymentStartTime(deployment)
+	tracker.deploymentMutex.Unlock()
+	afterCall := time.Now()
+
+	// Should NOT use the old RS creation time
+	assert.NotEqual(t, oldRSCreationTime, startTime,
+		"Should NOT use old RS creation time")
+
+	// Should use current time (or close to it) since no Progressing condition
+	assert.True(t, startTime.After(beforeCall) || startTime.Equal(beforeCall),
+		"Start time should be at or after the call")
+	assert.True(t, startTime.Before(afterCall) || startTime.Equal(afterCall),
+		"Start time should be at or before call completed")
+}
+
+// TestDetermineDeploymentStartTime_WithProgressingCondition tests that
+// when RS is old but Progressing condition exists, we use it
+func TestDetermineDeploymentStartTime_WithProgressingCondition(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "test-deployment"
+
+	// Add an old ReplicaSet (outside threshold)
+	tracker.deploymentMutex.Lock()
+	tracker.replicaSetMap[namespace+"/test-rs"] = &ReplicaSetInfo{
+		Name:         "test-rs",
+		Namespace:    namespace,
+		OwnerName:    deploymentName,
+		OwnerUID:     "dep-123",
+		CreationTime: time.Now().Add(-10 * time.Minute),
+	}
+	tracker.deploymentMutex.Unlock()
+
+	// Deployment with Progressing condition
+	progressingTime := time.Now().Add(-3 * time.Minute)
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+		Status: appsv1.DeploymentStatus{
+			Conditions: []appsv1.DeploymentCondition{
+				{
+					Type:               appsv1.DeploymentProgressing,
+					Status:             corev1.ConditionTrue,
+					Reason:             "ReplicaSetUpdated",
+					LastTransitionTime: metav1.Time{Time: progressingTime},
+				},
+			},
+		},
+	}
+
+	tracker.deploymentMutex.Lock()
+	startTime := tracker.determineDeploymentStartTime(deployment)
+	tracker.deploymentMutex.Unlock()
+
+	// Should use the Progressing condition time
+	assert.Equal(t, progressingTime, startTime,
+		"Should use Progressing condition LastTransitionTime")
+}
+
+// TestDetermineStatefulSetStartTime_RecentCR tests that a recent ControllerRevision's
+// creation time is used for new StatefulSets
+func TestDetermineStatefulSetStartTime_RecentCR(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	stsName := "test-sts"
+
+	// Add a ControllerRevision created 2 minutes ago (within threshold)
+	recentCRCreationTime := time.Now().Add(-2 * time.Minute)
+	tracker.statefulSetMutex.Lock()
+	tracker.controllerRevisionMap[namespace+"/test-cr"] = &ControllerRevisionInfo{
+		Name:         "test-cr",
+		Namespace:    namespace,
+		OwnerName:    stsName,
+		OwnerUID:     "sts-123",
+		Revision:     1,
+		CreationTime: recentCRCreationTime,
+	}
+	tracker.statefulSetMutex.Unlock()
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stsName,
+			Namespace: namespace,
+		},
+	}
+
+	tracker.statefulSetMutex.Lock()
+	startTime := tracker.determineStatefulSetStartTime(sts)
+	tracker.statefulSetMutex.Unlock()
+
+	// Should use the CR creation time since it's recent
+	assert.Equal(t, recentCRCreationTime, startTime,
+		"Should use recent CR creation time for start time")
+}
+
+// TestDetermineStatefulSetStartTime_OldCR tests that when CR is old,
+// we use current time (agent restart during rollback)
+func TestDetermineStatefulSetStartTime_OldCR(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	stsName := "test-sts"
+
+	// Add a ControllerRevision created 10 minutes ago (outside threshold)
+	oldCRCreationTime := time.Now().Add(-10 * time.Minute)
+	tracker.statefulSetMutex.Lock()
+	tracker.controllerRevisionMap[namespace+"/test-cr"] = &ControllerRevisionInfo{
+		Name:         "test-cr",
+		Namespace:    namespace,
+		OwnerName:    stsName,
+		OwnerUID:     "sts-123",
+		Revision:     1,
+		CreationTime: oldCRCreationTime,
+	}
+	tracker.statefulSetMutex.Unlock()
+
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      stsName,
+			Namespace: namespace,
+		},
+	}
+
+	beforeCall := time.Now()
+	tracker.statefulSetMutex.Lock()
+	startTime := tracker.determineStatefulSetStartTime(sts)
+	tracker.statefulSetMutex.Unlock()
+	afterCall := time.Now()
+
+	// Should NOT use the old CR creation time
+	assert.NotEqual(t, oldCRCreationTime, startTime,
+		"Should NOT use old CR creation time")
+
+	// Should use current time
+	assert.True(t, startTime.After(beforeCall) || startTime.Equal(beforeCall),
+		"Start time should be at or after the call")
+	assert.True(t, startTime.Before(afterCall) || startTime.Equal(afterCall),
+		"Start time should be at or before call completed")
+}
+
+// TestDetermineDaemonSetStartTime_RecentCR tests that a recent ControllerRevision's
+// creation time is used for new DaemonSets
+func TestDetermineDaemonSetStartTime_RecentCR(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	dsName := "test-ds"
+
+	// Add a ControllerRevision created 2 minutes ago (within threshold)
+	recentCRCreationTime := time.Now().Add(-2 * time.Minute)
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetControllerRevisionMap[namespace+"/test-cr"] = &ControllerRevisionInfo{
+		Name:         "test-cr",
+		Namespace:    namespace,
+		OwnerName:    dsName,
+		OwnerUID:     "ds-123",
+		Revision:     1,
+		CreationTime: recentCRCreationTime,
+	}
+	tracker.daemonSetMutex.Unlock()
+
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dsName,
+			Namespace: namespace,
+		},
+	}
+
+	tracker.daemonSetMutex.Lock()
+	startTime := tracker.determineDaemonSetStartTime(ds)
+	tracker.daemonSetMutex.Unlock()
+
+	// Should use the CR creation time since it's recent
+	assert.Equal(t, recentCRCreationTime, startTime,
+		"Should use recent CR creation time for start time")
+}
+
+// TestDetermineDaemonSetStartTime_OldCR tests that when CR is old,
+// we use current time (agent restart during rollback)
+func TestDetermineDaemonSetStartTime_OldCR(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	dsName := "test-ds"
+
+	// Add a ControllerRevision created 10 minutes ago (outside threshold)
+	oldCRCreationTime := time.Now().Add(-10 * time.Minute)
+	tracker.daemonSetMutex.Lock()
+	tracker.daemonSetControllerRevisionMap[namespace+"/test-cr"] = &ControllerRevisionInfo{
+		Name:         "test-cr",
+		Namespace:    namespace,
+		OwnerName:    dsName,
+		OwnerUID:     "ds-123",
+		Revision:     1,
+		CreationTime: oldCRCreationTime,
+	}
+	tracker.daemonSetMutex.Unlock()
+
+	ds := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dsName,
+			Namespace: namespace,
+		},
+	}
+
+	beforeCall := time.Now()
+	tracker.daemonSetMutex.Lock()
+	startTime := tracker.determineDaemonSetStartTime(ds)
+	tracker.daemonSetMutex.Unlock()
+	afterCall := time.Now()
+
+	// Should NOT use the old CR creation time
+	assert.NotEqual(t, oldCRCreationTime, startTime,
+		"Should NOT use old CR creation time")
+
+	// Should use current time
+	assert.True(t, startTime.After(beforeCall) || startTime.Equal(beforeCall),
+		"Start time should be at or after the call")
+	assert.True(t, startTime.Before(afterCall) || startTime.Equal(afterCall),
+		"Start time should be at or before call completed")
+}
+
+// TestStoreDeployment_UsesRecentRSOnFirstSee tests that when a deployment is first
+// seen and has a recent RS, the RS creation time is used as start time
+func TestStoreDeployment_UsesRecentRSOnFirstSee(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "test-deployment"
+	key := namespace + "/" + deploymentName
+
+	// Pre-populate a recent ReplicaSet (simulating RS being stored before Deployment)
+	recentRSCreationTime := time.Now().Add(-2 * time.Minute)
+	tracker.StoreReplicaSet(&appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-rs",
+			Namespace:         namespace,
+			CreationTimestamp: metav1.Time{Time: recentRSCreationTime},
+		},
+	}, deploymentName, "dep-123")
+
+	// Now store the deployment for the first time
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				RevisionAnnotationKey: "1",
+			},
+		},
+	}
+
+	tracker.StoreDeployment(deployment)
+
+	// Verify the start time was set to the RS creation time
+	tracker.deploymentMutex.RLock()
+	startTime := tracker.deploymentStartTime[key]
+	tracker.deploymentMutex.RUnlock()
+
+	assert.Equal(t, recentRSCreationTime, startTime,
+		"First-time deployment with recent RS should use RS creation time")
+}
+
+// TestStoreDeployment_UsesNowWhenRSIsOld tests that when a deployment is first
+// seen but RS is old (rollback scenario), current time is used
+func TestStoreDeployment_UsesNowWhenRSIsOld(t *testing.T) {
+	tracker := NewRolloutTracker()
+
+	namespace := "default"
+	deploymentName := "test-deployment"
+	key := namespace + "/" + deploymentName
+
+	// Pre-populate an old ReplicaSet (simulating rollback - reusing old RS)
+	oldRSCreationTime := time.Now().Add(-10 * time.Minute)
+	tracker.StoreReplicaSet(&appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "test-rs",
+			Namespace:         namespace,
+			CreationTimestamp: metav1.Time{Time: oldRSCreationTime},
+		},
+	}, deploymentName, "dep-123")
+
+	beforeStore := time.Now()
+
+	// Now store the deployment for the first time
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+			Annotations: map[string]string{
+				RevisionAnnotationKey: "1",
+			},
+		},
+	}
+
+	tracker.StoreDeployment(deployment)
+
+	afterStore := time.Now()
+
+	// Verify the start time was NOT set to the old RS creation time
+	tracker.deploymentMutex.RLock()
+	startTime := tracker.deploymentStartTime[key]
+	tracker.deploymentMutex.RUnlock()
+
+	assert.NotEqual(t, oldRSCreationTime, startTime,
+		"Should NOT use old RS creation time")
+	assert.True(t, startTime.After(beforeStore) || startTime.Equal(beforeStore),
+		"Start time should be at or after store call")
+	assert.True(t, startTime.Before(afterStore) || startTime.Equal(afterStore),
+		"Start time should be at or before store completed")
+}
+
+// TestRecentCreationThreshold verifies the threshold constant is correctly defined
+func TestRecentCreationThreshold(t *testing.T) {
+	assert.Equal(t, 5*time.Minute, RecentCreationThreshold,
+		"RecentCreationThreshold should be 5 minutes")
+}

@@ -20,6 +20,12 @@ import (
 // RevisionAnnotationKey is the annotation key used by Kubernetes to track deployment revisions
 const RevisionAnnotationKey = "deployment.kubernetes.io/revision"
 
+// RecentCreationThreshold is the maximum age for a ReplicaSet/ControllerRevision to be considered
+// "recently created" for the purpose of determining rollout start time after agent restart.
+// If the RS/CR was created within this threshold, we assume it's a forward rollout and use its
+// creation time. If older, we assume it's a rollback (reusing existing RS/CR) and use time.Now().
+const RecentCreationThreshold = 5 * time.Minute
+
 // ReplicaSetInfo holds information about a ReplicaSet for Deployment rollout tracking
 type ReplicaSetInfo struct {
 	Name         string
@@ -174,9 +180,10 @@ func (rt *RolloutTracker) StoreDeployment(dep *appsv1.Deployment) {
 
 	_, exists := rt.deploymentMap[key]
 	if !exists {
-		// New deployment being tracked - set start time
-		// Try to use Progressing condition timestamp for restart resilience
-		startTime := getProgressingConditionTime(dep, time.Now())
+		// New deployment being tracked - determine start time using heuristic
+		// If newest RS is recent (< 5min), use its creation time (forward rollout)
+		// Otherwise use Progressing condition or now (rollback or agent restart)
+		startTime := rt.determineDeploymentStartTime(dep)
 		rt.deploymentStartTime[key] = startTime
 		log.Infof("[RolloutTracker] Deployment %s: NEW tracking started, revision=%s, gen=%d, observedGen=%d, startTime=%v",
 			key, currentRevision, dep.Generation, dep.Status.ObservedGeneration, startTime)
@@ -209,6 +216,51 @@ func getProgressingConditionTime(dep *appsv1.Deployment, fallback time.Time) tim
 		}
 	}
 	return fallback
+}
+
+// getNewestReplicaSetCreationTime finds the most recently created ReplicaSet for a deployment.
+// This is used to determine rollout start time after agent restart.
+// Must be called with deploymentMutex held.
+func (rt *RolloutTracker) getNewestReplicaSetCreationTime(namespace, deploymentName string) (time.Time, bool) {
+	var newestTime time.Time
+	found := false
+
+	for _, rsInfo := range rt.replicaSetMap {
+		if rsInfo.Namespace == namespace && rsInfo.OwnerName == deploymentName {
+			if !found || rsInfo.CreationTime.After(newestTime) {
+				newestTime = rsInfo.CreationTime
+				found = true
+			}
+		}
+	}
+
+	return newestTime, found
+}
+
+// determineDeploymentStartTime determines the start time for a newly observed deployment rollout.
+// It uses a heuristic: if the newest ReplicaSet was created recently (< RecentCreationThreshold),
+// use its creation time (likely a forward rollout). Otherwise, use the Progressing condition time
+// or current time (likely a rollback reusing an old RS, or agent restart).
+// Must be called with deploymentMutex held.
+func (rt *RolloutTracker) determineDeploymentStartTime(dep *appsv1.Deployment) time.Time {
+	now := time.Now()
+
+	// First, check if we have a recent ReplicaSet
+	rsCreationTime, hasRS := rt.getNewestReplicaSetCreationTime(dep.Namespace, dep.Name)
+	if hasRS {
+		age := now.Sub(rsCreationTime)
+		if age < RecentCreationThreshold {
+			// RS is recent - likely a forward rollout, use RS creation time
+			log.Debugf("[RolloutTracker] Deployment %s/%s: using recent RS creation time %v (age: %v)",
+				dep.Namespace, dep.Name, rsCreationTime, age)
+			return rsCreationTime
+		}
+		log.Debugf("[RolloutTracker] Deployment %s/%s: RS creation time %v is too old (age: %v), checking Progressing condition",
+			dep.Namespace, dep.Name, rsCreationTime, age)
+	}
+
+	// RS is old or not found - try Progressing condition, fall back to now
+	return getProgressingConditionTime(dep, now)
 }
 
 // CleanupDeployment removes a deployment from active rollout tracking.
@@ -355,8 +407,10 @@ func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
 
 	_, exists := rt.statefulSetMap[key]
 	if !exists {
-		// New StatefulSet being tracked - set start time
-		startTime := time.Now()
+		// New StatefulSet being tracked - determine start time using heuristic
+		// If newest ControllerRevision is recent (< 5min), use its creation time (forward rollout)
+		// Otherwise use now (rollback or agent restart)
+		startTime := rt.determineStatefulSetStartTime(sts)
 		rt.statefulSetStartTime[key] = startTime
 		log.Infof("[RolloutTracker] StatefulSet %s: NEW tracking started, updateRevision=%s, currentRevision=%s, gen=%d, observedGen=%d, startTime=%v",
 			key, currentUpdateRevision, sts.Status.CurrentRevision, sts.Generation, sts.Status.ObservedGeneration, startTime)
@@ -374,6 +428,51 @@ func (rt *RolloutTracker) StoreStatefulSet(sts *appsv1.StatefulSet) {
 	rt.statefulSetMap[key] = sts.DeepCopy()
 	// Always update the stored revision for active tracking
 	rt.lastSeenUpdateRevision[key] = currentUpdateRevision
+}
+
+// getNewestControllerRevisionCreationTime finds the most recently created ControllerRevision for a StatefulSet.
+// This is used to determine rollout start time after agent restart.
+// Must be called with statefulSetMutex held.
+func (rt *RolloutTracker) getNewestControllerRevisionCreationTime(namespace, statefulSetName string) (time.Time, bool) {
+	var newestTime time.Time
+	found := false
+
+	for _, crInfo := range rt.controllerRevisionMap {
+		if crInfo.Namespace == namespace && crInfo.OwnerName == statefulSetName {
+			if !found || crInfo.CreationTime.After(newestTime) {
+				newestTime = crInfo.CreationTime
+				found = true
+			}
+		}
+	}
+
+	return newestTime, found
+}
+
+// determineStatefulSetStartTime determines the start time for a newly observed StatefulSet rollout.
+// It uses a heuristic: if the newest ControllerRevision was created recently (< RecentCreationThreshold),
+// use its creation time (likely a forward rollout). Otherwise, use current time (likely a rollback
+// reusing an old ControllerRevision, or agent restart).
+// Must be called with statefulSetMutex held.
+func (rt *RolloutTracker) determineStatefulSetStartTime(sts *appsv1.StatefulSet) time.Time {
+	now := time.Now()
+
+	// Check if we have a recent ControllerRevision
+	crCreationTime, hasCR := rt.getNewestControllerRevisionCreationTime(sts.Namespace, sts.Name)
+	if hasCR {
+		age := now.Sub(crCreationTime)
+		if age < RecentCreationThreshold {
+			// CR is recent - likely a forward rollout, use CR creation time
+			log.Debugf("[RolloutTracker] StatefulSet %s/%s: using recent ControllerRevision creation time %v (age: %v)",
+				sts.Namespace, sts.Name, crCreationTime, age)
+			return crCreationTime
+		}
+		log.Debugf("[RolloutTracker] StatefulSet %s/%s: ControllerRevision creation time %v is too old (age: %v), using current time",
+			sts.Namespace, sts.Name, crCreationTime, age)
+	}
+
+	// CR is old or not found - use current time
+	return now
 }
 
 // CleanupStatefulSet removes a StatefulSet from active rollout tracking.
@@ -517,8 +616,10 @@ func (rt *RolloutTracker) StoreDaemonSet(ds *appsv1.DaemonSet) {
 	// Check if this is a new rollout (new DaemonSet OR generation changed)
 	existingDs, exists := rt.daemonSetMap[key]
 	if !exists {
-		// New DaemonSet being tracked - set start time
-		startTime := time.Now()
+		// New DaemonSet being tracked - determine start time using heuristic
+		// If newest ControllerRevision is recent (< 5min), use its creation time (forward rollout)
+		// Otherwise use now (rollback or agent restart)
+		startTime := rt.determineDaemonSetStartTime(ds)
 		rt.daemonSetStartTime[key] = startTime
 		log.Infof("[RolloutTracker] DaemonSet %s: NEW tracking started, gen=%d, observedGen=%d, startTime=%v",
 			key, ds.Generation, ds.Status.ObservedGeneration, startTime)
@@ -601,6 +702,51 @@ func (rt *RolloutTracker) CleanupDaemonSetControllerRevision(namespace, name str
 
 	key := namespace + "/" + name
 	delete(rt.daemonSetControllerRevisionMap, key)
+}
+
+// getNewestDaemonSetControllerRevisionCreationTime finds the most recently created ControllerRevision for a DaemonSet.
+// This is used to determine rollout start time after agent restart.
+// Must be called with daemonSetMutex held.
+func (rt *RolloutTracker) getNewestDaemonSetControllerRevisionCreationTime(namespace, daemonSetName string) (time.Time, bool) {
+	var newestTime time.Time
+	found := false
+
+	for _, crInfo := range rt.daemonSetControllerRevisionMap {
+		if crInfo.Namespace == namespace && crInfo.OwnerName == daemonSetName {
+			if !found || crInfo.CreationTime.After(newestTime) {
+				newestTime = crInfo.CreationTime
+				found = true
+			}
+		}
+	}
+
+	return newestTime, found
+}
+
+// determineDaemonSetStartTime determines the start time for a newly observed DaemonSet rollout.
+// It uses a heuristic: if the newest ControllerRevision was created recently (< RecentCreationThreshold),
+// use its creation time (likely a forward rollout). Otherwise, use current time (likely a rollback
+// reusing an old ControllerRevision, or agent restart).
+// Must be called with daemonSetMutex held.
+func (rt *RolloutTracker) determineDaemonSetStartTime(ds *appsv1.DaemonSet) time.Time {
+	now := time.Now()
+
+	// Check if we have a recent ControllerRevision
+	crCreationTime, hasCR := rt.getNewestDaemonSetControllerRevisionCreationTime(ds.Namespace, ds.Name)
+	if hasCR {
+		age := now.Sub(crCreationTime)
+		if age < RecentCreationThreshold {
+			// CR is recent - likely a forward rollout, use CR creation time
+			log.Debugf("[RolloutTracker] DaemonSet %s/%s: using recent ControllerRevision creation time %v (age: %v)",
+				ds.Namespace, ds.Name, crCreationTime, age)
+			return crCreationTime
+		}
+		log.Debugf("[RolloutTracker] DaemonSet %s/%s: ControllerRevision creation time %v is too old (age: %v), using current time",
+			ds.Namespace, ds.Name, crCreationTime, age)
+	}
+
+	// CR is old or not found - use current time
+	return now
 }
 
 // HasActiveDaemonSetRollout checks if we're actively tracking a rollout for the given DaemonSet
