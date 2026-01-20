@@ -29,10 +29,21 @@ uv sync
   ```
 
 ### Evaluation
-- **evaluate.py** - Run evaluations across all scenarios and modes
+- **evaluate.py** - Run evaluations across scenarios and modes
   ```bash
   export ANTHROPIC_API_KEY=your-key
+
+  # Run all scenarios for all modes (default)
   uv run python scripts/evaluate.py
+
+  # Run specific scenarios for specific modes
+  uv run python scripts/evaluate.py --modes bash tools --scenarios high-cpu-usage port-conflict
+
+  # Run all scenarios for one mode
+  uv run python scripts/evaluate.py --modes bash
+
+  # Grade existing transcripts without re-running investigations
+  uv run python scripts/evaluate.py --grade-only --run-dir results/run-20260120_120000
   ```
   Creates timestamped run directory: `results/run-YYYYMMDD_HHMMSS/`
 

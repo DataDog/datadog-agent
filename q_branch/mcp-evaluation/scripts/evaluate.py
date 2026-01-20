@@ -9,6 +9,7 @@ import asyncio
 import json
 import subprocess
 import os
+import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -25,20 +26,24 @@ MCP_EVAL_DIR = Path(__file__).parent.parent
 SCENARIOS_DIR = MCP_EVAL_DIR / "scenarios"
 RESULTS_DIR = MCP_EVAL_DIR / "results"
 SCRIPTS_DIR = MCP_EVAL_DIR / "scripts"
-MODES = ["bash", "safe-shell", "tools"]
+# MODES = ["bash", "safe-shell", "tools"]
+MODES = ["tools"]
 VM_PORTS = {"bash": 8081, "safe-shell": 8082, "tools": 8083}
 
 # Scenarios list
+# SCENARIOS = [
+#     # Easy
+#     "high-cpu-usage", "disk-space-full", "port-conflict",
+#     "zombie-processes", "dns-resolution-failure",
+#     # Medium
+#     "memory-leak", "connection-exhaustion", "log-rotation-failure",
+#     "swap-thrashing", "file-descriptor-leak",
+#     # Hard
+#     "tcp-close-wait", "io-wait", "context-switching-storm",
+#     "inode-exhaustion", "tcp-syn-flood"
+# ]
 SCENARIOS = [
-    # Easy
-    "high-cpu-usage", "disk-space-full", "port-conflict",
-    "zombie-processes", "dns-resolution-failure",
-    # Medium
-    "memory-leak", "connection-exhaustion", "log-rotation-failure",
-    "swap-thrashing", "file-descriptor-leak",
-    # Hard
-    "tcp-close-wait", "io-wait", "context-switching-storm",
-    "inode-exhaustion", "tcp-syn-flood"
+    "port-conflict"
 ]
 
 
@@ -86,6 +91,7 @@ class EvaluationRunner:
         self.run_dir = run_dir
         self.results_file = run_dir / f"evaluation-{mode}.jsonl"
         self.transcripts_dir = run_dir / "transcripts" / mode
+        self.scenarios_to_run = SCENARIOS  # Can be overridden
 
     async def get_vm_status(self):
         """Get the status of the VM, returns None if VM doesn't exist"""
@@ -116,15 +122,15 @@ class EvaluationRunner:
         print(f"Starting evaluation for mode: {self.mode}")
         print(f"{'='*60}\n")
 
-        for i, scenario in enumerate(SCENARIOS):
+        for i, scenario in enumerate(self.scenarios_to_run):
             try:
-                print(f"\n[{self.mode}] ━━━ Evaluating {scenario} ({i+1}/{len(SCENARIOS)}) ━━━")
+                print(f"\n[{self.mode}] ━━━ Evaluating {scenario} ({i+1}/{len(self.scenarios_to_run)}) ━━━")
                 result = await self.evaluate_scenario(scenario)
                 self.write_result(result)
                 print(f"[{self.mode}] ✓ {scenario} completed")
 
                 # Restart VM between scenarios (except after the last one)
-                if i < len(SCENARIOS) - 1:
+                if i < len(self.scenarios_to_run) - 1:
                     print(f"[{self.mode}] Restarting VM for clean state...")
                     await self.restart_vm()
 
@@ -141,7 +147,7 @@ class EvaluationRunner:
                 })
 
                 # Try to restart VM even on error
-                if i < len(SCENARIOS) - 1:
+                if i < len(self.scenarios_to_run) - 1:
                     try:
                         print(f"[{self.mode}] Attempting VM restart after error...")
                         await self.restart_vm()
@@ -419,6 +425,17 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
                 conversation.append(message)
         except Exception as e:
             print(f"[{self.mode}/{scenario}] Investigation error: {e}")
+            print(f"[{self.mode}/{scenario}] Error type: {type(e).__name__}")
+
+            # Print full traceback for debugging
+            import traceback
+            print(f"[{self.mode}/{scenario}] Full traceback:")
+            traceback.print_exc()
+
+            # Print any additional error attributes
+            if hasattr(e, '__dict__'):
+                print(f"[{self.mode}/{scenario}] Error attributes: {e.__dict__}")
+
             conversation.append({"error": str(e)})
 
         # Save full transcript as proper JSON
@@ -567,23 +584,190 @@ Only return valid JSON, no additional text."""
         status = result.get('status', 'unknown')
         print(f"[{self.mode}] Result: {result['scenario']} - Score: {score} - Status: {status}")
 
+    async def grade_existing_transcripts(self):
+        """Grade existing transcripts without running investigations (for debugging/re-grading)"""
+        print(f"\n{'='*60}")
+        print(f"Grading existing transcripts for mode: {self.mode}")
+        print(f"{'='*60}\n")
+
+        for i, scenario in enumerate(self.scenarios_to_run):
+            transcript_file = self.transcripts_dir / f"{scenario}.json"
+
+            if not transcript_file.exists():
+                print(f"[{self.mode}/{scenario}] ⚠ Transcript not found: {transcript_file}")
+                self.write_result({
+                    "mode": self.mode,
+                    "scenario": scenario,
+                    "status": "error",
+                    "error": "Transcript file not found",
+                    "timestamp": datetime.now().isoformat()
+                })
+                continue
+
+            try:
+                print(f"\n[{self.mode}] ━━━ Grading {scenario} ({i+1}/{len(self.scenarios_to_run)}) ━━━")
+
+                # Load transcript
+                with open(transcript_file, 'r') as f:
+                    conversation_json = json.load(f)
+
+                # Convert back to message objects for extract_findings
+                from types import SimpleNamespace
+                conversation = []
+                for msg_dict in conversation_json:
+                    # Create a simple object that has the same attributes
+                    msg = SimpleNamespace(**msg_dict)
+                    conversation.append(msg)
+
+                # Extract findings
+                findings = self.extract_findings(conversation)
+
+                if not findings:
+                    print(f"[{self.mode}/{scenario}] ⚠ No findings found in transcript")
+                    self.write_result({
+                        "mode": self.mode,
+                        "scenario": scenario,
+                        "status": "error",
+                        "error": "No findings in transcript",
+                        "timestamp": datetime.now().isoformat()
+                    })
+                    continue
+
+                # Grade findings
+                print(f"[{self.mode}/{scenario}] Grading findings...")
+                grade = await self.grade_findings(scenario, findings.result or "no findings")
+
+                # Write result
+                result = {
+                    "mode": self.mode,
+                    "scenario": scenario,
+                    "findings": findings.result,
+                    "score": grade,
+                    "status": "completed",
+                    "timestamp": datetime.now().isoformat(),
+                    "duration_ms": findings.duration_ms,
+                    "turns": findings.num_turns,
+                    "cost": findings.total_cost_usd,
+                }
+
+                self.write_result(result)
+                print(f"[{self.mode}] ✓ {scenario} graded - Score: {grade.get('overall_score', 'N/A')}")
+
+            except Exception as e:
+                print(f"[{self.mode}] ✗ Error grading {scenario}: {e}")
+                import traceback
+                traceback.print_exc()
+                self.write_result({
+                    "mode": self.mode,
+                    "scenario": scenario,
+                    "status": "error",
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+
+        print(f"\n{'='*60}")
+        print(f"Grading complete for mode: {self.mode}")
+        print(f"Results written to: {self.results_file}")
+        print(f"{'='*60}\n")
+
+
+def parse_args():
+    """Parse command-line arguments"""
+    parser = argparse.ArgumentParser(
+        description="MCP Evaluation Framework - Run Claude Code investigations across scenarios and modes",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run all scenarios for all modes (default)
+  python evaluate.py
+
+  # Run specific scenarios for specific modes
+  python evaluate.py --modes bash tools --scenarios high-cpu-usage port-conflict
+
+  # Run all scenarios for one mode
+  python evaluate.py --modes bash
+
+  # Grade only (use existing run directory)
+  python evaluate.py --grade-only --run-dir results/run-20260120_120000
+        """
+    )
+
+    parser.add_argument(
+        "--modes",
+        nargs="+",
+        choices=["bash", "safe-shell", "tools"],
+        default=None,
+        help="Modes to evaluate (default: all modes)"
+    )
+
+    parser.add_argument(
+        "--scenarios",
+        nargs="+",
+        default=None,
+        help="Scenarios to evaluate (default: all scenarios)"
+    )
+
+    parser.add_argument(
+        "--grade-only",
+        action="store_true",
+        help="Grade existing transcripts without running investigations (requires --run-dir)"
+    )
+
+    parser.add_argument(
+        "--run-dir",
+        type=Path,
+        help="Existing run directory (required for --grade-only)"
+    )
+
+    args = parser.parse_args()
+
+    # Validation
+    if args.grade_only and not args.run_dir:
+        parser.error("--grade-only requires --run-dir")
+
+    if args.run_dir and not args.grade_only:
+        parser.error("--run-dir can only be used with --grade-only")
+
+    # Validate scenarios
+    if args.scenarios:
+        invalid = set(args.scenarios) - set(SCENARIOS)
+        if invalid:
+            parser.error(f"Invalid scenarios: {', '.join(invalid)}")
+
+    return args
+
 
 async def main():
     """Run evaluations in parallel for all modes"""
+    args = parse_args()
+
+    # Determine modes and scenarios to run
+    modes = args.modes if args.modes else MODES
+    scenarios = args.scenarios if args.scenarios else SCENARIOS
+
     print("\n" + "="*60)
     print("MCP Evaluation Framework")
     print("="*60)
-    print(f"Scenarios: {len(SCENARIOS)}")
-    print(f"Modes: {', '.join(MODES)}")
-    print(f"Total evaluations: {len(SCENARIOS) * len(MODES)}")
+    print(f"Scenarios: {len(scenarios)} - {', '.join(scenarios)}")
+    print(f"Modes: {', '.join(modes)}")
+    print(f"Total evaluations: {len(scenarios) * len(modes)}")
+    if args.grade_only:
+        print(f"Mode: GRADE ONLY (using existing transcripts)")
     print("="*60 + "\n")
 
-    # Create timestamped run directory
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir = RESULTS_DIR / f"run-{timestamp}"
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    print(f"Run directory: {run_dir}\n")
+    # Determine run directory
+    if args.grade_only:
+        run_dir = args.run_dir
+        if not run_dir.exists():
+            print(f"ERROR: Run directory does not exist: {run_dir}")
+            return
+        print(f"Using existing run directory: {run_dir}\n")
+    else:
+        # Create timestamped run directory
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        run_dir = RESULTS_DIR / f"run-{timestamp}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Run directory: {run_dir}\n")
 
     # Check for API key
     if not os.getenv("ANTHROPIC_API_KEY"):
@@ -591,22 +775,34 @@ async def main():
         print("Please set it with: export ANTHROPIC_API_KEY=your-api-key")
         return
 
-    # Setup all VMs sequentially to avoid Lima race conditions
-    print("="*60)
-    print("Setting up VMs sequentially to avoid race conditions...")
-    print("="*60)
-    runners = []
-    for mode in MODES:
-        runner = EvaluationRunner(mode, run_dir)
-        await runner.setup_vm()
-        runners.append(runner)
+    if not args.grade_only:
+        # Setup all VMs sequentially to avoid Lima race conditions
+        print("="*60)
+        print("Setting up VMs sequentially to avoid race conditions...")
+        print("="*60)
+        runners = []
+        for mode in modes:
+            runner = EvaluationRunner(mode, run_dir)
+            runner.scenarios_to_run = scenarios  # Set scenarios filter
+            await runner.setup_vm()
+            runners.append(runner)
 
-    print("\n" + "="*60)
-    print("All VMs ready. Starting parallel evaluations...")
-    print("="*60 + "\n")
+        print("\n" + "="*60)
+        print("All VMs ready. Starting parallel evaluations...")
+        print("="*60 + "\n")
 
-    # Run all scenarios in parallel
-    await asyncio.gather(*[runner.run_scenarios() for runner in runners])
+        # Run all scenarios in parallel
+        await asyncio.gather(*[runner.run_scenarios() for runner in runners])
+    else:
+        # Grade-only mode: load existing transcripts and grade them
+        print("="*60)
+        print("Grading existing transcripts...")
+        print("="*60 + "\n")
+
+        for mode in modes:
+            runner = EvaluationRunner(mode, run_dir)
+            runner.scenarios_to_run = scenarios
+            await runner.grade_existing_transcripts()
 
     print("\n" + "="*60)
     print("All evaluations complete!")
