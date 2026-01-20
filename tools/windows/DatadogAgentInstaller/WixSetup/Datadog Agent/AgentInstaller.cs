@@ -300,7 +300,7 @@ namespace WixSetup.Datadog_Agent
             project.InstallerVersion = 500;
             project.DefaultFeature = _agentFeatures.MainApplication;
             project.Codepage = "1252";
-            project.InstallPrivileges = InstallPrivileges.elevated;
+            project.InstallScope = InstallScope.perMachine; // WiX 4+: InstallPrivileges.elevated → InstallScope.perMachine
             project.LocalizationFile = "localization-en-us.wxl";
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
             {
