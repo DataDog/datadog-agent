@@ -33,6 +33,9 @@ var minimalProvidedConfig string
 //go:embed testdata/minimal-full-config.yml
 var minimalFullConfig string
 
+//go:embed testdata/minimal-full-config-datadogextension.yml
+var minimalFullConfigDatadogExtension string
+
 //go:embed testdata/sources.json
 var sources string
 
@@ -111,8 +114,8 @@ func (s *minimalTestSuite) TestOTelFlareFiles() {
 	utils.TestOTelFlareFiles(s)
 }
 
-func (s *minimalTestSuite) TestOTelRemoteConfigPayload() {
-	utils.TestOTelRemoteConfigPayload(s, minimalProvidedConfig, minimalFullConfig)
+func (s *minimalTestSuite) TestDatadogExtensionPayload() {
+	utils.TestDatadogExtensionPayload(s, minimalFullConfigDatadogExtension)
 }
 
 func (s *minimalTestSuite) TestCoreAgentStatus() {
@@ -134,6 +137,7 @@ func (s *minimalTestSuite) TestCoreAgentConfigCmd() {
   - zpages/dd-autoconfigured
   - health_check/dd-autoconfigured
   - ddflare/dd-autoconfigured
+  - datadog/dd-autoconfigured
   pipelines:
     logs:
       exporters:
