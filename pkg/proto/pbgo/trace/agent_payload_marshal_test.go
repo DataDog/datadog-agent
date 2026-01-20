@@ -1036,6 +1036,11 @@ func TestMarshalAgentPayload_CompletePayload_UnusedStringsRemoved(t *testing.T) 
 		},
 	}
 
+	// Compact strings before marshaling (required since marshaler no longer does compaction)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
+
 	// Serialize with custom marshaler
 	data, err := MarshalAgentPayload(ap)
 	require.NoError(t, err)
@@ -1398,9 +1403,17 @@ func cloneSpan(span *idx.Span) *idx.Span {
 	}
 }
 
-// BenchmarkMarshalAgentPayload_Custom benchmarks the custom marshaler
+// =============================================================================
+// Encoding-only benchmarks (payload pre-compacted, measure only serialization)
+// =============================================================================
+
+// BenchmarkMarshalAgentPayload_Custom benchmarks the custom marshaler (encoding only)
 func BenchmarkMarshalAgentPayload_Custom_SmallPayload(b *testing.B) {
 	ap := createBenchmarkPayload(10, 0.5) // 10 spans, 50% unused strings
+	// Pre-compact the payload (not included in benchmark)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -1413,15 +1426,14 @@ func BenchmarkMarshalAgentPayload_Custom_SmallPayload(b *testing.B) {
 
 func BenchmarkMarshalAgentPayload_VT_SmallPayload(b *testing.B) {
 	ap := createBenchmarkPayload(10, 0.5) // 10 spans, 50% unused strings
+	// Pre-compact the payload (not included in benchmark)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		// Clone to avoid modifying the original (RemoveUnusedStrings mutates)
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
-		}
-		_, err := clone.MarshalVT()
+		_, err := ap.MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1430,6 +1442,10 @@ func BenchmarkMarshalAgentPayload_VT_SmallPayload(b *testing.B) {
 
 func BenchmarkMarshalAgentPayload_Custom_MediumPayload(b *testing.B) {
 	ap := createBenchmarkPayload(100, 0.5) // 100 spans, 50% unused strings
+	// Pre-compact the payload (not included in benchmark)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -1442,14 +1458,14 @@ func BenchmarkMarshalAgentPayload_Custom_MediumPayload(b *testing.B) {
 
 func BenchmarkMarshalAgentPayload_VT_MediumPayload(b *testing.B) {
 	ap := createBenchmarkPayload(100, 0.5) // 100 spans, 50% unused strings
+	// Pre-compact the payload (not included in benchmark)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
-		}
-		_, err := clone.MarshalVT()
+		_, err := ap.MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1458,6 +1474,10 @@ func BenchmarkMarshalAgentPayload_VT_MediumPayload(b *testing.B) {
 
 func BenchmarkMarshalAgentPayload_Custom_LargePayload(b *testing.B) {
 	ap := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
+	// Pre-compact the payload (not included in benchmark)
+	for _, tp := range ap.IdxTracerPayloads {
+		tp.CompactStrings()
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -1470,88 +1490,9 @@ func BenchmarkMarshalAgentPayload_Custom_LargePayload(b *testing.B) {
 
 func BenchmarkMarshalAgentPayload_VT_LargePayload(b *testing.B) {
 	ap := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
-		}
-		_, err := clone.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// Benchmarks with high unused string ratio (simulating heavy trace processing/filtering)
-func BenchmarkMarshalAgentPayload_Custom_HighUnusedRatio(b *testing.B) {
-	ap := createBenchmarkPayload(100, 2.0) // 100 spans, 200% unused strings (2x unused vs used)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkMarshalAgentPayload_VT_HighUnusedRatio(b *testing.B) {
-	ap := createBenchmarkPayload(100, 2.0) // 100 spans, 200% unused strings (2x unused vs used)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
-		}
-		_, err := clone.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// Benchmark to compare output sizes
-func BenchmarkMarshalAgentPayload_OutputSize(b *testing.B) {
-	testCases := []struct {
-		name              string
-		spans             int
-		unusedStringRatio float64
-	}{
-		{"Small_50pctUnused", 10, 0.5},
-		{"Medium_50pctUnused", 100, 0.5},
-		{"Large_50pctUnused", 1000, 0.5},
-		{"Medium_200pctUnused", 100, 2.0},
-	}
-
-	for _, tc := range testCases {
-		ap := createBenchmarkPayload(tc.spans, tc.unusedStringRatio)
-
-		// Custom marshaler
-		customData, _ := MarshalAgentPayload(ap)
-
-		// VT marshaler with RemoveUnusedStrings
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
-		}
-		vtData, _ := clone.MarshalVT()
-
-		b.Logf("%s: Custom=%d bytes, VT=%d bytes, Savings=%.1f%%",
-			tc.name, len(customData), len(vtData),
-			100.0*(1.0-float64(len(customData))/float64(len(vtData))))
-	}
-}
-
-// Pure serialization benchmarks (VT without clone overhead, pre-cleaned payload)
-// This shows the raw serialization performance difference
-func BenchmarkMarshalAgentPayload_VT_PureSerialize_MediumPayload(b *testing.B) {
-	ap := createBenchmarkPayload(100, 0.5)
-	// Pre-clean the payload once (simulating a scenario where the payload is already clean)
+	// Pre-compact the payload (not included in benchmark)
 	for _, tp := range ap.IdxTracerPayloads {
-		tp.RemoveUnusedStrings()
+		tp.CompactStrings()
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
@@ -1563,43 +1504,36 @@ func BenchmarkMarshalAgentPayload_VT_PureSerialize_MediumPayload(b *testing.B) {
 	}
 }
 
-func BenchmarkMarshalAgentPayload_VT_PureSerialize_LargePayload(b *testing.B) {
-	ap := createBenchmarkPayload(1000, 0.5)
-	// Pre-clean the payload once
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.RemoveUnusedStrings()
-	}
-	b.ResetTimer()
+// =============================================================================
+// CompactStrings benchmark (measures compaction overhead separately)
+// =============================================================================
+
+func BenchmarkCompactStrings_SmallPayload(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
+		ap := createBenchmarkPayload(10, 0.5)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
 		}
 	}
 }
 
-// Benchmark just the RemoveUnusedStrings operation
-func BenchmarkRemoveUnusedStrings_MediumPayload(b *testing.B) {
-	ap := createBenchmarkPayload(100, 0.5)
-	b.ResetTimer()
+func BenchmarkCompactStrings_MediumPayload(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
+		ap := createBenchmarkPayload(100, 0.5)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
 		}
 	}
 }
 
-func BenchmarkRemoveUnusedStrings_LargePayload(b *testing.B) {
-	ap := createBenchmarkPayload(1000, 0.5)
-	b.ResetTimer()
+func BenchmarkCompactStrings_LargePayload(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
-		clone := clonePayload(ap)
-		for _, tp := range clone.IdxTracerPayloads {
-			tp.RemoveUnusedStrings()
+		ap := createBenchmarkPayload(1000, 0.5)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
 		}
 	}
 }

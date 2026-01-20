@@ -141,6 +141,20 @@ func NewTraceWriterV1(
 	return tw
 }
 
+var outPool = sync.Pool{}
+
+func getBS(size int) []byte {
+	b := outPool.Get()
+	if b == nil {
+		return make([]byte, size)
+	}
+	bs := b.([]byte)
+	if cap(bs) < size {
+		return make([]byte, size)
+	}
+	return bs[:size]
+}
+
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
@@ -214,7 +228,7 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	pbTracerPayload := pkg.TracerPayload.ToProto()
-	pbTracerPayload.RemoveUnusedStrings()
+	pbTracerPayload.CompactStrings()
 	size := pbTracerPayload.SizeVT()
 	if size+w.bufferedSizeV1 > MaxPayloadSize {
 		// Buffer is full, split the incoming Tracer payload
@@ -225,7 +239,7 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 			for i := 0; i < numChunks; i++ {
 				splitPayload := pbTracerPayload.NewStringsClone()
 				splitPayload.Chunks = pbTracerPayload.Chunks[i : i+1]
-				splitPayload.RemoveUnusedStrings()
+				splitPayload.CompactStrings()
 				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
 				agentPayload := append(w.tracerPayloadsV1, splitPayload)
 				toFlush = append(toFlush, agentPayload)
@@ -243,7 +257,7 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 					endIdx = numChunks
 				}
 				splitPayload.Chunks = pbTracerPayload.Chunks[i*chunksPerPayload : endIdx]
-				splitPayload.RemoveUnusedStrings() // We must remove unused strings again from these new split payloads to reduce the size of each payload
+				splitPayload.CompactStrings() // Compact strings again for split payloads to reduce size
 				log.Tracef("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
 				agentPayload := append(w.tracerPayloadsV1, splitPayload)
 				toFlush = append(toFlush, agentPayload)
@@ -312,8 +326,12 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.TracerPayload) {
 }
 
 func (w *TraceWriterV1) serialize(pl *pb.AgentPayload) {
-	// Use custom marshaler which compacts string tables during serialization
-	b, err := pb.MarshalAgentPayload(pl)
+	// Use VT proto marshaler with pooled buffer (payloads are already compacted via CompactStrings)
+	size := pl.SizeVT()
+	b := getBS(size)
+	defer outPool.Put(b)
+
+	_, err := pl.MarshalToSizedBufferVT(b)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return

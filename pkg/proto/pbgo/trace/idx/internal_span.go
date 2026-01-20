@@ -187,6 +187,254 @@ func (x *TracerPayload) RemoveUnusedStrings() {
 	}
 }
 
+// notMapped is a sentinel value indicating an unassigned/unused string reference
+const notMapped uint32 = ^uint32(0)
+
+// CompactStrings compacts the string table by removing unused strings and remapping all references.
+// Unlike RemoveUnusedStrings which just zeros unused strings, this function creates a new smaller
+// string table and updates all references throughout the payload to point to the new indices.
+// This produces a more compact serialized representation.
+func (x *TracerPayload) CompactStrings() {
+	if x == nil || len(x.Strings) == 0 {
+		return
+	}
+
+	// Build oldToNew mapping using sentinel value (avoids separate "used" array)
+	oldToNew := make([]uint32, len(x.Strings))
+	for i := range oldToNew {
+		oldToNew[i] = notMapped
+	}
+	nextIndex := uint32(0)
+
+	// markRef marks a string reference as used and assigns it a new index
+	markRef := func(oldRef uint32) {
+		if int(oldRef) < len(oldToNew) && oldToNew[oldRef] == notMapped {
+			oldToNew[oldRef] = nextIndex
+			nextIndex++
+		}
+	}
+
+	// Collect all used refs - TracerPayload level
+	markRef(x.ContainerIDRef)
+	markRef(x.LanguageNameRef)
+	markRef(x.LanguageVersionRef)
+	markRef(x.TracerVersionRef)
+	markRef(x.RuntimeIDRef)
+	markRef(x.EnvRef)
+	markRef(x.HostnameRef)
+	markRef(x.AppVersionRef)
+	markAttributeRefs(x.Attributes, markRef)
+
+	// Collect refs from chunks and spans
+	for _, chunk := range x.Chunks {
+		if chunk == nil {
+			continue
+		}
+		markRef(chunk.OriginRef)
+		markAttributeRefs(chunk.Attributes, markRef)
+		for _, span := range chunk.Spans {
+			if span == nil {
+				continue
+			}
+			markRef(span.ServiceRef)
+			markRef(span.NameRef)
+			markRef(span.ResourceRef)
+			markRef(span.TypeRef)
+			markRef(span.EnvRef)
+			markRef(span.VersionRef)
+			markRef(span.ComponentRef)
+			markAttributeRefs(span.Attributes, markRef)
+			for _, link := range span.Links {
+				if link != nil {
+					markRef(link.TracestateRef)
+					markAttributeRefs(link.Attributes, markRef)
+				}
+			}
+			for _, event := range span.Events {
+				if event != nil {
+					markRef(event.NameRef)
+					markAttributeRefs(event.Attributes, markRef)
+				}
+			}
+		}
+	}
+
+	// Build new compact string table
+	newStrings := make([]string, nextIndex)
+	for oldIdx, newIdx := range oldToNew {
+		if newIdx != notMapped {
+			newStrings[newIdx] = x.Strings[oldIdx]
+		}
+	}
+
+	// remap returns the new index for an old reference
+	remap := func(oldRef uint32) uint32 {
+		if int(oldRef) >= len(oldToNew) {
+			return 0
+		}
+		newRef := oldToNew[oldRef]
+		if newRef == notMapped {
+			return 0
+		}
+		return newRef
+	}
+
+	// Track already-remapped objects to handle shared pointers across chunks
+	remappedSpans := make(map[*Span]struct{})
+	remappedLinks := make(map[*SpanLink]struct{})
+	remappedEvents := make(map[*SpanEvent]struct{})
+
+	// Remap TracerPayload level refs
+	x.ContainerIDRef = remap(x.ContainerIDRef)
+	x.LanguageNameRef = remap(x.LanguageNameRef)
+	x.LanguageVersionRef = remap(x.LanguageVersionRef)
+	x.TracerVersionRef = remap(x.TracerVersionRef)
+	x.RuntimeIDRef = remap(x.RuntimeIDRef)
+	x.EnvRef = remap(x.EnvRef)
+	x.HostnameRef = remap(x.HostnameRef)
+	x.AppVersionRef = remap(x.AppVersionRef)
+	remapAttributes(x.Attributes, remap)
+
+	// Remap chunks
+	for _, chunk := range x.Chunks {
+		if chunk == nil {
+			continue
+		}
+		chunk.OriginRef = remap(chunk.OriginRef)
+		remapAttributes(chunk.Attributes, remap)
+		for _, span := range chunk.Spans {
+			if span == nil {
+				continue
+			}
+			// Skip if already remapped (handles shared span pointers)
+			if _, seen := remappedSpans[span]; seen {
+				continue
+			}
+			remappedSpans[span] = struct{}{}
+
+			span.ServiceRef = remap(span.ServiceRef)
+			span.NameRef = remap(span.NameRef)
+			span.ResourceRef = remap(span.ResourceRef)
+			span.TypeRef = remap(span.TypeRef)
+			span.EnvRef = remap(span.EnvRef)
+			span.VersionRef = remap(span.VersionRef)
+			span.ComponentRef = remap(span.ComponentRef)
+			remapAttributes(span.Attributes, remap)
+			for _, link := range span.Links {
+				if link == nil {
+					continue
+				}
+				if _, seen := remappedLinks[link]; seen {
+					continue
+				}
+				remappedLinks[link] = struct{}{}
+				link.TracestateRef = remap(link.TracestateRef)
+				remapAttributes(link.Attributes, remap)
+			}
+			for _, event := range span.Events {
+				if event == nil {
+					continue
+				}
+				if _, seen := remappedEvents[event]; seen {
+					continue
+				}
+				remappedEvents[event] = struct{}{}
+				event.NameRef = remap(event.NameRef)
+				remapAttributes(event.Attributes, remap)
+			}
+		}
+	}
+
+	// Update the string table
+	x.Strings = newStrings
+}
+
+// markAttributeRefs marks all string refs in an attribute map
+func markAttributeRefs(attrs map[uint32]*AnyValue, markRef func(uint32)) {
+	for keyRef, value := range attrs {
+		markRef(keyRef)
+		markAnyValueRefs(value, markRef)
+	}
+}
+
+// markAnyValueRefs marks string refs in an AnyValue
+func markAnyValueRefs(value *AnyValue, markRef func(uint32)) {
+	if value == nil {
+		return
+	}
+	switch v := value.Value.(type) {
+	case *AnyValue_StringValueRef:
+		markRef(v.StringValueRef)
+	case *AnyValue_ArrayValue:
+		if v.ArrayValue != nil {
+			for _, elem := range v.ArrayValue.Values {
+				markAnyValueRefs(elem, markRef)
+			}
+		}
+	case *AnyValue_KeyValueList:
+		if v.KeyValueList != nil {
+			for _, kv := range v.KeyValueList.KeyValues {
+				if kv != nil {
+					markRef(kv.Key)
+					markAnyValueRefs(kv.Value, markRef)
+				}
+			}
+		}
+	}
+}
+
+// remapAttributes remaps all string refs in an attribute map in-place
+func remapAttributes(attrs map[uint32]*AnyValue, remap func(uint32) uint32) {
+	if len(attrs) == 0 {
+		return
+	}
+	// Collect keys that need remapping to avoid modifying map during iteration
+	type keyRemap struct {
+		oldKey uint32
+		newKey uint32
+		value  *AnyValue
+	}
+	var remaps []keyRemap
+	for oldKey, value := range attrs {
+		newKey := remap(oldKey)
+		if newKey != oldKey {
+			remaps = append(remaps, keyRemap{oldKey, newKey, value})
+		}
+		remapAnyValue(value, remap)
+	}
+	// Apply key remaps
+	for _, r := range remaps {
+		delete(attrs, r.oldKey)
+		attrs[r.newKey] = r.value
+	}
+}
+
+// remapAnyValue remaps string refs in an AnyValue in-place
+func remapAnyValue(value *AnyValue, remap func(uint32) uint32) {
+	if value == nil {
+		return
+	}
+	switch v := value.Value.(type) {
+	case *AnyValue_StringValueRef:
+		v.StringValueRef = remap(v.StringValueRef)
+	case *AnyValue_ArrayValue:
+		if v.ArrayValue != nil {
+			for _, elem := range v.ArrayValue.Values {
+				remapAnyValue(elem, remap)
+			}
+		}
+	case *AnyValue_KeyValueList:
+		if v.KeyValueList != nil {
+			for _, kv := range v.KeyValueList.KeyValues {
+				if kv != nil {
+					kv.Key = remap(kv.Key)
+					remapAnyValue(kv.Value, remap)
+				}
+			}
+		}
+	}
+}
+
 // DeleteAttribute deletes an attribute from the tracer payload.
 func (tp *InternalTracerPayload) DeleteAttribute(key string) {
 	deleteAttribute(key, tp.Strings, tp.Attributes)

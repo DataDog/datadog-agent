@@ -648,6 +648,131 @@ func TestInternalSpan_CloneConcurrentSafe(t *testing.T) {
 	assert.False(t, found, "Cloned span should not have original span's attribute")
 }
 
+func TestCompactStrings(t *testing.T) {
+	payload := testPayload()
+	pbPayload := payload.ToProto()
+
+	// Record original string values before compaction
+	originalValues := map[string]string{
+		"ContainerID":     pbPayload.Strings[pbPayload.ContainerIDRef],
+		"LanguageName":    pbPayload.Strings[pbPayload.LanguageNameRef],
+		"LanguageVersion": pbPayload.Strings[pbPayload.LanguageVersionRef],
+		"TracerVersion":   pbPayload.Strings[pbPayload.TracerVersionRef],
+		"RuntimeID":       pbPayload.Strings[pbPayload.RuntimeIDRef],
+		"Env":             pbPayload.Strings[pbPayload.EnvRef],
+		"Hostname":        pbPayload.Strings[pbPayload.HostnameRef],
+		"AppVersion":      pbPayload.Strings[pbPayload.AppVersionRef],
+	}
+
+	originalStringsLen := len(pbPayload.Strings)
+
+	// Perform compaction
+	pbPayload.CompactStrings()
+
+	// Verify string table is smaller (unused strings removed)
+	assert.Less(t, len(pbPayload.Strings), originalStringsLen,
+		"Compacted string table should be smaller (was %d, now %d)", originalStringsLen, len(pbPayload.Strings))
+
+	// Verify all TracerPayload level refs still resolve to correct values
+	assert.Equal(t, originalValues["ContainerID"], pbPayload.Strings[pbPayload.ContainerIDRef])
+	assert.Equal(t, originalValues["LanguageName"], pbPayload.Strings[pbPayload.LanguageNameRef])
+	assert.Equal(t, originalValues["LanguageVersion"], pbPayload.Strings[pbPayload.LanguageVersionRef])
+	assert.Equal(t, originalValues["TracerVersion"], pbPayload.Strings[pbPayload.TracerVersionRef])
+	assert.Equal(t, originalValues["RuntimeID"], pbPayload.Strings[pbPayload.RuntimeIDRef])
+	assert.Equal(t, originalValues["Env"], pbPayload.Strings[pbPayload.EnvRef])
+	assert.Equal(t, originalValues["Hostname"], pbPayload.Strings[pbPayload.HostnameRef])
+	assert.Equal(t, originalValues["AppVersion"], pbPayload.Strings[pbPayload.AppVersionRef])
+
+	// Verify no empty strings in the compacted table (except index 0 if present)
+	for i, s := range pbPayload.Strings {
+		if i > 0 {
+			assert.NotEmpty(t, s, "Compacted string table should not have empty strings at index %d", i)
+		}
+	}
+}
+
+// createBenchmarkPayload creates a payload with the specified characteristics
+func createBenchmarkPayload(numChunks, spansPerChunk, attrsPerSpan int) *TracerPayload {
+	strings := NewStringTable()
+
+	// Add some unused strings to simulate real-world scenario
+	for i := 0; i < 100; i++ {
+		strings.Add("unused_string_" + string(rune('a'+i%26)) + string(rune('0'+i%10)))
+	}
+
+	chunks := make([]*TraceChunk, numChunks)
+	for c := 0; c < numChunks; c++ {
+		spans := make([]*Span, spansPerChunk)
+		for s := 0; s < spansPerChunk; s++ {
+			attrs := make(map[uint32]*AnyValue, attrsPerSpan)
+			for a := 0; a < attrsPerSpan; a++ {
+				keyRef := strings.Add("attr_key_" + string(rune('a'+a%26)))
+				valRef := strings.Add("attr_val_" + string(rune('a'+a%26)))
+				attrs[keyRef] = &AnyValue{Value: &AnyValue_StringValueRef{StringValueRef: valRef}}
+			}
+			spans[s] = &Span{
+				ServiceRef:   strings.Add("service-name"),
+				NameRef:      strings.Add("operation-name"),
+				ResourceRef:  strings.Add("resource-name"),
+				TypeRef:      strings.Add("web"),
+				EnvRef:       strings.Add("production"),
+				VersionRef:   strings.Add("1.0.0"),
+				ComponentRef: strings.Add("http-client"),
+				SpanID:       uint64(s),
+				Start:        1000000,
+				Duration:     5000,
+				Attributes:   attrs,
+			}
+		}
+		chunks[c] = &TraceChunk{
+			Priority:  1,
+			OriginRef: strings.Add("origin-" + string(rune('a'+c%26))),
+			Spans:     spans,
+		}
+	}
+
+	return &TracerPayload{
+		Strings:            strings.strings,
+		ContainerIDRef:     strings.Add("container-123"),
+		LanguageNameRef:    strings.Add("go"),
+		LanguageVersionRef: strings.Add("1.21"),
+		TracerVersionRef:   strings.Add("v2.0.0"),
+		RuntimeIDRef:       strings.Add("runtime-uuid"),
+		EnvRef:             strings.Add("production"),
+		HostnameRef:        strings.Add("host-abc"),
+		AppVersionRef:      strings.Add("1.0.0"),
+		Chunks:             chunks,
+	}
+}
+
+func BenchmarkRemoveUnusedStrings_Medium(b *testing.B) {
+	for b.Loop() {
+		payload := createBenchmarkPayload(10, 20, 5)
+		payload.RemoveUnusedStrings()
+	}
+}
+
+func BenchmarkCompactStrings_Medium(b *testing.B) {
+	for b.Loop() {
+		payload := createBenchmarkPayload(10, 20, 5)
+		payload.CompactStrings()
+	}
+}
+
+func BenchmarkRemoveUnusedStrings_Large(b *testing.B) {
+	for b.Loop() {
+		payload := createBenchmarkPayload(50, 50, 10)
+		payload.RemoveUnusedStrings()
+	}
+}
+
+func BenchmarkCompactStrings_Large(b *testing.B) {
+	for b.Loop() {
+		payload := createBenchmarkPayload(50, 50, 10)
+		payload.CompactStrings()
+	}
+}
+
 func TestSetStringAttribute_NilAttributesMap(t *testing.T) {
 	t.Run("InternalTracerPayload", func(t *testing.T) {
 		// Create a payload with nil Attributes (simulating deserialized payload without attributes)
