@@ -42,7 +42,6 @@ repos:
       description: copyright headers
       entry: 'dda inv linter.copyrights --only-staged-files'
       language: system
-      require_serial: true
       files: \.go$
       pass_filenames: false
     - id: python-linter
@@ -91,7 +90,6 @@ repos:
       description: run go test on modified packages
       entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv test --only-modified-packages'
       language: system
-      require_serial: true
       always_run: true
       pass_filenames: false
       stages: [pre-push]
@@ -100,7 +98,6 @@ repos:
       description: run go linter on modified packages
       entry: bash -c 'GOTOOLCHAIN=go"$(cat .go-version)" dda inv linter.go --only-modified-packages'
       language: system
-      require_serial: true
       always_run: true
       pass_filenames: false
       stages: [ pre-push ]
@@ -109,7 +106,6 @@ repos:
       description: check that no `set -x` is set within github / gitlab workflows
       entry: 'dda inv pre-commit.check-set-x'
       language: system
-      require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
       pass_filenames: false
     - id: gitlab-configuration
@@ -117,7 +113,6 @@ repos:
       description: Lint and test GitLab CI configuration files
       entry: "dda inv linter.full-gitlab-ci -t main --pre-push-linters --fail-fast"
       language: system
-      require_serial: true
       files: .*gitlab.*\.yml$
       pass_filenames: false
       stages: [pre-push]
