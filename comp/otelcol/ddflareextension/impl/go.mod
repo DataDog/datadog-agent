@@ -67,6 +67,10 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.70.1 // indirect
@@ -652,6 +656,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache

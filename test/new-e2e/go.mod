@@ -53,7 +53,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.73.0-rc.9
+	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -255,6 +255,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.73.0-rc.9 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.73.0-rc.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.73.0-rc.9 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.6.1 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20250721125240-fdf1ef85b633 // indirect
@@ -484,6 +488,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache

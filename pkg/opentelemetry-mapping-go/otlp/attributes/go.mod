@@ -3,7 +3,8 @@ module github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attrib
 go 1.24.0
 
 require (
-	github.com/DataDog/datadog-agent/pkg/trace v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/component v1.50.0
 	go.opentelemetry.io/collector/component/componenttest v0.144.0
@@ -168,6 +169,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache

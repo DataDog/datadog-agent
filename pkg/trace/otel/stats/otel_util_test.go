@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component/componenttest"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	corestats "github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
 
@@ -577,9 +579,9 @@ func TestProcessOTLPTraces(t *testing.T) {
 			}
 			conf.OTLPReceiver.IgnoreMissingDatadogFields = tt.ignoreMissingDatadogFields
 
-			concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+			concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 			var obfuscator *obfuscate.Obfuscator
-			var inputs []Input
+			var inputs []corestats.Input
 			if tt.enableObfuscation {
 				obfuscator = newTestObfuscator(conf)
 				inputs = OTLPTracesToConcentratorInputsWithObfuscation(traces, conf, tt.ctagKeys, conf.ConfiguredPeerTags(), obfuscator)
@@ -647,7 +649,7 @@ func TestProcessOTLPTraces_MutliSpanInOneResAndOp(t *testing.T) {
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 	conf.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 
-	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+	concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 	inputs := OTLPTracesToConcentratorInputs(traces, conf, nil, nil)
 	for _, input := range inputs {
 		concentrator.Add(input)
@@ -723,4 +725,12 @@ func createStatsPayload(
 				},
 			}}}},
 	}
+}
+
+type noopStatsWriter struct{}
+
+func (noopStatsWriter) Write(*pb.StatsPayload) {}
+
+func newTestConcentratorWithCfg(now time.Time, cfg *config.AgentConfig) *corestats.Concentrator {
+	return corestats.NewConcentrator(cfg, noopStatsWriter{}, now, &statsd.NoOpClient{})
 }

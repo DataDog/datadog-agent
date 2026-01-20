@@ -980,6 +980,9 @@ require (
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
 	github.com/DataDog/datadog-agent/pkg/ssi/testutils v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
@@ -1036,6 +1039,7 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.6 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -1368,6 +1372,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ./pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ./pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ./pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ./pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ./pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache

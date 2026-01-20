@@ -51,6 +51,8 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.144.0 // indirect
@@ -89,7 +91,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/common v0.76.0-devel // indirect
@@ -348,6 +349,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../../../pkg/util/cache
