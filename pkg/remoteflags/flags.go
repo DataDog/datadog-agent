@@ -16,18 +16,54 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// FlagName represents a typed remote flag identifier.
-// Use this type to define flag name constants for type safety.
+// FlagName represents a remote flag identifier.
 type FlagName string
 
 // FlagValue represents the boolean value of a remote flag.
-// Use this type instead of raw bool for type safety and clarity.
 type FlagValue bool
 
 // Common Remote Flags - Add your flags here as constants
 const (
-// Example: FlagEnableNewFeature FlagName = "enable_new_feature"
+	// FlagEnableDemoAnalytics enables the demo analytics telemetry feature
+	// This is used for demonstration purposes only
+	FlagEnableDemoAnalytics FlagName = "enable_demo_analytics"
 )
+
+// FlagHandler handles a single flag subscription.
+// Components have to implement this interface for each flag they want to subscribe to.
+// Creates a compile-time enforcement that the necessary functions are implemented.
+type FlagHandler interface {
+	// FlagName returns the name of the flag this handler listens to.
+	FlagName() FlagName
+
+	// OnChange is called when the flag value changes.
+	// It is called:
+	//   - Immediately after subscription if the flag value is already known
+	//   - Whenever the flag value changes in Remote Config
+	//
+	// MUST return nil if the configuration change was successfully applied,
+	// or an error if it failed. When an error is returned, SafeRecover will be called.
+	OnChange(value FlagValue) error
+
+	// OnNoConfig is called when the remote config client received configurations,
+	// but the flag was not part of the flags list. This allows the handler to
+	// handle the case where the flag is expected but not present.
+	OnNoConfig()
+
+	// SafeRecover is called when an error occurs while applying a flag change.
+	// The failedValue parameter indicates which value failed to apply.
+	// This method is responsible for forcing the feature into a safe, working state.
+	// It should use independent logic to ensure safety, not retry the same operation.
+	// It MUST be idempotent.
+	SafeRecover(err error, failedValue FlagValue)
+}
+
+// RemoteFlagSubscriber is implemented by components that want to subscribe to remote flags.
+// This allows a single component to subscribe to multiple flags.
+type RemoteFlagSubscriber interface {
+	// Handlers returns the list of flag handlers for this component.
+	Handlers() []FlagHandler
+}
 
 // FlagChangeCallback is called when a flag's value changes.
 // The value parameter contains the new flag value.
@@ -37,25 +73,12 @@ const (
 // callback to ensure the feature ends up in a correct state.
 type FlagChangeCallback func(value FlagValue) error
 
-// FlagSafeRecoverCallback is called when an error occurs while applying a flag change.
-// The failedValue parameter indicates which value failed to apply.
+// FlagSafeRecoverCallback is called when an error is reported applying a flag change.
+// It can also be called by the Remote Flags system if the component reports unhealthy
+// for a too long.
+//
 // This callback is responsible for forcing the feature into a safe, working state.
 // It should use independent logic to ensure safety, not retry the same operation that failed.
-//
-// Common error scenarios:
-//   - Configuration change failed to apply (onChange returned error)
-//   - Remote Config connection failures
-//   - Invalid flag configuration data
-//   - JSON parsing errors
-//   - Flag not present in the configuration
-//
-// Example:
-//
-//	safeRecover := func(err error, failedValue FlagValue) {
-//	    log.Errorf("Feature flag error: %v (failed value: %v)", err, failedValue)
-//	    // Force feature to a safe state using independent logic
-//	    feature.ForceDisable()
-//	}
 type FlagSafeRecoverCallback func(err error, failedValue FlagValue)
 
 // FlagNoConfigCallback is called when the remote config client received some configurations,
@@ -99,7 +122,23 @@ func NewClient() *Client {
 	}
 }
 
-// Subscribe registers a subscription to a remote flag.
+// SubscribeWithHandler registers a subscription using the FlagHandler interface.
+// This is the recommended way to subscribe to flags from components, as it provides
+// compile-time enforcement that all required functions are implemented.
+func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
+	if handler == nil {
+		return fmt.Errorf("handler cannot be nil")
+	}
+	return c.Subscribe(
+		handler.FlagName(),
+		handler.OnChange,
+		handler.OnNoConfig,
+		handler.SafeRecover,
+	)
+}
+
+// Subscribe registers a subscription to a remote flag using callbacks.
+// For component-based subscriptions, prefer SubscribeWithHandler instead.
 //
 // The onChange callback is called:
 //   - Immediately after subscription if the flag value is already known
@@ -257,7 +296,7 @@ func (c *Client) notifyChange(flag FlagName, newValue FlagValue) {
 }
 
 // notifyNoConfig notifies all subscribers that we properly established
-// a communication with Remote Config, but no data was present for this flag.
+// a communication with Remote Config, but no configuration was present for this flag.
 // Must be called with lock held.
 // TODO(remy): should this one provide the last value received if any?
 func (c *Client) notifyNoConfig(flag FlagName) {

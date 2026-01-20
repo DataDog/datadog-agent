@@ -7,8 +7,8 @@
 package remoteflagsimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	comp "github.com/DataDog/datadog-agent/comp/core/remoteflags"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteflags"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -25,6 +25,10 @@ func Module() fxutil.Module {
 
 type dependencies struct {
 	fx.In
+
+	// Subscribers is the list of components that subscribe to remote flags.
+	// They are automatically collected via fx groups.
+	Subscribers []remoteflags.RemoteFlagSubscriber `group:"remoteFlagSubscriber"`
 }
 
 type provides struct {
@@ -46,10 +50,21 @@ func newRemoteFlags(deps dependencies) provides {
 
 	log.Info("Starting Remote Flags component")
 
+	// Register all subscribers collected via fx groups
+	for _, subscriber := range deps.Subscribers {
+		for _, handler := range subscriber.Handlers() {
+			if err := client.SubscribeWithHandler(handler); err != nil {
+				log.Errorf("Failed to register remote flag handler for flag %s: %v", handler.FlagName(), err)
+			} else {
+				log.Debugf("Registered remote flag handler for flag %s", handler.FlagName())
+			}
+		}
+	}
+
 	// Use the RCListener pattern to automatically subscribe via FX dependency injection
 	var rcListener types.ListenerProvider
 	rcListener.ListenerProvider = types.RCListener{
-		data.ProductDebug: client.OnUpdate,
+		data.ProductAgentFlags: client.OnUpdate,
 	}
 
 	return provides{

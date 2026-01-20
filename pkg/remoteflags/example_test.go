@@ -18,7 +18,110 @@ const (
 	FlagEnableDebugMode    remoteflags.FlagName = "enable_debug_mode"
 )
 
-// Example shows basic usage of the Remote Flags system
+// ---------------------------------------------------------------------------------------
+// Interface-based subscription examples (recommended for components)
+// ---------------------------------------------------------------------------------------
+
+// myComponent is an example component that subscribes to multiple flags
+type myComponent struct {
+	algorithmEnabled bool
+	debugEnabled     bool
+}
+
+// Handlers implements remoteflags.RemoteFlagSubscriber.
+// This allows the component to register multiple flag handlers via fx groups.
+func (c *myComponent) Handlers() []remoteflags.FlagHandler {
+	return []remoteflags.FlagHandler{
+		&algorithmFlagHandler{parent: c},
+		&debugFlagHandler{parent: c},
+	}
+}
+
+// algorithmFlagHandler handles the algorithm feature flag
+type algorithmFlagHandler struct {
+	parent *myComponent
+}
+
+func (h *algorithmFlagHandler) FlagName() remoteflags.FlagName {
+	return FlagEnableNewAlgorithm
+}
+
+func (h *algorithmFlagHandler) OnChange(value remoteflags.FlagValue) error {
+	h.parent.algorithmEnabled = bool(value)
+	log.Infof("Algorithm enabled: %v", value)
+	return nil
+}
+
+func (h *algorithmFlagHandler) OnNoConfig() {
+	log.Info("Algorithm flag not present in configuration")
+}
+
+func (h *algorithmFlagHandler) SafeRecover(err error, failedValue remoteflags.FlagValue) {
+	log.Errorf("Algorithm flag error (value: %v): %v", failedValue, err)
+	h.parent.algorithmEnabled = false // Safe default
+}
+
+// debugFlagHandler handles the debug feature flag
+type debugFlagHandler struct {
+	parent *myComponent
+}
+
+func (h *debugFlagHandler) FlagName() remoteflags.FlagName {
+	return FlagEnableDebugMode
+}
+
+func (h *debugFlagHandler) OnChange(value remoteflags.FlagValue) error {
+	h.parent.debugEnabled = bool(value)
+	log.Infof("Debug mode enabled: %v", value)
+	return nil
+}
+
+func (h *debugFlagHandler) OnNoConfig() {
+	log.Info("Debug flag not present in configuration")
+}
+
+func (h *debugFlagHandler) SafeRecover(err error, failedValue remoteflags.FlagValue) {
+	log.Errorf("Debug flag error (value: %v): %v", failedValue, err)
+	h.parent.debugEnabled = false // Safe default
+}
+
+// Example_interfaceBased demonstrates the recommended interface-based subscription pattern.
+// This approach provides compile-time enforcement that all required handlers are implemented.
+func Example_interfaceBased() {
+	client := remoteflags.NewClient()
+
+	// Create a component that implements RemoteFlagSubscriber
+	comp := &myComponent{}
+
+	// Register all handlers from the component
+	for _, handler := range comp.Handlers() {
+		if err := client.SubscribeWithHandler(handler); err != nil {
+			log.Errorf("Failed to subscribe: %v", err)
+		}
+	}
+
+	// In a real fx component, registration is automatic via fx groups:
+	//
+	//   type provides struct {
+	//       fx.Out
+	//       Comp           mypackage.Component
+	//       FlagSubscriber remoteflags.RemoteFlagSubscriber
+	//   }
+	//
+	//   func newComponent() provides {
+	//       c := &myComponent{}
+	//       return provides{
+	//           Comp:           c,
+	//           FlagSubscriber: remoteflags.NewRemoteFlagSubscriber(c),
+	//       }
+	//   }
+}
+
+// ---------------------------------------------------------------------------------------
+// Callback-based subscription examples (alternative API)
+// ---------------------------------------------------------------------------------------
+
+// Example_basicUsage shows basic usage of the Remote Flags system with callbacks
 func Example_basicUsage() {
 	// Create a client (in real usage, get this from the rcflags component)
 	client := remoteflags.NewClient()
