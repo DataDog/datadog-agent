@@ -140,6 +140,10 @@ use (
 	pkg/telemetry
 	pkg/template
 	pkg/trace
+	pkg/trace/log
+	pkg/trace/otel
+	pkg/trace/stats
+	pkg/trace/traceutil
 	pkg/util/backoff
 	pkg/util/buf
 	pkg/util/cache
