@@ -50,12 +50,14 @@ DeviceInfo getDeviceInfo(void) {
             char *modelNum = copyStringProperty(platform, @"model-number");
             char *region = copyStringProperty(platform, @"region-info");
             if (modelNum && region) {
+                // info.modelNumber should be NULL in call to asprintf to avoid memory leak
                 asprintf(&info.modelNumber, "%s%s", modelNum, region);
                 free(modelNum);
-                free(region);
             } else if (modelNum) {
                 info.modelNumber = modelNum;
             }
+            // Always free region (should be safe if NULL)
+            free(region);
         }
 
         NSDictionary *product = getServiceProperties(IOServiceNameMatching("product"));
