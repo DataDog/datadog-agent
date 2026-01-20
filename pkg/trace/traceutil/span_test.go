@@ -394,3 +394,112 @@ func TestSameTraceID(t *testing.T) {
 		assert.True(t, SameTraceID(a, b))
 	})
 }
+
+func TestGetTraceIDHigh(t *testing.T) {
+	t.Run("Has high bits", func(t *testing.T) {
+		s := &pb.Span{Meta: map[string]string{"_dd.p.tid": "6958127700000000"}}
+		val, ok := GetTraceIDHigh(s)
+		assert.True(t, ok)
+		assert.Equal(t, "6958127700000000", val)
+	})
+
+	t.Run("No high bits", func(t *testing.T) {
+		s := &pb.Span{}
+		val, ok := GetTraceIDHigh(s)
+		assert.False(t, ok)
+		assert.Equal(t, "", val)
+	})
+
+	t.Run("Nil meta", func(t *testing.T) {
+		s := &pb.Span{Meta: nil}
+		val, ok := GetTraceIDHigh(s)
+		assert.False(t, ok)
+		assert.Equal(t, "", val)
+	})
+}
+
+func TestSetTraceIDHigh(t *testing.T) {
+	t.Run("Nil meta", func(t *testing.T) {
+		s := &pb.Span{}
+		SetTraceIDHigh(s, "6958127700000000")
+		assert.Equal(t, "6958127700000000", s.Meta["_dd.p.tid"])
+	})
+
+	t.Run("Existing meta", func(t *testing.T) {
+		s := &pb.Span{Meta: map[string]string{"other": "value"}}
+		SetTraceIDHigh(s, "6958127700000000")
+		assert.Equal(t, "6958127700000000", s.Meta["_dd.p.tid"])
+		assert.Equal(t, "value", s.Meta["other"])
+	})
+
+	t.Run("Overwrite existing", func(t *testing.T) {
+		s := &pb.Span{Meta: map[string]string{"_dd.p.tid": "1111111111111111"}}
+		SetTraceIDHigh(s, "6958127700000000")
+		assert.Equal(t, "6958127700000000", s.Meta["_dd.p.tid"])
+	})
+}
+
+func TestHasTraceIDHigh(t *testing.T) {
+	t.Run("Has high bits", func(t *testing.T) {
+		s := &pb.Span{Meta: map[string]string{"_dd.p.tid": "6958127700000000"}}
+		assert.True(t, HasTraceIDHigh(s))
+	})
+
+	t.Run("No high bits", func(t *testing.T) {
+		s := &pb.Span{}
+		assert.False(t, HasTraceIDHigh(s))
+	})
+}
+
+func TestUpgradeTraceID(t *testing.T) {
+	t.Run("Upgrade 64-bit to 128-bit", func(t *testing.T) {
+		dst := &pb.Span{TraceID: 12345}
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		upgraded := UpgradeTraceID(dst, src)
+		assert.True(t, upgraded)
+		assert.Equal(t, "6958127700000000", dst.Meta["_dd.p.tid"])
+	})
+
+	t.Run("Different trace IDs", func(t *testing.T) {
+		dst := &pb.Span{TraceID: 12345}
+		src := &pb.Span{
+			TraceID: 99999, // Different low 64 bits
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		upgraded := UpgradeTraceID(dst, src)
+		assert.False(t, upgraded)
+		assert.Nil(t, dst.Meta) // Should NOT copy high bits from different trace
+	})
+
+	t.Run("Already has high bits", func(t *testing.T) {
+		dst := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "1111111111111111"},
+		}
+		src := &pb.Span{
+			TraceID: 12345,
+			Meta:    map[string]string{"_dd.p.tid": "6958127700000000"},
+		}
+		upgraded := UpgradeTraceID(dst, src)
+		assert.False(t, upgraded)
+		assert.Equal(t, "1111111111111111", dst.Meta["_dd.p.tid"]) // Unchanged
+	})
+
+	t.Run("Source has no high bits", func(t *testing.T) {
+		dst := &pb.Span{TraceID: 12345}
+		src := &pb.Span{TraceID: 12345}
+		upgraded := UpgradeTraceID(dst, src)
+		assert.False(t, upgraded)
+		assert.Nil(t, dst.Meta) // Still nil
+	})
+
+	t.Run("Both have no high bits", func(t *testing.T) {
+		dst := &pb.Span{TraceID: 12345}
+		src := &pb.Span{TraceID: 12345}
+		upgraded := UpgradeTraceID(dst, src)
+		assert.False(t, upgraded)
+	})
+}

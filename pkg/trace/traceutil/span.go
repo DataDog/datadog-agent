@@ -211,6 +211,45 @@ func GetMetric(s *pb.Span, key string) (float64, bool) {
 	return val, ok
 }
 
+// GetTraceIDHigh returns the high 64 bits of a 128-bit trace ID, if present.
+// The high bits are stored in the span's Meta map under the "_dd.p.tid" key
+// as a 16-character lowercase hex string.
+func GetTraceIDHigh(s *pb.Span) (string, bool) {
+	return GetMeta(s, metaTraceIDHigh)
+}
+
+// SetTraceIDHigh sets the high 64 bits of a 128-bit trace ID.
+// The value should be a 16-character lowercase hex string.
+func SetTraceIDHigh(s *pb.Span, value string) {
+	SetMeta(s, metaTraceIDHigh, value)
+}
+
+// HasTraceIDHigh returns true if the span has the high 64 bits of a 128-bit trace ID.
+func HasTraceIDHigh(s *pb.Span) bool {
+	_, ok := GetTraceIDHigh(s)
+	return ok
+}
+
+// UpgradeTraceID upgrades dst's trace ID to 128-bit if src has high bits that dst lacks.
+// This is useful when a 64-bit trace ID span arrives first, then a 128-bit span
+// from the same trace arrives later. Returns true if an upgrade occurred.
+//
+// The upgrade only happens if the low 64 bits match (same trace) and dst lacks
+// the high bits that src has.
+func UpgradeTraceID(dst, src *pb.Span) bool {
+	if dst.TraceID != src.TraceID {
+		return false // Different traces
+	}
+	if HasTraceIDHigh(dst) {
+		return false // Already has high bits
+	}
+	if tidHigh, ok := GetTraceIDHigh(src); ok {
+		SetTraceIDHigh(dst, tidHigh)
+		return true
+	}
+	return false
+}
+
 // CopyTraceID copies the full trace ID (both low and high 64 bits) from src to dst.
 // This handles both 64-bit trace IDs (just the TraceID field) and 128-bit trace IDs
 // by copying the TraceID field and the _dd.p.tid meta tag (if present).
