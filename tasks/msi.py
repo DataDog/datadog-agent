@@ -196,7 +196,10 @@ def _ensure_wix_tools(ctx):
     print("WiX tools not found. Installing WiX 5.0.2 globally...")
     result = ctx.run('dotnet tool install --global wix --version 5.0.2', warn=True)
     if not result or result.return_code != 0:
-        raise Exit("Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version 5.0.2", code=1)
+        raise Exit(
+            "Failed to install WiX tools. Please install manually with: dotnet tool install --global wix --version 5.0.2",
+            code=1,
+        )
     print("WiX tools installed successfully")
 
 

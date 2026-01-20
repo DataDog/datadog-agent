@@ -9,13 +9,17 @@ This document describes the migration from WiX 3 (via `WixSharp.bin`) to WiX 4+ 
 
 Changed from:
 ```xml
+<TargetFramework>net462</TargetFramework>
 <PackageReference Include="WixSharp.bin" Version="1.20.3" />
 ```
 
 To:
 ```xml
+<TargetFramework>net472</TargetFramework>
 <PackageReference Include="WixSharp_wix4.bin" Version="2.12.0" />
 ```
+
+**Note**: The target framework was upgraded from .NET Framework 4.6.2 to 4.7.2 because WixSharp_wix4.bin requires .NET Framework 4.7.2 or higher.
 
 ### 2. WiX Toolset Installation
 **File**: `tasks/msi.py`
