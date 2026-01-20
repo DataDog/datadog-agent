@@ -24,7 +24,9 @@ Upgrade Notes
 
 - system-probe will now attempt to read `datadog.yaml` from the same directory as `system-probe.yaml`.
   Previously, system-probe would always use the default configuration directory to read `datadog.yaml`.
-  If you need to specify a different directory for `datadog.yaml`, you may use the `--datadogcfgpath` CLI argument to system-probe.
+- system-probe will now attempt to read ``datadog.yaml`` from the same directory as ``system-probe.yaml``.
+  Previously, system-probe would always use the default configuration directory to read ``datadog.yaml``.
+  If you need to specify a different directory for ``datadog.yaml``, you may use the ``--datadogcfgpath`` CLI argument to system-probe.
 
 
 .. _Release Notes_7.75.0_New Features:
@@ -64,11 +66,14 @@ Enhancement Notes
   to specify the Azure Instance Metadata Service (IMDS) API version used by the Agent.
   The default value is now ``2021-02-01``. This setting can be configured via
   ``azure_metadata_api_version`` in ``datadog.yaml`` or the ``DD_AZURE_METADATA_API_VERSION``
-  environment variable.
+- Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with ``singleflight``. This change improves handling of concurrent cache misses.
 
 - The Agent's embedded Python has been upgraded from 3.13.10 to 3.13.11
 
-- Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with `singleflight`. This change improves handling of concurrent cache misses.
+- Add the canonical version annotation to the image named
+  ``internal.apm.datadoghq.com/[lang/injector]-canonical-version``.
+  This makes it easier to track the actual version of the image
+  used in the cluster, instead of just a digest or mutable tag.
 
 - Add the canonical version annotation to the image named
   `internal.apm.datadoghq.com/[lang/injector]-canonical-version`.
@@ -93,7 +98,11 @@ Enhancement Notes
 - The Discovery module is now enabled by default if system-probe is enabled.
   It can be disabled by setting ``discovery.enabled: false`` in
   ``system-probe.yaml``, or by setting the ``DD_DISCOVERY_ENABLED``
-  environment variable to ``false``.
+- The Agent's logger has been rewritten with a more modern library to improve
+  security and performance. No visible change is expected for users.
+  In case of issues, the previous logger can still be used by setting
+  ``log_use_slog`` to ``false`` in the Agent configuration. This configuration will
+  be removed in a future release.
 
 - The Agent's logger has been rewritten with a more modern library to improve
   security and performance. No visible change is expected for users.
@@ -101,7 +110,12 @@ Enhancement Notes
   `log_use_slog` to `false` in the Agent configuration. This configuration will
   be removed in a future release.
 
-- Enable the orchestrator_explorer.kubelet_config_check.enabled
+- OTLP spans describing an HTTP error without an explicit error message will now fallback
+  to one with a description, eg. "500 Internal Server Error" instead of just "500".
+  Users who relied on the error message to extract the status code should use ``http.response.status_code`` instead.
+  
+  Additionally, the error message is no longer sourced from the deprecated ``http.status_text`` attribute.
+  This behavior can be overridden by explicitly setting the span's status message.
   by default.
 
 - Bump OpenTelemetry Collector dependencies to v0.141.0/v1.47.0
@@ -109,7 +123,10 @@ Enhancement Notes
 - OTLP spans describing an HTTP error without an explicit error message will now fallback
   to one with a description, eg. "500 Internal Server Error" instead of just "500".
   Users who relied on the error message to extract the status code should use `http.response.status_code` instead.
-  
+- Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
+  release notes and the `compatibility guide <https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/>`_
+  to ensure their Python applications are compatible.
   Additionally, the error message is no longer sourced from the deprecated `http.status_text` attribute.
   This behavior can be overridden by explicitly setting the span's status message.
 
@@ -119,7 +136,7 @@ Enhancement Notes
   applications through SSI should review the [4.0.0](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0)
   release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
   to ensure their Python applications are compatible.
-
+- APM: Removed unused configuration options ``apm_config.service_writer.queue_size``, and ``apm_config.service_writer.connection_limit``. These options were already ignored.
 - Add flare support for workloadfilter component.
 
 
@@ -153,7 +170,7 @@ Bug Fixes
   different formula to convert CPU shares to cgroup v2 weight, which caused
   the Agent to report wrong values (e.g., 2597 instead of 1024 for default
   shares). The Agent now auto-detects which conversion formula the runtime
-  uses and applies the correct inverse transformation.
+- Fixed a bug in the SNMP integration, where a custom profile's ``sysObjectIDs`` could conflict with default profiles' when defining the ``name`` field in the custom profile.
 
 - Fixed ECS ARN parsing to support AWS GovCloud (``aws-us-gov``) and China (``aws-cn``) regions.
   Previously, only the standard ``aws`` partition was accepted, causing ECS metadata extraction
@@ -173,7 +190,8 @@ Bug Fixes
 
 - Fixes a rare crash on Windows during the Wi-Fi check when the  
   Agent cannot find a matching Wi-Fi adapter on some computers.
-
+- This feature is currently in development and is protected under the feature flag:
+    ``cluster_checks.crd_collection``
 - Fixed ownership and permissions for the `/opt/datadog-agent/run` directory 
   in Agent and Cluster Agent Docker images. This resolves permission errors 
   encountered by Remote Configuration when running as a non-root user 
