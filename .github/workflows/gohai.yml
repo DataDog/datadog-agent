@@ -42,4 +42,5 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-file }}
       - name: Test
-        run: cd pkg/gohai && go test -tags=test ./...
+        # disable go.work to avoid overriding the go version at runtime
+        run: cd pkg/gohai && GOWORK=off go test -tags=test ./...
