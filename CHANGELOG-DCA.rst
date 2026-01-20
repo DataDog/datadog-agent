@@ -20,9 +20,9 @@ Pinned to datadog-agent v7.75.0: `CHANGELOG <https://github.com/DataDog/datadog-
 Upgrade Notes
 -------------
 
-- The Datadog Cluster Agent's mutating webhooks (part of the [Admission Controller](https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator)) previously included Single Step Instrumentation (SSI) settings in their default webhook label selectors. These SSI-specific settings, `apm_config.instrumentation.enabled` and `apm_config.instrumentation.enabled_namespaces`, have been removed.
+- The Datadog Cluster Agent's mutating webhooks (part of the `Admission Controller <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator>`_) previously included Single Step Instrumentation (SSI) settings in their default webhook label selectors. These SSI-specific settings, ``apm_config.instrumentation.enabled`` and ``apm_config.instrumentation.enabled_namespaces``, have been removed.
   
-  For those using Single Step Instrumentation, no action is required and no behavior changes. For those using the `config` or `tagsfromlabels` webhooks for manually instrumented applications, behavior remains consistent with the [documented configuration](https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd). Users that were unintentionally relying on the SSI settings without using SSI should add the appropriate pod label or enable `mutate_unlabelled` to preserve the previous behavior.
+  For those using Single Step Instrumentation, no action is required and no behavior changes. For those using the ``config`` or ``tagsfromlabels`` webhooks for manually instrumented applications, behavior remains consistent with the `documented configuration <https://docs.datadoghq.com/containers/cluster_agent/admission_controller/?tab=datadogoperator#apm-and-dogstatsd>`_. Users that were unintentionally relying on the SSI settings without using SSI should add the appropriate pod label or enable ``mutate_unlabelled`` to preserve the previous behavior.
 
 
 .. _Release Notes_7.75.0_Enhancement Notes:
@@ -31,7 +31,7 @@ Enhancement Notes
 -----------------
 
 - Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
-  applications through SSI should review the [4.0.0](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0)
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
   release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
   to ensure their Python applications are compatible.
 

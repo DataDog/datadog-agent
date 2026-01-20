@@ -22,9 +22,9 @@ Release on: 2026-01-21
 Upgrade Notes
 -------------
 
-- system-probe will now attempt to read `datadog.yaml` from the same directory as `system-probe.yaml`.
-  Previously, system-probe would always use the default configuration directory to read `datadog.yaml`.
-  If you need to specify a different directory for `datadog.yaml`, you may use the `--datadogcfgpath` CLI argument to system-probe.
+- system-probe will now attempt to read ``datadog.yaml`` from the same directory as ``system-probe.yaml``.
+  Previously, system-probe would always use the default configuration directory to read ``datadog.yaml``.
+  If you need to specify a different directory for ``datadog.yaml``, you may use the ``--datadogcfgpath`` CLI argument to system-probe.
 
 
 .. _Release Notes_7.75.0_New Features:
@@ -68,10 +68,10 @@ Enhancement Notes
 
 - The Agent's embedded Python has been upgraded from 3.13.10 to 3.13.11
 
-- Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with `singleflight`. This change improves handling of concurrent cache misses.
+- Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with ``singleflight``. This change improves handling of concurrent cache misses.
 
 - Add the canonical version annotation to the image named
-  `internal.apm.datadoghq.com/[lang/injector]-canonical-version`.
+  ``internal.apm.datadoghq.com/[lang/injector]-canonical-version``.
   This makes it easier to track the actual version of the image
   used in the cluster, instead of just a digest or mutable tag.
 
@@ -98,7 +98,7 @@ Enhancement Notes
 - The Agent's logger has been rewritten with a more modern library to improve
   security and performance. No visible change is expected for users.
   In case of issues, the previous logger can still be used by setting
-  `log_use_slog` to `false` in the Agent configuration. This configuration will
+  ``log_use_slog`` to ``false`` in the Agent configuration. This configuration will
   be removed in a future release.
 
 - Enable the orchestrator_explorer.kubelet_config_check.enabled
@@ -108,7 +108,7 @@ Enhancement Notes
 
 - OTLP spans describing an HTTP error without an explicit error message will now fallback
   to one with a description, eg. "500 Internal Server Error" instead of just "500".
-  Users who relied on the error message to extract the status code should use `http.response.status_code` instead.
+  Users who relied on the error message to extract the status code should use ``http.response.status_code`` instead.
   
   Additionally, the error message is no longer sourced from the deprecated `http.status_text` attribute.
   This behavior can be overridden by explicitly setting the span's status message.
@@ -116,8 +116,8 @@ Enhancement Notes
 - On Windows, adds process name to live processes via file properties.
 
 - Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
-  applications through SSI should review the [4.0.0](https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0)
-  release notes and the [compatibility guide](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/)
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
+  release notes and the `compatibility guide <https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/>`_
   to ensure their Python applications are compatible.
 
 - Add flare support for workloadfilter component.
@@ -128,7 +128,7 @@ Enhancement Notes
 Deprecation Notes
 -----------------
 
-- APM: Removed unused configuration options `apm_config.service_writer.queue_size`, and `apm_config.service_writer.connection_limit`. These options were already ignored.
+- APM: Removed unused configuration options ``apm_config.service_writer.queue_size``, and ``apm_config.service_writer.connection_limit``. These options were already ignored.
 
 
 .. _Release Notes_7.75.0_Bug Fixes:
@@ -164,7 +164,7 @@ Bug Fixes
 
 - Fixes a bug in the SNMP integration, where some metrics defined in an instance config were not reported.
 
-- Fixed a bug in the SNMP integration, where a custom profile's `sysObjectIDs` could conflict with default profiles' when defining the `name` field in the custom profile.
+- Fixed a bug in the SNMP integration, where a custom profile's ``sysObjectIDs`` could conflict with default profiles' when defining the ``name`` field in the custom profile.
 
 - Fixes remote tagger implementation to backoff when the stream
   is initialized but receiving events through the stream fails.
@@ -197,7 +197,7 @@ Other Notes
 -----------
 
 - This feature is currently in development and is protected under the feature flag:
-    `cluster_checks.crd_collection`
+    ``cluster_checks.crd_collection``
 
 - For up-to-date docs, check out the secret-backend `changelog <https://github.com/DataDog/datadog-secret-backend/blob/v1/CHANGELOG.md>`_, and the Datadog Secrets Management `documentation <https://docs.datadoghq.com/agent/configuration/secrets-management/>`_
 
