@@ -134,7 +134,7 @@ def write_excel(results: List[Dict[str, Any]], output_file: Path):
             # Write to sheet
             mode_df.to_excel(writer, sheet_name=mode, index=False)
 
-            # Auto-adjust column widths
+            # Auto-adjust column widths and format currency columns
             worksheet = writer.sheets[mode]
             for idx, col in enumerate(mode_df.columns):
                 max_length = max(
@@ -144,7 +144,14 @@ def write_excel(results: List[Dict[str, Any]], output_file: Path):
                 # Cap at 60 for readability
                 worksheet.column_dimensions[chr(65 + idx)].width = min(max_length + 2, 60)
 
-        # Auto-adjust summary sheet column widths
+                # Format cost column as USD currency
+                if col == 'cost':
+                    col_letter = chr(65 + idx)
+                    for row in range(2, len(mode_df) + 2):  # Start from row 2 (skip header)
+                        cell = worksheet[f'{col_letter}{row}']
+                        cell.number_format = '$#,##0.00'
+
+        # Auto-adjust summary sheet column widths and format currency columns
         summary_sheet = writer.sheets['Summary']
         for idx, col in enumerate(summary.columns):
             max_length = max(
@@ -152,6 +159,13 @@ def write_excel(results: List[Dict[str, Any]], output_file: Path):
                 len(col)
             )
             summary_sheet.column_dimensions[chr(65 + idx)].width = max_length + 2
+
+            # Format cost columns as USD currency
+            if col in ('avg_cost', 'total_cost'):
+                col_letter = chr(65 + idx)
+                for row in range(2, len(summary) + 2):  # Start from row 2 (skip header)
+                    cell = summary_sheet[f'{col_letter}{row}']
+                    cell.number_format = '$#,##0.00'
 
     print(f"\nConsolidated {len(flattened_results)} results to {output_file}")
 
