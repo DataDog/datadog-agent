@@ -26,8 +26,8 @@ import (
 
 // errors for ADP OTLP proxy configuration validation
 var (
-	ErrProxyGRPCEndpointNotConfigured = errors.New("ADP OTLP proxy enabled but grpc endpoint is not configured")
-	ErrProxyGRPCEndpointCollision     = errors.New("ADP OTLP proxy grpc endpoint conflicts with receiver endpoint")
+	ErrProxyGRPCEndpointNotConfigured = errors.New("data plane OTLP proxy enabled but gRPC endpoint is not configured")
+	ErrProxyGRPCEndpointCollision     = errors.New("data plane OTLP proxy gRPC endpoint conflicts with receiver endpoint")
 )
 
 func portToUint(v int) (port uint, err error) {

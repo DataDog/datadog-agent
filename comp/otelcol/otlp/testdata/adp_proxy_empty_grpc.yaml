@@ -13,5 +13,3 @@ data_plane:
         protocols:
           grpc:
             endpoint: ""
-          http:
-            endpoint: "127.0.0.1:4320"
