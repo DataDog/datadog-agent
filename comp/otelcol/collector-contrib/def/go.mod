@@ -56,6 +56,7 @@ require (
 	github.com/hashicorp/go-version v1.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect
@@ -258,6 +259,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
