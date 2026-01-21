@@ -11,6 +11,13 @@
 
           }
         ],
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "^sys global-settings\\s*{"
+          }
+
+        ],
         "redaction": [
           {
             "regex": "^([\\s\\t]*)secret \\S+",
