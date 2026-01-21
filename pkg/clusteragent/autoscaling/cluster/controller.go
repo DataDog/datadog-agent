@@ -225,19 +225,24 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to create NodePool: %s, err: %v", npi.Name(), err)
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to create NodePool, err: %v", err)
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
 
-	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool: %s with instances %q", npi.Name(), npi.RecommendedInstanceTypes())
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool with instances %q", npi.RecommendedInstanceTypes())
 
 	return nil
 }
 
 func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
+	isUpdated, patchData := model.BuildNodePoolPatch(knp, npi)
+	if !isUpdated {
+		log.Debugf("NodePool: %s has not changed, no action will be applied.", npi.Name())
+		return nil
+	}
+
 	log.Infof("Patching NodePool: %s", npi.Name())
 
-	patchData := model.BuildNodePoolPatch(knp, npi)
 	patchBytes, err := json.Marshal(patchData)
 	if err != nil {
 		return fmt.Errorf("error marshaling patch data: %s, err: %v", npi.Name(), err)
@@ -246,11 +251,11 @@ func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePoo
 	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType and simplify patch object
 	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %s, err: %v", npi.Name(), err)
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool, err: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
 
-	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool: %s with instances %q", npi.Name(), npi.RecommendedInstanceTypes())
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool with instances %q", npi.RecommendedInstanceTypes())
 	return nil
 }
 

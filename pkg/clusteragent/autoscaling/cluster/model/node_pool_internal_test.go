@@ -14,8 +14,9 @@ import (
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestConvertLabels(t *testing.T) {
@@ -297,13 +298,14 @@ func TestBuildReplicaNodePool(t *testing.T) {
 
 func TestBuildNodePoolPatch(t *testing.T) {
 	tests := []struct {
-		name        string
-		nodePool    karpenterv1.NodePool
-		minNodePool NodePoolInternal
-		expected    map[string]any
+		name              string
+		nodePool          karpenterv1.NodePool
+		minNodePool       NodePoolInternal
+		expectedPatch     map[string]any
+		expectedIsUpdated bool
 	}{
 		{
-			name: "basic",
+			name: "instance type requirements have changed",
 			minNodePool: NodePoolInternal{
 				name:                     "default",
 				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
@@ -359,7 +361,7 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expected: map[string]any{
+			expectedPatch: map[string]any{
 				"metadata": map[string]any{
 					"labels": map[string]any{
 						datadogModifiedLabelKey: "true",
@@ -394,13 +396,83 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
+			expectedIsUpdated: true,
+		},
+		{
+			name: "instance type requirements have not changed",
+			minNodePool: NodePoolInternal{
+				name:                     "default",
+				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"c5.xlarge", "t3.micro"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPatch:     map[string]any{},
+			expectedIsUpdated: false,
+		},
+		{
+			name: "instance type requirements do not exist",
+			minNodePool: NodePoolInternal{
+				name:                     "default",
+				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{},
+						},
+					},
+				},
+			},
+			expectedPatch: map[string]any{
+				"metadata": map[string]any{
+					"labels": map[string]any{
+						datadogModifiedLabelKey: "true",
+					},
+				},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]string{
+								kubernetes.AutoscalingLabelKey: "true",
+							},
+						},
+						"spec": map[string]any{
+							"requirements": []map[string]any{
+								{
+									"key":      corev1.LabelInstanceTypeStable,
+									"operator": "In",
+									"values":   []string{"c5.xlarge", "t3.micro"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedIsUpdated: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := BuildNodePoolPatch(&tt.nodePool, tt.minNodePool)
-			assert.Equal(t, tt.expected, result, "Resulting patch does not match expected patch")
+			resultIsUpdated, resultPatch := BuildNodePoolPatch(&tt.nodePool, tt.minNodePool)
+			assert.Equal(t, tt.expectedPatch, resultPatch, "Resulting patch does not match expected patch")
+			assert.Equal(t, tt.expectedIsUpdated, resultIsUpdated, "Resulting is updated does not match expected is updated")
 		})
 	}
 }

@@ -8,7 +8,10 @@
 package model
 
 import (
+	"slices"
+
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -264,8 +267,9 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	knp.Status = karpenterv1.NodePoolStatus{}
 }
 
-// BuildNodePoolPatch is used to construct JSON patch
-func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
+// BuildNodePoolPatch is used to construct a JSON patch if the NodePool requirements have changed
+func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, map[string]any) {
+	isUpdated := false
 	// Build requirements patch, only updating values for the instance types
 	updatedRequirements := []map[string]any{}
 	instanceTypeLabelExists := false
@@ -273,7 +277,10 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 		if r.Key == corev1.LabelInstanceTypeStable {
 			instanceTypeLabelExists = true
 			r.Operator = "In"
-			r.Values = npi.recommendedInstanceTypes
+			if !slices.Equal(r.Values, npi.recommendedInstanceTypes) {
+				isUpdated = true
+				r.Values = npi.recommendedInstanceTypes
+			}
 		}
 
 		updatedRequirements = append(updatedRequirements, map[string]any{
@@ -284,6 +291,7 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	}
 
 	if !instanceTypeLabelExists {
+		isUpdated = true
 		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      corev1.LabelInstanceTypeStable,
 			"operator": "In",
@@ -291,7 +299,11 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 		})
 	}
 
-	return map[string]any{
+	if !isUpdated {
+		return false, map[string]any{}
+	}
+
+	patchData := map[string]any{
 		"metadata": map[string]any{
 			"labels": map[string]any{
 				datadogModifiedLabelKey: "true",
@@ -310,4 +322,6 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 			},
 		},
 	}
+
+	return isUpdated, patchData
 }
