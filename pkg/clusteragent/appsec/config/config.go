@@ -12,6 +12,7 @@ import (
 	"maps"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -25,6 +26,8 @@ const (
 	AppsecProcessorResourceAnnotation = "appsec.datadoghq.com/processor"
 	// AppsecProcessorProxyTypeAnnotation is the annotation key used to store the type of proxy used for AppSec injection
 	AppsecProcessorProxyTypeAnnotation = "appsec.datadoghq.com/proxy-type"
+	// AppsecInjectionVersionAnnotation is the version annotation key used to track the injector version
+	AppsecInjectionVersionAnnotation = "appsec.datadoghq.com/injection-version"
 )
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
@@ -46,7 +49,7 @@ var AllProxyTypes = []ProxyType{
 }
 
 // Processor represents the configuration of the AppSec processor service that was deployed in the cluster
-// to handle AppSec traffic from the injected proxies
+// to handle AppSec traffic from the injected proxies. Is not used when sidecar mode is enabled.
 type Processor struct {
 	// Address is the address of the processor service
 	// If empty, it will be derived from the ServiceName and Namespace fields
@@ -59,9 +62,30 @@ type Processor struct {
 	// If both Address and Namespace are empty, the resources namespace will be used
 	// (the namespace where the Cluster Agent is deployed)
 	Namespace string
-	// ServiceName is the name of the processor service (required) // TODO: make it optional once we can deploy the processor ourselves
+	// ServiceName is the name of the processor service (required for EXTERNAL mode)
 	// It is used to derive the address of the processor service if the Address field is empty
 	ServiceName string
+}
+
+// Sidecar contains configuration for SIDECAR mode. Is not used when external mode is used
+type Sidecar struct {
+	// Image is the container image for the processor (e.g., "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	Image string
+	// ImageTag is the image tag (e.g., "latest")
+	ImageTag string
+	// Port is the port for the sidecar to listen on (default: 8080)
+	Port int
+	// HealthPort is the health check port (default: 8081)
+	HealthPort int
+
+	// Resource requirements
+	CPURequest    string // e.g., "100m"
+	CPULimit      string // e.g., "200m"
+	MemoryRequest string // e.g., "128Mi"
+	MemoryLimit   string // e.g., "256Mi"
+
+	// Environment variables
+	BodyParsingSizeLimit string // Default: "10000000" (10MB)
 }
 
 func (p Processor) String() string {
@@ -74,10 +98,24 @@ func (p Processor) String() string {
 
 // Product represents the configuration of the AppSec Injection Proxy agent feature
 type Product struct {
-	Enabled    bool
-	Processor  Processor
+	Enabled bool
+
+	// AutoDetect tries to find all currently installed integration that could be enabled and enables them.
 	AutoDetect bool
-	Proxies    map[ProxyType]struct{}
+
+	// Proxies are manually set by the user to be enabled is the auto-detection is disabled
+	Proxies map[ProxyType]struct{}
+
+	// Mode determines how the processor is deployed
+	// "external" - requires manual deployment, proxies call via service
+	// "sidecar" - automatically injected as sidecar in proxy pods
+	Mode InjectionMode
+
+	// Sidecar contains configuration for SIDECAR mode
+	Sidecar Sidecar
+
+	// Processor contains configuration for the EXTERNAL mode
+	Processor Processor
 }
 
 // Injection represent kubernetes specific configuration available for users to customize
@@ -89,6 +127,7 @@ type Injection struct {
 	BaseBackoff       time.Duration
 	MaxBackoff        time.Duration
 
+	// IstioNamespace is used to determine where we will inject the `EnvoyFilter` object to make it global to the cluster.
 	IstioNamespace string
 }
 
@@ -125,15 +164,37 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 		processor.Namespace = common.GetResourcesNamespace()
 	}
 
-	staticLabels := map[string]string{
-		kubernetes.KubeAppComponentLabelKey:      "datadog-appsec-injector",
-		kubernetes.KubeAppPartOfLabelKey:         "datadog",
-		kubernetes.KubeAppManagedByLabelKey:      "datadog-cluster-agent",
-		"appsec.datadoghq.com/injection-version": "v1",
+	// Populate Sidecar for SIDECAR mode
+	sidecarConfig := Sidecar{
+		Image:                cfg.GetString("cluster_agent.appsec.injector.sidecar.image"),
+		ImageTag:             cfg.GetString("cluster_agent.appsec.injector.sidecar.image_tag"),
+		Port:                 cfg.GetInt("cluster_agent.appsec.injector.sidecar.port"),
+		HealthPort:           cfg.GetInt("cluster_agent.appsec.injector.sidecar.health_port"),
+		CPURequest:           cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.requests.cpu"),
+		CPULimit:             cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.limits.cpu"),
+		MemoryRequest:        cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.requests.memory"),
+		MemoryLimit:          cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.limits.memory"),
+		BodyParsingSizeLimit: cfg.GetString("cluster_agent.appsec.injector.sidecar.body_parsing_size_limit"),
 	}
 
-	staticAnnotations := map[string]string{
-		AppsecProcessorResourceAnnotation: processor.String(),
+	staticLabels := map[string]string{
+		kubernetes.KubeAppComponentLabelKey: "datadog-appsec-injector",
+		kubernetes.KubeAppPartOfLabelKey:    "datadog",
+		kubernetes.KubeAppManagedByLabelKey: "datadog-cluster-agent",
+		AppsecInjectionVersionAnnotation:    "v2",
+	}
+
+	staticAnnotations := make(map[string]string, 1)
+
+	mode := InjectionMode(strings.ToLower(cfg.GetString("cluster_agent.appsec.injector.mode")))
+	switch mode {
+	case InjectionModeSidecar:
+		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
+	case InjectionModeExternal:
+		staticAnnotations[AppsecProcessorResourceAnnotation] = processor.String()
+	default:
+		logger.Warnf("Invalid appsec proxy injection mode: %q (defaults to sidecar mode)", mode)
+		mode = InjectionModeSidecar
 	}
 
 	maps.Copy(staticLabels, cfg.GetStringMapString("cluster_agent.appsec.injector.labels"))
@@ -145,6 +206,8 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 			AutoDetect: cfg.GetBool("appsec.proxy.auto_detect"),
 			Proxies:    proxiesMap,
 			Processor:  processor,
+			Mode:       mode,
+			Sidecar:    sidecarConfig,
 		},
 		Injection: Injection{
 			Enabled:           cfg.GetBool("cluster_agent.appsec.injector.enabled"),
