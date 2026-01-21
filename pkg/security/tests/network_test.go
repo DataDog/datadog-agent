@@ -512,6 +512,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 			}
 			select {
 			case line := <-linesCh:
+				t.Logf("dnsloop line: %s", line)
 				if strings.Contains(line, "DNS_OK") {
 					dnsOK = true
 					foundAny = true
