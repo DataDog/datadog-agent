@@ -7,7 +7,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
-    name = "all",
+    name = "all_srcs",
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
@@ -139,7 +139,7 @@ configure_make(
         },
         "//conditions:default": {},
     }),
-    lib_source = ":all",
+    lib_source = ":all_srcs",
     out_include_dir = "include",
     out_static_libs = select({
         "@platforms//os:windows": [

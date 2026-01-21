@@ -12,17 +12,16 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,10 +31,10 @@ type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
 	filter        mutatecommon.MutationFilter
-	imageResolver ImageResolver
+	imageResolver imageresolver.Resolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver) *mutatorCore {
 	return &mutatorCore{
 		config:        config,
 		wmeta:         wmeta,
@@ -80,22 +79,6 @@ func (m *mutatorCore) injectTracers(pod *corev1.Pod, config extractedPodLibInfo)
 	return lastError
 }
 
-// resolveInitSecurityContext determines the security context for init containers.
-func (m *mutatorCore) resolveInitSecurityContext(nsName string) *corev1.SecurityContext {
-	if m.config.initSecurityContext != nil {
-		return m.config.initSecurityContext
-	}
-	nsLabels, err := getNamespaceLabels(m.wmeta, nsName)
-	if err != nil {
-		log.Warnf("error getting labels for namespace=%s: %s", nsName, err)
-		return nil
-	}
-	if val, ok := nsLabels["pod-security.kubernetes.io/enforce"]; ok && val == "restricted" {
-		return defaultRestrictedSecurityContext
-	}
-	return nil
-}
-
 // kpiEnvVarsMutator returns a mutator that injects KPI-related env vars.
 // (DD_INSTRUMENTATION_INSTALL_TYPE, DD_INSTRUMENTATION_INSTALL_TIME, DD_INSTRUMENTATION_INSTALL_ID)
 func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
@@ -105,58 +88,82 @@ func (m *mutatorCore) kpiEnvVarsMutator(config extractedPodLibInfo) podMutator {
 }
 
 // apmInjectionMutator returns a mutator that injects the APM injector and language-specific libraries.
-// This is the core injection logic that will be replaced by providers in the future.
 func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetected bool, injectionType string) podMutator {
 	return podMutatorFunc(func(pod *corev1.Pod) error {
-		// Compute resource requirements (may skip injection if insufficient)
-		requirements, decision := initContainerResourceRequirements(pod, m.config.defaultResourceRequirements)
-		if decision.skipInjection {
-			if pod.Annotations == nil {
-				pod.Annotations = make(map[string]string)
+		// Convert libInfo to LibraryConfig here because library_injection cannot
+		// import autoinstrumentation (circular dependency).
+		libs := make([]libraryinjection.LibraryConfig, len(config.libs))
+		for i, lib := range config.libs {
+			libs[i] = libraryinjection.LibraryConfig{
+				Language:      string(lib.lang),
+				Package:       m.resolveLibraryImage(lib),
+				ContainerName: lib.ctrName,
 			}
-			SetAnnotation(pod, AnnotationInjectionError, decision.message)
-			return nil
 		}
 
-		securityContext := m.resolveInitSecurityContext(pod.Namespace)
-		initContainerMutators := containerMutators{containerResourceRequirements{requirements}}
-		if securityContext != nil {
-			initContainerMutators = append(initContainerMutators, containerSecurityContext{securityContext})
-		}
-
-		// Inject the APM injector
-		injector := m.newInjector(pod, time.Now(), libRequirementOptions{
-			containerFilter:       m.config.containerFilter,
-			initContainerMutators: initContainerMutators,
+		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			DefaultResourceRequirements: m.config.defaultResourceRequirements,
+			InitSecurityContext:         m.config.initSecurityContext,
+			ContainerFilter:             m.config.containerFilter,
+			Wmeta:                       m.wmeta,
+			Debug:                       m.isDebugEnabled(pod),
+			AutoDetected:                autoDetected,
+			InjectionType:               injectionType,
+			Injector: libraryinjection.InjectorConfig{
+				Package: m.resolveInjectorImage(pod),
+			},
+			Libraries: libs,
 		})
-		if err := injector.podMutator().mutatePod(pod); err != nil {
-			metrics.LibInjectionErrors.Inc("injector", strconv.FormatBool(autoDetected), injectionType)
-			log.Errorf("Cannot inject library injector into pod %s: %s", mutatecommon.PodString(pod), err)
-			return err
-		}
-
-		// Inject language-specific libraries
-		var lastError error
-		for _, lib := range config.libs {
-			injected := false
-			langStr := string(lib.lang)
-			defer func() {
-				metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
-			}()
-
-			if err := lib.podMutator(libRequirementOptions{
-				containerFilter:       m.config.containerFilter,
-				initContainerMutators: initContainerMutators,
-			}, m.imageResolver).mutatePod(pod); err != nil {
-				metrics.LibInjectionErrors.Inc(langStr, strconv.FormatBool(autoDetected), injectionType)
-				lastError = err
-				continue
-			}
-
-			injected = true
-		}
-		return lastError
 	})
+}
+
+// isDebugEnabled checks if debug mode is enabled via pod annotation.
+func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
+	if debugEnabled, found := annotation.Get(pod, annotation.EnableDebug); found {
+		if debug, err := strconv.ParseBool(debugEnabled); err == nil {
+			return debug
+		}
+	}
+	return false
+}
+
+// resolveInjectorImage determines the injector image to use based on configuration and pod annotations.
+func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.LibraryImage {
+	// Check for the injector image being set via annotation (highest priority)
+	if injectorImage, found := annotation.Get(pod, annotation.InjectorImage); found {
+		return libraryinjection.NewLibraryImageFromFullRef(injectorImage, "")
+	}
+
+	// Check for the injector version set via annotation
+	injectorTag := m.config.Instrumentation.InjectorImageTag
+	if injectorVersion, found := annotation.Get(pod, annotation.InjectorVersion); found {
+		injectorTag = injectorVersion
+	}
+
+	// Try to resolve via imageResolver (remote config)
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(m.config.containerRegistry, "apm-inject", injectorTag); ok {
+			log.Debugf("Resolved injector image for %s/apm-inject:%s: %s", m.config.containerRegistry, injectorTag, resolved.FullImageRef)
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
+		}
+	}
+
+	// Fall back to tag-based image
+	fullRef := fmt.Sprintf("%s/apm-inject:%s", m.config.containerRegistry, injectorTag)
+	return libraryinjection.NewLibraryImageFromFullRef(fullRef, "")
+}
+
+// resolveLibraryImage resolves the library image using the imageResolver if available.
+// Falls back to the pre-formatted image if resolution fails.
+func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.LibraryImage {
+	if m.imageResolver != nil {
+		if resolved, ok := m.imageResolver.Resolve(lib.registry, lib.repository, lib.tag); ok {
+			log.Debugf("Resolved library image for %s/%s:%s: %s", lib.registry, lib.repository, lib.tag, resolved.FullImageRef)
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
+		}
+	}
+	// Fall back to pre-formatted image
+	return libraryinjection.NewLibraryImageFromFullRef(lib.image, "")
 }
 
 // libConfigFromAnnotationsMutator returns a mutator that reads library configuration
@@ -266,69 +273,6 @@ func (m *mutatorCore) ustEnvVarMutator(pod *corev1.Pod) containerMutator {
 	return mutators
 }
 
-func (m *mutatorCore) newInjector(pod *corev1.Pod, startTime time.Time, lopts libRequirementOptions) *injector {
-	opts := []injectorOption{
-		injectorWithLibRequirementOptions(lopts),
-		injectorWithImageTag(m.config.Instrumentation.InjectorImageTag, m.imageResolver),
-	}
-
-	// Check for the injector version set.
-	injectorVersion, found := GetAnnotation(pod, AnnotationInjectorVersion)
-	if found {
-		opts = append(opts, injectorWithImageTag(injectorVersion, m.imageResolver))
-	}
-
-	// Check for the injector image being set.
-	injectorImage, found := GetAnnotation(pod, AnnotationInjectorImage)
-	if found {
-		opts = append(opts, injectorWithImageName(injectorImage))
-	}
-
-	// Check if the user has debug enabled.
-	debugEnabled, found := GetAnnotation(pod, AnnotationEnableDebug)
-	if found {
-		opts = append(opts, injectorDebug(debugEnabled))
-	}
-
-	return newInjector(startTime, m.config.containerRegistry, opts...)
-}
-
-func extractLibrariesFromAnnotations(pod *corev1.Pod, registry string) []libInfo {
-	libs := []libInfo{}
-
-	// Check all supported languages for potential Local SDK Injection.
-	for _, l := range supportedLanguages {
-		// Check for a custom library image.
-		customImage, found := GetAnnotation(pod, AnnotationLibraryImage.Format(string(l)))
-		if found {
-			libs = append(libs, l.libInfo("", customImage))
-		}
-
-		// Check for a custom library version.
-		libVersion, found := GetAnnotation(pod, AnnotationLibraryVersion.Format(string(l)))
-		if found {
-			libs = append(libs, l.libInfoWithResolver("", registry, libVersion))
-		}
-
-		// Check all containers in the pod for container specific Local SDK Injection.
-		for _, container := range pod.Spec.Containers {
-			// Check for custom library image.
-			customImage, found := GetAnnotation(pod, AnnotationLibraryContainerImage.Format(container.Name, string(l)))
-			if found {
-				libs = append(libs, l.libInfo(container.Name, customImage))
-			}
-
-			// Check for custom library version.
-			libVersion, found := GetAnnotation(pod, AnnotationLibraryContainerVersion.Format(container.Name, string(l)))
-			if found {
-				libs = append(libs, l.libInfoWithResolver(container.Name, registry, libVersion))
-			}
-		}
-	}
-
-	return libs
-}
-
 func (m *mutatorCore) initExtractedLibInfo(pod *corev1.Pod) extractedPodLibInfo {
 	// it's possible to get here without single step being enabled, and the pod having
 	// annotations on it to opt it into pod mutation, we disambiguate those two cases.
@@ -386,58 +330,6 @@ func (m *mutatorCore) getAutoDetectedLibraries(pod *corev1.Pod) []libInfo {
 		log.Debugf("This ownerKind:%s is not yet supported by the process language auto-detection feature", ownerKind)
 		return nil
 	}
-}
-
-// The config for the security products has three states: <unset> | true | false.
-// This is because the products themselves have treat these cases differently:
-// * <unset> - product disactivated but can be activated remotely
-// * true - product activated, not overridable remotely
-// * false - product disactivated, not overridable remotely
-func securityClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	asmEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm.enabled")
-	iastEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.iast.enabled")
-	asmScaEnabled := getOptionalBoolValue(datadogConfig, "admission_controller.auto_instrumentation.asm_sca.enabled")
-
-	var mutators []containerMutator
-	if asmEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_ENABLED", asmEnabled))
-	}
-
-	if iastEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_IAST_ENABLED", iastEnabled))
-	}
-
-	if asmScaEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromBoolMutator("DD_APPSEC_SCA_ENABLED", asmScaEnabled))
-	}
-
-	return mutators
-}
-
-// The config for profiling has four states: <unset> | "auto" | "true" | "false".
-// * <unset> - profiling not activated, but can be activated remotely
-// * "true" - profiling activated unconditionally, not overridable remotely
-// * "false" - profiling deactivated, not overridable remotely
-// * "auto" - profiling activates per-process heuristically, not overridable remotely
-func profilingClientLibraryConfigMutators(datadogConfig config.Component) containerMutators {
-	profilingEnabled := getOptionalStringValue(datadogConfig, "admission_controller.auto_instrumentation.profiling.enabled")
-
-	var mutators []containerMutator
-	if profilingEnabled != nil {
-		mutators = append(mutators, newConfigEnvVarFromStringMutator("DD_PROFILING_ENABLED", profilingEnabled))
-	}
-
-	return mutators
-}
-
-func getNamespaceLabels(wmeta workloadmeta.Component, name string) (map[string]string, error) {
-	id := util.GenerateKubeMetadataEntityID("", "namespaces", "", name)
-	ns, err := wmeta.GetKubernetesMetadata(id)
-	if err != nil {
-		return nil, fmt.Errorf("error getting namespace metadata for ns=%s: %w", name, err)
-	}
-
-	return ns.EntityMeta.Labels, nil
 }
 
 type libInfoLanguageDetection struct {
@@ -571,168 +463,6 @@ func (e extractedPodLibInfo) useLanguageDetectionLibs() (extractedPodLibInfo, bo
 	}
 
 	return e, false
-}
-
-// podSumRessourceRequirements computes the sum of cpu/memory necessary for the whole pod.
-// This is computed as max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-// for both limit and request
-// https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/#resource-sharing-within-containers
-func podSumRessourceRequirements(pod *corev1.Pod) corev1.ResourceRequirements {
-	ressourceRequirement := corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceMemory, corev1.ResourceCPU} {
-		// Take max(initContainer ressource)
-		maxInitContainerLimit := resource.Quantity{}
-		maxInitContainerRequest := resource.Quantity{}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if initContainerIsSidecar(c) {
-				// This is a sidecar container, since it will run alongside the main containers
-				// we need to add it's resources to the main container's resources
-				continue
-			}
-			if limit, ok := c.Resources.Limits[k]; ok {
-				if limit.Cmp(maxInitContainerLimit) == 1 {
-					maxInitContainerLimit = limit
-				}
-			}
-			if request, ok := c.Resources.Requests[k]; ok {
-				if request.Cmp(maxInitContainerRequest) == 1 {
-					maxInitContainerRequest = request
-				}
-			}
-		}
-
-		// Take sum(container resources) + sum(sidecar containers)
-		limitSum := resource.Quantity{}
-		reqSum := resource.Quantity{}
-		for i := range pod.Spec.Containers {
-			c := &pod.Spec.Containers[i]
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-		for i := range pod.Spec.InitContainers {
-			c := &pod.Spec.InitContainers[i]
-			if !initContainerIsSidecar(c) {
-				continue
-			}
-			if l, ok := c.Resources.Limits[k]; ok {
-				limitSum.Add(l)
-			}
-			if l, ok := c.Resources.Requests[k]; ok {
-				reqSum.Add(l)
-			}
-		}
-
-		// Take max(max(initContainer resources), sum(container resources) + sum(sidecar containers))
-		if limitSum.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = limitSum
-		}
-		if reqSum.Cmp(maxInitContainerRequest) == 1 {
-			maxInitContainerRequest = reqSum
-		}
-
-		// Ensure that the limit is greater or equal to the request
-		if maxInitContainerRequest.Cmp(maxInitContainerLimit) == 1 {
-			maxInitContainerLimit = maxInitContainerRequest
-		}
-
-		if maxInitContainerLimit.CmpInt64(0) == 1 {
-			ressourceRequirement.Limits[k] = maxInitContainerLimit
-		}
-		if maxInitContainerRequest.CmpInt64(0) == 1 {
-			ressourceRequirement.Requests[k] = maxInitContainerRequest
-		}
-	}
-
-	return ressourceRequirement
-}
-
-type injectionResourceRequirementsDecision struct {
-	skipInjection bool
-	message       string
-}
-
-// initContainerResourceRequirements computes init container cpu/memory requests and limits.
-// There are two cases:
-//
-//  1. If a resource quantity was set in config, we use it
-//
-//  2. If no quantity was set, we try to use as much of the resource as we can without impacting
-//     pod scheduling.
-//     Init containers are run one after another. This means that any single init container can use
-//     the maximum amount of the resource requested by the original pod wihtout changing how much of
-//     this resource is necessary.
-//     In particular, for the QoS Guaranteed Limits and Requests have to be equal for every container.
-//     which means that the max amount of request/limits that we compute is going to be equal to each other
-//     so our init container will also have request == limit.
-//
-//     In the 2nd case, of we wouldn't have enough memory, we bail on injection
-func initContainerResourceRequirements(pod *corev1.Pod, conf initResourceRequirementConfiguration) (requirements corev1.ResourceRequirements, decision injectionResourceRequirementsDecision) {
-	requirements = corev1.ResourceRequirements{
-		Limits:   corev1.ResourceList{},
-		Requests: corev1.ResourceList{},
-	}
-	podRequirements := podSumRessourceRequirements(pod)
-	insufficientResourcesMessage := "The overall pod's containers limit is too low"
-	for _, k := range [2]corev1.ResourceName{corev1.ResourceCPU, corev1.ResourceMemory} {
-		if q, ok := conf[k]; ok {
-			requirements.Limits[k] = q
-			requirements.Requests[k] = q
-		} else {
-			if maxPodLim, ok := podRequirements.Limits[k]; ok {
-				// If the pod before adding instrumentation init containers would have had a limits smaller than
-				// a certain amount, we just don't do anything, for two reasons:
-				// 1. The init containers need quite a lot of memory/CPU in order to not OOM or initialize in reasonnable time
-				// 2. The APM libraries themselves will increase footprint of the container by a
-				//   non trivial amount, and we don't want to cause issues for constrained apps
-				switch k {
-				case corev1.ResourceMemory:
-					if minimumMemoryLimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumMemoryLimit.String())
-					}
-				case corev1.ResourceCPU:
-					if minimumCPULimit.Cmp(maxPodLim) == 1 {
-						decision.skipInjection = true
-						insufficientResourcesMessage += fmt.Sprintf(", %v pod_limit=%v needed=%v", k, maxPodLim.String(), minimumCPULimit.String())
-					}
-				default:
-					// We don't support other resources
-				}
-				requirements.Limits[k] = maxPodLim
-			}
-			if maxPodReq, ok := podRequirements.Requests[k]; ok {
-				requirements.Requests[k] = maxPodReq
-			}
-		}
-	}
-	if decision.skipInjection {
-		log.Debug(insufficientResourcesMessage)
-		decision.message = insufficientResourcesMessage
-	}
-	return requirements, decision
-}
-
-func containsInitContainer(pod *corev1.Pod, initContainerName string) bool {
-	for _, container := range pod.Spec.InitContainers {
-		if container.Name == initContainerName {
-			return true
-		}
-	}
-
-	return false
-}
-
-func initContainerIsSidecar(container *corev1.Container) bool {
-	return container.RestartPolicy != nil && *container.RestartPolicy == corev1.ContainerRestartPolicyAlways
 }
 
 // getOwnerNameAndKind returns the name and kind of the first owner of the pod if it exists

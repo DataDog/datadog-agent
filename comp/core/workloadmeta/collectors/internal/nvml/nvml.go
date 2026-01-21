@@ -223,7 +223,7 @@ func (c *collector) Pull(ctx context.Context) error {
 
 	// attempt getting list of unhealthy devices (if available)
 	unhealthyDevices, err := c.getUnhealthyDevices(ctx)
-	if (err != nil || unhealthyDevices == nil) && logLimiter.ShouldLog() {
+	if err != nil && logLimiter.ShouldLog() {
 		log.Warnf("failed getting unhealthy devices: %v", err)
 	}
 
