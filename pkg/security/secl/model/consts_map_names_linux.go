@@ -75,6 +75,7 @@ var bpfMapNames = []string{
 	"ns_flow_to_netw",
 	"on_demand_event",
 	"open_flags_appr",
+	"open_flags_rdon",
 	"packets",
 	"path_id",
 	"pathnames",
