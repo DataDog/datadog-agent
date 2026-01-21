@@ -845,7 +845,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 		if appPath != "" && appPath != "/" {
 			// Sub-application: set SubSite to AppPool + path
 			httpConnLink.http.SubSite = appPool + appPath
-			log.Infof("  SubSite:        %v\n", httpConnLink.http.SubSite)
 		} else {
 			// Root application: set SubSite to just AppPool
 			httpConnLink.http.SubSite = appPool
