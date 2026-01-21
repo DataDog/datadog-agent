@@ -25,7 +25,7 @@ const (
 	// This is the traditional injection method.
 	InjectionModeInitContainer InjectionMode = "init_container"
 
-	// InjectionModeCSI uses a CSI driver to mount library files directly into the pod.
+	// InjectionModeCSI uses the Datadog CSI driver to mount library files directly into the pod.
 	InjectionModeCSI InjectionMode = "csi"
 )
 
