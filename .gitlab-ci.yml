@@ -537,6 +537,7 @@ workflow:
   - tasks/kernel_matrix_testing/*
 
 .on_security_agent_changes_or_manual:
+  - when: always
   - <<: *if_main_branch
     allow_failure: true
   - !reference [.except_mergequeue]
@@ -592,6 +593,7 @@ workflow:
   - tasks/kernel_matrix_testing/*
 
 .on_system_probe_or_e2e_changes_or_manual:
+  - when: always
   - <<: *if_main_branch
   - !reference [.except_mergequeue]
   - <<: *if_run_all_kmt_tests

@@ -73,8 +73,6 @@ job-owners:
     - do-not-merge
     - dogstatsd_x64_size_test
     - export_testing_public_key
-    - generate-flakes-finder-pipeline
-    - generate-fips-e2e-pipeline
     - github_rate_limit_info
     - go_deps
     - go_e2e_deps
@@ -87,10 +85,6 @@ job-owners:
     - installer-install-scripts
     - integration_tests_otel
     - invoke_unit_tests
-    - new-e2e-cspm
-    - new-e2e-otel
-    - new-e2e-package-signing-debian-a7-x86_64
-    - new-e2e-package-signing-suse-a7-x86_64
     - new-e2e-unit-tests
     - publish_fakeintake
     - publish_fakeintake_latest
@@ -106,8 +100,6 @@ job-owners:
     - trace-agent-v04-2cpus-stress_load-fixed_sps
     - trace-agent-v05-2cpus-normal_load-fixed_sps
     - trace-agent-v05-2cpus-stress_load-fixed_sps
-    - trigger-flakes-finder
-    - trigger-fips-e2e
     - unit_tests_notify
     - update_rc_build_links
     - validate_modules
