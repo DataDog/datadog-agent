@@ -154,7 +154,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -167,9 +167,9 @@ def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
         return []
 
     _, best_count = team_count[0]
-    best_teams = [team.casefold() for (team, count) in team_count if count == best_count]
-
-    return best_teams
+    if best_teams_only:
+        return [team.casefold() for (team, count) in team_count if count == best_count]
+    return [team.casefold() for (team, _) in team_count]
 
 
 def _get_team_labels():
@@ -194,8 +194,8 @@ def assign_team_label(_, pr_id=-1):
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
-    # Fetch the team first, and early return if no team is found
-    teams = _get_teams(gh.get_pr_files(pr_id))
+    # Fetch all teams first, and early return if no team is found
+    teams = _get_teams(gh.get_pr_files(pr_id), best_teams_only=False)
     if teams == []:
         print('No team found')
         return
