@@ -401,9 +401,10 @@ func TestTraceWriterV1ResetBuffer(t *testing.T) {
 	bigPayload := &idx.TracerPayload{
 		Strings: []string{string(make([]byte, 50*1e6))},
 	}
+	preparedPayload := pb.PrepareTracerPayload(bigPayload)
 
 	w.mu.Lock()
-	w.tracerPayloadsV1 = append(w.tracerPayloadsV1, bigPayload)
+	w.preparedPayloadsV1 = append(w.preparedPayloadsV1, preparedPayload)
 	w.mu.Unlock()
 
 	runtime.GC()

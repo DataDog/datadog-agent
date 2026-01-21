@@ -1450,3 +1450,493 @@ func BenchmarkCompactStrings_LargePayload(b *testing.B) {
 		}
 	}
 }
+
+// =============================================================================
+// Fair comparison benchmarks: Custom (inline compaction) vs VT (manual CompactStrings + encode)
+// These benchmarks measure the full flow including string compaction.
+// =============================================================================
+
+// BenchmarkFullFlow_Custom measures custom marshaler with inline string compaction
+// (the new implementation does compaction during serialization without modifying the payload)
+func BenchmarkFullFlow_Custom_SmallPayload(b *testing.B) {
+	// Create a fresh payload for each iteration (not pre-compacted)
+	template := createBenchmarkPayload(10, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		// Clone the template to simulate fresh uncompacted payload
+		ap := cloneAgentPayload(template)
+		_, err := MarshalAgentPayload(ap)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkFullFlow_VT measures VT marshaler with manual CompactStrings() call
+func BenchmarkFullFlow_VT_SmallPayload(b *testing.B) {
+	template := createBenchmarkPayload(10, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		// Clone and compact (simulates the full flow)
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
+		}
+		_, err := ap.MarshalVT()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullFlow_Custom_MediumPayload(b *testing.B) {
+	template := createBenchmarkPayload(100, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		_, err := MarshalAgentPayload(ap)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullFlow_VT_MediumPayload(b *testing.B) {
+	template := createBenchmarkPayload(100, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
+		}
+		_, err := ap.MarshalVT()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullFlow_Custom_LargePayload(b *testing.B) {
+	template := createBenchmarkPayload(1000, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		_, err := MarshalAgentPayload(ap)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullFlow_VT_LargePayload(b *testing.B) {
+	template := createBenchmarkPayload(1000, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
+		}
+		_, err := ap.MarshalVT()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkFullFlow with high unused string ratio (stress test for compaction)
+func BenchmarkFullFlow_Custom_HighUnused(b *testing.B) {
+	template := createBenchmarkPayload(100, 2.0) // 200% unused = many unused strings
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		_, err := MarshalAgentPayload(ap)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkFullFlow_VT_HighUnused(b *testing.B) {
+	template := createBenchmarkPayload(100, 2.0)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			tp.CompactStrings()
+		}
+		_, err := ap.MarshalVT()
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// =============================================================================
+// Prepared payload benchmarks: Tests the optimized flow where compaction is
+// computed once and reused for both size calculation and serialization.
+// This is how TraceWriterV1 now works.
+// =============================================================================
+
+// BenchmarkPrepared measures the full flow with PreparedTracerPayload:
+// 1. PrepareTracerPayload (computes compaction + size)
+// 2. MarshalAgentPayloadPrepared (reuses compaction)
+func BenchmarkPrepared_SmallPayload(b *testing.B) {
+	template := createBenchmarkPayload(10, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		// Prepare payloads (compute compaction once)
+		prepared := make([]*PreparedTracerPayload, len(ap.IdxTracerPayloads))
+		for j, tp := range ap.IdxTracerPayloads {
+			prepared[j] = PrepareTracerPayload(tp)
+		}
+		// Marshal using prepared payloads (reuses compaction)
+		_, err := MarshalAgentPayloadPrepared(ap, prepared)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPrepared_MediumPayload(b *testing.B) {
+	template := createBenchmarkPayload(100, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		prepared := make([]*PreparedTracerPayload, len(ap.IdxTracerPayloads))
+		for j, tp := range ap.IdxTracerPayloads {
+			prepared[j] = PrepareTracerPayload(tp)
+		}
+		_, err := MarshalAgentPayloadPrepared(ap, prepared)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPrepared_LargePayload(b *testing.B) {
+	template := createBenchmarkPayload(1000, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		prepared := make([]*PreparedTracerPayload, len(ap.IdxTracerPayloads))
+		for j, tp := range ap.IdxTracerPayloads {
+			prepared[j] = PrepareTracerPayload(tp)
+		}
+		_, err := MarshalAgentPayloadPrepared(ap, prepared)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPrepared_HighUnused(b *testing.B) {
+	template := createBenchmarkPayload(100, 2.0)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		prepared := make([]*PreparedTracerPayload, len(ap.IdxTracerPayloads))
+		for j, tp := range ap.IdxTracerPayloads {
+			prepared[j] = PrepareTracerPayload(tp)
+		}
+		_, err := MarshalAgentPayloadPrepared(ap, prepared)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// BenchmarkPrepareOnly measures just the PrepareTracerPayload call
+// (compaction + size calculation, no serialization)
+func BenchmarkPrepareOnly_SmallPayload(b *testing.B) {
+	template := createBenchmarkPayload(10, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			_ = PrepareTracerPayload(tp)
+		}
+	}
+}
+
+func BenchmarkPrepareOnly_MediumPayload(b *testing.B) {
+	template := createBenchmarkPayload(100, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			_ = PrepareTracerPayload(tp)
+		}
+	}
+}
+
+func BenchmarkPrepareOnly_LargePayload(b *testing.B) {
+	template := createBenchmarkPayload(1000, 0.5)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
+		for _, tp := range ap.IdxTracerPayloads {
+			_ = PrepareTracerPayload(tp)
+		}
+	}
+}
+
+// cloneAgentPayload creates a deep copy of an AgentPayload for benchmarking
+// This ensures each benchmark iteration works with a fresh, uncompacted payload
+func cloneAgentPayload(src *AgentPayload) *AgentPayload {
+	if src == nil {
+		return nil
+	}
+	dst := &AgentPayload{
+		HostName:           src.HostName,
+		Env:                src.Env,
+		AgentVersion:       src.AgentVersion,
+		TargetTPS:          src.TargetTPS,
+		ErrorTPS:           src.ErrorTPS,
+		RareSamplerEnabled: src.RareSamplerEnabled,
+	}
+
+	if src.Tags != nil {
+		dst.Tags = make(map[string]string, len(src.Tags))
+		for k, v := range src.Tags {
+			dst.Tags[k] = v
+		}
+	}
+
+	if src.IdxTracerPayloads != nil {
+		dst.IdxTracerPayloads = make([]*idx.TracerPayload, len(src.IdxTracerPayloads))
+		for i, tp := range src.IdxTracerPayloads {
+			dst.IdxTracerPayloads[i] = cloneTracerPayload(tp)
+		}
+	}
+
+	return dst
+}
+
+// cloneTracerPayload creates a deep copy of a TracerPayload
+func cloneTracerPayload(src *idx.TracerPayload) *idx.TracerPayload {
+	if src == nil {
+		return nil
+	}
+	dst := &idx.TracerPayload{
+		ContainerIDRef:     src.ContainerIDRef,
+		LanguageNameRef:    src.LanguageNameRef,
+		LanguageVersionRef: src.LanguageVersionRef,
+		TracerVersionRef:   src.TracerVersionRef,
+		RuntimeIDRef:       src.RuntimeIDRef,
+		EnvRef:             src.EnvRef,
+		HostnameRef:        src.HostnameRef,
+		AppVersionRef:      src.AppVersionRef,
+	}
+
+	// Clone strings slice
+	if src.Strings != nil {
+		dst.Strings = make([]string, len(src.Strings))
+		copy(dst.Strings, src.Strings)
+	}
+
+	// Clone attributes map
+	if src.Attributes != nil {
+		dst.Attributes = make(map[uint32]*idx.AnyValue, len(src.Attributes))
+		for k, v := range src.Attributes {
+			dst.Attributes[k] = cloneAnyValue(v)
+		}
+	}
+
+	// Clone chunks
+	if src.Chunks != nil {
+		dst.Chunks = make([]*idx.TraceChunk, len(src.Chunks))
+		for i, chunk := range src.Chunks {
+			dst.Chunks[i] = cloneTraceChunk(chunk)
+		}
+	}
+
+	return dst
+}
+
+// cloneTraceChunk creates a deep copy of a TraceChunk
+func cloneTraceChunk(src *idx.TraceChunk) *idx.TraceChunk {
+	if src == nil {
+		return nil
+	}
+	dst := &idx.TraceChunk{
+		Priority:          src.Priority,
+		OriginRef:         src.OriginRef,
+		DroppedTrace:      src.DroppedTrace,
+		SamplingMechanism: src.SamplingMechanism,
+	}
+
+	if src.TraceID != nil {
+		dst.TraceID = make([]byte, len(src.TraceID))
+		copy(dst.TraceID, src.TraceID)
+	}
+
+	if src.Attributes != nil {
+		dst.Attributes = make(map[uint32]*idx.AnyValue, len(src.Attributes))
+		for k, v := range src.Attributes {
+			dst.Attributes[k] = cloneAnyValue(v)
+		}
+	}
+
+	if src.Spans != nil {
+		dst.Spans = make([]*idx.Span, len(src.Spans))
+		for i, span := range src.Spans {
+			dst.Spans[i] = cloneSpan(span)
+		}
+	}
+
+	return dst
+}
+
+// cloneSpan creates a deep copy of a Span
+func cloneSpan(src *idx.Span) *idx.Span {
+	if src == nil {
+		return nil
+	}
+	dst := &idx.Span{
+		ServiceRef:   src.ServiceRef,
+		NameRef:      src.NameRef,
+		ResourceRef:  src.ResourceRef,
+		SpanID:       src.SpanID,
+		ParentID:     src.ParentID,
+		Start:        src.Start,
+		Duration:     src.Duration,
+		Error:        src.Error,
+		TypeRef:      src.TypeRef,
+		EnvRef:       src.EnvRef,
+		VersionRef:   src.VersionRef,
+		ComponentRef: src.ComponentRef,
+		Kind:         src.Kind,
+	}
+
+	if src.Attributes != nil {
+		dst.Attributes = make(map[uint32]*idx.AnyValue, len(src.Attributes))
+		for k, v := range src.Attributes {
+			dst.Attributes[k] = cloneAnyValue(v)
+		}
+	}
+
+	if src.Links != nil {
+		dst.Links = make([]*idx.SpanLink, len(src.Links))
+		for i, link := range src.Links {
+			dst.Links[i] = cloneSpanLink(link)
+		}
+	}
+
+	if src.Events != nil {
+		dst.Events = make([]*idx.SpanEvent, len(src.Events))
+		for i, event := range src.Events {
+			dst.Events[i] = cloneSpanEvent(event)
+		}
+	}
+
+	return dst
+}
+
+// cloneSpanLink creates a deep copy of a SpanLink
+func cloneSpanLink(src *idx.SpanLink) *idx.SpanLink {
+	if src == nil {
+		return nil
+	}
+	dst := &idx.SpanLink{
+		SpanID:        src.SpanID,
+		TracestateRef: src.TracestateRef,
+		Flags:         src.Flags,
+	}
+
+	if src.TraceID != nil {
+		dst.TraceID = make([]byte, len(src.TraceID))
+		copy(dst.TraceID, src.TraceID)
+	}
+
+	if src.Attributes != nil {
+		dst.Attributes = make(map[uint32]*idx.AnyValue, len(src.Attributes))
+		for k, v := range src.Attributes {
+			dst.Attributes[k] = cloneAnyValue(v)
+		}
+	}
+
+	return dst
+}
+
+// cloneSpanEvent creates a deep copy of a SpanEvent
+func cloneSpanEvent(src *idx.SpanEvent) *idx.SpanEvent {
+	if src == nil {
+		return nil
+	}
+	dst := &idx.SpanEvent{
+		Time:    src.Time,
+		NameRef: src.NameRef,
+	}
+
+	if src.Attributes != nil {
+		dst.Attributes = make(map[uint32]*idx.AnyValue, len(src.Attributes))
+		for k, v := range src.Attributes {
+			dst.Attributes[k] = cloneAnyValue(v)
+		}
+	}
+
+	return dst
+}
+
+// cloneAnyValue creates a deep copy of an AnyValue
+func cloneAnyValue(src *idx.AnyValue) *idx.AnyValue {
+	if src == nil {
+		return nil
+	}
+
+	switch v := src.Value.(type) {
+	case *idx.AnyValue_StringValueRef:
+		return &idx.AnyValue{Value: &idx.AnyValue_StringValueRef{StringValueRef: v.StringValueRef}}
+	case *idx.AnyValue_BoolValue:
+		return &idx.AnyValue{Value: &idx.AnyValue_BoolValue{BoolValue: v.BoolValue}}
+	case *idx.AnyValue_DoubleValue:
+		return &idx.AnyValue{Value: &idx.AnyValue_DoubleValue{DoubleValue: v.DoubleValue}}
+	case *idx.AnyValue_IntValue:
+		return &idx.AnyValue{Value: &idx.AnyValue_IntValue{IntValue: v.IntValue}}
+	case *idx.AnyValue_BytesValue:
+		bytes := make([]byte, len(v.BytesValue))
+		copy(bytes, v.BytesValue)
+		return &idx.AnyValue{Value: &idx.AnyValue_BytesValue{BytesValue: bytes}}
+	case *idx.AnyValue_ArrayValue:
+		if v.ArrayValue == nil {
+			return &idx.AnyValue{Value: &idx.AnyValue_ArrayValue{ArrayValue: nil}}
+		}
+		values := make([]*idx.AnyValue, len(v.ArrayValue.Values))
+		for i, val := range v.ArrayValue.Values {
+			values[i] = cloneAnyValue(val)
+		}
+		return &idx.AnyValue{Value: &idx.AnyValue_ArrayValue{ArrayValue: &idx.ArrayValue{Values: values}}}
+	case *idx.AnyValue_KeyValueList:
+		if v.KeyValueList == nil {
+			return &idx.AnyValue{Value: &idx.AnyValue_KeyValueList{KeyValueList: nil}}
+		}
+		kvs := make([]*idx.KeyValue, len(v.KeyValueList.KeyValues))
+		for i, kv := range v.KeyValueList.KeyValues {
+			if kv != nil {
+				kvs[i] = &idx.KeyValue{
+					Key:   kv.Key,
+					Value: cloneAnyValue(kv.Value),
+				}
+			}
+		}
+		return &idx.AnyValue{Value: &idx.AnyValue_KeyValueList{KeyValueList: &idx.KeyValueList{KeyValues: kvs}}}
+	default:
+		return nil
+	}
+}

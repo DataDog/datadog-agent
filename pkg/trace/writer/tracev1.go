@@ -68,8 +68,10 @@ type TraceWriterV1 struct {
 	tick            time.Duration         // flush frequency
 	agentVersion    string
 
-	tracerPayloadsV1 []*idx.TracerPayload // V1 tracer payloads buffered
-	bufferedSizeV1   int                  // estimated buffer size for V1
+	// preparedPayloadsV1 holds prepared tracer payloads with pre-computed string compaction.
+	// This allows accurate size calculations and avoids recomputing compaction during serialization.
+	preparedPayloadsV1 []*pb.PreparedTracerPayload
+	bufferedSizeV1     int // accurate buffer size (using compacted sizes)
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -141,20 +143,6 @@ func NewTraceWriterV1(
 	return tw
 }
 
-var outPool = sync.Pool{}
-
-func getBS(size int) []byte {
-	b := outPool.Get()
-	if b == nil {
-		return make([]byte, size)
-	}
-	bs := b.([]byte)
-	if cap(bs) < size {
-		return make([]byte, size)
-	}
-	return bs[:size]
-}
-
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
@@ -222,14 +210,19 @@ func (w *TraceWriterV1) FlushSync() error {
 	return nil
 }
 
-// appendChunks adds sampled chunks to the current payload, splitting the payload if it is too large and returning a list of payloads(list of tracer payloads) to flush.
-func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayload {
-	var toFlush [][]*idx.TracerPayload
+// appendChunksV1 adds sampled chunks to the current payload, splitting the payload if it is too large.
+// Returns batches of prepared payloads to flush immediately.
+// Uses PreparedTracerPayload for accurate size calculations with pre-computed string compaction.
+func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*pb.PreparedTracerPayload {
+	var toFlush [][]*pb.PreparedTracerPayload
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	pbTracerPayload := pkg.TracerPayload.ToProto()
-	pbTracerPayload.CompactStrings()
-	size := pbTracerPayload.SizeVT()
+
+	// Prepare the payload - this computes string compaction and accurate size
+	prepared := pb.PrepareTracerPayload(pbTracerPayload)
+	size := prepared.Size
+
 	if size+w.bufferedSizeV1 > MaxPayloadSize {
 		// Buffer is full, split the incoming Tracer payload
 		log.Debugf("Writer: reached maximum allowed buffered size, splitting payload with %d chunks and size %d", len(pbTracerPayload.Chunks), size)
@@ -237,12 +230,10 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 		if numChunks < 4 {
 			// If fewer than 4 chunks, send each chunk separately
 			for i := 0; i < numChunks; i++ {
-				splitPayload := pbTracerPayload.NewStringsClone()
-				splitPayload.Chunks = pbTracerPayload.Chunks[i : i+1]
-				splitPayload.CompactStrings()
-				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
-				agentPayload := append(w.tracerPayloadsV1, splitPayload)
-				toFlush = append(toFlush, agentPayload)
+				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i:i+1])
+				log.Tracef("Writer: new split payload (single chunk) has size %d", splitPrepared.Size+w.bufferedSizeV1)
+				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
+				toFlush = append(toFlush, batchToFlush)
 				w.resetBufferV1()
 			}
 		} else {
@@ -250,23 +241,21 @@ func (w *TraceWriterV1) appendChunksV1(pkg *SampledChunksV1) [][]*idx.TracerPayl
 			// This ensures we stay well under the intake limit as the worstcase here is 3.2 MB + 25 MB / 4 = 7.3 MB
 			chunksPerPayload := numChunks / 4
 			for i := range 4 {
-				splitPayload := pbTracerPayload.NewStringsClone()
 				// For the last group, include any remaining chunks due to integer division
 				endIdx := (i + 1) * chunksPerPayload
 				if i == 3 {
 					endIdx = numChunks
 				}
-				splitPayload.Chunks = pbTracerPayload.Chunks[i*chunksPerPayload : endIdx]
-				splitPayload.CompactStrings() // Compact strings again for split payloads to reduce size
-				log.Tracef("Writer: new split payload has size %d", splitPayload.SizeVT()+w.bufferedSizeV1)
-				agentPayload := append(w.tracerPayloadsV1, splitPayload)
-				toFlush = append(toFlush, agentPayload)
+				splitPrepared := pb.PrepareTracerPayloadWithChunks(pbTracerPayload, pbTracerPayload.Chunks[i*chunksPerPayload:endIdx])
+				log.Tracef("Writer: new split payload has size %d", splitPrepared.Size+w.bufferedSizeV1)
+				batchToFlush := append(w.preparedPayloadsV1, splitPrepared)
+				toFlush = append(toFlush, batchToFlush)
 				w.resetBufferV1()
 			}
 		}
 		return toFlush
 	}
-	w.tracerPayloadsV1 = append(w.tracerPayloadsV1, pbTracerPayload)
+	w.preparedPayloadsV1 = append(w.preparedPayloadsV1, prepared)
 	w.bufferedSizeV1 += size
 	return nil
 }
@@ -279,14 +268,14 @@ func (w *TraceWriterV1) WriteChunksV1(pkg *SampledChunksV1) {
 	w.stats.Events.Add(pkg.EventCount)
 
 	toFlush := w.appendChunksV1(pkg)
-	for _, payload := range toFlush {
-		w.flushPayloadsV1(payload)
+	for _, preparedPayloads := range toFlush {
+		w.flushPreparedPayloadsV1(preparedPayloads)
 	}
 }
 
 func (w *TraceWriterV1) resetBufferV1() {
 	w.bufferedSizeV1 = 0
-	w.tracerPayloadsV1 = make([]*idx.TracerPayload, 0, len(w.tracerPayloadsV1))
+	w.preparedPayloadsV1 = make([]*pb.PreparedTracerPayload, 0, len(w.preparedPayloadsV1))
 }
 
 // w must be locked for a flush.
@@ -294,20 +283,22 @@ func (w *TraceWriterV1) flush() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	defer w.resetBufferV1()
-	w.flushPayloadsV1(w.tracerPayloadsV1)
+	w.flushPreparedPayloadsV1(w.preparedPayloadsV1)
 }
 
-// w does not need to be locked during flushPayloads.
-func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.TracerPayload) {
+// flushPreparedPayloadsV1 serializes and sends prepared payloads.
+// The prepared payloads have pre-computed string compaction, so serialization
+// reuses this work for efficiency.
+func (w *TraceWriterV1) flushPreparedPayloadsV1(prepared []*pb.PreparedTracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
-	if len(payloads) == 0 {
+	if len(prepared) == 0 {
 		// nothing to do
 		return
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
-	log.Debugf("Serializing %d tracer payloads.", len(payloads))
+	log.Debugf("Serializing %d tracer payloads.", len(prepared))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
 		HostName:           w.hostname,
@@ -315,23 +306,21 @@ func (w *TraceWriterV1) flushPayloadsV1(payloads []*idx.TracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		IdxTracerPayloads:  payloads,
+		// IdxTracerPayloads is not set - we use prepared payloads directly
 	}
 	if w.apmMode != "" {
 		p.Tags = map[string]string{tagAPMMode: w.apmMode}
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
-	w.serialize(&p)
+	w.serializePrepared(&p, prepared)
 }
 
-func (w *TraceWriterV1) serialize(pl *pb.AgentPayload) {
-	// Use VT proto marshaler with pooled buffer (payloads are already compacted via CompactStrings)
-	size := pl.SizeVT()
-	b := getBS(size)
-	defer outPool.Put(b)
-
-	_, err := pl.MarshalToSizedBufferVT(b)
+// serializePrepared serializes an AgentPayload with pre-prepared TracerPayloads.
+// This reuses the pre-computed string compaction from PrepareTracerPayload.
+func (w *TraceWriterV1) serializePrepared(pl *pb.AgentPayload, prepared []*pb.PreparedTracerPayload) {
+	// Use the prepared marshal function that reuses pre-computed compaction
+	b, err := pb.MarshalAgentPayloadPrepared(pl, prepared)
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
