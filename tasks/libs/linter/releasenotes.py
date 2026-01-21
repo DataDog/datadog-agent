@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import yaml
-from docutils.core import publish_doctree
-from docutils.nodes import system_message
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -174,6 +172,14 @@ def validate_rst(text: str) -> list[RSTLintError]:
 
     # First check for Markdown patterns
     errors.extend(detect_markdown_patterns(text))
+
+    # Lazy import docutils to avoid import errors when not installed
+    try:
+        from docutils.core import publish_doctree
+        from docutils.nodes import system_message
+    except ImportError:
+        # docutils not installed, skip RST validation but keep Markdown detection
+        return errors
 
     # Then validate with docutils
     try:

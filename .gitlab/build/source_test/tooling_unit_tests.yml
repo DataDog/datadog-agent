@@ -9,5 +9,4 @@ invoke_unit_tests:
     - !reference [.on_invoke_tasks_changes]
   script:
     - dda self dep sync -f legacy-tasks -f legacy-kernel-matrix-testing
-    - dda self pip install docutils types-docutils
     - dda inv -- -e invoke-unit-tests.run
