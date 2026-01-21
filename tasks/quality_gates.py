@@ -9,15 +9,13 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.git import get_ancestor
 from tasks.github_tasks import pr_commenter
 from tasks.libs.ciproviders.github_api import GithubAPI, create_datadog_agent_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import query_metrics
 from tasks.libs.common.git import (
     create_tree,
-    get_ancestor_base_branch,
-    get_commit_sha,
-    get_common_ancestor,
     is_a_release_branch,
 )
 from tasks.libs.common.utils import running_in_ci
@@ -745,20 +743,7 @@ def parse_and_trigger_gates(ctx, config_path: str = GATE_CONFIG_PATH) -> list[St
     # Calculate relative sizes (delta from ancestor) before sending metrics
     # This is done for all branches to include delta metrics in Datadog
     # Use get_ancestor_base_branch to correctly handle PRs targeting release branches
-    base_branch = get_ancestor_base_branch(branch)
-    # get_common_ancestor is supposed to fetch this but it doesn't, so we do it here explicitly
-    ctx.run(f"git fetch origin {branch.removeprefix('origin/')}", hide=True)
-    ctx.run(f"git fetch origin {base_branch.removeprefix('origin/')}", hide=True)
-    ancestor = get_common_ancestor(ctx, "HEAD", base_branch)
-    current_commit = get_commit_sha(ctx)
-    # Detect if we're on main branch (ancestor == current commit means merge-base is HEAD itself)
-    # This is used to determine if bypass tolerance should apply (only for PRs, not main)
-    is_on_main_branch = ancestor == current_commit
-    # When on main/release branch, get_common_ancestor returns HEAD itself since merge-base of HEAD and origin/<branch>
-    # is the current commit. In this case, use the parent commit as the ancestor instead.
-    if is_on_main_branch:
-        ancestor = get_commit_sha(ctx, commit="HEAD~1")
-        print(color_message(f"On main branch, using parent commit {ancestor} as ancestor", "cyan"))
+    ancestor = get_ancestor(ctx, branch)
     metric_handler.generate_relative_size(ancestor=ancestor)
 
     # Post-process gate failures: mark as non-blocking if delta <= 0
