@@ -569,6 +569,7 @@ def cws_go_generate(ctx, verbose=False):
             "./pkg/security/serializers/serializers_linux_easyjson.go",
         )
 
+    ctx.run("go generate ./pkg/security/probe/remediations_linux.go")
     ctx.run("go generate ./pkg/security/probe/custom_events.go")
     ctx.run("go generate -tags=linux_bpf,cws_go_generate ./pkg/security/...")
 
@@ -716,6 +717,7 @@ class FailingTask:
 def go_generate_check(ctx):
     tasks = [
         [cws_go_generate],
+        [generate_cws_proto],
         [gen_mocks],
     ]
     failing_tasks = []

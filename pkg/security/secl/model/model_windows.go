@@ -57,6 +57,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// ValidateRule validates the rule
+func (m *Model) ValidateRule(_ *eval.Rule) error {
+	return nil
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 // gengetter: GetEventService

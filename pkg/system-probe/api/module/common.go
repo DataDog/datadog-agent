@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -39,15 +40,16 @@ type Module interface {
 type FactoryDependencies struct {
 	fx.In
 
-	CoreConfig  config.Component
-	Log         log.Component
-	WMeta       workloadmeta.Component
-	FilterStore workloadfilter.Component
-	Tagger      tagger.Component
-	Telemetry   telemetry.Component
-	Compression logscompression.Component
-	Statsd      ddgostatsd.ClientInterface
-	Hostname    hostname.Component
-	Ipc         ipc.Component
-	Traceroute  traceroute.Component
+	SysprobeConfig sysprobeconfig.Component
+	CoreConfig     config.Component
+	Log            log.Component
+	WMeta          workloadmeta.Component
+	FilterStore    workloadfilter.Component
+	Tagger         tagger.Component
+	Telemetry      telemetry.Component
+	Compression    logscompression.Component
+	Statsd         ddgostatsd.ClientInterface
+	Hostname       hostname.Component
+	Ipc            ipc.Component
+	Traceroute     traceroute.Component
 }

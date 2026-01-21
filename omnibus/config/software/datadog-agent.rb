@@ -242,12 +242,17 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # APM Injection agent
-  if windows_target?
-    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-      command "dda inv -- -e agent.generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
-      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+  # Secret Backend (secret-generic-connector)
+  # TODO: (next) fips support
+  if !fips_mode? && !heroku_target?
+    command "dda inv -- -e secret-backend.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    if windows_target?
+      copy 'bin/secret-backend/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+    else
+      copy 'bin/secret-backend/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
+    mkdir "#{install_dir}/LICENSES"
+    copy 'cmd/secret-backend/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
   end
 
   if osx_target?
@@ -269,7 +274,12 @@ build do
 
     erb source: "gui.launchd.plist.erb",
         dest: "#{conf_dir}/com.datadoghq.gui.plist.example",
-        mode: 0644
+        mode: 0644,
+        vars: {
+          # Due to how install_dir actually matches where the Agent is built rather than
+          # its actual final destination, we hardcode here the currently sole supported install location
+          install_dir: "/opt/datadog-agent",
+        }
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"

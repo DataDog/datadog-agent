@@ -60,7 +60,7 @@ func FuzzNodeOps(f *testing.F) {
 		cloned := root.Clone()
 		_ = cloned.ChildrenKeys()
 
-		_ = root.DumpSettings(func(_ model.Source) bool { return true })
+		_ = root.dumpSettings(true)
 
 		// Build a secondary tree using newNodeTree from a map and merge it
 		srcMap := map[string]interface{}{

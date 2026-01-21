@@ -271,6 +271,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath       string                   `json:"channel_path,omitempty"`   // Windows Event
 		Service           string                   `json:"service,omitempty"`
 		Source            string                   `json:"source,omitempty"`
+		SourceCategory    string                   `json:"source_category,omitempty"`
 		Tags              []string                 `json:"tags,omitempty"`
 		ProcessingRules   []*ProcessingRule        `json:"log_processing_rules,omitempty"`
 		AutoMultiLine     *bool                    `json:"auto_multi_line_detection,omitempty"`
@@ -285,6 +286,7 @@ func (c *LogsConfig) PublicJSON() ([]byte, error) {
 		ChannelPath:       c.ChannelPath,
 		Service:           c.Service,
 		Source:            c.Source,
+		SourceCategory:    c.SourceCategory,
 		Tags:              c.Tags,
 		ProcessingRules:   c.ProcessingRules,
 		AutoMultiLine:     c.AutoMultiLine,
@@ -373,8 +375,12 @@ func (c *LogsConfig) validateTailingMode() error {
 	if !found && c.TailingMode != "" {
 		return fmt.Errorf("invalid tailing mode '%v' for %v", c.TailingMode, c.Path)
 	}
-	if ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning) {
-		return fmt.Errorf("tailing from the beginning is not supported for wildcard path %v", c.Path)
+
+	isWildcardWithBeginning := ContainsWildcard(c.Path) && (mode == Beginning || mode == ForceBeginning)
+	noFingerprinting := c.FingerprintConfig == nil || c.FingerprintConfig.FingerprintStrategy == "disabled"
+
+	if isWildcardWithBeginning && noFingerprinting {
+		log.Warnf("Using wildcard path %v with start_position: %v without fingerprinting may cause duplicate log reads during rotation.", c.Path, c.TailingMode)
 	}
 	return nil
 }

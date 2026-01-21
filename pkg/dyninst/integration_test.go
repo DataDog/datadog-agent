@@ -8,6 +8,7 @@
 package dyninst_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"embed"
@@ -34,8 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-
-	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/compiler"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
@@ -69,27 +68,14 @@ func TestDyninst(t *testing.T) {
 
 	sem := dyninsttest.MakeSemaphore()
 
-	// The debug variants of the tests spew logs to the trace_pipe, so we need
-	// to clear it after the tests to avoid interfering with other tests.
-	// Leave the option to disable this behavior for debugging purposes.
-	dontClear, _ := strconv.ParseBool(os.Getenv("DONT_CLEAR_TRACE_PIPE"))
-	if !dontClear {
-		t.Logf("clearing trace_pipe!")
-		tp, err := tracefs.OpenFile("trace_pipe", os.O_RDONLY, 0)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			for {
-				deadline := time.Now().Add(100 * time.Millisecond)
-				require.NoError(t, tp.SetReadDeadline(deadline))
-				n, err := io.Copy(io.Discard, tp)
-				require.ErrorIs(t, err, os.ErrDeadlineExceeded)
-				if n == 0 {
-					break
-				}
-			}
-			t.Logf("closing trace_pipe!")
-			require.NoError(t, tp.Close())
-		})
+	// The debug variants of the tests spew logs to the trace_pipe. We collect
+	// these logs organized by PID so they can be output on test failure.
+	// Set DONT_COLLECT_TRACE_PIPE=1 to disable collection (e.g., for manual debugging).
+	var collector *tracePipeCollector
+	dontCollect, _ := strconv.ParseBool(os.Getenv("DONT_COLLECT_TRACE_PIPE"))
+	if !dontCollect {
+		collector = newTracePipeCollector(t)
+		t.Cleanup(func() { collector.Close() })
 	}
 	rewrite, _ := strconv.ParseBool(os.Getenv("REWRITE"))
 
@@ -100,7 +86,7 @@ func TestDyninst(t *testing.T) {
 		}
 		t.Run(svc, func(t *testing.T) {
 			runIntegrationTestSuite(
-				t, svc, rewrite, sem, cfgs...,
+				t, svc, rewrite, sem, collector, cfgs...,
 			)
 		})
 	}
@@ -112,10 +98,12 @@ func testDyninst(
 	testProgConfig testprogs.Config,
 	servicePath string,
 	probes []ir.ProbeDefinition,
+	resultNames map[string]string,
 	rewriteEnabled bool,
 	expOut map[string][]json.RawMessage,
 	debug bool,
 	sem dyninsttest.Semaphore,
+	collector *tracePipeCollector,
 ) map[string][]json.RawMessage {
 	defer sem.Acquire()()
 	start := time.Now()
@@ -167,15 +155,39 @@ func testDyninst(
 	t.Cleanup(m.Close)
 
 	// Launch the sample service.
-	t.Logf("launching %s", service)
 	ctx := context.Background()
 	sampleProc, sampleStdin := dyninsttest.StartProcess(
 		ctx, t, tempDir, servicePath,
 	)
+	pid := sampleProc.Process.Pid
+	t.Logf("launched %s with pid %d", service, pid)
 	defer func() {
 		_ = sampleProc.Process.Kill()
 		_ = sampleProc.Wait()
 	}()
+
+	// On failure in debug mode, output trace_pipe logs for this process.
+	t.Cleanup(func() {
+		if collector == nil || !t.Failed() || !debug {
+			return
+		}
+		if err := collector.Flush(); err != nil {
+			t.Logf("trace pipe flush error: %v", err)
+		}
+		f, err := collector.GetLogs(pid)
+		if err != nil {
+			t.Logf("trace pipe GetLogs error: %v", err)
+			return
+		}
+		if f == nil {
+			return
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			t.Log(scanner.Text())
+		}
+	})
 
 	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(sampleProc.Process.Pid))
 	require.NoError(t, err)
@@ -189,7 +201,7 @@ func testDyninst(
 					Service:    service,
 				},
 				RuntimeID:         runtimeID,
-				Probes:            probes,
+				Probes:            slices.Clone(probes),
 				ShouldUploadSymDB: false,
 			},
 		},
@@ -227,7 +239,7 @@ func testDyninst(
 		totalExpectedEvents = math.MaxInt
 	} else {
 		for _, p := range probes {
-			totalExpectedEvents += len(expOut[p.GetID()])
+			totalExpectedEvents += len(expOut[resultNames[p.GetID()]])
 		}
 	}
 
@@ -261,7 +273,8 @@ func testDyninst(
 	retMap := make(map[string][]json.RawMessage)
 	debugEnabled := os.Getenv("DEBUG") != ""
 	redactors := append(defaultRedactors[:len(defaultRedactors):len(defaultRedactors)],
-		makeRedactorForManyFloats(testProgConfig.GOARCH))
+		makeRedactorForManyFloats(testProgConfig.GOARCH),
+		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
 		if debugEnabled {
@@ -269,14 +282,15 @@ func testDyninst(
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
 		expIdx := len(retMap[log.id])
-		retMap[log.id] = append(retMap[log.id], redacted)
+		id := resultNames[log.id]
+		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
-			expOut, ok := expOut[log.id]
-			assert.True(t, ok, "expected output for probe %s not found", log.id)
+			expOut, ok := expOut[id]
+			assert.True(t, ok, "expected output for probe %s not found", id)
 			if assert.Less(
 				t, expIdx, len(expOut),
 				"expected at least %d events for probe %s, got %d",
-				expIdx+1, log.id, len(expOut),
+				expIdx+1, id, len(expOut),
 			) {
 				assert.Equal(t, string(expOut[expIdx]), string(redacted))
 			}
@@ -292,6 +306,7 @@ func runIntegrationTestSuite(
 	service string,
 	rewrite bool,
 	sem dyninsttest.Semaphore,
+	collector *tracePipeCollector,
 	cfgs ...testprogs.Config,
 ) {
 	var outputs = struct {
@@ -308,8 +323,6 @@ func runIntegrationTestSuite(
 			validateAndSaveOutputs(t, service, outputs.byTest)
 		})
 	}
-	probes := testprogs.MustGetProbeDefinitions(t, service)
-	probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
 	var expectedOutput map[string][]json.RawMessage
 	if !rewrite {
 		var err error
@@ -322,6 +335,49 @@ func runIntegrationTestSuite(
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
 	for _, cfg := range cfgs {
+		probes := testprogs.MustGetProbeDefinitions(t, service)
+		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
+		// Some probes have different output in different versions, due to
+		// compiler changes. We rename the probes to organize output into different files.
+		resultNames := make(map[string]string)
+		otherVersionNames := make(map[string]struct{})
+		for _, p := range probes {
+			var versions []string
+			for _, tag := range p.GetTags() {
+				if strings.HasPrefix(tag, "version_diff:") {
+					versionDiff := strings.TrimPrefix(tag, "version_diff:")
+					versions = append(versions, versionDiff)
+					if cfg.GOTOOLCHAIN >= versionDiff {
+						resultNames[p.GetID()] = p.GetID() + "_geq_" + versionDiff
+						break
+					}
+				}
+			}
+			if versions == nil {
+				resultNames[p.GetID()] = p.GetID()
+				continue
+			}
+			// Find the largest version diff tag that applies to the version we are running with.
+			// Save other variants to recognize unexpected outputs.
+			slices.Sort(versions)
+			slices.Reverse(versions)
+			versions = append(versions, "")
+			found := false
+			for _, version := range versions {
+				var resultName string
+				if version == "" {
+					resultName = p.GetID()
+				} else {
+					resultName = p.GetID() + "_geq_" + version
+				}
+				if !found && cfg.GOTOOLCHAIN >= version {
+					resultNames[p.GetID()] = resultName
+					found = true
+				} else {
+					otherVersionNames[resultName] = struct{}{}
+				}
+			}
+		}
 		t.Run(cfg.String(), func(t *testing.T) {
 			if cfg.GOARCH != runtime.GOARCH {
 				t.Skipf("cross-execution is not supported, running on %s, skipping %s", runtime.GOARCH, cfg.GOARCH)
@@ -332,9 +388,10 @@ func runIntegrationTestSuite(
 			for _, debug := range []bool{false, true} {
 				runTest := func(t *testing.T, probeSlice []ir.ProbeDefinition) map[string][]json.RawMessage {
 					t.Parallel()
+					probeSlice = slices.Clone(probeSlice)
 					actual := testDyninst(
-						t, service, cfg, bin, probeSlice, rewrite, expectedOutput,
-						debug, sem,
+						t, service, cfg, bin, probeSlice, resultNames, rewrite, expectedOutput,
+						debug, sem, collector,
 					)
 					if t.Failed() {
 						return nil
@@ -358,7 +415,15 @@ func runIntegrationTestSuite(
 						// disk.
 						unexpectedProbes := slices.DeleteFunc(
 							slices.Collect(maps.Keys(expectedOutput)),
-							func(id string) bool { _, ok := got[id]; return ok },
+							func(id string) bool {
+								if _, ok := got[id]; ok {
+									return true
+								}
+								if _, ok := otherVersionNames[id]; ok {
+									return true
+								}
+								return false
+							},
 						)
 						require.Empty(
 							t, unexpectedProbes,
@@ -710,5 +775,14 @@ func makeRedactorForManyFloats(arch string) jsonRedactor {
 			}
 			return jsontext.Value(`"[onlyOnAmd64]"`)
 		}),
+	)
+}
+
+func makeRedactorForFunctionWithChangingState() jsonRedactor {
+	return redactor(
+		matchRegexp(
+			"/debugger/snapshot/captures/lines/.*/locals/aPerArch/value",
+		),
+		replacement(`"[per-arch-value]"`),
 	)
 }

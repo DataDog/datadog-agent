@@ -49,17 +49,18 @@ const (
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
 
 	// install script
-	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
-	envRuntimeMetricsEnabled     = "DD_RUNTIME_METRICS_ENABLED"
-	envLogsInjection             = "DD_LOGS_INJECTION"
-	envAPMTracingEnabled         = "DD_APM_TRACING_ENABLED"
-	envProfilingEnabled          = "DD_PROFILING_ENABLED"
-	envDataStreamsEnabled        = "DD_DATA_STREAMS_ENABLED"
-	envAppsecEnabled             = "DD_APPSEC_ENABLED"
-	envIastEnabled               = "DD_IAST_ENABLED"
-	envDataJobsEnabled           = "DD_DATA_JOBS_ENABLED"
-	envAppsecScaEnabled          = "DD_APPSEC_SCA_ENABLED"
-	envInfrastructureMode        = "DD_INFRASTRUCTURE_MODE"
+	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRuntimeMetricsEnabled       = "DD_RUNTIME_METRICS_ENABLED"
+	envLogsInjection               = "DD_LOGS_INJECTION"
+	envAPMTracingEnabled           = "DD_APM_TRACING_ENABLED"
+	envProfilingEnabled            = "DD_PROFILING_ENABLED"
+	envDataStreamsEnabled          = "DD_DATA_STREAMS_ENABLED"
+	envAppsecEnabled               = "DD_APPSEC_ENABLED"
+	envIastEnabled                 = "DD_IAST_ENABLED"
+	envDataJobsEnabled             = "DD_DATA_JOBS_ENABLED"
+	envAppsecScaEnabled            = "DD_APPSEC_SCA_ENABLED"
+	envInfrastructureMode          = "DD_INFRASTRUCTURE_MODE"
+	envTracerLogsCollectionEnabled = "DD_APP_LOGS_COLLECTION_ENABLED"
 )
 
 // Windows MSI options
@@ -140,15 +141,16 @@ type InstallScriptEnv struct {
 	APMInstrumentationEnabled string
 
 	// APM features toggles
-	RuntimeMetricsEnabled *bool
-	LogsInjection         *bool
-	APMTracingEnabled     *bool
-	ProfilingEnabled      string
-	DataStreamsEnabled    *bool
-	AppsecEnabled         *bool
-	IastEnabled           *bool
-	DataJobsEnabled       *bool
-	AppsecScaEnabled      *bool
+	RuntimeMetricsEnabled       *bool
+	LogsInjection               *bool
+	APMTracingEnabled           *bool
+	ProfilingEnabled            string
+	DataStreamsEnabled          *bool
+	AppsecEnabled               *bool
+	IastEnabled                 *bool
+	DataJobsEnabled             *bool
+	AppsecScaEnabled            *bool
+	TracerLogsCollectionEnabled *bool
 }
 
 // Env contains the configuration for the installer.
@@ -259,16 +261,17 @@ func FromEnv() *Env {
 		},
 
 		InstallScript: InstallScriptEnv{
-			APMInstrumentationEnabled: getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
-			RuntimeMetricsEnabled:     getBoolEnv(envRuntimeMetricsEnabled),
-			LogsInjection:             getBoolEnv(envLogsInjection),
-			APMTracingEnabled:         getBoolEnv(envAPMTracingEnabled),
-			ProfilingEnabled:          getEnvOrDefault(envProfilingEnabled, ""),
-			DataStreamsEnabled:        getBoolEnv(envDataStreamsEnabled),
-			AppsecEnabled:             getBoolEnv(envAppsecEnabled),
-			IastEnabled:               getBoolEnv(envIastEnabled),
-			DataJobsEnabled:           getBoolEnv(envDataJobsEnabled),
-			AppsecScaEnabled:          getBoolEnv(envAppsecScaEnabled),
+			APMInstrumentationEnabled:   getEnvOrDefault(envApmInstrumentationEnabled, APMInstrumentationNotSet),
+			RuntimeMetricsEnabled:       getBoolEnv(envRuntimeMetricsEnabled),
+			LogsInjection:               getBoolEnv(envLogsInjection),
+			APMTracingEnabled:           getBoolEnv(envAPMTracingEnabled),
+			ProfilingEnabled:            getEnvOrDefault(envProfilingEnabled, ""),
+			DataStreamsEnabled:          getBoolEnv(envDataStreamsEnabled),
+			AppsecEnabled:               getBoolEnv(envAppsecEnabled),
+			IastEnabled:                 getBoolEnv(envIastEnabled),
+			DataJobsEnabled:             getBoolEnv(envDataJobsEnabled),
+			AppsecScaEnabled:            getBoolEnv(envAppsecScaEnabled),
+			TracerLogsCollectionEnabled: getBoolEnv(envTracerLogsCollectionEnabled),
 		},
 
 		Tags: append(
@@ -421,7 +424,7 @@ func DetectCentos6() bool {
 func parseAPMLanguagesEnv() map[ApmLibLanguage]ApmLibVersion {
 	apmLanguages := os.Getenv(envApmLanguages)
 	res := map[ApmLibLanguage]ApmLibVersion{}
-	for _, language := range strings.Split(apmLanguages, " ") {
+	for language := range strings.SplitSeq(apmLanguages, " ") {
 		if len(language) > 0 {
 			res[ApmLibLanguage(language)] = ""
 		}
@@ -437,8 +440,8 @@ func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map
 		if len(keyVal) != 2 {
 			continue
 		}
-		if strings.HasPrefix(keyVal[0], envPrefix+"_") {
-			pkg := strings.TrimPrefix(keyVal[0], envPrefix+"_")
+		if after, ok := strings.CutPrefix(keyVal[0], envPrefix+"_"); ok {
+			pkg := after
 			pkg = strings.ToLower(pkg)
 			pkg = strings.ReplaceAll(pkg, "_", "-")
 			overridesByPackage[pkg] = convert(keyVal[1])

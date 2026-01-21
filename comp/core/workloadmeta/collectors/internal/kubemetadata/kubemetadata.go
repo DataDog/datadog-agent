@@ -225,9 +225,14 @@ func (c *collector) parsePods(
 			log.Debugf("Could not fetch metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
-		// Skip `kube_service` label for pods that are not ready (since their endpoint will be disabled from the service)
 		services := []string{}
-		if kubelet.IsPodReady(pod) {
+
+		// collectService if new kube_service bahavior is active
+		// or if not active, use old condition IsPodReady
+
+		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness") || kubelet.IsPodReady(pod)
+
+		if collectService {
 			for _, data := range metadata {
 				d := strings.Split(data, ":")
 				switch len(d) {

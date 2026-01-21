@@ -73,6 +73,8 @@ const (
 	KubernetesDeployment EntityIDPrefix = "deployment"
 	// KubernetesMetadata is the prefix `kubernetes_metadata`
 	KubernetesMetadata EntityIDPrefix = "kubernetes_metadata"
+	// KubernetesCapabilities is the prefix `kubernetes_capabilities`
+	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
 	KubernetesPodUID EntityIDPrefix = "kubernetes_pod_uid"
 	// Process is the prefix `process`
@@ -102,6 +104,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		GPU:                    {},
 		Kubelet:                {},
 		Crd:                    {},
+		KubernetesCapabilities: {},
 	}
 }
 

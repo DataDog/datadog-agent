@@ -14,6 +14,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/model/textparse"
 )
@@ -38,7 +39,7 @@ type MetricFamily struct {
 // trimHistogramSuffix removes histogram-specific suffixes (_bucket, _sum, _count).
 func trimHistogramSuffix(name string) string {
 	for _, suffix := range []string{"_bucket", "_sum", "_count"} {
-		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
+		if trimmed, ok := strings.CutSuffix(name, suffix); ok {
 			return trimmed
 		}
 	}
@@ -48,7 +49,7 @@ func trimHistogramSuffix(name string) string {
 // trimSummarySuffix removes summary-specific suffixes (_sum, _count).
 func trimSummarySuffix(name string) string {
 	for _, suffix := range []string{"_sum", "_count"} {
-		if trimmed := strings.TrimSuffix(name, suffix); trimmed != name {
+		if trimmed, ok := strings.CutSuffix(name, suffix); ok {
 			return trimmed
 		}
 	}
@@ -113,7 +114,7 @@ func ParseMetricsWithFilter(data []byte, filter []string) ([]MetricFamily, error
 			_, ts, value := parser.Series()
 			parser.Labels(&lbls)
 
-			rawName := lbls.Get(labels.MetricName)
+			rawName := lbls.Get(model.MetricNameLabel)
 
 			// Fast path: check if raw name matches current family (common for COUNTER/GAUGE)
 			if len(result) == 0 || result[len(result)-1].Name != rawName {

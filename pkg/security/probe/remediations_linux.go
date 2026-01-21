@@ -9,7 +9,6 @@
 package probe
 
 import (
-	json "encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,8 +26,8 @@ type remediationAction struct {
 	actionType         uint8
 	scope              string
 	triggered          bool
-	containerID        string
-	containerCreatedAt uint64
+	containerContext   RemediationContainerContext
+	processContext     RemediationProcessContext
 	policy             string
 	isolationReApplied bool
 	isolationNew       bool
@@ -46,13 +45,21 @@ const (
 
 type RuleTags map[string]string
 
+// RemediationProcessContext represents the process context for remediation events
+// easyjson:json
+type RemediationProcessContext struct {
+	PID uint32 `json:"pid,omitempty"`
+}
+
 // RemediationContainerContext represents the container context for remediation events
+// easyjson:json
 type RemediationContainerContext struct {
 	CreatedAt uint64 `json:"created_at,omitempty"`
 	ID        string `json:"id,omitempty"`
 }
 
 // RemediationAgentContext represents the agent context for remediation events
+// easyjson:json
 type RemediationAgentContext struct {
 	RuleID        string `json:"rule_id"`
 	OS            string `json:"os"`
@@ -64,22 +71,24 @@ type RemediationAgentContext struct {
 }
 
 // RemediationEvent defines a custom remediation event
+// easyjson:json
 type RemediationEvent struct {
-	Date              string                       `json:"date"`
-	Container         *RemediationContainerContext `json:"container,omitempty"`
-	Agent             RemediationAgentContext      `json:"agent"`
-	EventType         string                       `json:"event_type"`
-	Service           string                       `json:"service"`
-	Scope             string                       `json:"scope"`
-	RemediationAction string                       `json:"remediation_action"`
-	Status            string                       `json:"status"`
-	Timestamp         int64                        `json:"timestamp"`
-	RuleTags          RuleTags                     `json:"rule_tags,omitempty"`
+	Date              string                      `json:"date"`
+	Process           RemediationProcessContext   `json:"process,omitempty"`
+	Container         RemediationContainerContext `json:"container,omitempty"`
+	Agent             RemediationAgentContext     `json:"agent"`
+	EventType         string                      `json:"event_type"`
+	Service           string                      `json:"service"`
+	Scope             string                      `json:"scope"`
+	RemediationAction string                      `json:"remediation_action"`
+	Status            string                      `json:"status"`
+	Timestamp         int64                       `json:"timestamp"`
+	RuleTags          RuleTags                    `json:"rule_tags,omitempty"`
 }
 
-// ToJSON marshal the kill action event
+// ToJSON marshals the remediation event to JSON
 func (k *RemediationEvent) ToJSON() ([]byte, error) {
-	return json.Marshal(k)
+	return utils.MarshalEasyJSON(k)
 }
 
 func getAgentEventID(rule *rules.Rule) string {
@@ -106,10 +115,6 @@ func getRemediationTagBool(rule *rules.Rule) bool {
 // activeRemediationsLock must be held
 func NewRemediationEvent(p *EBPFProbe, agentID string, status string, remediationAction string) *RemediationEvent {
 	remediation := p.activeRemediations[agentID]
-	containerContext := &RemediationContainerContext{
-		CreatedAt: remediation.containerCreatedAt,
-		ID:        remediation.containerID,
-	}
 
 	now := time.Now()
 
@@ -129,7 +134,8 @@ func NewRemediationEvent(p *EBPFProbe, agentID string, status string, remediatio
 
 	return &RemediationEvent{
 		Date:              now.Format(time.RFC3339Nano),
-		Container:         containerContext,
+		Container:         remediation.containerContext,
+		Process:           remediation.processContext,
 		Agent:             agentContext,
 		EventType:         "remediation_status",
 		Service:           "runtime-security-agent",
@@ -146,9 +152,9 @@ func getTagsFromRule(rule *rules.Rule) RuleTags {
 
 	for _, tag := range rule.Tags {
 		// Extract key:value from "key:value"
-		if idx := strings.Index(tag, ":"); idx != -1 {
-			key := tag[:idx]
-			value := tag[idx+1:]
+		if before, after, ok := strings.Cut(tag, ":"); ok {
+			key := before
+			value := after
 			ruleTags[key] = value
 		}
 	}
@@ -234,8 +240,9 @@ func (p *EBPFProbe) handleKillRemediaitonAction(rule *rules.Rule, ev *model.Even
 			// Record that the kill action was triggered
 			if found {
 				remediation.triggered = true
-				remediation.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
-				remediation.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+				remediation.processContext.PID = ev.ProcessContext.Process.Pid
+				remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+				remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 				remediation.policy = ""
 				remediation.ruleTags = getTagsFromRule(rule)
 
@@ -269,8 +276,10 @@ func (p *EBPFProbe) handleNetworkRemediaitonAction(rule *rules.Rule, ev *model.E
 				// We already re-applied the isolation, no need to send the event
 				return
 			}
-			remediation.containerID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
-			remediation.containerCreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
+
+			remediation.processContext.PID = ev.ProcessContext.Process.Pid
+			remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
+			remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
 			remediation.policy = policy.String()
 			networkFilterEvent := NewRemediationEvent(p, agentEventID, status, "network_isolation")
 			p.SendCustomRemediationEvent(networkFilterEvent)

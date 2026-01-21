@@ -170,6 +170,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleGPU(ev)...)
 			case workloadmeta.KindCRD:
 				tagInfos = append(tagInfos, c.handleCRD(ev)...)
+			case workloadmeta.KindKubeCapabilities:
+				tagInfos = append(tagInfos, c.handleKubeCapabilities(ev)...)
 			default:
 				log.Errorf("cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
 			}
@@ -752,12 +754,27 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 
 // extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
 func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+	gpuUUID := strings.ToLower(gpu.ID)
 	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
-	tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(gpu.ID))
+	tagList.AddLow(tags.KubeGPUUUID, gpuUUID)
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
+
+	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
+		tagList.AddLow(tags.GPUSlicingMode, "mig")
+	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
+		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
+	} else {
+		tagList.AddLow(tags.GPUSlicingMode, "none")
+	}
+
+	if gpu.ParentGPUUUID == "" {
+		tagList.AddLow(tags.GPUParentGPUUUID, gpuUUID)
+	} else {
+		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
+	}
 }
 
 func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInfo {
@@ -777,6 +794,28 @@ func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInf
 		{
 			Source:               crdSource,
 			EntityID:             common.BuildTaggerEntityID(crd.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []*types.TagInfo {
+	kubeCapabilities := ev.Entity.(*workloadmeta.KubeCapabilities)
+
+	tagList := taglist.NewTagList()
+	tagList.AddLow(tags.KubeServerVersion, kubeCapabilities.Version.String())
+
+	low, orch, high, standard := tagList.Compute()
+
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kubeCapabilitiesSource,
+			EntityID:             common.BuildTaggerEntityID(kubeCapabilities.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -990,7 +1029,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 
 func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workloadmeta.Container, tags *taglist.TagList) {
 	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
-		for _, pair := range strings.Split(otelResourceAttributes, ",") {
+		for pair := range strings.SplitSeq(otelResourceAttributes, ",") {
 			fields := strings.SplitN(pair, "=", 2)
 			if len(fields) != 2 {
 				log.Debugf("invalid OpenTelemetry resource attribute: %s", pair)
