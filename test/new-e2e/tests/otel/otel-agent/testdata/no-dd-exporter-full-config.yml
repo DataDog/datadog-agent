@@ -84,6 +84,7 @@ extensions:
       path: /metadata
       read_header_timeout: 0s
       tls: null
+      transport: tcp
       write_timeout: 0s
     idle_conn_timeout: 1m30s
     max_idle_conns: 100
@@ -182,6 +183,7 @@ receivers:
         read_header_timeout: 0s
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
   prometheus/dd-autoconfigured:
     api_server:
