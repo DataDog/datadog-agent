@@ -18,6 +18,7 @@ import (
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 // clusterCAData holds the cluster CA configuration and certificate data
@@ -149,6 +150,7 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 	}
 
 	var serverHost string
+	var dnsNames []string
 
 	// If the process is a Cluster Agent, add the external IP and DNS name to the SANs
 	if isClusterAgent {
@@ -165,6 +167,18 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 		if err != nil {
 			return fmt.Errorf("unable to get pod IP from cluster agent endpoint: %w", err)
 		}
+
+		// Add Kubernetes service DNS names for the cluster agent
+		serviceName := config.GetString("cluster_agent.kubernetes_service_name")
+		ns := namespace.GetResourcesNamespace()
+		if serviceName != "" && ns != "" {
+			dnsNames = []string{
+				serviceName,
+				fmt.Sprintf("%s.%s", serviceName, ns),
+				fmt.Sprintf("%s.%s.svc", serviceName, ns),
+				fmt.Sprintf("%s.%s.svc.cluster.local", serviceName, ns),
+			}
+		}
 	} else if isCLC {
 		// If the process is a CLC Runner, add the CLC Runner host to the SANs
 		clcRunnerHost := config.GetString("clc_runner_host")
@@ -179,7 +193,12 @@ func (c *clusterCAData) setupCertificateFactoryWithClusterCA(config configModel.
 	if ip != nil {
 		factory.additionalIPs = []net.IP{ip}
 	} else if serverHost != "" {
-		factory.additionalDNSNames = []string{serverHost}
+		dnsNames = append(dnsNames, serverHost)
+	}
+
+	// Add all collected DNS names to the factory
+	if len(dnsNames) > 0 {
+		factory.additionalDNSNames = dnsNames
 	}
 
 	return nil
