@@ -44,7 +44,7 @@ func TestMIGDeviceListing(t *testing.T) {
 		require.NotEmpty(t, info.Name, "MIG device name should not be empty")
 
 		// We cannot know for sure the real expected value, but we can be sure that it's greater than 500. This way we avoid
-		// issues when we're just reporing the number of multiprocessors instead of the actual number of cores.
+		// issues when we're just reporting the number of multiprocessors instead of the actual number of cores.
 		require.Greater(t, info.CoreCount, 500, "MIG device should have more than 500 cores")
 	}
 }
