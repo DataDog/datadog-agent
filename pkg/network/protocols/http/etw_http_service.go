@@ -835,6 +835,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 
 	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.AppPool = appPool
+	httpConnLink.http.SubSite = appPool
 	cfg := iisConfig.Load()
 	if cfg != nil {
 		httpConnLink.http.SiteName = cfg.GetSiteNameFromID(httpConnLink.http.SiteID)
@@ -845,9 +846,6 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 		if appPath != "" && appPath != "/" {
 			// Sub-application: set SubSite to AppPool + path
 			httpConnLink.http.SubSite = appPool + appPath
-		} else {
-			// Root application: set SubSite to just AppPool
-			httpConnLink.http.SubSite = appPool
 		}
 	}
 

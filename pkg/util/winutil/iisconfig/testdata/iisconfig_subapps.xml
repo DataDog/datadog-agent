@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <system.applicationHost>
+        <sites>
+            <site name="TestSite" id="2">
+                <application path="/" applicationPool="TestPool1">
+                    <virtualDirectory path="/" physicalPath="c:\testsite" />
+                </application>
+                <application path="/api" applicationPool="TestPool1">
+                    <virtualDirectory path="/" physicalPath="c:\testsite\api" />
+                </application>
+                <application path="/api/web2" applicationPool="TestPool1">
+                    <virtualDirectory path="/" physicalPath="c:\testsite\api\web2" />
+                </application>
+                <bindings>
+                    <binding protocol="http" bindingInformation="*:8080:" />
+                </bindings>
+            </site>
+        </sites>
+    </system.applicationHost>
+</configuration>

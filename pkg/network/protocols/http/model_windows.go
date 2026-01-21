@@ -132,11 +132,6 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
 	} else if (len(tx.TagsFromJson.DDService)) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
-	} else if (len(tx.SubSite)) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.SubSite))
-
-	} else if (len(tx.AppPool)) > 0 {
-		tags = append(tags, fmt.Sprintf("service:%v", tx.AppPool))
 	}
 
 	if (len(tx.TagsFromConfig.DDVersion)) > 0 {

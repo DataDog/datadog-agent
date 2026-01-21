@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -188,13 +189,12 @@ func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string
 		return ""
 	}
 
+	// Convert siteID to string once for comparison
+	siteIDStr := strconv.FormatUint(uint64(siteID), 10)
+
 	// Find the matching site and iterate applications to find longest match
 	for _, site := range iiscfg.xmlcfg.ApplicationHost.Sites {
-		id, err := strconv.Atoi(site.SiteID)
-		if err != nil {
-			continue
-		}
-		if uint32(id) != siteID {
+		if site.SiteID != siteIDStr {
 			continue
 		}
 
@@ -204,8 +204,10 @@ func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string
 			if urlpath == app.Path {
 				return app.Path
 			}
-			if len(app.Path) > 1 && len(urlpath) > len(app.Path) &&
-				urlpath[0:len(app.Path)] == app.Path && urlpath[len(app.Path)] == '/' {
+			// Check if urlpath starts with app.Path and has proper boundary
+			// (either app.Path is "/" or next char is "/")
+			if strings.HasPrefix(urlpath, app.Path) &&
+				(app.Path == "/" || (len(urlpath) > len(app.Path) && urlpath[len(app.Path)] == '/')) {
 				if len(app.Path) > len(longestMatch) {
 					longestMatch = app.Path
 				}
