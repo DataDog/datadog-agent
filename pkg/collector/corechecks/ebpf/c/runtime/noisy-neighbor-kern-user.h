@@ -7,18 +7,6 @@
 // Userspace code interprets these as TIDs for accurate thread-level scheduling metrics
 
 typedef struct {
-    __u64 prev_cgroup_id;
-    __u64 cgroup_id;
-    __u64 runq_lat;
-    __u64 ts;
-    __u64 pid;
-    __u64 prev_pid;
-
-    char prev_cgroup_name[129];
-    char cgroup_name[129];
-} runq_event_t;
-
-typedef struct {
     __u64 sum_latencies_ns;
     __u64 event_count;
     __u64 preemption_count;

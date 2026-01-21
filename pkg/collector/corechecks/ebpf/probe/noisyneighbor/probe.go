@@ -12,8 +12,6 @@ package noisyneighbor
 
 import (
 	"fmt"
-	"os"
-	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
@@ -21,25 +19,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
 
 // 5.13 for kfuncs
 // 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
+// PERFORMANCE OPTIMIZATION:
+// Instead of scanning the cgroup_pids map for each cgroup (O(N×M) complexity),
+// we scan it once per GetAndFlush and build counts for all cgroups (O(M) complexity).
+//
+// Previous approach: For each cgroup, scan ALL entries in the cgroup_pids BPF map
+//   - 100 cgroups × 10,000 total PIDs = 1,000,000 iterations per GetAndFlush()
+//   - With 1000 cgroups × 100,000 PIDs = 100,000,000 iterations (catastrophic!)
+//
+// Optimized approach: Scan cgroup_pids map once, build counts for all cgroups
+//   - 10,000 PIDs = 10,000 iterations total (not per cgroup!)
+//   - Simple, no ringbuffer overhead, no event drops
+//   - O(M) where M = total PIDs, amortized to O(1) per cgroup
+
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
-	mgr      *ddebpf.Manager
-	runqPool *ddsync.TypedPool[runqEvent]
-
-	// cgroupID -> latest event
-	mtx     sync.Mutex
-	cgIDMap map[uint64]runqEvent
+	mgr *ddebpf.Manager
 }
 
 // NewProbe creates a [Probe]
@@ -52,40 +56,14 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
 	}
 
-	p := &Probe{
-		cgIDMap:  make(map[uint64]runqEvent),
-		runqPool: ddsync.NewDefaultTypedPool[runqEvent](),
-		mtx:      sync.Mutex{},
-	}
-	// TODO noisy: figure out what you want these sizes to be. ringbuf size must be power of 2
-	ringbufSize := 8 * os.Getpagesize()
-	chanSize := 100
-	handler := func(data []byte) {
-		if len(data) == 0 {
-			return
-		}
-		e := p.runqPool.Get()
-		if err := e.UnmarshalBinary(data); err != nil {
-			p.runqPool.Put(e)
-			log.Debugf("failed to unmarshal runq event: %v", err)
-			return
-		}
-		p.handleEvent(e)
-	}
-	eventHandler, err := perf.NewEventHandler("runq_events", handler,
-		perf.UseRingBuffers(ringbufSize, chanSize),
-		perf.SendTelemetry(cfg.InternalTelemetryEnabled),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create new event handler: %v", err)
-	}
+	p := &Probe{}
 
 	filename := "noisy-neighbor.o"
 	if cfg.BPFDebug {
 		filename = "noisy-neighbor-debug.o"
 	}
 	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
-		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", &ebpftelemetry.ErrorsTelemetryModifier{}, eventHandler)
+		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", &ebpftelemetry.ErrorsTelemetryModifier{})
 		const uid = "noisy"
 		p.mgr.Probes = []*manager.Probe{
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup", UID: uid}},
@@ -94,7 +72,6 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		}
 		p.mgr.Maps = []*manager.Map{
 			{Name: "runq_enqueued"},
-			{Name: "cgroup_id_to_last_event_ts"},
 			{Name: "cgroup_agg_stats"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
@@ -127,8 +104,6 @@ func (p *Probe) Close() {
 // GetAndFlush gets the stats
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	start, _ := ddebpf.NowNanoseconds()
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
 
 	var nnstats []model.NoisyNeighborStats
 	var totalEvents, totalPreemptions, totalLatencies uint64
@@ -144,6 +119,10 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		log.Warn("cgroup_agg_stats map not found")
 		return nnstats
 	}
+
+	// Build PID counts by scanning cgroup_pids map ONCE for all cgroups
+	// This is O(M) where M = total PIDs, much better than O(N×M) per-cgroup scanning
+	pidCounts := p.buildPidCounts()
 
 	// Iterate through all cgroups in the aggregation map
 	iter := aggMap.Iterate()
@@ -176,7 +155,8 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		// Collect key for deletion
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-		uniquePidCount := p.countUniquePidsForCgroup(cgroupID)
+		// Get unique PID count from our pre-built map
+		uniquePidCount := pidCounts[cgroupID]
 
 		// Track cgroups that were preempted but never scheduled (extremely throttled)
 		// Include these as special entries so the check can count them
@@ -202,7 +182,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		}
 
 		// Build stats entry with aggregated data
-		// Cgroup name now comes from aggregation map (reliable, not rate-limited)
+		// Cgroup name comes from aggregation map (reliable, comprehensive)
 		stat := model.NoisyNeighborStats{
 			CgroupID:        cgroupID,
 			CgroupName:      cgroupName,
@@ -210,18 +190,6 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			EventCount:      cgroupEvents,
 			PreemptionCount: cgroupPreemptions,
 			UniquePidCount:  uniquePidCount,
-		}
-
-		// Populate legacy fields from ringbuffer events (if available)
-		// These are rate-limited individual samples kept for backwards compatibility
-		// Only used for distribution metrics and context switch tracking
-		if event, ok := p.cgIDMap[cgroupID]; ok {
-			stat.PrevCgroupName = event.PrevCgroupName
-			stat.PrevCgroupID = event.PrevCgroupID
-			stat.RunqLatencyNs = event.RunqLatency
-			stat.TimestampNs = event.Timestamp
-			stat.Pid = event.Pid
-			stat.PrevPid = event.PrevPid
 		}
 
 		nnstats = append(nnstats, stat)
@@ -238,9 +206,6 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		}
 		p.deletePidsForCgroup(cgID)
 	}
-
-	// Clear the event map (used for cgroup names)
-	clear(p.cgIDMap)
 
 	// Calculate flush duration
 	end, _ := ddebpf.NowNanoseconds()
@@ -268,32 +233,38 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 // which is actually the Thread ID (TID) in userspace terminology.
 // The Linux scheduler operates at thread granularity, not process granularity.
 
-func (p *Probe) countUniquePidsForCgroup(cgroupID uint64) uint64 {
+// buildPidCounts scans the cgroup_pids BPF map once and builds a count of unique PIDs per cgroup
+// OPTIMIZED: O(M) where M = total PIDs, instead of O(N×M) by scanning once for all cgroups
+func (p *Probe) buildPidCounts() map[uint64]uint64 {
+	pidCounts := make(map[uint64]uint64)
+
 	pidMap, found, err := p.mgr.GetMap("cgroup_pids")
 	if err != nil || !found {
-		return 0
+		return pidCounts
 	}
 
-	var pidCount uint64
+	// Single scan of the entire map - O(M) where M = total PIDs
 	iter := pidMap.Iterate()
 	var key ebpfPidKey
 	var val uint8
 
 	for iter.Next(&key, &val) {
-		if key.Id == cgroupID {
-			pidCount++
-		}
+		pidCounts[key.Id]++
 	}
 
-	return pidCount
+	return pidCounts
 }
 
+// deletePidsForCgroup cleans up PID tracking for a cgroup
+// Now simply deletes all PIDs for a cgroup from the BPF map
 func (p *Probe) deletePidsForCgroup(cgroupID uint64) {
 	pidMap, found, err := p.mgr.GetMap("cgroup_pids")
 	if err != nil || !found {
 		return
 	}
 
+	// We need to iterate to find all PIDs for this cgroup
+	// This is still O(M) but only happens during cleanup
 	var keysToDelete []ebpfPidKey
 	iter := pidMap.Iterate()
 	var key ebpfPidKey
@@ -308,12 +279,4 @@ func (p *Probe) deletePidsForCgroup(cgroupID uint64) {
 	for _, k := range keysToDelete {
 		_ = pidMap.Delete(&k)
 	}
-}
-
-func (p *Probe) handleEvent(e *runqEvent) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-	defer p.runqPool.Put(e)
-	// TODO noisy: handle ebpf data here, this is just an example
-	p.cgIDMap[e.CgroupID] = *e
 }
