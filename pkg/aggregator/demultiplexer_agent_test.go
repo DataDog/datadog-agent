@@ -9,9 +9,11 @@ package aggregator
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -21,8 +23,9 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -33,6 +36,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -168,6 +172,98 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 	}
 }
 
+func TestUpdateMetricFilterList(t *testing.T) {
+	require := require.New(t)
+
+	mockConfig := configmock.New(t)
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetFilterList([]string{"original.blocked.count"}, false)
+
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		filterList,
+		"",
+	)
+
+	// Set up a mock serializer so we con examine the metrics sent to it.
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	testCountBlocked := func(blockCount bool, ts float64) {
+		// Send a histogram, flush it and test the output
+		// If blockedCount is true we test count is blocked and not avg.
+		// If blockedCount is false we test avg is blocked and not count.
+		demux.AggregateSample(metrics.MetricSample{
+			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: ts,
+		})
+
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+
+		// We should always contain the average of the histogram.
+		require.Equal(blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+			return serie.Name == "original.blocked.avg"
+		}))
+
+		// Test if the count is filtered out.
+		require.Equal(!blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+			return serie.Name == "original.blocked.count"
+		}))
+	}
+
+	// After initial setup, we have filterlist from the configuration file.
+	// It may take a little time as it has to be sent to a separate routine.
+	require.Eventually(func() bool {
+		demux.aggregator.flushFilterListMtx.RLock()
+		defer demux.aggregator.flushFilterListMtx.RUnlock()
+		return len(demux.aggregator.filterListChan) == 0 &&
+			demux.aggregator.flushFilterList.Test("original.blocked.count")
+	}, time.Second, time.Millisecond, "original metric should be blocked")
+
+	testCountBlocked(true, 32.0)
+
+	// Reset the mock
+	s.series = []*metrics.Serie{}
+
+	filterList.SetFilterList([]string{"original.blocked.avg"}, false)
+
+	// Ensure the new filter list has been sent.
+	require.Eventually(func() bool {
+		demux.aggregator.flushFilterListMtx.RLock()
+		defer demux.aggregator.flushFilterListMtx.RUnlock()
+		return len(demux.aggregator.filterListChan) == 0 &&
+			!demux.aggregator.flushFilterList.Test("original.blocked.count") &&
+			demux.aggregator.flushFilterList.Test("original.blocked.avg")
+	}, time.Second, time.Millisecond)
+
+	testCountBlocked(false, 62.0)
+
+	demux.Stop(false)
+
+	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
+	filterList.SetFilterList([]string{"another.metric"}, false)
+
+	// Wait until the aggregator has been removed whilst stopping demux.
+	require.Eventually(func() bool {
+		return demux.aggregator == nil
+	}, time.Second, time.Millisecond)
+
+	filterList.SetFilterList([]string{"more.metric"}, false)
+}
+
 type DemultiplexerAgentTestDeps struct {
 	TestDeps
 	OrchestratorFwd orchestratorforwarder.Component
@@ -175,7 +271,7 @@ type DemultiplexerAgentTestDeps struct {
 	Compressor      compression.Component
 	Tagger          tagger.Component
 	HaAgent         haagent.Component
-	FilterList      filterlist.Component
+	Telemetry       telemetry.Component
 }
 
 func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {

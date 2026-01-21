@@ -274,8 +274,9 @@ type BufferedAggregator struct {
 	flushAndSerializeInParallel FlushAndSerializeInParallel
 
 	// use this chan to trigger a filterList reconfiguration
-	filterListChan  chan utilstrings.Matcher
-	flushFilterList utilstrings.Matcher
+	filterListChan     chan utilstrings.Matcher
+	flushFilterList    utilstrings.Matcher
+	flushFilterListMtx sync.RWMutex // protects flushFilterList
 
 	tagfilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
@@ -800,9 +801,14 @@ func (agg *BufferedAggregator) run() {
 			aggregatorEventPlatformErrorLogged = false
 
 		case matcher := <-agg.filterListChan:
+			agg.flushFilterListMtx.Lock()
 			agg.flushFilterList = matcher
+<<<<<<< HEAD
 		case matcher := <-agg.tagfilterListChan:
 			agg.tagFilterList = matcher
+=======
+			agg.flushFilterListMtx.Unlock()
+>>>>>>> stephen/filterlistrc
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)

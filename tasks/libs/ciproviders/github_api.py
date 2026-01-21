@@ -754,20 +754,6 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
 
 
-def get_events_info(pr):
-    actor, team = None, None
-    for event in reversed(list(pr.get_issue_events())):
-        if (event.event == "labeled" and event.label.name == "ask-review") or event.event in [
-            "review_requested",
-            "ready_for_review",
-        ]:
-            actor = event.actor.name or event.actor.login
-            if "requested_team" in event.raw_data:
-                team = event.raw_data["requested_team"]["slug"]
-            break
-    return actor, team
-
-
 def generate_local_github_token(ctx):
     """
     Generates a github token locally.

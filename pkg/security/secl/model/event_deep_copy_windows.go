@@ -122,7 +122,6 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
-	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied
 }

@@ -263,6 +263,7 @@
 /cmd/system-probe/subcommands/ebpf/     @DataDog/ebpf-platform @DataDog/universal-service-monitoring
 /cmd/system-probe/subcommands/compliance/     @DataDog/agent-cspm
 /cmd/systray/                           @DataDog/windows-products
+/cmd/secret-backend/                    @DataDog/agent-configuration
 /cmd/security-agent/                    @DataDog/agent-security
 /cmd/security-agent/subcommands/compliance/ @DataDog/agent-cspm
 /cmd/installer/                         @DataDog/fleet @DataDog/windows-products
@@ -361,6 +362,7 @@
 /comp/metadata/clusterchecks @DataDog/container-platform
 /comp/metadata/haagent @DataDog/ndm-core
 /comp/metadata/hostgpu @DataDog/ebpf-platform
+/comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /comp/trace/etwtracer @DataDog/windows-products
@@ -441,8 +443,9 @@
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/trace/api/loader/                  @DataDog/agent-runtimes
 /pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
-/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
-/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
+/pkg/trace/traceutil/                   @DataDog/agent-apm
+/pkg/trace/stats/                       @DataDog/agent-apm
+/pkg/trace/otel/                        @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
 /pkg/trace/transform/                   @DataDog/opentelemetry
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
@@ -528,6 +531,7 @@
 /pkg/fleet/installer/setup/djm/         @DataDog/fleet @DataDog/data-jobs-monitoring
 /pkg/inventory/                         @DataDog/windows-products
 /pkg/inventory/software/                @DataDog/windows-products
+/pkg/inventory/systeminfo/              @DataDog/windows-products
 /pkg/opentelemetry-mapping-go           @DataDog/opentelemetry-agent
 /pkg/pidfile/                           @DataDog/agent-runtimes
 /pkg/persistentcache/                   @DataDog/agent-runtimes
@@ -540,6 +544,7 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-runtimes
+/pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
 /pkg/system-probe/api/client/client_windows.go      @DataDog/windows-products
 /pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-products

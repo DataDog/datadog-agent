@@ -11,12 +11,13 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sTransformers "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
+	"github.com/DataDog/datadog-agent/pkg/redact"
 
 	"k8s.io/apimachinery/pkg/types"
 )
