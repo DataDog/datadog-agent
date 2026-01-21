@@ -763,6 +763,7 @@ Examples:
 
 async def main():
     """Run evaluations in parallel for all modes"""
+    start_time = datetime.now()
     args = parse_args()
 
     # Determine modes and scenarios to run
@@ -828,10 +829,17 @@ async def main():
             runner.scenarios_to_run = scenarios
             await runner.grade_existing_transcripts()
 
+    # Calculate total duration
+    end_time = datetime.now()
+    duration = end_time - start_time
+    hours, remainder = divmod(int(duration.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+
     print("\n" + "="*60)
     print("All evaluations complete!")
     print("="*60)
     print(f"Run directory: {run_dir}")
+    print(f"Total duration: {hours}h {minutes}m {seconds}s")
     print(f"\nTo consolidate results:")
     print(f"  python scripts/consolidate_results.py {run_dir}")
     print("="*60 + "\n")
