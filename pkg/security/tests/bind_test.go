@@ -31,13 +31,11 @@ func getFreePort(network string) (int, error) {
 	switch network {
 	case "tcp", "tcp4", "udp", "udp4":
 		addr = "127.0.0.1:0"
-	case "tcp6", "udp6":
-		addr = "[::1]:0"
 	default:
 		addr = "127.0.0.1:0"
 	}
 
-	if network == "udp" || network == "udp4" || network == "udp6" {
+	if network == "udp" || network == "udp4" {
 		conn, err := net.ListenPacket(network, addr)
 		if err != nil {
 			return 0, err
@@ -206,7 +204,7 @@ func TestBindEvent(t *testing.T) {
 	})
 
 	test.RunMultiMode(t, "bind-af-inet6-any-success", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
-		port, err := getFreePort("tcp6")
+		port, err := getFreePort("tcp")
 		if err != nil {
 			t.Fatalf("failed to get free port: %v", err)
 		}
