@@ -221,23 +221,26 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 // sendPayload encodes and sends the CollectorConnections payload to the NPM backend.
 // If the connections forwarder is not available, it logs the payload summary instead.
 func (c *Check) sendPayload(payload *model.CollectorConnections) error {
-	// If no forwarder, just log the connections for debugging
-	if c.connectionsForwarder == nil {
-		log.Infof("Connections forwarder not available, logging %d connections:", len(payload.Connections))
-		for i, conn := range payload.Connections {
-			if i >= 10 {
-				log.Infof("  ... and %d more connections", len(payload.Connections)-10)
-				break
-			}
-			log.Infof("  [%d] %s:%d -> %s:%d (pid=%d, dir=%s)",
-				i,
-				conn.Laddr.Ip, conn.Laddr.Port,
-				conn.Raddr.Ip, conn.Raddr.Port,
-				conn.Pid, conn.Direction.String())
+	// Always log connections for debugging
+	log.Infof("Connections payload contains %d connections:", len(payload.Connections))
+	for i, conn := range payload.Connections {
+		if i >= 10 {
+			log.Infof("  ... and %d more connections", len(payload.Connections)-10)
+			break
 		}
-		// Also output JSON for easy parsing
-		jsonBytes, _ := json.MarshalIndent(payload, "", "  ")
-		log.Debugf("Full payload:\n%s", string(jsonBytes))
+		log.Infof("  [%d] %s:%d -> %s:%d (pid=%d, dir=%s)",
+			i,
+			conn.Laddr.Ip, conn.Laddr.Port,
+			conn.Raddr.Ip, conn.Raddr.Port,
+			conn.Pid, conn.Direction.String())
+	}
+	// Also output JSON for easy parsing
+	jsonBytes, _ := json.MarshalIndent(payload, "", "  ")
+	log.Debugf("Full payload:\n%s", string(jsonBytes))
+
+	// If no forwarder, we're done
+	if c.connectionsForwarder == nil {
+		log.Infof("Connections forwarder not available, skipping send")
 		return nil
 	}
 
