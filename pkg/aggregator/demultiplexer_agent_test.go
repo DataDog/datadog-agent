@@ -203,15 +203,15 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 
-	testCountBlocked := func(blockCount bool) {
+	testCountBlocked := func(blockCount bool, ts float64) {
 		// Send a histogram, flush it and test the output
 		// If blockedCount is true we test count is blocked and not avg.
 		// If blockedCount is false we test avg is blocked and not count.
 		demux.AggregateSample(metrics.MetricSample{
-			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: 32.0,
+			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: ts,
 		})
 
-		demux.ForceFlushToSerializer(time.Unix(100, 0), true)
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
 
 		// We should always contain the average of the histogram.
 		require.Equal(blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
@@ -233,7 +233,10 @@ func TestUpdateMetricFilterList(t *testing.T) {
 			demux.aggregator.flushFilterList.Test("original.blocked.count")
 	}, time.Second, time.Millisecond, "original metric should be blocked")
 
-	testCountBlocked(true)
+	testCountBlocked(true, 32.0)
+
+	// Reset the mock
+	s.series = []*metrics.Serie{}
 
 	filterList.SetFilterList([]string{"original.blocked.avg"}, false)
 
@@ -246,7 +249,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 			demux.aggregator.flushFilterList.Test("original.blocked.avg")
 	}, time.Second, time.Millisecond)
 
-	testCountBlocked(false)
+	testCountBlocked(false, 62.0)
 
 	demux.Stop(false)
 
