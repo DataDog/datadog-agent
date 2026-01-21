@@ -38,7 +38,7 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "5",
 			},
-			stats:     common.NetStats{Jitter: &[]float64{3.5}[0], PacketsReceived: 40},
+			stats:     common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120}, PacketsReceived: 40},
 			valid:     true,
 			wantValue: "3.5",
 		},
@@ -126,6 +126,16 @@ func TestRunAssertion(t *testing.T) {
 				Target:   "5",
 			},
 			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 0, Min: 0, Max: 0}, PacketsReceived: 2},
+			valid: false,
+		},
+		{
+			name: "Jitter invalid - nil jitter",
+			assertion: common.Assertion{
+				Type:     common.AssertionTypePacketJitter,
+				Operator: common.OperatorLessThan,
+				Target:   "5",
+			},
+			stats: common.NetStats{Jitter: nil, PacketsReceived: 40},
 			valid: false,
 		},
 		{
@@ -221,6 +231,7 @@ func TestRunAssertions(t *testing.T) {
 			stats: common.NetStats{
 				PacketLossPercentage: 42,
 				Jitter:               &[]float64{3.5}[0],
+				Latency:              &payload.E2eProbeRttLatency{Avg: 90, Min: 70, Max: 120},
 				PacketsReceived:      40,
 			},
 			wantLength:   3,

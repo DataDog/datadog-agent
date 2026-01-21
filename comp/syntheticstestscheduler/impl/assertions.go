@@ -32,7 +32,7 @@ func runAssertion(assertion common.Assertion, stats common.NetStats) common.Asse
 		Valid:    false,
 	}
 
-	if (stats.Latency == nil || stats.Latency.Max == 0 || stats.PacketsReceived == 0) && assertion.Type == common.AssertionTypeLatency || (stats.Jitter == nil || stats.PacketsReceived < 2) && assertion.Type == common.AssertionTypePacketJitter {
+	if (stats.Latency == nil || stats.Latency.Max == 0 || stats.PacketsReceived == 0) && assertion.Type == common.AssertionTypeLatency || (stats.Jitter == nil || stats.PacketsReceived < 2 || stats.Latency.Max == 0) && assertion.Type == common.AssertionTypePacketJitter {
 		return invalidAssertion
 	}
 
