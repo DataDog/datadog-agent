@@ -122,7 +122,7 @@ func TestFormatAppHangPayload(t *testing.T) {
 	}
 }
 
-func TestFormatMsiInstallerPayload(t *testing.T) {
+func TestFormatWindowsUpdateFailedPayload(t *testing.T) {
 	tests := []struct {
 		name            string
 		eventXML        string
@@ -132,69 +132,54 @@ func TestFormatMsiInstallerPayload(t *testing.T) {
 		expectedMessage string
 	}{
 		{
-			name: "parses product name and error from XML",
+			name: "extracts update title and error code",
 			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
 				<System>
-					<Provider Name="MsiInstaller"/>
-					<EventID>11708</EventID>
+					<Provider Name="Microsoft-Windows-WindowsUpdateClient"/>
+					<EventID>20</EventID>
 				</System>
 				<EventData>
-					<Data>Product: Datadog Agent -- Automatic downgrades are not supported. Uninstall the current version, and then reinstall the desired version.</Data>
-					<Data>(NULL)</Data>
+					<Data Name="errorCode">0x80073d02</Data>
+					<Data Name="updateTitle">9NTXGKQ8P7N0-MicrosoftWindows.CrossDevice</Data>
+					<Data Name="updateGuid">{26dcdf7b-51f5-4f3b-9fe6-49e2520f37a6}</Data>
+					<Data Name="updateRevisionNumber">1</Data>
+					<Data Name="serviceGuid">{855e8a7c-ecb4-4ca3-b045-1dfa50104289}</Data>
 				</EventData>
 			</Event>`,
-			defaultTitle:    "Failed application installation",
-			defaultMessage:  "An application installation (MSI) failed",
-			expectedTitle:   "Failed application installation: Datadog Agent",
-			expectedMessage: "Product: Datadog Agent -- Automatic downgrades are not supported. Uninstall the current version, and then reinstall the desired version.",
+			defaultTitle:    "Failed Windows update",
+			defaultMessage:  "A Windows Update installation failed",
+			expectedTitle:   "Failed Windows update: 9NTXGKQ8P7N0-MicrosoftWindows.CrossDevice",
+			expectedMessage: "Installation of 9NTXGKQ8P7N0-MicrosoftWindows.CrossDevice failed with error 0x80073d02",
 		},
 		{
-			name: "parses product with complex error message",
+			name: "only error code available",
 			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
 				<System>
-					<Provider Name="MsiInstaller"/>
-					<EventID>11708</EventID>
+					<Provider Name="Microsoft-Windows-WindowsUpdateClient"/>
+					<EventID>20</EventID>
 				</System>
 				<EventData>
-					<Data>Product: Slack (Machine - MSI) -- Error 1714. The older version of Slack (Machine - MSI) cannot be removed. Contact your technical support group. System Error 1612.</Data>
-					<Data>(NULL)</Data>
+					<Data Name="errorCode">0x80073d02</Data>
 				</EventData>
 			</Event>`,
-			defaultTitle:    "Failed application installation",
-			defaultMessage:  "An application installation (MSI) failed",
-			expectedTitle:   "Failed application installation: Slack (Machine - MSI)",
-			expectedMessage: "Product: Slack (Machine - MSI) -- Error 1714. The older version of Slack (Machine - MSI) cannot be removed. Contact your technical support group. System Error 1612.",
+			defaultTitle:    "Failed Windows update",
+			defaultMessage:  "A Windows Update installation failed",
+			expectedTitle:   "Failed Windows update",
+			expectedMessage: "Windows Update failed with error 0x80073d02",
 		},
 		{
 			name: "empty EventData keeps defaults",
 			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
 				<System>
-					<Provider Name="MsiInstaller"/>
-					<EventID>11708</EventID>
+					<Provider Name="Microsoft-Windows-WindowsUpdateClient"/>
+					<EventID>20</EventID>
 				</System>
 				<EventData></EventData>
 			</Event>`,
-			defaultTitle:    "Failed application installation",
-			defaultMessage:  "An application installation (MSI) failed",
-			expectedTitle:   "Failed application installation",
-			expectedMessage: "An application installation (MSI) failed",
-		},
-		{
-			name: "non-standard format keeps default title but sets message",
-			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
-				<System>
-					<Provider Name="MsiInstaller"/>
-					<EventID>11708</EventID>
-				</System>
-				<EventData>
-					<Data>Some other error format without Product prefix</Data>
-					<Data>(NULL)</Data>
-				</EventData>
-			</Event>`,
-			defaultTitle:    "Failed application installation",
-			defaultMessage:  "An application installation (MSI) failed",
-			expectedTitle:   "Failed application installation",
-			expectedMessage: "Some other error format without Product prefix",
+			defaultTitle:    "Failed Windows update",
+			defaultMessage:  "A Windows Update installation failed",
+			expectedTitle:   "Failed Windows update",
+			expectedMessage: "A Windows Update installation failed",
 		},
 	}
 	for _, tt := range tests {
@@ -203,9 +188,151 @@ func TestFormatMsiInstallerPayload(t *testing.T) {
 			require.NoError(t, err)
 
 			payload := &eventPayload{Title: tt.defaultTitle, Message: tt.defaultMessage}
-			formatMsiInstallerPayload(payload, eventMap.Map)
+			formatWindowsUpdateFailedPayload(payload, eventMap.Map)
 			assert.Equal(t, tt.expectedTitle, payload.Title)
 			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
+func TestFormatMsiInstaller1033Payload(t *testing.T) {
+	// Note: Successful installations (exit code 0) are filtered at the XPath query level,
+	// so we only test failure cases here.
+	tests := []struct {
+		name            string
+		eventXML        string
+		defaultTitle    string
+		defaultMessage  string
+		expectedTitle   string
+		expectedMessage string
+	}{
+		{
+			name: "failed installation with exit code 1603",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="MsiInstaller"/>
+					<EventID>1033</EventID>
+				</System>
+				<EventData>
+					<Data>Datadog Agent</Data>
+					<Data>7.75.0.0</Data>
+					<Data>1033</Data>
+					<Data>1603</Data>
+					<Data>Datadog, Inc.</Data>
+					<Data>(NULL)</Data>
+				</EventData>
+			</Event>`,
+			defaultTitle:    "Failed application installation",
+			defaultMessage:  "An application installation (MSI) failed",
+			expectedTitle:   "Failed application installation: Datadog Agent 7.75.0.0",
+			expectedMessage: "Installation of Datadog Agent failed with exit code 1603 (Fatal error during installation.)",
+		},
+		{
+			name: "empty EventData keeps defaults",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="MsiInstaller"/>
+					<EventID>1033</EventID>
+				</System>
+				<EventData></EventData>
+			</Event>`,
+			defaultTitle:    "Failed application installation",
+			defaultMessage:  "An application installation (MSI) failed",
+			expectedTitle:   "Failed application installation",
+			expectedMessage: "An application installation (MSI) failed",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventMap, err := parseEventXML([]byte(tt.eventXML))
+			require.NoError(t, err)
+
+			payload := &eventPayload{Title: tt.defaultTitle, Message: tt.defaultMessage}
+			formatMsiInstaller1033Payload(payload, eventMap.Map)
+			assert.Equal(t, tt.expectedTitle, payload.Title)
+			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
+func TestFormatMsiInstaller1034Payload(t *testing.T) {
+	// Note: Successful removals (exit code 0) are filtered at the XPath query level,
+	// so we only test failure cases here.
+	tests := []struct {
+		name            string
+		eventXML        string
+		defaultTitle    string
+		defaultMessage  string
+		expectedTitle   string
+		expectedMessage string
+	}{
+		{
+			name: "failed removal with exit code 1603",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="MsiInstaller"/>
+					<EventID>1034</EventID>
+				</System>
+				<EventData>
+					<Data>Datadog Agent</Data>
+					<Data>7.74.0.0</Data>
+					<Data>1033</Data>
+					<Data>1603</Data>
+					<Data>Datadog, Inc.</Data>
+					<Data>(NULL)</Data>
+				</EventData>
+			</Event>`,
+			defaultTitle:    "Failed application removal",
+			defaultMessage:  "An application removal (MSI) failed",
+			expectedTitle:   "Failed application removal: Datadog Agent 7.74.0.0",
+			expectedMessage: "Removal of Datadog Agent failed with exit code 1603 (Fatal error during installation.)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventMap, err := parseEventXML([]byte(tt.eventXML))
+			require.NoError(t, err)
+
+			payload := &eventPayload{Title: tt.defaultTitle, Message: tt.defaultMessage}
+			formatMsiInstaller1034Payload(payload, eventMap.Map)
+			assert.Equal(t, tt.expectedTitle, payload.Title)
+			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
+// TestFormatMsiExitCode is a sanity check to ensure we can get the human readable error from the MSI exit codes.
+func TestFormatMsiExitCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		exitCode string
+		contains string // Substring we expect in the result
+	}{
+		{
+			name:     "error 1603 - fatal error",
+			exitCode: "1603",
+			contains: "Fatal error during installation",
+		},
+		{
+			name:     "error 1602 - user cancelled",
+			exitCode: "1602",
+			contains: "cancelled",
+		},
+		{
+			name:     "error 1618 - already running",
+			exitCode: "1618",
+			contains: "Another installation is already in progress",
+		},
+		{
+			name:     "invalid exit code returns original",
+			exitCode: "not-a-number",
+			contains: "not-a-number",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatMsiExitCode(tt.exitCode)
+			assert.Contains(t, result, tt.contains)
 		})
 	}
 }

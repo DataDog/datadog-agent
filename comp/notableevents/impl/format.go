@@ -9,9 +9,10 @@ package notableeventsimpl
 
 import (
 	"fmt"
-	"strings"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
+	"golang.org/x/sys/windows"
 )
 
 // parseEventXML parses Windows Event Log XML into a map structure.
@@ -63,12 +64,25 @@ func getEventDataList(eventMap map[string]interface{}) []interface{} {
 	return data
 }
 
+// formatMsiExitCode converts an MSI exit code string to a human-readable error message.
+// Uses windows.Errno to get the system error message for known MSI error codes.
+// Reference: https://learn.microsoft.com/en-us/windows/win32/msi/error-codes
+func formatMsiExitCode(exitCodeStr string) string {
+	code, err := strconv.Atoi(exitCodeStr)
+	if err != nil {
+		return exitCodeStr
+	}
+	errno := windows.Errno(code)
+	errMsg := errno.Error()
+	return fmt.Sprintf("%s (%s)", exitCodeStr, errMsg)
+}
+
 // formatAppCrashPayload customizes the payload for application crash events (Application Error / Event ID 1000).
 // Extracts the AppName from EventData to create a dynamic title.
 func formatAppCrashPayload(payload *eventPayload, eventData map[string]interface{}) {
 	if data := getEventDataMap(eventData); data != nil {
 		if appName, ok := data["AppName"].(string); ok {
-			payload.Title = fmt.Sprintf("Application crash: %s", appName)
+			payload.Title = "Application crash: " + appName
 		}
 	}
 }
@@ -78,27 +92,74 @@ func formatAppCrashPayload(payload *eventPayload, eventData map[string]interface
 func formatAppHangPayload(payload *eventPayload, eventData map[string]interface{}) {
 	if data := getEventDataMap(eventData); data != nil {
 		if appName, ok := data["AppName"].(string); ok {
-			payload.Title = fmt.Sprintf("Application hang: %s", appName)
+			payload.Title = "Application hang: " + appName
 		}
 	}
 }
 
-// formatMsiInstallerPayload customizes the payload for MSI installer failure events (MsiInstaller / Event ID 11708).
-// Parses the first Data element which has format: "Product: {Name} -- {Error message}"
-// Sets the title to include the product name and the message to the full error text.
-func formatMsiInstallerPayload(payload *eventPayload, eventData map[string]interface{}) {
-	if dataList := getEventDataList(eventData); len(dataList) > 0 {
-		if text, ok := dataList[0].(string); ok {
-			payload.Message = text
-			// Parse "Product: Name -- Error" format
-			// Example: Product: Slack (Machine - MSI) -- Error 1714. The older version of Slack (Machine - MSI) cannot be removed. Contact your technical support group. System Error 1612.
-			// Example: Product: Datadog Agent -- Automatic downgrades are not supported. Uninstall the current version, and then reinstall the desired version.
-			if strings.HasPrefix(text, "Product: ") {
-				parts := strings.SplitN(text[9:], " -- ", 2)
-				if len(parts) > 0 {
-					payload.Title = fmt.Sprintf("Failed application installation: %s", parts[0])
-				}
-			}
+// formatWindowsUpdateFailedPayload customizes the payload for failed Windows Update events
+// (Microsoft-Windows-WindowsUpdateClient / Event ID 20).
+// Extracts updateTitle for the title and includes errorCode in the message.
+func formatWindowsUpdateFailedPayload(payload *eventPayload, eventData map[string]interface{}) {
+	if data := getEventDataMap(eventData); data != nil {
+		updateTitle, _ := data["updateTitle"].(string)
+		errorCode, _ := data["errorCode"].(string)
+
+		if updateTitle != "" {
+			payload.Title = "Failed Windows update: " + updateTitle
 		}
+		if updateTitle != "" && errorCode != "" {
+			payload.Message = fmt.Sprintf("Installation of %s failed with error %s", updateTitle, errorCode)
+		} else if errorCode != "" {
+			payload.Message = "Windows Update failed with error " + errorCode
+		}
+	}
+}
+
+// formatMsiInstaller1033Payload customizes the payload for MSI installer result events (MsiInstaller / Event ID 1033).
+// Data format: [0]=ProductName, [1]=ProductVersion, [2]=Language, [3]=ExitCode, [4]=Manufacturer, [5]=(NULL)
+// Note: The query filters out successful installations (exit code 0) at the XPath level.
+func formatMsiInstaller1033Payload(payload *eventPayload, eventData map[string]interface{}) {
+	dataList := getEventDataList(eventData)
+	if len(dataList) < 4 {
+		return
+	}
+
+	// Extract product name, version, and exit code
+	productName, _ := dataList[0].(string)
+	productVersion, _ := dataList[1].(string)
+	exitCode, _ := dataList[3].(string)
+
+	if productName != "" {
+		if productVersion != "" {
+			payload.Title = fmt.Sprintf("Failed application installation: %s %s", productName, productVersion)
+		} else {
+			payload.Title = "Failed application installation: " + productName
+		}
+		payload.Message = fmt.Sprintf("Installation of %s failed with exit code %s", productName, formatMsiExitCode(exitCode))
+	}
+}
+
+// formatMsiInstaller1034Payload customizes the payload for MSI uninstall result events (MsiInstaller / Event ID 1034).
+// Data format: [0]=ProductName, [1]=ProductVersion, [2]=Language, [3]=ExitCode, [4]=Manufacturer, [5]=(NULL)
+// Note: The query filters out successful removals (exit code 0) at the XPath level.
+func formatMsiInstaller1034Payload(payload *eventPayload, eventData map[string]interface{}) {
+	dataList := getEventDataList(eventData)
+	if len(dataList) < 4 {
+		return
+	}
+
+	// Extract product name, version, and exit code
+	productName, _ := dataList[0].(string)
+	productVersion, _ := dataList[1].(string)
+	exitCode, _ := dataList[3].(string)
+
+	if productName != "" {
+		if productVersion != "" {
+			payload.Title = fmt.Sprintf("Failed application removal: %s %s", productName, productVersion)
+		} else {
+			payload.Title = "Failed application removal: " + productName
+		}
+		payload.Message = fmt.Sprintf("Removal of %s failed with exit code %s", productName, formatMsiExitCode(exitCode))
 	}
 }

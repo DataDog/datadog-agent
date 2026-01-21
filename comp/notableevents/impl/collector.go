@@ -75,15 +75,6 @@ func getEventDefinitions() []eventDefinition {
 			Message:   "The system has rebooted without cleanly shutting down first",
 		},
 		{
-			Provider:  "Microsoft-Windows-WER-SystemErrorReporting",
-			EventID:   1001,
-			Channel:   "System",
-			QueryBody: `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-WER-SystemErrorReporting'] and EventID=1001]]</Select>`,
-			EventType: "System crash",
-			Title:     "System crash (BSOD)",
-			Message:   "The system experienced a blue screen crash (BugCheck)",
-		},
-		{
 			Provider:      "Application Error",
 			EventID:       1000,
 			Channel:       "Application",
@@ -104,23 +95,38 @@ func getEventDefinitions() []eventDefinition {
 			FormatPayload: formatAppHangPayload,
 		},
 		{
-			Provider:  "Microsoft-Windows-WindowsUpdateClient",
-			EventID:   20,
-			Channel:   "Microsoft-Windows-WindowsUpdateClient/Operational",
-			QueryBody: `    <Select Path="Microsoft-Windows-WindowsUpdateClient/Operational">*[System[Provider[@Name='Microsoft-Windows-WindowsUpdateClient'] and EventID=20]]</Select>`,
-			EventType: "Failed Windows update",
-			Title:     "Failed Windows update",
-			Message:   "A Windows Update installation failed",
+			Provider:      "Microsoft-Windows-WindowsUpdateClient",
+			EventID:       20,
+			Channel:       "System",
+			QueryBody:     `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-WindowsUpdateClient'] and EventID=20]]</Select>`,
+			EventType:     "Failed Windows update",
+			Title:         "Failed Windows update",
+			Message:       "A Windows Update installation failed",
+			FormatPayload: formatWindowsUpdateFailedPayload,
 		},
 		{
-			Provider:      "MsiInstaller",
-			EventID:       11708,
-			Channel:       "Application",
-			QueryBody:     `    <Select Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=11708]]</Select>`,
+			Provider: "MsiInstaller",
+			EventID:  1033,
+			Channel:  "Application",
+			QueryBody: `
+	<Select Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1033]]</Select>
+    <Suppress Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1033] and EventData/Data[4]='0']</Suppress>`,
 			EventType:     "Failed application installation",
 			Title:         "Failed application installation",
 			Message:       "An application installation (MSI) failed",
-			FormatPayload: formatMsiInstallerPayload,
+			FormatPayload: formatMsiInstaller1033Payload,
+		},
+		{
+			Provider: "MsiInstaller",
+			EventID:  1034,
+			Channel:  "Application",
+			QueryBody: `
+	<Select Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1034]]</Select>
+    <Suppress Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1034] and EventData/Data[4]='0']</Suppress>`,
+			EventType:     "Failed application removal",
+			Title:         "Failed application removal",
+			Message:       "An application removal (MSI) failed",
+			FormatPayload: formatMsiInstaller1034Payload,
 		},
 	}
 	return e
