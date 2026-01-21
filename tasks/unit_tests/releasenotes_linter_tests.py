@@ -114,12 +114,11 @@ class TestDetectMarkdownPatterns(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn('Markdown image syntax', errors[0].message)
 
-    def test_markdown_bold_asterisks(self):
-        """Markdown bold with asterisks should be detected."""
+    def test_markdown_bold_asterisks_not_flagged(self):
+        """Markdown bold with asterisks (**text**) is same in RST, should not be flagged."""
         text = "This is **bold** text"
         errors = detect_markdown_patterns(text)
-        self.assertEqual(len(errors), 1)
-        self.assertIn('Markdown bold syntax', errors[0].message)
+        self.assertEqual(len(errors), 0)
 
     def test_markdown_bold_underscores(self):
         """Markdown bold with underscores should be detected."""
@@ -201,18 +200,15 @@ class TestDetectMarkdownPatterns(unittest.TestCase):
         self.assertEqual(len(errors), 0)
 
     def test_rst_bold_not_flagged(self):
-        """RST bold (**text**) is same as Markdown, flagged but that's acceptable."""
-        # Note: **bold** is valid in both RST and Markdown with same meaning
-        # We flag it anyway as it might indicate Markdown thinking
+        """RST bold (**text**) is same as Markdown, should not be flagged."""
+        # **bold** is valid in both RST and Markdown with same meaning
         text = "This is **bold** in both formats"
         errors = detect_markdown_patterns(text)
-        # This will be flagged, which is a known limitation
-        # The message suggests RST syntax which is the same
-        self.assertEqual(len(errors), 1)
+        self.assertEqual(len(errors), 0)
 
     def test_multiple_patterns_same_line(self):
         """Multiple Markdown patterns on same line should all be detected."""
-        text = "Check [link](url) and **bold**"
+        text = "Check [link](url) and __bold__"
         errors = detect_markdown_patterns(text)
         self.assertEqual(len(errors), 2)
 

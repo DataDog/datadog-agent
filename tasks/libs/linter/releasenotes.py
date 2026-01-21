@@ -41,8 +41,8 @@ RENO_SECTIONS = frozenset(
 MARKDOWN_PATTERNS = [
     # Markdown links: [text](url) - exclude image syntax with negative lookbehind
     (re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)'), 'Markdown link syntax. Use RST: `{0} <{1}>`_'),
-    # Markdown bold: **text** or __text__
-    (re.compile(r'\*\*([^*]+)\*\*'), 'Markdown bold syntax. Use RST: **{0}**'),
+    # Markdown bold with double underscores: __text__
+    # Note: **text** is the same in both Markdown and RST, so we don't flag it
     (re.compile(r'__([^_]+)__'), 'Markdown bold syntax. Use RST: **{0}**'),
     # Markdown italic with underscores: _text_
     # Must have whitespace/punctuation before and after to avoid matching snake_case identifiers
