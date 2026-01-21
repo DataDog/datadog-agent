@@ -143,13 +143,24 @@ if [ "$SIGN" = true ]; then
             --apple-id "$APPLE_ACCOUNT" \
             --password "$NOTARIZATION_PWD" \
             --team-id "$TEAM_ID" \
-            --timeout "$NOTARIZATION_TIMEOUT" \
-            --wait \
             "$dmg_file" | tee /dev/stderr | awk '$1 == "id:" {id=$2} END{if (id) print id; else exit 2}'
     }
     export -f submit_for_notarization
     SUBMISSION_ID=$(tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" submit_for_notarization "$LATEST_DMG" | tail -n1)
     echo "Submission ID: $SUBMISSION_ID"
+
+    wait_for_notarization() {
+        set -euo pipefail
+        local submission_id="$1"
+        xcrun notarytool wait \
+            --apple-id "$APPLE_ACCOUNT" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            --timeout "$NOTARIZATION_TIMEOUT" \
+            "$submission_id"
+    }
+    export -f wait_for_notarization
+    tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" wait_for_notarization "$SUBMISSION_ID"
 
     check_notarization_status() {
         set -euo pipefail

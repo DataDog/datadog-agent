@@ -30,6 +30,10 @@ var (
 		"access_token", "auth_token",
 		"api_key", "apikey", "pwd",
 		"secret", "credentials", "stripetoken"}
+
+	knownSafeEnvVars = map[string]struct{}{
+		"DD_AUTH_TOKEN_FILE_PATH": {},
+	}
 )
 
 // DataScrubber allows the agent to block cmdline arguments that match
@@ -70,6 +74,9 @@ func (ds *DataScrubber) setupAnnotationRegexps(words []string) {
 func (ds *DataScrubber) ContainsSensitiveWord(s string) bool {
 	for _, pattern := range ds.LiteralSensitivePatterns {
 		if strings.Contains(strings.ToLower(s), pattern) {
+			if _, ok := knownSafeEnvVars[s]; ok {
+				return false
+			}
 			return true
 		}
 	}
