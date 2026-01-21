@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"

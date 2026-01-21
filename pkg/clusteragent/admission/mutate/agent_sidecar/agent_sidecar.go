@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -420,7 +420,7 @@ func (w *Webhook) getDefaultSidecarTemplate() *corev1.Container {
 			},
 		}, corev1.EnvVar{
 			Name:  "DD_CLUSTER_AGENT_URL",
-			Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:%v", w.clusterAgentServiceName, apiCommon.GetMyNamespace(), w.clusterAgentCmdPort),
+			Value: fmt.Sprintf("https://%s.%s.svc.cluster.local:%v", w.clusterAgentServiceName, namespace.GetMyNamespace(), w.clusterAgentCmdPort),
 		}, corev1.EnvVar{
 			Name:  "DD_ORCHESTRATOR_EXPLORER_ENABLED",
 			Value: "true",

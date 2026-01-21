@@ -29,7 +29,7 @@ import (
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -114,7 +114,7 @@ func TestInjectService(t *testing.T) {
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
 	assert.True(t, injected)
-	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_AGENT_HOST", "datadog."+common.GetMyNamespace()+".svc.cluster.local"))
+	assert.Contains(t, pod.Spec.Containers[0].Env, mutatecommon.FakeEnvWithValue("DD_AGENT_HOST", "datadog."+namespace.GetMyNamespace()+".svc.cluster.local"))
 }
 
 func TestInjectEntityID(t *testing.T) {

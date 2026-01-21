@@ -18,7 +18,7 @@ User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
 Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
-ExecStart={{.InstallDir}}/embedded/bin/agent-data-plane run --config {{.EtcDir}}/datadog.yaml --pidfile {{.InstallDir}}/run/agent-data-plane.pid
+ExecStart={{.InstallDir}}/embedded/bin/agent-data-plane --config {{.EtcDir}}/datadog.yaml run --pidfile {{.InstallDir}}/run/agent-data-plane.pid
 StartLimitInterval=10
 StartLimitBurst=5
 AmbientCapabilities=CAP_NET_BIND_SERVICE

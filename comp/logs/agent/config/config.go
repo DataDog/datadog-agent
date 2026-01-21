@@ -58,6 +58,11 @@ const OTelCollectorIntakeOrigin IntakeOrigin = "otel-collector"
 
 // logs-intake endpoints depending on the site and environment.
 var logsEndpoints = map[string]int{
+	"agent-intake.logs.datadoghq.com.": 10516,
+	"agent-intake.logs.datadoghq.eu.":  443,
+	"agent-intake.logs.datad0g.com.":   10516,
+	"agent-intake.logs.datad0g.eu.":    443,
+
 	"agent-intake.logs.datadoghq.com": 10516,
 	"agent-intake.logs.datadoghq.eu":  443,
 	"agent-intake.logs.datad0g.com":   10516,

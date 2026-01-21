@@ -18,7 +18,7 @@ func NewHttpBundle(cfg *config.Config) types.Bundle {
 	return &HttpBundle{
 		actions: map[string]types.Action{
 			"request":            NewHttpRequestAction(cfg),
-			"getChecksumFromURL": NewGetChecksumFromURLHandler(),
+			"getChecksumFromURL": NewGetChecksumFromURLHandler(cfg),
 		},
 	}
 }

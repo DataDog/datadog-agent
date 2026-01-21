@@ -13,7 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 // GetStatus returns status info for the Custom Metrics Server.
@@ -30,7 +30,7 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	}
 
 	configMapName := GetConfigmapName()
-	configMapNamespace := common.GetResourcesNamespace()
+	configMapNamespace := namespace.GetResourcesNamespace()
 	status["Cmname"] = fmt.Sprintf("%s/%s", configMapNamespace, configMapName)
 
 	store, err := NewConfigMapStore(apiCl, configMapNamespace, configMapName)

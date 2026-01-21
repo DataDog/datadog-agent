@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -54,6 +55,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 			return taggerComponent
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		filterlist.MockModule(),
 	))
 
 	s := DsdStatsRuntimeSetting{

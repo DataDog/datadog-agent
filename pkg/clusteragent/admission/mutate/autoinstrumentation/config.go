@@ -176,6 +176,10 @@ type InstrumentationConfig struct {
 	// used. If no target matches, the auto instrumentation will not be applied. Full config key:
 	// apm_config.instrumentation.targets
 	Targets []Target `mapstructure:"targets" json:"targets"`
+	// InjectionMode determines the default method for injecting libraries into pods.
+	// Possible values: "auto" (default), "init_container" and "csi".
+	// Full config key: apm_config.instrumentation.injection_mode
+	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

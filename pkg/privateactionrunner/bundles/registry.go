@@ -69,7 +69,7 @@ func NewRegistry(configuration *config.Config) *Registry {
 			"com.datadoghq.gitlab.tags":                com_datadoghq_gitlab_tags.NewGitlabTags(),
 			"com.datadoghq.gitlab.users":               com_datadoghq_gitlab_users.NewGitlabUsers(),
 			"com.datadoghq.http":                       com_datadoghq_http.NewHttpBundle(configuration),
-			"com.datadoghq.jenkins":                    com_datadoghq_jenkins.NewJenkins(),
+			"com.datadoghq.jenkins":                    com_datadoghq_jenkins.NewJenkins(configuration),
 			"com.datadoghq.kubernetes.apiextensions":   com_datadoghq_kubernetes_apiextensions.NewKubernetesApiExtensions(),
 			"com.datadoghq.kubernetes.apps":            com_datadoghq_kubernetes_apps.NewKubernetesApps(),
 			"com.datadoghq.kubernetes.batch":           com_datadoghq_kubernetes_batch.NewKubernetesBatch(),

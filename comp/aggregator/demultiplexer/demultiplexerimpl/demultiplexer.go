@@ -17,6 +17,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
@@ -46,6 +47,7 @@ type dependencies struct {
 	Compressor             compression.Component
 	Tagger                 tagger.Component
 	Hostname               hostnameinterface.Component
+	FilterList             filterlist.Component
 
 	Params Params
 }
@@ -83,6 +85,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.HaAgent,
 		deps.Compressor,
 		deps.Tagger,
+		deps.FilterList,
 		hostnameDetected,
 	)
 	demultiplexer := demultiplexer{

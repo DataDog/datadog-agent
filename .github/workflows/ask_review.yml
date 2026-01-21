@@ -24,11 +24,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          REQUESTED_TEAMS: ${{ toJSON(github.event.pull_request.requested_teams) }}
         run: |
           options=()
           if [ "${{ github.event.action }}" == "labeled" ] && [ "${{ github.event.label.name }}" == "ask-review" ]; then
             # ask_reviews uses @task(iterable=["team_slugs"]) so we pass --team-slugs multiple times
-            mapfile -t slugs < <(jq -r '.[].slug' <<< '${{ toJSON(github.event.pull_request.requested_teams) }}')
+            mapfile -t slugs < <(jq -r '.[].slug' <<< "$REQUESTED_TEAMS")
             for slug in "${slugs[@]}"; do
               options+=(--team-slugs "$slug")
             done

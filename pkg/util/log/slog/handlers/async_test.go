@@ -7,6 +7,7 @@ package handlers
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"sync"
 	"testing"
@@ -226,4 +227,235 @@ func TestAsyncHandlerMessageOrder(t *testing.T) {
 	for i := range 10 {
 		assert.Equal(t, string(rune('A'+i)), inner.records[i].Message)
 	}
+}
+
+// recordCapture is a helper to capture records from the format handler
+type recordCapture struct {
+	mu      sync.Mutex
+	records []slog.Record
+}
+
+func (rc *recordCapture) formatter(_ context.Context, r slog.Record) string {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.records = append(rc.records, r)
+	return ""
+}
+
+func (rc *recordCapture) getRecords() []slog.Record {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	return append([]slog.Record{}, rc.records...)
+}
+
+// collectAttrs collects all attributes from a record into a slice
+func collectAttrs(r slog.Record) []slog.Attr {
+	var attrs []slog.Attr
+	r.Attrs(func(a slog.Attr) bool {
+		attrs = append(attrs, a)
+		return true
+	})
+	return attrs
+}
+
+func TestAsyncHandlerWithAttrs(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	// Create a derived handler with attributes
+	derivedHandler := handler.WithAttrs([]slog.Attr{
+		slog.String("key1", "value1"),
+		slog.Int("key2", 42),
+	})
+
+	// Log through the derived handler
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test with attrs", 0)
+	err := derivedHandler.Handle(context.Background(), record)
+	assert.NoError(t, err)
+
+	// Flush using the original handler (shared state)
+	handler.Flush()
+
+	// Verify the record was logged with the correct attributes
+	records := capture.getRecords()
+	assert.Equal(t, 1, len(records))
+	assert.Equal(t, "test with attrs", records[0].Message)
+
+	attrs := collectAttrs(records[0])
+	assert.Equal(t, 2, len(attrs))
+	assert.Equal(t, "key1", attrs[0].Key)
+	assert.Equal(t, "value1", attrs[0].Value.String())
+	assert.Equal(t, "key2", attrs[1].Key)
+	assert.Equal(t, int64(42), attrs[1].Value.Int64())
+}
+
+func TestAsyncHandlerWithGroup(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	// Create a derived handler with a group
+	derivedHandler := handler.WithGroup("mygroup")
+
+	// Log through the derived handler with an attribute
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "test with group", 0)
+	record.AddAttrs(slog.String("nested", "value"))
+	err := derivedHandler.Handle(context.Background(), record)
+	assert.NoError(t, err)
+
+	// Flush using the original handler (shared state)
+	handler.Flush()
+
+	// Verify the record was logged with the attribute nested in the group
+	records := capture.getRecords()
+	assert.Equal(t, 1, len(records))
+	assert.Equal(t, "test with group", records[0].Message)
+
+	attrs := collectAttrs(records[0])
+	assert.Equal(t, 1, len(attrs))
+	assert.Equal(t, "mygroup", attrs[0].Key)
+	assert.Equal(t, slog.KindGroup, attrs[0].Value.Kind())
+
+	groupAttrs := attrs[0].Value.Group()
+	assert.Equal(t, 1, len(groupAttrs))
+	assert.Equal(t, "nested", groupAttrs[0].Key)
+	assert.Equal(t, "value", groupAttrs[0].Value.String())
+}
+
+func TestAsyncHandlerWithAttrsAndGroup(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	// Chain WithAttrs and WithGroup
+	derivedHandler := handler.
+		WithAttrs([]slog.Attr{slog.String("attr1", "val1")}).
+		WithGroup("group1").
+		WithAttrs([]slog.Attr{slog.String("attr2", "val2")})
+
+	// Log through the derived handler
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "chained", 0)
+	err := derivedHandler.Handle(context.Background(), record)
+	assert.NoError(t, err)
+
+	handler.Flush()
+
+	records := capture.getRecords()
+	assert.Equal(t, 1, len(records))
+	assert.Equal(t, "chained", records[0].Message)
+
+	// Verify: attr1 at top level, group1 containing attr2
+	attrs := collectAttrs(records[0])
+	assert.Equal(t, 2, len(attrs))
+	assert.Equal(t, "attr1", attrs[0].Key)
+	assert.Equal(t, "val1", attrs[0].Value.String())
+	assert.Equal(t, "group1", attrs[1].Key)
+
+	groupAttrs := attrs[1].Value.Group()
+	assert.Equal(t, 1, len(groupAttrs))
+	assert.Equal(t, "attr2", groupAttrs[0].Key)
+	assert.Equal(t, "val2", groupAttrs[0].Value.String())
+}
+
+func TestAsyncHandlerWithAttrsSharesState(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	// Create derived handlers
+	derivedHandler1 := handler.WithAttrs([]slog.Attr{slog.String("handler", "1")})
+	derivedHandler2 := handler.WithAttrs([]slog.Attr{slog.String("handler", "2")})
+
+	// Log through different handlers
+	record1 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 1", 0)
+	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 2", 0)
+
+	derivedHandler1.Handle(context.Background(), record1)
+	derivedHandler2.Handle(context.Background(), record2)
+
+	// Flush through original handler should flush all messages
+	handler.Flush()
+
+	records := capture.getRecords()
+	assert.Equal(t, 2, len(records))
+
+	// Check that each message has the correct attributes
+	assert.Equal(t, "message 1", records[0].Message)
+	attrs1 := collectAttrs(records[0])
+	assert.Equal(t, "1", attrs1[0].Value.String())
+
+	assert.Equal(t, "message 2", records[1].Message)
+	attrs2 := collectAttrs(records[1])
+	assert.Equal(t, "2", attrs2[0].Value.String())
+}
+
+func TestAsyncHandlerWithGroupSharesState(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+	defer handler.Close()
+
+	// Create derived handlers with different groups
+	derivedHandler1 := handler.WithGroup("group1")
+	derivedHandler2 := handler.WithGroup("group2")
+
+	// Log through different handlers with attributes
+	record1 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 1", 0)
+	record1.AddAttrs(slog.String("key", "val1"))
+	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "message 2", 0)
+	record2.AddAttrs(slog.String("key", "val2"))
+
+	derivedHandler1.Handle(context.Background(), record1)
+	derivedHandler2.Handle(context.Background(), record2)
+
+	// Flush through original handler should flush all messages
+	handler.Flush()
+
+	records := capture.getRecords()
+	assert.Equal(t, 2, len(records))
+
+	// Check that each message has the correct group
+	assert.Equal(t, "message 1", records[0].Message)
+	attrs1 := collectAttrs(records[0])
+	assert.Equal(t, "group1", attrs1[0].Key)
+
+	assert.Equal(t, "message 2", records[1].Message)
+	attrs2 := collectAttrs(records[1])
+	assert.Equal(t, "group2", attrs2[0].Key)
+}
+
+func TestAsyncHandlerDerivedHandlerClose(t *testing.T) {
+	capture := &recordCapture{}
+	inner := NewFormat(capture.formatter, io.Discard)
+	handler := NewAsync(inner)
+
+	// Create a derived handler
+	derivedHandler := handler.WithAttrs([]slog.Attr{slog.String("key", "value")})
+
+	// Log through derived handler
+	record := slog.NewRecord(time.Now(), slog.LevelInfo, "before close", 0)
+	derivedHandler.Handle(context.Background(), record)
+
+	// Close the original handler
+	handler.Close()
+
+	// Message should have been processed
+	records := capture.getRecords()
+	assert.Equal(t, 1, len(records))
+	assert.Equal(t, "before close", records[0].Message)
+
+	// Logging after close should be ignored (through derived handler)
+	record2 := slog.NewRecord(time.Now(), slog.LevelInfo, "after close", 0)
+	derivedHandler.Handle(context.Background(), record2)
+
+	// Give time to ensure nothing is processed
+	time.Sleep(10 * time.Millisecond)
+
+	records = capture.getRecords()
+	assert.Equal(t, 1, len(records))
 }

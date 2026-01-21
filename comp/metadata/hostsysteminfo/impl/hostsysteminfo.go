@@ -89,19 +89,19 @@ func NewSystemInfoProvider(deps Requires) Provides {
 	hh.InventoryPayload.MinInterval = 1 * time.Hour
 	hh.InventoryPayload.MaxInterval = 1 * time.Hour
 
-	// Only enable system info metadata collection for end user device infrastructure mode on Windows
+	// Only enable system info metadata collection for end user device infrastructure mode on Windows and Darwin
 	infraMode := deps.Config.GetString("infrastructure_mode")
 	isEndUserDevice := infraMode == "end_user_device"
-	isWindows := runtime.GOOS == "windows"
-	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice && isWindows
+	isSupportedOS := runtime.GOOS == "windows" || runtime.GOOS == "darwin"
+	hh.InventoryPayload.Enabled = hh.InventoryPayload.Enabled && isEndUserDevice && isSupportedOS
 
 	var provider runnerimpl.Provider
 	if hh.InventoryPayload.Enabled {
 		provider = hh.MetadataProvider()
 		deps.Log.Info("System info metadata collection enabled for end user device mode")
 	} else {
-		if !isWindows {
-			deps.Log.Debugf("System info metadata collection disabled: only supported on Windows (current OS: %s)", runtime.GOOS)
+		if !isSupportedOS {
+			deps.Log.Debugf("System info metadata collection disabled: only supported on Windows and macOS (current OS: %s)", runtime.GOOS)
 		} else {
 			deps.Log.Debugf("System info metadata collection disabled: infrastructure_mode is '%s' (requires 'end_user_device')", infraMode)
 		}
@@ -116,8 +116,8 @@ func NewSystemInfoProvider(deps Requires) Provides {
 }
 
 func (hh *hostSystemInfo) fillData() error {
-	// System info collection is only supported on Windows
-	if runtime.GOOS != "windows" {
+	// System info collection is only supported on Windows and Darwin
+	if runtime.GOOS != "windows" && runtime.GOOS != "darwin" {
 		hh.log.Debugf("System information collection not supported on %s", runtime.GOOS)
 		hh.data = nil
 		return nil

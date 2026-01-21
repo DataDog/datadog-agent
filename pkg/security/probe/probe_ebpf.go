@@ -3453,7 +3453,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
 					reportStatus = RawPacketActionStatusError
 				} else {
-					reportStatus = RawPacketActionStatusApplied
+					reportStatus = RawPacketActionStatusPerformed
 				}
 			}
 

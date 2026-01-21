@@ -31,6 +31,7 @@ const (
 	defaultHealthCheckEndpoint   = "/healthz"
 	healthCheckInterval          = 30_000
 	defaultHTTPServerReadTimeout = 10_000
+	defaultHTTPTimeout           = 30 * time.Second
 	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
 	defaultHTTPServerWriteTimeout = 60_000
 	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
@@ -66,6 +67,16 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		runnerID = urnParts.RunnerID
 	}
 
+	var taskTimeoutSeconds *int32
+	if v := config.GetInt32("privateactionrunner.task_timeout_seconds"); v != 0 {
+		taskTimeoutSeconds = &v
+	}
+
+	httpTimeout := defaultHTTPTimeout
+	if v := config.GetInt32("privateactionrunner.http_timeout_seconds"); v != 0 {
+		httpTimeout = time.Duration(v) * time.Second
+	}
+
 	return &Config{
 		MaxBackoff:                maxBackoff,
 		MinBackoff:                minBackoff,
@@ -77,6 +88,8 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
+		HTTPTimeout:               httpTimeout,
+		TaskTimeoutSeconds:        taskTimeoutSeconds,
 		RunnerAccessTokenHeader:   runnerAccessTokenHeader,
 		RunnerAccessTokenIdHeader: runnerAccessTokenIDHeader,
 		Port:                      defaultPort,

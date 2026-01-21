@@ -958,3 +958,46 @@ func TestFromAgentConfigDebug(t *testing.T) {
 		})
 	}
 }
+
+func TestADPOTLPProxyOverridesEndpoints(t *testing.T) {
+	env := map[string]string{
+		"DD_DATA_PLANE_OTLP_PROXY_ENABLED":                          "true",
+		"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":           "0.0.0.0:4317",
+		"DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT": "127.0.0.1:4319",
+	}
+
+	for k, v := range env {
+		t.Setenv(k, v)
+	}
+
+	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
+	require.NoError(t, err)
+	pcfg, err := FromAgentConfig(cfg)
+	require.NoError(t, err)
+
+	receiverConfig := pcfg.OTLPReceiverConfig
+	protocols, _ := receiverConfig["protocols"].(map[string]interface{})
+
+	grpc, _ := protocols["grpc"].(map[string]interface{})
+	assert.Equal(t, "127.0.0.1:4319", grpc["endpoint"])
+}
+
+func TestADPOTLPProxyEmptyEndpointError(t *testing.T) {
+	cfg, err := testutil.LoadConfig(t, "./testdata/adp_proxy_empty_grpc.yaml")
+	require.NoError(t, err)
+	_, err = FromAgentConfig(cfg)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrProxyGRPCEndpointNotConfigured)
+}
+
+func TestADPOTLPProxyEndpointCollisionError(t *testing.T) {
+	t.Setenv("DD_DATA_PLANE_OTLP_PROXY_ENABLED", "true")
+	t.Setenv("DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
+	t.Setenv("DD_DATA_PLANE_OTLP_PROXY_RECEIVER_PROTOCOLS_GRPC_ENDPOINT", "0.0.0.0:4317")
+
+	cfg, err := testutil.LoadConfig(t, "./testdata/empty.yaml")
+	require.NoError(t, err)
+	_, err = FromAgentConfig(cfg)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrProxyGRPCEndpointCollision)
+}

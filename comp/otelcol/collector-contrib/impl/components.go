@@ -58,7 +58,9 @@ import (
 
 func components() (otelcol.Factories, error) {
 	var err error
-	factories := otelcol.Factories{}
+	factories := otelcol.Factories{
+		Telemetry: otelconftelemetry.NewFactory(),
+	}
 
 	factories.Extensions, err = otelcol.MakeFactoryMap[extension.Factory](
 		zpagesextension.NewFactory(),
@@ -170,8 +172,6 @@ func components() (otelcol.Factories, error) {
 	factories.ConnectorModules = make(map[component.Type]string, len(factories.Connectors))
 	factories.ConnectorModules[routingconnector.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.143.0"
 	factories.ConnectorModules[spanmetricsconnector.NewFactory().Type()] = "github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.143.0"
-
-	factories.Telemetry = otelconftelemetry.NewFactory()
 
 	return factories, nil
 }

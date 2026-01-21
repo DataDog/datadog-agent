@@ -3938,23 +3938,41 @@ func collectLineDataForRange(
 	lineReader *dwarf.LineReader, r ir.PCRange,
 ) lineData {
 	var lineEntry dwarf.LineEntry
+	// Save position before seeking. Line tables are state-machine encoded and
+	// only support efficient forward iteration; seeking backward requires
+	// restarting from the beginning. By saving our position (which is already
+	// in the correct compile unit), we can restore it cheaply if SeekPC fails.
 	prevPos := lineReader.Tell()
-	// In general, SeekPC is not the function we're looking for.  We
-	// want to seek to the next line entry that's in the range but
-	// not necessarily the first one. We add some hacks here that
-	// work unless we're at the beginning of a sequence.
+	// SeekPC finds the line table entry covering a given PC, but we need the
+	// first entry whose address is >= r[0], which may be different. SeekPC
+	// also fails for PCs in "holes" - addresses not covered by any line table
+	// sequence.
 	//
-	// TODO: Find a way to seek to the first entry in a range rather
-	// than just the entry that covers this PC. See
-	// https://github.com/golang/go/issues/73996.
+	// DWARF line tables consist of sequences, each covering a contiguous PC
+	// range. A sequence is a state-machine-encoded log mapping PCs to source
+	// locations (file, line, column). Holes exist between sequences or at
+	// their boundaries.
+	//
+	// TODO: Find a way to seek to the first entry in a range rather than just
+	// the entry that covers this PC. See https://github.com/golang/go/issues/73996.
 	err := lineReader.SeekPC(r[0], &lineEntry)
-	// If we find that we have a hole, then we'll have our hands on
-	// a reader that's positioned after our PC. We can then seek to
-	// the instruction prior to that which should be in range of a
-	// real sequence. This is grossly inefficient.
+	// Workaround for holes: When SeekPC fails with ErrUnknownPC, the reader
+	// is experimentally observed to be left positioned at a preceding
+	// end_sequence marker. If that marker's address is at or before r[0],
+	// we can recover by:
+	//   1. Reading the next entry to find where the next sequence starts
+	//   2. Restoring the reader to prevPos (since seeking backward through
+	//      line tables is very inefficient - it requires restarting from
+	//      the beginning of the table)
+	//   3. Seeking to (next_address - 1) to land within the prior entry
+	//   4. If that puts us at an address >= r[0], we've found valid data
+	//
+	// The -1 works because lineEntry.Address marks an entry's start, so
+	// (address - 1) falls within the previous entry's range, and SeekPC
+	// will position us at that entry's start (a valid instruction boundary).
 	if err != nil &&
 		errors.Is(err, dwarf.ErrUnknownPC) &&
-		lineEntry.Address < r[0] {
+		lineEntry.Address <= r[0] {
 		nextErr := lineReader.Next(&lineEntry)
 		if nextErr == nil {
 			lineReader.Seek(prevPos)
@@ -3965,9 +3983,9 @@ func collectLineDataForRange(
 		}
 	}
 	if err != nil {
-		// Reset the reader to the previous position which is more efficient
-		// than starting from 0 for the next seek given the caller is exploring
-		// in PC order.
+		// Restore the reader to prevPos so the next call to this function
+		// can seek forward efficiently. The caller explores ranges in PC
+		// order, so prevPos is likely close to the next range we'll query.
 		lineReader.Seek(prevPos)
 		return lineData{err: err}
 	}

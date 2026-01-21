@@ -102,6 +102,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 		}
 
 		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			InjectionMode:               m.config.Instrumentation.InjectionMode,
 			DefaultResourceRequirements: m.config.defaultResourceRequirements,
 			InitSecurityContext:         m.config.initSecurityContext,
 			ContainerFilter:             m.config.containerFilter,

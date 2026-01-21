@@ -47,7 +47,7 @@ func (suite *EndpointsTestSuite) TestLogsEndpointConfig() {
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 	suite.Nil(err)
 	suite.Equal("agent-intake.logs.datadoghq.eu.", endpoints.Main.Host)
-	suite.Equal(10516, endpoints.Main.Port)
+	suite.Equal(443, endpoints.Main.Port)
 
 	suite.config.SetWithoutSource("logs_config.dd_url", "custom.logs.datadoghq.co.jp")
 	suite.Equal("custom.logs.datadoghq.co.jp", pkgconfigutils.GetMainEndpoint(suite.config, tcpEndpointPrefix, "logs_config.dd_url"))

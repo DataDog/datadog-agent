@@ -1,15 +1,19 @@
-// To generate code: `protoc --gofast_out=. HttpTransactionProto.proto`
+// To generate code: `protoc --go_out=. HttpTransactionProto.proto`
 
 syntax = "proto3";
 
 package retry;
 
+option go_package = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry";
+
 message HeaderValuesProto {
-    repeated string values = 1;
+    // Using bytes instead of string to allow non-UTF-8 placeholder characters for API key scrubbing
+    repeated bytes values = 1;
 }
 
 message EndpointProto  {
-    string route = 1;
+    // Using bytes instead of string to allow non-UTF-8 placeholder characters for API key scrubbing
+    bytes route = 1;
     string name = 2;
 }
 

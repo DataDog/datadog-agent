@@ -30,6 +30,11 @@ CLI_EXTRAS = {
     'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
 }
 
+CLI_EXTRAS_GRPC = {
+    'trace/idx': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
+    'privateactionrunner': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
+}
+
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
@@ -84,13 +89,18 @@ def generate(ctx, pre_commit=False):
 
             targets = ' '.join(files)
 
-            # output_generator could potentially change for some packages
-            # so keep it in a variable for sanity.
-            output_generator = "--go_out=plugins=grpc:"
+            # Generate Go code with protoc-gen-go and protoc-gen-go-grpc
+            # Note: The new protoc-gen-go doesn't support plugins=grpc, so we use separate outputs
+            # This generates *.pb.go (messages) and *_grpc.pb.go (gRPC stubs) in a single protoc call
             cli_extras = ''
+            cli_extras_grpc = ''
             if pkg in CLI_EXTRAS:
                 cli_extras = CLI_EXTRAS[pkg]
-            ctx.run(f"protoc -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}")
+            if pkg in CLI_EXTRAS_GRPC:
+                cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
+            ctx.run(
+                f"protoc -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
+            )
 
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]
@@ -115,7 +125,8 @@ def generate(ctx, pre_commit=False):
             except FileExistsError:
                 print(f"{mockgen_out} folder already exists")
 
-            ctx.run(f"mockgen -source={pbgo_rel}/core/api.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
+            # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
+            ctx.run(f"mockgen -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go")
 
     # Generate messagepack marshallers
     # msgp targets (file, io)

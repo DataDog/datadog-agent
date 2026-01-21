@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -60,12 +60,12 @@ func TestForwarderBuildReport(t *testing.T) {
 
 	// Add some test issues
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue 1",
 		Severity: "high",
 	})
 	provider.addIssue("check-2", &healthplatform.Issue{
-		ID:       "issue-2",
+		Id:       "issue-2",
 		Title:    "Test Issue 2",
 		Severity: "medium",
 	})
@@ -107,7 +107,7 @@ func TestForwarderSend(t *testing.T) {
 	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})
@@ -167,7 +167,7 @@ func TestForwarderSendError(t *testing.T) {
 	fwd.intakeURL = server.URL
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})
@@ -245,7 +245,7 @@ func TestForwarderSendWithoutAPIKey(t *testing.T) {
 	fwd := newForwarder(cfg, provider, logmock.New(t), "test-host")
 
 	provider.addIssue("check-1", &healthplatform.Issue{
-		ID:       "issue-1",
+		Id:       "issue-1",
 		Title:    "Test Issue",
 		Severity: "high",
 	})

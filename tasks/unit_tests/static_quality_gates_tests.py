@@ -1071,6 +1071,54 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         wire_section_start = body.find('On-wire sizes (compressed)')
         self.assertIn('gateA', body[wire_section_start:])
 
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_error_on_wire_displays_uncollapsed_on_error_section(self, pr_commenter_mock):
+        """Test that when only the on-wire size is violating a specific gate
+        (and not the on-disk size for that same gate),
+        The uncollapsed error actually shows the data for the on-wire size violation (only)."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+
+        # current-on-disk < max-on-disk and current-on-wire > max-on-wire
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 95 * 1024 * 1024,
+            "max_on_disk_size": 100 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 49 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        expected = "\n".join(
+            [
+                "||Quality gate|Change|Size (prev → **curr** → max)|",
+                "|--|--|--|--|",
+                "|❌|gateA (on wire)|+2.0 MiB (4.17% increase)|48.000 → **50.000** → 49.000|",
+                "<details>",
+                "<summary>Gate failure full details</summary>",
+                "",
+                "|Quality gate|Error type|Error message|",
+                "|----|---|--------|",
+                "|gateA|AssertionError|some_msg_A|",
+            ]
+        )
+        self.assertIn(expected.strip(), body)
+
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
     def tearDown(self):
@@ -1420,8 +1468,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertEqual("**150.000** MiB", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_below_threshold_neutral(self):
         """Should show neutral when delta is below 2 KiB threshold."""
@@ -1435,10 +1483,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertIn("**", limit_bounds)
-        self.assertIn("MiB", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_kib_above_threshold(self):
         """Should show delta in KiB for changes above threshold."""
@@ -1531,8 +1577,8 @@ class TestGetWireChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        self.assertIn("**", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**100.000** MiB → 150.000", limit_bounds)
 
     def test_missing_gate(self):
         """Should return N/A when gate is not found."""

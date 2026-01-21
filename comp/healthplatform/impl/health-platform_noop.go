@@ -6,7 +6,7 @@
 package healthplatformimpl
 
 import (
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 )
 
 // noopHealthPlatform is a no-op implementation of the health platform component

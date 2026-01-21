@@ -13,12 +13,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
 )
 
@@ -33,7 +36,7 @@ type Requires struct {
 
 // Provides defines the output of the health-platform component
 type Provides struct {
-	Comp healthplatform.Component
+	Comp healthplatformdef.Component
 }
 
 // healthPlatformImpl implements the health platform component
@@ -165,14 +168,14 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	// Build the new issue (or nil if resolved)
 	var newIssue *healthplatform.Issue
 	if report != nil {
-		if report.IssueID == "" {
+		if report.IssueId == "" {
 			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.remediationRegistry.BuildIssue(report.IssueID, report.Context)
+		issue, err := h.remediationRegistry.BuildIssue(report.IssueId, report.Context)
 		if err != nil {
-			return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
+			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
 		}
 
 		// Append any additional tags from the report
@@ -210,8 +213,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
-			issueCopy := *issue
-			result[checkID] = &issueCopy
+			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
 			count++
 		} else {
 			result[checkID] = nil
@@ -231,8 +233,7 @@ func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Is
 	}
 
 	// Return a copy to avoid external modifications
-	issueCopy := *issue
-	return &issueCopy
+	return proto.Clone(issue).(*healthplatform.Issue)
 }
 
 // ============================================================================
@@ -285,7 +286,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(checkName string, oldIssue, 
 	}
 
 	// Both exist, check if details changed
-	if oldIssue.ID != newIssue.ID ||
+	if oldIssue.Id != newIssue.Id ||
 		oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
