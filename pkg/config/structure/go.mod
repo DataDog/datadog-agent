@@ -11,7 +11,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.64.1
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2
-	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/stretchr/testify v1.11.1
 )
 
