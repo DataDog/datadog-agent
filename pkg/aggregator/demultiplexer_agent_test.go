@@ -243,7 +243,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
 		return len(demux.aggregator.tagfilterListChan) == 0
-	}, time.Second, time.Millisecond, "original metric should be blocked")
+	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	// Tag 1 and 2 are excluded
 	testCountBlocked([]string{"tag3:three", "tag4:four"}, 32.0)
@@ -260,7 +260,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
 		return len(demux.aggregator.tagfilterListChan) == 0
-	}, time.Second, time.Millisecond)
+	}, time.Second, time.Millisecond, "aggregator should consume the tagfilterList update")
 
 	testCountBlocked([]string{"tag1:one", "tag2:two", "tag3:three"}, 62.0)
 
@@ -342,7 +342,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
 		return len(demux.aggregator.filterListChan) == 0
-	}, time.Second, time.Millisecond, "original metric should be blocked")
+	}, time.Second, time.Millisecond, "aggregator should consume the filterlist update")
 
 	testCountBlocked(true, 32.0)
 
@@ -354,7 +354,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
 		return len(demux.aggregator.filterListChan) == 0
-	}, time.Second, time.Millisecond)
+	}, time.Second, time.Millisecond, "aggregator should consume the filterlist update")
 
 	testCountBlocked(false, 62.0)
 
