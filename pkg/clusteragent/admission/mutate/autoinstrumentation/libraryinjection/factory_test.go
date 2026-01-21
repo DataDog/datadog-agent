@@ -13,49 +13,66 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
 
-func TestGetProviderForPod_DefaultMode(t *testing.T) {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
-	}
-
-	// Default mode is init_container
-	factory := libraryinjection.NewProviderFactory(libraryinjection.InjectionModeInitContainer)
-	provider := factory.GetProviderForPod(pod, libraryinjection.LibraryInjectionConfig{})
-
-	// Should return InitContainerProvider
-	_, isInitContainer := provider.(*libraryinjection.InitContainerProvider)
-	assert.True(t, isInitContainer, "expected InitContainerProvider")
-}
-
-func TestGetProviderForPod_AnnotationOverridesDefault(t *testing.T) {
+func TestGetProviderForPod(t *testing.T) {
 	tests := []struct {
 		name             string
 		defaultMode      libraryinjection.InjectionMode
-		annotationValue  string
+		annotationValue  *string // nil = no annotation
 		expectedProvider string
 	}{
 		{
-			name:             "default init_container, annotation csi",
+			name:             "no annotation uses default init_container",
 			defaultMode:      libraryinjection.InjectionModeInitContainer,
-			annotationValue:  "csi",
+			annotationValue:  nil,
+			expectedProvider: "InitContainerProvider",
+		},
+		{
+			name:             "no annotation uses default csi",
+			defaultMode:      libraryinjection.InjectionModeCSI,
+			annotationValue:  nil,
 			expectedProvider: "CSIProvider",
 		},
 		{
-			name:             "default csi, annotation init_container",
-			defaultMode:      libraryinjection.InjectionModeCSI,
-			annotationValue:  "init_container",
+			name:             "no annotation uses default auto (init_container)",
+			defaultMode:      libraryinjection.InjectionModeAuto,
+			annotationValue:  nil,
 			expectedProvider: "InitContainerProvider",
 		},
 		{
-			name:             "default init_container, annotation auto",
+			name:             "annotation overrides default: init_container -> csi",
 			defaultMode:      libraryinjection.InjectionModeInitContainer,
-			annotationValue:  "auto",
+			annotationValue:  ptr.To("csi"),
+			expectedProvider: "CSIProvider",
+		},
+		{
+			name:             "annotation overrides default: csi -> init_container",
+			defaultMode:      libraryinjection.InjectionModeCSI,
+			annotationValue:  ptr.To("init_container"),
 			expectedProvider: "InitContainerProvider",
+		},
+		{
+			name:             "annotation auto uses init_container",
+			defaultMode:      libraryinjection.InjectionModeInitContainer,
+			annotationValue:  ptr.To("auto"),
+			expectedProvider: "InitContainerProvider",
+		},
+		{
+			name:             "unknown mode falls back to auto (init_container)",
+			defaultMode:      libraryinjection.InjectionModeCSI,
+			annotationValue:  ptr.To("unknown_mode"),
+			expectedProvider: "InitContainerProvider",
+		},
+		{
+			name:             "empty annotation uses default",
+			defaultMode:      libraryinjection.InjectionModeCSI,
+			annotationValue:  ptr.To(""),
+			expectedProvider: "CSIProvider",
 		},
 	}
 
@@ -65,10 +82,13 @@ func TestGetProviderForPod_AnnotationOverridesDefault(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-pod",
 					Namespace: "default",
-					Annotations: map[string]string{
-						annotation.InjectionMode: tt.annotationValue,
-					},
 				},
+			}
+
+			if tt.annotationValue != nil {
+				pod.Annotations = map[string]string{
+					annotation.InjectionMode: *tt.annotationValue,
+				}
 			}
 
 			factory := libraryinjection.NewProviderFactory(tt.defaultMode)
@@ -84,43 +104,4 @@ func TestGetProviderForPod_AnnotationOverridesDefault(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetProviderForPod_UnknownModeFallsBackToAuto(t *testing.T) {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-pod",
-			Namespace: "default",
-			Annotations: map[string]string{
-				annotation.InjectionMode: "unknown_mode",
-			},
-		},
-	}
-
-	factory := libraryinjection.NewProviderFactory(libraryinjection.InjectionModeCSI)
-	provider := factory.GetProviderForPod(pod, libraryinjection.LibraryInjectionConfig{})
-
-	// Unknown mode should fallback to InitContainerProvider (auto behavior)
-	_, isInitContainer := provider.(*libraryinjection.InitContainerProvider)
-	assert.True(t, isInitContainer, "unknown mode should fallback to InitContainerProvider")
-}
-
-func TestGetProviderForPod_EmptyAnnotationUsesDefault(t *testing.T) {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-pod",
-			Namespace: "default",
-			Annotations: map[string]string{
-				annotation.InjectionMode: "",
-			},
-		},
-	}
-
-	// Default is CSI
-	factory := libraryinjection.NewProviderFactory(libraryinjection.InjectionModeCSI)
-	provider := factory.GetProviderForPod(pod, libraryinjection.LibraryInjectionConfig{})
-
-	// Empty annotation should use default (CSI)
-	_, isCSI := provider.(*libraryinjection.CSIProvider)
-	assert.True(t, isCSI, "empty annotation should use default mode")
 }
