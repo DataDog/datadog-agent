@@ -192,6 +192,9 @@ func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string
 	// Convert siteID to string once for comparison
 	siteIDStr := strconv.FormatUint(uint64(siteID), 10)
 
+	// Convert urlpath to lowercase for case-insensitive comparison (Windows paths are case-insensitive)
+	urlpathLower := strings.ToLower(urlpath)
+
 	// Find the matching site and iterate applications to find longest match
 	for _, site := range iiscfg.xmlcfg.ApplicationHost.Sites {
 		if site.SiteID != siteIDStr {
@@ -201,13 +204,14 @@ func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string
 		// Find the longest matching application path
 		longestMatch := "/"
 		for _, app := range site.Applications {
-			if urlpath == app.Path {
+			appPathLower := strings.ToLower(app.Path)
+			if urlpathLower == appPathLower {
 				return app.Path
 			}
 			// Check if urlpath starts with app.Path and has proper boundary
 			// (either app.Path is "/" or next char is "/")
-			if strings.HasPrefix(urlpath, app.Path) &&
-				(app.Path == "/" || (len(urlpath) > len(app.Path) && urlpath[len(app.Path)] == '/')) {
+			if strings.HasPrefix(urlpathLower, appPathLower) &&
+				(appPathLower == "/" || (len(urlpathLower) > len(appPathLower) && urlpathLower[len(appPathLower)] == '/')) {
 				if len(app.Path) > len(longestMatch) {
 					longestMatch = app.Path
 				}

@@ -39,4 +39,8 @@ func TestGetApplicationPath(t *testing.T) {
 	// Test 2: URL path that doesn't exist - should fall back to root application
 	result = iisCfg.GetApplicationPath(2, "/doesnot/exist")
 	assert.Equal(t, "/", result)
+
+	// Test 1: URL path matching sub-application /api/web2 on site 2 when access it using upper case
+	result = iisCfg.GetApplicationPath(2, "/api/WEB2")
+	assert.Equal(t, "/api/web2", result)
 }
