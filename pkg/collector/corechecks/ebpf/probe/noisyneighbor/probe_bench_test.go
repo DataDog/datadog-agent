@@ -155,4 +155,3 @@ func BenchmarkGetAndFlushAllocs(b *testing.B) {
 		_ = stats
 	}
 }
-
