@@ -1468,8 +1468,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertEqual("**150.000** MiB", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_below_threshold_neutral(self):
         """Should show neutral when delta is below 2 KiB threshold."""
@@ -1483,10 +1483,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertIn("**", limit_bounds)
-        self.assertIn("MiB", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_kib_above_threshold(self):
         """Should show delta in KiB for changes above threshold."""
@@ -1579,8 +1577,8 @@ class TestGetWireChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        self.assertIn("**", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**100.000** MiB → 150.000", limit_bounds)
 
     def test_missing_gate(self):
         """Should return N/A when gate is not found."""

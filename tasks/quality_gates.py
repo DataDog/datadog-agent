@@ -342,8 +342,8 @@ def get_change_metrics(
 
     # Build limit bounds string based on whether change is neutral
     if is_neutral:
-        # For neutral changes, just show the current size (bolded)
-        limit_bounds_str = f"**{current_mib:.3f}** MiB"
+        # For neutral changes, show the current size (bolded) → limit
+        limit_bounds_str = f"**{current_mib:.3f}** MiB → {max_mib:.3f}"
     elif baseline_mib is not None:
         # For meaningful changes, show: baseline → current (bold) → limit
         limit_bounds_str = f"{baseline_mib:.3f} → **{current_mib:.3f}** → {max_mib:.3f}"
