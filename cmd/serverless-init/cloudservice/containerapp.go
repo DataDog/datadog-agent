@@ -143,13 +143,13 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 	//nolint:revive // TODO(SERV) Fix revive linter
 	subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar)
 	if !exists {
-		return fmt.Errorf("Must set Subscription ID as an environment variable. Please set the %s value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
+		return fmt.Errorf("missing required environment variable %s: set this to your Azure Container App's Subscription ID", AzureSubscriptionIdEnvVar)
 	}
 	c.SubscriptionId = subscriptionId
 
 	resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar)
 	if !exists {
-		return fmt.Errorf("Must set Resource Group as an environment variable. Please set the %s value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
+		return fmt.Errorf("missing required environment variable %s: set this to your Azure Container App's Resource Group", AzureResourceGroupEnvVar)
 	}
 	c.ResourceGroup = resourceGroup
 
