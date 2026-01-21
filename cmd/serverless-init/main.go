@@ -154,7 +154,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
 
 	// TODO check for errors and exit
-	_ = cloudService.Init(traceAgent)
+	_ = cloudService.Init(traceAgent, tags)
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())

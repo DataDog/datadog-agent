@@ -30,7 +30,9 @@ type CloudService interface {
 
 	// Init bootstraps the CloudService.
 	// traceAgent is optional and only used by CloudRunJobs
-	Init(traceAgent interface{}) error
+	// spanTags contains the combined tags (unified service tags + configured tags + cloud provider metadata)
+	// and is used for span creation in CloudRunJobs
+	Init(traceAgent interface{}, spanTags map[string]string) error
 
 	// Shutdown cleans up the CloudService and allows emitting shutdown metrics
 	// traceAgent is optional and currently only used by CloudRunJobs
@@ -74,7 +76,7 @@ func (l *LocalService) GetSource() metrics.MetricSource {
 }
 
 // Init is not necessary for LocalService
-func (l *LocalService) Init(_ interface{}) error {
+func (l *LocalService) Init(_ interface{}, _ map[string]string) error {
 	return nil
 }
 

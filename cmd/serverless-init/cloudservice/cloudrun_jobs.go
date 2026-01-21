@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // CloudRunJobsOrigin origin tag value
@@ -49,6 +50,7 @@ type CloudRunJobs struct {
 	startTime  time.Time
 	jobSpan    *pb.Span
 	traceAgent interface{}
+	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
 }
 
 // GetTags returns a map of gcp-related tags for Cloud Run Jobs.
@@ -105,9 +107,10 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 }
 
 // Init records the start time for CloudRunJobs and initializes the job span
-func (c *CloudRunJobs) Init(traceAgent interface{}) error {
+func (c *CloudRunJobs) Init(traceAgent interface{}, spanTags map[string]string) error {
 	c.startTime = time.Now()
 	c.traceAgent = traceAgent
+	c.spanTags = spanTags
 	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") && pkgconfigsetup.Datadog().GetBool("serverless.trace_enabled") {
 		c.initJobSpan()
 		c.setSpanModifier()
@@ -150,8 +153,8 @@ func isCloudRunJob() bool {
 
 // initJobSpan creates and initializes the job span with Cloud Run Job metadata
 func (c *CloudRunJobs) initJobSpan() {
-	tags := c.GetTags()
-	jobNameVal := os.Getenv(cloudRunJobNameEnvVar)
+	tags := c.spanTags
+	jobNameVal := tags[jobNameTag]
 
 	// Use DD_SERVICE for the service name, fallback to job name, then "gcp.run.job"
 	serviceName := tags["service"]
@@ -161,6 +164,7 @@ func (c *CloudRunJobs) initJobSpan() {
 	if serviceName == "" {
 		serviceName = "gcp.run.job"
 	}
+	log.Debugf("Cloud Run Job: using service name %q (tags[service]=%q, job_name=%q)", serviceName, tags["service"], jobNameVal)
 
 	// Use job name for resource, fallback
 	resourceName := jobNameVal

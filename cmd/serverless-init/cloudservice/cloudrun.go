@@ -149,7 +149,7 @@ func (c *CloudRun) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for CloudRun
-func (c *CloudRun) Init(_ interface{}) error {
+func (c *CloudRun) Init(_ interface{}, _ map[string]string) error {
 	return nil
 }
 
