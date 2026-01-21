@@ -229,6 +229,69 @@ func TestFilterListUpdateWithValidTags(t *testing.T) {
 	}, tagEntries[0])
 }
 
+// TestFilterListIgnoresUnknownSections tests a config file with unknown keys is handled gracefully
+// and the unknown keys are ignored.
+func TestFilterListIgnoresUnknownSections(t *testing.T) {
+	require := require.New(t)
+
+	cfg := make(map[string]interface{})
+
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+
+	results := updateRes{}
+	callback := func(path string, status state.ApplyStatus) {
+		results[status.State] = append(results[status.State], path)
+	}
+
+	// Valid tag filter list update with exclude mode
+	updates := map[string]state.RawConfig{
+		"config1": {Config: []byte(`{
+			"tag_filterlist": {
+				"by_name": {
+					"values": [
+						{
+                                                        "created_at": 1768839205,
+							"metric_name": "test.distribution",
+							"exclude_tags_mode": true,
+							"tags": ["env", "host"]
+						}
+					]
+				},
+				"by_name_pattern": {
+					"values": [
+						{
+                                                        "created_at": 1768839205,
+							"metric_name_include": "test.distribution.*",
+							"metric_name_exclude": ["test.distribution.thing.*"],
+							"exclude_tags_mode": true,
+							"tags": ["env", "host"]
+						}
+					]
+				}
+			}
+		}`)},
+	}
+
+	filterList.onFilterListUpdateCallback(updates, callback)
+	require.Len(results[state.ApplyStateAcknowledged], 1)
+	require.Len(results[state.ApplyStateError], 0)
+
+	// Verify tag filter list was set in config with unhashed tag names
+	var tagEntries []MetricTagListEntry
+	err := structure.UnmarshalKey(configComponent, "metric_tag_filterlist", &tagEntries)
+	require.NoError(err)
+	require.Len(tagEntries, 1)
+	require.Equal(MetricTagListEntry{
+		MetricName: "test.distribution",
+		Action:     "exclude",
+		Tags:       []string{"env", "host"},
+	}, tagEntries[0])
+
+}
+
 // TestFilterListUpdateWithMergedTags tests tag merging logic
 func TestFilterListUpdateWithMergedTags(t *testing.T) {
 	require := require.New(t)
