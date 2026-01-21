@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,7 +48,16 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, deps.Ipc, opts)
+	hostname, err := hostnameutils.GetHostname(deps.Ipc)
+	if err != nil {
+		log.Warnf("failed to get hostname from core agent: %v, using 'unknown'", err)
+		hostname = "unknown"
+	} else if hostname == "" {
+		log.Warn("hostname from core agent is empty, using 'unknown'")
+		hostname = "unknown"
+	}
+
+	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, hostname, opts)
 	if err != nil {
 		log.Errorf("error initializing event monitoring module: %v", err)
 		return nil, module.ErrNotEnabled

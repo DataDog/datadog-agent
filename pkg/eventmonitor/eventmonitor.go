@@ -17,14 +17,12 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -213,22 +211,13 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc.Component, opts Opts) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, hostname string, opts Opts) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = &statsd.NoOpClient{}
 	}
 
 	if opts.ProbeOpts.StatsdClient == nil {
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
-	}
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil {
-		log.Warnf("failed to get hostname from core agent: %v, using 'unknown'", err)
-		hostname = "unknown"
-	} else if hostname == "" {
-		log.Warn("hostname from core agent is empty, using 'unknown'")
-		hostname = "unknown"
 	}
 
 	probe, err := probe.NewProbe(secconfig, hostname, opts.ProbeOpts)
