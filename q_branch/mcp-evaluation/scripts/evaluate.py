@@ -15,8 +15,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import httpx
-from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-from claude_agent_sdk.error import ProcessError
+from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage, ProcessError
 from anthropic import (
     Anthropic,
     RateLimitError,
@@ -434,42 +433,22 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
                 conversation.append(message)
         except ProcessError as e:
             print(f"[{self.mode}/{scenario}] ProcessError: Command failed with exit code {e.exit_code}")
-            print(f"  Message: {e.message}")
-            if e.stderr:
-                print(f"  Stderr: {e.stderr}")
+            print(f"  Stderr: {e.stderr}")
+            print(f"  Exit Code: {e.exit_code}")
             import traceback
             traceback.print_exc()
-            conversation.append({"error": f"ProcessError (exit {e.exit_code}): {e.message}"})
-        except RateLimitError as e:
-            print(f"[{self.mode}/{scenario}] RateLimitError: API rate limit exceeded")
-            print(f"  Error: {e}")
-            if hasattr(e, 'response'):
-                print(f"  Response headers: {e.response.headers if e.response else 'N/A'}")
             conversation.append({"error": f"RateLimitError: {e}"})
-        except APITimeoutError as e:
-            print(f"[{self.mode}/{scenario}] APITimeoutError: Request timed out")
-            print(f"  Error: {e}")
-            conversation.append({"error": f"APITimeoutError: {e}"})
-        except APIConnectionError as e:
-            print(f"[{self.mode}/{scenario}] APIConnectionError: Connection failed")
-            print(f"  Error: {e}")
-            if hasattr(e, '__cause__'):
-                print(f"  Underlying cause: {e.__cause__}")
-            conversation.append({"error": f"APIConnectionError: {e}"})
         except APIStatusError as e:
             print(f"[{self.mode}/{scenario}] APIStatusError: HTTP {e.status_code}")
             print(f"  Status code: {e.status_code}")
             print(f"  Error: {e}")
-            if hasattr(e, 'response'):
-                print(f"  Response body: {e.response.text if e.response else 'N/A'}")
+            print(f"  Response body: {e.response.text}")
             conversation.append({"error": f"APIStatusError {e.status_code}: {e}"})
         except APIError as e:
             print(f"[{self.mode}/{scenario}] APIError: {e}")
             print(f"  Error type: {type(e).__name__}")
-            if hasattr(e, 'status_code'):
-                print(f"  Status code: {e.status_code}")
-            if hasattr(e, 'body'):
-                print(f"  Response body: {e.body}")
+            print(f"  Response body: {e.body}")
+            print(f"  Underlying cause: {e.__cause__}")
             import traceback
             traceback.print_exc()
             conversation.append({"error": f"APIError: {e}"})
