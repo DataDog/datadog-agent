@@ -214,7 +214,7 @@ def releasenote(ctx):
 
 
 @task
-def rst_releasenotes(_, files=None):
+def rst_releasenotes(ctx, files=None, only_changed=False):
     """Check release notes for RST formatting issues.
 
     Validates that release notes use proper reStructuredText (RST) formatting
@@ -223,11 +223,23 @@ def rst_releasenotes(_, files=None):
     Args:
         files: Optional comma-separated list of files to lint. If not provided,
                lints all .yaml files in releasenotes/notes/ and releasenotes-dca/notes/.
+        only_changed: If True, only lint release note files that have been modified
+                      compared to the base branch (main). Used in CI to only check
+                      files in the current PR.
     """
     from tasks.libs.linter.releasenotes import lint_releasenotes
 
     if files:
         file_list = [f.strip() for f in files.split(',') if f.strip()]
+    elif only_changed:
+        # Get release note files that have been added or modified compared to main
+        result = ctx.run(
+            "git diff --name-only --diff-filter=AM \"$(git merge-base main HEAD)\" "
+            "| grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
+            warn=True,
+            hide=True,
+        )
+        file_list = [f.strip() for f in result.stdout.splitlines() if f.strip()]
     else:
         file_list = list(glob('releasenotes/notes/*.yaml')) + list(glob('releasenotes-dca/notes/*.yaml'))
 
