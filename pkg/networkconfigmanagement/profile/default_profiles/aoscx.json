@@ -30,6 +30,15 @@
           {
             "regex": "^(tacacs-server key).*",
             "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(user \\S+ group \\S+ password) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "Current configuration:\\s*!\\s*!Version.*\\s*!export-password:.*\\s",
+            "replacement": "",
+            "multiline": true
           }
         ]
       }
