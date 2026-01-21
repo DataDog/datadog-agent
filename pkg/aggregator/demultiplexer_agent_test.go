@@ -203,9 +203,10 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	demux.aggregator.serializer = s
 	demux.sharedSerializer = s
 
-	testCountBlocked := func(isBlocked bool) {
-		// Send a histogram, flush it and test the output either does or does not contain the count
-		// aggregate.
+	testCountBlocked := func(blockCount bool) {
+		// Send a histogram, flush it and test the output
+		// If blockedCount is true we test count is blocked and not avg.
+		// If blockedCount is false we test avg is blocked and not count.
 		demux.AggregateSample(metrics.MetricSample{
 			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: 32.0,
 		})
@@ -213,12 +214,12 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		demux.ForceFlushToSerializer(time.Unix(100, 0), true)
 
 		// We should always contain the average of the histogram.
-		require.True(slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+		require.Equal(blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
 			return serie.Name == "original.blocked.avg"
 		}))
 
 		// Test if the count is filtered out.
-		require.Equal(!isBlocked, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+		require.Equal(!blockCount, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
 			return serie.Name == "original.blocked.count"
 		}))
 	}
@@ -234,7 +235,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	testCountBlocked(true)
 
-	filterList.SetFilterList([]string{"first.metric"}, false)
+	filterList.SetFilterList([]string{"original.blocked.avg"}, false)
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
@@ -242,7 +243,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		defer demux.aggregator.flushFilterListMtx.RUnlock()
 		return len(demux.aggregator.filterListChan) == 0 &&
 			!demux.aggregator.flushFilterList.Test("original.blocked.count") &&
-			demux.aggregator.flushFilterList.Test("first.metric")
+			demux.aggregator.flushFilterList.Test("original.blocked.avg")
 	}, time.Second, time.Millisecond)
 
 	testCountBlocked(false)
@@ -257,7 +258,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		return demux.aggregator == nil
 	}, time.Second, time.Millisecond)
 
-	filterList.SetFilterList([]string{"another.metric"}, false)
+	filterList.SetFilterList([]string{"more.metric"}, false)
 }
 
 type DemultiplexerAgentTestDeps struct {
