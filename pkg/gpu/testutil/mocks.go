@@ -187,6 +187,9 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 			return nvml.EventTypeAll, nvml.SUCCESS
 		},
 		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+			if profile != 0 {
+				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
+			}
 			return DefaultMIGProfileInfo, nvml.SUCCESS
 		},
 	}
