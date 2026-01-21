@@ -355,6 +355,11 @@ def lint_releasenote_file(file_path: str | Path) -> ReleasenoteFileResult:
     structure_errors = validate_reno_structure(content, str(file_path))
     section_errors.extend(structure_errors)
 
+    # If content is not a dict, we can't iterate over sections - return early
+    # (the structure error was already reported above)
+    if not isinstance(content, dict):
+        return ReleasenoteFileResult(file_path=str(file_path), section_errors=section_errors)
+
     # Validate RST content in each known section
     for section in RENO_SECTIONS:
         if section not in content:

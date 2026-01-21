@@ -448,6 +448,15 @@ features:
         self.assertTrue(result.has_errors)
         self.assertEqual(result.section_errors[0].section, 'yaml')
 
+    def test_scalar_yaml_content(self):
+        """Scalar YAML content (not a dict) should be reported without crashing."""
+        # This tests the fix for: TypeError when content is a scalar like True or 123
+        content = "true"
+        path = self._write_temp_file(content)
+        result = lint_releasenote_file(path)
+        self.assertTrue(result.has_errors)
+        self.assertIn('must be a YAML mapping', result.section_errors[0].errors[0].message)
+
     def test_nonexistent_file(self):
         """Nonexistent file should be reported as an error."""
         result = lint_releasenote_file('/nonexistent/path/file.yaml')
