@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test && windows
+//go:build test && (windows || darwin)
 
 package hostsysteminfoimpl
 
@@ -88,12 +88,12 @@ func TestPayloadMarshalJSON(t *testing.T) {
 		Timestamp: time.Now().UnixNano(),
 		UUID:      "test-uuid-12345",
 		Metadata: &hostSystemInfoMetadata{
-			Manufacturer: "Lenovo",
-			ModelNumber:  "Thinkpad T14s",
-			SerialNumber: "ABC123XYZ",
-			ModelName:    "Thinkpad",
-			ChassisType:  "Laptop",
-			Identifier:   "SKU123",
+			Manufacturer: "Test Manufacturer",
+			ModelNumber:  "Test Model",
+			SerialNumber: "TEST123",
+			ModelName:    "Test Name",
+			ChassisType:  "Desktop",
+			Identifier:   "ID123",
 		},
 	}
 
@@ -114,12 +114,12 @@ func TestPayloadMarshalJSON(t *testing.T) {
 
 	// Verify metadata fields
 	metadata := result["host_system_info_metadata"].(map[string]interface{})
-	assert.Equal(t, "Lenovo", metadata["manufacturer"])
-	assert.Equal(t, "Thinkpad T14s", metadata["model_number"])
-	assert.Equal(t, "ABC123XYZ", metadata["serial_number"])
-	assert.Equal(t, "Thinkpad", metadata["model_name"])
-	assert.Equal(t, "Laptop", metadata["chassis_type"])
-	assert.Equal(t, "SKU123", metadata["identifier"])
+	assert.Equal(t, "Test Manufacturer", metadata["manufacturer"])
+	assert.Equal(t, "Test Model", metadata["model_number"])
+	assert.Equal(t, "TEST123", metadata["serial_number"])
+	assert.Equal(t, "Test Name", metadata["model_name"])
+	assert.Equal(t, "Desktop", metadata["chassis_type"])
+	assert.Equal(t, "ID123", metadata["identifier"])
 }
 
 func TestFillData(t *testing.T) {
