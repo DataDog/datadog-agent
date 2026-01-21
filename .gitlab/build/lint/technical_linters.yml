@@ -45,6 +45,7 @@ lint_components:
 lint_python:
   extends: .lint
   script:
+    - dda self pip install docutils types-docutils
     - dda inv -- -e linter.python --show-versions
 
 lint_update_go:
