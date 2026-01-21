@@ -116,21 +116,18 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	result, err := setup(secretComp, modeConf, tagger, compression, hostname)
+	result, cleanup, err := setup(secretComp, modeConf, tagger, compression, hostname)
+	defer func() { cleanup(err) }()
+
 	if err != nil {
 		return err
 	}
 
 	err = modeConf.Runner(result.logConfig)
-
-	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(result.logConfig.FlushTimeout, result.agents.metric, result.agents.tracing.TraceAgent, result.agents.logs)
-	defer result.cloudService.Shutdown(*result.agents.metric, err)
-
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (*setupResult, error) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (*setupResult, func(error), error) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -176,7 +173,11 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	}
 
 	if err := cloudService.Init(tracingCtx); err != nil {
-		return nil, err
+		// Cleanup for early exit: only trace and logs agents exist, no metric agent yet
+		cleanup := func(_ error) {
+			lastFlush(agentLogConfig.FlushTimeout, nil, traceAgent, logsAgent)
+		}
+		return nil, cleanup, err
 	}
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
@@ -187,6 +188,13 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
+
+	// Cleanup for success: all agents exist
+	cleanup := func(err error) {
+		cloudService.Shutdown(*metricAgent, err)
+		lastFlush(agentLogConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	}
+
 	return &setupResult{
 		cloudService: cloudService,
 		logConfig:    agentLogConfig,
@@ -195,7 +203,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 			tracing: tracingCtx,
 			logs:    logsAgent,
 		},
-	}, nil
+	}, cleanup, nil
 }
 
 var azureServerlessTags = []string{
@@ -296,6 +304,10 @@ func flushWithContext(ctx context.Context, timeoutchan chan struct{}, flushFunct
 }
 
 func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverless.FlushableAgent, hasTimeout *atomic.Int32) {
+	defer wg.Done()
+	if agent == nil {
+		return
+	}
 	childCtx, cancel := context.WithTimeout(context.Background(), flushTimeout)
 	defer cancel()
 	ch := make(chan struct{}, 1)
@@ -303,11 +315,8 @@ func flushAndWait(flushTimeout time.Duration, wg *sync.WaitGroup, agent serverle
 	select {
 	case <-childCtx.Done():
 		hasTimeout.Inc()
-		break
 	case <-ch:
-		break
 	}
-	wg.Done()
 }
 
 func setEnvWithoutOverride(envToSet map[string]string) {

@@ -44,10 +44,9 @@ func TestTagsSetup(t *testing.T) {
 
 	allTags := append(ddTags, ddExtraTags...)
 
-	result, err := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	result, cleanup, err := setup(secretsmock.New(t), mode.Conf{}, fakeTagger, fakeCompression, fakeHostname)
+	defer cleanup(err)
 	assert.NoError(t, err)
-	defer result.agents.tracing.TraceAgent.Stop()
-	defer result.agents.metric.Stop()
 	assert.Subset(t, result.agents.metric.GetExtraTags(), allTags)
 }
 
