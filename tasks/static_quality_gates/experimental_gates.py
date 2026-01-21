@@ -17,9 +17,11 @@ from typing import Any, Protocol
 import yaml
 from invoke import Context
 
+from tasks.libs.common.color import color_message
 from tasks.libs.package.size import extract_package, file_size
 from tasks.static_quality_gates.gates import (
     QualityGateConfig,
+    byte_to_string,
     create_quality_gate_config,
 )
 
@@ -1269,7 +1271,6 @@ def measure_image_local(
     Example:
         dda inv experimental-gates.measure-image-local --image-ref nginx:latest --gate-name static_quality_gate_docker_agent_amd64
     """
-    from tasks.libs.common.color import color_message
 
     if not os.path.exists(config_path):
         print(color_message(f"❌ Configuration file not found: {config_path}", "red"))
@@ -1422,3 +1423,19 @@ def compare_inventory(
         del current_files[path]
     added_files = list(current_files.values())
     return added_files, removed_files, changed_files
+
+
+def display_change_summary(change: FileChange):
+    print(color_message(f'Summary of changes to {change.current.relative_path}', "orange"))
+    if change.flags & FileChange.Flags.Permissions:
+        print(f'    Permission changed: {oct(change.previous.chmod)} -> {oct(change.current.chmod)}')
+    if change.flags & FileChange.Flags.Size:
+        color = "red" if change.size_percent > 0 else "green"
+        change_str = color_message(f'{change.size_percent:.2f}%', color)
+        print(
+            f'    Size changed by {change_str} ({byte_to_string(change.previous.size_bytes)} -> {byte_to_string(change.current.size_bytes)})'
+        )
+    if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
+        print(
+            f'    File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}'
+        )
