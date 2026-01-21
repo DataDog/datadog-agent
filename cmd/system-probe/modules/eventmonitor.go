@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/sender"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -49,7 +49,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		secmodule.DisableRuntimeSecurity(secconfig)
 	}
 
-	hostname, err := hostnameutils.GetHostname(deps.Ipc)
+	hostname, err := deps.Hostname.Get(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get hostname: %w", err)
 	}
