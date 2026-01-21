@@ -39,8 +39,8 @@ RENO_SECTIONS = frozenset(
 # Markdown patterns that indicate contributor confusion
 # Each tuple contains (pattern, description)
 MARKDOWN_PATTERNS = [
-    # Markdown links: [text](url)
-    (re.compile(r'\[([^\]]+)\]\(([^)]+)\)'), 'Markdown link syntax. Use RST: `{0} <{1}>`_'),
+    # Markdown links: [text](url) - exclude image syntax with negative lookbehind
+    (re.compile(r'(?<!!)\[([^\]]+)\]\(([^)]+)\)'), 'Markdown link syntax. Use RST: `{0} <{1}>`_'),
     # Markdown bold: **text** or __text__
     (re.compile(r'\*\*([^*]+)\*\*'), 'Markdown bold syntax. Use RST: **{0}**'),
     (re.compile(r'__([^_]+)__'), 'Markdown bold syntax. Use RST: **{0}**'),
@@ -50,8 +50,8 @@ MARKDOWN_PATTERNS = [
     (re.compile(r'(?<=\s)_([^_\s][^_]*)_(?=\s|[.,;:!?\)]|$)'), 'Markdown italic syntax. Use RST: *{0}*'),
     # Markdown headers: # Title, ## Title, etc.
     (re.compile(r'^#{1,6}\s+.+$', re.MULTILINE), 'Markdown header syntax. Use RST title underlines instead'),
-    # Markdown code blocks: ```lang or ```
-    (re.compile(r'```\w*\n'), 'Markdown code block syntax. Use RST: .. code-block:: <lang>'),
+    # Markdown code blocks: ```lang or ``` (at end of line, since we process line by line)
+    (re.compile(r'^```\w*$'), 'Markdown code block syntax. Use RST: .. code-block:: <lang>'),
     # Markdown horizontal rule: --- or *** or ___ (at start of line, 3+ chars)
     (re.compile(r'^[-*_]{3,}\s*$', re.MULTILINE), 'Markdown horizontal rule. Not typically needed in release notes'),
     # Markdown images: ![alt](url)
@@ -175,8 +175,8 @@ def validate_rst(text: str) -> list[RSTLintError]:
 
     # Lazy import docutils to avoid import errors when not installed
     try:
-        from docutils.core import publish_doctree
-        from docutils.nodes import system_message
+        from docutils.core import publish_doctree  # type: ignore[import-untyped]
+        from docutils.nodes import system_message  # type: ignore[import-untyped]
     except ImportError:
         # docutils not installed, skip RST validation but keep Markdown detection
         return errors

@@ -2,6 +2,14 @@ import os
 import tempfile
 import unittest
 
+# Check if docutils is available for tests that depend on it
+try:
+    import docutils  # noqa: F401
+
+    DOCUTILS_AVAILABLE = True
+except ImportError:
+    DOCUTILS_AVAILABLE = False
+
 from tasks.libs.linter.releasenotes import (
     RENO_SECTIONS,
     ReleasenoteFileResult,
@@ -46,6 +54,7 @@ This is valid RST with ``inline code`` and a
         errors = validate_rst("   \n\t  \n  ")
         self.assertEqual(len(errors), 0)
 
+    @unittest.skipUnless(DOCUTILS_AVAILABLE, "docutils not installed")
     def test_unknown_target_reference(self):
         """Unknown reference targets should be detected."""
         rst = "See the `config`_ section for details."
@@ -53,6 +62,7 @@ This is valid RST with ``inline code`` and a
         # Should detect unknown target
         self.assertGreater(len(errors), 0)
 
+    @unittest.skipUnless(DOCUTILS_AVAILABLE, "docutils not installed")
     def test_title_underline_mismatch(self):
         """Title with mismatched underline should be detected."""
         rst = """
@@ -75,6 +85,7 @@ Some content.
         errors = validate_rst(rst)
         self.assertEqual(len(errors), 0)
 
+    @unittest.skipUnless(DOCUTILS_AVAILABLE, "docutils not installed")
     def test_error_contains_line_number(self):
         """Errors should contain line number information when available."""
         rst = """Line one
