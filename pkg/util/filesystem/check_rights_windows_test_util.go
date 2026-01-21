@@ -20,8 +20,8 @@ func boolToString(b bool) string {
 	return "0"
 }
 
-// SetupAcl modifies the permissions of the specified file
-func SetupAcl(path string, removeAllUser bool, removeAdmin bool, removeLocalSystem bool, addDDUser bool) error {
+// SetupACL modifies the permissions of the specified file
+func SetupACL(path string, removeAllUser bool, removeAdmin bool, removeLocalSystem bool, addDDUser bool) error {
 	return exec.Command("powershell", "test/setAcl.ps1",
 		"-file", path,
 		"-removeAllUser", boolToString(removeAllUser),
@@ -32,8 +32,8 @@ func SetupAcl(path string, removeAllUser bool, removeAdmin bool, removeLocalSyst
 }
 
 func SetCorrectRight(path string) {
-	// error not checked
-	_ = SetupAcl(path, true, false, false, true)
+	// output not checked
+	_ = SetupACL(path, true, false, false, true)
 }
 
 func TestCheckRightsStub() {
