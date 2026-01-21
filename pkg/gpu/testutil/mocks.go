@@ -27,7 +27,7 @@ import (
 )
 
 // DefaultGpuCores is the default number of cores for a GPU device in the mock.
-const DefaultGpuCores = 10
+const DefaultGpuCores = 1024
 
 // GPUUUIDs is a list of UUIDs for the devices returned by the mock
 var GPUUUIDs = []string{
@@ -43,7 +43,7 @@ var GPUUUIDs = []string{
 // GPUCores is a list of number of cores for the devices returned by the mock,
 // should be the same length as GPUUUIDs. If not, GetBasicNvmlMock will panic.
 // Note: it is important to keep the cores count divisible by 4, to allow proper calculations for MIG children cores
-var GPUCores = []int{DefaultGpuCores, 20, 40, 60, 80, 100, 120}
+var GPUCores = []int{DefaultGpuCores, 2048, 4096, 6144, 8192, 10240, 12288}
 
 // DefaultGpuUUID is the UUID for the default device returned by the mock
 var DefaultGpuUUID = GPUUUIDs[0]
@@ -99,13 +99,6 @@ var MIGChildrenPerDevice = map[int]int{
 var MIGChildrenUUIDs = map[int][]string{
 	5: {"MIG-00000000-1234-1234-1234-123456789012", "MIG-11111111-1234-1234-1234-123456789013"},
 	6: {"MIG-22222222-1234-1234-1234-123456789014", "MIG-33333333-1234-1234-1234-123456789015", "MIG-44444444-1234-1234-1234-123456789016", "MIG-55555555-1234-1234-1234-123456789017"},
-}
-
-// DefaultMIGProfileInfo is the profile info for the default MIG device returned by the mock.
-var DefaultMIGProfileInfo = nvml.GpuInstanceProfileInfo{
-	MemorySizeMB:        1024,
-	InstanceCount:       1,
-	MultiprocessorCount: 10,
 }
 
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
@@ -187,10 +180,10 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 			return nvml.EventTypeAll, nvml.SUCCESS
 		},
 		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
-			if profile != 0 {
+			if _, isMig := MIGChildrenPerDevice[deviceIdx]; !isMig || profile != 0 {
 				return nvml.GpuInstanceProfileInfo{}, nvml.ERROR_INVALID_ARGUMENT
 			}
-			return DefaultMIGProfileInfo, nvml.SUCCESS
+			return getGpuInstanceProfileInfo(deviceIdx), nvml.SUCCESS
 		},
 	}
 
@@ -199,6 +192,22 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 	}
 
 	return mock
+}
+
+func getGpuInstanceProfileInfo(deviceIdx int) nvml.GpuInstanceProfileInfo {
+	// build a profile info consistent with the number of cores per multiprocessor
+	// and the mig children count for this device
+	// Hopper has 128 cores per multiprocessor, and that's the default arch we have.
+	// If this is wrong, unit tests will fail as they ensure the core count is correct.
+	parentMultiprocessorCount := uint32(GPUCores[deviceIdx]) / 128
+	parentMemorySizeMB := DefaultTotalMemory / 1024 / 1024
+	instanceCount := MIGChildrenPerDevice[deviceIdx]
+
+	return nvml.GpuInstanceProfileInfo{
+		MemorySizeMB:        parentMemorySizeMB / uint64(instanceCount),
+		InstanceCount:       uint32(instanceCount),
+		MultiprocessorCount: parentMultiprocessorCount / uint32(instanceCount),
+	}
 }
 
 // GetMIGDeviceMock returns a mock of the MIG Device.
@@ -237,15 +246,13 @@ func GetMIGDeviceMock(deviceIdx int, migDeviceIdx int, opts ...func(*nvmlmock.De
 				return nvml.DeviceAttributes{}, nvml.ERROR_NOT_SUPPORTED
 			}
 
-			// core count and total memory - equally distribute between all mig devices
-			// in the future, we might want to make this more sophisticated, to support more complex scenarios in our UTs
-			parentTotalCores := GPUCores[deviceIdx]
-			coresPerMigDevice := parentTotalCores / numMigChildrenForParent
-			memoryPerMigDevice := DefaultTotalMemory / uint64(numMigChildrenForParent)
+			// use the common profile information to ensure consistent
+			// attributes for all MIG devices and their parents
+			profileInfo := getGpuInstanceProfileInfo(deviceIdx)
 
 			migSpecificAttributes := nvml.DeviceAttributes{
-				MultiprocessorCount: uint32(coresPerMigDevice),
-				MemorySizeMB:        memoryPerMigDevice / (1024 * 1024),
+				MultiprocessorCount: profileInfo.MultiprocessorCount,
+				MemorySizeMB:        profileInfo.MemorySizeMB,
 			}
 
 			return migSpecificAttributes, nvml.SUCCESS
