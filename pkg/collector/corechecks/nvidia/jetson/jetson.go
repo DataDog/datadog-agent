@@ -114,8 +114,8 @@ func getSizeMultiplier(unit string) float64 {
 // validateTegraStatsPath verifies that the path is absolute and doesn't contain invalid characters
 func validateTegraStatsPath(path string) error {
 	// Reject values containing whitespace, shell metacharacters, or non-path characters
-	if shellMetacharRegex.MatchString(path) {
-		return fmt.Errorf("tegrastats_path contains invalid characters: %q", path)
+	if invalidChars := shellMetacharRegex.FindAllString(path, -1); len(invalidChars) > 0 {
+		return fmt.Errorf("tegrastats_path contains invalid characters %q: %q", invalidChars, path)
 	}
 
 	// Reject non-absolute path
