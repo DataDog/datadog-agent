@@ -21,7 +21,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -113,7 +112,7 @@ const (
 type Agent struct {
 	telemetrySender telemetry.SimpleTelemetrySender
 	wmeta           workloadmeta.Component
-	ipc             ipc.Component
+	hostname        string
 	opts            AgentOptions
 
 	telemetry  *telemetry.ContainersTelemetry
@@ -137,7 +136,7 @@ var seclRuleFilterError error
 // MakeDefaultRuleFilter implements the default filtering of benchmarks' rules. It
 // will exclude rules based on the evaluation context / environment running
 // the benchmark.
-func MakeDefaultRuleFilter(ipc ipc.Component) RuleFilter {
+func MakeDefaultRuleFilter(hostname string) RuleFilter {
 	isK8s := env.IsKubernetes()
 	xccdfEnabled := xccdfEnabled()
 
@@ -156,7 +155,7 @@ func MakeDefaultRuleFilter(ipc ipc.Component) RuleFilter {
 		}
 		if len(r.Filters) > 0 {
 			initSECRulerFilter.Do(func() {
-				seclRuleFilterValue, seclRuleFilterError = newSECLRuleFilter(ipc)
+				seclRuleFilterValue, seclRuleFilterError = newSECLRuleFilter(hostname)
 			})
 			if seclRuleFilterError != nil {
 				log.Errorf("failed to apply rule filters: %s", seclRuleFilterError)
@@ -177,7 +176,7 @@ func MakeDefaultRuleFilter(ipc ipc.Component) RuleFilter {
 }
 
 // NewAgent returns a new compliance agent.
-func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, ipc ipc.Component, opts AgentOptions) *Agent {
+func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmeta.Component, hostname string, opts AgentOptions) *Agent {
 	if opts.ConfigDir == "" {
 		panic("compliance: missing agent configuration directory")
 	}
@@ -193,7 +192,7 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 	if opts.CheckIntervalLowPriority <= 0 {
 		opts.CheckIntervalLowPriority = defaultCheckIntervalLowPriority
 	}
-	defaultRuleFilter := MakeDefaultRuleFilter(ipc)
+	defaultRuleFilter := MakeDefaultRuleFilter(hostname)
 	if ruleFilter := opts.RuleFilter; ruleFilter != nil {
 		opts.RuleFilter = func(r *Rule) bool { return defaultRuleFilter(r) && ruleFilter(r) }
 	} else {
@@ -202,7 +201,7 @@ func NewAgent(telemetrySender telemetry.SimpleTelemetrySender, wmeta workloadmet
 	return &Agent{
 		telemetrySender: telemetrySender,
 		wmeta:           wmeta,
-		ipc:             ipc,
+		hostname:        hostname,
 		opts:            opts,
 		statuses:        make(map[string]*CheckStatus),
 	}
@@ -421,7 +420,7 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	seclRuleFilter, err := newSECLRuleFilter(a.ipc)
+	seclRuleFilter, err := newSECLRuleFilter(a.hostname)
 	if err != nil {
 		log.Errorf("failed to run apt configuration export: %v", err)
 		return

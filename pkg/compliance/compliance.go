@@ -76,7 +76,7 @@ func StartCompliance(log log.Component,
 	reporter := NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	telemetrySender := telemetry.NewSimpleTelemetrySenderFromStatsd(statsdClient)
 
-	agent := NewAgent(telemetrySender, wmeta, ipc, AgentOptions{
+	agent := NewAgent(telemetrySender, wmeta, hostname, AgentOptions{
 		ResolverOptions:               resolverOptions,
 		ConfigDir:                     configDir,
 		Reporter:                      reporter,

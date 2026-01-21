@@ -814,7 +814,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, "functional_tests_host", module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}
