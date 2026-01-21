@@ -20,6 +20,13 @@ from tasks.libs.common.git import (
 )
 from tasks.libs.common.utils import running_in_ci
 from tasks.libs.package.size import InfraError
+from tasks.static_quality_gates.experimental_gates import FileInfo
+from tasks.static_quality_gates.experimental_gates import (
+    compare_inventory as _compare_inventory,
+)
+from tasks.static_quality_gates.experimental_gates import (
+    display_change_summary as _display_change_summary,
+)
 from tasks.static_quality_gates.experimental_gates import (
     measure_image_local as _measure_image_local,
 )
@@ -1085,3 +1092,31 @@ def measure_image_local(
         include_layer_analysis=include_layer_analysis,
         debug=debug,
     )
+
+
+@task
+def compare_inventory(ctx, parent_inventory_report, current_inventory_report):
+    with open(parent_inventory_report) as f:
+        parent_inventory = yaml.safe_load(f)
+    with open(current_inventory_report) as f:
+        current_inventory = yaml.safe_load(f)
+    parent_file_inventory = [FileInfo(**values) for values in parent_inventory['file_inventory']]
+    current_file_inventory = [FileInfo(**values) for values in current_inventory['file_inventory']]
+    added, removed, changed = _compare_inventory(parent_file_inventory, current_file_inventory)
+    success = True
+    if len(added) > 0:
+        success = False
+        print(color_message('➕ New files added:', "orange"))
+        for f in added:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(removed) > 0:
+        success = False
+        print(color_message('❌ Old files removed:', "orange"))
+        for f in removed:
+            print(color_message(f'    - {f.relative_path} ({byte_to_string(f.size_bytes)})', "orange"))
+    if len(changed) > 0:
+        success = False
+        print(color_message('⚠️ Some files modifications need review:', "orange"))
+        for change in changed.values():
+            _display_change_summary(change)
+    return success
