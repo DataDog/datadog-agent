@@ -90,8 +90,7 @@ func (t *SafeShellTool) Handler(
 
 	// Execute command using safe-shell binary (absolute path)
 	// Wrap with sudo -u to run as specified user
-	var cmd *exec.Cmd
-	cmd = exec.CommandContext(
+	cmd := exec.CommandContext(
 		execCtx,
 		"sudo", "-u", user,
 		t.safeShellBinPath,
