@@ -17,7 +17,7 @@ import (
 // CheckRights checks if a file has restricted permissions for group and others
 //
 // This function is used by the secret component `comp/core/secrets`
-// Modifications to this function should be made carefully 
+// Modifications to this function should be made carefully
 func CheckRights(path string, allowGroupExec bool) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {

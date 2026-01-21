@@ -23,7 +23,7 @@ import (
 // Administrator, Local System and the datadog user.
 //
 // This function is used by the secret component `comp/core/secrets`
-// Modifications to this function should be made carefully 
+// Modifications to this function should be made carefully
 func CheckRights(filename string, allowGroupExec bool) error {
 	// this function ignore `allowGroupExec` since it was design for the cluster-agent,
 	// but the cluster-agent is not delivered for windows.
