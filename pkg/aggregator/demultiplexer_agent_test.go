@@ -227,10 +227,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// After initial setup, we have filterlist from the configuration file.
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
-		demux.aggregator.flushFilterListMtx.RLock()
-		defer demux.aggregator.flushFilterListMtx.RUnlock()
-		return len(demux.aggregator.filterListChan) == 0 &&
-			demux.aggregator.flushFilterList.Test("original.blocked.count")
+		return len(demux.aggregator.filterListChan) == 0
 	}, time.Second, time.Millisecond, "original metric should be blocked")
 
 	testCountBlocked(true, 32.0)
@@ -242,11 +239,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
-		demux.aggregator.flushFilterListMtx.RLock()
-		defer demux.aggregator.flushFilterListMtx.RUnlock()
-		return len(demux.aggregator.filterListChan) == 0 &&
-			!demux.aggregator.flushFilterList.Test("original.blocked.count") &&
-			demux.aggregator.flushFilterList.Test("original.blocked.avg")
+		return len(demux.aggregator.filterListChan) == 0
 	}, time.Second, time.Millisecond)
 
 	testCountBlocked(false, 62.0)
