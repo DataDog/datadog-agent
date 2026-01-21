@@ -18,6 +18,9 @@ rust_library(
     ),
     crate_name = "dd_discovery",
     edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@crates//:anyhow",
@@ -61,6 +64,9 @@ rust_shared_library(
     crate_name = "dd_discovery",
     crate_root = "src/lib.rs",
     edition = "2024",
+    target_compatible_with = [
+        "@platforms//os:linux",
+    ],
     visibility = ["//visibility:public"],
     deps = [
         "@crates//:anyhow",
@@ -157,6 +163,11 @@ filegroup(
     srcs = glob(["testdata/**/*"]),
 )
 
+filegroup(
+    name = "mock_system_probe",
+    srcs = ["testdata/fallback/mock-system-probe.sh"],
+)
+
 # Unit tests embedded in source files
 rust_test(
     name = "dd_discovery_test",
@@ -178,13 +189,16 @@ rust_test(
 rust_test(
     name = "fallback_integration_test",
     srcs = ["tests/fallback_integration_test.rs"],
-    # Make the sd-agent binary available to the test at runtime
-    data = [":sd-agent"],
+    data = [
+        ":mock_system_probe",
+        ":sd-agent",
+    ],
     edition = "2024",
     # Set compile-time environment variable pointing to sd-agent binary
     # This mimics Cargo's CARGO_BIN_EXE_* behavior
     rustc_env = {
         "CARGO_BIN_EXE_sd-agent": "$(rootpath :sd-agent)",
+        "MOCK_SYSTEM_PROBE": "$(rootpath :mock_system_probe)",
     },
     deps = [
         "@crates//:tempfile",

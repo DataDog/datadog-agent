@@ -69,6 +69,9 @@ type RuleEngine struct {
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
+
+	// userspace filtering metrics (avoid statsd calls in event hot path)
+	noMatchCounters []atomic.Uint64
 }
 
 // APIServer defines the API server
@@ -96,6 +99,8 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		ipc:              ipc,
 	}
 
+	engine.noMatchCounters = make([]atomic.Uint64, model.MaxAllEventType)
+
 	engine.AutoSuppression.Init(autosuppression.Opts{
 		SecurityProfileEnabled:                config.SecurityProfileEnabled,
 		SecurityProfileAutoSuppressionEnabled: config.SecurityProfileAutoSuppressionEnabled,
@@ -112,6 +117,27 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	engine.policyProviders = engine.gatherDefaultPolicyProviders()
 
 	return engine, nil
+}
+
+// SendStats flushes per-event counters as metrics
+func (e *RuleEngine) SendStats() {
+	if e.statsdClient == nil || len(e.noMatchCounters) == 0 {
+		return
+	}
+
+	for i := range e.noMatchCounters {
+		value := e.noMatchCounters[i].Swap(0)
+		if value == 0 {
+			continue
+		}
+
+		eventType := model.EventType(i).String()
+		tags := []string{
+			"event_type:" + eventType,
+			"category:" + model.GetEventTypeCategory(eventType).String(),
+		}
+		_ = e.statsdClient.Count(metrics.MetricRulesNoMatch, int64(value), tags, 1.0)
+	}
 }
 
 // Start the rule engine
@@ -532,9 +558,7 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 	}
 
 	// ensure that all the fields are resolved before sending
-	ev.FieldHandlers.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 	ev.FieldHandlers.ResolveContainerTags(ev, &ev.ProcessContext.Process.ContainerContext)
-	ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.ProcessContext.Process.ContainerContext)
 
 	// do not send event if a anomaly detection event will be sent
 	if e.config.AnomalyDetectionSilentRuleEventsEnabled && ev.IsAnomalyDetectionEvent() {
@@ -660,6 +684,10 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
 		if !ruleSet.Evaluate(event) {
+			evtType := int(event.GetEventType())
+			if evtType >= 0 && evtType < len(e.noMatchCounters) {
+				e.noMatchCounters[evtType].Inc()
+			}
 			ruleSet.EvaluateDiscarders(event)
 		}
 	}
