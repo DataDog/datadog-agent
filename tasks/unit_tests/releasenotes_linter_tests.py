@@ -1,14 +1,7 @@
+import importlib.util
 import os
 import tempfile
 import unittest
-
-# Check if docutils is available for tests that depend on it
-try:
-    import docutils  # noqa: F401  # type: ignore[import-untyped]
-
-    DOCUTILS_AVAILABLE = True
-except ImportError:
-    DOCUTILS_AVAILABLE = False
 
 from tasks.libs.linter.releasenotes import (
     RENO_SECTIONS,
@@ -20,6 +13,10 @@ from tasks.libs.linter.releasenotes import (
     validate_reno_structure,
     validate_rst,
 )
+
+# Check if docutils is available for tests that depend on it
+# Use find_spec to avoid importing the module (which would trigger mypy errors about missing stubs)
+DOCUTILS_AVAILABLE = importlib.util.find_spec("docutils") is not None
 
 
 class TestValidateRST(unittest.TestCase):
