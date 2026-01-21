@@ -9,7 +9,7 @@ package com_datadoghq_script
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -26,5 +26,5 @@ func (h *RunShellScriptHandler) Run(
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
-	return nil, fmt.Errorf("RunShellScript is not available")
+	return nil, errors.New("RunShellScript is not available")
 }
