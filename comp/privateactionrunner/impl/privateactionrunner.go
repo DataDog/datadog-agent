@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -85,6 +86,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 	} else if cfg.IdentityIsIncomplete() {
 		return Provides{}, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
+	reqs.Log.Info("Private action runner starting")
+	reqs.Log.Info("==> Version : " + parversion.RunnerVersion)
+	reqs.Log.Info("==> Site : " + cfg.DatadogSite)
+	reqs.Log.Info("==> URN : " + cfg.Urn)
 
 	keysManager := taskverifier.NewKeyManager(reqs.RcClient)
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
@@ -108,13 +113,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	p.WorkflowRunner.Start(context.Background())
-	return nil
+	return p.WorkflowRunner.Start(context.Background())
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	p.WorkflowRunner.Close(ctx)
-	return nil
+	return p.WorkflowRunner.Stop(ctx)
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner

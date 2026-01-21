@@ -92,6 +92,7 @@ const (
 	cuStreamSyncProbe            probeFuncName = "uprobe__cuStreamSynchronize"
 	cuStreamSyncRetProbe         probeFuncName = "uretprobe__cuStreamSynchronize"
 	cuLaunchKernelProbe          probeFuncName = "uprobe__cuLaunchKernel"
+	cuLaunchKernelExProbe        probeFuncName = "uprobe__cuLaunchKernelEx"
 )
 
 const ringbufferWakeupSizeConstantName = "ringbuffer_wakeup_size"
@@ -266,7 +267,7 @@ func (p *Probe) GetAndFlush() (*model.GPUStats, error) {
 		return nil, err
 	}
 
-	p.telemetry.sentEntries.Add(float64(len(stats.Metrics)))
+	p.telemetry.sentEntries.Add(float64(len(stats.ProcessMetrics)))
 	p.cleanupFinished(now)
 
 	return stats, nil
@@ -448,6 +449,7 @@ func getCuLibraryAttacherRule() *uprobes.AttachRule {
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuStreamSyncRetProbe}},
 					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelProbe}},
+					&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: cuLaunchKernelExProbe}},
 				},
 			},
 		},

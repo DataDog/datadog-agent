@@ -70,7 +70,7 @@ func TestNetworkCIDR(t *testing.T) {
 	defer test.Close()
 
 	t.Run("dns", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			_, err = net.LookupIP("google.com")
 			if err != nil {
 				return err
@@ -81,7 +81,7 @@ func TestNetworkCIDR(t *testing.T) {
 			assert.Equal(t, "google.com", event.DNS.Question.Name, "wrong domain name")
 
 			test.validateDNSSchema(t, event)
-		})
+		}, "test_rule")
 	})
 }
 
@@ -143,7 +143,7 @@ func TestRawPacket(t *testing.T) {
 	defer test.Close()
 
 	t.Run("udp4", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			conn, err := net.Dial("udp4", net.JoinHostPort(testDestIP, strconv.Itoa(int(testUDPDestPort))))
 			if err != nil {
 				return err
@@ -163,7 +163,7 @@ func TestRawPacket(t *testing.T) {
 			assertFieldEqual(t, event, "packet.destination.ip", *expectedIPNet)
 			assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoUDP))
 			assertFieldEqual(t, event, "packet.destination.port", int(testUDPDestPort))
-		})
+		}, "test_rule_raw_packet_udp4")
 	})
 
 	t.Run("icmp", func(t *testing.T) {
@@ -246,12 +246,12 @@ func TestRawPacketAction(t *testing.T) {
 			t.Error(err)
 		}
 
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdWrapper.Command("free", []string{}, []string{})
 			return cmd.Run()
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_raw_packet_drop")
-		})
+		}, "test_rule_raw_packet_drop")
 
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("test_rule_raw_packet_drop")
@@ -267,7 +267,7 @@ func TestRawPacketAction(t *testing.T) {
 				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.filter == 'port 53')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
-				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'applied')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.agent.rule_actions[?(@.status == 'performed')]`); err != nil || el == nil || len(el.([]interface{})) == 0 {
 					t.Errorf("element not found %s => %v", string(msg.Data), err)
 				}
 
@@ -338,13 +338,13 @@ func TestRawPacketActionWithSignature(t *testing.T) {
 	var capturedSignature string
 
 	// First, run "free" to capture the signature
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		cmd := cmdWrapper.Command("free", []string{}, []string{})
 		return cmd.Run()
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_rule_capture_signature")
 		capturedSignature = event.FieldHandlers.ResolveSignature(event)
-	})
+	}, "test_rule_capture_signature")
 
 	if capturedSignature == "" {
 		t.Fatal("captured signature is empty")
@@ -547,7 +547,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	var stdout io.ReadCloser
 	var capturedSignature string
 
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		dnsloopCmd = exec.CommandContext(ctx, syscallTester, "dnsloop", "google.com")
 		var err error
 		stdout, err = dnsloopCmd.StdoutPipe()
@@ -558,7 +558,7 @@ func TestRawPacketActionProcessScopeWithSignature(t *testing.T) {
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_rule_capture_signature")
 		capturedSignature = event.FieldHandlers.ResolveSignature(event)
-	})
+	}, "test_rule_capture_signature")
 
 	defer func() {
 		cancel()
@@ -798,7 +798,7 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 	}
 
 	t.Run("test_network_flow_send_udp4", func(t *testing.T) {
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			return runSyscallTesterFunc(context.Background(), t, syscallTester, "network_flow_send_udp4", testDestIP, strconv.Itoa(testUDPDestPort))
 		}, func(event *model.Event, _ *rules.Rule) {
 			assert.Equal(t, "network_flow_monitor", event.GetType(), "wrong event type")
@@ -814,6 +814,6 @@ func TestNetworkFlowSendUDP4(t *testing.T) {
 				assert.Equal(t, uint64(0), event.NetworkFlowMonitor.Flows[0].Ingress.PacketCount, "wrong ingress packet count")
 				assert.Equal(t, uint64(0), event.NetworkFlowMonitor.Flows[0].Ingress.DataSize, "wrong ingress data size")
 			}
-		})
+		}, "test_rule_network_flow")
 	})
 }

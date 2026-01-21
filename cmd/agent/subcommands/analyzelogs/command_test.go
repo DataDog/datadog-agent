@@ -154,7 +154,7 @@ Auto-discovery IDs:
 		err := json.Unmarshal(msg.GetContent(), &parsedMessage)
 		assert.NoError(t, err)
 
-		assert.Equal(t, parsedMessage.Message, expectedOutput[i])
+		assert.Equal(t, parsedMessage.Message.String(), expectedOutput[i])
 	}
 
 	launcher.Stop()
@@ -178,7 +178,7 @@ func TestRunAnalyzeLogsInvalidConfig(t *testing.T) {
       - type: exclude_at_match
         name: exclude_random
         pattern: "datadog-agent"
-      
+
 `, tempLogFile.Name())
 	tempConfigFile := CreateTestFile(tempDir, "config.yaml", invalidConfig)
 	assert.NotNil(t, tempConfigFile)

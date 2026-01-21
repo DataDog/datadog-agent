@@ -100,7 +100,7 @@ func TestMarshalProcCache(t *testing.T) {
 			name: "process-with-cgroup-key",
 			process: Process{
 				CGroup: CGroupContext{
-					CGroupFile: PathKey{
+					CGroupPathKey: PathKey{
 						Inode:   testCGroupFileInode.value,
 						MountID: testCGroupFileMountID.value,
 						PathID:  testCGroupFilePathID.value,
