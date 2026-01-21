@@ -42,6 +42,7 @@ const (
 	GPUMonitoringModule          types.ModuleName = "gpu"
 	SoftwareInventoryModule      types.ModuleName = "software_inventory"
 	PrivilegedLogsModule         types.ModuleName = "privileged_logs"
+	InjectorModule               types.ModuleName = "injector"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -195,6 +196,10 @@ func load() (*types.Config, error) {
 		}
 		if swEnabled {
 			c.EnabledModules[SoftwareInventoryModule] = struct{}{}
+		}
+
+		if cfg.GetBool("injector.enable_telemetry") {
+			c.EnabledModules[InjectorModule] = struct{}{}
 		}
 	}
 
