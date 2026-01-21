@@ -4,7 +4,7 @@ import unittest
 
 # Check if docutils is available for tests that depend on it
 try:
-    import docutils  # noqa: F401
+    import docutils  # noqa: F401  # type: ignore[import-untyped]
 
     DOCUTILS_AVAILABLE = True
 except ImportError:
