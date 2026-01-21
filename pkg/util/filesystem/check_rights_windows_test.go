@@ -5,35 +5,29 @@
 
 //go:build windows
 
-package secretsimpl
+package filesystem
 
 import (
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
-func setCorrectRight(path string) {
-	exec.Command("powershell", "test/setAcl.ps1",
-		"-file", path,
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
-}
+// TestMain runs before other tests in this package. It hooks the getDDAgentUserSID
+// function to make it work for Windows tests
+func TestMain(m *testing.M) {
+	// Windows-only fix for running on CI. Instead of checking the registry for
+	// permissions (the agent wasn't installed, so that wouldn't work), use a stub
+	// function that gets permissions info directly from the current User
+	TestCheckRightsStub()
 
-func testCheckRightsStub() {
-	// Stub for CI since running as Administrator and no installer data
-	getDDAgentUserSID = winutil.GetSidFromUser
+	os.Exit(m.Run())
 }
 
 func TestWrongPath(t *testing.T) {
-	require.NotNil(t, checkRights("does not exists", false))
+	require.NotNil(t, CheckRights("does not exists", false))
 }
 
 func TestSpaceInPath(t *testing.T) {
@@ -44,12 +38,12 @@ func TestSpaceInPath(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	require.Nil(t, os.Chmod(tmpFile.Name(), 0700))
-	require.Nil(t, checkRights(tmpFile.Name(), false))
+	require.Nil(t, CheckRights(tmpFile.Name(), false))
 }
 
 func TestCheckRightsDoesNotExists(t *testing.T) {
 	// file does not exist
-	require.NotNil(t, checkRights("/does not exists", false))
+	require.NotNil(t, CheckRights("/does not exists", false))
 }
 
 func TestCheckRightsMissingCurrentUser(t *testing.T) {
@@ -57,14 +51,9 @@ func TestCheckRightsMissingCurrentUser(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "0").Run()
+	err = SetACL(tmpfile.Name(), true, false, false, false)
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingLocalSystem(t *testing.T) {
@@ -72,14 +61,9 @@ func TestCheckRightsMissingLocalSystem(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "1",
-		"-addDDuser", "0").Run()
+	err = SetACL(tmpfile.Name(), true, false, true, false)
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingAdministrator(t *testing.T) {
@@ -87,14 +71,9 @@ func TestCheckRightsMissingAdministrator(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "1",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "0").Run()
+	err = SetACL(tmpfile.Name(), true, true, false, false)
 	require.NoError(t, err)
-	assert.NotNil(t, checkRights(tmpfile.Name(), false))
+	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsExtraRights(t *testing.T) {
@@ -103,14 +82,9 @@ func TestCheckRightsExtraRights(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "0",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	err = SetACL(tmpfile.Name(), false, false, false, true)
 	require.NoError(t, err)
-	assert.Nil(t, checkRights(tmpfile.Name(), false))
+	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }
 
 func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
@@ -119,12 +93,7 @@ func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	err = SetACL(tmpfile.Name(), true, false, false, true)
 	require.NoError(t, err)
-	assert.Nil(t, checkRights(tmpfile.Name(), false))
+	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }
