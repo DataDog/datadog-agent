@@ -25,6 +25,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -143,18 +144,34 @@ func (a *InjectorInstaller) Remove(ctx context.Context) (err error) {
 
 // Instrument instruments the APM injector
 func (a *InjectorInstaller) Instrument(ctx context.Context) (retErr error) {
-	// Check if the shared library is working before any instrumentation
-	if err := a.verifySharedLib(ctx, path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
-		return err
-	}
-
 	if shouldInstrumentHost(a.Env) {
-		a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
-		rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
+		daemonStyle, err := HasDaemonStylePackage()
 		if err != nil {
 			return err
 		}
-		a.rollbacks = append(a.rollbacks, rollbackLDPreload)
+		systemdRunning, err := systemd.IsRunning()
+		if err != nil {
+			return err
+		}
+		if daemonStyle && systemdRunning {
+			if err := NewSystemdServiceManager().Install(ctx); err != nil {
+				return err
+			}
+		} else {
+			if daemonStyle {
+				log.Infof("APM inject: daemon-style package detected but systemd is not running, falling back to legacy installer mode")
+			}
+			// Check if the shared library is working before adding to ld.so.preload
+			if err := a.verifySharedLib(ctx, path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
+				return err
+			}
+			a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
+			rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
+			if err != nil {
+				return err
+			}
+			a.rollbacks = append(a.rollbacks, rollbackLDPreload)
+		}
 	}
 
 	dockerIsInstalled := isDockerInstalled(ctx)
@@ -187,8 +204,23 @@ func (a *InjectorInstaller) Uninstrument(ctx context.Context) error {
 	errs := []error{}
 
 	if shouldInstrumentHost(a.Env) {
-		_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
-		errs = append(errs, hostErr)
+		daemonStyle, err := HasDaemonStylePackage()
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			systemdRunning, err := systemd.IsRunning()
+			if err != nil {
+				errs = append(errs, err)
+			} else if daemonStyle && systemdRunning {
+				errs = append(errs, NewSystemdServiceManager().Uninstall(ctx))
+			} else {
+				if daemonStyle {
+					log.Infof("APM inject: daemon-style package detected but systemd is not running, falling back to legacy uninstrumentation")
+				}
+				_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
+				errs = append(errs, hostErr)
+			}
+		}
 	}
 
 	if shouldInstrumentDocker(a.Env) {

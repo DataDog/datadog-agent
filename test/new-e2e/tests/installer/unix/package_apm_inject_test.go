@@ -8,6 +8,7 @@ package installer
 import (
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -551,6 +552,85 @@ func (s *packageApmInjectSuite) assertAppArmorProfile() {
 /proc/@{pid}/** rix,
 /run/datadog/apm.socket rw,`)
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
+}
+
+// apmInjectStagingVersion returns the version of the daemon-style apm-inject package to test against.
+// It reads CURRENT_APM_INJECT_VERSION from the environment, falling back to a known staging version.
+func apmInjectStagingVersion() string {
+	if v := os.Getenv("CURRENT_APM_INJECT_VERSION"); v != "" {
+		return v
+	}
+	return "0.55.0-dev.bc8ee3a.glci1493760311.gb944ecba-1"
+}
+
+// TestDaemonStylePackageInstall verifies that when the OCI package ships the ssi-starter binary
+// and a bundled systemd service file, the postInstall hook copies the service file, enables it,
+// and starts datadog-ssi-starter.service instead of running the legacy InjectorInstaller.Setup path.
+func (s *packageApmInjectSuite) TestDaemonStylePackageInstall() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support staging registry override for daemon-style package")
+	}
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		// Use the staging registry where the daemon-style package is published.
+		// TODO: remove once the package is published in prod.
+		"DD_INSTALLER_REGISTRY_URL_APM_INJECT_PACKAGE=install.datad0g.com",
+		envForceVersion("datadog-apm-inject", apmInjectStagingVersion()),
+	)
+	defer s.Purge()
+
+	state := s.host.State()
+	// Verify the OCI package itself ships the daemon-style files that trigger
+	// the daemon-style install path in HasDaemonStylePackage().
+	state.AssertFileExists("/opt/datadog-packages/datadog-apm-inject/stable/inject/ssi-starter", 0755, "root", "root")
+	state.AssertFileExists("/opt/datadog-packages/datadog-apm-inject/stable/systemd/datadog-ssi-starter.service", 0644, "root", "root")
+
+	// The ssi-starter systemd service must be running.
+	s.host.WaitForUnitActive(s.T(), "datadog-ssi-starter.service")
+
+	// Service file must have been copied from the OCI package to /etc/systemd/system/.
+	state.AssertFileExists("/etc/systemd/system/datadog-ssi-starter.service", 0644, "root", "root")
+	// Instrument scripts are installed by addInstrumentScripts inside SystemdServiceManager.Install.
+	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
+	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
+
+	// Verify that a Python app started on the host is actually instrumented and
+	// produces traces that reach the fakeintake.
+	s.host.StartExamplePythonApp()
+	defer s.host.StopExamplePythonApp()
+	traceID := rand.Uint64()
+	s.host.CallExamplePythonApp(strconv.FormatUint(traceID, 10))
+	s.assertTraceReceived(traceID)
+}
+
+// TestDaemonStylePackageUninstall verifies that purging the daemon-style OCI package stops and
+// removes the datadog-ssi-starter.service and cleans up the service file.
+func (s *packageApmInjectSuite) TestDaemonStylePackageUninstall() {
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support staging registry override for daemon-style package")
+	}
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		// TODO: remove once the package is published in prod.
+		"DD_INSTALLER_REGISTRY_URL_APM_INJECT_PACKAGE=install.datad0g.com",
+		envForceVersion("datadog-apm-inject", apmInjectStagingVersion()),
+	)
+
+	s.host.WaitForUnitActive(s.T(), "datadog-ssi-starter.service")
+	s.Purge()
+
+	// After purge the service file must be gone.
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/etc/systemd/system/datadog-ssi-starter.service")
+	// Instrument scripts must also be removed.
+	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
+	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
+
+	// Verify the ssi-starter service is no longer active — instrumentation is removed.
+	_, err := s.Env().RemoteHost.Execute("systemctl is-active --quiet datadog-ssi-starter.service")
+	assert.Error(s.T(), err, "datadog-ssi-starter.service should not be active after uninstall")
 }
 
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {

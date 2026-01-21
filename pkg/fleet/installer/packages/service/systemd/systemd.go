@@ -25,7 +25,8 @@ import (
 )
 
 const (
-	userUnitsPath = "/etc/systemd/system"
+	// UserUnitsPath is the directory where systemd user unit files are stored
+	UserUnitsPath = "/etc/systemd/system"
 )
 
 func handleSystemdSelfStops(err error) error {
@@ -147,11 +148,11 @@ func WriteUnitOverride(ctx context.Context, unit string, name string, content st
 	defer func() { span.Finish(err) }()
 	span.SetTag("unit", unit)
 	span.SetTag("name", name)
-	err = os.MkdirAll(filepath.Join(userUnitsPath, unit+".d"), 0755)
+	err = os.MkdirAll(filepath.Join(UserUnitsPath, unit+".d"), 0755)
 	if err != nil {
 		return fmt.Errorf("error creating systemd directory: %w", err)
 	}
-	overridePath := filepath.Join(userUnitsPath, unit+".d", name+".conf")
+	overridePath := filepath.Join(UserUnitsPath, unit+".d", name+".conf")
 	return os.WriteFile(overridePath, []byte(content), 0644)
 }
 
