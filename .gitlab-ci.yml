@@ -128,25 +128,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v88930157-ef91d52f
+  CI_IMAGE_BTF_GEN: v91623141-e13c2467
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v88930157-ef91d52f
+  CI_IMAGE_DOCKER_X64: v91623141-e13c2467
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v88930157-ef91d52f
+  CI_IMAGE_DOCKER_ARM64: v91623141-e13c2467
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v88930157-ef91d52f
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v91623141-e13c2467
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v88930157-ef91d52f
+  CI_IMAGE_LINUX: v91623141-e13c2467
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v88930157-ef91d52f
+  CI_IMAGE_RPM_X64: v91623141-e13c2467
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v88930157-ef91d52f
+  CI_IMAGE_RPM_ARM64: v91623141-e13c2467
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v88930157-ef91d52f
+  CI_IMAGE_RPM_ARMHF: v91623141-e13c2467
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v88930157-ef91d52f
+  CI_IMAGE_WIN_LTSC2022_X64: v91623141-e13c2467
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v88930157-ef91d52f
+  CI_IMAGE_WIN_LTSC2025_X64: v91623141-e13c2467
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -932,8 +932,8 @@ workflow:
         - comp/otelcol/**/*
         - pkg/config/setup/otlp.go
         - pkg/trace/api/otlp.go
-        - pkg/trace/stats/otel_util.go
-        - pkg/trace/traceutil/otel_util.go
+        - pkg/trace/otel/stats/otel_util.go
+        - pkg/trace/otel/traceutil/otel_util.go
         - pkg/trace/transform/transform.go
         - test/new-e2e/tests/otel/**/*
       compare_to: $COMPARE_TO_BRANCH
@@ -1057,11 +1057,12 @@ workflow:
   - <<: *if_disable_e2e_tests
     when: never
 
-.on_macos_gui_change:
+.on_macos_files_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - comp/core/gui/guiimpl/systray/**/*
+        - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
 .on_packaging_change:

@@ -42,7 +42,7 @@ require github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indir
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.38.0 // indirect
+	cloud.google.com/go/compute v1.49.1 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.72.0-rc.5 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.72.0-rc.5 // indirect
@@ -141,7 +141,7 @@ require (
 	golang.org/x/text v0.32.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/api v0.252.0 // indirect
-	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
+	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
@@ -277,6 +277,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache

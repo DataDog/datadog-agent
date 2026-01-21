@@ -8,36 +8,38 @@
 
 use std::fs;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
+use std::path::PathBuf;
 use std::process::Command;
 use tempfile::{NamedTempFile, TempDir};
 
 const SD_AGENT_BIN: &str = env!("CARGO_BIN_EXE_sd-agent");
 
+fn mock_system_probe_path() -> PathBuf {
+    // Bazel test: use the path provided via environment variable
+    if let Ok(script_path) = std::env::var("MOCK_SYSTEM_PROBE") {
+        return PathBuf::from(script_path);
+    }
+
+    // Cargo test: use CARGO_MANIFEST_DIR
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        return PathBuf::from(manifest_dir).join("testdata/fallback/mock-system-probe.sh");
+    }
+
+    panic!("Neither MOCK_SYSTEM_PROBE nor CARGO_MANIFEST_DIR is set");
+}
+
 #[test]
 fn test_fallback_on_npm_enabled() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    // Create mock system-probe that creates a marker file
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-echo "system-probe called with args: $@" > {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Run sd-agent with network tracer enabled using new -- syntax
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--pid=/var/run/test.pid")
         .arg("--debug")
@@ -60,22 +62,9 @@ exit 0
 #[test]
 fn test_no_fallback_on_discovery_only() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    // Create mock system-probe
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
     let mut config_file = NamedTempFile::new().unwrap();
@@ -86,7 +75,8 @@ exit 0
     // Note: --config must be after -- to be parsed as system-probe arg
     let mut child = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -111,21 +101,9 @@ exit 0
 #[test]
 fn test_config_file_only() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create config file with network enabled
     let mut config_file = NamedTempFile::new().unwrap();
@@ -136,7 +114,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -167,21 +146,9 @@ fn test_missing_fallback_binary() {
 #[test]
 fn test_invalid_yaml_triggers_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create invalid YAML config
     let mut config_file = NamedTempFile::new().unwrap();
@@ -192,7 +159,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -205,21 +173,9 @@ exit 0
 #[test]
 fn test_unknown_yaml_key_triggers_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create config with unknown key
     let mut config_file = NamedTempFile::new().unwrap();
@@ -230,7 +186,8 @@ exit 0
 
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -246,21 +203,9 @@ exit 0
 #[test]
 fn test_discovery_disabled_exits_cleanly() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Create empty config file to avoid picking up system config at /etc/datadog-agent/system-probe.yaml
     let mut config_file = NamedTempFile::new().unwrap();
@@ -271,7 +216,8 @@ exit 0
     // Note: --config must be after -- to be parsed as system-probe arg
     let output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .arg("--config")
         .arg(config_file.path())
@@ -292,26 +238,15 @@ exit 0
 #[test]
 fn test_discovery_enabled_with_fallback() {
     let temp_dir = TempDir::new().unwrap();
-    let mock_sp = temp_dir.path().join("system-probe");
     let marker_file = temp_dir.path().join("sp-called");
 
-    fs::write(
-        &mock_sp,
-        format!(
-            r#"#!/bin/bash
-touch {}
-exit 0
-"#,
-            marker_file.display()
-        ),
-    )
-    .unwrap();
-    fs::set_permissions(&mock_sp, fs::Permissions::from_mode(0o755)).unwrap();
+    let mock_sp_source = mock_system_probe_path();
 
     // Both discovery and DD_SERVICE should trigger fallback
     let _output = Command::new(SD_AGENT_BIN)
         .arg("--")
-        .arg(&mock_sp)
+        .arg(&mock_sp_source)
+        .arg(&marker_file)
         .arg("run")
         .env("DD_DISCOVERY_ENABLED", "true")
         .env("DD_RUNTIME_SECURITY_CONFIG_ENABLED", "true")
