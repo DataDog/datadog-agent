@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/fatih/color"
 	"github.com/olekukonko/tablewriter"
+	"github.com/olekukonko/tablewriter/tw"
 )
 
 // AgentDemultiplexerPrinter is used to output series, sketches, service checks
@@ -41,20 +42,27 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			var buffer bytes.Buffer
 
 			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
+			table := tablewriter.NewTable(&buffer,
+				tablewriter.WithHeaderAlignment(tw.AlignLeft),
+				tablewriter.WithRowAlignment(tw.AlignLeft),
+				tablewriter.WithRendition(tw.Rendition{
+					Borders: tw.BorderNone,
+					Settings: tw.Settings{
+						Lines:      tw.LinesNone,
+						Separators: tw.SeparatorsNone,
+					},
+				}),
+				tablewriter.WithConfig(tablewriter.Config{
+					Header: tw.CellConfig{
+						Padding: tw.CellPadding{Global: tw.Padding{Left: "\t", Right: "\t"}},
+					},
+					Row: tw.CellConfig{
+						Padding: tw.CellPadding{Global: tw.Padding{Left: "\t", Right: "\t"}},
+					},
+				}),
+			)
+			table.Header(headers)
+			table.Bulk(data)
 			table.Render()
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
@@ -80,20 +88,27 @@ func (p AgentDemultiplexerPrinter) PrintMetrics(checkFileOutput *bytes.Buffer, f
 			var buffer bytes.Buffer
 
 			// plain table with no borders
-			table := tablewriter.NewWriter(&buffer)
-			table.SetHeader(headers)
-			table.SetAutoWrapText(false)
-			table.SetAutoFormatHeaders(true)
-			table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
-			table.SetAlignment(tablewriter.ALIGN_LEFT)
-			table.SetCenterSeparator("")
-			table.SetColumnSeparator("")
-			table.SetRowSeparator("")
-			table.SetHeaderLine(false)
-			table.SetBorder(false)
-			table.SetTablePadding("\t")
-
-			table.AppendBulk(data)
+			table := tablewriter.NewTable(&buffer,
+				tablewriter.WithHeaderAlignment(tw.AlignLeft),
+				tablewriter.WithRowAlignment(tw.AlignLeft),
+				tablewriter.WithRendition(tw.Rendition{
+					Borders: tw.BorderNone,
+					Settings: tw.Settings{
+						Lines:      tw.LinesNone,
+						Separators: tw.SeparatorsNone,
+					},
+				}),
+				tablewriter.WithConfig(tablewriter.Config{
+					Header: tw.CellConfig{
+						Padding: tw.CellPadding{Global: tw.Padding{Left: "\t", Right: "\t"}},
+					},
+					Row: tw.CellConfig{
+						Padding: tw.CellPadding{Global: tw.Padding{Left: "\t", Right: "\t"}},
+					},
+				}),
+			)
+			table.Header(headers)
+			table.Bulk(data)
 			table.Render()
 			fmt.Println(buffer.String())
 			checkFileOutput.WriteString(buffer.String() + "\n")
