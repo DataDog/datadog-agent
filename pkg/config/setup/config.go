@@ -1437,6 +1437,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
+	// integration.basic.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
+	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

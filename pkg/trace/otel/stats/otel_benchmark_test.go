@@ -96,7 +96,7 @@ func benchmarkOTelObfuscation(b *testing.B, enableObfuscation bool) {
 	conf.Obfuscation.Redis.Enabled = true
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
-	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+	concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 
 	var obfuscator *obfuscate.Obfuscator
 	if enableObfuscation {
@@ -149,7 +149,7 @@ func BenchmarkOTelContainerTags(b *testing.B) {
 	conf.DefaultEnv = "agent_env"
 	conf.OTLPReceiver.AttributesTranslator = attributesTranslator
 
-	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+	concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 	containerTagKeys := []string{"az", string(semconv.ContainerIDKey), string(semconv.K8SClusterNameKey)}
 	expected := []string{"az:my-az", "container_id:test_cid", "kube_cluster_name:test_cluster"}
 
@@ -207,7 +207,7 @@ func benchmarkOTelPeerTags(b *testing.B, initOnce bool) {
 		peerTagKeys = conf.ConfiguredPeerTags()
 	}
 
-	concentrator := NewTestConcentratorWithCfg(time.Now(), conf)
+	concentrator := newTestConcentratorWithCfg(time.Now(), conf)
 
 	b.ResetTimer()
 

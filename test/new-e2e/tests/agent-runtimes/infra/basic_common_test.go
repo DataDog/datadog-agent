@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package infrabasic provides e2e tests for infrastructure basic mode functionality
-package infrabasic
+// Package infra provides e2e tests for infrastructure mode functionality
+package infra
 
 import (
 	_ "embed"
-	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -22,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/testcommon/check"
-	agentclient "github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 //go:embed fixtures/custom_mycheck.py
@@ -66,18 +62,9 @@ var (
 // Type Definitions
 // ============================================================================
 
-type infraBasicSuite struct {
+type basicSuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor e2eos.Descriptor
-}
-
-type runnerStatsContainer struct {
-	Checks map[string]map[string]check.Runner `json:"Checks"`
-}
-
-// AgentStatusJSON represents the JSON structure of the agent status output
-type AgentStatusJSON struct {
-	RunnerStats runnerStatsContainer `json:"runnerStats"`
 }
 
 // ============================================================================
@@ -85,7 +72,7 @@ type AgentStatusJSON struct {
 // ============================================================================
 
 // getAllowedChecks returns the list of checks that should work on the current OS
-func (s *infraBasicSuite) getAllowedChecks() []string {
+func (s *basicSuite) getAllowedChecks() []string {
 	checks := make([]string, 0, len(allowedChecks))
 	for _, checkName := range allowedChecks {
 		// Skip "load" check on Windows as it's Linux-only
@@ -97,11 +84,9 @@ func (s *infraBasicSuite) getAllowedChecks() []string {
 	return checks
 }
 
-func (s *infraBasicSuite) getSuiteOptions() []e2e.SuiteOption {
+func (s *basicSuite) getSuiteOptions() []e2e.SuiteOption {
 	// Agent configuration for basic mode testing
 	basicModeAgentConfig := `
-api_key: "00000000000000000000000000000000"
-site: "datadoghq.com"
 infrastructure_mode: "basic"
 logs_enabled: false
 apm_config:
@@ -147,92 +132,6 @@ instances:
 	return suiteOptions
 }
 
-// getScheduledChecks retrieves the map of scheduled checks from the agent status
-func (s *infraBasicSuite) getScheduledChecks() (map[string]map[string]check.Runner, error) {
-	status := s.Env().Agent.Client.Status(agentclient.WithArgs([]string{"collector", "--json"}))
-
-	var statusMap AgentStatusJSON
-	err := json.Unmarshal([]byte(status.Content), &statusMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal agent status: %w", err)
-	}
-
-	return statusMap.RunnerStats.Checks, nil
-}
-
-// isCheckScheduled returns true if the check is scheduled and has run at least once
-func (s *infraBasicSuite) isCheckScheduled(checkName string, checks map[string]map[string]check.Runner) bool {
-	// The checks map is nested: checkName -> instanceID -> stats
-	if instances, exists := checks[checkName]; exists {
-		// Check if any instance of this check has run
-		for _, stat := range instances {
-			if stat.TotalRuns > 0 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// verifyCheckRuns runs a check and verifies it executed successfully
-// All check configs are already provisioned during suite setup
-func (s *infraBasicSuite) verifyCheckRuns(checkName string) bool {
-	// Run the check using the cross-platform Agent client helper
-	// This works on both Linux (sudo datadog-agent) and Windows (& "path\bin\agent.exe")
-	output, err := s.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{checkName, "--json"}))
-	if err != nil {
-		s.T().Logf("Check %s failed to execute: %v", checkName, err)
-		return false
-	}
-
-	// Parse the JSON output and check the Runner.TotalRuns field
-	data := check.ParseJSONOutput(s.T(), []byte(output))
-	if len(data) == 0 {
-		s.T().Logf("Check %s produced no output data", checkName)
-		return false
-	}
-
-	// Check if the check actually ran by inspecting TotalRuns
-	runner := data[0].Runner
-	if runner.TotalRuns == 0 {
-		s.T().Logf("Check %s did not run (TotalRuns=0, TotalErrors=%d, TotalWarnings=%d)",
-			checkName, runner.TotalErrors, runner.TotalWarnings)
-		return false
-	}
-
-	// Log success with runner statistics
-	s.T().Logf("Check %s ran successfully (TotalRuns=%d, TotalErrors=%d, TotalWarnings=%d)",
-		checkName, runner.TotalRuns, runner.TotalErrors, runner.TotalWarnings)
-	return true
-}
-
-// verifyCheckSchedulingViaStatusAPI verifies that checks are in the expected scheduling state
-// by querying the agent status API. This is a helper function meant to be called within EventuallyWithT.
-func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, checks []string, shouldBeScheduled bool) {
-	scheduledChecks, err := s.getScheduledChecks()
-	if !assert.NoError(c, err, "Failed to get scheduled checks") {
-		s.T().Logf("Failed to retrieve scheduled checks, will retry...")
-		return
-	}
-
-	s.T().Logf("Found %d check types in agent status", len(scheduledChecks))
-
-	// Verify all checks match the expected scheduling state
-	for _, checkName := range checks {
-		scheduled := s.isCheckScheduled(checkName, scheduledChecks)
-
-		// Log current state
-		if scheduled {
-			s.T().Logf("Check %s is scheduled", checkName)
-		} else {
-			s.T().Logf("Check %s is not scheduled", checkName)
-		}
-
-		// Assert expected state
-		assert.Equal(c, shouldBeScheduled, scheduled, "Check %s scheduling state mismatch", checkName)
-	}
-}
-
 // ============================================================================
 // Test Functions
 // ============================================================================
@@ -240,7 +139,7 @@ func (s *infraBasicSuite) verifyCheckSchedulingViaStatusAPI(c *assert.CollectT, 
 // TestCheckSchedulingBehavior verifies that checks are correctly scheduled or blocked in basic mode.
 // Tests both scheduler behavior (via status API) and CLI behavior for allowed and excluded checks.
 // Note: Check configurations are provisioned during suite setup via agentparams.WithIntegration()
-func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
+func (s *basicSuite) TestCheckSchedulingBehavior() {
 	// First test: Verify scheduler behavior via status API
 	s.T().Run("via_status_api", func(t *testing.T) {
 		t.Run("allowed_checks_scheduled", func(t *testing.T) {
@@ -248,7 +147,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 			t.Logf("Verifying %d allowed checks are scheduled via status API...", len(allowedChecksForOS))
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				s.verifyCheckSchedulingViaStatusAPI(c, allowedChecksForOS, true)
+				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), allowedChecksForOS, true)
 			}, 1*time.Minute, 10*time.Second, "All allowed checks should be scheduled within 1 minute")
 		})
 
@@ -256,7 +155,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 			t.Logf("Verifying %d excluded checks are not scheduled via status API...", len(excludedChecks))
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				s.verifyCheckSchedulingViaStatusAPI(c, excludedChecks, false)
+				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), excludedChecks, false)
 			}, 1*time.Minute, 10*time.Second, "All excluded checks should remain not scheduled within 1 minute")
 		})
 	})
@@ -267,7 +166,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 			allowedChecksForOS := s.getAllowedChecks()
 			t.Logf("Testing %d allowed checks via CLI...", len(allowedChecksForOS))
 			for _, checkName := range allowedChecksForOS {
-				ran := s.verifyCheckRuns(checkName)
+				ran := verifyCheckRuns(t, s.Env(), checkName)
 				assert.True(t, ran, "Check %s must be runnable via CLI in basic mode", checkName)
 			}
 		})
@@ -275,7 +174,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 		t.Run("excluded_checks_blocked", func(t *testing.T) {
 			t.Logf("Testing %d excluded checks via CLI...", len(excludedChecks))
 			for _, checkName := range excludedChecks {
-				ran := s.verifyCheckRuns(checkName)
+				ran := verifyCheckRuns(t, s.Env(), checkName)
 				assert.False(t, ran, "Check %s should be blocked via CLI in basic mode", checkName)
 			}
 		})
@@ -284,7 +183,7 @@ func (s *infraBasicSuite) TestCheckSchedulingBehavior() {
 
 // TestAdditionalCheckWorks verifies that checks can be added via infra_basic_additional_checks
 // and that the hardcoded custom_ prefix pattern works.
-func (s *infraBasicSuite) TestAdditionalCheckWorks() {
+func (s *basicSuite) TestAdditionalCheckWorks() {
 	// HTTP check configuration
 	httpCheckConfig := `
 init_config:
@@ -304,8 +203,6 @@ instances:
 
 	// Agent configuration with additional checks (exact name matching)
 	agentConfigWithAdditionalCheck := `
-api_key: "00000000000000000000000000000000"
-site: "datadoghq.com"
 infrastructure_mode: "basic"
 logs_enabled: false
 apm_config:
@@ -344,13 +241,13 @@ allowed_additional_checks:
 			t.Logf("Verifying http_check is allowed via infra_basic_additional_checks...")
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				s.verifyCheckSchedulingViaStatusAPI(c, []string{"http_check"}, true)
+				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{"http_check"}, true)
 			}, 1*time.Minute, 10*time.Second, "http_check should be allowed via infra_basic_additional_checks")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {
 			t.Logf("Testing http_check is allowed via infra_basic_additional_checks...")
-			ran := s.verifyCheckRuns("http_check")
+			ran := verifyCheckRuns(t, s.Env(), "http_check")
 			assert.True(t, ran, "http_check must be allowed via infra_basic_additional_checks")
 		})
 	})
@@ -360,13 +257,13 @@ allowed_additional_checks:
 			t.Logf("Verifying custom_mycheck is allowed via hardcoded custom_ prefix...")
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				s.verifyCheckSchedulingViaStatusAPI(c, []string{"custom_mycheck"}, true)
+				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{"custom_mycheck"}, true)
 			}, 1*time.Minute, 10*time.Second, "custom_mycheck should be allowed via hardcoded custom_ prefix")
 		})
 
 		t.Run("via_cli", func(t *testing.T) {
 			t.Logf("Testing custom_mycheck is allowed via hardcoded custom_ prefix...")
-			ran := s.verifyCheckRuns("custom_mycheck")
+			ran := verifyCheckRuns(t, s.Env(), "custom_mycheck")
 			assert.True(t, ran, "custom_mycheck must be allowed via hardcoded custom_ prefix")
 		})
 	})
