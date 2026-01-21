@@ -12,6 +12,3 @@ enhancements:
     proper reStructuredText (RST) formatting instead of Markdown. It detects common
     Markdown patterns (links, bold, italic, code blocks) and validates reno section names.
     Run with ``dda inv linter.rst-releasenotes``.
-
-    This is a message formatted in [Markdown](https://www.markdownguide.org/) to check
-    if the linter properly catches the use of the `wrong syntax`.

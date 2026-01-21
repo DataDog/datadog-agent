@@ -23,7 +23,7 @@ from tasks.libs.ciproviders.gitlab_api import (
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import GITHUB_REPO_NAME
-from tasks.libs.common.git import get_file_modifications, get_staged_files
+from tasks.libs.common.git import get_ancestor_base_branch, get_common_ancestor, get_file_modifications, get_staged_files
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
@@ -232,9 +232,12 @@ def rst_releasenotes(ctx, files=None, only_changed=False):
     if files:
         file_list = [f.strip() for f in files.split(',') if f.strip()]
     elif only_changed:
-        # Get release note files that have been added or modified compared to main
+        # Get release note files that have been added or modified compared to the base branch
+        # Uses COMPARE_TO_BRANCH in CI, or falls back to detecting the PR's target branch
+        base_branch = get_ancestor_base_branch()
+        merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
         result = ctx.run(
-            "git diff --name-only --diff-filter=AM \"$(git merge-base main HEAD)\" "
+            f"git diff --name-only --diff-filter=AM {merge_base} "
             "| grep -E '^releasenotes(-dca)?/notes/.*\\.yaml$'",
             warn=True,
             hide=True,
