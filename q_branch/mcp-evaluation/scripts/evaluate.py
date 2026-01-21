@@ -16,7 +16,15 @@ from typing import Dict, List
 
 import httpx
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-from anthropic import Anthropic, RateLimitError, APIError
+from claude_agent_sdk.error import ClaudeSDKError
+from anthropic import (
+    Anthropic,
+    RateLimitError,
+    APIError,
+    APIStatusError,
+    APIConnectionError,
+    APITimeoutError,
+)
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, retry_if_exception
 
 # Configuration
@@ -44,26 +52,35 @@ SCENARIOS = [
 
 
 def is_retryable_api_error(exception):
-    """Check if an API exception should be retried"""
+    """Check if an API exception should be retried (transient errors only)"""
+    # Never retry SDK errors - these are usually config/integration issues
+    if isinstance(exception, ClaudeSDKError):
+        return False
+
+    # Always retry rate limit errors
     if isinstance(exception, RateLimitError):
         return True
 
+    # Retry connection and timeout errors (transient network issues)
+    if isinstance(exception, (APIConnectionError, APITimeoutError)):
+        return True
+
+    # For APIStatusError (HTTP status code errors)
+    if isinstance(exception, APIStatusError):
+        status_code = exception.status_code
+        # 429 Too Many Requests
+        if status_code == 429:
+            return True
+        # Retryable 5xx server errors
+        if status_code in (500, 502, 503, 504, 529) or (500 <= status_code < 600):
+            return True
+
+    # For generic APIError, check if it has status code or error message
     if isinstance(exception, APIError):
         # Check for specific retryable status codes
         if hasattr(exception, 'status_code'):
             status_code = exception.status_code
-            # 429 Too Many Requests
-            if status_code == 429:
-                return True
-            # 500 Internal Server Error
-            # 502 Bad Gateway
-            # 503 Service Unavailable
-            # 504 Gateway Timeout
-            # 529 Site Overloaded
-            if status_code in (500, 502, 503, 504, 529):
-                return True
-            # Any other 5xx server error
-            if 500 <= status_code < 600:
+            if status_code == 429 or status_code in (500, 502, 503, 504, 529) or (500 <= status_code < 600):
                 return True
 
         # Also check error message for overloaded/rate limit keywords
@@ -419,20 +436,58 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
                 )
             ):
                 conversation.append(message)
+        except ClaudeSDKError as e:
+            print(f"[{self.mode}/{scenario}] ❌ ClaudeSDKError: {e}")
+            print(f"[{self.mode}/{scenario}] SDK Error Details:")
+            if hasattr(e, 'message'):
+                print(f"  Message: {e.message}")
+            if hasattr(e, 'cause'):
+                print(f"  Cause: {e.cause}")
+            import traceback
+            traceback.print_exc()
+            conversation.append({"error": f"ClaudeSDKError: {e}"})
+        except RateLimitError as e:
+            print(f"[{self.mode}/{scenario}] ⚠️ RateLimitError: API rate limit exceeded")
+            print(f"  Error: {e}")
+            if hasattr(e, 'response'):
+                print(f"  Response headers: {e.response.headers if e.response else 'N/A'}")
+            conversation.append({"error": f"RateLimitError: {e}"})
+        except APITimeoutError as e:
+            print(f"[{self.mode}/{scenario}] ⏱️ APITimeoutError: Request timed out")
+            print(f"  Error: {e}")
+            conversation.append({"error": f"APITimeoutError: {e}"})
+        except APIConnectionError as e:
+            print(f"[{self.mode}/{scenario}] 🔌 APIConnectionError: Connection failed")
+            print(f"  Error: {e}")
+            if hasattr(e, '__cause__'):
+                print(f"  Underlying cause: {e.__cause__}")
+            conversation.append({"error": f"APIConnectionError: {e}"})
+        except APIStatusError as e:
+            print(f"[{self.mode}/{scenario}] 🚫 APIStatusError: HTTP {e.status_code}")
+            print(f"  Status code: {e.status_code}")
+            print(f"  Error: {e}")
+            if hasattr(e, 'response'):
+                print(f"  Response body: {e.response.text if e.response else 'N/A'}")
+            conversation.append({"error": f"APIStatusError {e.status_code}: {e}"})
+        except APIError as e:
+            print(f"[{self.mode}/{scenario}] ❌ APIError: {e}")
+            print(f"  Error type: {type(e).__name__}")
+            if hasattr(e, 'status_code'):
+                print(f"  Status code: {e.status_code}")
+            if hasattr(e, 'body'):
+                print(f"  Response body: {e.body}")
+            import traceback
+            traceback.print_exc()
+            conversation.append({"error": f"APIError: {e}"})
         except Exception as e:
-            print(f"[{self.mode}/{scenario}] Investigation error: {e}")
+            print(f"[{self.mode}/{scenario}] ❌ Unexpected error: {e}")
             print(f"[{self.mode}/{scenario}] Error type: {type(e).__name__}")
-
-            # Print full traceback for debugging
             import traceback
             print(f"[{self.mode}/{scenario}] Full traceback:")
             traceback.print_exc()
-
-            # Print any additional error attributes
             if hasattr(e, '__dict__'):
                 print(f"[{self.mode}/{scenario}] Error attributes: {e.__dict__}")
-
-            conversation.append({"error": str(e)})
+            conversation.append({"error": f"Unexpected error: {e}"})
 
         # Save full transcript as proper JSON
         transcript_file = self.transcripts_dir / f"{scenario}.json"
