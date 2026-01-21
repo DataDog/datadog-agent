@@ -9,6 +9,7 @@
 package winutil
 
 import (
+	"errors"
 	"fmt"
 	"golang.org/x/sys/windows"
 	"syscall"
@@ -25,6 +26,9 @@ var (
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
 	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
 )
+
+// ErrNoPEBuildTimestamp indicates the PE header timestamp is not present or zero.
+var ErrNoPEBuildTimestamp = errors.New("no PE build timestamp")
 
 // GetWindowsBuildString retrieves the windows build version by querying
 // the resource string as directed here https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx

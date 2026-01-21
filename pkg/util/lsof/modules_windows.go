@@ -25,7 +25,8 @@ type LoadedModulesReport struct {
 // LoadedModule describes a single loaded module (DLL).
 type LoadedModule struct {
 	DLLPath          string `json:"dll_path"`
-	FileTimestamp    string `json:"file_timestamp,omitempty"` // on-disk modtime
+	BuildTimestamp   string `json:"build_timestamp,omitempty"` // PE COFF TimeDateStamp
+	FileTimestamp    string `json:"file_timestamp,omitempty"`  // on-disk modtime
 	CompanyName      string `json:"company_name,omitempty"`
 	ProductName      string `json:"product_name,omitempty"`
 	FileVersion      string `json:"file_version,omitempty"`
@@ -56,6 +57,11 @@ func ListLoadedModulesReportJSON() ([]byte, error) {
 	for _, f := range openFiles {
 		modPath := f.Name
 
+		var buildTS string
+		if ts, err := winutil.GetPEBuildTimestamp(modPath); err == nil && !ts.IsZero() {
+			buildTS = ts.Format(time.RFC3339)
+		}
+
 		var ts string
 		var size int64
 		if fi, err := os.Stat(modPath); err == nil {
@@ -67,6 +73,7 @@ func ListLoadedModulesReportJSON() ([]byte, error) {
 
 		report.Modules = append(report.Modules, LoadedModule{
 			DLLPath:          modPath,
+			BuildTimestamp:   buildTS,
 			FileTimestamp:    ts,
 			CompanyName:      verInfo.CompanyName,
 			ProductName:      verInfo.ProductName,
