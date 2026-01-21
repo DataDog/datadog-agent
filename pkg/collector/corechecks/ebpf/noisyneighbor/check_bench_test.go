@@ -180,4 +180,3 @@ func BenchmarkProcessMultipleStats(b *testing.B) {
 		}
 	}
 }
-
