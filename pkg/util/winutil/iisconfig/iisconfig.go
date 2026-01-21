@@ -175,3 +175,43 @@ func (iiscfg *DynamicIISConfig) GetSiteNameFromID(id uint32) string {
 	}
 	return val
 }
+
+// GetApplicationPath returns the IIS application path that handles the given URL path
+func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string) string {
+	if iiscfg == nil {
+		return ""
+	}
+	iiscfg.mux.Lock()
+	defer iiscfg.mux.Unlock()
+
+	if iiscfg.xmlcfg == nil {
+		return ""
+	}
+
+	// Find the matching site and iterate applications to find longest match
+	for _, site := range iiscfg.xmlcfg.ApplicationHost.Sites {
+		id, err := strconv.Atoi(site.SiteID)
+		if err != nil {
+			continue
+		}
+		if uint32(id) != siteID {
+			continue
+		}
+
+		// Find the longest matching application path
+		longestMatch := "/"
+		for _, app := range site.Applications {
+			if urlpath == app.Path {
+				return app.Path
+			}
+			if len(app.Path) > 1 && len(urlpath) > len(app.Path) &&
+				urlpath[0:len(app.Path)] == app.Path && urlpath[len(app.Path)] == '/' {
+				if len(app.Path) > len(longestMatch) {
+					longestMatch = app.Path
+				}
+			}
+		}
+		return longestMatch
+	}
+	return ""
+}

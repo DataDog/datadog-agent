@@ -106,7 +106,7 @@ func (tx *WinHttpTransaction) StaticTags() uint64 {
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
 func (tx *WinHttpTransaction) DynamicTags() []string {
-	tags := make([]string, 0, 6)
+	tags := make([]string, 0, 7)
 
 	if len(tx.AppPool) != 0 || len(tx.SiteName) != 0 {
 		tags = append(tags, fmt.Sprintf("http.iis.site:%v", tx.SiteID))
@@ -115,6 +115,9 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		}
 		if (len(tx.SiteName)) > 0 {
 			tags = append(tags, fmt.Sprintf("http.iis.sitename:%v", tx.SiteName))
+		}
+		if (len(tx.SubSite)) > 0 {
+			tags = append(tags, fmt.Sprintf("http.iis.subsite:%v", tx.SubSite))
 		}
 	}
 
@@ -129,6 +132,11 @@ func (tx *WinHttpTransaction) DynamicTags() []string {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromConfig.DDService))
 	} else if (len(tx.TagsFromJson.DDService)) > 0 {
 		tags = append(tags, fmt.Sprintf("service:%v", tx.TagsFromJson.DDService))
+	} else if (len(tx.SubSite)) > 0 {
+		tags = append(tags, fmt.Sprintf("service:%v", tx.SubSite))
+
+	} else if (len(tx.AppPool)) > 0 {
+		tags = append(tags, fmt.Sprintf("service:%v", tx.AppPool))
 	}
 
 	if (len(tx.TagsFromConfig.DDVersion)) > 0 {
