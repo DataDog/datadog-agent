@@ -653,6 +653,19 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.processor.service.namespace", "")
 	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.istio.namespace", "istio-system")
 
+	// Processor mode and sidecar configuration
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.mode", "sidecar")
+
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.image", "ghcr.io/datadog/dd-trace-go/service-extensions-callout")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.image_tag", "latest")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.port", 8080)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.health_port", 8081)
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.resources.requests.cpu", "10m")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.resources.requests.memory", "128Mi")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.resources.limits.cpu", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.resources.limits.memory", "")
+	config.BindEnvAndSetDefault("cluster_agent.appsec.injector.sidecar.body_parsing_size_limit", "")
+
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
 	// list of kubernetes resources for which we collect metadata
 	// each resource is specified in the format `{group}/{version}/{resource}` or `{group}/{resource}`

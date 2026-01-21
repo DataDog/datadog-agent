@@ -10,8 +10,21 @@ package config
 import (
 	"context"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+// InjectionMode represents the deployment mode for the AppSec processor
+type InjectionMode string
+
+const (
+	// InjectionModeExternal configures proxies to call an external processor service
+	InjectionModeExternal InjectionMode = "external"
+
+	// InjectionModeSidecar injects the processor as a sidecar in proxy pods
+	InjectionModeSidecar InjectionMode = "sidecar"
 )
 
 // InjectionPattern is the main interface to implement to support a new proxy type
@@ -26,6 +39,8 @@ import (
 // The methods should return an error if something goes wrong, in which case the
 // object will be re-queued with a backoff.
 type InjectionPattern interface {
+	// Mode returns the injection mode (EXTERNAL or SIDECAR)
+	Mode() InjectionMode
 	// IsInjectionPossible returns true if the pattern can be used in the current cluster.
 	IsInjectionPossible(ctx context.Context) error
 	// Resource returns the GroupVersionResource to watch.
@@ -36,4 +51,22 @@ type InjectionPattern interface {
 	Added(ctx context.Context, obj *unstructured.Unstructured) error
 	// Deleted is called when an object is deleted. It should be idempotent.
 	Deleted(ctx context.Context, obj *unstructured.Unstructured) error
+}
+
+// SidecarInjectionPattern extends InjectionPattern for SIDECAR mode
+// Implementations provide both proxy configuration AND sidecar injection logic
+type SidecarInjectionPattern interface {
+	InjectionPattern
+
+	// InjectSidecar is called by the admission webhook to inject the processor sidecar
+	// Returns (modified bool, error)
+	// The pod needs to match the [PodSelector] for this method to be called.
+	InjectSidecar(ctx context.Context, pod *corev1.Pod, namespace string) (bool, error)
+
+	// SidecarDeleted is called when a pod that has matched the [PodSelected] is being deleted
+	SidecarDeleted(ctx context.Context, pod *corev1.Pod, ns string) error
+
+	// PodSelector returns the label selector for pods that should receive the sidecar
+	// This is derived from the Gateway/resource being watched
+	PodSelector() labels.Selector
 }

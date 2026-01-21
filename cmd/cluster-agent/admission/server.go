@@ -42,6 +42,8 @@ const jsonContentType = "application/json"
 
 // Request contains the information of an admission request
 type Request struct {
+	// Context is the request context
+	Context context.Context
 	// UID is the unique identifier of the AdmissionRequest
 	UID types.UID
 	// Name is the name of the object
@@ -200,6 +202,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request, webhookName stri
 		admissionReview := &admiv1.AdmissionReview{}
 		admissionReview.SetGroupVersionKind(*gvk)
 		admissionRequest := Request{
+			Context:       r.Context(),
 			UID:           admissionReviewReq.Request.UID,
 			Kind:          admissionReviewReq.Request.Kind,
 			Name:          admissionReviewReq.Request.Name,
