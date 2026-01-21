@@ -34,6 +34,17 @@ jobs:
         env:
           PR_ID: ${{ github.event.pull_request.number }}
         run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
+      - name: Add the internal label
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: process.env.PR_ID,
+              labels: ['internal']
+            });
   release-note-check:
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
