@@ -193,7 +193,7 @@ func (fr *Framer) Process(input *message.Message) {
 			IsTruncated: isTruncated, // Set our detected truncation status
 			IsMultiLine: input.ParsingExtra.IsMultiLine,
 			IsMRFAllow:  input.ParsingExtra.IsMRFAllow,
-			Tags:        nil, // Start with empty tags, handler will add if needed
+			Tags:        append([]string(nil), input.ParsingExtra.Tags...),
 		}
 
 		c := &message.Message{
