@@ -803,12 +803,9 @@ func (agg *BufferedAggregator) run() {
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterListMtx.Lock()
 			agg.flushFilterList = matcher
-<<<<<<< HEAD
+			agg.flushFilterListMtx.Unlock()
 		case matcher := <-agg.tagfilterListChan:
 			agg.tagFilterList = matcher
-=======
-			agg.flushFilterListMtx.Unlock()
->>>>>>> stephen/filterlistrc
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)
