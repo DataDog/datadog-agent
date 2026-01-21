@@ -2322,3 +2322,23 @@ probes:
         dsl: "@duration"
       - str: "ms"
     captureSnapshot: true
+  - id: testInlinedFuncFromOtherPackage
+    type: LOG_PROBE
+    where:
+      methodName: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc
+    template: "testInlinedFuncFromOtherPackage"
+    segments:
+      - str: "testInlinedFuncFromOtherPackage"
+    captureSnapshot: true
+  # This test observes that when you have a value receiver on a type that doesn't
+  # do anything with the value it gets wholly inlined into the pointer receiver
+  # and those two methods then have overlapping PC ranges which tickled a bug
+  # in irgen. This test acts as a regression test for that bug.
+  - id: testWhollyInlinedSubroutine
+    type: LOG_PROBE
+    where:
+      methodName: main.firstBehavior.DoSomething
+    template: "testWhollyInlinedSubroutine"
+    segments:
+      - str: "testWhollyInlinedSubroutine"
+    captureSnapshot: true
