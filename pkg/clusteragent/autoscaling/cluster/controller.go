@@ -13,10 +13,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -28,6 +25,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type store = autoscaling.Store[model.NodePoolInternal]
@@ -223,8 +225,11 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to create NodePool: %s, err: %v", npi.Name(), err)
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
+
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool: %s with instances %q", npi.Name(), npi.RecommendedInstanceTypes())
 
 	return nil
 }
@@ -241,9 +246,11 @@ func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePoo
 	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType and simplify patch object
 	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
+		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %s, err: %v", npi.Name(), err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
 
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool: %s with instances %q", npi.Name(), npi.RecommendedInstanceTypes())
 	return nil
 }
 
