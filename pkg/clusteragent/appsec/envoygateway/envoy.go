@@ -50,6 +50,11 @@ type envoyGatewayInjectionPattern struct {
 	grantManager
 }
 
+func (e *envoyGatewayInjectionPattern) Mode() appsecconfig.InjectionMode {
+	// TODO: work on sidecar mode for envoy gateway
+	return appsecconfig.InjectionModeExternal
+}
+
 func (e *envoyGatewayInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	gvrToName := func(gvr schema.GroupVersionResource) string {
 		return gvr.Resource + "." + gvr.Group

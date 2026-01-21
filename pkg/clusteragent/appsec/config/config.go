@@ -9,6 +9,8 @@
 package config
 
 import (
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -137,6 +139,33 @@ type Config struct {
 	Product
 }
 
+// validateSidecarConfig validates that required sidecar configuration fields are set
+func validateSidecarConfig(config Sidecar) error {
+	var errs []error
+
+	if config.Image == "" {
+		errs = append(errs, errors.New("sidecar image is required"))
+	}
+
+	if config.Port <= 0 || config.Port > 65535 {
+		errs = append(errs, fmt.Errorf("sidecar.port must be between 1 and 65535, got: %d", config.Port))
+	}
+
+	if config.HealthPort <= 0 || config.HealthPort > 65535 {
+		errs = append(errs, fmt.Errorf("sidecar.health_port must be between 1 and 65535, got: %d", config.HealthPort))
+	}
+
+	if config.Port == config.HealthPort {
+		errs = append(errs, fmt.Errorf("sidecar.port and sidecar.health_port cannot be the same: %d", config.Port))
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
+
 // FromComponent uses the datadog config.Component and returns a Config using default values when not set
 func FromComponent(cfg config.Component, logger log.Component) Config {
 	proxiesEnabled := cfg.GetStringSlice("appsec.proxy.proxies")
@@ -190,8 +219,16 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 	switch mode {
 	case InjectionModeSidecar:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = "localhost"
+		// Validate required sidecar configuration
+		if err := validateSidecarConfig(sidecarConfig); err != nil {
+			logger.Errorf("Invalid sidecar configuration: %v", err)
+		}
 	case InjectionModeExternal:
 		staticAnnotations[AppsecProcessorResourceAnnotation] = processor.String()
+		// Validate required external configuration
+		if processor.ServiceName == "" {
+			logger.Error("processor.service.name is required for EXTERNAL mode")
+		}
 	default:
 		logger.Warnf("Invalid appsec proxy injection mode: %q (defaults to sidecar mode)", mode)
 		mode = InjectionModeSidecar
