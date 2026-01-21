@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -50,11 +51,10 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 
 	hostname, err := hostnameutils.GetHostname(deps.Ipc)
 	if err != nil {
-		log.Warnf("failed to get hostname from core agent: %v, using 'unknown'", err)
-		hostname = "unknown"
-	} else if hostname == "" {
-		log.Warn("hostname from core agent is empty, using 'unknown'")
-		hostname = "unknown"
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+	if hostname == "" {
+		return nil, errors.New("hostname from core agent is empty")
 	}
 
 	evm, err := eventmonitor.NewEventMonitor(emconfig, secconfig, hostname, opts)
