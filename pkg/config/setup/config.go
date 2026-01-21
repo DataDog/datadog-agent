@@ -1347,6 +1347,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
+	config.BindEnvAndSetDefault("agent_ipc.use_socket", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
@@ -1435,6 +1437,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
+	// integration.basic.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
+	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
