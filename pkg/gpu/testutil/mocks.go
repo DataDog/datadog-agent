@@ -101,6 +101,13 @@ var MIGChildrenUUIDs = map[int][]string{
 	6: {"MIG-22222222-1234-1234-1234-123456789014", "MIG-33333333-1234-1234-1234-123456789015", "MIG-44444444-1234-1234-1234-123456789016", "MIG-55555555-1234-1234-1234-123456789017"},
 }
 
+// DefaultMIGProfileInfo is the profile info for the default MIG device returned by the mock.
+var DefaultMIGProfileInfo = nvml.GpuInstanceProfileInfo{
+	MemorySizeMB:        1024,
+	InstanceCount:       1,
+	MultiprocessorCount: 10,
+}
+
 // GetDeviceMock returns a mock of the nvml.Device with the given UUID.
 func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Device {
 	mock := &nvmlmock.Device{
@@ -178,6 +185,9 @@ func GetDeviceMock(deviceIdx int, opts ...func(*nvmlmock.Device)) *nvmlmock.Devi
 		},
 		GetSupportedEventTypesFunc: func() (uint64, nvml.Return) {
 			return nvml.EventTypeAll, nvml.SUCCESS
+		},
+		GetGpuInstanceProfileInfoFunc: func(profile int) (nvml.GpuInstanceProfileInfo, nvml.Return) {
+			return DefaultMIGProfileInfo, nvml.SUCCESS
 		},
 	}
 
