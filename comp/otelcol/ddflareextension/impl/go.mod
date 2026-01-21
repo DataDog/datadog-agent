@@ -50,15 +50,22 @@ require (
 require github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
 
 require (
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.70.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.50.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.5 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
+	github.com/hashicorp/consul/sdk v0.16.2 // indirect
 	github.com/hashicorp/go-msgpack v1.1.5 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/onsi/ginkgo/v2 v2.26.0 // indirect
 	github.com/onsi/gomega v1.38.2 // indirect
@@ -74,14 +81,14 @@ require (
 require (
 	cloud.google.com/go/auth v0.17.0 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
-	cloud.google.com/go/compute v1.38.0 // indirect
+	cloud.google.com/go/compute v1.49.1 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.19.1 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.12.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5 v5.7.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
-	github.com/AzureAD/microsoft-authentication-library-for-go v1.5.0 // indirect
+	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
@@ -257,7 +264,7 @@ require (
 	github.com/go-openapi/loads v0.22.0 // indirect
 	github.com/go-openapi/spec v0.21.0 // indirect
 	github.com/go-openapi/strfmt v0.24.0 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
+	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-openapi/validate v0.24.0 // indirect
 	github.com/go-resty/resty/v2 v2.17.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
@@ -307,7 +314,7 @@ require (
 	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/julienschmidt/httprouter v1.3.0 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect; indirectq
+	github.com/klauspost/compress v1.18.3 // indirect; indirectq
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect
@@ -490,7 +497,7 @@ require (
 	golang.org/x/tools v0.40.0 // indirect
 	gonum.org/v1/gonum v0.16.0 // indirect
 	google.golang.org/api v0.252.0 // indirect
-	google.golang.org/genproto v0.0.0-20250603155806-513f23925822 // indirect
+	google.golang.org/genproto v0.0.0-20251022142026-3a174f9686a8 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
@@ -638,6 +645,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../pkg/util/cache
