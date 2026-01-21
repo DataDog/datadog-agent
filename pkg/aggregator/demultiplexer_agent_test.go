@@ -26,7 +26,6 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -284,7 +283,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
-	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
 			Action: "exclude",
 			Tags:   []string{"tag1", "tag2"},
@@ -343,7 +342,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	// Reset the mock
 	s.series = []*metrics.Serie{}
 
-	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
 			Action: "exclude",
 			Tags:   []string{"tag4", "tag5"},
@@ -359,7 +358,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	demux.Stop(false)
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
-	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
 			Action: "include",
 			Tags:   []string{"thing"},
@@ -370,7 +369,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 		return demux.aggregator == nil
 	}, time.Second, time.Millisecond)
 
-	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
 		"dist.metric": {
 			Action: "exclude",
 			Tags:   []string{"thang"},
