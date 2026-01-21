@@ -99,7 +99,7 @@ func TestRunAssertion(t *testing.T) {
 			valid:     false,
 		},
 		{
-			name: "Jitter invalid - less than no packet received",
+			name: "Jitter invalid - no packet received",
 			assertion: common.Assertion{
 				Type:     common.AssertionTypePacketJitter,
 				Operator: common.OperatorLessThan,
@@ -125,7 +125,7 @@ func TestRunAssertion(t *testing.T) {
 				Operator: common.OperatorLessThan,
 				Target:   "5",
 			},
-			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 0, Min: 0, Max: 0}, PacketsReceived: 1},
+			stats: common.NetStats{Jitter: &[]float64{3.5}[0], Latency: &payload.E2eProbeRttLatency{Avg: 0, Min: 0, Max: 0}, PacketsReceived: 2},
 			valid: false,
 		},
 		{
