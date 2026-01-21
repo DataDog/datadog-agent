@@ -110,11 +110,17 @@ python_deps = {
 
 # The list of build tools we want to override in sysconfigdata.py
 # as they will not be available when building custom integrations without bazel
-build_tools = [
+to_override_build_tools = [
     'ar',
     'gcc',
     'g++',
     'ld',
+]
+
+to_override_flags = [
+    'CFLAGS',
+    'CXXFLAGS',
+    'LDFLAGS',
 ]
 
 configure_make(
@@ -194,7 +200,11 @@ configure_make(
     postfix_script = " && ".join([
         "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python3.13/_sysconfigdata__*.py".format(
             tool=tool
-        ) for tool in build_tools
+        ) for tool in to_override_build_tools
+    ]) + " && " +
+    " && ".join(["perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python3.13/_sysconfigdata__*.py".format(
+            flag=flag
+        ) for flag in to_override_flags
     ])
 )
 
