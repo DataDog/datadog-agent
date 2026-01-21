@@ -3,17 +3,6 @@
 
 package noisyneighbor
 
-type ebpfRunqEvent struct {
-	Prev_cgroup_id   uint64
-	Cgroup_id        uint64
-	Runq_lat         uint64
-	Ts               uint64
-	Pid              uint64
-	Prev_pid         uint64
-	Prev_cgroup_name [129]byte
-	Cgroup_name      [129]byte
-	Pad_cgo_0        [6]byte
-}
 type ebpfCgroupAggStats struct {
 	Sum_latencies_ns uint64
 	Event_count      uint64
