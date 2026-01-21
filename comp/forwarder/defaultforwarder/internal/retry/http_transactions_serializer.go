@@ -106,7 +106,7 @@ func (s *HTTPTransactionsSerializer) Add(transaction *transaction.HTTPTransactio
 		// by a local address like http://127.0.0.1:1234. The Agent would send the HTTP transactions to the url
 		// http://127.0.0.1:1234/intake/?api_key=API_KEY which contains the API_KEY.
 		Domain:      "",
-		Endpoint:    &EndpointProto{Route: []byte(s.replaceAPIKeys(endpoint.Route)), Name: endpoint.Name},
+		Endpoint:    &EndpointProto{Route: s.replaceAPIKeys(endpoint.Route), Name: endpoint.Name},
 		Headers:     s.toHeaderProto(transaction.Headers),
 		Payload:     payload,
 		ErrorCount:  int64(transaction.ErrorCount),
@@ -202,18 +202,18 @@ func (s *HTTPTransactionsSerializer) Deserialize(bytes []byte) ([]transaction.Tr
 // one of them is able to replace the key.
 // Needs to iterate backwards to ensure the latest version of the replacers takes
 // priority.
-func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) string {
+func (s *HTTPTransactionsSerializer) replaceAPIKeys(str string) []byte {
 	s.placeholderMutex.RLock()
 	defer s.placeholderMutex.RUnlock()
 
 	for replacer := len(s.apiKeyToPlaceholder) - 1; replacer >= 0; replacer-- {
 		replaced := s.apiKeyToPlaceholder[replacer].Replace(str)
 		if str != replaced {
-			return replaced
+			return []byte(replaced)
 		}
 	}
 
-	return str
+	return []byte(str)
 
 }
 
@@ -281,12 +281,7 @@ func (s *HTTPTransactionsSerializer) toHeaderProto(headers http.Header) map[stri
 	headersProto := make(map[string]*HeaderValuesProto)
 	for key, headerValues := range headers {
 		// Convert strings to bytes after replacing API keys
-		strValues := common.StringSliceTransform(headerValues, s.replaceAPIKeys)
-		byteValues := make([][]byte, len(strValues))
-		for i, v := range strValues {
-			byteValues[i] = []byte(v)
-		}
-		headerValuesProto := HeaderValuesProto{Values: byteValues}
+		headerValuesProto := HeaderValuesProto{Values: common.StringSliceTransform(headerValues, s.replaceAPIKeys)}
 		headersProto[key] = &headerValuesProto
 	}
 	return headersProto
