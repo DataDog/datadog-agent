@@ -61,6 +61,20 @@ import (
 
 const datadogConfigPath = "datadog.yaml"
 
+// agents holds the serverless agents for metrics, traces, and logs.
+type agents struct {
+	metric  *metrics.ServerlessMetricAgent
+	tracing *cloudservice.TracingContext
+	logs    logsAgent.ServerlessLogsAgent
+}
+
+// setupResult holds all components initialized during setup.
+type setupResult struct {
+	cloudService cloudservice.CloudService
+	logConfig    *serverlessInitLog.Config
+	agents       *agents
+}
+
 var modeConf mode.Conf
 
 func main() {
@@ -102,21 +116,21 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, err := setup(secretComp, modeConf, tagger, compression, hostname)
+	result, err := setup(secretComp, modeConf, tagger, compression, hostname)
 	if err != nil {
 		return err
 	}
 
-	err = modeConf.Runner(logConfig)
+	err = modeConf.Runner(result.logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, err)
+	defer lastFlush(result.logConfig.FlushTimeout, result.agents.metric, result.agents.tracing.TraceAgent, result.agents.logs)
+	defer result.cloudService.Shutdown(*result.agents.metric, err)
 
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, error) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (*setupResult, error) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -162,7 +176,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	}
 
 	if err := cloudService.Init(tracingCtx); err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, err
 	}
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
@@ -173,7 +187,15 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent, nil
+	return &setupResult{
+		cloudService: cloudService,
+		logConfig:    agentLogConfig,
+		agents: &agents{
+			metric:  metricAgent,
+			tracing: tracingCtx,
+			logs:    logsAgent,
+		},
+	}, nil
 }
 
 var azureServerlessTags = []string{
