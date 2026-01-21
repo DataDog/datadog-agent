@@ -34,6 +34,11 @@ const (
 )
 
 var logLimiter = log.NewLogLimit(20, 10*time.Minute)
+// this regex matches device names from NVML and extracts the GPU type. For example, from "nvidia_a100-80gb" it will extract "a100". The groups are as follows:
+// 1. The optional prefix "nvidia" or "tesla" (T4 GPUs are named "tesla_t4" despite being NVIDIA GPUs)
+// 2. The optional prefix "geforce_" which we ignore
+// 3. The optional prefix "rtx_pro_" or "rtx_", which we use it as it's part of the GPU type
+// 4. The GPU type, which is the next alphanumeric part of the device name. Anything behind it (such as the memory size or whether it's PCI or SXM) is ignored.
 var gpuTypeRegex = regexp.MustCompile(`^(?:nvidia|tesla)_(?:geforce_)?(rtx_pro_|rtx_)?([a-z\d]+)`)
 var gpuNameSeparatorRegex = regexp.MustCompile(`[^a-z\d]+`)
 
