@@ -122,15 +122,6 @@ func (fr *Framer) GetFrameCount() int64 {
 	return fr.frames.Load()
 }
 
-// detectMatcherTruncation checks if the matcher truncated at the content length limit.
-// This occurs when the matcher finds a newline beyond the limit and returns exactly
-// contentLenLimit bytes of content and consumes exactly contentLenLimit bytes
-// In normal cases where a newline is found within the limit, rawDataLen would be
-// len(content) + 1 (including the newline byte)
-func (fr *Framer) detectMatcherTruncation(content []byte, rawDataLen int) bool {
-	return len(content) == fr.contentLenLimit && rawDataLen == fr.contentLenLimit
-}
-
 // Process handles an incoming chunk of data.  It will call outputFn for any recognized frames.  Partial
 // frames are maintained between calls to Process.  The passed buffer is not used after return.
 func (fr *Framer) Process(input *message.Message) {
@@ -163,8 +154,7 @@ func (fr *Framer) Process(input *message.Message) {
 		}
 		buf := fr.buffer.Bytes()[framed:]
 
-		content, rawDataLen := fr.matcher.FindFrame(buf, seen-framed)
-		isTruncated := false
+		content, rawDataLen, isTruncated := fr.matcher.FindFrame(buf, seen-framed)
 		if content == nil {
 			// if the matcher was asked to match more than contentLenLimit,
 			// chop off contentLenLimit raw bytes and output them
@@ -176,9 +166,6 @@ func (fr *Framer) Process(input *message.Message) {
 				// buffer
 				break
 			}
-		} else if fr.detectMatcherTruncation(content, rawDataLen) {
-			// The matcher found a newline beyond the contentLenLimit and truncated
-			isTruncated = true
 		}
 
 		// copy the data so that we can reuse fr.buffer (`content` is a slice

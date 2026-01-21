@@ -12,3 +12,8 @@ fixes:
     limit (default 900KB) were incorrectly marked as truncated. This caused the
     ``...TRUNCATED...`` marker to appear in logs that fit within the size limit,
     and incorrectly marked the subsequent log line as a truncated remainder.
+
+    Additionally, improved truncation detection to only mark frames that are actually
+    truncated, rather than all frames from a split log line. This makes truncation
+    metrics more accurate and allows ``exclude_at_match`` rules with truncation filters
+    to work more precisely.
