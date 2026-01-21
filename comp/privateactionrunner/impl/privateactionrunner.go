@@ -113,13 +113,11 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	p.WorkflowRunner.Start(context.Background())
-	return nil
+	return p.WorkflowRunner.Start(context.Background())
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	p.WorkflowRunner.Close(ctx)
-	return nil
+	return p.WorkflowRunner.Stop(ctx)
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner

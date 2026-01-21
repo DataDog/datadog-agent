@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test && !windows
+//go:build test && !windows && !darwin
 
 package hostsysteminfoimpl
 
@@ -16,6 +16,6 @@ import (
 func TestNewSystemInfoProvider_EndUserDeviceMode(t *testing.T) {
 
 	hh := getTestHostSystemInfo(t, nil)
-	// Should be disabled for non-Windows platforms
-	assert.False(t, hh.InventoryPayload.Enabled, "Should not be enabled for non-Windows platforms")
+	// Should be disabled for non-Windows and non-Darwin platforms
+	assert.False(t, hh.InventoryPayload.Enabled, "Should not be enabled for non-Windows and non-Darwin platforms")
 }

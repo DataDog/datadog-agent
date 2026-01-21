@@ -442,8 +442,9 @@
 /pkg/trace/api/otlp*.go                 @DataDog/opentelemetry
 /pkg/trace/api/loader/                  @DataDog/agent-runtimes
 /pkg/trace/api/loader/listeners.go      @DataDog/agent-apm
-/pkg/trace/traceutil/otel*.go           @DataDog/opentelemetry
-/pkg/trace/stats/                       @DataDog/agent-apm @DataDog/opentelemetry
+/pkg/trace/traceutil/                   @DataDog/agent-apm
+/pkg/trace/stats/                       @DataDog/agent-apm
+/pkg/trace/otel/                        @DataDog/opentelemetry
 /pkg/trace/telemetry/                   @DataDog/apm-trace-storage
 /pkg/trace/transform/                   @DataDog/opentelemetry
 /comp/core/autodiscovery/listeners/           @DataDog/container-platform
@@ -542,6 +543,7 @@
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-runtimes
+/pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
 /pkg/system-probe/api/client/client_windows.go      @DataDog/windows-products
 /pkg/system-probe/api/server/listener_windows.go    @DataDog/windows-products
