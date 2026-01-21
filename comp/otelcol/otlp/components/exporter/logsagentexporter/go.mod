@@ -59,7 +59,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/serializer v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/trace v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.76.0-devel // indirect
@@ -104,7 +105,7 @@ require (
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect
@@ -321,6 +322,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../../../../pkg/util/cache

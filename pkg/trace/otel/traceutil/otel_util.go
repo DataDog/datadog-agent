@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package traceutil provides utilities for converting OTel semantics to DD semantics.
 package traceutil
 
 import (
@@ -26,11 +27,6 @@ import (
 var (
 	// SignalTypeSet is the OTel attribute set for traces.
 	SignalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
-)
-
-const (
-	// TagStatusCode is the tag key for http status code.
-	TagStatusCode = "http.status_code"
 )
 
 // DefaultOTLPServiceName is the default service name for OTel spans when no service name is found in the resource attributes.
