@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd server
-package server
+package filterlistimpl
 
 import (
 	"encoding/json"
@@ -31,17 +30,17 @@ type metricEntry struct {
 	Name string `json:"metric_name"`
 }
 
-func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	s.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
+func (fl *FilterList) onFilterListUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	fl.log.Debugf("onFilterListUpdateCallback received updates: %d", len(updates))
 
 	// special case: we received a response from RC, but RC didn't have any
 	// configuration for this agent, let's restore the local config and return
 	if len(updates) == 0 {
-		s.config.UnsetForSource("metric_filterlist", model.SourceRC)
-		s.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-		s.restoreFilterListFromLocalConfig()
+		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
+		fl.restoreFilterListFromLocalConfig()
 		return
 	}
 
@@ -50,14 +49,14 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 	// unmarshal all the configurations received from
 	// the RC platform
 	for configPath, v := range updates {
-		s.log.Debugf("received filterlist config: %q", string(v.Config))
+		fl.log.Debugf("received filterlist config: %q", string(v.Config))
 		var config statsdFilterListUpdate
 		if err := json.Unmarshal(v.Config, &config); err != nil {
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: "error unmarshalling payload",
 			})
-			s.log.Errorf("can't unmarshal received filterlist config: %v", err)
+			fl.log.Errorf("can't unmarshal received filterlist config: %v", err)
 			continue
 		}
 
@@ -69,7 +68,7 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 		// this one has no metric in its list, strange but
 		// not an error
 		if len(config.FilteredMetrics.ByName.Metrics) == 0 {
-			s.log.Debug("received a filterlist configuration with no metrics")
+			fl.log.Debug("received a filterlist configuration with no metrics")
 			continue
 		}
 		filterListUpdates = append(filterListUpdates, config.FilteredMetrics)
@@ -88,23 +87,23 @@ func (s *server) onFilterListUpdateCallback(updates map[string]state.RawConfig, 
 	if len(metricNames) > 0 {
 		// update the runtime config to be consistent
 		// in `agent config` calls.
-		s.config.Set("metric_filterlist", metricNames, model.SourceRC)
-		s.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
-		if len(s.localFilterListConfig.metricNames) > 0 {
-			s.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
-			s.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
+		fl.config.Set("metric_filterlist", metricNames, model.SourceRC)
+		fl.config.Set("metric_filterlist_match_prefix", false, model.SourceRC)
+		if len(fl.localFilterListConfig.metricNames) > 0 {
+			fl.config.Set("statsd_metric_blocklist", []string{}, model.SourceRC)
+			fl.config.Set("statsd_metric_blocklist_match_prefix", false, model.SourceRC)
 		}
 
 		// apply this new blocklist to all the running workers
-		s.tlmFilterListUpdates.Inc()
-		s.tlmFilterListSize.Set(float64(len(metricNames)))
-		s.SetFilterList(metricNames, false)
+		fl.tlmFilterListUpdates.Inc()
+		fl.tlmFilterListSize.Set(float64(len(metricNames)))
+		fl.SetFilterList(metricNames, false)
 	} else {
 		// special case: if the metric names list is empty, fallback to local
-		s.config.UnsetForSource("metric_filterlist", model.SourceRC)
-		s.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
-		s.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
-		s.restoreFilterListFromLocalConfig()
+		fl.config.UnsetForSource("metric_filterlist", model.SourceRC)
+		fl.config.UnsetForSource("metric_filterlist_match_prefix", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist", model.SourceRC)
+		fl.config.UnsetForSource("statsd_metric_blocklist_match_prefix", model.SourceRC)
+		fl.restoreFilterListFromLocalConfig()
 	}
 }

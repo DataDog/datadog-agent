@@ -3,16 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd server
-package server
+//go:build test
+
+package filterlistimpl
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // to validate the outcome of running the config update,
@@ -40,8 +46,10 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*server)
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
 
 	results := reset()
 
@@ -53,7 +61,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	updates := map[string]state.RawConfig{
 		"first": {Config: []byte(`malformedjson":{}}`)},
 	}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -67,7 +75,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 		"first":  {Config: []byte(`malformedjson":{}}`)},
 		"second": {Config: []byte(`malformedjson":{}}`)},
 	}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -82,7 +90,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 		"first":  {Config: []byte(`malformedjson":{}}`)},
 		"second": {Config: []byte(`{"random":"json","field":[]}`)},
 	}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    1,
 		Unacked:  0,
@@ -96,7 +104,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 		"first":  {Config: []byte(`{"blocking_metrics":{"by_name":["hello","world"]}`)},
 		"second": {Config: []byte(`{"random":"json","field":[]}`)},
 	}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    1,
 		Unacked:  0,
@@ -107,7 +115,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 
 	// nothing
 	updates = map[string]state.RawConfig{}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
@@ -120,7 +128,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	updates = map[string]state.RawConfig{
 		"first": {Config: []byte("")},
 	}
-	s.onFilterListUpdateCallback(updates, callback)
+	filterList.onFilterListUpdateCallback(updates, callback)
 	test(results, resultTester{
 		Acked:    0,
 		Unacked:  0,
