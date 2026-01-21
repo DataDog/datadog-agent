@@ -461,7 +461,6 @@ def display_pr_comment(
         if gate["error_type"] is None:
             if is_neutral:
                 # Neutral changes go to collapsed section (just show current size)
-                gate_metrics = metric_handler.metrics.get(gate['name'], {})
                 current_disk = gate_metrics.get("current_on_disk_size")
                 if current_disk is not None:
                     current_mib = current_disk / (1024 * 1024)
