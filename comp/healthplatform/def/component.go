@@ -9,6 +9,8 @@
 // and a list of issues.
 package healthplatform
 
+import "time"
+
 // team: agent-health
 
 // Issue represents an individual issue to be reported
@@ -117,12 +119,26 @@ type IssueReport struct {
 	Tags []string
 }
 
+// HealthCheckFunc is a function that checks for health issues
+// Returns an IssueReport if an issue is detected, nil if healthy
+// The function should be idempotent and safe to call repeatedly
+type HealthCheckFunc func() (*IssueReport, error)
+
 // Component is the health platform component interface
 type Component interface {
-	// ReportIssue reports an issue with context, and the health platform fills in remediation
-	// This is the main way for integrations to report issues
-	// If report is nil, it clears any existing issue (issue resolution)
+	// ReportIssue reports an issue detected during code workflow
+	// Call this directly when your code detects an issue
+	// If report is nil, it clears any existing issue (issue resolved)
 	ReportIssue(checkID string, checkName string, report *IssueReport) error
+
+	// RegisterCheck registers a function to be called periodically to check for issues
+	// Use this when you need the health platform to run your check at regular intervals
+	// If interval is 0 or negative, defaults to 15 minutes
+	RegisterCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration) error
+
+	// =========================================================================
+	// Query Methods
+	// =========================================================================
 
 	// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
 	// Returns the total number of issues and a map of issues (nil for checks with no issues)
@@ -131,6 +147,10 @@ type Component interface {
 	// GetIssueForCheck returns the issue for a specific check
 	// Returns nil if no issue
 	GetIssueForCheck(checkID string) *Issue
+
+	// =========================================================================
+	// Clear Methods
+	// =========================================================================
 
 	// ClearIssuesForCheck clears issues for a specific check (useful when issues are resolved)
 	ClearIssuesForCheck(checkID string)
