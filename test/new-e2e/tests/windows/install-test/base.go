@@ -7,9 +7,11 @@
 package installtest
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -132,13 +134,85 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	}
 	installOpts = append(installOpts, installOptions...)
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
-		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
+		remoteMSIPath, err = s.installAgentWithXperf(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
 	}) {
 		s.T().FailNow()
 	}
 
 	return remoteMSIPath
+}
+
+// installAgentWithXperf wraps the InstallAgent call with xperf tracing for diagnosing service startup issues.
+func (s *baseAgentMSISuite) installAgentWithXperf(vm *components.RemoteHost, installOptions ...windowsAgent.InstallAgentOption) (string, error) {
+	// 1. Start xperf
+	s.T().Log("Starting xperf tracing")
+	s.startXperf(vm)
+	defer s.collectXperf(vm)
+
+	// 2. Run the MSI installation
+	s.T().Log("Installing MSI")
+	remoteMSIPath, err := s.InstallAgent(vm, installOptions...)
+	if err != nil {
+		s.T().Logf("MSI installation failed: %v", err)
+		return remoteMSIPath, err
+	}
+
+	// 3. Check service status (wait up to 5 minutes)
+	s.T().Log("Checking service status after MSI installation")
+	statusErr := s.waitForServiceRunning(vm, "DatadogAgent", 300)
+	if statusErr != nil {
+		s.T().Logf("Service status check failed: %v", statusErr)
+		return remoteMSIPath, statusErr
+	}
+
+	s.T().Log("MSI installation and service startup completed successfully")
+	// 4. collectXperf happens via defer
+	return remoteMSIPath, nil
+}
+
+// waitForServiceRunning waits for a service to reach Running status
+func (s *baseAgentMSISuite) waitForServiceRunning(vm *components.RemoteHost, serviceName string, timeoutSeconds int) error {
+	deadline := time.Now().Add(time.Duration(timeoutSeconds) * time.Second)
+	for time.Now().Before(deadline) {
+		status, err := windowsCommon.GetServiceStatus(vm, serviceName)
+		if err == nil && strings.Contains(status, "Running") {
+			return nil
+		}
+		time.Sleep(5 * time.Second)
+	}
+	return fmt.Errorf("timeout waiting for service %s to reach Running state after %d seconds", serviceName, timeoutSeconds)
+}
+
+// startXperf starts xperf tracing on the remote host
+func (s *baseAgentMSISuite) startXperf(vm *components.RemoteHost) {
+	err := vm.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	s.Require().NoError(err)
+
+	// extract if C:/xperf dir does not exist
+	_, err = vm.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	s.Require().NoError(err)
+
+	outputPath := "C:/kernel.etl"
+	xperfPath := "C:/xperf/xperf.exe"
+	_, err = vm.Execute(fmt.Sprintf(`& "%s" -On Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f %s -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular`, xperfPath, outputPath))
+	s.Require().NoError(err)
+}
+
+// collectXperf collects xperf tracing from the remote host
+func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	_, err := vm.Execute(fmt.Sprintf(`& "%s" -stop -d %s`, xperfPath, outputPath))
+	s.Require().NoError(err)
+
+	// collect xperf if the test failed
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		err = vm.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
+		s.Require().NoError(err)
+	}
 }
 
 func (s *baseAgentMSISuite) uninstallAgent() bool {

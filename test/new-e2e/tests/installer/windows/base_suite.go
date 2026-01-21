@@ -525,6 +525,45 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
+// This wraps the MSI installation with performance tracing and service status checking.
+//
+// Usage:
+//
+//	s.Require().NoError(s.InstallWithXperf(
+//	    installerwindows.WithMSILogFile("install.log"),
+//	))
+//
+// The xperf trace will be collected automatically if the test fails.
+func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) error {
+	s.T().Helper()
+
+	// 1. Start xperf
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	// 2. Run the MSI
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	if err != nil {
+		s.T().Logf("MSI installation failed: %v", err)
+		return err
+	}
+
+	// 3. Check service status
+	s.T().Log("Checking service status after MSI installation")
+	statusErr := s.WaitForInstallerService("Running")
+	if statusErr != nil {
+		s.T().Logf("Service status check failed: %v", statusErr)
+		return statusErr
+	}
+
+	s.T().Log("MSI installation and service startup completed successfully")
+	// 4. collectxperf happens via defer
+	return nil
+}
+
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
