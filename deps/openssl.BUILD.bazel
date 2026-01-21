@@ -167,9 +167,18 @@ configure_make(
     }),
     out_data_dirs = [
         "lib/pkgconfig",
-        "ssl",
         "lib/engines-3",
+        "lib/ossl-modules",
     ],
+    out_data_files = select({
+        # In practice, we shouldn't usually need the config file that the build produces.
+        # The main reason we keep it is so that it becomes part of the package, such that when
+        # FIPS installation does create this file based on a template, the removal of the Agent
+        # will also remove this file.
+        # TODO(agent-build): Look into alternatives to achieve the desired removal behavior
+        "@platforms//os:linux": ["ssl/openssl.cnf"],
+        "//conditions:default": [],
+    }),
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
     # lib instead of bin. Technically, those are binaries,
@@ -223,12 +232,6 @@ cc_shared_library_wrapper(
     input = ":openssl",
 )
 
-filegroup(
-    name = "headers",
-    srcs = [":openssl"],
-    output_group = "include",
-)
-
 # The dynamic library built with configure/make. Even though the name
 # is libssl.so, it is not actually the same folder, so we can have our
 # own libssl.so shadow it.
@@ -272,142 +275,44 @@ so_symlink(
     version = OPENSSL_VERSION,
 )
 
-pkg_files(
-    name = "openssl_hdr_files",
-    srcs = [
-        ":headers",
-    ],
-)
-
-filegroup(
-    name = "openssl_exe",
-    srcs = [":openssl"],
-    output_group = "openssl.exe",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
-filegroup(
-    name = "libssl_dll",
-    srcs = [":openssl"],
-    output_group = WIN_LIBSSL,
-
-)
-
-filegroup(
-    name = "libcrypto_dll",
-    srcs = [":openssl"],
-    output_group = WIN_LIBCRYPTO,
-)
-
-pkg_files(
-    name = "openssl_bin_dir",
-    srcs = [":openssl_exe", ":libssl_dll", ":libcrypto_dll"],
-    prefix = "bin",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
-filegroup(
-    name = "pkgconfig_dir",
-    srcs = [":openssl"],
-    output_group = "pkgconfig",
-)
-
-filegroup(
-    name = "ssl_dir",
-    srcs = [":openssl"],
-    output_group = "ssl",
-)
-
-filegroup(
-    name = "engines_dir",
-    srcs = [":openssl"],
-    output_group = "engines-3",
-)
-
-# "interface libs" are not exposed as output groups, therefore we use a more versatile rule to get these
 select_file(
-    name = "libcrypto_import_lib",
+    name = "openssl_binary",
     srcs = ":openssl",
-    subpath = "openssl/lib/libcrypto.lib",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
-select_file(
-    name = "libssl_import_lib",
-    srcs = ":openssl",
-    subpath = "openssl/lib/libssl.lib",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
-pkg_files(
-    name = "import_lib_files",
-    srcs = [
-        ":libcrypto_import_lib",
-        ":libssl_import_lib",
-    ],
-    prefix = "lib",
-    target_compatible_with = ["@platforms//os:windows"],
-)
-
-pkg_files(
-    name = "openssl_pkgconfig",
-    srcs = [":pkgconfig_dir"],
-    prefix = "lib",
-    attributes = pkg_attributes(
-        mode = "0644",
-    ),
-)
-
-pkg_files(
-    name = "ssl_dir_files",
-    srcs = [":ssl_dir"],
-)
-
-pkg_files(
-    name = "engines_dir_files",
-    srcs = [":engines_dir"],
-    prefix = "lib",
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-)
-
-filegroup(
-    name = "openssl_bin",
-    srcs = [":openssl"],
-    output_group = "openssl",
-)
-
-pkg_files(
-    name = "openssl_bin_file",
-    srcs = [":openssl_bin"],
-    prefix = "bin",
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
+    subpath = select({
+        "@platforms//os:windows": "openssl/bin/openssl.exe",
+        "//conditions:default": "openssl/bin/openssl",
     }),
     visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "openssl_files",
+    srcs = [":openssl"],
+    strip_prefix = "openssl",
+    excludes = [
+        # Binaries require custom attributes
+        ":openssl_binary",
+        # Libraries require separate symlink post-processing
+        ":libssl",
+        ":libcrypto",
+    ],
+)
+
+pkg_files(
+    name = "openssl_bin_files",
+    srcs = [":openssl_binary"],
+    strip_prefix = "openssl",
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":openssl_hdr_files",
-        ":ssl_dir_files",
-        ":engines_dir_files",
-    ] + select({
-        "@platforms//os:windows": [
-            ":import_lib_files",
-            ":openssl_bin_dir",
-        ],
-        "//conditions:default": [
-            ":libssl_with_symlink",
-            ":libcrypto_with_symlink",
-            ":openssl_bin_file",
-            ":openssl_pkgconfig",
-        ],
-    }),
+        ":openssl_files",
+        ":openssl_bin_files",
+        ":libssl_with_symlink",
+        ":libcrypto_with_symlink",
+    ],
 )

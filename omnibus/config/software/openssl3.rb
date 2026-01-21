@@ -38,15 +38,28 @@ build do
     command_on_repo_root "bazelisk run #{fips_flag} -- @openssl//:install --destdir=#{install_dir}/embedded3"
   else
     command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+    # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
+    # This messes up openssl's internal paths. So we have to use another variable
+    # so that replace_prefix and fix_openssl_paths set path correctly inside of the
+    # openssl binaries on macos
+    real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
     lib_extension = if linux_target? then ".so" else ".dylib" end
-    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{install_dir}/embedded" \
+
+    files_to_patch = [
+      "lib/libssl#{lib_extension}",
+      "lib/libcrypto#{lib_extension}",
+      "lib/engines-3/*#{lib_extension}",
+      "lib/ossl-modules/*#{lib_extension}",
+      "lib/pkgconfig/*.pc",
+      "bin/openssl",
+    ].map { |path| "#{install_dir}/embedded/#{path}" }
+
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded #{files_to_patch.join(' ')}"
+
+    command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
       " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
       " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
-      " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
-      " #{install_dir}/embedded/bin/openssl"
   end
-
-
   if fips_mode?
     if windows?
       command_on_repo_root "bazelisk run -- @openssl_fips//:install --destdir=#{install_dir}/embedded3"
