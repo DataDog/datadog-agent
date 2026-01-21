@@ -173,18 +173,6 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 	}
 }
 
-type MockSerializerSketch struct {
-	sketches []*metrics.SketchSeries
-	MockSerializerIterableSerie
-}
-
-func (s *MockSerializerSketch) SendSketch(sketches metrics.SketchesSource) error {
-	for sketches.MoveNext() {
-		s.sketches = append(s.sketches, sketches.Current())
-	}
-	return nil
-}
-
 func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 

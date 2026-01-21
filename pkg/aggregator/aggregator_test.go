@@ -43,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
-	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -728,23 +727,6 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 
 	// Reset recurrentSeries
 	recurrentSeries = metrics.Series{}
-}
-
-// The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
-// It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
-// It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.
-// MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
-// It also overrides `SendSeries` for simplificy.
-type MockSerializerIterableSerie struct {
-	series []*metrics.Serie
-	serializermock.MetricSerializer
-}
-
-func (s *MockSerializerIterableSerie) SendIterableSeries(seriesSource metrics.SerieSource) error {
-	for seriesSource.MoveNext() {
-		s.series = append(s.series, seriesSource.Current())
-	}
-	return nil
 }
 
 func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
