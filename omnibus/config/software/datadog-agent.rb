@@ -142,9 +142,23 @@ build do
   if linux_target? and !heroku_target?
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+
+    # Build the apm-injector
+    command "dda inv -- -e apm-injector.build #{fips_args} --no-cgo", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # Create directory for apm-injector binary (will be packaged separately in apm-inject package)
+    apm_inject_dir = "#{install_dir}/../datadog-apm-inject/stable/bin"
+    mkdir apm_inject_dir
+    move 'bin/apm-injector/apm-injector', apm_inject_dir
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+
+    # Build the apm-injector for Windows
+    command "dda inv -- -e apm-injector.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    # Create directory for apm-injector binary (will be packaged separately in apm-inject package)
+    apm_inject_dir = "#{install_dir}/../datadog-apm-inject/stable/bin"
+    mkdir apm_inject_dir
+    move 'bin/apm-injector/apm-injector.exe', apm_inject_dir
   end
 
   if linux_target?

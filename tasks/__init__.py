@@ -11,6 +11,7 @@ from tasks import (
     agent,
     agent_ci_api,
     ami,
+    apm_injector,
     auth,
     bench,
     buildimages,
@@ -177,6 +178,7 @@ ns.add_collection(auth)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
+ns.add_collection(apm_injector)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
