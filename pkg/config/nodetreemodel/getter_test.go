@@ -338,3 +338,16 @@ func TestGetAllSources(t *testing.T) {
 		res,
 	)
 }
+
+func TestGetEnvVars(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", "TEST", nil)
+
+	cfg.BindEnvAndSetDefault("d", 0, "D")
+	cfg.BindEnvAndSetDefault("a", 0, "ABC")
+	cfg.BindEnvAndSetDefault("b", 0, "ABC", "DEF")
+	cfg.BindEnvAndSetDefault("c", 0, "DEF")
+	cfg.BindEnvAndSetDefault("x", 0)
+
+	// testing that duplicate are removed and result is sorted
+	assert.Equal(t, []string{"ABC", "D", "DEF", "TEST_X"}, cfg.GetEnvVars())
+}
