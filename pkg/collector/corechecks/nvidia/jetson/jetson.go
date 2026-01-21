@@ -111,14 +111,14 @@ func getSizeMultiplier(unit string) float64 {
 	}
 }
 
-// validateTegraStatsPath verifies if the path doesn't contain invalid characters and is absolute
+// validateTegraStatsPath verifies that the path is absolute and doesn't contain invalid characters
 func validateTegraStatsPath(path string) error {
 	// Reject values containing whitespace, shell metacharacters, or non-path characters
 	if shellMetacharRegex.MatchString(path) {
 		return fmt.Errorf("tegrastats_path contains invalid characters: %q", path)
 	}
 
-	// Check if it's an absolute path
+	// Reject non-absolute path
 	if !filepath.IsAbs(path) {
 		return fmt.Errorf("tegrastats_path should be absolute: %q", path)
 	}
@@ -192,7 +192,7 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, da
 		return err
 	}
 
-	// fallback to the default path is none is provided
+	// fallback to the default path if none is provided
 	if conf.TegraStatsPath != "" {
 		c.tegraStatsPath = conf.TegraStatsPath
 	} else {
@@ -201,7 +201,7 @@ func (c *JetsonCheck) Configure(senderManager sender.SenderManager, _ uint64, da
 
 	// Validate tegrastats path
 	if err := validateTegraStatsPath(c.tegraStatsPath); err != nil {
-		return fmt.Errorf("invalid tegrastats configuration: %w", err)
+		return err
 	}
 
 	// We run tegrastats once and then kill the process. However, we set the interval to 500ms
