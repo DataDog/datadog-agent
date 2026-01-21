@@ -406,9 +406,14 @@ func remapAttributes(attrs map[uint32]*AnyValue, remap func(uint32) uint32) {
 		}
 		remapAnyValue(value, remap)
 	}
-	// Apply key remaps
+	// Apply key remaps in two phases:
+	// 1. Delete all old keys first to avoid conflicts when new key == old key of another remap
+	// 2. Then add all new keys
+	// This prevents the bug where deleting an old key accidentally removes a newly-added value
 	for _, r := range remaps {
 		delete(attrs, r.oldKey)
+	}
+	for _, r := range remaps {
 		attrs[r.newKey] = r.value
 	}
 }

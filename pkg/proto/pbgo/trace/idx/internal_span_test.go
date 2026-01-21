@@ -6,6 +6,7 @@
 package idx
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	sync "sync"
@@ -689,6 +690,206 @@ func TestCompactStrings(t *testing.T) {
 			assert.NotEmpty(t, s, "Compacted string table should not have empty strings at index %d", i)
 		}
 	}
+}
+
+// TestRemapAttributes_KeyOverlap demonstrates a bug where remapAttributes can lose
+// attributes when the new key of one attribute equals the old key of another attribute.
+func TestRemapAttributes_KeyOverlap(t *testing.T) {
+	// Create a scenario where key remapping causes overlap
+	// Original: {5: v1, 10: v2}
+	// Remap: 5->3, 10->5
+	// Expected final: {3: v1, 5: v2}
+	// Bug: depending on iteration order, we could get {3: v1} (v2 lost!)
+
+	strings := NewStringTable()
+	strings.Add("") // index 0
+
+	// Add strings so we can create the overlap scenario
+	// We need old indices 5 and 10 to remap to 3 and 5 respectively
+	for i := 1; i <= 10; i++ {
+		strings.Add(fmt.Sprintf("str_%d", i)) // indices 1-10
+	}
+
+	// Create attributes at indices 5 and 10
+	key5Str := strings.Get(5)   // "str_5"
+	key10Str := strings.Get(10) // "str_10"
+	t.Logf("key5Str=%q, key10Str=%q", key5Str, key10Str)
+
+	attrs := map[uint32]*AnyValue{
+		5:  {Value: &AnyValue_StringValueRef{StringValueRef: 1}}, // value "str_1"
+		10: {Value: &AnyValue_StringValueRef{StringValueRef: 2}}, // value "str_2"
+	}
+
+	// Create a remap function: 5->3, 10->5
+	remapFunc := func(oldRef uint32) uint32 {
+		switch oldRef {
+		case 5:
+			return 3
+		case 10:
+			return 5
+		default:
+			return oldRef
+		}
+	}
+
+	// Run remapAttributes multiple times to catch the race (since map iteration is random)
+	failures := 0
+	for i := 0; i < 100; i++ {
+		testAttrs := make(map[uint32]*AnyValue)
+		for k, v := range attrs {
+			testAttrs[k] = v
+		}
+
+		remapAttributes(testAttrs, remapFunc)
+
+		// Expected: {3: v1, 5: v2}
+		if len(testAttrs) != 2 {
+			failures++
+			if failures == 1 {
+				t.Logf("Iteration %d: Expected 2 attrs, got %d: %v", i, len(testAttrs), testAttrs)
+			}
+		}
+	}
+
+	if failures > 0 {
+		t.Errorf("remapAttributes lost attributes in %d/100 iterations", failures)
+	}
+}
+
+// TestDoubleCompactStrings_CorruptsSharedSpans demonstrates a bug where calling
+// CompactStrings twice on payloads that share span objects corrupts the refs.
+// This simulates what happens in TraceWriterV1 when splitting large payloads.
+func TestDoubleCompactStrings_CorruptsSharedSpans(t *testing.T) {
+	// Create a payload with multiple chunks where each chunk uses DIFFERENT strings.
+	// This is crucial because when we split and re-compact, the different chunks
+	// will have different mappings, causing corruption.
+	strings := NewStringTable()
+
+	// Chunk1 uses these strings
+	service1Ref := strings.Add("service-chunk1")
+	name1Ref := strings.Add("operation-chunk1")
+	resource1Ref := strings.Add("resource-chunk1")
+	attrKey1Ref := strings.Add("chunk1.attr.key")
+	attrVal1Ref := strings.Add("chunk1.attr.value")
+
+	// Chunk2 uses DIFFERENT strings
+	service2Ref := strings.Add("service-chunk2")
+	name2Ref := strings.Add("operation-chunk2")
+	resource2Ref := strings.Add("resource-chunk2")
+	attrKey2Ref := strings.Add("chunk2.attr.key")
+	attrVal2Ref := strings.Add("chunk2.attr.value")
+
+	// Add some unused strings so compaction actually changes indices
+	for i := 0; i < 20; i++ {
+		strings.Add("unused_" + string(rune('a'+i)))
+	}
+
+	// Create two chunks with distinct spans using distinct strings
+	span1 := &Span{
+		ServiceRef:  service1Ref,
+		NameRef:     name1Ref,
+		ResourceRef: resource1Ref,
+		Attributes: map[uint32]*AnyValue{
+			attrKey1Ref: {Value: &AnyValue_StringValueRef{StringValueRef: attrVal1Ref}},
+		},
+	}
+	span2 := &Span{
+		ServiceRef:  service2Ref,
+		NameRef:     name2Ref,
+		ResourceRef: resource2Ref,
+		Attributes: map[uint32]*AnyValue{
+			attrKey2Ref: {Value: &AnyValue_StringValueRef{StringValueRef: attrVal2Ref}},
+		},
+	}
+
+	chunk1 := &TraceChunk{Spans: []*Span{span1}}
+	chunk2 := &TraceChunk{Spans: []*Span{span2}}
+
+	payload := &TracerPayload{
+		Strings:         strings.strings,
+		ContainerIDRef:  strings.Add("container-1"),
+		LanguageNameRef: strings.Add("go"),
+		Chunks:          []*TraceChunk{chunk1, chunk2},
+	}
+
+	// Step 1: First compaction (simulates pbTracerPayload.CompactStrings())
+	payload.CompactStrings()
+
+	// Verify both spans resolve correctly after first compaction
+	assert.Equal(t, "service-chunk1", payload.Strings[span1.ServiceRef], "After first compact: span1 service should resolve")
+	assert.Equal(t, "service-chunk2", payload.Strings[span2.ServiceRef], "After first compact: span2 service should resolve")
+
+	// Record span2's refs after first compaction (these are now the "true" indices)
+	span2ServiceRefAfterFirst := span2.ServiceRef
+	span2ServiceValueAfterFirst := payload.Strings[span2ServiceRefAfterFirst]
+
+	t.Logf("After first compact: span2.ServiceRef=%d -> %q", span2ServiceRefAfterFirst, span2ServiceValueAfterFirst)
+
+	// Step 2: Create a split payload with just chunk1 (simulates NewStringsClone + Chunks slice)
+	// This is what TraceWriterV1 does when splitting payloads
+	splitPayload1 := payload.NewStringsClone()
+	splitPayload1.Chunks = []*TraceChunk{chunk1} // Only include chunk1
+
+	// Step 3: Compact the split payload
+	// This will remap span1 to use indices valid for splitPayload1's string table.
+	// BUT span1 was ALREADY remapped by payload.CompactStrings()!
+	splitPayload1.CompactStrings()
+
+	t.Logf("After splitPayload1.CompactStrings: splitPayload1 has %d strings", len(splitPayload1.Strings))
+
+	// Check if span1 still resolves correctly
+	if int(span1.ServiceRef) >= len(splitPayload1.Strings) {
+		t.Errorf("CORRUPTION: span1.ServiceRef=%d >= len(splitPayload1.Strings)=%d",
+			span1.ServiceRef, len(splitPayload1.Strings))
+	} else {
+		resolvedService := splitPayload1.Strings[span1.ServiceRef]
+		if resolvedService != "service-chunk1" {
+			t.Errorf("CORRUPTION: span1.ServiceRef resolved to %q, expected 'service-chunk1'", resolvedService)
+		}
+	}
+
+	// Step 4: Create a second split payload with just chunk2
+	splitPayload2 := payload.NewStringsClone()
+	splitPayload2.Chunks = []*TraceChunk{chunk2} // Only include chunk2
+
+	// Step 5: Compact the second split payload
+	// This will remap span2 AGAIN (it was already remapped by payload.CompactStrings())
+	splitPayload2.CompactStrings()
+
+	t.Logf("After splitPayload2.CompactStrings: splitPayload2 has %d strings", len(splitPayload2.Strings))
+	t.Logf("span2.ServiceRef is now: %d", span2.ServiceRef)
+
+	// Check if span2's refs are still valid
+	if int(span2.ServiceRef) >= len(splitPayload2.Strings) {
+		t.Fatalf("CORRUPTION DETECTED: span2.ServiceRef=%d is out of bounds (strings len=%d)",
+			span2.ServiceRef, len(splitPayload2.Strings))
+	}
+	resolvedService := splitPayload2.Strings[span2.ServiceRef]
+	assert.Equal(t, "service-chunk2", resolvedService,
+		"After double compact: span2 service should still resolve to 'service-chunk2', got %q", resolvedService)
+
+	// Check if the attribute key/value still resolve correctly
+	var foundAttr bool
+	for keyRef, val := range span2.Attributes {
+		if int(keyRef) >= len(splitPayload2.Strings) {
+			t.Fatalf("CORRUPTION DETECTED: attribute key ref=%d is out of bounds (strings len=%d)",
+				keyRef, len(splitPayload2.Strings))
+		}
+		keyStr := splitPayload2.Strings[keyRef]
+		if keyStr == "chunk2.attr.key" {
+			foundAttr = true
+			if sv, ok := val.Value.(*AnyValue_StringValueRef); ok {
+				if int(sv.StringValueRef) >= len(splitPayload2.Strings) {
+					t.Fatalf("CORRUPTION DETECTED: attribute value ref=%d is out of bounds (strings len=%d)",
+						sv.StringValueRef, len(splitPayload2.Strings))
+				}
+				valStr := splitPayload2.Strings[sv.StringValueRef]
+				assert.Equal(t, "chunk2.attr.value", valStr,
+					"After double compact: attribute value should resolve correctly")
+			}
+		}
+	}
+	assert.True(t, foundAttr, "After double compact: chunk2.attr.key attribute should still be findable")
 }
 
 // createBenchmarkPayload creates a payload with the specified characteristics
