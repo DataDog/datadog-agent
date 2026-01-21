@@ -50,6 +50,12 @@ func TestMatchNoMatchCommand(t *testing.T) {
 	}
 }
 
+func TestKnownSafeEnvVars(t *testing.T) {
+	scrubber := NewDefaultDataScrubber()
+	assert.False(t, scrubber.ContainsSensitiveWord("DD_AUTH_TOKEN_FILE_PATH"))
+	assert.True(t, scrubber.ContainsSensitiveWord("AUTH_TOKEN_FILE_PATH"))
+}
+
 func TestMatchSimpleCommandScrubRegex(t *testing.T) {
 	cases := setupCmdlinesWithWildCards()
 	customSensitiveWords := []string{"passwd"}
