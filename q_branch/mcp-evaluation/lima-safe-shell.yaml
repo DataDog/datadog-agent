@@ -86,9 +86,9 @@ provision:
       KERNEL_VERSION=$(uname -r | cut -d. -f1,2)
       echo "Running kernel $KERNEL_VERSION"
 
-      # Create eval-user for running safe-shell commands
+      # Create eval-user for running safe-shell commands (system user to avoid subordinate UID issues)
       if ! id -u eval-user > /dev/null 2>&1; then
-        useradd -m -s /bin/bash eval-user
+        useradd -r -m -s /bin/bash eval-user
         echo "Created eval-user for safe-shell command execution"
       fi
 
