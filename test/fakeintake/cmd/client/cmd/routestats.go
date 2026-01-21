@@ -30,9 +30,13 @@ func NewRouteStatsCommand(cl **client.Client) (cmd *cobra.Command) {
 			table := tablewriter.NewWriter(os.Stdout)
 			table.Header("Route", "Count")
 			for route, count := range stats {
-				table.Append(route, strconv.Itoa(count))
+				if err := table.Append(route, strconv.Itoa(count)); err != nil {
+					log.Fatalln(err)
+				}
 			}
-			table.Render()
+			if err := table.Render(); err != nil {
+				log.Fatalln(err)
+			}
 		},
 	}
 
