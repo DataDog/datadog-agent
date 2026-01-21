@@ -186,15 +186,9 @@ func (fr *Framer) Process(input *message.Message) {
 		owned := make([]byte, len(content))
 		copy(owned, content)
 
-		// Create a fresh ParsingExtra for this frame with a deep copy
-		parsingExtra := message.ParsingExtra{
-			Timestamp:   input.ParsingExtra.Timestamp,
-			IsPartial:   input.ParsingExtra.IsPartial,
-			IsTruncated: isTruncated, // Set our detected truncation status
-			IsMultiLine: input.ParsingExtra.IsMultiLine,
-			IsMRFAllow:  input.ParsingExtra.IsMRFAllow,
-			Tags:        append([]string(nil), input.ParsingExtra.Tags...),
-		}
+		// Copy ParsingExtra and override frame-specific fields
+		parsingExtra := input.ParsingExtra
+		parsingExtra.IsTruncated = isTruncated
 
 		c := &message.Message{
 			MessageContent: message.MessageContent{
