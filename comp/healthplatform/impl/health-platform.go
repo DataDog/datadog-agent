@@ -13,11 +13,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/impl/remediations"
 )
 
@@ -27,11 +31,12 @@ type Requires struct {
 	Config    config.Component
 	Log       log.Component
 	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
 }
 
 // Provides defines the output of the health-platform component
 type Provides struct {
-	Comp healthplatform.Component
+	Comp healthplatformdef.Component
 }
 
 // healthPlatformImpl implements the health platform component
@@ -39,6 +44,7 @@ type Provides struct {
 // The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
 type healthPlatformImpl struct {
 	// Core dependencies
+	config    config.Component    // Config component for accessing configuration
 	log       log.Component       // Logger for health platform operations
 	telemetry telemetry.Component // Telemetry component for metrics collection
 
@@ -48,6 +54,9 @@ type healthPlatformImpl struct {
 
 	// Remediation management
 	remediationRegistry *remediations.Registry // Registry of remediation templates
+
+	// Forwarder for sending reports to Datadog intake
+	forwarder *forwarder
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -75,6 +84,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
+		config:    reqs.Config,
 		log:       reqs.Log,
 		telemetry: reqs.Telemetry,
 
@@ -84,6 +94,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		// Issue tracking
 		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
 		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+	}
+
+	if err := comp.initForwarder(reqs); err != nil {
+		reqs.Log.Warn("Health platform forwarder not initialized: " + err.Error())
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -114,12 +128,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 // start starts the health platform component
 func (h *healthPlatformImpl) start(_ context.Context) error {
 	h.log.Info("Starting health platform component")
+
+	if h.forwarder != nil {
+		h.forwarder.Start()
+	}
+
 	return nil
 }
 
 // stop stops the health platform component
 func (h *healthPlatformImpl) stop(_ context.Context) error {
 	h.log.Info("Stopping health platform component")
+
+	if h.forwarder != nil {
+		h.forwarder.Stop()
+	}
+
 	return nil
 }
 
@@ -144,14 +168,14 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	// Build the new issue (or nil if resolved)
 	var newIssue *healthplatform.Issue
 	if report != nil {
-		if report.IssueID == "" {
+		if report.IssueId == "" {
 			return errors.New("issue ID cannot be empty")
 		}
 
 		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.remediationRegistry.BuildIssue(report.IssueID, report.Context)
+		issue, err := h.remediationRegistry.BuildIssue(report.IssueId, report.Context)
 		if err != nil {
-			return fmt.Errorf("failed to build issue %s: %w", report.IssueID, err)
+			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
 		}
 
 		// Append any additional tags from the report
@@ -189,8 +213,7 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	result := make(map[string]*healthplatform.Issue)
 	for checkID, issue := range h.issues {
 		if issue != nil {
-			issueCopy := *issue
-			result[checkID] = &issueCopy
+			result[checkID] = proto.Clone(issue).(*healthplatform.Issue)
 			count++
 		} else {
 			result[checkID] = nil
@@ -210,8 +233,7 @@ func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Is
 	}
 
 	// Return a copy to avoid external modifications
-	issueCopy := *issue
-	return &issueCopy
+	return proto.Clone(issue).(*healthplatform.Issue)
 }
 
 // ============================================================================
@@ -264,7 +286,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(checkName string, oldIssue, 
 	}
 
 	// Both exist, check if details changed
-	if oldIssue.ID != newIssue.ID ||
+	if oldIssue.Id != newIssue.Id ||
 		oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
@@ -286,4 +308,15 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	}
 
 	h.issues[checkID] = issue
+}
+
+// initForwarder initializes the forwarder for sending health reports to Datadog intake
+func (h *healthPlatformImpl) initForwarder(reqs Requires) error {
+	hostname, err := reqs.Hostname.Get(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to get hostname: %w", err)
+	}
+
+	h.forwarder = newForwarder(reqs.Config, h, reqs.Log, hostname)
+	return nil
 }

@@ -124,7 +124,19 @@ const (
 	SourceProductNetworkPath SourceProduct = "network_path"
 	// SourceProductSynthetics is the synthetics product.
 	SourceProductSynthetics SourceProduct = "synthetics"
+	// SourceProductEndUserDevice is the end user device monitoring product.
+	SourceProductEndUserDevice SourceProduct = "end_user_device"
 )
+
+// GetSourceProduct returns the appropriate SourceProduct based on infrastructure mode.
+// If infraMode is "end_user_device", returns SourceProductEndUserDevice.
+// Otherwise, returns SourceProductNetworkPath.
+func GetSourceProduct(infraMode string) SourceProduct {
+	if infraMode == "end_user_device" {
+		return SourceProductEndUserDevice
+	}
+	return SourceProductNetworkPath
+}
 
 // CollectorType defines the type of collector
 type CollectorType string

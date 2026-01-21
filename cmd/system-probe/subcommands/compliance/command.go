@@ -34,6 +34,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	complianceCmd.AddCommand(CheckCommand(globalParams))
 	complianceCmd.AddCommand(complianceLoadCommand(globalParams))
+	addPlatformSpecificCommands(complianceCmd, globalParams)
 
 	return []*cobra.Command{complianceCmd}
 }

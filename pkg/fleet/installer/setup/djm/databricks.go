@@ -154,6 +154,13 @@ func SetupDatabricks(s *common.Setup) error {
 		Default: tracerConfigDatabricks,
 	}
 
+	// Disable credit card obfuscation for Databricks to avoid issues with job and run ids
+	s.Config.DatadogYAML.APMConfig.ObfuscationConfig = &config.ObfuscationConfig{
+		CreditCards: config.CreditCardObfuscationConfig{
+			KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime", "config.spark_databricks_job_parentRunId"},
+		},
+	}
+
 	setupCommonHostTags(s)
 	installMethod := "manual"
 	if os.Getenv("DD_DJM_INIT_IS_MANAGED_INSTALL") == "true" {
@@ -369,13 +376,14 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 
-		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+		// Use mounted disk log collection by default, unless explicitly disabled
+		if os.Getenv("STANDARD_ACCESS_MODE") == "false" {
+			sparkIntegration.Logs = driverLogs
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+		} else {
 			setupPrivilegedLogs(s, "driver")
 			sparkIntegration.Logs = driverLogsStandardAccessMode
 			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
-		} else {
-			sparkIntegration.Logs = driverLogs
-			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
@@ -400,13 +408,14 @@ func setupDatabricksWorker(s *common.Setup) {
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 
-		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+		// Use mounted disk log collection by default, unless explicitly disabled
+		if os.Getenv("STANDARD_ACCESS_MODE") == "false" {
+			sparkIntegration.Logs = workerLogs
+			s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+		} else {
 			setupPrivilegedLogs(s, "worker")
 			sparkIntegration.Logs = workerLogsStandardAccessMode
 			s.Span.SetTag("host_tag_set.worker_logs_enabled_standard_am", "true")
-		} else {
-			sparkIntegration.Logs = workerLogs
-			s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {
