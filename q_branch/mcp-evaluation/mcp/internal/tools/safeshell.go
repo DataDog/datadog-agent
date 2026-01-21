@@ -14,6 +14,7 @@ import (
 type SafeShellExecuteInput struct {
 	Command string `json:"command" jsonschema:"The bash command to execute in a sandboxed environment"`
 	Timeout int    `json:"timeout,omitempty" jsonschema:"Optional timeout in seconds (default: 30)"`
+	User    string `json:"user,omitempty" jsonschema:"Optional user to run the command as (default: eval-user),default=eval-user"`
 }
 
 // SafeShellExecuteOutput defines the output structure for safe-shell command execution
@@ -65,8 +66,14 @@ func (t *SafeShellTool) Handler(
 		return nil, SafeShellExecuteOutput{}, fmt.Errorf("missing 'command' parameter")
 	}
 
+	// Set default user if not specified
+	user := input.User
+	if user == "" {
+		user = "eval-user"
+	}
+
 	// Log the incoming request
-	log.Printf("[safe_shell_execute] Executing command: %q (timeout: %ds)", input.Command, input.Timeout)
+	log.Printf("[safe_shell_execute] Executing command: %q (user: %s, timeout: %ds)", input.Command, user, input.Timeout)
 
 	// Determine timeout
 	timeout := t.defaultTimeout
@@ -82,8 +89,11 @@ func (t *SafeShellTool) Handler(
 	defer cancel()
 
 	// Execute command using safe-shell binary (absolute path)
-	cmd := exec.CommandContext(
+	// Wrap with sudo -u to run as specified user
+	var cmd *exec.Cmd
+	cmd = exec.CommandContext(
 		execCtx,
+		"sudo", "-u", user,
 		t.safeShellBinPath,
 		input.Command,
 	)
@@ -106,8 +116,8 @@ func (t *SafeShellTool) Handler(
 	}
 
 	// Log the result
-	log.Printf("[safe_shell_execute] Command completed: exit_code=%d, output_length=%d bytes, sandbox=safe-shell",
-		result.ExitCode, len(result.Output))
+	log.Printf("[safe_shell_execute] Command completed: exit_code=%d, output_length=%d bytes, user=%s, sandbox=safe-shell",
+		result.ExitCode, len(result.Output), user)
 
 	return &mcp.CallToolResult{}, result, nil
 }
