@@ -9,7 +9,6 @@ package filesystem
 
 import (
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,12 +51,7 @@ func TestCheckRightsMissingCurrentUser(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "0").Run()
+	err = SetupAcl(tmpfile.Name(), true, false, false, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -67,12 +61,7 @@ func TestCheckRightsMissingLocalSystem(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "1",
-		"-addDDuser", "0").Run()
+	err = SetupAcl(tmpfile.Name(), true, false, true, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -82,12 +71,7 @@ func TestCheckRightsMissingAdministrator(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "1",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "0").Run()
+	err = SetupAcl(tmpfile.Name(), true, true, false, false)
 	require.NoError(t, err)
 	assert.NotNil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -98,12 +82,7 @@ func TestCheckRightsExtraRights(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "0",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	err = SetupAcl(tmpfile.Name(), false, false, false, true)
 	require.NoError(t, err)
 	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }
@@ -114,12 +93,7 @@ func TestCheckRightsMissingAdmingAndLocal(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
 
-	err = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", tmpfile.Name(),
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	err = SetupAcl(tmpfile.Name(), true, false, false, true)
 	require.NoError(t, err)
 	assert.Nil(t, CheckRights(tmpfile.Name(), false))
 }

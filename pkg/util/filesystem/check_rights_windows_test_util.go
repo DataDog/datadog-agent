@@ -13,14 +13,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
 
+func boolToString(b bool) string {
+	if b {
+		return "1"
+	}
+	return "0"
+}
+
+// SetupAcl modifies the permissions of the specified file
+func SetupAcl(path string, removeAllUser bool, removeAdmin bool, removeLocalSystem bool, addDDUser bool) error {
+	return exec.Command("powershell", "test/setAcl.ps1",
+		"-file", path,
+		"-removeAllUser", boolToString(removeAllUser),
+		"-removeAdmin", boolToString(removeAdmin),
+		"-removeLocalSystem", boolToString(removeLocalSystem),
+		"-addDDuser", boolToString(addDDUser),
+	).Run()
+}
+
 func SetCorrectRight(path string) {
 	// error not checked
-	_ = exec.Command("powershell", "test/setAcl.ps1",
-		"-file", path,
-		"-removeAllUser", "1",
-		"-removeAdmin", "0",
-		"-removeLocalSystem", "0",
-		"-addDDuser", "1").Run()
+	_ = SetupAcl(path, true, false, false, true)
 }
 
 func TestCheckRightsStub() {
