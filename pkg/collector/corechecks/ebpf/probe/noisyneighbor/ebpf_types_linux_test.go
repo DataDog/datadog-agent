@@ -8,10 +8,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 )
 
-func TestCgoAlignment_ebpfRunqEvent(t *testing.T) {
-	ebpftest.TestCgoAlignment[ebpfRunqEvent](t)
-}
-
 func TestCgoAlignment_ebpfCgroupAggStats(t *testing.T) {
 	ebpftest.TestCgoAlignment[ebpfCgroupAggStats](t)
 }
