@@ -375,6 +375,9 @@ func (c *CWSConsumer) sendStats() {
 	if err := c.apiServer.SendStats(); err != nil {
 		seclog.Debugf("failed to send api server stats: %s", err)
 	}
+
+	c.ruleEngine.SendStats()
+
 	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
 		if counter > 0 {
 			tags := []string{

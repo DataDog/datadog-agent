@@ -13,7 +13,7 @@ import (
 	"io"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -27,7 +27,7 @@ type LocalAutoscalingWorkloadEntity map[string]interface{}
 
 func defaultDisabledNamespaces() map[string]struct{} {
 	disabledNamespaces := make(map[string]struct{})
-	disabledNamespaces[apiServerCommon.GetResourcesNamespace()] = struct{}{}
+	disabledNamespaces[namespace.GetResourcesNamespace()] = struct{}{}
 	return disabledNamespaces
 }
 
