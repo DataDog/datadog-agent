@@ -139,17 +139,31 @@ func getContainerIDForPID(pid uint32) string {
 	return containerID
 }
 
+// addrKey is used for looking up container IDs by address
+type addrKey struct {
+	ip   string
+	port int32
+}
+
 // buildPayload builds a CollectorConnections payload from the discovered connections.
+// It uses a two-pass algorithm (similar to NPM's LocalResolver) to resolve container IDs
+// for both local and remote addresses when connections are on the same host.
 func (c *Check) buildPayload(connections []discomodel.Connection) *model.CollectorConnections {
 	npmConns := make([]*model.Connection, 0, len(connections))
 	containerForPID := make(map[int32]string)
 	tagsEncoder := model.NewV3TagEncoder()
+
+	// Pass 1: Build connections and create a map of local addresses -> container ID
+	// This allows us to resolve remote container IDs for intra-host connections
+	laddrToContainer := make(map[addrKey]string)
 
 	for _, conn := range connections {
 		// Get container ID for this PID
 		containerID := getContainerIDForPID(conn.PID)
 		if containerID != "" {
 			containerForPID[int32(conn.PID)] = containerID
+			// Map the local address to this container ID for later raddr resolution
+			laddrToContainer[addrKey{ip: conn.Laddr.IP, port: int32(conn.Laddr.Port)}] = containerID
 		}
 
 		// Get process tags from tagger
@@ -208,6 +222,23 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 		npmConns = append(npmConns, npmConn)
 	}
 
+	// Pass 2: Resolve remote container IDs for intra-host connections
+	// If the remote address matches a known local address, set the remote container ID
+	resolvedCount := 0
+	for _, conn := range npmConns {
+		if conn.Raddr.ContainerId != "" {
+			continue // Already resolved
+		}
+		rkey := addrKey{ip: conn.Raddr.Ip, port: conn.Raddr.Port}
+		if cid, ok := laddrToContainer[rkey]; ok {
+			conn.Raddr.ContainerId = cid
+			resolvedCount++
+		}
+	}
+	if resolvedCount > 0 {
+		log.Debugf("Resolved %d remote container IDs for intra-host connections", resolvedCount)
+	}
+
 	return &model.CollectorConnections{
 		HostName:               c.hostname,
 		Connections:            npmConns,
@@ -228,10 +259,18 @@ func (c *Check) sendPayload(payload *model.CollectorConnections) error {
 			log.Infof("  ... and %d more connections", len(payload.Connections)-10)
 			break
 		}
-		log.Infof("  [%d] %s:%d -> %s:%d (pid=%d, dir=%s)",
+		lctr := conn.Laddr.ContainerId
+		if lctr == "" {
+			lctr = "-"
+		}
+		rctr := conn.Raddr.ContainerId
+		if rctr == "" {
+			rctr = "-"
+		}
+		log.Infof("  [%d] %s:%d [%s] -> %s:%d [%s] (pid=%d, dir=%s)",
 			i,
-			conn.Laddr.Ip, conn.Laddr.Port,
-			conn.Raddr.Ip, conn.Raddr.Port,
+			conn.Laddr.Ip, conn.Laddr.Port, lctr,
+			conn.Raddr.Ip, conn.Raddr.Port, rctr,
 			conn.Pid, conn.Direction.String())
 	}
 	// Also output JSON for easy parsing
