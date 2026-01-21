@@ -170,8 +170,14 @@ func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatch
 	return newTagMatcher(tagFilterList)
 }
 
+// GetTagFilterList returns the current tag filterlist.
 func (fl *FilterList) GetTagFilterList() filterlist.TagMatcher {
 	return &fl.tagFilterList
+}
+
+// GetMetricFilterList returns the current metric filterlist.
+func (fl *FilterList) GetMetricFilterList() utilstrings.Matcher {
+	return fl.filterList
 }
 
 // create a list based on all `metricNames` but only containing metric names

@@ -188,7 +188,8 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, agg.tagFilterList)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
+			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -526,6 +527,10 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.Ta
 	}
 
 	d.aggregator.tagfilterListChan <- tagmatcher
+
+	for _, worker := range d.statsd.workers {
+		worker.tagFilterListChan <- tagmatcher
+	}
 }
 
 // SetSamplersFilterList triggers a reconfiguration of the filter list
@@ -543,7 +548,7 @@ func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matche
 	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
 	// Histogram metrics need aggregating before we determine the correct name to be filtered.
 	for _, worker := range d.statsd.workers {
-		worker.filterListChan <- histoFilterList
+		worker.metricFilterListChan <- histoFilterList
 	}
 
 	// Metrics from checks are only filtered here, so we need the full filter list.

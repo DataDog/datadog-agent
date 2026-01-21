@@ -30,6 +30,11 @@ func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
 	return NewNoopTagMatcher()
 }
 
+// GetTagFilterList does nothing.
+func (*noopFilterList) GetMetricFilterList() utilstrings.Matcher {
+	return utilstrings.NewMatcher([]string{}, false)
+}
+
 type noopTagMatcher struct{}
 
 func NewNoopTagMatcher() filterlist.TagMatcher {
