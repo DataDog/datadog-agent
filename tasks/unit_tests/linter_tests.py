@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, mock_open, patch
 
 from codeowners import CodeOwners
 
@@ -213,3 +213,111 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         with self.assertRaises(GitlabLintFailure) as cm:
             linter._gitlab_ci_jobs_codeowners_lint(['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners))
         self.assertEqual(cm.exception.level, FailureLevel.ERROR)
+
+
+class TestExtractCIImageVariables(unittest.TestCase):
+    def test_extract_valid_ci_image_variables(self):
+        """Test extraction of valid CI image variables with commit hashes."""
+        gitlab_ci_content = """
+variables:
+  CI_IMAGE_LINUX: v91623141-e13c2467
+  CI_IMAGE_DOCKER_X64: v91623141-e13c2467
+  CI_IMAGE_RPM_ARM64: v12345678-abcd1234
+  SOME_OTHER_VAR: not_a_commit_hash
+  CI_IMAGE_WIN_LTSC2022_X64: v99999999-12345678
+"""
+
+        with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
+            result = linter._extract_ci_image_variables()
+
+        expected = {
+            'CI_IMAGE_LINUX': 'e13c2467',
+            'CI_IMAGE_DOCKER_X64': 'e13c2467',
+            'CI_IMAGE_RPM_ARM64': 'abcd1234',
+            'CI_IMAGE_WIN_LTSC2022_X64': '12345678'
+        }
+
+        self.assertEqual(result, expected)
+
+    def test_extract_no_ci_image_variables(self):
+        """Test extraction when no CI image variables are present."""
+        gitlab_ci_content = """
+variables:
+  SOME_VAR: some_value
+  ANOTHER_VAR: another_value
+  NOT_CI_IMAGE: v12345678-abcd1234
+"""
+
+        with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
+            result = linter._extract_ci_image_variables()
+
+        self.assertEqual(result, {})
+
+    def test_extract_mixed_format_variables(self):
+        """Test extraction with mixed valid and invalid format variables."""
+        gitlab_ci_content = """
+variables:
+  CI_IMAGE_LINUX: v91623141-e13c2467
+  CI_IMAGE_INVALID1: not-a-valid-format
+  CI_IMAGE_DOCKER_X64: v12345678-abcd1234
+  CI_IMAGE_INVALID2: v123-toolong12345
+  CI_IMAGE_RPM_X64: v87654321-12ab34cd
+"""
+
+        with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
+            result = linter._extract_ci_image_variables()
+
+        expected = {
+            'CI_IMAGE_LINUX': 'e13c2467',
+            'CI_IMAGE_DOCKER_X64': 'abcd1234',
+            'CI_IMAGE_RPM_X64': '12ab34cd'
+        }
+
+        self.assertEqual(result, expected)
+
+    def test_extract_with_different_spacing(self):
+        """Test extraction with different spacing and formatting."""
+        gitlab_ci_content = """
+variables:
+  CI_IMAGE_LINUX:v91623141-e13c2467
+    CI_IMAGE_DOCKER_X64:    v12345678-abcd1234
+  CI_IMAGE_RPM_ARM64:	v87654321-12ab34cd
+"""
+
+        with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
+            result = linter._extract_ci_image_variables()
+
+        expected = {
+            'CI_IMAGE_LINUX': 'e13c2467',
+            'CI_IMAGE_DOCKER_X64': 'abcd1234',
+            'CI_IMAGE_RPM_ARM64': '12ab34cd'
+        }
+
+        self.assertEqual(result, expected)
+
+    def test_extract_with_numbers_in_variable_names(self):
+        """Test extraction with numbers in CI image variable names."""
+        gitlab_ci_content = """
+variables:
+  CI_IMAGE_WIN_LTSC2022_X64: v91623141-e13c2467
+  CI_IMAGE_WIN_LTSC2025_X64: v12345678-abcd1234
+  CI_IMAGE_RPM_ARM64: v87654321-12ab34cd
+"""
+
+        with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
+            result = linter._extract_ci_image_variables()
+
+        expected = {
+            'CI_IMAGE_WIN_LTSC2022_X64': 'e13c2467',
+            'CI_IMAGE_WIN_LTSC2025_X64': 'abcd1234',
+            'CI_IMAGE_RPM_ARM64': '12ab34cd'
+        }
+
+        self.assertEqual(result, expected)
+
+    def test_extract_empty_file(self):
+        """Test extraction from an empty file."""
+        with patch('builtins.open', mock_open(read_data="")):
+            result = linter._extract_ci_image_variables()
+
+        self.assertEqual(result, {})

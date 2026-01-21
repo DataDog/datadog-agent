@@ -1127,6 +1127,12 @@ workflow:
       - .gitlab/**/.*
     compare_to: $COMPARE_TO_BRANCH
 
+.on_gitlab_ci_changes:
+  changes:
+    paths:
+      - .gitlab-ci.yml
+    compare_to: $COMPARE_TO_BRANCH
+
 .on_gitlab_changes_or_mergequeue_or_main:
   - !reference [.on_gitlab_changes]
   - !reference [.on_mergequeue]
