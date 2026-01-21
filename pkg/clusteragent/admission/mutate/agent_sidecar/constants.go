@@ -15,10 +15,18 @@ const (
 )
 
 const (
-	agentConfigVolumeName  = "agent-config"
-	agentOptionsVolumeName = "agent-option"
-	agentTmpVolumeName     = "agent-tmp"
-	agentLogsVolumeName    = "agent-log"
+	agentConfigVolumeName   = "agent-config"
+	agentOptionsVolumeName  = "agent-option"
+	agentTmpVolumeName      = "agent-tmp"
+	agentLogsVolumeName     = "agent-log"
+	clusterCACertVolumeName = "agent-ca-cert"
+)
+
+const (
+	// secretCAName is the name of the secret containing the cluster agent certificate authority
+	secretCAName = "datadog-secret-ca"
+	// caCertDirPath is the path to the directory containing the CA certificate and key
+	caCertDirPath = "/etc/datadog-agent/certificates"
 )
 
 var readOnlyRootFilesystemVolumes = []corev1.Volume{
@@ -81,4 +89,19 @@ var kubernetesAPILoggingVolumeMounts = []corev1.VolumeMount{
 		Name:      agentOptionsVolumeName,
 		MountPath: "/opt/datadog-agent/run",
 	},
+}
+
+var clusterCACertVolume = corev1.Volume{
+	Name: clusterCACertVolumeName,
+	VolumeSource: corev1.VolumeSource{
+		Secret: &corev1.SecretVolumeSource{
+			SecretName: secretCAName,
+		},
+	},
+}
+
+var clusterCACertVolumeMount = corev1.VolumeMount{
+	Name:      clusterCACertVolumeName,
+	MountPath: caCertDirPath,
+	ReadOnly:  true,
 }
