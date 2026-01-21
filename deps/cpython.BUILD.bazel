@@ -100,6 +100,5 @@ pkg_install(
     name = "install",
     srcs = [
         ":install_files",
-        "@openssl//:openssl_hdr_files",
     ],
 )
