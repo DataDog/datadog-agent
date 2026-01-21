@@ -16,7 +16,6 @@ from typing import Dict, List
 
 import httpx
 from claude_agent_sdk import query, ClaudeAgentOptions, ResultMessage
-from claude_agent_sdk.error import ClaudeSDKError
 from anthropic import (
     Anthropic,
     RateLimitError,
@@ -53,10 +52,6 @@ SCENARIOS = [
 
 def is_retryable_api_error(exception):
     """Check if an API exception should be retried (transient errors only)"""
-    # Never retry SDK errors - these are usually config/integration issues
-    if isinstance(exception, ClaudeSDKError):
-        return False
-
     # Always retry rate limit errors
     if isinstance(exception, RateLimitError):
         return True
@@ -436,16 +431,14 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
                 )
             ):
                 conversation.append(message)
-        except ClaudeSDKError as e:
-            print(f"[{self.mode}/{scenario}] ❌ ClaudeSDKError: {e}")
-            print(f"[{self.mode}/{scenario}] SDK Error Details:")
-            if hasattr(e, 'message'):
-                print(f"  Message: {e.message}")
-            if hasattr(e, 'cause'):
-                print(f"  Cause: {e.cause}")
-            import traceback
-            traceback.print_exc()
-            conversation.append({"error": f"ClaudeSDKError: {e}"})
+        except subprocess.CalledProcessError as e:
+            print(f"[{self.mode}/{scenario}] 🔧 ProcessError: Command failed with exit code {e.returncode}")
+            print(f"  Command: {e.cmd}")
+            if e.stdout:
+                print(f"  Stdout: {e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout}")
+            if e.stderr:
+                print(f"  Stderr: {e.stderr.decode() if isinstance(e.stderr, bytes) else e.stderr}")
+            conversation.append({"error": f"ProcessError (exit {e.returncode}): {e.cmd}"})
         except RateLimitError as e:
             print(f"[{self.mode}/{scenario}] ⚠️ RateLimitError: API rate limit exceeded")
             print(f"  Error: {e}")
