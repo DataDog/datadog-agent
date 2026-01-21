@@ -9,9 +9,11 @@ package aggregator
 
 import (
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -177,7 +179,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
-	filterList.SetFilterList([]string{"original.blocked"}, false)
+	filterList.SetFilterList([]string{"original.blocked.count"}, false)
 
 	demux := InitAndStartAgentDemultiplexer(
 		deps.Log,
@@ -192,13 +194,45 @@ func TestUpdateMetricFilterList(t *testing.T) {
 		"",
 	)
 
+	// Set up a mock serializer so we con examine the metrics sent to it.
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	testCountBlocked := func(isBlocked bool) {
+		// Send a histogram, flush it and test the output either does or does not contain the count
+		// aggregate.
+		demux.AggregateSample(metrics.MetricSample{
+			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: 32.0,
+		})
+
+		demux.ForceFlushToSerializer(time.Unix(100, 0), true)
+
+		// We should always contain the average of the histogram.
+		require.True(slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+			return serie.Name == "original.blocked.avg"
+		}))
+
+		// Test if the count is filtered out.
+		require.Equal(!isBlocked, slices.ContainsFunc(s.series, func(serie *metrics.Serie) bool {
+			return serie.Name == "original.blocked.count"
+		}))
+	}
+
 	// After initial setup, we have filterlist from the configuration file.
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
 		demux.aggregator.flushFilterListMtx.RLock()
 		defer demux.aggregator.flushFilterListMtx.RUnlock()
-		return demux.aggregator.flushFilterList.Test("original.blocked")
+		return len(demux.aggregator.filterListChan) == 0 &&
+			demux.aggregator.flushFilterList.Test("original.blocked.count")
 	}, time.Second, time.Millisecond, "original metric should be blocked")
+
+	testCountBlocked(true)
 
 	filterList.SetFilterList([]string{"first.metric"}, false)
 
@@ -206,18 +240,22 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	require.Eventually(func() bool {
 		demux.aggregator.flushFilterListMtx.RLock()
 		defer demux.aggregator.flushFilterListMtx.RUnlock()
-		return !demux.aggregator.flushFilterList.Test("original.blocked") &&
+		return len(demux.aggregator.filterListChan) == 0 &&
+			!demux.aggregator.flushFilterList.Test("original.blocked.count") &&
 			demux.aggregator.flushFilterList.Test("first.metric")
 	}, time.Second, time.Millisecond)
+
+	testCountBlocked(false)
 
 	demux.Stop(false)
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
 	filterList.SetFilterList([]string{"another.metric"}, false)
 
-	for demux.aggregator != nil {
-		time.Sleep(10 * time.Millisecond)
-	}
+	// Wait until the aggregator has been removed whilst stopping demux.
+	require.Eventually(func() bool {
+		return demux.aggregator == nil
+	}, time.Second, time.Millisecond)
 
 	filterList.SetFilterList([]string{"another.metric"}, false)
 }
