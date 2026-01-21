@@ -330,15 +330,6 @@ func releaseLogDatums(datums []*statefulpb.Datum) {
 		if logDatum == nil {
 			continue
 		}
-		if structured := logDatum.GetStructured(); structured != nil {
-			for _, dynamicValue := range structured.DynamicValues {
-				if dynamicValue != nil {
-					dynamicValue.ReturnToVTPool()
-				}
-			}
-			// Prevent StructuredLog.ResetVT from touching pooled DynamicValues.
-			structured.DynamicValues = nil
-		}
 		logDatum.ReturnToVTPool()
 		datum.ReturnToVTPool()
 	}
