@@ -49,8 +49,14 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 
 	if proxyEnabled {
 		// ADP OTLP proxy will own the configured gRPC endpoint, so we need to assign a different endpoint to be used by the core agent
-		protocols := otlpReceiverConfigMap["protocols"].(map[string]interface{})
-		grpc := protocols["grpc"].(map[string]interface{})
+		protocols, ok := otlpReceiverConfigMap["protocols"].(map[string]interface{})
+		if !ok {
+			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but receiver protocols not configured")
+		}
+		grpc, ok := protocols["grpc"].(map[string]interface{})
+		if !ok {
+			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but gRPC protocol not configured")
+		}
 
 		proxyGRPCEndpoint := cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint)
 		originalGRPCEndpoint, _ := grpc["endpoint"].(string)
