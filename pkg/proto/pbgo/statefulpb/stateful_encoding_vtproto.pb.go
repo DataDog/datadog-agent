@@ -11,6 +11,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	io "io"
 	math "math"
+	sync "sync"
 )
 
 const (
@@ -917,6 +918,341 @@ func (m *BatchStatus) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+var vtprotoPool_DictEntryDefine = sync.Pool{
+	New: func() interface{} {
+		return &DictEntryDefine{}
+	},
+}
+
+func (m *DictEntryDefine) ResetVT() {
+	if m != nil {
+		m.Reset()
+	}
+}
+func (m *DictEntryDefine) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_DictEntryDefine.Put(m)
+	}
+}
+func DictEntryDefineFromVTPool() *DictEntryDefine {
+	return vtprotoPool_DictEntryDefine.Get().(*DictEntryDefine)
+}
+
+var vtprotoPool_DictEntryDelete = sync.Pool{
+	New: func() interface{} {
+		return &DictEntryDelete{}
+	},
+}
+
+func (m *DictEntryDelete) ResetVT() {
+	if m != nil {
+		m.Reset()
+	}
+}
+func (m *DictEntryDelete) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_DictEntryDelete.Put(m)
+	}
+}
+func DictEntryDeleteFromVTPool() *DictEntryDelete {
+	return vtprotoPool_DictEntryDelete.Get().(*DictEntryDelete)
+}
+
+var vtprotoPool_PatternDefine = sync.Pool{
+	New: func() interface{} {
+		return &PatternDefine{}
+	},
+}
+
+func (m *PatternDefine) ResetVT() {
+	if m != nil {
+		f0 := m.PosList[:0]
+		m.Reset()
+		m.PosList = f0
+	}
+}
+func (m *PatternDefine) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_PatternDefine.Put(m)
+	}
+}
+func PatternDefineFromVTPool() *PatternDefine {
+	return vtprotoPool_PatternDefine.Get().(*PatternDefine)
+}
+
+var vtprotoPool_PatternDelete = sync.Pool{
+	New: func() interface{} {
+		return &PatternDelete{}
+	},
+}
+
+func (m *PatternDelete) ResetVT() {
+	if m != nil {
+		m.Reset()
+	}
+}
+func (m *PatternDelete) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_PatternDelete.Put(m)
+	}
+}
+func PatternDeleteFromVTPool() *PatternDelete {
+	return vtprotoPool_PatternDelete.Get().(*PatternDelete)
+}
+
+var vtprotoPool_TagSet = sync.Pool{
+	New: func() interface{} {
+		return &TagSet{}
+	},
+}
+
+func (m *TagSet) ResetVT() {
+	if m != nil {
+		m.Tagset.ReturnToVTPool()
+		m.Reset()
+	}
+}
+func (m *TagSet) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_TagSet.Put(m)
+	}
+}
+func TagSetFromVTPool() *TagSet {
+	return vtprotoPool_TagSet.Get().(*TagSet)
+}
+
+var vtprotoPool_Tag = sync.Pool{
+	New: func() interface{} {
+		return &Tag{}
+	},
+}
+
+func (m *Tag) ResetVT() {
+	if m != nil {
+		m.Key.ReturnToVTPool()
+		m.Value.ReturnToVTPool()
+		m.Reset()
+	}
+}
+func (m *Tag) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_Tag.Put(m)
+	}
+}
+func TagFromVTPool() *Tag {
+	return vtprotoPool_Tag.Get().(*Tag)
+}
+
+var vtprotoPool_Log = sync.Pool{
+	New: func() interface{} {
+		return &Log{}
+	},
+}
+
+func (m *Log) ResetVT() {
+	if m != nil {
+		if oneof, ok := m.Content.(*Log_Structured); ok {
+			oneof.Structured.ReturnToVTPool()
+		}
+		m.Tags.ReturnToVTPool()
+		m.Reset()
+	}
+}
+func (m *Log) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_Log.Put(m)
+	}
+}
+func LogFromVTPool() *Log {
+	return vtprotoPool_Log.Get().(*Log)
+}
+
+var vtprotoPool_StructuredLog = sync.Pool{
+	New: func() interface{} {
+		return &StructuredLog{}
+	},
+}
+
+func (m *StructuredLog) ResetVT() {
+	if m != nil {
+		for _, mm := range m.DynamicValues {
+			mm.ResetVT()
+		}
+		f0 := m.DynamicValues[:0]
+		f1 := m.JsonContext[:0]
+		m.Reset()
+		m.DynamicValues = f0
+		m.JsonContext = f1
+	}
+}
+func (m *StructuredLog) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_StructuredLog.Put(m)
+	}
+}
+func StructuredLogFromVTPool() *StructuredLog {
+	return vtprotoPool_StructuredLog.Get().(*StructuredLog)
+}
+
+var vtprotoPool_DynamicValue = sync.Pool{
+	New: func() interface{} {
+		return &DynamicValue{}
+	},
+}
+
+func (m *DynamicValue) ResetVT() {
+	if m != nil {
+		m.Reset()
+	}
+}
+func (m *DynamicValue) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_DynamicValue.Put(m)
+	}
+}
+func DynamicValueFromVTPool() *DynamicValue {
+	return vtprotoPool_DynamicValue.Get().(*DynamicValue)
+}
+
+var vtprotoPool_DeltaEncodingSync = sync.Pool{
+	New: func() interface{} {
+		return &DeltaEncodingSync{}
+	},
+}
+
+func (m *DeltaEncodingSync) ResetVT() {
+	if m != nil {
+		m.Tags.ReturnToVTPool()
+		m.Reset()
+	}
+}
+func (m *DeltaEncodingSync) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_DeltaEncodingSync.Put(m)
+	}
+}
+func DeltaEncodingSyncFromVTPool() *DeltaEncodingSync {
+	return vtprotoPool_DeltaEncodingSync.Get().(*DeltaEncodingSync)
+}
+
+var vtprotoPool_Datum = sync.Pool{
+	New: func() interface{} {
+		return &Datum{}
+	},
+}
+
+func (m *Datum) ResetVT() {
+	if m != nil {
+		if oneof, ok := m.Data.(*Datum_PatternDefine); ok {
+			oneof.PatternDefine.ReturnToVTPool()
+		}
+		if oneof, ok := m.Data.(*Datum_PatternDelete); ok {
+			oneof.PatternDelete.ReturnToVTPool()
+		}
+		if oneof, ok := m.Data.(*Datum_DictEntryDefine); ok {
+			oneof.DictEntryDefine.ReturnToVTPool()
+		}
+		if oneof, ok := m.Data.(*Datum_DictEntryDelete); ok {
+			oneof.DictEntryDelete.ReturnToVTPool()
+		}
+		if oneof, ok := m.Data.(*Datum_DeltaEncodingSync); ok {
+			oneof.DeltaEncodingSync.ReturnToVTPool()
+		}
+		if oneof, ok := m.Data.(*Datum_Logs); ok {
+			oneof.Logs.ReturnToVTPool()
+		}
+		m.Reset()
+	}
+}
+func (m *Datum) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_Datum.Put(m)
+	}
+}
+func DatumFromVTPool() *Datum {
+	return vtprotoPool_Datum.Get().(*Datum)
+}
+
+var vtprotoPool_DatumSequence = sync.Pool{
+	New: func() interface{} {
+		return &DatumSequence{}
+	},
+}
+
+func (m *DatumSequence) ResetVT() {
+	if m != nil {
+		for _, mm := range m.Data {
+			mm.ResetVT()
+		}
+		f0 := m.Data[:0]
+		m.Reset()
+		m.Data = f0
+	}
+}
+func (m *DatumSequence) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_DatumSequence.Put(m)
+	}
+}
+func DatumSequenceFromVTPool() *DatumSequence {
+	return vtprotoPool_DatumSequence.Get().(*DatumSequence)
+}
+
+var vtprotoPool_StatefulBatch = sync.Pool{
+	New: func() interface{} {
+		return &StatefulBatch{}
+	},
+}
+
+func (m *StatefulBatch) ResetVT() {
+	if m != nil {
+		f0 := m.Data[:0]
+		m.Reset()
+		m.Data = f0
+	}
+}
+func (m *StatefulBatch) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_StatefulBatch.Put(m)
+	}
+}
+func StatefulBatchFromVTPool() *StatefulBatch {
+	return vtprotoPool_StatefulBatch.Get().(*StatefulBatch)
+}
+
+var vtprotoPool_BatchStatus = sync.Pool{
+	New: func() interface{} {
+		return &BatchStatus{}
+	},
+}
+
+func (m *BatchStatus) ResetVT() {
+	if m != nil {
+		m.Reset()
+	}
+}
+func (m *BatchStatus) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_BatchStatus.Put(m)
+	}
+}
+func BatchStatusFromVTPool() *BatchStatus {
+	return vtprotoPool_BatchStatus.Get().(*BatchStatus)
+}
 func (m *DictEntryDefine) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -1625,7 +1961,7 @@ func (m *PatternDefine) UnmarshalVT(dAtA []byte) error {
 					}
 				}
 				elementCount = count
-				if elementCount != 0 && len(m.PosList) == 0 {
+				if elementCount != 0 && len(m.PosList) == 0 && cap(m.PosList) < elementCount {
 					m.PosList = make([]uint32, 0, elementCount)
 				}
 				for iNdEx < postIndex {
@@ -1800,7 +2136,7 @@ func (m *TagSet) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Tagset == nil {
-				m.Tagset = &DynamicValue{}
+				m.Tagset = DynamicValueFromVTPool()
 			}
 			if err := m.Tagset.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1887,7 +2223,7 @@ func (m *Tag) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Key == nil {
-				m.Key = &DynamicValue{}
+				m.Key = DynamicValueFromVTPool()
 			}
 			if err := m.Key.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1923,7 +2259,7 @@ func (m *Tag) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Value == nil {
-				m.Value = &DynamicValue{}
+				m.Value = DynamicValueFromVTPool()
 			}
 			if err := m.Value.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2035,7 +2371,7 @@ func (m *Log) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &StructuredLog{}
+				v := StructuredLogFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2104,7 +2440,7 @@ func (m *Log) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Tags == nil {
-				m.Tags = &TagSet{}
+				m.Tags = TagSetFromVTPool()
 			}
 			if err := m.Tags.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2209,7 +2545,14 @@ func (m *StructuredLog) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.DynamicValues = append(m.DynamicValues, &DynamicValue{})
+			if len(m.DynamicValues) == cap(m.DynamicValues) {
+				m.DynamicValues = append(m.DynamicValues, &DynamicValue{})
+			} else {
+				m.DynamicValues = m.DynamicValues[:len(m.DynamicValues)+1]
+				if m.DynamicValues[len(m.DynamicValues)-1] == nil {
+					m.DynamicValues[len(m.DynamicValues)-1] = &DynamicValue{}
+				}
+			}
 			if err := m.DynamicValues[len(m.DynamicValues)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -2501,7 +2844,7 @@ func (m *DeltaEncodingSync) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Tags == nil {
-				m.Tags = &TagSet{}
+				m.Tags = TagSetFromVTPool()
 			}
 			if err := m.Tags.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2592,7 +2935,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &PatternDefine{}
+				v := PatternDefineFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2633,7 +2976,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &PatternDelete{}
+				v := PatternDeleteFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2674,7 +3017,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &DictEntryDefine{}
+				v := DictEntryDefineFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2715,7 +3058,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &DictEntryDelete{}
+				v := DictEntryDeleteFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2756,7 +3099,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &DeltaEncodingSync{}
+				v := DeltaEncodingSyncFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2797,7 +3140,7 @@ func (m *Datum) UnmarshalVT(dAtA []byte) error {
 					return err
 				}
 			} else {
-				v := &Log{}
+				v := LogFromVTPool()
 				if err := v.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 					return err
 				}
@@ -2884,7 +3227,14 @@ func (m *DatumSequence) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Data = append(m.Data, &Datum{})
+			if len(m.Data) == cap(m.Data) {
+				m.Data = append(m.Data, &Datum{})
+			} else {
+				m.Data = m.Data[:len(m.Data)+1]
+				if m.Data[len(m.Data)-1] == nil {
+					m.Data[len(m.Data)-1] = &Datum{}
+				}
+			}
 			if err := m.Data[len(m.Data)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
