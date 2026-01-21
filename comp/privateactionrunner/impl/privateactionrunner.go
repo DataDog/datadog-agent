@@ -50,7 +50,7 @@ type Provides struct {
 type privateactionrunnerImpl struct {
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
-	stop           context.CancelFunc
+	drain          func()
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -117,7 +117,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
 	ctx, cancel := context.WithCancel(context.Background())
-	p.stop = cancel
+	p.drain = cancel
 	err := p.commonRunner.Start(ctx)
 	if err != nil {
 		return err
@@ -130,7 +130,7 @@ func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	p.stop()
+	p.drain()
 	return nil
 }
 
