@@ -209,7 +209,7 @@ func main() {
 	/*
 	 * Initialize the aggregator
 	 * As it has a `nil` serializer, it will panic if it tries to flush the metrics.
-	 * That's why we need a big enough flush interval
+	 * That’s why we need a big enough flush interval
 	 */
 	aggregator.NewBufferedAggregator(nil, nil, nil, taggerComponent, "", 1*time.Hour)
 

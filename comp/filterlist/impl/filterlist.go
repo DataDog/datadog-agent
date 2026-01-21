@@ -95,11 +95,9 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 	tlmMetricFilterListSize := telemetrycomp.NewSimpleGauge("filterlist", "size",
 		"Metric filter list size",
 	)
-
 	tlmTagFilterListUpdates := telemetrycomp.NewSimpleCounter("tag_filterlist", "updates",
 		"Incremented when a reconfiguration of the tag filterlist happened",
 	)
-
 	tlmTagFilterListSize := telemetrycomp.NewSimpleGauge("tag_filterlist", "size",
 		"Tag filter list size",
 	)
@@ -154,17 +152,15 @@ func loadTagFilterList(entries []MetricTagListEntry, log log.Component) tagMatch
 				Tags:   append(existing.Tags, entry.Tags...),
 				Action: existing.Action,
 			}
-		} else {
+		} else if entry.Action == "exclude" {
 			// Different actions: keep only exclude tags
-			if entry.Action == "exclude" {
-				tagFilterList[entry.MetricName] = MetricTagList{
-					Tags:   entry.Tags,
-					Action: "exclude",
-				}
-			} else if existing.Action == "exclude" {
-				// Keep existing exclude, ignore new include
-				continue
+			tagFilterList[entry.MetricName] = MetricTagList{
+				Tags:   entry.Tags,
+				Action: "exclude",
 			}
+		} else if existing.Action == "exclude" {
+			// Keep existing exclude, ignore new include
+			continue
 		}
 	}
 
@@ -212,6 +208,8 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 	return histoMetricNames
 }
 
+// SetTagFilterList takes a map of metric names to tag configuration, hashes the
+// tags and stores the hashed configuration.
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 	hashedTags := make(map[string]hashedMetricTagList, len(metricTags))
 	for name, tags := range metricTags {
@@ -277,6 +275,9 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	}
 }
 
+// SetTagFilterListFromEntries takes a list of tag filter list objects that
+// were loaded from the config file, converts and hashes the tags in a format
+// used internally. Any registered callbacks are informed of the update.
 func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) {
 	fl.log.Debugf("SetTagFilterListFromEntries with %d entries", len(entries))
 
@@ -311,6 +312,8 @@ func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
 	fl.SetTagFilterListFromEntries(fl.localFilterListConfig.tagFilterList)
 }
 
+// OnUpdateMetricFilterList is called to register a callback to be called when the
+// metric list is updated.
 func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher, utilstrings.Matcher)) {
 	fl.updateMetricMtx.Lock()
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
@@ -319,6 +322,8 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
+// OnUpdateTagFilterList is called to register a callback to be called when the
+// metric tag list is updated.
 func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)) {
 	fl.updateTagMtx.Lock()
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
