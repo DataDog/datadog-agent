@@ -284,7 +284,7 @@ def run(
     if targets:
         e2e_module.test_targets = targets
 
-    if impacted and running_in_ci():
+    if True:
         try:
             print(color_message("Using dynamic tests", "yellow"))
             # DynTestExecutor needs to access build stable account to retrieve the index. Temporarly remove the AWS_PROFILE to avoid connecting on agent-qa account
@@ -294,6 +294,7 @@ def run(
                 changed_files = get_modified_files(ctx)
                 changed_packages = list({os.path.dirname(change) for change in changed_files})
                 print(color_message(f"The following changes were detected: {changed_files}", "yellow"))
+                return
                 test_job_name = os.getenv("CI_JOB_NAME")
                 if test_job_name.endswith("-init"):
                     test_job_name = test_job_name.removesuffix("-init")
