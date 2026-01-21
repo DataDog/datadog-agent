@@ -303,6 +303,7 @@ func run(log log.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	connForwarder option.Option[connectionsforwarder.Component],
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -365,6 +366,7 @@ func run(log log.Component,
 		ipc,
 		snmpScanManager,
 		traceroute,
+		connForwarder,
 	); err != nil {
 		return err
 	}
@@ -589,6 +591,7 @@ func startAgent(
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	connForwarder option.Option[connectionsforwarder.Component],
 ) error {
 	var err error
 
@@ -678,7 +681,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute, option.None[connectionsforwarder.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, telemetry, rcclient, flare, snmpScanManager, traceroute, connForwarder)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
