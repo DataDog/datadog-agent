@@ -10,22 +10,21 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/compression/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd v0.56.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.63.0-devel.0.20250123185937-1feb84b482c8
-	github.com/DataDog/datadog-agent/pkg/proto v0.64.0-devel
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.71.0
+	github.com/DataDog/datadog-agent/pkg/proto v0.74.1
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
 	github.com/DataDog/datadog-go/v5 v5.8.2
-	github.com/DataDog/sketches-go v1.4.7
+	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/golang/mock v1.7.0-rc.1
-	github.com/golang/protobuf v1.5.4
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/go-cmp v0.7.0
-	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.6.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.143.0
 	github.com/stretchr/testify v1.11.1
@@ -51,11 +50,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0
 	github.com/DataDog/datadog-agent/pkg/api v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0
-	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.71.0
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/shirou/gopsutil/v4 v4.25.11
 	go.opentelemetry.io/collector/component/componenttest v0.143.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217
 )
 
 require go.opentelemetry.io/collector/processor v1.49.0 // indirect
@@ -146,6 +148,7 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
@@ -277,6 +280,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache
@@ -295,6 +302,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option
