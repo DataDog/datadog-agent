@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
+	"github.com/twmb/murmur3"
 )
 
 // Requires contains the config for RC
@@ -211,7 +212,31 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 	return histoMetricNames
 }
 
-func (fl *FilterList) SetTagFilterList(metricTags map[string]hashedMetricTagList) {
+func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
+	hashedTags := make(map[string]hashedMetricTagList, len(metricTags))
+	for name, tags := range metricTags {
+		hashed := make([]uint64, len(tags.Tags))
+		for _, tag := range tags.Tags {
+			hashed = append(hashed, murmur3.StringSum64(tag))
+		}
+
+		var action action
+		if tags.Action == "exclude" {
+			action = Exclude
+		} else {
+			action = Include
+		}
+
+		hashedTags[name] = hashedMetricTagList{
+			action: action,
+			tags:   hashed,
+		}
+	}
+
+	fl.setTagFilterList(hashedTags)
+}
+
+func (fl *FilterList) setTagFilterList(metricTags map[string]hashedMetricTagList) {
 	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags))
 
 	fl.tagFilterList = tagMatcher{
@@ -239,10 +264,10 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
 	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
 
-	fl.updateMtx.Lock()
+	fl.updateMetricMtx.Lock()
 	fl.filterList = filterList
 	fl.histoFilterList = histoFilterList
-	fl.updateMtx.Unlock()
+	fl.updateMetricMtx.Unlock()
 
 	fl.updateMetricMtx.RLock()
 	defer fl.updateMetricMtx.RUnlock()

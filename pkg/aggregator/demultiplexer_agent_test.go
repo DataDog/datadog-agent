@@ -10,6 +10,7 @@ package aggregator
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -171,7 +173,6 @@ func TestMetricSampleTypeConversion(t *testing.T) {
 		require.Equal(test.apiMetricType, rv, "Wrong conversion for "+test.metricType.String())
 	}
 }
-
 func TestUpdateMetricFilterList(t *testing.T) {
 	require := require.New(t)
 
@@ -179,7 +180,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
-	filterList.SetFilterList([]string{"original.blocked.count"}, false)
+	filterList.SetMetricFilterList([]string{"original.blocked.count"}, false)
 
 	demux := InitAndStartAgentDemultiplexer(
 		deps.Log,
@@ -238,7 +239,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// Reset the mock
 	s.series = []*metrics.Serie{}
 
-	filterList.SetFilterList([]string{"original.blocked.avg"}, false)
+	filterList.SetMetricFilterList([]string{"original.blocked.avg"}, false)
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
@@ -254,14 +255,127 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	demux.Stop(false)
 
 	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
-	filterList.SetFilterList([]string{"another.metric"}, false)
+	filterList.SetMetricFilterList([]string{"another.metric"}, false)
 
 	// Wait until the aggregator has been removed whilst stopping demux.
 	require.Eventually(func() bool {
 		return demux.aggregator == nil
 	}, time.Second, time.Millisecond)
 
-	filterList.SetFilterList([]string{"more.metric"}, false)
+	filterList.SetMetricFilterList([]string{"more.metric"}, false)
+}
+
+type MockSerializerSketch struct {
+	sketches []*metrics.SketchSeries
+	MockSerializerIterableSerie
+}
+
+func (s *MockSerializerSketch) SendSketch(sketches metrics.SketchesSource) error {
+	for sketches.MoveNext() {
+		s.sketches = append(s.sketches, sketches.Current())
+	}
+	return nil
+}
+
+func TestUpdateTagFilterList(t *testing.T) {
+	require := require.New(t)
+
+	mockConfig := configmock.New(t)
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+		"dist.metric": {
+			Action: "exclude",
+			Tags:   []string{"tag1", "tag2"},
+		}})
+
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		filterList,
+		"",
+	)
+
+	// Set up a mock serializer so we con examine the metrics sent to it.
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	testCountBlocked := func(expected []string, ts float64) {
+		demux.AggregateSample(metrics.MetricSample{
+			Name:      "dist.metric",
+			Value:     42,
+			Mtype:     metrics.DistributionType,
+			Timestamp: ts,
+			Tags:      []string{"tag1:one", "tag2:two", "tag3:three", "tag4:four"},
+		})
+
+		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
+
+		metric := slices.IndexFunc(s.sketches, func(serie *metrics.SketchSeries) bool {
+			return serie.Name == "dist.metric"
+		})
+
+		tags := strings.Split(s.sketches[metric].Tags.Join(","), ",")
+		require.ElementsMatch(expected, tags)
+	}
+
+	// After initial setup, we have filterlist from the configuration file.
+	// It may take a little time as it has to be sent to a separate routine.
+	require.Eventually(func() bool {
+		return len(demux.aggregator.tagfilterListChan) == 0
+	}, time.Second, time.Millisecond, "original metric should be blocked")
+
+	// Tag 1 and 2 are excluded
+	testCountBlocked([]string{"tag3:three", "tag4:four"}, 32.0)
+
+	// Reset the mock
+	s.series = []*metrics.Serie{}
+
+	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+		"dist.metric": {
+			Action: "exclude",
+			Tags:   []string{"tag4", "tag5"},
+		}})
+
+	// Ensure the new filter list has been sent.
+	require.Eventually(func() bool {
+		return len(demux.aggregator.tagfilterListChan) == 0
+	}, time.Second, time.Millisecond)
+
+	testCountBlocked([]string{"tag3:three", "tag4:four"}, 62.0)
+
+	demux.Stop(false)
+
+	// We no longer need to ensure the correct metrics are being blocked after stopping. Just make sure it doesn't deadlock.
+	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+		"dist.metric": {
+			Action: "include",
+			Tags:   []string{"thing"},
+		}})
+
+	// Wait until the aggregator has been removed whilst stopping demux.
+	require.Eventually(func() bool {
+		return demux.aggregator == nil
+	}, time.Second, time.Millisecond)
+
+	filterList.SetTagFilterList(map[string]filterlist.MetricTagList{
+		"dist.metric": {
+			Action: "exclude",
+			Tags:   []string{"thang"},
+		}})
+
 }
 
 type DemultiplexerAgentTestDeps struct {
