@@ -9,6 +9,7 @@ from invoke.context import Context
 import tasks
 from tasks.github_tasks import (
     Exit,
+    _get_teams,
     assign_team_label,
     check_permissions,
     check_qa_labels,
@@ -686,4 +687,33 @@ class TestCheckPermissions(unittest.TestCase):
             channel=DEFAULT_SLACK_CHANNEL,
             blocks=blocks,
             text=''.join(b['text']['text'] for b in blocks),
+        )
+
+
+class TestGetTeams(unittest.TestCase):
+    CODEOWNERS_FILE = './tasks/unit_tests/testdata/codeowners.txt'
+
+    def test_single_best_team(self):
+        # /.gitlab/security.yml matches both team-b (specific) and team-a (directory)
+        # so team-b has the highest count.
+        changed_files = ['.gitlab/security.yml']
+        self.assertEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=True),
+            ['@datadog/team-b'],
+        )
+
+    def test_two_best_teams_tie(self):
+        # One file owned by team-a, one file owned by team-b -> tie (1 each)
+        changed_files = ['.gitlab/hello/world', '.gitlab/security.yml']
+        self.assertCountEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=True),
+            ['@datadog/team-a', '@datadog/team-b'],
+        )
+
+    def test_return_all_teams_when_best_teams_only_false(self):
+        # README.md introduces team-doc in addition to team-a/team-b.
+        changed_files = ['README.md', '.gitlab/hello/world', '.gitlab/security.yml']
+        self.assertCountEqual(
+            _get_teams(changed_files, owners_file=self.CODEOWNERS_FILE, best_teams_only=False),
+            ['@datadog/team-a', '@datadog/team-b', '@datadog/team-doc'],
         )
