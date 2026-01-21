@@ -990,6 +990,6 @@ func TestNewHTTPHeaderAndExactKeys(t *testing.T) {
 func TestPrivateActionRunnerPrivateKey(t *testing.T) {
 	// Test private action runner key configuration
 	assertClean(t,
-		`privateactionrunner.private_key: abc123def456`,
-		`privateactionrunner.private_key: "********"`)
+		`private_key: abc123def456`,
+		`private_key: "********"`)
 }

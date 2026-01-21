@@ -271,7 +271,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	exactKeyReplacer.LastUpdated = parseVersion("7.70.2")
 
-	// Private key replacer (
+	// Private key replacer (for instance private action runner)
 	privateKeyReplacer := matchYAMLKeyEnding(
 		`private_key`,
 		[]string{"private_key"},
