@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -221,7 +222,16 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, ipc ipc
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, ipc, opts.ProbeOpts)
+	hostname, err := hostnameutils.GetHostname(ipc)
+	if err != nil {
+		log.Warnf("failed to get hostname from core agent: %v, using 'unknown'", err)
+		hostname = "unknown"
+	} else if hostname == "" {
+		log.Warn("hostname from core agent is empty, using 'unknown'")
+		hostname = "unknown"
+	}
+
+	probe, err := probe.NewProbe(secconfig, hostname, opts.ProbeOpts)
 	if err != nil {
 		return nil, err
 	}
