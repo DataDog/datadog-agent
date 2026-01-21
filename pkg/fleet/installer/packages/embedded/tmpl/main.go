@@ -117,6 +117,8 @@ func systemdUnits(stableData, expData, ddotStableData, ddotExpData systemdTempla
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
+		"datadog-process-manager.service":      mustReadSystemdUnit("datadog-process-manager.service", stableData, ambiantCapabilitiesSupported),
+		"datadog-process-manager-exp.service":  mustReadSystemdUnit("datadog-process-manager.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-installer.service":      mustReadSystemdUnit("datadog-agent-installer.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-installer-exp.service":  mustReadSystemdUnit("datadog-agent-installer.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-data-plane.service":     mustReadSystemdUnit("datadog-agent-data-plane.service", stableData, ambiantCapabilitiesSupported),

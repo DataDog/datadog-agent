@@ -677,6 +677,8 @@
 /pkg/networkpath/traceroute/            @DataDog/cloud-network-monitoring @DataDog/windows-products @DataDog/network-path
 /pkg/collector/corechecks/networkpath/  @DataDog/cloud-network-monitoring @DataDog/network-path
 
+/process_manager/                       @DataDog/agent-runtimes
+
 /releasenotes/                          @DataDog/documentation
 /releasenotes-dca/                      @DataDog/documentation
 
