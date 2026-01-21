@@ -8,17 +8,9 @@ package model
 
 // NoisyNeighborStats contains the statistics from the noisy neighbor check
 type NoisyNeighborStats struct {
-	// Legacy fields (from ringbuffer events)
-	PrevCgroupID   uint64
-	CgroupID       uint64
-	RunqLatencyNs  uint64
-	TimestampNs    uint64
-	PrevCgroupName string
-	CgroupName     string
-	Pid            uint64
-	PrevPid        uint64
-
-	// Aggregated statistics
+	// Primary fields - populated from aggregated eBPF stats
+	CgroupID        uint64
+	CgroupName      string
 	SumLatenciesNs  uint64
 	EventCount      uint64
 	PreemptionCount uint64

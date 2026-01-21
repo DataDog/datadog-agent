@@ -12,6 +12,5 @@ package noisyneighbor
 */
 import "C"
 
-type ebpfRunqEvent C.runq_event_t
 type ebpfCgroupAggStats C.cgroup_agg_stats_t
 type ebpfPidKey C.pid_key_t
