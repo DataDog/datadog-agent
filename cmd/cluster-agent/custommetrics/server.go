@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -104,7 +104,7 @@ func (a *DatadogMetricsAdapter) makeProviderOrDie(ctx context.Context, apiCl *as
 	}
 
 	datadogHPAConfigMap := custommetrics.GetConfigmapName()
-	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, common.GetResourcesNamespace(), datadogHPAConfigMap)
+	store, err := custommetrics.NewConfigMapStore(apiCl.Cl, namespace.GetResourcesNamespace(), datadogHPAConfigMap)
 	if err != nil {
 		log.Errorf("Unable to create ConfigMap Store: %v", err)
 		return nil, err
