@@ -464,7 +464,80 @@ func (m *ManagerV2) SendStats() error {
 		}
 	}
 
+	// Debug: log difference between seenCgroups and CGroup Resolver cache
+	m.logCgroupDifference()
+
 	return nil
+}
+
+// logCgroupDifference logs the difference between V2's seenCgroups and the CGroup Resolver's cache
+// This helps debug why cgroups_received might differ from active_containers
+func (m *ManagerV2) logCgroupDifference() {
+	// Collect all cgroup IDs from the CGroup Resolver's cache
+	resolverCgroups := make(map[containerutils.CGroupID]containerutils.ContainerID)
+	m.resolvers.CGroupResolver.IterateCacheEntries(func(entry *cgroupModel.CacheEntry) bool {
+		cgroupID := entry.GetCGroupID()
+		containerID := entry.GetContainerID()
+		// Only track container cgroups (not host cgroups)
+		if containerID != "" {
+			resolverCgroups[cgroupID] = containerID
+		}
+		return false // continue iteration
+	})
+
+	// Get a snapshot of seenCgroups
+	m.seenCgroupsLock.Lock()
+	seenCgroupsCopy := make(map[containerutils.CGroupID]struct{}, len(m.seenCgroups))
+	for k, v := range m.seenCgroups {
+		seenCgroupsCopy[k] = v
+	}
+	m.seenCgroupsLock.Unlock()
+
+	// Find cgroups in resolver but NOT in V2's seenCgroups
+	var inResolverNotInV2 []string
+	for cgroupID, containerID := range resolverCgroups {
+		if _, exists := seenCgroupsCopy[cgroupID]; !exists {
+			// Try to get tags for this container
+			var tagsStr string
+			if containerID != "" {
+				var workloadID containerutils.WorkloadID = containerID
+				tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
+				if err == nil && len(tags) > 0 {
+					tagsStr = fmt.Sprintf("tags=%v", tags)
+				} else {
+					tagsStr = "no tags"
+				}
+			} else {
+				tagsStr = "no container"
+			}
+			inResolverNotInV2 = append(inResolverNotInV2, fmt.Sprintf("cgroupID=%s containerID=%s %s", cgroupID, containerID, tagsStr))
+		}
+	}
+
+	// Find cgroups in V2's seenCgroups but NOT in resolver
+	var inV2NotInResolver []string
+	for cgroupID := range seenCgroupsCopy {
+		if _, exists := resolverCgroups[cgroupID]; !exists {
+			inV2NotInResolver = append(inV2NotInResolver, string(cgroupID))
+		}
+	}
+
+	// Log the differences
+	if len(inResolverNotInV2) > 0 || len(inV2NotInResolver) > 0 {
+		seclog.Debugf("V2 CGroup Difference: resolver=%d, v2_seen=%d", len(resolverCgroups), len(seenCgroupsCopy))
+		if len(inResolverNotInV2) > 0 {
+			seclog.Debugf("  In CGroup Resolver but NOT in V2 seenCgroups (%d):", len(inResolverNotInV2))
+			for _, entry := range inResolverNotInV2 {
+				seclog.Debugf("    - %s", entry)
+			}
+		}
+		if len(inV2NotInResolver) > 0 {
+			seclog.Debugf("  In V2 seenCgroups but NOT in CGroup Resolver (%d):", len(inV2NotInResolver))
+			for _, entry := range inV2NotInResolver {
+				seclog.Debugf("    - %s", entry)
+			}
+		}
+	}
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
