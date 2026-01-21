@@ -336,9 +336,8 @@ func releaseLogDatums(datums []*statefulpb.Datum) {
 					dynamicValue.ReturnToVTPool()
 				}
 			}
-		}
-		if tagSet := logDatum.Tags; tagSet != nil && tagSet.Tagset != nil {
-			tagSet.Tagset.ReturnToVTPool()
+			// Prevent StructuredLog.ResetVT from touching pooled DynamicValues.
+			structured.DynamicValues = nil
 		}
 		logDatum.ReturnToVTPool()
 		datum.ReturnToVTPool()
