@@ -102,18 +102,18 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	defer cloudService.Shutdown(*metricAgent, err)
 
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -153,8 +153,13 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
 	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
 
+	tracingCtx := &cloudservice.TracingContext{
+		TraceAgent: traceAgent,
+		SpanTags:   tags,
+	}
+
 	// TODO check for errors and exit
-	_ = cloudService.Init(traceAgent, tags)
+	_ = cloudService.Init(tracingCtx)
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
@@ -164,7 +169,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent
 }
 
 var azureServerlessTags = []string{

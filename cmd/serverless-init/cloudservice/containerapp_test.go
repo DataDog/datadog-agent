@@ -24,7 +24,7 @@ func TestGetContainerAppTags(t *testing.T) {
 	t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 	t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
-	err := service.Init(nil, nil)
+	err := service.Init(nil)
 	assert.NoError(t, err)
 
 	tags := service.GetTags()
@@ -66,7 +66,7 @@ func TestGetContainerAppTagsBeforeInit(t *testing.T) {
 	// Call GetTags BEFORE Init - it should still get the values from env vars
 	tags := service.GetTags()
 
-	err := service.Init(nil, nil)
+	err := service.Init(nil)
 	assert.NoError(t, err)
 
 	// Verify that subscription_id and resource_group are populated from env vars
@@ -88,7 +88,7 @@ func TestInitHasErrorsWhenMissingSubscriptionId(t *testing.T) {
 
 		t.Setenv("DD_AZURE_RESOURCE_GROUP", "test_resource_group")
 
-		service.Init(nil, nil)
+		service.Init(nil)
 		return
 	}
 
@@ -113,7 +113,7 @@ func TestInitHasErrorsWhenMissingResourceGroup(t *testing.T) {
 
 		t.Setenv("DD_AZURE_SUBSCRIPTION_ID", "test_subscription_id")
 
-		service.Init(nil, nil)
+		service.Init(nil)
 		return
 	}
 

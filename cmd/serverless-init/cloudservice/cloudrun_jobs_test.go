@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// mockTraceProcessor is a mock implementation of the Processor interface for testing
+// mockTraceProcessor is a mock implementation of the TraceAgent interface for testing
 type mockTraceProcessor struct {
 	processCalled bool
 	lastPayload   *api.Payload
@@ -37,6 +37,14 @@ type mockTraceProcessor struct {
 func (m *mockTraceProcessor) Process(p *api.Payload) {
 	m.processCalled = true
 	m.lastPayload = p
+}
+
+func (m *mockTraceProcessor) Flush() {
+	// no-op for tests
+}
+
+func (m *mockTraceProcessor) Stop() {
+	// no-op for tests
 }
 
 func skipOnWindows(t *testing.T) {
@@ -91,7 +99,7 @@ func TestCloudRunJobsGetOrigin(t *testing.T) {
 func TestCloudRunJobsInit(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
-	assert.NoError(t, service.Init(nil, nil))
+	assert.NoError(t, service.Init(nil))
 }
 
 func TestIsCloudRunJob(t *testing.T) {
@@ -118,7 +126,7 @@ func TestCloudRunJobsShutdownAddsExitCodeTag(t *testing.T) {
 	cmd := exec.Command("bash", "-c", "exit 1")
 	err := cmd.Run()
 	require.Error(t, err)
-	jobs.Shutdown(agent, nil, err)
+	jobs.Shutdown(agent, err)
 
 	generatedMetrics, timedMetrics := demux.WaitForSamples(100 * time.Millisecond)
 	assert.Empty(t, timedMetrics)
@@ -142,7 +150,7 @@ func TestCloudRunJobsShutdownExitCodeZeroOnSuccess(t *testing.T) {
 	jobs := &CloudRunJobs{startTime: time.Now().Add(-time.Second)}
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 
-	jobs.Shutdown(agent, nil, nil)
+	jobs.Shutdown(agent, nil)
 
 	generatedMetrics, _ := demux.WaitForSamples(100 * time.Millisecond)
 
@@ -170,7 +178,7 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 	}
 
 	jobs := &CloudRunJobs{}
-	jobs.Init(nil, spanTags)
+	jobs.Init(&TracingContext{SpanTags: spanTags})
 
 	// Verify span was created
 	assert.NotNil(t, jobs.jobSpan)
@@ -200,7 +208,7 @@ func TestCloudRunJobsSpanServiceNameFallbackToJobName(t *testing.T) {
 	}
 
 	jobs := &CloudRunJobs{}
-	jobs.Init(nil, spanTags)
+	jobs.Init(&TracingContext{SpanTags: spanTags})
 
 	// Verify span falls back to job name for service name
 	require.NotNil(t, jobs.jobSpan)
@@ -220,7 +228,7 @@ func TestCloudRunJobsSpanServiceNameFromDDService(t *testing.T) {
 	}
 
 	jobs := &CloudRunJobs{}
-	jobs.Init(nil, spanTags)
+	jobs.Init(&TracingContext{SpanTags: spanTags})
 
 	// Verify span uses the DD_SERVICE value
 	require.NotNil(t, jobs.jobSpan)
@@ -240,7 +248,7 @@ func TestCloudRunJobsSpanServiceNameFallbackToDefault(t *testing.T) {
 	}
 
 	jobs := &CloudRunJobs{}
-	jobs.Init(nil, spanTags)
+	jobs.Init(&TracingContext{SpanTags: spanTags})
 
 	// Verify span falls back to default "gcp.run.job"
 	require.NotNil(t, jobs.jobSpan)
@@ -261,11 +269,11 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithError(t *testing.T) {
 
 	mockAgent := &mockTraceProcessor{}
 	jobs := &CloudRunJobs{}
-	jobs.Init(mockAgent, spanTags)
+	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
 
 	// Simulate an error
 	testErr := errors.New("task failed")
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, testErr)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, testErr)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -292,10 +300,10 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanSuccess(t *testing.T) {
 
 	mockAgent := &mockTraceProcessor{}
 	jobs := &CloudRunJobs{}
-	jobs.Init(mockAgent, spanTags)
+	jobs.Init(&TracingContext{TraceAgent: mockAgent, SpanTags: spanTags})
 
 	// Simulate success (no error)
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, nil)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
 
 	// Verify the span was submitted
 	assert.True(t, mockAgent.processCalled)
@@ -315,7 +323,7 @@ func TestCloudRunJobsCompleteAndSubmitJobSpanWithNilSpan(t *testing.T) {
 	// Don't call Init, so jobSpan remains nil
 
 	// Should not panic
-	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, mockAgent, nil)
+	jobs.Shutdown(serverlessMetrics.ServerlessMetricAgent{}, nil)
 
 	// Should not submit anything
 	assert.False(t, mockAgent.processCalled)

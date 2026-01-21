@@ -49,7 +49,7 @@ const (
 type CloudRunJobs struct {
 	startTime  time.Time
 	jobSpan    *pb.Span
-	traceAgent interface{}
+	traceAgent TraceAgent
 	spanTags   map[string]string // tags used for span creation (unified service tags + configured tags + cloud provider metadata)
 }
 
@@ -107,10 +107,12 @@ func (c *CloudRunJobs) GetSource() metrics.MetricSource {
 }
 
 // Init records the start time for CloudRunJobs and initializes the job span
-func (c *CloudRunJobs) Init(traceAgent interface{}, spanTags map[string]string) error {
+func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 	c.startTime = time.Now()
-	c.traceAgent = traceAgent
-	c.spanTags = spanTags
+	if ctx != nil {
+		c.traceAgent = ctx.TraceAgent
+		c.spanTags = ctx.SpanTags
+	}
 	if pkgconfigsetup.Datadog().GetBool("apm_config.enabled") && pkgconfigsetup.Datadog().GetBool("serverless.trace_enabled") {
 		c.initJobSpan()
 		c.setSpanModifier()
@@ -120,7 +122,7 @@ func (c *CloudRunJobs) Init(traceAgent interface{}, spanTags map[string]string) 
 
 // Shutdown submits the task duration and shutdown metrics for CloudRunJobs,
 // and completes and submits the job span.
-func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, traceAgent interface{}, runErr error) {
+func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
 	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
 	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
@@ -133,7 +135,7 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	}
 	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
 
-	c.completeAndSubmitJobSpan(traceAgent, runErr)
+	c.completeAndSubmitJobSpan(runErr)
 }
 
 // GetStartMetricName returns the metric name for container start events
@@ -195,7 +197,7 @@ func (c *CloudRunJobs) setSpanModifier() {
 }
 
 // completeAndSubmitJobSpan finalizes the span with duration and error status, then submits it
-func (c *CloudRunJobs) completeAndSubmitJobSpan(traceAgent interface{}, runErr error) {
+func (c *CloudRunJobs) completeAndSubmitJobSpan(runErr error) {
 	if c.jobSpan == nil {
 		return
 	}
@@ -209,5 +211,5 @@ func (c *CloudRunJobs) completeAndSubmitJobSpan(traceAgent interface{}, runErr e
 		c.jobSpan.Meta["exit_code"] = strconv.Itoa(exitCode)
 	}
 
-	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, traceAgent)
+	serverlessInitTrace.SubmitSpan(c.jobSpan, CloudRunJobsOrigin, c.traceAgent)
 }
