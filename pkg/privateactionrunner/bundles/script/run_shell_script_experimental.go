@@ -76,6 +76,11 @@ func (h *RunShellScriptHandler) Run(
 	}
 	defer scriptFile.CloseSafely()
 
+	// Make the script file readable by all, writable only by owner (needed for scriptuser execution)
+	if err = scriptFile.Chmod(0o644); err != nil {
+		return nil, fmt.Errorf("failed to set script file permissions: %w", err)
+	}
+
 	cmd := NewShellScriptCommand(ctx, scriptFile.Name(), inputs.Args)
 
 	var stdoutBuffer bytes.Buffer
