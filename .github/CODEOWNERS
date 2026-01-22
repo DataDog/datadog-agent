@@ -372,6 +372,7 @@
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/etw @DataDog/windows-products
+/comp/filterlist @DataDog/agent-metric-pipelines
 /comp/fleetstatus @DataDog/fleet
 /comp/haagent @DataDog/ndm-core
 /comp/healthplatform @DataDog/agent-health
@@ -459,7 +460,7 @@
 /comp/core/autodiscovery/providers/datastreams @DataDog/data-streams-monitoring
 /pkg/cloudfoundry                       @DataDog/agent-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
-/pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling @DataDog/container-integrations
+/pkg/clusteragent/autoscaling/          @DataDog/container-autoscaling
 /pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/injection-platform
 /pkg/clusteragent/admission/mutate/cwsinstrumentation    @DataDog/agent-security
@@ -700,6 +701,7 @@
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx
 /tasks/process_agent.py                 @DataDog/container-experiences
+/tasks/privateactionrunner.py           @DataDog/action-platform
 /tasks/system_probe.py                  @DataDog/ebpf-platform
 /tasks/ebpf.py                          @DataDog/ebpf-platform
 /tasks/kmt.py                           @DataDog/ebpf-platform
