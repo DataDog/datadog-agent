@@ -1,0 +1,15 @@
+exporters:
+  logging: {}
+  debug: {}
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters:
+      - logging
+      - debug
+      - otlphttp

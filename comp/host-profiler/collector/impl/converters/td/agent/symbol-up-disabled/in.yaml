@@ -1,0 +1,16 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - hostprofiler
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

@@ -1,0 +1,18 @@
+processors:
+  infraattributes_custom: {}
+  myresourcedetection: {}
+  batch: {}
+service:
+  pipelines:
+    profiles:
+      processors:
+      - infraattributes_custom
+      - myresourcedetection
+      - batch
+      receivers: []
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key
