@@ -821,6 +821,17 @@ def buildimages_branch_consistency(ctx):
                 )
                 raise Exit(code=1)
 
+            # Checkout the target branch
+            checkout_result = ctx.run(
+                f"cd {temp_dir}/buildimages && git checkout {compare_to_branch}", hide=True, warn=True
+            )
+
+            if checkout_result.return_code != 0:
+                print(
+                    f"{color_message('Error', 'red')}: Failed to checkout branch '{compare_to_branch}' in buildimages repository"
+                )
+                raise Exit(code=1)
+
             print(f"Checking commits against branch '{compare_to_branch}'...")
 
             # Loop over all CI image variables and check each commit
