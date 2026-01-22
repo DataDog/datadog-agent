@@ -761,16 +761,9 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
+	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
 	if gpu.GPUType != "" {
 		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
-	}
-
-	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
-		tagList.AddLow(tags.GPUSlicingMode, "mig")
-	} else if len(gpu.ChildrenGPUUUIDs) > 0 {
-		tagList.AddLow(tags.GPUSlicingMode, "mig-parent")
-	} else {
-		tagList.AddLow(tags.GPUSlicingMode, "none")
 	}
 
 	if gpu.ParentGPUUUID == "" {
