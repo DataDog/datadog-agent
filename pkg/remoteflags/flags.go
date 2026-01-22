@@ -8,12 +8,24 @@
 package remoteflags
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// Health check constants
+const (
+	// HealthCheckInterval is the interval between health checks after a flag is enabled
+	HealthCheckInterval = 10 * time.Second
+	// DefaultHealthCheckDuration is the default duration for health monitoring after flag activation
+	DefaultHealthCheckDuration = 1 * time.Minute
+	// DefaultFailuresBeforeRecover is the default number of consecutive health check failures before SafeRecover is called
+	DefaultFailuresBeforeRecover = 1
 )
 
 // FlagName represents a remote flag identifier.
@@ -56,6 +68,11 @@ type FlagHandler interface {
 	// It should use independent logic to ensure safety, not retry the same operation.
 	// It MUST be idempotent.
 	SafeRecover(err error, failedValue FlagValue)
+
+	// IsHealthy is called periodically after a flag is enabled (value=true) to verify
+	// the component remains healthy. If this returns false for the configured number
+	// of consecutive checks, SafeRecover will be called.
+	IsHealthy() bool
 }
 
 // RemoteFlagSubscriber is implemented by components that want to subscribe to remote flags.
@@ -85,10 +102,35 @@ type FlagSafeRecoverCallback func(err error, failedValue FlagValue)
 // but the flag was not part of the flags list.
 type FlagNoConfigCallback func()
 
+// FlagIsHealthyCallback is called periodically after a flag is enabled to verify
+// the component remains healthy. Returns true if the component is healthy, false otherwise.
+type FlagIsHealthyCallback func() bool
+
 // Flag represents a single flag with its name and value.
 type Flag struct {
-	Name  string    `json:"name"`
-	Value FlagValue `json:"value"`
+	Name                             string    `json:"name"`
+	Value                            FlagValue `json:"value"`
+	HealthCheckDurationSeconds       int       `json:"health_check_duration_seconds,omitempty"`
+	HealthCheckFailuresBeforeRecover int       `json:"health_check_failures_before_recover,omitempty"`
+}
+
+// HealthCheckDuration returns the duration for health monitoring.
+// Returns DefaultHealthCheckDuration if not specified in the config.
+func (f Flag) HealthCheckDuration() time.Duration {
+	if f.HealthCheckDurationSeconds == 0 {
+		return DefaultHealthCheckDuration
+	}
+	return time.Duration(f.HealthCheckDurationSeconds) * time.Second
+}
+
+// FailuresBeforeRecover returns the number of consecutive health check failures
+// required before SafeRecover is called.
+// Returns DefaultFailuresBeforeRecover if not specified in the config.
+func (f Flag) FailuresBeforeRecover() int {
+	if f.HealthCheckFailuresBeforeRecover == 0 {
+		return DefaultFailuresBeforeRecover
+	}
+	return f.HealthCheckFailuresBeforeRecover
 }
 
 // FlagConfig represents the JSON structure of a remote flag configuration.
@@ -99,11 +141,13 @@ type FlagConfig struct {
 
 // subscription represents an active subscription to a remote flag.
 type subscription struct {
-	flag        FlagName
-	onChange    FlagChangeCallback
-	onNoConfig  FlagNoConfigCallback
-	safeRecover FlagSafeRecoverCallback
-	lastValue   *FlagValue // Track last known value to detect changes
+	flag              FlagName
+	onChange          FlagChangeCallback
+	onNoConfig        FlagNoConfigCallback
+	safeRecover       FlagSafeRecoverCallback
+	isHealthy         FlagIsHealthyCallback
+	lastValue         *FlagValue         // Track last known value to detect changes
+	cancelHealthCheck context.CancelFunc // Cancel ongoing health check if any
 }
 
 // Client is the Remote Flags client that manages flag subscriptions
@@ -112,14 +156,25 @@ type Client struct {
 	mu            sync.RWMutex
 	subscriptions map[FlagName][]*subscription
 	currentValues map[FlagName]FlagValue
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // NewClient creates a new Remote Flags client.
 func NewClient() *Client {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Client{
 		subscriptions: make(map[FlagName][]*subscription),
 		currentValues: make(map[FlagName]FlagValue),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
+}
+
+// Stop cancels all health monitors and cleans up resources.
+// This should be called when the client is no longer needed.
+func (c *Client) Stop() {
+	c.cancel()
 }
 
 // SubscribeWithHandler registers a subscription using the FlagHandler interface.
@@ -134,6 +189,7 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 		handler.OnChange,
 		handler.OnNoConfig,
 		handler.SafeRecover,
+		handler.IsHealthy,
 	)
 }
 
@@ -147,6 +203,7 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 //
 // The safeRecover callback is called when:
 //   - onChange returns an error (configuration failed to apply properly)
+//   - isHealthy returns false for the configured number of consecutive checks
 //     This callback must force the feature into a safe, working state using independent logic
 //   - It MUST be idempotent.
 //
@@ -154,8 +211,12 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 //   - Remote Config sent configurations, but the flag matching a subscription
 //     was not part of the returned configurations
 //
+// The isHealthy callback is called periodically after a flag is enabled (value=true)
+// to verify the component remains healthy. If it returns false for the configured
+// number of consecutive checks, safeRecover will be called.
+//
 // Returns an error if the subscription parameters are invalid.
-func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfig FlagNoConfigCallback, safeRecover FlagSafeRecoverCallback) error {
+func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfig FlagNoConfigCallback, safeRecover FlagSafeRecoverCallback, isHealthy FlagIsHealthyCallback) error {
 	if flag == "" {
 		return fmt.Errorf("flag name cannot be empty")
 	}
@@ -168,6 +229,9 @@ func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfi
 	if safeRecover == nil {
 		return fmt.Errorf("safeRecover callback cannot be nil - you must provide error handling")
 	}
+	if isHealthy == nil {
+		return fmt.Errorf("isHealthy callback cannot be nil - you must provide health checking")
+	}
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -177,6 +241,7 @@ func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfi
 		onChange:    onChange,
 		safeRecover: safeRecover,
 		onNoConfig:  onNoConfig,
+		isHealthy:   isHealthy,
 	}
 
 	c.subscriptions[flag] = append(c.subscriptions[flag], sub)
@@ -184,18 +249,25 @@ func (c *Client) Subscribe(flag FlagName, onChange FlagChangeCallback, onNoConfi
 	// If we already have cached a value for this flag,
 	// invoke the callback immediately
 	if value, exists := c.currentValues[flag]; exists {
-		go func(s *subscription, val FlagValue) {
-			if err := s.onChange(val); err != nil {
-				applyErr := fmt.Errorf("failed to apply initial configuration for flag %s with value %v: %w", flag, val, err)
-				s.safeRecover(applyErr, val)
+		// Create a Flag with default health check settings for initial subscription
+		initialFlag := Flag{
+			Name:  string(flag),
+			Value: value,
+		}
+		go func(s *subscription, f Flag) {
+			if err := s.onChange(f.Value); err != nil {
+				applyErr := fmt.Errorf("failed to apply initial configuration for flag %s with value %v: %w", f.Name, f.Value, err)
+				s.safeRecover(applyErr, f.Value)
 			} else {
 				// Only update lastValue if onChange succeeded
-				successValue := val
+				successValue := f.Value
 				c.mu.Lock()
 				s.lastValue = &successValue
 				c.mu.Unlock()
+				// Start health monitoring (only runs if value=true)
+				c.startHealthMonitor(s, f)
 			}
-		}(sub, value)
+		}(sub, initialFlag)
 	}
 
 	return nil
@@ -232,7 +304,7 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 			oldValue, existed := c.currentValues[flagName]
 			if !existed || oldValue != flag.Value {
 				c.currentValues[flagName] = flag.Value
-				c.notifyChange(flagName, flag.Value)
+				c.notifyChange(flag)
 			}
 		}
 
@@ -266,31 +338,34 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 
 // notifyChange notifies all subscribers of a flag value change.
 // Must be called with lock held.
-func (c *Client) notifyChange(flag FlagName, newValue FlagValue) {
-	subs, exists := c.subscriptions[flag]
+func (c *Client) notifyChange(flag Flag) {
+	flagName := FlagName(flag.Name)
+	subs, exists := c.subscriptions[flagName]
 	if !exists {
 		return
 	}
 
 	for _, sub := range subs {
 		// only notify if the value actually changed from last known value
-		if sub.lastValue == nil || *sub.lastValue != newValue {
+		if sub.lastValue == nil || *sub.lastValue != flag.Value {
 			// TODO(remy): can this goroutine block?
-			go func(s *subscription, value FlagValue) {
+			go func(s *subscription, f Flag) {
 				// Try to apply the configuration change
-				if err := s.onChange(value); err != nil {
+				if err := s.onChange(f.Value); err != nil {
 					// If the change failed to apply, call safeRecover callback
-					applyErr := fmt.Errorf("failed to apply configuration change for flag %s with value %v: %w", flag, value, err)
-					s.safeRecover(applyErr, value)
+					applyErr := fmt.Errorf("failed to apply configuration change for flag %s with value %v: %w", f.Name, f.Value, err)
+					s.safeRecover(applyErr, f.Value)
 				} else {
 					// Only update lastValue if onChange succeeded
 					// Create a new variable to ensure proper heap allocation
-					successValue := value
+					successValue := f.Value
 					c.mu.Lock()
 					s.lastValue = &successValue
 					c.mu.Unlock()
+					// Start health monitoring (only runs if value=true)
+					c.startHealthMonitor(s, f)
 				}
-			}(sub, newValue)
+			}(sub, flag)
 		}
 	}
 }
@@ -306,8 +381,65 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 	}
 
 	for _, sub := range subs {
+		// Cancel ongoing health check if any
+		if sub.cancelHealthCheck != nil {
+			sub.cancelHealthCheck()
+			sub.cancelHealthCheck = nil
+		}
 		sub.onNoConfig()
 	}
+}
+
+// startHealthMonitor starts a goroutine that periodically checks the health of a subscription
+// after a flag is enabled (value=true). If the component becomes unhealthy for the configured
+// number of consecutive checks, SafeRecover is called.
+func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
+	// Only monitor when enabling (value=true)
+	if !flag.Value {
+		return
+	}
+
+	// Create context with timeout, derived from client's parent context
+	ctx, cancel := context.WithTimeout(c.ctx, flag.HealthCheckDuration())
+
+	// Store cancel func to stop previous monitor if new change comes in
+	c.mu.Lock()
+	if sub.cancelHealthCheck != nil {
+		sub.cancelHealthCheck() // Cancel previous health check
+	}
+	sub.cancelHealthCheck = cancel
+	c.mu.Unlock()
+
+	go func() {
+		ticker := time.NewTicker(HealthCheckInterval)
+		defer ticker.Stop()
+
+		consecutiveFailures := 0
+		failuresBeforeRecover := flag.FailuresBeforeRecover()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return // Monitoring period ended or client stopped
+			case <-ticker.C:
+				if !sub.isHealthy() {
+					consecutiveFailures++
+					log.Warnf("Remote flag %s: component unhealthy (failure %d/%d)", sub.flag, consecutiveFailures, failuresBeforeRecover)
+					if consecutiveFailures >= failuresBeforeRecover {
+						err := fmt.Errorf("component unhealthy for %d consecutive checks after flag %s was enabled", consecutiveFailures, sub.flag)
+						sub.safeRecover(err, flag.Value)
+						cancel()
+						return
+					}
+				} else {
+					if consecutiveFailures > 0 {
+						log.Infof("Remote flag %s: component healthy again after %d failures", sub.flag, consecutiveFailures)
+					}
+					consecutiveFailures = 0 // Reset on healthy check
+				}
+			}
+		}
+	}()
 }
 
 // GetCurrentValue returns the current value of a flag.
