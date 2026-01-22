@@ -474,7 +474,7 @@ Package traceroute provides the traceroute component
 
 *Datadog Team*: agent-metric-pipelines
 
-Package observer provides a component for observing data flowing through the agent.
+Package observer bundles the observer component.
 
 ### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
 

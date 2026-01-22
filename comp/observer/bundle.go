@@ -5,7 +5,7 @@
 
 //go:build observer
 
-// Package observer provides a component for observing data flowing through the agent.
+// Package observer bundles the observer component.
 package observer
 
 import (
