@@ -303,7 +303,7 @@ func TestContentLenLimit(t *testing.T) {
 
 		require.Equal(t, lines, gotContent)
 		require.Equal(t, lens, gotLens)
-		require.Equal(t, []bool{true, false}, gotTruncated, "First frame truncated, second not")
+		require.Equal(t, []bool{true, false}, gotTruncated, "First frame truncated, second frame completes the line")
 	})
 }
 
