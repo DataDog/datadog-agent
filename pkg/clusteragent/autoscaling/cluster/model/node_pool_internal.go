@@ -277,9 +277,14 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, m
 		if r.Key == corev1.LabelInstanceTypeStable {
 			instanceTypeLabelExists = true
 			r.Operator = "In"
-			if !slices.Equal(r.Values, npi.recommendedInstanceTypes) {
+			originalInstanceTypes := r.Values
+			recommendedInstanceTypes := npi.RecommendedInstanceTypes()
+			slices.Sort(originalInstanceTypes)
+			slices.Sort(recommendedInstanceTypes)
+
+			if !slices.Equal(originalInstanceTypes, recommendedInstanceTypes) {
 				isUpdated = true
-				r.Values = npi.recommendedInstanceTypes
+				r.Values = recommendedInstanceTypes
 			}
 		}
 
@@ -295,7 +300,7 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, m
 		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      corev1.LabelInstanceTypeStable,
 			"operator": "In",
-			"values":   npi.recommendedInstanceTypes,
+			"values":   npi.RecommendedInstanceTypes(),
 		})
 	}
 

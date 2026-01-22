@@ -413,7 +413,7 @@ func TestBuildNodePoolPatch(t *testing.T) {
 									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 										Key:      corev1.LabelInstanceTypeStable,
 										Operator: corev1.NodeSelectorOpIn,
-										Values:   []string{"c5.xlarge", "t3.micro"},
+										Values:   []string{"t3.micro", "c5.xlarge"},
 									},
 								},
 							},
