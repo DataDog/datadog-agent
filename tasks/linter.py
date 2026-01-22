@@ -833,10 +833,21 @@ def buildimages_branch_consistency(ctx):
                         f"cd {temp_dir}/buildimages && git branch --contains {commit_hash}", hide=True, warn=True
                     )
 
-                    if result.return_code == 0 and compare_to_branch in result.stdout:
-                        print(
-                            f"  {color_message('OK', 'green')}: Commit {commit_hash} found on branch '{compare_to_branch}'"
-                        )
+                    # Check if the commit is on the target branch using regex for exact branch matching
+                    if result.return_code == 0:
+                        # Use regex to match exact branch names in git branch --contains output
+                        # Matches: "  origin/branch-name", "* branch-name", or "  branch-name"
+                        escaped_branch = re.escape(compare_to_branch)
+                        pattern = rf'^\s*\*?\s*(origin/)?{escaped_branch}$'
+                        
+                        if re.search(pattern, result.stdout, re.MULTILINE):
+                            print(
+                                f"  {color_message('OK', 'green')}: Commit {commit_hash} found on branch '{compare_to_branch}'"
+                            )
+                        else:
+                            failures.append(
+                                f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
+                            )
                     else:
                         failures.append(
                             f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
