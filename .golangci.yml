@@ -306,7 +306,7 @@ linters:
     - path: comp/aggregator/demultiplexer/demultiplexerimpl/test_agent_demultiplexer.go
       linters:
         - pkgconfigusage
-    - path: comp/api/api/apiimpl/listener.go
+    - path: comp/api/api/apiimpl/listener/common.go
       linters:
         - pkgconfigusage
     - path: comp/api/api/apiimpl/server_ipc.go

@@ -35,7 +35,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -434,7 +434,7 @@ func TestDatadogPodAutoscalerTargetingClusterAgentErrors(t *testing.T) {
 			f := newFixture(t, testTime)
 
 			t.Setenv("DD_POD_NAME", "datadog-agent-cluster-agent-7dbf798595-tp9lg")
-			currentNs := common.GetMyNamespace()
+			currentNs := namespace.GetMyNamespace()
 			id := currentNs + "/dpa-dca"
 
 			dpaSpec := datadoghq.DatadogPodAutoscalerSpec{
@@ -541,7 +541,7 @@ func TestPodAutoscalerLocalOwnerObjectsLimit(t *testing.T) {
 		Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
 	}
 
-	currentNs := common.GetMyNamespace()
+	currentNs := namespace.GetMyNamespace()
 	dpaID := currentNs + "/dpa-0"
 	dpa1ID := currentNs + "/dpa-1"
 	dpa2ID := currentNs + "/dpa-2"

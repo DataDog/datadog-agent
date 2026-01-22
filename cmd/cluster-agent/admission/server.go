@@ -32,7 +32,7 @@ import (
 	admicommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -123,7 +123,7 @@ func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error
 		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
 			GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				secretNs := common.GetResourcesNamespace()
+				secretNs := namespace.GetResourcesNamespace()
 				secretName := pkgconfigsetup.Datadog().GetString("admission_controller.certificate.secret_name")
 				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
 				if err != nil {

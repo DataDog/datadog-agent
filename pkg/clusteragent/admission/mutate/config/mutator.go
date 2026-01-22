@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -94,7 +94,7 @@ func (i *Mutator) MutatePod(pod *corev1.Pod, _ string, _ dynamic.Interface) (boo
 
 		agentHostServiceEnvVar = corev1.EnvVar{
 			Name:  agentHostEnvVarName,
-			Value: i.config.localServiceName + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+			Value: i.config.localServiceName + "." + namespace.GetMyNamespace() + ".svc.cluster.local",
 		}
 
 		defaultDdEntityIDEnvVar = corev1.EnvVar{

@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/client-go/informers"
@@ -58,7 +58,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		datadogConfig.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
 		datadogConfig.GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
 	secretConfig := secret.NewConfig(
-		common.GetResourcesNamespace(),
+		namespace.GetResourcesNamespace(),
 		datadogConfig.GetString("admission_controller.certificate.secret_name"),
 		datadogConfig.GetString("admission_controller.service_name"),
 		certConfig)

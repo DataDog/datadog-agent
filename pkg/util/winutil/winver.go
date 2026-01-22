@@ -1,7 +1,7 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build windows
 
@@ -9,10 +9,11 @@
 package winutil
 
 import (
+	"errors"
 	"fmt"
-	"unsafe"
-
 	"golang.org/x/sys/windows"
+	"syscall"
+	"unsafe"
 )
 
 var (
@@ -25,6 +26,9 @@ var (
 	procGetFileVersionInfoEx     = versiondll.NewProc("GetFileVersionInfoExW")
 	procVerQueryValue            = versiondll.NewProc("VerQueryValueW")
 )
+
+// ErrNoPEBuildTimestamp indicates the PE header timestamp is not present or zero.
+var ErrNoPEBuildTimestamp = errors.New("no PE build timestamp")
 
 // GetWindowsBuildString retrieves the windows build version by querying
 // the resource string as directed here https://msdn.microsoft.com/en-us/library/windows/desktop/ms724429(v=vs.85).aspx
@@ -127,4 +131,79 @@ func getVersionInfo(block []uint8) (ver string, err error) {
 
 	return ver, nil
 
+}
+
+// FileVersionInfo contains common version resource strings for a file.
+type FileVersionInfo struct {
+	CompanyName      string
+	ProductName      string
+	FileVersion      string
+	ProductVersion   string
+	OriginalFilename string
+	InternalName     string
+}
+
+// GetFileVersionInfoStrings returns common version resource strings for the specified file.
+// Missing fields are returned as empty strings. An error is returned only if the version
+// information block cannot be retrieved at all.
+func GetFileVersionInfoStrings(executablePath string) (FileVersionInfo, error) {
+	var info FileVersionInfo
+
+	data, err := getFileVersionInfo(executablePath)
+	if err != nil {
+		return info, err
+	}
+
+	// Get the first language/codepage from the translation table
+	translationPtr, err := syscall.UTF16PtrFromString("\\VarFileInfo\\Translation")
+	if err != nil {
+		return info, err
+	}
+
+	var langCodePagePtr *uint16
+	var langCodePageLen uint32
+	ret, _, err := procVerQueryValue.Call(
+		uintptr(unsafe.Pointer(&data[0])),
+		uintptr(unsafe.Pointer(translationPtr)),
+		uintptr(unsafe.Pointer(&langCodePagePtr)),
+		uintptr(unsafe.Pointer(&langCodePageLen)),
+	)
+	if ret == 0 || langCodePageLen < 4 {
+		return info, err
+	}
+
+	pair := (*[2]uint16)(unsafe.Pointer(langCodePagePtr))
+	langCode := pair[0]
+	codePage := pair[1]
+	langCodePage := fmt.Sprintf("%04x%04x", langCode, codePage)
+
+	// Helper to read a specific version string value
+	readVerString := func(key string) string {
+		query := fmt.Sprintf("\\StringFileInfo\\%s\\%s", langCodePage, key)
+		queryPtr, qerr := syscall.UTF16PtrFromString(query)
+		if qerr != nil {
+			return ""
+		}
+		var valuePtr *uint16
+		var valueLen uint32
+		ret, _, _ := procVerQueryValue.Call(
+			uintptr(unsafe.Pointer(&data[0])),
+			uintptr(unsafe.Pointer(queryPtr)),
+			uintptr(unsafe.Pointer(&valuePtr)),
+			uintptr(unsafe.Pointer(&valueLen)),
+		)
+		if ret == 0 || valueLen == 0 || valuePtr == nil {
+			return ""
+		}
+		return windows.UTF16PtrToString(valuePtr)
+	}
+
+	info.CompanyName = readVerString("CompanyName")
+	info.ProductName = readVerString("ProductName")
+	info.FileVersion = readVerString("FileVersion")
+	info.ProductVersion = readVerString("ProductVersion")
+	info.OriginalFilename = readVerString("OriginalFilename")
+	info.InternalName = readVerString("InternalName")
+
+	return info, nil
 }

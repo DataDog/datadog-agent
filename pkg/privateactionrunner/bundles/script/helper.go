@@ -13,6 +13,12 @@ import (
 	"strings"
 )
 
+func NewShellScriptCommand(ctx context.Context, scriptFile string, args []string) *exec.Cmd {
+	sudoArgs := []string{"-u", "scriptuser", "sh", scriptFile}
+	sudoArgs = append(sudoArgs, args...)
+	return exec.CommandContext(ctx, "sudo", sudoArgs...)
+}
+
 func NewPredefinedScriptCommand(ctx context.Context, command []string, envVarNames []string) *exec.Cmd {
 	sudoArgs := []string{"-u", "scriptuser"}
 	if len(envVarNames) > 0 {

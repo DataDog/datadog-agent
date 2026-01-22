@@ -64,7 +64,16 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 }
 
 func (l *KubeletListener) processPod(entity workloadmeta.Entity) {
-	pod := entity.(*workloadmeta.KubernetesPod)
+	// Fetch the pod from the workloadmeta store to get the most up-to-date state.
+	// Handling cases where a pod deletion is reported as a 'Set' event due to
+	// delayed updates from multiple workloadmeta sources. If the pod has been deleted,
+	// its containers will be missing from the store, preventing stale container services
+	// from being created.
+	pod, err := l.Store().GetKubernetesPod(entity.GetID().ID)
+	if err != nil || pod == nil {
+		log.Debugf("Failed to get kubernetes pod from workloadmeta store, using pod from event")
+		pod = entity.(*workloadmeta.KubernetesPod)
+	}
 
 	wlmContainers := pod.GetAllContainers()
 	containers := make([]*workloadmeta.Container, 0, len(wlmContainers))

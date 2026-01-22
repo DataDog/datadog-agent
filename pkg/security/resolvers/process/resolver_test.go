@@ -791,7 +791,7 @@ func TestIsExecExecSnapshot(t *testing.T) {
 	// X(pid:3)
 	//    |
 	// X(pid:4)
-	resolver.setAncestor(child.ProcessCacheEntry)
+	child.ProcessCacheEntry.SetForkParent(parent.ProcessCacheEntry)
 	resolver.insertEntry(child.ProcessCacheEntry, model.CGroupContext{}, model.ProcessCacheEntryFromSnapshot)
 	assert.Equal(t, child.ProcessCacheEntry, resolver.entryCache[child.ProcessCacheEntry.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))

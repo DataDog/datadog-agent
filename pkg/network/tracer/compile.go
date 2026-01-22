@@ -31,5 +31,8 @@ func getCFlags(config *config.Config) []string {
 	if config.BPFDebug {
 		cflags = append(cflags, "-DDEBUG=1")
 	}
+	if supported, err := ebpfConntrackerAlternateProbesSupportedOnKernel(); err == nil && supported {
+		cflags = append(cflags, "-DFEATURE_CONNTRACK_ALTERNATE_PROBES_SUPPORTED")
+	}
 	return cflags
 }

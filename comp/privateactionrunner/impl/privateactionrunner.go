@@ -48,7 +48,9 @@ type Provides struct {
 }
 
 type privateactionrunnerImpl struct {
-	WorkflowRunner *runners.WorkflowRunner
+	workflowRunner *runners.WorkflowRunner
+	commonRunner   *runners.CommonRunner
+	drain          func()
 }
 
 // NewComponent creates a new privateactionrunner component
@@ -100,7 +102,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	runner := &privateactionrunnerImpl{
-		WorkflowRunner: r,
+		workflowRunner: r,
+		commonRunner:   runners.NewCommonRunner(cfg),
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -113,12 +116,21 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	p.WorkflowRunner.Start(context.Background())
-	return nil
+	ctx, cancel := context.WithCancel(context.Background())
+	p.drain = cancel
+	err := p.commonRunner.Start(ctx)
+	if err != nil {
+		return err
+	}
+	return p.workflowRunner.Start(ctx)
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	p.WorkflowRunner.Close(ctx)
+	err := p.workflowRunner.Stop(ctx)
+	if err != nil {
+		return err
+	}
+	p.drain()
 	return nil
 }
 

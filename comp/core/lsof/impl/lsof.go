@@ -41,7 +41,20 @@ func fillFlare(fb flaretypes.FlareBuilder) error {
 		return err
 	}
 
-	return fb.AddFile(flavor.GetFlavor()+"_open_files.txt", []byte(files.String()))
+	if err := fb.AddFile(flavor.GetFlavor()+"_open_files.txt", []byte(files.String())); err != nil {
+		return err
+	}
+
+	// On Windows, also include a machine-parsable JSON report of loaded modules for support analysis
+	if runtime.GOOS == "windows" {
+		if data, err := lsof.ListLoadedModulesReportJSON(); err == nil && len(data) > 0 {
+			_ = fb.AddFile("agent_loaded_modules.json", data)
+		} else if err != nil {
+			_ = fb.Logf("could not build agent_loaded_modules.json: %v", err)
+		}
+	}
+
+	return nil
 }
 
 // NewComponent creates a new lsof component

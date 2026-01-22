@@ -557,6 +557,12 @@ func (p *EBPFResolver) insertEntry(entry *model.ProcessCacheEntry, cgroupContext
 
 	// handle cgroup & container context
 	if p.cgroupResolver != nil {
+		// safeguard log, this should never happen. cgroupContext should be null for entries from procfs or snapshot as
+		// it will be resolved from the procfs fallback of the cgroup resolver.
+		if (source == model.ProcessCacheEntryFromProcFS || source == model.ProcessCacheEntryFromSnapshot) && !cgroupContext.IsNull() {
+			seclog.Debugf("cgroupContext should be null entry from procfs or snapshot: %s %+v", entry.Comm, entry)
+		}
+
 		createdAt := entry.ForkTime
 		if entry.ExecTime.After(createdAt) {
 			createdAt = entry.ExecTime
@@ -1297,13 +1303,6 @@ func (p *EBPFResolver) SyncCache(proc *process.Process) {
 	}
 }
 
-func (p *EBPFResolver) setAncestor(pce *model.ProcessCacheEntry) {
-	parent := p.entryCache[pce.PPid]
-	if parent != nil {
-		pce.SetAncestor(parent)
-	}
-}
-
 func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
@@ -1369,7 +1368,9 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 		seclog.Debugf("unable to set the type of process, not pid 1, no parent in cache: %+v", entry)
 	}
 
-	p.insertEntry(entry, entry.CGroup, source)
+	// use an empty cgroup context to force the fallback to resolve the cgroup
+	// we don't want to use the cgroup of the entry has it can be inherited from the parent.
+	p.insertEntry(entry, model.CGroupContext{}, source)
 
 	seclog.Tracef("New process cache entry added: %s %s %d/%d", entry.Comm, entry.FileEvent.PathnameStr, pid, entry.FileEvent.Inode)
 

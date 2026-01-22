@@ -51,10 +51,11 @@ func NewWorkflowRunner(
 	}, nil
 }
 
-func (n *WorkflowRunner) Start(ctx context.Context) {
+func (n *WorkflowRunner) Start(ctx context.Context) error {
+	log.FromContext(ctx).Info("Starting Workflow runner")
 	if n.taskLoop != nil {
 		log.FromContext(ctx).Warn("WorkflowRunner already started")
-		return
+		return nil
 	}
 	startTime := time.Now()
 	n.keysManager.Start(ctx)
@@ -65,12 +66,16 @@ func (n *WorkflowRunner) Start(ctx context.Context) {
 		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
 		n.taskLoop.Run(ctx)
 	}()
+	return nil
 }
 
-func (n *WorkflowRunner) Close(ctx context.Context) {
+func (n *WorkflowRunner) Stop(ctx context.Context) error {
+	log.FromContext(ctx).Info("Stopping Workflow runner")
+
 	if n.taskLoop != nil {
 		n.taskLoop.Close(ctx)
 	}
+	return nil
 }
 
 func (n *WorkflowRunner) RunTask(

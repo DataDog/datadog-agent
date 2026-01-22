@@ -45,6 +45,8 @@ type Config struct {
 	HealthCheckInterval        int32
 	HttpServerReadTimeout      int32
 	HttpServerWriteTimeout     int32
+	HTTPTimeout                time.Duration
+	TaskTimeoutSeconds         *int32
 	RunnerAccessTokenHeader    string
 	RunnerAccessTokenIdHeader  string
 	Port                       int32

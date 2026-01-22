@@ -124,7 +124,7 @@ echo Built packages using omnibus
 
 # --- Notarization ---
 if [ "$SIGN" = true ]; then
-    echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
+    printf "\033[0Ksection_start:%s:notarization\r\033[0KDoing notarization\n" "$(date +%s)"
     unset LATEST_DMG
 
     # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
@@ -143,13 +143,24 @@ if [ "$SIGN" = true ]; then
             --apple-id "$APPLE_ACCOUNT" \
             --password "$NOTARIZATION_PWD" \
             --team-id "$TEAM_ID" \
-            --timeout "$NOTARIZATION_TIMEOUT" \
-            --wait \
             "$dmg_file" | tee /dev/stderr | awk '$1 == "id:" {id=$2} END{if (id) print id; else exit 2}'
     }
     export -f submit_for_notarization
     SUBMISSION_ID=$(tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" submit_for_notarization "$LATEST_DMG" | tail -n1)
     echo "Submission ID: $SUBMISSION_ID"
+
+    wait_for_notarization() {
+        set -euo pipefail
+        local submission_id="$1"
+        xcrun notarytool wait \
+            --apple-id "$APPLE_ACCOUNT" \
+            --password "$NOTARIZATION_PWD" \
+            --team-id "$TEAM_ID" \
+            --timeout "$NOTARIZATION_TIMEOUT" \
+            "$submission_id"
+    }
+    export -f wait_for_notarization
+    tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" wait_for_notarization "$SUBMISSION_ID"
 
     check_notarization_status() {
         set -euo pipefail
@@ -162,7 +173,7 @@ if [ "$SIGN" = true ]; then
     }
     export -f check_notarization_status
     tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" check_notarization_status "$SUBMISSION_ID"
-    echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
+    printf "\033[0Ksection_end:%s:notarization\r\033[0K\n" "$(date +%s)"
 fi
 
 if [ "$SIGN" = true ]; then

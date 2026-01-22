@@ -1,0 +1,26 @@
+exporters:
+    otlphttp:
+        headers:
+            dd-api-key: test-api-key
+processors:
+    batch: {}
+    infraattributes/default:
+        allow_hostname_override: true
+    infraattributes_custom: {}
+    myresourcedetection: {}
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - infraattributes_custom
+                - myresourcedetection
+                - batch
+                - infraattributes/default
+            receivers:
+                - hostprofiler

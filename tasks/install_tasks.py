@@ -28,7 +28,8 @@ TOOL_LIST = [
 
 TOOL_LIST_PROTO = [
     'github.com/favadi/protoc-go-inject-tag',
-    'github.com/golang/protobuf/protoc-gen-go',
+    'google.golang.org/protobuf/cmd/protoc-gen-go',
+    'google.golang.org/grpc/cmd/protoc-gen-go-grpc',
     'github.com/golang/mock/mockgen',
     'github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto',
     'github.com/tinylib/msgp',

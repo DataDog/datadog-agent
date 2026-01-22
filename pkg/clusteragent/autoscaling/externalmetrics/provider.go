@@ -25,7 +25,7 @@ import (
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -68,7 +68,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	metricsMaxAge = int64(math.Max(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.max_age"), float64(3*rollup)))
 	metricsQueryValidityPeriod = int64(pkgconfigsetup.Datadog().GetFloat64("external_metrics_provider.query_validity_period"))
 	splitBatchBackoffOnErrors := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.split_batches_with_backoff")
-	autogenNamespace := common.GetResourcesNamespace()
+	autogenNamespace := namespace.GetResourcesNamespace()
 	autogenEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enable_datadogmetric_autogen")
 	wpaEnabled := pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller")
 	numWorkers := pkgconfigsetup.Datadog().GetInt("external_metrics_provider.num_workers")

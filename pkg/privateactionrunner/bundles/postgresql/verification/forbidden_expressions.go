@@ -8,7 +8,7 @@ package pg_verification
 var AdminFunctions = []string{
 	// 9.24. System Administration Functions, https://www.postgresql.org/docs/9.1/functions-admin.html
 
-	// Table 9-55. Configuration Settings Functions
+	// Table 9-55. Config Settings Functions
 	"current_setting",
 	"set_config",
 	// Table 9-56. Server Signalling Functions

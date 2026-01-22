@@ -1,8 +1,3 @@
-trap {
-    Write-Host "trap: $($_.InvocationInfo.Line.Trim()) - $_" -ForegroundColor Yellow
-    continue
-}
-
 <#
 .SYNOPSIS
 Copies files from C:\mnt into C:\buildroot\datadog-agent and sets the current directory to the buildroot.

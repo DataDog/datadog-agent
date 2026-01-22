@@ -30,6 +30,14 @@ func TestCheckRun(t *testing.T) {
 		assert.Empty(t, checks)
 	})
 
+	t.Run("parseCheckRunPayload should parse array with single check run", func(t *testing.T) {
+		checks, err := ParseCheckRunPayload(api.Payload{Data: []byte("[{\"check\": \"test\", \"status\": 0}]"), Encoding: encodingEmpty})
+		assert.NoError(t, err)
+		assert.Len(t, checks, 1)
+		assert.Equal(t, "test", checks[0].Check)
+		assert.Equal(t, 0, checks[0].Status)
+	})
+
 	t.Run("parseCheckRunPayload should return valid checks on valid ", func(t *testing.T) {
 		checks, err := ParseCheckRunPayload(api.Payload{Data: checkRunData, Encoding: encodingDeflate})
 		assert.NoError(t, err)

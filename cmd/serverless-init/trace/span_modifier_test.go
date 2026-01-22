@@ -234,9 +234,7 @@ func TestCloudRunJobsSpanModifier_128BitTraceID(t *testing.T) {
 	// Create a root span with a 128-bit trace ID (simulating a tracer that uses 128-bit IDs)
 	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
 	rootSpan.ParentID = 0
-	rootSpan.Meta = map[string]string{
-		"_dd.p.tid": "6958127700000000", // High 64 bits of trace ID (hex-encoded)
-	}
+	traceutil.SetTraceIDHigh(rootSpan, "6958127700000000")
 
 	// Verify trace IDs are different before modification
 	assert.False(t, traceutil.SameTraceID(jobSpan, rootSpan), "Test setup: job and root spans should have different TraceIDs")
@@ -268,4 +266,117 @@ func TestCloudRunJobsSpanModifier_128BitTraceID_NoHighBits(t *testing.T) {
 	// Verify: job span adopted the 64-bit trace ID
 	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should adopt TraceID")
 	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+}
+
+func TestCloudRunJobsSpanModifier_MixedTraceIDBitWidths_128BitFirst(t *testing.T) {
+	// Test backward compatibility: spans from the same trace may have different
+	// bit widths (some with _dd.p.tid, some without). Per Datadog documentation,
+	// these should be treated as matching if the low 64 bits match.
+	// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
+
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// First span arrives with 128-bit trace ID (has high bits)
+	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
+	rootSpan.ParentID = 0
+	traceutil.SetTraceIDHigh(rootSpan, "6958127700000000")
+
+	// Second span from same trace arrives with only 64-bit trace ID (no high bits)
+	// This can happen when mixing tracers with different 128-bit support
+	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
+	childSpan.TraceID = rootSpan.TraceID // Same low 64 bits
+	childSpan.ParentID = rootSpan.SpanID
+	// No high bits - simulates a tracer that doesn't support 128-bit IDs
+
+	// Modify both spans
+	modifier.ModifySpan(nil, rootSpan)
+	modifier.ModifySpan(nil, childSpan)
+
+	// Verify: job span adopted the full 128-bit trace ID from root
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should match root span")
+
+	// Verify: child span (64-bit only) is still recognized as same trace
+	// because SameTraceID only compares low 64 bits when one span lacks high bits
+	assert.True(t, traceutil.SameTraceID(jobSpan, childSpan), "Job span should match child span despite missing high bits")
+
+	// Verify hierarchy preserved
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+	assert.Equal(t, rootSpan.SpanID, childSpan.ParentID, "Child span should keep its original parent")
+}
+
+func TestCloudRunJobsSpanModifier_MixedTraceIDBitWidths_64BitFirst(t *testing.T) {
+	// Test the reverse case: 64-bit trace ID span arrives before 128-bit span.
+	// The job span adopts the 64-bit ID first, then a 128-bit span from the
+	// same trace arrives. The job span should be upgraded to 128-bit.
+	// https://docs.datadoghq.com/tracing/guide/span_and_trace_id_format/
+
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// First span arrives with only 64-bit trace ID (no high bits)
+	rootSpan := InitSpan("user-service", "root.operation", "root-resource", "web", time.Now().UnixNano(), map[string]string{})
+	rootSpan.ParentID = 0
+	// No high bits
+
+	// Second span from same trace arrives with 128-bit trace ID (has high bits)
+	childSpan := InitSpan("user-service", "child.operation", "child-resource", "web", time.Now().UnixNano(), map[string]string{})
+	childSpan.TraceID = rootSpan.TraceID // Same low 64 bits
+	childSpan.ParentID = rootSpan.SpanID
+	traceutil.SetTraceIDHigh(childSpan, "6958127700000000")
+
+	// Modify both spans (64-bit first, then 128-bit)
+	modifier.ModifySpan(nil, rootSpan)
+
+	// After first span: job span should NOT have high bits yet
+	assert.False(t, traceutil.HasTraceIDHigh(jobSpan), "Job span should not have high bits after 64-bit span")
+
+	modifier.ModifySpan(nil, childSpan)
+
+	// After second span: job span should be upgraded to 128-bit
+	tidHigh, ok := traceutil.GetTraceIDHigh(jobSpan)
+	assert.True(t, ok, "Job span should have high bits after upgrade")
+	assert.Equal(t, "6958127700000000", tidHigh,
+		"Job span should be upgraded to 128-bit when we see high bits later")
+
+	// Verify: job span matches both spans
+	assert.True(t, traceutil.SameTraceID(jobSpan, rootSpan), "Job span should match root span")
+	assert.True(t, traceutil.SameTraceID(jobSpan, childSpan), "Job span should match child span")
+
+	// Verify hierarchy preserved
+	assert.Equal(t, jobSpan.SpanID, rootSpan.ParentID, "Root span should be reparented under job span")
+	assert.Equal(t, rootSpan.SpanID, childSpan.ParentID, "Child span should keep its original parent")
+}
+
+func TestCloudRunJobsSpanModifier_NoUpgradeFromDifferentTrace(t *testing.T) {
+	// Test that we don't accidentally upgrade the job span's trace ID with high bits
+	// from a completely different trace.
+
+	jobSpan := InitSpan("gcp.run.job", "gcp.run.job.task", "my-job", "serverless", time.Now().UnixNano(), map[string]string{})
+	modifier := NewCloudRunJobsSpanModifier(jobSpan)
+
+	// First span: 64-bit trace ID (trace A)
+	traceASpan := InitSpan("user-service", "operation-a", "resource-a", "web", time.Now().UnixNano(), map[string]string{})
+	traceASpan.ParentID = 0
+	// No high bits
+
+	// Second span: 128-bit trace ID from a DIFFERENT trace (trace B)
+	traceBSpan := InitSpan("user-service", "operation-b", "resource-b", "web", time.Now().UnixNano(), map[string]string{})
+	traceBSpan.ParentID = 0
+	traceutil.SetTraceIDHigh(traceBSpan, "6958127700000000")
+
+	// Ensure they have different low 64 bits
+	assert.NotEqual(t, traceASpan.TraceID, traceBSpan.TraceID, "Test setup: traces should have different low 64 bits")
+
+	// Modify both spans
+	modifier.ModifySpan(nil, traceASpan)
+	modifier.ModifySpan(nil, traceBSpan)
+
+	// Verify: job span adopted trace A's ID and was NOT upgraded with trace B's high bits
+	assert.Equal(t, traceASpan.TraceID, jobSpan.TraceID, "Job span should have trace A's low 64 bits")
+	assert.False(t, traceutil.HasTraceIDHigh(jobSpan), "Job span should NOT have high bits from trace B")
+
+	// Verify: only trace A span was reparented
+	assert.Equal(t, jobSpan.SpanID, traceASpan.ParentID, "Trace A span should be reparented")
+	assert.Equal(t, uint64(0), traceBSpan.ParentID, "Trace B span should NOT be reparented")
 }

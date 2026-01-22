@@ -60,6 +60,12 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 				Timestamp: 1767709263,
 			},
 		},
+		{
+			name:                      "TMOS",
+			profile:                   DefaultProfile("tmos"),
+			fixture:                   loadFixture("tmos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

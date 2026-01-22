@@ -115,6 +115,14 @@ func (d *safeDeviceImpl) GetGpuInstanceId() (int, error) {
 	return id, NewNvmlAPIErrorOrNil("GetGpuInstanceId", ret)
 }
 
+func (d *safeDeviceImpl) GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error) {
+	if err := d.lib.lookup(toNativeName("GetGpuInstanceProfileInfo")); err != nil {
+		return nvml.GpuInstanceProfileInfo{}, err
+	}
+	info, ret := d.nvmlDevice.GetGpuInstanceProfileInfo(profile)
+	return info, NewNvmlAPIErrorOrNil("GetGpuInstanceProfileInfo", ret)
+}
+
 func (d *safeDeviceImpl) GetIndex() (int, error) {
 	if err := d.lib.lookup(toNativeName("GetIndex")); err != nil {
 		return 0, err
