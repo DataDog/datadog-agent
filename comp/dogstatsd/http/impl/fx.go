@@ -6,19 +6,23 @@
 package httpimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	comp "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 )
 
 // Requires declares the inputs for NewComponent
 type Requires struct {
-	Lc     comp.Lifecycle
-	Log    log.Component
-	Config config.Component
-	Demux  demultiplexer.Component
+	Lc       comp.Lifecycle
+	Log      log.Component
+	Config   config.Component
+	Tagger   tagger.Component
+	Hostname hostname.Component
+	Demux    demultiplexer.Component
 }
 
 // Provides defines the output of this component
@@ -27,7 +31,14 @@ type Provides struct {
 }
 
 func NewComponent(req Requires) (Provides, error) {
-	s := newServer(req.Config, req.Log, req.Demux.Serializer())
+	s := &server{
+		config:   req.Config,
+		log:      req.Log,
+		tagger:   req.Tagger,
+		hostname: req.Hostname,
+
+		out: req.Demux.Serializer(),
+	}
 
 	req.Lc.Append(comp.Hook{
 		OnStart: s.start,

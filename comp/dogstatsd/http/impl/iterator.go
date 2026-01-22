@@ -7,7 +7,10 @@ package httpimpl
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/dogstatsdhttp"
@@ -15,7 +18,10 @@ import (
 )
 
 type seriesIterator struct {
-	reader *reader.MetricDataReader
+	reader   *reader.MetricDataReader
+	origin   origin
+	hostname string
+
 	buffer metrics.Serie
 	err    error
 }
@@ -37,7 +43,7 @@ func (it *seriesIterator) MoveNext() bool {
 
 	b := &it.buffer
 	b.Name = it.reader.Name()
-	b.Tags = tagset.NewCompositeTags(it.reader.Tags(), nil)
+	b.Tags = it.processTags()
 	b.Source = metrics.MetricSourceDogstatsd
 
 	switch it.reader.Type() {
@@ -54,6 +60,7 @@ func (it *seriesIterator) MoveNext() bool {
 
 	b.Interval = int64(it.reader.Interval())
 	b.SourceTypeName = it.reader.SourceTypeName()
+	b.Host = it.hostname
 
 	b.Resources = b.Resources[:0]
 	for _, res := range it.reader.Resources() {
@@ -91,4 +98,23 @@ func (it *seriesIterator) Current() *metrics.Serie {
 // Count does nothing and returns zero.
 func (it *seriesIterator) Count() uint64 {
 	return 0
+}
+
+func (it *seriesIterator) processTags() tagset.CompositeTags {
+	clientTags := it.reader.Tags()
+	cardTag := slices.IndexFunc(clientTags, func(s string) bool {
+		return strings.HasPrefix(s, constants.CardinalityTagPrefix)
+	})
+	if cardTag < 0 {
+		return tagset.NewCompositeTags(it.origin.getTags(), clientTags)
+	}
+	card, _ := strings.CutPrefix(clientTags[cardTag], constants.CardinalityTagPrefix)
+	clientTags = remove(slices.Clone(clientTags), cardTag)
+	return tagset.NewCompositeTags(it.origin.getTagsWith(card), clientTags)
+}
+
+func remove(s []string, i int) []string {
+	j := len(s) - 1
+	s[i], s[j] = s[j], ""
+	return s[:j]
 }

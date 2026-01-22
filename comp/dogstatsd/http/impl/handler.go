@@ -41,9 +41,10 @@ func (ctx *requestCtx) respond(status int, format string, args ...any) {
 }
 
 type handlerBase struct {
-	log    log.Component
-	tagger tagger.Component
-	out    serializer
+	log      log.Component
+	tagger   tagger.Component
+	hostname string
+	out      serializer
 }
 
 type seriesHandler struct {
@@ -55,6 +56,12 @@ func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		prefix: fmt.Sprintf("dogstatsdhttp %q: ", r.RemoteAddr),
 		log:    h.log,
 		writer: w,
+	}
+
+	origin, err := originFromRequest(r, h.tagger)
+	if err != nil {
+		ctx.respond(http.StatusBadRequest, "origin detection error: %v", err)
+		return
 	}
 
 	body, err := io.ReadAll(r.Body)
@@ -72,7 +79,9 @@ func (h *seriesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	it := &seriesIterator{
-		reader: reader.NewMetricDataReader(payload.MetricData),
+		reader:   reader.NewMetricDataReader(payload.MetricData),
+		origin:   origin,
+		hostname: h.hostname,
 	}
 
 	err = it.reader.Initialize()
