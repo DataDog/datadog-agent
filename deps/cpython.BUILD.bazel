@@ -97,7 +97,6 @@ filegroup(
 )
 
 UNIX_BINS = [
-    "python3",
     "pip3",
     "python{}".format(VERSION_STR),
 ]
@@ -259,6 +258,12 @@ pkg_mklink(
     attributes = pkg_attributes("0755")
 )
 
+pkg_mklink(
+    name = "python_bin_symlink",
+    link_name = "bin/python3",
+    target = "python{}".format(VERSION_STR)
+)
+
 filegroup(
     name = "headers_unix",
     srcs = [":python_unix"],
@@ -290,7 +295,7 @@ pkg_files(
 
 pkg_files(
     name = "install_bins_unix",
-    srcs = [":bins_unix_" + bin for bin in UNIX_BINS],
+    srcs = [":bins_unix_" + bin for bin in UNIX_BINS] + [":python_bin_symlink"],
     prefix = "bin",
     attributes = pkg_attributes("0755")
 )
@@ -306,6 +311,7 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
+            ":python_bin_symlink",
         ],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
