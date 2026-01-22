@@ -90,21 +90,17 @@ def build_kind_node_image(version: str) -> str:
     if not version:
         raise Exit("Missing version", code=1)
 
-    print(f"Building kind node image for {version}")
-
     # Build the kind node image
     image = f"{IMAGE_NAME}:{version}"
     print(f"Building kind node image: {image}")
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             [KIND, 'build', 'node-image', '--image', image, version], capture_output=True, text=True, check=True
         )
-        print(result.stdout)
         print(f"Successfully built kind node image: {image}")
-    except subprocess.CalledProcessError as e:
-        print(f"Error building kind node image:\n{e.stderr}")
-        raise Exit(f"Failed to build kind node image: {e}", code=1) from e
+    except subprocess.CalledProcessError:
+        raise Exit("Failed to build kind node image", code=1) from None
 
     return image
 
@@ -143,7 +139,7 @@ def build_rc_images(_, versions):
 
     Outputs (GitHub Actions):
         built_count: Number of RC images built
-        built_tags: Comma-separated list of built image tags
+        built_tags: Space delimited list of built image tags
     """
     # Parse if it's a JSON string
     if isinstance(versions, str):
@@ -175,96 +171,3 @@ def build_rc_images(_, versions):
         print(f"\nSuccessfully built {len(built_images)} RC image(s): {', '.join(built_images)}")
     else:
         print("\nNo RC images to build")
-
-
-@task
-def get_ecr_image_digest(_, repository_name: str, image_tag: str, region: str = 'us-east-1') -> str:
-    """Get the digest for a specific ECR image.
-
-    Args:
-        repository_name: Name of the ECR repository
-        image_tag: Tag of the image
-        region: AWS region (default: us-east-1)
-
-    Returns:
-        Image digest string (e.g., sha256:abc123...)
-
-    Raises:
-        Exit: If boto3 is not installed or if there's an error fetching the digest
-    """
-    if boto3 is None:
-        raise Exit(
-            "Missing required dependencies: boto3\n" "Install with: pip install boto3",
-            code=1,
-        )
-
-    try:
-        ecr_client = boto3.client('ecr', region_name=region)
-
-        response = ecr_client.describe_images(repositoryName=repository_name, imageIds=[{'imageTag': image_tag}])
-
-        if response['imageDetails']:
-            digest = response['imageDetails'][0]['imageDigest']
-            print(f"Image digest for {image_tag}: {digest}")
-            return digest
-
-        raise Exit(f"No image details found for {image_tag}", code=1)
-
-    except Exception as e:
-        error_message = str(e)
-        if 'ImageNotFoundException' in error_message:
-            raise Exit(f"Image {image_tag} not found", code=1) from None
-        elif 'RepositoryNotFoundException' in error_message:
-            raise Exit("Repository not found", code=1) from None
-        else:
-            raise Exit("Error fetching image digest", code=1) from None
-
-
-@task
-def get_ecr_image_digests(ctx, repository, versions, region='us-east-1'):
-    """Get the digests for ECR images.
-
-    Args:
-        repository: ECR repository name
-        versions: JSON string or dict of versions
-                  (e.g., '{"v1.35.0-rc.1": {"tag": "v1.35.0-rc.1", "rc": true}}')
-        region: AWS region (default: us-east-1)
-
-    Outputs (GitHub Actions):
-        digest_count: Number of digests retrieved
-        new_versions: Updated versions dict with digest field added
-
-    Returns:
-        Updated versions dict with digest information
-    """
-    # Parse if it's a JSON string
-    if isinstance(versions, str):
-        try:
-            versions = json.loads(versions)
-        except json.JSONDecodeError as e:
-            raise Exit(f"Invalid JSON in versions argument: {e}", code=1) from e
-
-    digests_retrieved = []
-
-    for tag, version_data in versions.items():
-        # If digest is already present then continue
-        if version_data.get('digest'):
-            continue
-        try:
-            # Get the digest for this image
-            digest = get_ecr_image_digest(ctx, repository, tag, region)
-            version_data['digest'] = digest
-            digests_retrieved.append(tag)
-            print(f"Retrieved digest for {tag}")
-
-        except Exception as e:
-            print(f"Error getting digest for {tag}: {e}")
-            raise
-
-    # Set GitHub Actions outputs
-    _set_github_output('new_versions', json.dumps(versions))
-
-    if digests_retrieved:
-        print(f"\nSuccessfully retrieved {len(digests_retrieved)} digest(s) for: {', '.join(digests_retrieved)}")
-    else:
-        print("\nNo digests retrieved")

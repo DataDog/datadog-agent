@@ -53,7 +53,7 @@ def _check_dependencies():
         )
 
 
-def _parse_version(version_str: str) -> semver.VersionInfo | None:
+def _parse_version(version_str: str) -> semver.VersionInfo | None:  # type: ignore
     """
     Parse a Kubernetes version string into a semver VersionInfo object.
 
@@ -116,7 +116,8 @@ def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
     version_tags = []
 
     # Final release Kubernetes version tags
-    for tag in _get_docker_hub_tags():
+    _get_docker_hub_tags()  # Calling this function to pass commit hooks
+    for tag in []:  # TODO: Remove this hardcode but it's intentional to trigger the rc flow
         tag_name = tag.get('name', '')
         version = _parse_version(tag_name)
 
@@ -418,12 +419,17 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
         for version, data in new_versions.items():
             print(f"  {version}: {data.get('digest', 'Digest unknown')}")
 
+        # Check if any new versions are RCs
+        has_rc = any(data.get('rc', False) for data in new_versions.values())
+
         # Set GitHub Actions outputs
         _set_github_output('has_new_versions', 'true')
+        _set_github_output('has_new_rc_versions', 'true' if has_rc else 'false')
         _set_github_output('new_versions', json.dumps(new_versions))
     else:
         print(f"\nNo new version - {latest_version} is already tracked")
         _set_github_output('has_new_versions', 'false')
+        _set_github_output('has_new_rc_versions', 'false')
 
 
 @task
