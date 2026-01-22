@@ -64,6 +64,7 @@ import (
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -118,6 +119,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	if err == agentConfig.ErrNoDDExporter {
 		return fxutil.Run(
+			fx.Invoke(func() { ddruntime.PrepareGoRuntime(pkgconfigenv.IsContainerized()) }),
 			fx.Supply(uris),
 			fx.Provide(func() coreconfig.Component {
 				return acfg

@@ -58,6 +58,7 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -197,8 +198,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 func start(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
 	defer StopAgent(log)
 
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
+	ddruntime.PrepareGoRuntime(env.IsContainerized())
 
 	if config.GetBool("security_agent.disable_thp") {
 		if err := ddruntime.DisableTransparentHugePages(); err != nil {

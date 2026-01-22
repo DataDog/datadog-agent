@@ -185,9 +185,9 @@ func prepGoRuntime(tracecfg *tracecfg.AgentConfig) {
 		} else if tracecfg.MaxMemory > 0 {
 			// We have apm_config.max_memory, and no cgroup memory limit is in place.
 			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
-			finalmem := int64(tracecfg.MaxMemory * 0.9)
+			finalmem := int64(tracecfg.MaxMemory * 0.85)
 			debug.SetMemoryLimit(finalmem)
-			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
+			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 85%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
 		} else {
 			// There are no memory constraints
 			log.Infof("GOMEMLIMIT unconstrained.")
