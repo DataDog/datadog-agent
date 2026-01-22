@@ -10,8 +10,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
