@@ -71,6 +71,8 @@ type HelmInstallationArgs struct {
 	JMX bool
 	// WindowsImage is used to use Windows-compatible image (multi-arch with Windows)
 	WindowsImage bool
+	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
+	TimeoutSeconds int
 }
 
 type HelmComponent struct {
@@ -207,12 +209,13 @@ func NewHelmInstallation(e config.Env, args HelmInstallationArgs, opts ...pulumi
 	}
 
 	linux, err := helm.NewInstallation(e, helm.InstallArgs{
-		RepoURL:     args.RepoURL,
-		ChartName:   args.ChartPath,
-		InstallName: linuxInstallName,
-		Namespace:   args.Namespace,
-		ValuesYAML:  valuesYAML,
-		Version:     pulumi.String(HelmVersion),
+		RepoURL:        args.RepoURL,
+		ChartName:      args.ChartPath,
+		InstallName:    linuxInstallName,
+		Namespace:      args.Namespace,
+		ValuesYAML:     valuesYAML,
+		Version:        pulumi.String(HelmVersion),
+		TimeoutSeconds: args.TimeoutSeconds,
 	}, opts...)
 	if err != nil {
 		return nil, err
@@ -794,15 +797,15 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s"}]`, fakeintake.Host),
+				"value": pulumi.Sprintf(`[{"host": "%s", "use_ssl": %t}]`, fakeintake.Host, useSSL),
 			},
 		}
 	} else {
