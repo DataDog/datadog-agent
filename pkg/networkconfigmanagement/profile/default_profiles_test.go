@@ -61,6 +61,12 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			},
 		},
 		{
+			name:                      "TMOS",
+			profile:                   DefaultProfile("tmos"),
+			fixture:                   loadFixture("tmos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
 			name:                      "AOSCX",
 			profile:                   DefaultProfile("aoscx"),
 			fixture:                   loadFixture("aoscx", Running),

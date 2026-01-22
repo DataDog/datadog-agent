@@ -1994,6 +1994,12 @@ type GPU struct {
 	// specific.
 	Device string
 
+	// GPUType is the normalized model type of the GPU (e.g., "a100", "t4", "h100").
+	// This is extracted from the Device name and normalized to lowercase.
+	// For RTX cards, includes the rtx prefix (e.g., "rtx_a6000").
+	// Empty string if the type cannot be determined.
+	GPUType string
+
 	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
 
@@ -2087,6 +2093,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
 	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "GPU Type:", g.GPUType)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)
