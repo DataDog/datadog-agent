@@ -530,38 +530,27 @@ func (s *BaseSuite) collectxperf() {
 //
 // Usage:
 //
-//	s.Require().NoError(s.InstallWithXperf(
+//	s.InstallWithXperf(
 //	    installerwindows.WithMSILogFile("install.log"),
-//	))
+//	)
 //
 // The xperf trace will be collected automatically if the test fails.
-func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) error {
+func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 	s.T().Helper()
 
-	// 1. Start xperf
 	s.T().Log("Starting xperf tracing")
 	s.startxperf()
 	defer s.collectxperf()
 
-	// 2. Run the MSI
 	s.T().Log("Installing MSI")
 	err := s.Installer().Install(opts...)
-	if err != nil {
-		s.T().Logf("MSI installation failed: %v", err)
-		return err
-	}
+	s.Require().NoError(err, "MSI installation failed")
 
-	// 3. Check service status
-	s.T().Log("Checking service status after MSI installation")
-	statusErr := s.WaitForInstallerService("Running")
-	if statusErr != nil {
-		s.T().Logf("Service status check failed: %v", statusErr)
-		return statusErr
-	}
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
 
 	s.T().Log("MSI installation and service startup completed successfully")
-	// 4. collectxperf happens via defer
-	return nil
 }
 
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
@@ -625,6 +614,13 @@ func (s *BaseSuite) WaitForInstallerService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
 	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
+}
+
+// WaitForAgentService waits for the Datadog Agent service to be in the expected state
+func (s *BaseSuite) WaitForAgentService(state string) error {
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), "datadogagent")
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.

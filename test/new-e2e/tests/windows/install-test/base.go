@@ -133,42 +133,22 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		windowsAgent.WithValidAPIKey(),
 	}
 	installOpts = append(installOpts, installOptions...)
+
+	s.startXperf(vm)
+	defer s.collectXperf(vm)
+
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
-		remoteMSIPath, err = s.installAgentWithXperf(vm, installOpts...)
+		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
+
+		// Wait for the service to start (up to 5 minutes)
+		err = s.waitForServiceRunning(vm, "datadogagent", 300)
+		s.Require().NoError(err, "service should be running after install")
 	}) {
 		s.T().FailNow()
 	}
 
 	return remoteMSIPath
-}
-
-// installAgentWithXperf wraps the InstallAgent call with xperf tracing for diagnosing service startup issues.
-func (s *baseAgentMSISuite) installAgentWithXperf(vm *components.RemoteHost, installOptions ...windowsAgent.InstallAgentOption) (string, error) {
-	// 1. Start xperf
-	s.T().Log("Starting xperf tracing")
-	s.startXperf(vm)
-	defer s.collectXperf(vm)
-
-	// 2. Run the MSI installation
-	s.T().Log("Installing MSI")
-	remoteMSIPath, err := s.InstallAgent(vm, installOptions...)
-	if err != nil {
-		s.T().Logf("MSI installation failed: %v", err)
-		return remoteMSIPath, err
-	}
-
-	// 3. Check service status (wait up to 5 minutes)
-	s.T().Log("Checking service status after MSI installation")
-	statusErr := s.waitForServiceRunning(vm, "DatadogAgent", 300)
-	if statusErr != nil {
-		s.T().Logf("Service status check failed: %v", statusErr)
-		return remoteMSIPath, statusErr
-	}
-
-	s.T().Log("MSI installation and service startup completed successfully")
-	// 4. collectXperf happens via defer
-	return remoteMSIPath, nil
 }
 
 // waitForServiceRunning waits for a service to reach Running status
