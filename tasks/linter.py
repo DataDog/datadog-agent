@@ -844,14 +844,11 @@ def buildimages_branch_consistency(ctx):
                             print(
                                 f"  {color_message('OK', 'green')}: Commit {commit_hash} found on branch '{compare_to_branch}'"
                             )
-                        else:
-                            failures.append(
-                                f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
-                            )
-                    else:
-                        failures.append(
-                            f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
-                        )
+                            continue
+
+                    failures.append(
+                        f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
+                    )
 
                 except Exception as e:
                     failures.append(f"{var_name}: error checking commit {commit_hash}: {e}")
