@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package viperconfig
+package nodetreemodel
 
 import (
 	"reflect"
@@ -36,8 +36,8 @@ var allowlistCaller = []string{
 	"pkg/fleet/installer/packages/embedded/tmpl/main_test.go",
 }
 
-// ValidateBasicTypes returns true if the argument is made of only basic types
-func ValidateBasicTypes(value interface{}) bool {
+// validateBasicTypes returns true if the argument is made of only basic types
+func validateBasicTypes(value interface{}) bool {
 	if value == nil {
 		return true
 	}
