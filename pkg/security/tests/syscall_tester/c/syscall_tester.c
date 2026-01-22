@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <stdatomic.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -1761,8 +1762,8 @@ int test_prctl_setname(int argc, char **argv) {
 }
 
 // Shared state for udploop between threads
-static volatile int udp_received = 0;
-static volatile int udp_running = 1;
+static atomic_int udp_received = 0;
+static atomic_int udp_running = 1;
 
 struct udploop_args {
     int port;
@@ -1803,11 +1804,11 @@ void *udp_server_thread(void *arg) {
         return NULL;
     }
 
-    while (udp_running) {
+    while (atomic_load(&udp_running)) {
         ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
                              (struct sockaddr *)&client_addr, &client_len);
         if (n > 0) {
-            udp_received = 1;
+            atomic_store(&udp_received, 1);
         }
         // On timeout (n < 0 && errno == EAGAIN), just loop
     }
@@ -1834,7 +1835,7 @@ void *udp_client_thread(void *arg) {
     server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     server_addr.sin_port = htons(port);
 
-    while (udp_running) {
+    while (atomic_load(&udp_running)) {
         sendto(sockfd, msg, strlen(msg), 0,
                (struct sockaddr *)&server_addr, sizeof(server_addr));
         sleep(1);
@@ -1873,7 +1874,7 @@ int test_udploop(int argc, char **argv) {
     // Start client thread
     if (pthread_create(&client_tid, NULL, udp_client_thread, &args) != 0) {
         perror("pthread_create client");
-        udp_running = 0;
+        atomic_store(&udp_running, 0);
         pthread_join(server_tid, NULL);
         return EXIT_FAILURE;
     }
@@ -1882,8 +1883,7 @@ int test_udploop(int argc, char **argv) {
     while (1) {
         sleep(1);
 
-        if (udp_received) {
-            udp_received = 0;
+        if (atomic_exchange(&udp_received, 0)) {
             printf("UDP_OK: received packet on port %d\n", port);
         } else {
             printf("UDP_FAIL: no packet received on port %d\n", port);
@@ -1892,7 +1892,7 @@ int test_udploop(int argc, char **argv) {
     }
 
     // Never reached, but for completeness
-    udp_running = 0;
+    atomic_store(&udp_running, 0);
     pthread_join(server_tid, NULL);
     pthread_join(client_tid, NULL);
 
