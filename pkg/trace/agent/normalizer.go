@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
@@ -395,7 +396,7 @@ func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
 		if firstSpan == nil {
 			firstSpan = span
 		}
-		if span.TraceID != firstSpan.TraceID {
+		if !traceutil.SameTraceID(span, firstSpan) {
 			ts.TracesDropped.ForeignSpan.Inc()
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}

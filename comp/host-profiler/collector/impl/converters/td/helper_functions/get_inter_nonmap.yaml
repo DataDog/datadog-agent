@@ -1,0 +1,7 @@
+processors: "this-is-a-string-not-a-map"
+receivers:
+  otlp: 12345
+exporters:
+  - list
+  - not
+  - map

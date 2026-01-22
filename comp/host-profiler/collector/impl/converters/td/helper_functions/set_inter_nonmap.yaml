@@ -1,0 +1,6 @@
+processors: "string-not-map"
+receivers:
+  otlp: 12345
+exporters:
+  - array
+  - values

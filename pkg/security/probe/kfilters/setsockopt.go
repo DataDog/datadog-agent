@@ -15,12 +15,14 @@ import (
 
 var setsockoptCapabilities = rules.FieldCapabilities{
 	{
-		Field:       "setsockopt.level",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "setsockopt.level",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 1,
 	},
 	{
-		Field:       "setsockopt.optname",
-		TypeBitmask: eval.ScalarValueType,
+		Field:        "setsockopt.optname",
+		TypeBitmask:  eval.ScalarValueType,
+		FilterWeight: 2,
 	},
 }
 

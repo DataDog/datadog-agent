@@ -14,10 +14,8 @@ import (
 	"runtime"
 	"testing"
 
-	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 )
 
 func TestEnv(t *testing.T) {
@@ -60,16 +58,9 @@ func TestOsOrigin(t *testing.T) {
 func TestHostname(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	ipcComp := ipcmock.New(t)
-
-	hostname, err := hostnameutils.GetHostname(ipcComp)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
-
 	ruleDef := &rules.RuleDefinition{
 		ID:         "test_hostname",
-		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/test-hostname" && event.hostname == "%s"`, hostname),
+		Expression: `open.file.path == "{{.Root}}/test-hostname" && event.hostname == "functional_tests_host"`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})

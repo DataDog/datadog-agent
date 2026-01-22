@@ -1,0 +1,37 @@
+exporters:
+    logging: {}
+    otlphttp/prod:
+        headers:
+            dd-api-key: "11111"
+    otlphttp/staging:
+        headers:
+            dd-api-key: staging-key
+processors:
+    resourcedetection/default:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: false
+                os.type:
+                    enabled: false
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        metrics:
+            processors: []
+        profiles:
+            exporters:
+                - otlphttp/prod
+                - otlphttp/staging
+                - logging
+            processors:
+                - resourcedetection/default
+            receivers:
+                - hostprofiler

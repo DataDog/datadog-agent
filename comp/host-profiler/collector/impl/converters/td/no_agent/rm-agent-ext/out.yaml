@@ -1,0 +1,43 @@
+exporters:
+    otlphttp:
+        endpoint: http://localhost:4318
+        headers:
+            dd-api-key: test-key
+extensions:
+    custom:
+        config: value
+    other:
+        config: value
+processors:
+    batch:
+        timeout: 10s
+    resourcedetection/default:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: false
+                os.type:
+                    enabled: false
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    extensions:
+        - custom
+        - other
+    pipelines:
+        metrics:
+            processors: []
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - batch
+                - resourcedetection/default
+            receivers:
+                - hostprofiler

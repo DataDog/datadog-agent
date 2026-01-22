@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // SpanConfig defines the configuration for generating spans.
@@ -85,7 +86,7 @@ func GenerateTrace(tc *TraceConfig, sc *SpanConfig) pb.Trace {
 		if span == root {
 			continue
 		}
-		span.TraceID = root.TraceID
+		traceutil.CopyTraceID(span, root)
 		span.ParentID = root.SpanID
 		span.Start = root.Start + rand.Int63n(root.Duration-span.Duration)
 	}

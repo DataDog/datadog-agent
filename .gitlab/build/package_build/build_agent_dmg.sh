@@ -124,7 +124,7 @@ echo Built packages using omnibus
 
 # --- Notarization ---
 if [ "$SIGN" = true ]; then
-    echo -e "\e[0Ksection_start:`date +%s`:notarization\r\e[0KDoing notarization"
+    printf "\033[0Ksection_start:%s:notarization\r\033[0KDoing notarization\n" "$(date +%s)"
     unset LATEST_DMG
 
     # Find latest .dmg file in $GOPATH/src/github.com/Datadog/datadog-agent/omnibus/pkg
@@ -173,7 +173,7 @@ if [ "$SIGN" = true ]; then
     }
     export -f check_notarization_status
     tools/ci/retry.sh -n "$NOTARIZATION_ATTEMPTS" check_notarization_status "$SUBMISSION_ID"
-    echo -e "\e[0Ksection_end:`date +%s`:notarization\r\e[0K"
+    printf "\033[0Ksection_end:%s:notarization\r\033[0K\n" "$(date +%s)"
 fi
 
 if [ "$SIGN" = true ]; then

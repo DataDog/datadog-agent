@@ -1,0 +1,11 @@
+exporters:
+  logging:
+    verbosity: detailed
+
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers: []
+      exporters:
+        - logging
