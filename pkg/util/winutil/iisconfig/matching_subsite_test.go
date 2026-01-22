@@ -48,4 +48,8 @@ func TestGetApplicationPath(t *testing.T) {
 	// Test: Matching is based on URL prefix, not substrings - /api/web2 in the middle of the path should not match the /api/web2 application
 	result = iisCfg.GetApplicationPath(2, "/app/TestSite/api/web2")
 	assert.Equal(t, "/", result)
+
+	// Test: "/api/web" should return "/" because it doesn't fully match "/api/web1" or "/api/web2"
+	result = iisCfg.GetApplicationPath(2, "/api/web")
+	assert.Equal(t, "/", result)
 }

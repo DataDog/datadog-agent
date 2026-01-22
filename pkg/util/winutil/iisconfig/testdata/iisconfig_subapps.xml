@@ -5,12 +5,13 @@
             <site name="TestSite" id="2">
                 <application path="/" applicationPool="TestPool1">
                     <virtualDirectory path="/" physicalPath="c:\testsite" />
-                </application>
-                <application path="/api" applicationPool="TestPool1">
-                    <virtualDirectory path="/" physicalPath="c:\testsite\api" />
+                    <virtualDirectory path="/api" physicalPath="c:\testsite\api" />
                 </application>
                 <application path="/api/web2" applicationPool="TestPool1">
                     <virtualDirectory path="/" physicalPath="c:\testsite\api\web2" />
+                </application>
+                <application path="/api/web1" applicationPool="TestPool1">
+                    <virtualDirectory path="/" physicalPath="c:\testsite\api\web1" />
                 </application>
                 <bindings>
                     <binding protocol="http" bindingInformation="*:8080:" />
@@ -19,3 +20,4 @@
         </sites>
     </system.applicationHost>
 </configuration>
+
