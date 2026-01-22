@@ -17,6 +17,8 @@ python_externals = {
     "tcltk": "8.6.15.0",
 }
 
+VERSION_STR="3.13"
+
 # These rules will make it easier to get a reference to their folder via $(location)
 # and they add the version in the folder name (as some of the vcxproj stuff relies on that)
 [
@@ -97,7 +99,7 @@ filegroup(
 UNIX_BINS = [
     "python3",
     "pip3",
-    "python3.13"
+    "python{}".format(VERSION_STR),
 ]
 
 python_deps = {
@@ -198,12 +200,14 @@ configure_make(
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     postfix_script = " && ".join([
-        "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python3.13/_sysconfigdata__*.py".format(
-            tool=tool
+        "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+            tool=tool,
+            version=VERSION_STR
         ) for tool in to_override_build_tools
     ]) + " && " +
-    " && ".join(["perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python3.13/_sysconfigdata__*.py".format(
-            flag=flag
+    " && ".join(["perl -i -pe \"s/\'{flag}\': \'.*\',$$/\'{flag}\': \'\',/g\" $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
+            flag=flag,
+            version=VERSION_STR
         ) for flag in to_override_flags
     ])
 )
@@ -240,7 +244,7 @@ copy_to_directory(
         "@platforms//os:linux": ["**/libpython3.*.so"],
         "//conditions:default": [],
     }) + [
-        "**/python3.13/test/**/*",
+        "**/python{}/test/**/*".format(VERSION_STR),
         "**/*.exe",
     ],
     include_external_repositories = ["*"],
@@ -250,8 +254,8 @@ copy_to_directory(
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
-    link_name = "lib/libpython3.13.so",
-    target = "libpython3.13.so.1.0",
+    link_name = "lib/libpython{}.so".format(VERSION_STR),
+    target = "libpython{}.so.1.0".format(VERSION_STR),
     attributes = pkg_attributes("0755")
 )
 
