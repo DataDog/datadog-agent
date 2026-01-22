@@ -742,6 +742,80 @@ func getEstablishedConnections(pid int, family string) (map[uint64]*establishedC
 	return connections, scanner.Err()
 }
 
+// dockerProxyTarget represents the target address of a docker-proxy instance.
+// Docker-proxy is used to forward traffic from host ports to container ports.
+type dockerProxyTarget struct {
+	containerIP   string
+	containerPort uint16
+	proxyIP       string // discovered from connections
+}
+
+// detectDockerProxy checks if a process is docker-proxy and extracts its target address.
+// Docker-proxy command line looks like:
+// /usr/bin/docker-proxy -proto tcp -host-ip 0.0.0.0 -host-port 32769 -container-ip 172.17.0.2 -container-port 6379
+func detectDockerProxy(pid int) *dockerProxyTarget {
+	cmdlinePath := kernel.HostProc(fmt.Sprintf("%d/cmdline", pid))
+	data, err := os.ReadFile(cmdlinePath)
+	if err != nil {
+		return nil
+	}
+
+	// cmdline is null-separated
+	args := strings.Split(string(data), "\x00")
+	if len(args) == 0 {
+		return nil
+	}
+
+	// Check if this is docker-proxy
+	if !strings.HasSuffix(args[0], "docker-proxy") {
+		return nil
+	}
+
+	target := &dockerProxyTarget{}
+	for i := 0; i < len(args)-1; i++ {
+		switch args[i] {
+		case "-container-ip":
+			target.containerIP = args[i+1]
+		case "-container-port":
+			port, err := strconv.ParseUint(args[i+1], 10, 16)
+			if err != nil {
+				return nil
+			}
+			target.containerPort = uint16(port)
+		}
+	}
+
+	if target.containerIP == "" || target.containerPort == 0 {
+		return nil
+	}
+
+	return target
+}
+
+// isDockerProxiedConnection checks if a connection is internal docker-proxy forwarding traffic.
+// Returns true if the connection should be filtered out.
+func isDockerProxiedConnection(conn *model.Connection, proxies map[string]*dockerProxyTarget) bool {
+	// Check if local address matches a proxy target
+	laddrKey := fmt.Sprintf("%s:%d", conn.Laddr.IP, conn.Laddr.Port)
+	if proxy, ok := proxies[laddrKey]; ok {
+		// If the other end is the proxy IP, this is internal proxy traffic
+		if proxy.proxyIP != "" && conn.Raddr.IP == proxy.proxyIP {
+			return true
+		}
+	}
+
+	// Check if remote address matches a proxy target
+	raddrKey := fmt.Sprintf("%s:%d", conn.Raddr.IP, conn.Raddr.Port)
+	if proxy, ok := proxies[raddrKey]; ok {
+		// If the other end is the proxy IP, this is internal proxy traffic
+		if proxy.proxyIP != "" && conn.Laddr.IP == proxy.proxyIP {
+			return true
+		}
+	}
+
+	return false
+}
+
 // getConnections collects all established TCP connections from all processes.
 func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 	s.mux.Lock()
@@ -774,10 +848,34 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 	}
 	seenConns := make(map[connKey]struct{})
 
+	// Track docker-proxy processes and their targets
+	// Key is "containerIP:containerPort"
+	dockerProxies := make(map[string]*dockerProxyTarget)
+	dockerProxyPIDs := make(map[int]struct{})
+
+	// First pass: detect docker-proxy processes
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry)
+		if err != nil {
+			continue
+		}
+		if target := detectDockerProxy(pid); target != nil {
+			key := fmt.Sprintf("%s:%d", target.containerIP, target.containerPort)
+			dockerProxies[key] = target
+			dockerProxyPIDs[pid] = struct{}{}
+			log.Debugf("detected docker-proxy pid=%d target=%s:%d", pid, target.containerIP, target.containerPort)
+		}
+	}
+
 	for _, entry := range entries {
 		pid, err := strconv.Atoi(entry)
 		if err != nil {
 			continue // not a PID directory
+		}
+
+		// Skip docker-proxy processes - we don't want their connections
+		if _, isProxy := dockerProxyPIDs[pid]; isProxy {
+			continue
 		}
 
 		// Get network namespace info (for listening ports)
@@ -859,6 +957,37 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 				})
 			}
 		}
+	}
+
+	// Discover proxy IPs from connections and filter proxied connections
+	if len(dockerProxies) > 0 {
+		// Discover proxy IPs: for each connection, if one end matches a proxy target,
+		// the other end is the proxy IP
+		for i := range connections {
+			conn := &connections[i]
+			laddrKey := fmt.Sprintf("%s:%d", conn.Laddr.IP, conn.Laddr.Port)
+			if proxy, ok := dockerProxies[laddrKey]; ok && proxy.proxyIP == "" {
+				proxy.proxyIP = conn.Raddr.IP
+				log.Debugf("discovered docker-proxy IP %s for target %s", proxy.proxyIP, laddrKey)
+			}
+			raddrKey := fmt.Sprintf("%s:%d", conn.Raddr.IP, conn.Raddr.Port)
+			if proxy, ok := dockerProxies[raddrKey]; ok && proxy.proxyIP == "" {
+				proxy.proxyIP = conn.Laddr.IP
+				log.Debugf("discovered docker-proxy IP %s for target %s", proxy.proxyIP, raddrKey)
+			}
+		}
+
+		// Filter out proxied connections
+		filtered := make([]model.Connection, 0, len(connections))
+		for _, conn := range connections {
+			if isDockerProxiedConnection(&conn, dockerProxies) {
+				log.Debugf("filtering docker-proxied connection %s:%d -> %s:%d",
+					conn.Laddr.IP, conn.Laddr.Port, conn.Raddr.IP, conn.Raddr.Port)
+				continue
+			}
+			filtered = append(filtered, conn)
+		}
+		connections = filtered
 	}
 
 	return &model.ConnectionsResponse{
