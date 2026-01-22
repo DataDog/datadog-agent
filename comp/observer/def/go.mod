@@ -1,26 +1,6 @@
-module github.com/DataDog/datadog-agent/pkg/util/log
+module github.com/DataDog/datadog-agent/comp/observer/def
 
 go 1.24.0
-
-replace github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435-d2c6e5aa9fbf // v2.6
-
-require (
-	github.com/DataDog/datadog-agent/pkg/template v0.64.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/stretchr/testify v1.11.1
-	go.uber.org/atomic v1.11.0
-	go.uber.org/zap v1.27.1
-	golang.org/x/time v0.14.0
-)
-
-require (
-	github.com/DataDog/datadog-agent/pkg/version v0.62.3 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
-)
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -67,7 +47,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../comp/netflow/payload
-	github.com/DataDog/datadog-agent/comp/observer/def => ../../../comp/observer/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../comp/otelcol/collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../../comp/otelcol/converter/def
@@ -175,6 +154,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../pkg/util/kubernetes/apiserver/common/namespace
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option
 	github.com/DataDog/datadog-agent/pkg/util/otel => ../../../pkg/util/otel
