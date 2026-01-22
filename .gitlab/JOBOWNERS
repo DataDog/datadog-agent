@@ -1,14 +1,15 @@
 *                                    @DataDog/agent-devx
 
 # CI / DevX
-test_and_lint_gitlab_configuration   @DataDog/agent-devx
-test_gitlab_compare_to               @DataDog/agent-devx
-invoke_unit_tests                    @DataDog/agent-devx
-skip-ci-check                        @DataDog/agent-devx
-slack_teams_channels_check           @DataDog/agent-devx
-lint*                                @DataDog/agent-devx
-notify*                              @DataDog/agent-devx
-check_modules_replace                @DataDog/agent-devx
+test_and_lint_gitlab_configuration       @DataDog/agent-devx
+test_gitlab_compare_to                   @DataDog/agent-devx
+invoke_unit_tests                        @DataDog/agent-devx
+skip-ci-check                            @DataDog/agent-devx
+slack_teams_channels_check               @DataDog/agent-devx
+lint*                                    @DataDog/agent-devx
+notify*                                  @DataDog/agent-devx
+check_modules_replace                    @DataDog/agent-devx
+validate_buildimages_branch_consistency  @DataDog/agent-devx
 
 # Deps build
 build_clang_*                        @DataDog/ebpf-platform
