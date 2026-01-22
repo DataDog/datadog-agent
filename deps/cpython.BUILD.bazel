@@ -276,7 +276,7 @@ pkg_files(
     renames = {
         "libs_unix_no_symlinks": REMOVE_BASE_DIRECTORY,
     },
-    attributes = pkg_attributes("0755")
+    attributes = pkg_attributes("0644")
 )
 
 pkg_files(
