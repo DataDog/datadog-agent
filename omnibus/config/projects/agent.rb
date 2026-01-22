@@ -282,10 +282,6 @@ end
 
 # all flavors use the same package scripts
 if linux_target?
-  if do_build && !do_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
-  end
   if do_package
     if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"

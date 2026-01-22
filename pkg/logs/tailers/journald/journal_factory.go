@@ -10,7 +10,7 @@ package journald
 import (
 	"time"
 
-	"github.com/coreos/go-systemd/sdjournal"
+	"github.com/coreos/go-systemd/v22/sdjournal"
 )
 
 // Journal interface to wrap the functions defined in sdjournal.
