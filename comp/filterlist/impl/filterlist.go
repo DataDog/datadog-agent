@@ -308,7 +308,7 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 	fl.updateMetricMtx.Unlock()
 
 	fl.updateMetricMtx.RLock()
-	defer fl.updateMetricMtx.Unlock()
+	defer fl.updateMetricMtx.RUnlock()
 
 	onUpdate(fl.filterList, fl.histoFilterList)
 }
