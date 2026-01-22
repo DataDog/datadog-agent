@@ -671,6 +671,60 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.collector.disable_windows_driver"))
 }
 
+func TestInfrastructureModeLegacyAliases(t *testing.T) {
+	// Test that legacy allowed_additional_checks is aliased to mode-specific
+	// key via applyInfrastructureModeOverrides
+	datadogYaml := `
+infrastructure_mode: basic
+allowed_additional_checks:
+  - prometheus
+  - redis
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	// Legacy allowed_additional_checks should be merged into integration.additional
+	additional := config.GetStringSlice("integration.additional")
+	assert.Contains(t, additional, "prometheus")
+	assert.Contains(t, additional, "redis")
+}
+
+func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: end_user_device
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+	filters := config.Get("network_path.collector.filters")
+	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+
+	filtersList, ok := filters.([]map[string]string)
+	require.True(t, ok, "filters should be a list of maps")
+	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+
+	// Check that the first filter is the deny-all rule
+	assert.Equal(t, "*", filtersList[0]["match_domain"])
+	assert.Equal(t, "exclude", filtersList[0]["type"])
+
+	// Check that some expected SaaS domains are present
+	var foundGoogle, foundSlack, foundGitHub bool
+	for _, filter := range filtersList {
+		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
+			foundGoogle = true
+		}
+		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
+			foundSlack = true
+		}
+		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
+			foundGitHub = true
+		}
+	}
+	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
+	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
+	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
+
+}
+
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
 	// If use_podman_logs is true and docker_path_override is set, the config should return an error
 	datadogYaml := `
@@ -1443,9 +1497,9 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("proxy.http")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown("proxy.https")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown("proxy.no_proxy") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetDefault("proxy.http", "")
+	cfg.SetDefault("proxy.https", "")
+	cfg.SetDefault("proxy.no_proxy", []string{})
 	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
 	cfg.BuildSchema()
 

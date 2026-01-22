@@ -10,7 +10,7 @@ package apiserver
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -31,10 +31,10 @@ func diagnose() error {
 	}
 	log.Infof("Detecting OpenShift APIs: %s available", c.DetectOpenShiftAPILevel())
 
-	resourcesNamespace := common.GetResourcesNamespace()
+	resourcesNamespace := namespace.GetResourcesNamespace()
 	printRBAC(c, resourcesNamespace)
 
-	myNamespace := common.GetMyNamespace()
+	myNamespace := namespace.GetMyNamespace()
 	if myNamespace != resourcesNamespace {
 		printRBAC(c, myNamespace)
 	}
