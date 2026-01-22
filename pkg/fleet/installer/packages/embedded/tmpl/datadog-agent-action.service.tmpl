@@ -13,7 +13,6 @@ Conflicts=datadog-agent.service datadog-agent-action.service
 
 [Service]
 Type=simple
-PIDFile={{.InstallDir}}/run/privateactionrunner.pid
 User=dd-agent
 Restart=on-failure
 EnvironmentFile=-{{.EtcDir}}/environment
@@ -21,7 +20,7 @@ Environment="DD_FLEET_POLICIES_DIR={{.FleetPoliciesDir}}"
 {{- if not .Stable}}
 Environment="DD_INVENTORIES_FIRST_RUN_DELAY=5"
 {{- end}}
-ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner run --cfgpath={{.EtcDir}}/datadog.yaml --pid={{.InstallDir}}/run/privateactionrunner.pid
+ExecStart={{.InstallDir}}/embedded/bin/privateactionrunner run --cfgpath={{.EtcDir}}/datadog.yaml
 StartLimitInterval=10
 StartLimitBurst=5
 {{- if .AmbiantCapabilitiesSupported}}
