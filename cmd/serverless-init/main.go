@@ -155,7 +155,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
-		SpanTags:   tags,
+		SpanTags:   traceTags,
 	}
 
 	// TODO check for errors and exit
