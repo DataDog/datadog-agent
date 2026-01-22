@@ -18,6 +18,9 @@ import json
 from pathlib import Path
 from typing import Dict, List, Any
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from openpyxl.drawing.image import Image
 
 
 def get_latest_run_dir(results_dir: Path) -> Path:
@@ -103,6 +106,90 @@ def create_summary_stats(df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
+def create_score_comparison_chart(summary_sheet, results: List[Dict[str, Any]], output_file: Path):
+    """Create a grouped bar chart as PNG and embed it in the summary sheet"""
+    if not results:
+        print("No results to create chart")
+        return
+
+    # Flatten results and create dataframe
+    flattened_results = [flatten_result(r) for r in results]
+    df = pd.DataFrame(flattened_results)
+
+    # Filter to completed results only
+    df = df[df['status'] == 'completed'].copy()
+
+    if df.empty:
+        print("No completed results to chart")
+        return
+
+    # Pivot data: scenarios as rows, modes as columns, scores as values
+    pivot = df.pivot(index='scenario', columns='mode', values='overall_score')
+
+    # Sort scenarios alphabetically
+    pivot = pivot.sort_index()
+
+    # Get modes in consistent order
+    mode_order = ['bash', 'safe-shell', 'tools']
+    available_modes = [m for m in mode_order if m in pivot.columns]
+    pivot = pivot[available_modes]
+
+    # Create figure and axis
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Set up bar positions
+    scenarios = pivot.index.tolist()
+    x = np.arange(len(scenarios))
+    width = 0.25
+
+    # Colors for each mode
+    colors = {
+        'bash': '#1f77b4',         # Blue
+        'safe-shell': '#ff7f0e',   # Orange
+        'tools': '#2ca02c'         # Green
+    }
+
+    # Create bars for each mode
+    for i, mode in enumerate(available_modes):
+        offset = width * (i - len(available_modes)/2 + 0.5)
+        scores = pivot[mode].values
+        bars = ax.bar(x + offset, scores, width,
+                     label=mode, color=colors.get(mode, '#333333'),
+                     edgecolor='black', linewidth=0.5)
+
+    # Customize chart
+    ax.set_xlabel('Scenario', fontsize=14, fontweight='bold')
+    ax.set_ylabel('Score (0-100)', fontsize=14, fontweight='bold')
+    ax.set_title('Diagnostic Score Comparison Across Modes and Scenarios',
+                fontsize=16, fontweight='bold', pad=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels(scenarios, rotation=45, ha='right', fontsize=10)
+    ax.set_ylim(0, 105)
+    ax.set_yticks(range(0, 101, 10))
+    ax.legend(title='Mode', loc='upper left', bbox_to_anchor=(1.02, 1), fontsize=12)
+    ax.grid(axis='y', alpha=0.3, linestyle='--')
+
+    # Tight layout to prevent label cutoff
+    plt.tight_layout()
+
+    # Save figure as PNG
+    chart_file = output_file.parent / "score_comparison.png"
+    plt.savefig(chart_file, dpi=100, bbox_inches='tight')
+    plt.close()
+
+    print(f"Score comparison chart saved to {chart_file}")
+
+    # Embed image in Excel sheet
+    img = Image(str(chart_file))
+    # Scale the image to 75% of original size
+    img.width = img.width * 0.75
+    img.height = img.height * 0.75
+    # Position below the summary table
+    summary_sheet.add_image(img, 'A10')
+
+    print("Embedded chart in Summary sheet")
+
+
 def write_excel(results: List[Dict[str, Any]], output_file: Path):
     """Write results to Excel workbook with multiple sheets"""
     if not results:
@@ -167,6 +254,10 @@ def write_excel(results: List[Dict[str, Any]], output_file: Path):
                     cell = summary_sheet[f'{col_letter}{row}']
                     cell.number_format = '$#,##0.00'
 
+        # Add score comparison chart to summary sheet
+        print("Creating Score Comparison chart...")
+        create_score_comparison_chart(summary_sheet, results, output_file)
+
     print(f"\nConsolidated {len(flattened_results)} results to {output_file}")
 
     # Print summary to console
@@ -209,7 +300,7 @@ def main():
         print(f"No evaluation results found in {run_dir}")
         return 1
 
-    # Write Excel
+    # Write Excel (includes score comparison chart)
     write_excel(results, output_file)
 
     print(f"\nTo use in Google Sheets:")
