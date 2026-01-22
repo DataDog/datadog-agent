@@ -358,11 +358,6 @@ func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
 
 // LoadPolicies loads the policies
 func (e *RuleEngine) LoadPolicies() error {
-	return e.LoadPoliciesFromProviders(e.policyProviders)
-}
-
-// LoadPoliciesFromProviders loads the policies
-func (e *RuleEngine) LoadPoliciesFromProviders(providers []rules.PolicyProvider) error {
 	start := time.Now()
 
 	e.Lock()
@@ -371,7 +366,7 @@ func (e *RuleEngine) LoadPoliciesFromProviders(providers []rules.PolicyProvider)
 	e.reloading.Store(true)
 	defer e.reloading.Store(false)
 
-	e.policyLoader.SetProviders(providers)
+	e.policyLoader.SetProviders(e.policyProviders)
 
 	rs := e.probe.NewRuleSet(e.getEventTypeEnabled(), e.config.PolicyLoadRate)
 
