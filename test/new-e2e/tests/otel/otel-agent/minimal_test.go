@@ -51,6 +51,8 @@ agents:
   containers:
     otelAgent:
       env:
+        - name: DD_LOGS_ENABLED
+          value: 'true'
         - name: DD_APM_FEATURES
           value: 'disable_operation_and_resource_name_logic_v2'
 `
