@@ -74,6 +74,7 @@ validate_experiment_systemd_units:
 
 validate_buildimages_branch_consistency:
   extends: .lint
-  rules: !reference [.on_gitlab_ci_changes]
+  rules:
+    - !reference [.on_gitlab_ci_changes]
   script:
     - dda inv -- -e linter.buildimages-branch-consistency
