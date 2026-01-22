@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/viper"
 	yaml "gopkg.in/yaml.v2"
 
 	"google.golang.org/grpc"
@@ -37,6 +36,8 @@ import (
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	utiltest "github.com/DataDog/datadog-agent/pkg/util/testutil"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -299,8 +300,9 @@ func (s *agentRunner) runAgentConfig(path string) <-chan error {
 // createConfigFile creates a config file from the given config, altering the
 // apm_config.apm_dd_url and log_level values and returns the full path.
 func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
-	v := viper.New()
+	v := nodetreemodel.NewNodeTreeConfig("trace-agent-test", "", nil)
 	v.SetConfigType("yaml")
+	v.BuildSchema()
 	if err := v.ReadConfig(bytes.NewReader(conf)); err != nil {
 		return "", err
 	}
@@ -313,23 +315,23 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 		} else {
 			s.port = p
 		}
-		v.Set("apm_config.receiver_port", s.port)
+		v.Set("apm_config.receiver_port", s.port, model.SourceAgentRuntime)
 	}
-	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr)
+	v.Set("apm_config.apm_dd_url", "http://"+s.ddAddr, model.SourceAgentRuntime)
 	if !v.IsSet("api_key") {
-		v.Set("api_key", "testing123")
+		v.Set("api_key", "testing123", model.SourceAgentRuntime)
 	}
 	if !v.IsSet("apm_config.trace_writer.flush_period_seconds") {
-		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1)
+		v.Set("apm_config.trace_writer.flush_period_seconds", 0.1, model.SourceAgentRuntime)
 	}
 	if !v.IsSet("log_level") {
-		v.Set("log_level", "debug")
+		v.Set("log_level", "debug", model.SourceAgentRuntime)
 	}
 	if !v.IsSet("apm_config.enable_v1_trace_endpoint") {
-		v.Set("apm_config.enable_v1_trace_endpoint", true)
+		v.Set("apm_config.enable_v1_trace_endpoint", true, model.SourceAgentRuntime)
 	}
 
-	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port)
+	v.Set("cmd_port", s.agentServerListerner.Addr().(*net.TCPAddr).Port, model.SourceAgentRuntime)
 
 	out, err := yaml.Marshal(v.AllSettings())
 	if err != nil {
