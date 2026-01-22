@@ -3,33 +3,29 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && functionaltests
+//go:build linux
 
-// Package tests holds tests related files
-package tests
+package filtermodel
 
 import (
 	"fmt"
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/filtermodel"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
 func TestSECLRuleFilter(t *testing.T) {
-	SkipIfNotAvailable(t)
-
 	kv := &kernel.Version{
 		OsRelease:    map[string]string{},
 		UnameRelease: "5.9.0-48-generic",
 		Code:         kernel.Kernel5_9,
 	}
 
-	m := filtermodel.NewRuleFilterModelWithKernelVersion(filtermodel.RuleFilterEventConfig{}, kv)
+	m := NewRuleFilterModelWithKernelVersion(RuleFilterEventConfig{}, kv)
 	seclRuleFilter := rules.NewSECLRuleFilter(m)
 
 	t.Run("true", func(t *testing.T) {

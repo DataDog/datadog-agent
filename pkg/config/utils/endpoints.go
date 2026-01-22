@@ -202,7 +202,7 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
-	site = strings.TrimSpace(site)
+	site = strings.TrimSpace(strings.ToLower(site))
 	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}

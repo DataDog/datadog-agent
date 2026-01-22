@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    Windows: Add a new flare artifact `agent_loaded_modules.json` listing loaded DLLs with metadata
+    (full path, timestamp, size, perms) and version info (CompanyName, ProductName, OriginalFilename,
+    FileVersion, ProductVersion, InternalName). Keeps `<flavor>_open_files.txt` for compatibility.
+
+
