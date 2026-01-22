@@ -1,4 +1,3 @@
-import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -77,6 +76,8 @@ def create_ecs(
 
 
 def _show_connection_message(ctx: Context, config_path: str | None, full_stack_name: str):
+    import pyperclip
+
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     cluster_name = outputs["dd-Cluster-ecs"]["clusterName"]
 

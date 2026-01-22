@@ -6,7 +6,6 @@ import platform
 from io import StringIO
 from typing import Any
 
-import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
 from termcolor import colored
@@ -260,6 +259,8 @@ def show_connection_message(
 
     print(f"\nYou can run the following command to connect to the host `{command}`.\n")
     if copy_to_clipboard:
+        import pyperclip
+
         input("Press a key to copy command to clipboard...")
         pyperclip.copy(command)
 

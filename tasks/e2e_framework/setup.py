@@ -7,7 +7,6 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
-import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 from invoke.tasks import task
@@ -80,6 +79,8 @@ def setup(
         debug_env(ctx, config_path=config_path)
 
     if interactive:
+        import pyperclip
+
         cat_profile_command = f"cat {get_full_profile_path(config_path)}"
         pyperclip.copy(cat_profile_command)
         print(

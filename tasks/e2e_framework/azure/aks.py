@@ -1,6 +1,5 @@
 import os
 
-import pyperclip
 import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -103,5 +102,7 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
 
     print(f"\nYou can run the following command to connect to the AKS cluster\n\n{command}\n")
     if copy_to_clipboard:
+        import pyperclip
+
         input("Press a key to copy command to clipboard...")
         pyperclip.copy(command)

@@ -1,6 +1,5 @@
 import json
 
-import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -341,6 +340,8 @@ def rdp_vm(
         raise Exit("No VM found in the stack.")
 
     for vm_id, vm in out.items():
+        import pyperclip
+
         if "address" not in vm:
             continue
         vm_ip = vm["address"]
@@ -348,4 +349,5 @@ def rdp_vm(
         tool.rdp(ctx, vm_ip)
         print(f"Password for VM {vm_id} ({vm_ip}): {password}")
         print("Username is Administrator, password has been copied to clipboard")
+
         pyperclip.copy(password)

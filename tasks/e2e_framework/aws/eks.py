@@ -1,7 +1,6 @@
 import json
 import os
 
-import pyperclip
 import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -116,6 +115,8 @@ def create_eks(
 
 
 def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None):
+    import pyperclip
+
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])
     kubeconfig_content = yaml.dump(kubeconfig_output)

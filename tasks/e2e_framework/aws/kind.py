@@ -1,4 +1,3 @@
-import pyperclip
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
@@ -96,6 +95,8 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
     print(f"If you want to connect to the remote host, you can run the following command \n\n{command}")
 
     if copy_to_clipboard:
+        import pyperclip
+
         input("Press a key to copy command to clipboard...")
         pyperclip.copy(command)
 
