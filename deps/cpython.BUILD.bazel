@@ -241,6 +241,8 @@ copy_to_directory(
         "//conditions:default": [],
     }) + [
         "**/*.pyc",
+        "**/python3.13/test/**/*",
+        "**/*.exe",
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],

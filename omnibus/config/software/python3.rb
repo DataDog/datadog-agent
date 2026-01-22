@@ -29,24 +29,6 @@ build do
       " #{install_dir}/embedded/lib/#{sh_lib}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
       " #{install_dir}/embedded/bin/python3*"
-
-    # There exists no configure flag to tell Python to not compile readline support :(
-    major, minor, bugfix = version.split(".")
-
-    # Don't forward CC and CXX to python extensions Makefile, it's quite unlikely that any non default
-    # compiler we use would end up being available in the system/docker image used by customers
-    if linux_target? && env["CC"]
-      command "sed -i \"s/^CC=[[:space:]]*${CC}/CC=gcc/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
-      command "sed -i \"s/${CC}/gcc/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
-    end
-    if linux_target? && env["CXX"]
-      command "sed -i \"s/^CXX=[[:space:]]*${CXX}/CC=g++/\" #{install_dir}/embedded/lib/python#{major}.#{minor}/config-#{major}.#{minor}-*-linux-gnu/Makefile", :env => env
-      command "sed -i \"s/${CXX}/g++/g\" #{install_dir}/embedded/lib/python#{major}.#{minor}/_sysconfigdata__linux_*-linux-gnu.py", :env => env
-    end
-    delete "#{install_dir}/embedded/lib/python#{major}.#{minor}/test"
-    block do
-      FileUtils.rm_f(Dir.glob("#{install_dir}/embedded/lib/python#{major}.#{minor}/distutils/command/wininst-*.exe"))
-    end
   elsif fips_mode?
     ###############################
     # Setup openssl dependency... #
