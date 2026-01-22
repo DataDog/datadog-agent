@@ -137,7 +137,6 @@ configure_make(
         "CPPFLAGS='-Dredacted=\\\"redacted\\\"'",
         "--with-openssl=$$EXT_BUILD_DEPS/openssl",
         "--with-openssl-rpath=yes",
-        "--enable-optimizations",
     ] + select({
         "@@//:macos_arm64": ["--with-universal-archs=universal2"],
         "@@//:macos_x86_64": ["--with-universal-archs=intel"],
