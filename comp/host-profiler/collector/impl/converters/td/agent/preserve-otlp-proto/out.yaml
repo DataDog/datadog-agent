@@ -1,0 +1,24 @@
+exporters:
+    otlphttp:
+        headers:
+            dd-api-key: test-api-key
+processors:
+    infraattributes/default:
+        allow_hostname_override: true
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+    otlp:
+        protocols:
+            grpc:
+                endpoint: 0.0.0.0:4317
+service:
+    pipelines:
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - infraattributes/default
+            receivers:
+                - hostprofiler

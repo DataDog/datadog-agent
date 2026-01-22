@@ -71,6 +71,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.0.0-00010101000000-000000000000 // indirect
 	github.com/alecthomas/repr v0.5.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.70.1 // indirect
@@ -104,7 +105,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4 v4.3.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.5.1 // indirect
-	github.com/DataDog/agent-payload/v5 v5.0.178 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel // indirect
@@ -289,7 +290,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
@@ -678,6 +678,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../../pkg/util/option

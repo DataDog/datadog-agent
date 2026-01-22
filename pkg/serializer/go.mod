@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/serializer
 go 1.24.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.178
+	github.com/DataDog/agent-payload/v5 v5.0.179
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
@@ -93,7 +93,6 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
@@ -291,6 +290,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option

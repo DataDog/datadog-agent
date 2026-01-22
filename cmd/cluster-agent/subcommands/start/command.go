@@ -60,6 +60,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -159,6 +160,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				hostnameimpl.Module(),
 				secretsfx.Module(),
 				forwarder.Bundle(defaultforwarder.NewParams(defaultforwarder.WithResolvers(), defaultforwarder.WithDisableAPIKeyChecking())),
+				filterlistfx.Module(),
 				demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams()),
 				orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
 				eventplatformimpl.Module(eventplatformimpl.NewDisabledParams()),
@@ -521,7 +523,7 @@ func start(log log.Component,
 		go func() {
 			defer wg.Done()
 
-			if err := runCompliance(mainCtx, demultiplexer, wmeta, apiCl, compression, ipc, le.IsLeader); err != nil {
+			if err := runCompliance(mainCtx, demultiplexer, wmeta, filterStore, apiCl, compression, ipc, le.IsLeader); err != nil {
 				pkglog.Errorf("Error while running compliance agent: %v", err)
 			}
 		}()

@@ -6,7 +6,6 @@ retract v0.46.0-devel
 
 require (
 	github.com/golang/mock v1.7.0-rc.1
-	github.com/golang/protobuf v1.5.4
 	github.com/google/gofuzz v1.2.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.11.1
@@ -18,6 +17,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -187,6 +187,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option

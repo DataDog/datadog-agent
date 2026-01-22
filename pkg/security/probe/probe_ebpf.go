@@ -189,7 +189,7 @@ type EBPFProbe struct {
 	rawPacketActionFilters []rawpacket.Filter
 
 	// remediation tracking
-	activeRemediations     map[string]*remediationAction
+	activeRemediations     map[string]*Remediation
 	activeRemediationsLock sync.RWMutex
 
 	// PrCtl and name truncation
@@ -861,7 +861,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		p.putBackPoolEvent(event)
 	}
 	// send not triggered remediations
-	p.handleRemediationNotTriggered()
+	p.HandleRemediationNotTriggered()
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -2540,7 +2540,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
 
-	p.handleRemediationStatus(rs)
+	p.HandleRemediationStatus(rs)
 }
 
 // NewEvent returns a new event
@@ -2922,7 +2922,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		ipc:                  ipc,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
-		activeRemediations:   make(map[string]*remediationAction),
+		activeRemediations:   make(map[string]*Remediation),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3413,8 +3413,8 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
+				p.HandleKillRemediation(rule, ev)
 			}
-			p.handleKillRemediaitonAction(rule, ev)
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
@@ -3453,7 +3453,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
 					reportStatus = RawPacketActionStatusError
 				} else {
-					reportStatus = RawPacketActionStatusApplied
+					reportStatus = RawPacketActionStatusPerformed
 				}
 			}
 
@@ -3468,7 +3468,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.handleNetworkRemediaitonAction(rule, ev, policy, string(reportStatus))
+			p.HandleNetworkRemediation(rule, ev, report)
 		}
 	}
 }
