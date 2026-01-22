@@ -1,10 +1,12 @@
 # Dockerfile for testing Node.js with apt-installed nodejs (uses libnode.so)
-# This reproduces the Ubuntu/Debian package manager installation where SSL symbols
-# are in libnode.so rather than statically linked in the node binary.
+# This reproduces the Ubuntu package manager installation where SSL symbols
+# are bundled in libnode.so rather than imported from system libssl.so.
+#
+# Ubuntu 22.04 with nodejs package has SSL symbols defined in libnode.so.72
 
-FROM debian:bookworm
+FROM ubuntu:22.04
 
-# Install nodejs from Debian packages (uses libnode.so for SSL)
+# Install nodejs from Ubuntu packages (SSL bundled in libnode.so)
 RUN apt-get update && \
     apt-get install -y nodejs && \
     apt-get clean && \

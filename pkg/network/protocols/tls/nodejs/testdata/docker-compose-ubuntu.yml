@@ -1,5 +1,5 @@
 version: '3'
-name: node-debian
+name: node-ubuntu
 services:
   node:
     build:

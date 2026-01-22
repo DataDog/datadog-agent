@@ -1100,9 +1100,9 @@ func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
 	cert, key, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 
-	// Use apt-get installed Node.js (Debian package) where SSL symbols are in libnode.so
-	require.NoError(t, nodejs.RunServerNodeJSDebian(t, key, cert, serverPort))
-	nodeJSPID, err := nodejs.GetNodeJSDebianDockerPID()
+	// Use apt-get installed Node.js (Ubuntu package) where SSL symbols are bundled in libnode.so
+	require.NoError(t, nodejs.RunServerNodeJSUbuntu(t, key, cert, serverPort))
+	nodeJSPID, err := nodejs.GetNodeJSUbuntuDockerPID()
 	require.NoError(t, err)
 
 	cfg := utils.NewUSMEmptyConfig()
@@ -1111,7 +1111,7 @@ func (s *tlsSuite) TestNodeJSTLSWithLibnode() {
 
 	usmMonitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 
-	t.Log("Testing Node.js TLS monitoring with apt-get installed Node.js (SSL symbols in libnode.so)")
+	t.Log("Testing Node.js TLS monitoring with Ubuntu apt-installed Node.js (SSL symbols bundled in libnode.so)")
 
 	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, nodeJsAttacherName, int(nodeJSPID), utils.ManualTracingFallbackEnabled)
 

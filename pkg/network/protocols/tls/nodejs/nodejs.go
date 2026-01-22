@@ -84,9 +84,9 @@ func GetNodeJSDockerPID() (int64, error) {
 	return dockerutils.GetMainPID("node-node-1")
 }
 
-// RunServerNodeJSDebian launches an HTTPs server written in NodeJS using the Debian-based image.
-// This uses libnode.so for SSL symbols instead of having them statically linked in the binary.
-func RunServerNodeJSDebian(t *testing.T, key, cert, serverPort string) error {
+// RunServerNodeJSUbuntu launches an HTTPs server written in NodeJS using the Ubuntu-based image.
+// Ubuntu 22.04's nodejs package has SSL symbols bundled in libnode.so (not imported from libssl.so).
+func RunServerNodeJSUbuntu(t *testing.T, key, cert, serverPort string) error {
 	t.Helper()
 	dir, _ := testutil.CurDir()
 	if err := linkFile(t, key, dir+"/testdata/certs/srv.key"); err != nil {
@@ -107,15 +107,15 @@ func RunServerNodeJSDebian(t *testing.T, key, cert, serverPort string) error {
 
 	dockerCfg := dockerutils.NewComposeConfig(
 		dockerutils.NewBaseConfig(
-			"nodejs-debian-server",
+			"nodejs-ubuntu-server",
 			scanner,
 			dockerutils.WithEnv(env),
 		),
-		path.Join(dir, "testdata", "docker-compose-debian.yml"))
+		path.Join(dir, "testdata", "docker-compose-ubuntu.yml"))
 	return dockerutils.Run(t, dockerCfg)
 }
 
-// GetNodeJSDebianDockerPID returns the PID of the nodejs Debian docker container.
-func GetNodeJSDebianDockerPID() (int64, error) {
-	return dockerutils.GetMainPID("node-debian-node-1")
+// GetNodeJSUbuntuDockerPID returns the PID of the nodejs Ubuntu docker container.
+func GetNodeJSUbuntuDockerPID() (int64, error) {
+	return dockerutils.GetMainPID("node-ubuntu-node-1")
 }
