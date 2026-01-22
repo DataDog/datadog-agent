@@ -241,11 +241,23 @@ copy_to_directory(
         "//conditions:default": [],
     }) + [
         "**/*.pyc",
+        "**/*.pyo",
         "**/python3.13/test/**/*",
         "**/*.exe",
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],
+)
+
+# The prerm script of the package should use this list to remove the pyc/pyo files
+genrule(
+    name = "py_compiled_files",
+    srcs = [":libs_unix"],
+    cmd = """
+    echo '# DO NOT REMOVE/MODIFY - used by package removal tasks' > $@
+    find $(locations :libs_unix) '(' -name '*.pyc' -o -name '*.pyo' ')' -print | sed 's|$(locations :libs_unix)|##PREFIX##/lib|g' >> $@
+    """,
+    outs = [".py_compiled_files.txt"]
 )
 
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
@@ -292,6 +304,14 @@ pkg_files(
     attributes = pkg_attributes("0755")
 )
 
+pkg_files(
+    name = "install_misc_files",
+    srcs = [
+        ":py_compiled_files",
+    ],
+    attributes = pkg_attributes("0755")
+)
+
 pkg_install(
     name = "install",
     srcs = select({
@@ -303,6 +323,7 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
+            ":install_misc_files",
         ],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
