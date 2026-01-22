@@ -29,6 +29,12 @@ func baseDeviceName(device string) string {
 	return strings.ToLower(strings.Trim(device, "\\"))
 }
 
+// normalizeDeviceTag returns the device name for use in the device: tag.
+// On Windows, strips backslashes and lowercases (legacy behavior for C:\\ -> c:).
+func normalizeDeviceTag(deviceName string) string {
+	return strings.ToLower(strings.Trim(deviceName, "\\"))
+}
+
 func (c *Check) fetchAllDeviceLabelsFromLsblk() error {
 	return nil
 }

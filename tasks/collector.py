@@ -28,7 +28,7 @@ LICENSE_HEADER = """// Unless explicitly stated otherwise all files in this repo
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 """
-OCB_VERSION = "0.140.0"
+OCB_VERSION = "0.143.0"
 
 MANDATORY_COMPONENTS = {
     "extensions": [
@@ -53,17 +53,20 @@ COMPONENTS_TO_STRIP = {
     ],
 }
 
-BASE_URL = f"https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv{OCB_VERSION}/"
+# TODO(songy23): OCB is not released in v0.143.0, revert this in the next release
+BASE_URL = (
+    "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/cmd%2Fbuilder%2Fv0.142.0/"
+)
 
 BINARY_NAMES_BY_SYSTEM_AND_ARCH = {
     "Linux": {
-        "x86_64": f"ocb_{OCB_VERSION}_linux_amd64",
-        "arm64": f"ocb_{OCB_VERSION}_linux_arm64",
-        "aarch64": f"ocb_{OCB_VERSION}_linux_arm64",
+        "x86_64": "ocb_0.142.0_linux_amd64",
+        "arm64": "ocb_0.142.0_linux_arm64",
+        "aarch64": "ocb_0.142.0_linux_arm64",
     },
     "Darwin": {
-        "x86_64": f"ocb_{OCB_VERSION}_darwin_amd64",
-        "arm64": f"ocb_{OCB_VERSION}_darwin_arm64",
+        "x86_64": "ocb_0.142.0_darwin_amd64",
+        "arm64": "ocb_0.142.0_darwin_arm64",
     },
 }
 

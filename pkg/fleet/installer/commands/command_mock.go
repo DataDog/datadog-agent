@@ -100,7 +100,7 @@ func (m *installerMock) PromoteExperiment(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations) error {
+func (m *installerMock) InstallConfigExperiment(_ context.Context, _ string, _ config.Operations, _ map[string]string) error {
 	return nil
 }
 

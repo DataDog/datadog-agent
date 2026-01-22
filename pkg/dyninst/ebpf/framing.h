@@ -16,7 +16,10 @@ typedef enum event_pairing_expectation {
   EVENT_PAIRING_RETURN_PAIRING_EXPECTED = 2,
   EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED = 3,
   EVENT_PAIRING_EXPECTATION_CALL_MAP_FULL = 4,
-} return_call_ommitted_reason_t;
+  EVENT_PAIRING_EXPECTATION_BUFFER_FULL = 5, // only used in userspace
+  EVENT_PAIRING_EXPECTATION_NONE_INLINED = 6,
+  EVENT_PAIRING_EXPECTATION_NONE_NO_BODY = 7,
+} event_pairing_expectation_t;
 
 // The message header used for the event program.
 typedef struct di_event_header {

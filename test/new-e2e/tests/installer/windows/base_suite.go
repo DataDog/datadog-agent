@@ -386,11 +386,16 @@ func (s *BaseSuite) collectAgentLogs() {
 		return
 	}
 	for _, entry := range entries {
-		s.T().Logf("Found log file: %s", entry.Name())
-		err = host.GetFile(
-			filepath.Join(logsFolder, entry.Name()),
-			filepath.Join(s.SessionOutputDir(), entry.Name()),
-		)
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = host.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = host.GetFile(sourcePath, destPath)
+		}
 		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }
@@ -639,7 +644,7 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 		HasARunningDatadogAgentService()
 }
 
-// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
+// WaitForDaemonToStop waits for the daemon service PID or start time to change after the function is called.
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
 
@@ -652,6 +657,9 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
 
+	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
+	s.Require().NoError(err)
+
 	s.startxperf()
 	defer s.collectxperf()
 
@@ -662,10 +670,20 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 		if err != nil {
 			return err
 		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
+		if newPID != originalPID {
+			// PID changed, the daemon has restarted
+			return nil
 		}
-		return nil
+		// PID is the same, check if start time changed (in case of PID reuse)
+		newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
+		if err != nil {
+			return err
+		}
+		if newStartTime != originalStartTime {
+			// Start time changed, the daemon has restarted with the same PID
+			return nil
+		}
+		return fmt.Errorf("daemon PID %d with start time %d is still running", newPID, newStartTime)
 	}, b)
 	s.Require().NoError(err)
 }

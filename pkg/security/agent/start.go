@@ -48,12 +48,23 @@ func StartRuntimeSecurity(log log.Component, config config.Component, hostname s
 	}
 	stopper.Add(ctx)
 
-	reporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
+	runtimeReporter, err := reporter.NewCWSReporter(hostname, stopper, endpoints, ctx, compression)
 	if err != nil {
 		return nil, err
 	}
 
-	agent.Start(reporter, endpoints)
+	secInfoEndpoints, secInfoCtx, err := common.NewLogContextSecInfo()
+	if err != nil {
+		_ = log.Error(err)
+	}
+	stopper.Add(secInfoCtx)
+
+	secInfoReporter, err := reporter.NewCWSReporter(hostname, stopper, secInfoEndpoints, secInfoCtx, compression)
+	if err != nil {
+		return nil, err
+	}
+
+	agent.Start(runtimeReporter, endpoints, secInfoReporter, secInfoEndpoints)
 
 	log.Info("Datadog runtime security agent is now running")
 

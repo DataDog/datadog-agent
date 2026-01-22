@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,6 +28,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/validators"
 )
+
+var (
+	arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
+)
+
+// parseArrayFieldAccess parses a field like "open.file.hashes[0]" and returns the base field and index
+func parseArrayFieldAccess(field string) (baseField string, index int, isArray bool) {
+	matches := arrayIndexRE.FindStringSubmatch(field)
+	if len(matches) == 3 {
+		baseField = matches[1]
+		index, _ = strconv.Atoi(matches[2])
+		return baseField, index, true
+	}
+	return field, 0, false
+}
 
 // Rule presents a rule in a ruleset
 type Rule struct {
@@ -433,10 +449,22 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 					}
 
 					if actionDef.Set.Field != "" {
-						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+						// Check if this is an array access like "field[index]"
+						baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+						fieldToValidate := actionDef.Set.Field
+						if isArrayAccess {
+							fieldToValidate = baseField
+						}
+
+						_, kind, _, fieldIsArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 						if err != nil {
-							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+							errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 							continue
+						}
+
+						// If accessing array by index, the field is not an array from the variable's perspective
+						if isArrayAccess {
+							fieldIsArray = false
 						}
 
 						var valueIsArray bool
@@ -456,10 +484,32 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 						}
 					}
 				} else if actionDef.Set.Field != "" {
-					_, kind, goType, _, err := rs.eventCtor().GetFieldMetadata(actionDef.Set.Field)
+					// Check if this is an array access like "field[index]"
+					baseField, _, isArrayAccess := parseArrayFieldAccess(actionDef.Set.Field)
+					fieldToValidate := actionDef.Set.Field
+					if isArrayAccess {
+						fieldToValidate = baseField
+					}
+
+					_, kind, goType, isArray, err := rs.eventCtor().GetFieldMetadata(fieldToValidate)
 					if err != nil {
-						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", actionDef.Set.Field, err))
+						errs = multierror.Append(errs, fmt.Errorf("failed to get field '%s': %w", fieldToValidate, err))
 						continue
+					}
+
+					// If accessing array by index, validate that the base field is actually an array
+					if isArrayAccess {
+						if !isArray {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is not an array, cannot use index access", baseField))
+							continue
+						}
+						// When accessing by index, we treat it as a scalar value (no further validation needed)
+					} else {
+						// Check if the field is an array and append is not set
+						if isArray && !actionDef.Set.Append {
+							errs = multierror.Append(errs, fmt.Errorf("field '%s' is an array and can only be used with 'append: yes' in set action for variable '%s'", actionDef.Set.Field, actionDef.Set.Name))
+							continue
+						}
 					}
 
 					switch kind {
@@ -624,6 +674,11 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 	}
 
+	// call an extra layer of validation
+	if err := evalRule.Model.ValidateRule(evalRule); err != nil {
+		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrRuleSyntax{Err: err}}
+	}
+
 	eventType, err := GetRuleEventType(rule.Rule)
 	if err != nil {
 		return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
@@ -674,9 +729,18 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				fieldEventType, _, _, _, err := ev.GetFieldMetadata(field)
+				// Check if this is an array access like "field[index]"
+				baseField, _, isArrayAccess := parseArrayFieldAccess(field)
+
+				// Validate using the base field if this is an array access
+				fieldToValidate := field
+				if isArrayAccess {
+					fieldToValidate = baseField
+				}
+
+				fieldEventType, _, _, _, err := ev.GetFieldMetadata(fieldToValidate)
 				if err != nil {
-					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", field, err)
+					return model.UnknownCategory, fmt.Errorf("failed to get event type for field '%s': %w", fieldToValidate, err)
 				}
 				if fieldEventType != "" && fieldEventType != ruleEventType {
 					return model.UnknownCategory, fmt.Errorf("field '%s' with event type `%s` is not compatible with '%s' rules", field, fieldEventType, ruleEventType)
@@ -691,6 +755,7 @@ func (rs *RuleSet) innerAddExpandedRule(parsingContext *ast.ParsingContext, pRul
 				}
 
 				if _, found := rs.fieldEvaluators[field]; !found {
+					// GetEvaluator now handles array index access automatically
 					evaluator, err := rs.model.GetEvaluator(mappedField, "", 0)
 					if err != nil {
 						return model.UnknownCategory, err

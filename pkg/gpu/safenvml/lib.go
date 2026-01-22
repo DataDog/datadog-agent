@@ -50,6 +50,7 @@ func getNonCriticalAPIs() []string {
 		"nvmlGpmMetricsGet",
 		"nvmlGpmQueryDeviceSupport",
 		"nvmlGpmSampleGet",
+		"nvmlGpmMigSampleGet",
 		"nvmlEventSetCreate",
 		"nvmlEventSetFree",
 		"nvmlEventSetWait_v1",
@@ -65,6 +66,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetFanSpeed"),
 		toNativeName("GetFieldValues"),
 		toNativeName("GetGpuInstanceId"),
+		toNativeName("GetGpuInstanceProfileInfo"),
 		toNativeName("GetMaxClockInfo"),
 		toNativeName("GetMaxMigDeviceCount"),
 		toNativeName("GetMemoryBusWidth"),
@@ -87,6 +89,7 @@ func getNonCriticalAPIs() []string {
 		toNativeName("GetSupportedEventTypes"),
 		toNativeName("RegisterEvents"),
 		toNativeName("GetMemoryErrorCounter"),
+		toNativeName("GetRunningProcessDetailList"),
 	}
 }
 

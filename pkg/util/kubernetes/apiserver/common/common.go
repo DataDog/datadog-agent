@@ -5,49 +5,26 @@
 
 //go:build kubeapiserver
 
-// Package common provides common functionality to interact with a Kubernetes
-// cluster.
+// Package common provides utility functions for interacting with Kubernetes API server.
 package common
 
 import (
 	"context"
-	"os"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	defaultClusterIDMap = "datadog-cluster-id"
 )
-
-// GetResourcesNamespace is used to fetch the namespace of the resources used by the Kubernetes check (e.g. Leader Election, Event collection).
-func GetResourcesNamespace() string {
-	namespace := pkgconfigsetup.Datadog().GetString("kube_resources_namespace")
-	if namespace != "" {
-		return namespace
-	}
-	log.Debugf("No configured namespace for the resource, fetching from the current context")
-	return GetMyNamespace()
-}
-
-// GetMyNamespace returns the namespace our pod is running in
-func GetMyNamespace() string {
-	namespacePath := "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
-	val, e := os.ReadFile(namespacePath)
-	if e == nil && val != nil {
-		return string(val)
-	}
-	log.Warnf("There was an error fetching the namespace from the context, using default")
-	return "default"
-}
 
 // GetKubeSystemUID returns the UID of the kube-system namespace from the cluster
 // We use it as the cluster ID so that even if the configmap is removed
@@ -70,7 +47,7 @@ func GetOrCreateClusterID(coreClient corev1.CoreV1Interface) (string, error) {
 		return x.(string), nil
 	}
 
-	myNS := GetMyNamespace()
+	myNS := namespace.GetMyNamespace()
 
 	cm, err := coreClient.ConfigMaps(myNS).Get(context.TODO(), defaultClusterIDMap, metav1.GetOptions{})
 	if err != nil {
