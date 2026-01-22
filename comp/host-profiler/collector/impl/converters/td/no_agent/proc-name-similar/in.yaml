@@ -1,0 +1,22 @@
+processors:
+  myinfraat tributes:
+    some_config: value
+  infraattributes_custom:
+    other_config: value
+  batch:
+    timeout: 10s
+
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-key
+
+service:
+  pipelines:
+    profiles:
+      processors:
+        - myinfraattributes
+        - infraattributes_custom
+        - batch
+      exporters:
+        - otlphttp
