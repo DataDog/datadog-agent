@@ -134,6 +134,9 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	}
 	installOpts = append(installOpts, installOptions...)
 
+	// Check if DD_INSTALL_ONLY is set - if so, services won't start
+	skipServiceCheck := s.hasInstallOnlyOption(installOptions...)
+
 	s.startXperf(vm)
 	defer s.collectXperf(vm)
 
@@ -141,14 +144,25 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
 		s.Require().NoError(err, "should install agent %s", agentPackage.AgentVersion())
 
-		// Wait for the service to start (up to 5 minutes)
-		err = s.waitForServiceRunning(vm, "datadogagent", 300)
-		s.Require().NoError(err, "service should be running after install")
+		// Wait for the service to start (up to 5 minutes), unless DD_INSTALL_ONLY is set
+		if !skipServiceCheck {
+			err = s.waitForServiceRunning(vm, "datadogagent", 300)
+			s.Require().NoError(err, "service should be running after install")
+		}
 	}) {
 		s.T().FailNow()
 	}
 
 	return remoteMSIPath
+}
+
+// hasInstallOnlyOption checks if DD_INSTALL_ONLY is set in the install options
+func (s *baseAgentMSISuite) hasInstallOnlyOption(installOptions ...windowsAgent.InstallAgentOption) bool {
+	params := &windowsAgent.InstallAgentParams{}
+	for _, opt := range installOptions {
+		_ = opt(params)
+	}
+	return params.InstallOnly == "true"
 }
 
 // waitForServiceRunning waits for a service to reach Running status
