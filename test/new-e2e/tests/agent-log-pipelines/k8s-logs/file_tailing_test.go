@@ -51,7 +51,7 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 						{
 							Name:    "query-job-1",
 							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -109,7 +109,7 @@ func (v *k8sSuite) TestLongLogLine() {
 						{
 							Name:    "long-line-job",
 							Image:   "ubuntu",
-							Command: []string{"echo", longLineLog},
+							Command: []string{"sh", "-c", "echo '" + longLineLog + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -172,7 +172,7 @@ func (v *k8sSuite) TestContainerExclude() {
 						{
 							Name:    "exclude-job",
 							Image:   "alpine",
-							Command: []string{"echo", testLogMessage},
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
