@@ -234,7 +234,7 @@ variables:
             'CI_IMAGE_LINUX': 'e13c2467',
             'CI_IMAGE_DOCKER_X64': 'e13c2467',
             'CI_IMAGE_RPM_ARM64': 'abcd1234',
-            'CI_IMAGE_WIN_LTSC2022_X64': '12345678'
+            'CI_IMAGE_WIN_LTSC2022_X64': '12345678',
         }
 
         self.assertEqual(result, expected)
@@ -267,11 +267,7 @@ variables:
         with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
             result = linter._extract_ci_image_variables()
 
-        expected = {
-            'CI_IMAGE_LINUX': 'e13c2467',
-            'CI_IMAGE_DOCKER_X64': 'abcd1234',
-            'CI_IMAGE_RPM_X64': '12ab34cd'
-        }
+        expected = {'CI_IMAGE_LINUX': 'e13c2467', 'CI_IMAGE_DOCKER_X64': 'abcd1234', 'CI_IMAGE_RPM_X64': '12ab34cd'}
 
         self.assertEqual(result, expected)
 
@@ -287,11 +283,7 @@ variables:
         with patch('builtins.open', mock_open(read_data=gitlab_ci_content)):
             result = linter._extract_ci_image_variables()
 
-        expected = {
-            'CI_IMAGE_LINUX': 'e13c2467',
-            'CI_IMAGE_DOCKER_X64': 'abcd1234',
-            'CI_IMAGE_RPM_ARM64': '12ab34cd'
-        }
+        expected = {'CI_IMAGE_LINUX': 'e13c2467', 'CI_IMAGE_DOCKER_X64': 'abcd1234', 'CI_IMAGE_RPM_ARM64': '12ab34cd'}
 
         self.assertEqual(result, expected)
 
@@ -310,7 +302,7 @@ variables:
         expected = {
             'CI_IMAGE_WIN_LTSC2022_X64': 'e13c2467',
             'CI_IMAGE_WIN_LTSC2025_X64': 'abcd1234',
-            'CI_IMAGE_RPM_ARM64': '12ab34cd'
+            'CI_IMAGE_RPM_ARM64': '12ab34cd',
         }
 
         self.assertEqual(result, expected)

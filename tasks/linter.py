@@ -760,6 +760,7 @@ def _extract_ci_image_variables():
             content = f.read()
             # Find CI image variables with commit hashes
             import re
+
             pattern = r'^\s*(CI_IMAGE_[A-Z_0-9]+):\s*v\d+-([a-f0-9]{8})\s*$'
             for line in content.splitlines():
                 match = re.match(pattern, line)
@@ -768,7 +769,7 @@ def _extract_ci_image_variables():
                     ci_image_vars[var_name] = commit_hash
     except Exception as e:
         print(f"{color_message('Error', 'red')}: Could not read .gitlab-ci.yml: {e}")
-        raise Exit(code=1)
+        raise Exit(code=1) from e
 
     return ci_image_vars
 
@@ -803,11 +804,7 @@ def buildimages_branch_consistency(ctx):
         try:
             # Clone the repository once
             print("Cloning buildimages repository...")
-            clone_result = ctx.run(
-                f"git clone {buildimages_repo_url} {temp_dir}/buildimages",
-                hide=True,
-                warn=True
-            )
+            clone_result = ctx.run(f"git clone {buildimages_repo_url} {temp_dir}/buildimages", hide=True, warn=True)
 
             if clone_result.return_code != 0:
                 print(f"{color_message('Error', 'red')}: Failed to clone buildimages repository")
@@ -815,13 +812,13 @@ def buildimages_branch_consistency(ctx):
 
             # Check if the target branch exists
             branch_check = ctx.run(
-                f"cd {temp_dir}/buildimages && git branch -r | grep -q origin/{compare_to_branch}",
-                hide=True,
-                warn=True
+                f"cd {temp_dir}/buildimages && git branch -r | grep -q origin/{compare_to_branch}", hide=True, warn=True
             )
 
             if branch_check.return_code != 0:
-                print(f"{color_message('Error', 'red')}: Branch '{compare_to_branch}' does not exist in buildimages repository")
+                print(
+                    f"{color_message('Error', 'red')}: Branch '{compare_to_branch}' does not exist in buildimages repository"
+                )
                 raise Exit(code=1)
 
             print(f"Checking commits against branch '{compare_to_branch}'...")
@@ -833,29 +830,35 @@ def buildimages_branch_consistency(ctx):
                 try:
                     # Check if the commit is contained in the target branch
                     result = ctx.run(
-                        f"cd {temp_dir}/buildimages && git branch --contains {commit_hash}",
-                        hide=True,
-                        warn=True
+                        f"cd {temp_dir}/buildimages && git branch --contains {commit_hash}", hide=True, warn=True
                     )
 
                     if result.return_code == 0 and compare_to_branch in result.stdout:
-                        print(f"  {color_message('OK', 'green')}: Commit {commit_hash} found on branch '{compare_to_branch}'")
+                        print(
+                            f"  {color_message('OK', 'green')}: Commit {commit_hash} found on branch '{compare_to_branch}'"
+                        )
                     else:
-                        failures.append(f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository")
+                        failures.append(
+                            f"{var_name}: commit {commit_hash} not found on branch '{compare_to_branch}' in buildimages repository"
+                        )
 
                 except Exception as e:
                     failures.append(f"{var_name}: error checking commit {commit_hash}: {e}")
 
         except Exception as e:
             print(f"{color_message('Error', 'red')}: Error during repository operations: {e}")
-            raise Exit(code=1)
+            raise Exit(code=1) from e
 
     if failures:
         print(f"\n{color_message('Failures found:', 'red')}")
         for failure in failures:
             print(f"  - {failure}")
-        print(f"\n{color_message('Note:', 'yellow')} This check validates that CI image commits are consistent with the current branch.")
-        print(f"If you're on a release branch (e.g., 7.75.x), the commits should be from the same branch in datadog-agent-buildimages.")
+        print(
+            f"\n{color_message('Note:', 'yellow')} This check validates that CI image commits are consistent with the current branch."
+        )
+        print(
+            "If you're on a release branch (e.g., 7.75.x), the commits should be from the same branch in datadog-agent-buildimages."
+        )
         raise Exit(code=1)
     else:
         print(f"\n{color_message('All CI image commits are consistent with the current branch', 'green')}")
