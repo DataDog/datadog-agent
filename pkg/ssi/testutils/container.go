@@ -158,6 +158,28 @@ func (v *ContainerValidator) RequireMissingEnvs(t *testing.T, missing []string) 
 	}
 }
 
+// RequireUnmutated ensures no Datadog-related environment variables exist in the container.
+// This includes any env var starting with "DD_" or "LD_PRELOAD".
+func (v *ContainerValidator) RequireUnmutated(t *testing.T) {
+	// These env vars are injected by other webhooks (not SSI), so they're allowed.
+	// See pkg/clusteragent/admission/mutate/config/config.go
+	allowedEnvVars := map[string]bool{
+		"DD_AGENT_HOST":       true,
+		"DD_ENTITY_ID":        true,
+		"DD_INTERNAL_POD_UID": true,
+		"DD_EXTERNAL_ENV":     true,
+	}
+
+	for key, value := range v.envs {
+		if allowedEnvVars[key] {
+			continue
+		}
+		if strings.HasPrefix(key, "DD_") || key == "LD_PRELOAD" {
+			require.Fail(t, "found unexpected Datadog env var", "env var %s=%s should not be present in container", key, value)
+		}
+	}
+}
+
 func parseCommandline(container *corev1.Container) string {
 	command := strings.Join(container.Command, " ")
 	args := strings.Join(container.Args, " ")

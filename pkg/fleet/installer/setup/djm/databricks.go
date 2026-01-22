@@ -145,8 +145,20 @@ func SetupDatabricks(s *common.Setup) error {
 		s.Out.WriteString("Enabling Datadog Java Tracer DEBUG logs on DD_TRACE_DEBUG=true\n")
 		tracerConfigDatabricks.TraceDebug = config.BoolToPtr(true)
 	}
+	if os.Getenv("DD_PROFILING_ENABLED") == "true" {
+		s.Out.WriteString("Enabling Datadog Profiler on DD_PROFILING_ENABLED=true\n")
+		profilingEnabled := "true"
+		tracerConfigDatabricks.ProfilingEnabled = &profilingEnabled
+	}
 	s.Config.ApplicationMonitoringYAML = &config.ApplicationMonitoringConfig{
 		Default: tracerConfigDatabricks,
+	}
+
+	// Disable credit card obfuscation for Databricks to avoid issues with job and run ids
+	s.Config.DatadogYAML.APMConfig.ObfuscationConfig = &config.ObfuscationConfig{
+		CreditCards: config.CreditCardObfuscationConfig{
+			KeepValues: []string{"databricks_job_id", "databricks_job_run_id", "databricks_task_run_id", "config.spark_app_startTime", "config.spark_databricks_job_parentRunId"},
+		},
 	}
 
 	setupCommonHostTags(s)
@@ -364,13 +376,14 @@ func setupDatabricksDriver(s *common.Setup) {
 	if os.Getenv("DRIVER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 
-		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+		// Use mounted disk log collection by default, unless explicitly disabled
+		if os.Getenv("STANDARD_ACCESS_MODE") == "false" {
+			sparkIntegration.Logs = driverLogs
+			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
+		} else {
 			setupPrivilegedLogs(s, "driver")
 			sparkIntegration.Logs = driverLogsStandardAccessMode
 			s.Span.SetTag("host_tag_set.driver_logs_enabled_standard_am", "true")
-		} else {
-			sparkIntegration.Logs = driverLogs
-			s.Span.SetTag("host_tag_set.driver_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" {
@@ -395,13 +408,14 @@ func setupDatabricksWorker(s *common.Setup) {
 	if os.Getenv("WORKER_LOGS_ENABLED") == "true" {
 		s.Config.DatadogYAML.LogsEnabled = config.BoolToPtr(true)
 
-		if os.Getenv("STANDARD_ACCESS_MODE") == "true" {
+		// Use mounted disk log collection by default, unless explicitly disabled
+		if os.Getenv("STANDARD_ACCESS_MODE") == "false" {
+			sparkIntegration.Logs = workerLogs
+			s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
+		} else {
 			setupPrivilegedLogs(s, "worker")
 			sparkIntegration.Logs = workerLogsStandardAccessMode
 			s.Span.SetTag("host_tag_set.worker_logs_enabled_standard_am", "true")
-		} else {
-			sparkIntegration.Logs = workerLogs
-			s.Span.SetTag("host_tag_set.worker_logs_enabled", "true")
 		}
 	}
 	if os.Getenv("DB_DRIVER_IP") != "" && os.Getenv("DD_EXECUTORS_SPARK_INTEGRATION") == "true" {

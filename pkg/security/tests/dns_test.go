@@ -42,15 +42,15 @@ func TestDNS(t *testing.T) {
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_dns_lowercase",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "perdu.com" && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "perdu.com" && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 		{
 			ID:         "test_rule_dns_uppercase",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "MICROSOFT.COM" && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name == "MICROSOFT.COM" && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 		{
 			ID:         "test_rule_long_query",
-			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s"`, path.Base(executable)),
+			Expression: fmt.Sprintf(`dns.question.type == A && dns.question.name.length > 60 && process.file.name == "%s" && process.netns == network.device.netns`, path.Base(executable)),
 		},
 	}
 
