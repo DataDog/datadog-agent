@@ -761,7 +761,7 @@ def _extract_ci_image_variables():
             # Find CI image variables with commit hashes
             import re
 
-            pattern = r'^\s*(CI_IMAGE_[A-Z_0-9]+):\s*v\d+-([a-f0-9]{8})\s*$'
+            pattern = r'^\s*(CI_IMAGE_[A-Z_0-9]+):\s*v\d+-([a-f0-9]+)\s*$'
             for line in content.splitlines():
                 match = re.match(pattern, line)
                 if match:
