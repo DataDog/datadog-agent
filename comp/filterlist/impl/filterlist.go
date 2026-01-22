@@ -213,7 +213,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 	hashedTags := make(map[string]hashedMetricTagList, len(metricTags))
 	for name, tags := range metricTags {
-		hashed := make([]uint64, len(tags.Tags))
+		hashed := make([]uint64, 0, len(tags.Tags))
 		for _, tag := range tags.Tags {
 			hashed = append(hashed, murmur3.StringSum64(tag))
 		}
