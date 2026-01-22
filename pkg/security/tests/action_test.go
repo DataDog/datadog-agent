@@ -1381,7 +1381,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
 
-				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";", "open", syscallTester, ";", "sleep", "5")
+				cmd := exec.CommandContext(timeoutCtx, syscallTester, "open", testFile, ";", "sleep", "1", ";")
 				_ = cmd.Run()
 
 				ch <- true
@@ -1416,7 +1416,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
 				}
 
-				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_action`); err != nil || el != "kill" {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "kill" {
 					t.Errorf("rule_action should be 'kill': %s => %v", string(msg.Data), err)
 				}
 
@@ -1458,7 +1458,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 			}
 
 			return nil
-		}, func(rule *rules.Rule, customEvent *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*5, "network_remediation")
 
@@ -1481,7 +1481,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 					t.Errorf("event_type should be 'remediation_status': %s => %v", string(msg.Data), err)
 				}
 
-				if el, err := jsonpath.JsonPathLookup(obj, `$.rule_action`); err != nil || el != "network_isolation" {
+				if el, err := jsonpath.JsonPathLookup(obj, `$.remediation_action`); err != nil || el != "network_isolation" {
 					t.Errorf("rule_action should be 'network_isolation': %s => %v", string(msg.Data), err)
 				}
 
