@@ -6,6 +6,7 @@ go 1.24.0
 replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0
@@ -27,7 +28,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.64.1 // indirect

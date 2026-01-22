@@ -16,6 +16,7 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.61.0 // indirect

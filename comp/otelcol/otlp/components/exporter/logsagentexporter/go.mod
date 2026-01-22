@@ -33,6 +33,7 @@ require (
 require github.com/cespare/xxhash/v2 v2.3.0 // indirect
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-devel // indirect
