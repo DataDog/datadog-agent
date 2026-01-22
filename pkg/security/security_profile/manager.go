@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ import (
 	"go.uber.org/atomic"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -44,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -112,7 +113,7 @@ type Manager struct {
 	activeDumps      []*dump.ActivityDump
 	snapshotQueue    chan *dump.ActivityDump
 	contextTags      []string
-	containerFilters *containers.Filter
+	containerFilters workloadfilter.FilterBundle
 
 	hostname            string
 	lastStoppedDumpTime time.Time
@@ -154,7 +155,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, filterStore workloadfilter.Component) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -198,6 +199,14 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	securityProfileSyscallsMap, err := managerhelper.Map(ebpf, "secprofs_syscalls")
 	if err != nil {
 		return nil, err
+	}
+
+	var containerFilter workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilter = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilter.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
 	}
 
 	minDumpTimeout := cfg.RuntimeSecurity.ActivityDumpLoadControlMinDumpTimeout
@@ -266,11 +275,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
-	containerFilters, err := utils.NewContainerFilter()
-	if err != nil {
-		return nil, err
-	}
-
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)
@@ -314,7 +318,7 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		configuredStorageRequests: perFormatStorageRequests(configuredStorageRequests),
 
 		contextTags:      contextTags,
-		containerFilters: containerFilters,
+		containerFilters: containerFilter,
 		hostname:         hostname,
 
 		minDumpTimeout: minDumpTimeout,
