@@ -9,3 +9,6 @@
 fixes:
   - |
     [oracle] Updates the oracle.d/conf.yaml.example file to include all supported sql obfuscator options.
+    [DBM] Bump go-sqllexer to v0.1.12:
+    - Fixes a normalization bug for Oracle queries with positional bind parameters.
+    - Fixes a memory leak in the go-sqllexer package.
