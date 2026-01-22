@@ -19,6 +19,7 @@ func TestGetApplicationPath(t *testing.T) {
 	path, err := os.Getwd()
 	require.Nil(t, err)
 
+	// update global iisCfgPath for test
 	iisCfgPath = filepath.Join(path, "testdata", "iisconfig_subapps.xml")
 	iisCfg, err := NewDynamicIISConfig()
 	require.Nil(t, err)
@@ -43,4 +44,8 @@ func TestGetApplicationPath(t *testing.T) {
 	// Test 1: URL path matching sub-application /api/web2 on site 2 when access it using upper case
 	result = iisCfg.GetApplicationPath(2, "/api/WEB2")
 	assert.Equal(t, "/api/web2", result)
+
+	// Test: Matching is based on URL prefix, not substrings - /api/web2 in the middle of the path should not match the /api/web2 application
+	result = iisCfg.GetApplicationPath(2, "/app/TestSite/api/web2")
+	assert.Equal(t, "/", result)
 }

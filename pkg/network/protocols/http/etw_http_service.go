@@ -835,10 +835,10 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEventRecord) {
 
 	httpConnLink.http.SiteID = userData.GetUint32(16)
 	httpConnLink.http.AppPool = appPool
-	httpConnLink.http.SubSite = appPool
 	cfg := iisConfig.Load()
 	if cfg != nil {
 		httpConnLink.http.SiteName = cfg.GetSiteNameFromID(httpConnLink.http.SiteID)
+		httpConnLink.http.SubSite = httpConnLink.http.SiteName
 		httpConnLink.http.TagsFromJson, httpConnLink.http.TagsFromConfig = cfg.GetAPMTags(httpConnLink.http.SiteID, httpConnLink.urlPath)
 
 		// Determine the IIS application path handling this request
