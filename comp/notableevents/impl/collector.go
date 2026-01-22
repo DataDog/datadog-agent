@@ -49,8 +49,8 @@ type eventKey struct {
 }
 
 // bookmarkPersistentCacheKey is the key used to store the bookmark in persistent cache
-// Stores in path: run/notable_events/event_log_bookmark.xml
-const bookmarkPersistentCacheKey = "notable_events:event_log_bookmark.xml"
+// Stores in path: run/notable_events/event_log_bookmark
+const bookmarkPersistentCacheKey = "notable_events:event_log_bookmark"
 
 // persistentCacheSaver implements evtbookmark.Saver using the Agent's persistent cache.
 type persistentCacheSaver struct {
