@@ -22,7 +22,7 @@ func TestFormatAppCrashPayload(t *testing.T) {
 		expectedTitle string
 	}{
 		{
-			name: "extracts app name from event XML",
+			name: "extracts app name from named fields (Server 2025)",
 			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
 				<System>
 					<Provider Name="Application Error"/>
@@ -31,6 +31,21 @@ func TestFormatAppCrashPayload(t *testing.T) {
 				<EventData>
 					<Data Name="AppName">notepad.exe</Data>
 					<Data Name="AppVersion">10.0.19041.1</Data>
+				</EventData>
+			</Event>`,
+			defaultTitle:  "Application crash",
+			expectedTitle: "Application crash: notepad.exe",
+		},
+		{
+			name: "extracts app name from positional list (Server 2022)",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Application Error"/>
+					<EventID>1000</EventID>
+				</System>
+				<EventData>
+					<Data>notepad.exe</Data>
+					<Data>10.0.20348.2227</Data>
 				</EventData>
 			</Event>`,
 			defaultTitle:  "Application crash",
@@ -83,7 +98,7 @@ func TestFormatAppHangPayload(t *testing.T) {
 		expectedTitle string
 	}{
 		{
-			name: "extracts app name from event XML",
+			name: "extracts app name from named fields (Server 2025)",
 			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
 				<System>
 					<Provider Name="Application Hang"/>
@@ -92,6 +107,21 @@ func TestFormatAppHangPayload(t *testing.T) {
 				<EventData>
 					<Data Name="AppName">explorer.exe</Data>
 					<Data Name="AppVersion">10.0.26100.7019</Data>
+				</EventData>
+			</Event>`,
+			defaultTitle:  "Application hang",
+			expectedTitle: "Application hang: explorer.exe",
+		},
+		{
+			name: "extracts app name from positional list (Server 2022)",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Application Hang"/>
+					<EventID>1002</EventID>
+				</System>
+				<EventData>
+					<Data>explorer.exe</Data>
+					<Data>10.0.20348.1</Data>
 				</EventData>
 			</Event>`,
 			defaultTitle:  "Application hang",

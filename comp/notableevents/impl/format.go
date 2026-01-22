@@ -79,21 +79,49 @@ func formatMsiExitCode(exitCodeStr string) string {
 
 // formatAppCrashPayload customizes the payload for application crash events (Application Error / Event ID 1000).
 // Extracts the AppName from EventData to create a dynamic title.
+// Supports both Server 2025 (named map fields) and Server 2022 (positional list fields) formats.
+// List format: [0]=AppName, [1]=AppVersion, [2]=AppTimestamp, [3]=FaultModuleName, ...
 func formatAppCrashPayload(payload *eventPayload, eventData map[string]interface{}) {
+	var appName string
+
+	// Try named map fields first (Server 2025)
 	if data := getEventDataMap(eventData); data != nil {
-		if appName, ok := data["AppName"].(string); ok {
-			payload.Title = "Application crash: " + appName
+		appName, _ = data["AppName"].(string)
+	}
+
+	// Fall back to positional list fields (Server 2022)
+	if appName == "" {
+		if dataList := getEventDataList(eventData); len(dataList) > 0 {
+			appName, _ = dataList[0].(string)
 		}
+	}
+
+	if appName != "" {
+		payload.Title = "Application crash: " + appName
 	}
 }
 
 // formatAppHangPayload customizes the payload for application hang events (Application Hang / Event ID 1002).
 // Extracts the AppName from EventData to create a dynamic title.
+// Supports both Server 2025 (named map fields) and Server 2022 (positional list fields) formats.
+// List format: [0]=AppName, [1]=AppVersion, ...
 func formatAppHangPayload(payload *eventPayload, eventData map[string]interface{}) {
+	var appName string
+
+	// Try named map fields first (Server 2025)
 	if data := getEventDataMap(eventData); data != nil {
-		if appName, ok := data["AppName"].(string); ok {
-			payload.Title = "Application hang: " + appName
+		appName, _ = data["AppName"].(string)
+	}
+
+	// Fall back to positional list fields (Server 2022)
+	if appName == "" {
+		if dataList := getEventDataList(eventData); len(dataList) > 0 {
+			appName, _ = dataList[0].(string)
 		}
+	}
+
+	if appName != "" {
+		payload.Title = "Application hang: " + appName
 	}
 }
 
