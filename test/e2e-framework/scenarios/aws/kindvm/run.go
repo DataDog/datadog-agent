@@ -278,7 +278,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 	}
 
-	if params.agentOptions == nil || len(params.operatorDDAOptions) == 0 {
+	if params.agentOptions == nil && len(params.operatorDDAOptions) == 0 {
 		env.Agent = nil
 	}
 
