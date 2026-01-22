@@ -50,6 +50,7 @@ import (
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -129,6 +130,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				workloadmetafx.Module(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
+				remoteWorkloadfilterfx.Module(),
 				ipcfx.ModuleReadWrite(),
 				// Provide tagger module
 				remoteTaggerFx.Module(tagger.NewRemoteParams()),
@@ -315,6 +317,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
+		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		// Provide tagger module
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
