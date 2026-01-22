@@ -11,22 +11,38 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/dogstatsd"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.DockerHost, params *Params) error {
+// DockerHostOutputs is the interface for DockerHost environment outputs.
+type DockerHostOutputs interface {
+	RemoteHostOutput() *remote.HostOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	DockerAgentOutput() *agent.DockerAgentOutput
+	DockerOutput() *docker.ManagerOutput
+	DisableFakeIntake()
+	DisableAgent()
+}
+
+// Run deploys an environment given a pulumi.Context.
+// It accepts DockerHostOutputs interface, which is implemented by both:
+// - outputs.DockerHost (lightweight, for scenarios without test dependencies)
+// - environments.DockerHost (full-featured, for test provisioners)
+func Run(ctx *pulumi.Context, awsEnv aws.Environment, env DockerHostOutputs, params *Params) error {
 
 	host, err := ec2.NewVM(awsEnv, params.Name, params.vmOptions...)
 	if err != nil {
 		return err
 	}
-	err = host.Export(ctx, &env.RemoteHost.HostOutput)
+	err = host.Export(ctx, env.RemoteHostOutput())
 	if err != nil {
 		return err
 	}
@@ -42,18 +58,18 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.DockerHo
 	if err != nil {
 		return err
 	}
-	err = manager.Export(ctx, &env.Docker.ManagerOutput)
+	err = manager.Export(ctx, env.DockerOutput())
 	if err != nil {
 		return err
 	}
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
+		fakeIntake, err := fakeintakescenario.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
-		err = fakeIntake.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		err = fakeIntake.Export(ctx, env.FakeIntakeOutput())
 		if err != nil {
 			return err
 		}
@@ -65,8 +81,8 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.DockerHo
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.FakeIntake = nil
+		// Mark FakeIntake as not provisioned
+		env.DisableFakeIntake()
 	}
 
 	for _, hook := range params.preAgentInstallHooks {
@@ -92,18 +108,20 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.DockerHo
 			return err
 		}
 
-		err = agent.Export(ctx, &env.Agent.DockerAgentOutput)
+		err = agent.Export(ctx, env.DockerAgentOutput())
 		if err != nil {
 			return err
 		}
 	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.Agent = nil
+		// Mark Agent as not provisioned
+		env.DisableAgent()
 	}
 
 	return nil
 }
 
+// DockerRun is the entry point for the scenario when run via pulumi.
+// It uses outputs.DockerHost which is lightweight and doesn't pull in test dependencies.
 func DockerRun(ctx *pulumi.Context) error {
 
 	awsEnv, err := aws.NewEnvironment(ctx)
@@ -111,10 +129,7 @@ func DockerRun(ctx *pulumi.Context) error {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.DockerHost]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewDockerHost()
 
 	return Run(ctx, awsEnv, env, ParamsFromEnvironment(awsEnv))
 }
