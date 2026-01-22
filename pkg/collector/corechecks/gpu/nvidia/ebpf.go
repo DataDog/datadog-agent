@@ -88,7 +88,7 @@ func (c *SystemProbeCache) IsValid() bool {
 type ebpfCollector struct {
 	device        ddnvml.Device
 	cache         *SystemProbeCache
-	activeMetrics map[model.StatsKey]bool // activeMetrics tracks processes that are active for this device
+	activeMetrics map[model.ProcessStatsKey]bool // activeMetrics tracks processes that are active for this device
 }
 
 // newEbpfCollector creates a new eBPF-based collector for the given device.
@@ -100,7 +100,7 @@ func newEbpfCollector(device ddnvml.Device, cache *SystemProbeCache) (*ebpfColle
 	return &ebpfCollector{
 		device:        device,
 		cache:         cache,
-		activeMetrics: make(map[model.StatsKey]bool),
+		activeMetrics: make(map[model.ProcessStatsKey]bool),
 	}, nil
 }
 
@@ -138,9 +138,9 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 	var allWorkloadIDs []workloadmeta.EntityID
 
 	stats := c.cache.GetStats()
-	log.Debugf("ebpf collector: received %d metrics from SP", len(stats.Metrics))
+	log.Debugf("ebpf collector: received %d metrics from SP", len(stats.ProcessMetrics))
 	// Process active metrics for this device
-	for _, entry := range stats.Metrics {
+	for _, entry := range stats.ProcessMetrics {
 		if entry.Key.DeviceUUID != deviceUUID {
 			continue // Skip metrics for other devices
 		}
@@ -167,6 +167,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 				Name:                "process.memory.usage",
 				Value:               float64(metrics.Memory.CurrentBytes),
 				Type:                ddmetrics.GaugeType,
+				AssociatedWorkloads: workloads,
+			},
+			Metric{
+				Name:                "process.sm_active",
+				Value:               metrics.ActiveTimePct,
+				Type:                ddmetrics.GaugeType,
+				Priority:            Low,
 				AssociatedWorkloads: workloads,
 			},
 		)
@@ -199,6 +206,13 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 					Type:                ddmetrics.GaugeType,
 					AssociatedWorkloads: workloads,
 				},
+				Metric{
+					Name:                "process.sm_active",
+					Value:               0,
+					Type:                ddmetrics.GaugeType,
+					Priority:            Low,
+					AssociatedWorkloads: workloads,
+				},
 			)
 
 			// Remove inactive process from tracking
@@ -222,6 +236,20 @@ func (c *ebpfCollector) Collect() ([]Metric, error) {
 			AssociatedWorkloads: allWorkloadIDs,
 		},
 	)
+
+	// Emit device-level sm_active metric
+	for _, deviceMetric := range stats.DeviceMetrics {
+		if deviceMetric.DeviceUUID == deviceUUID {
+			deviceMetrics = append(deviceMetrics, Metric{
+				Name:     "sm_active",
+				Value:    deviceMetric.Metrics.ActiveTimePct,
+				Type:     ddmetrics.GaugeType,
+				Priority: Low,
+				// No AssociatedWorkloads - device-wide metric
+			})
+			break
+		}
+	}
 
 	return deviceMetrics, nil
 }

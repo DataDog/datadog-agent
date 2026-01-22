@@ -340,7 +340,6 @@ single-machine-performance-metal-runners-regression_detector:
     SMP_VERSION: dev-pr3796-e7f7a988
     BOT_LOGIN: bot_login_metal-runners
     BOT_TOKEN: bot_token_metal-runners
-    SAMPLE: "true"
 
 # Shamelessly adapted from golang_deps_commenter job config in
 # golang_deps_diff.yml at commit 01da274032e510d617161cf4e264a53292f44e55.

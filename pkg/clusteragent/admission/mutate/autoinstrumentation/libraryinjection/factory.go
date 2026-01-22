@@ -18,11 +18,14 @@ import (
 type InjectionMode string
 
 const (
+	// InjectionModeAuto determines the best injection mode
+	InjectionModeAuto InjectionMode = "auto"
+
 	// InjectionModeInitContainer uses init containers to copy library files into an EmptyDir volume.
-	// This is the traditional/default injection method.
+	// This is the traditional injection method.
 	InjectionModeInitContainer InjectionMode = "init_container"
 
-	// InjectionModeCSI uses a CSI driver to mount library files directly into the pod.
+	// InjectionModeCSI uses the Datadog CSI driver to mount library files directly into the pod.
 	InjectionModeCSI InjectionMode = "csi"
 )
 
@@ -49,12 +52,12 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 	}
 
 	switch mode {
+	default:
+		log.Warnf("Unknown injection mode %q for pod %s/%s, using 'auto'", mode, pod.Namespace, pod.Name)
+		fallthrough
+	case InjectionModeAuto, InjectionModeInitContainer:
+		return NewInitContainerProvider(cfg)
 	case InjectionModeCSI:
 		return NewCSIProvider(cfg)
-	case InjectionModeInitContainer:
-		return NewInitContainerProvider(cfg)
-	default:
-		log.Warnf("Unknown injection mode %q for pod %s/%s, using init_container", mode, pod.Namespace, pod.Name)
-		return NewInitContainerProvider(cfg)
 	}
 }
