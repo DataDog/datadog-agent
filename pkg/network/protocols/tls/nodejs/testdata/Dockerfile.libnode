@@ -1,0 +1,16 @@
+# Dockerfile for testing Node.js with apt-installed nodejs (uses libnode.so)
+# This reproduces the Ubuntu/Debian package manager installation where SSL symbols
+# are in libnode.so rather than statically linked in the node binary.
+
+FROM debian:bookworm
+
+# Install nodejs from Debian packages (uses libnode.so for SSL)
+RUN apt-get update && \
+    apt-get install -y nodejs && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# The server.js will be mounted at runtime
+CMD ["node", "/v/server.js"]
