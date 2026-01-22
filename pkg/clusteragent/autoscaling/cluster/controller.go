@@ -173,6 +173,7 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 			// Present in store and found in cluster; update it
 			if err := c.patchNodePool(ctx, nodePool, npi); err != nil {
 				log.Errorf("Error updating NodePool: %v", err)
+				c.eventRecorder.Eventf(nodePool, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool, err: %v", err)
 				return autoscaling.Requeue
 			}
 		}
@@ -225,7 +226,6 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to create NodePool, err: %v", err)
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
 
@@ -251,7 +251,6 @@ func (c *Controller) patchNodePool(ctx context.Context, knp *karpenterv1.NodePoo
 	// TODO: If NodePool is not considered a custom resource in the future, use StrategicMergePatchType and simplify patch object
 	_, err = c.Client.Resource(nodePoolGVR).Patch(ctx, npi.Name(), types.MergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool, err: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
 
