@@ -128,10 +128,10 @@ jobs:
           branch: update-k8s-versions-automated
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
-          title: "[automated] Add new Kubernetes version to e2e tests"
+          title: "[automated] Update Kubernetes latest version in e2e tests"
           body: |
             ### What does this PR do?
-            Adds the latest Kubernetes version from kindest/node to the e2e test matrix.
+            Updates the Kubernetes version used by the `new-e2e-containers-k8s-latest` job in `.gitlab/test/e2e/e2e.yml` to the latest stable release from `kindest/node`.
 
             ### Motivation
             Keep e2e tests running against the latest Kubernetes version to ensure compatibility.

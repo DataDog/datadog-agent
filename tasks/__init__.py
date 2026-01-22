@@ -60,6 +60,7 @@ from tasks import (
     pipeline,
     pkg_template,
     pre_commit,
+    privateactionrunner,
     process_agent,
     protobuf,
     python_version,
@@ -67,6 +68,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
+    secret_backend,
     security_agent,
     selinux,
     setup,
@@ -221,7 +223,9 @@ ns.add_collection(release)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
+ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
+ns.add_collection(secret_backend)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)

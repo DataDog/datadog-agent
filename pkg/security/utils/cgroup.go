@@ -311,8 +311,8 @@ func checkPidExists(sysFScGroupPath string, expectedPid uint32) (bool, error) {
 	return false, nil
 }
 
-// GetCgroupPids returns the list of PIDs attached to the given cgroup name
-func (cfs *CGroupFS) GetCgroupPids(cgroupName string) ([]uint32, error) {
+// GetCGroupPids returns the list of PIDs attached to the given cgroup name
+func (cfs *CGroupFS) GetCGroupPids(cgroupName string) ([]uint32, error) {
 	var data []byte
 	var err error
 	for _, cgroupMountPoint := range cfs.cGroupMountPoints {

@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    APM: Add ``apm_config.instrumentation.injection_mode`` configuration option to control APM library injection method.
+    Possible values are ``auto`` (default), ``init_container``, and ``csi``.
+    The ``auto`` mode automatically selects the best injection mode (currently uses init containers).
+    The ``init_container`` mode is the legacy method that copies APM libraries into pods using init containers.
+    The ``csi`` mode mounts APM libraries directly into pods using the Datadog CSI driver. It is experimental and requires Cluster Agent 7.76+ and the Datadog CSI driver.

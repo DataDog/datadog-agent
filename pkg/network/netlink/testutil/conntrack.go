@@ -312,3 +312,31 @@ func rootDir(dir string) string {
 	}
 	return strings.Join(parts[:pkgIndex], string(filepath.Separator))
 }
+
+// CreateConntrackEntry creates a conntrack entry using the conntrack -I CLI and
+// registers a cleanup function to delete the entry when the test completes.
+func CreateConntrackEntry(t *testing.T, srcIP, dstIP string, srcPort, dstPort int, replySrcIP, replyDstIP string, replySrcPort, replyDstPort int, proto string) {
+	var state string
+	if proto == "tcp" {
+		state = "--state ESTABLISHED"
+	}
+	cmd := fmt.Sprintf("conntrack -I -s %s -d %s -p %s --sport %d --dport %d "+
+		"--reply-src %s --reply-dst %s --reply-port-src %d --reply-port-dst %d "+
+		"%s --timeout 120",
+		srcIP, dstIP, proto, srcPort, dstPort, replySrcIP, replyDstIP, replySrcPort, replyDstPort, state)
+
+	nettestutil.RunCommands(t, []string{cmd}, false)
+
+	t.Cleanup(func() {
+		DeleteConntrackEntry(t, srcIP, dstIP, srcPort, dstPort, proto)
+	})
+}
+
+// DeleteConntrackEntry deletes a conntrack entry using the conntrack -D CLI
+func DeleteConntrackEntry(t *testing.T, srcIP, dstIP string, srcPort, dstPort int, proto string) {
+	cmd := fmt.Sprintf("conntrack -D -s %s -d %s -p %s --sport %d --dport %d",
+		srcIP, dstIP, proto, srcPort, dstPort)
+
+	// ignore errors since the entry may have already been deleted
+	nettestutil.RunCommands(t, []string{cmd}, true)
+}

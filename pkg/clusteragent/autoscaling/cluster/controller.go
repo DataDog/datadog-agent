@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
@@ -137,26 +138,27 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	npi, foundInStore := c.store.LockRead(name, true)
 	defer c.store.Unlock(name)
 
-	// Get Target NodePool from Lister if needed
-	targetNp := &karpenterv1.NodePool{}
-	if npi.TargetName() != "" {
-		targetNpUnstr, err := c.Lister.Get(npi.TargetName())
-		if err != nil {
-			log.Errorf("Error retrieving Target NodePool: %v", err)
-			return autoscaling.Requeue
-		}
-		err = autoscaling.FromUnstructured(targetNpUnstr, targetNp)
-		if err != nil {
-			log.Errorf("Error converting Target NodePool: %v", err)
-			return autoscaling.Requeue
-		}
-	}
-
 	if foundInStore {
-		// Only create or update if there is no TargetHash (i.e. it is fully Datadog-managed), or if the TargetHash has not changed
-		if !checkTargetHash(npi, targetNp) {
-			log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
-			return autoscaling.NoRequeue
+		// Get Target NodePool from Lister if needed
+		var targetNp *karpenterv1.NodePool
+		if npi.TargetName() != "" {
+			targetNp = &karpenterv1.NodePool{}
+			targetNpUnstr, err := c.Lister.Get(npi.TargetName())
+			if err != nil {
+				log.Errorf("Error retrieving Target NodePool: %v", err)
+				return autoscaling.Requeue
+			}
+			err = autoscaling.FromUnstructured(targetNpUnstr, targetNp)
+			if err != nil {
+				log.Errorf("Error converting Target NodePool: %v", err)
+				return autoscaling.Requeue
+			}
+
+			// Only create or update if the TargetHash has not changed
+			if npi.TargetHash() != targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey] {
+				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
+				return autoscaling.NoRequeue
+			}
 		}
 
 		if nodePool == nil {
@@ -188,15 +190,12 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, nodePool *ka
 	return autoscaling.NoRequeue
 }
 
-func checkTargetHash(npi model.NodePoolInternal, targetNp *karpenterv1.NodePool) bool {
-	return npi.TargetHash() == "" || npi.TargetHash() == targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey]
-}
-
 func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInternal, knp *karpenterv1.NodePool) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 
 	// Create replica of original NodePool if TargetName exists; otherwise use NodePoolInternal to create a NodePool
 	if knp != nil {
+		log.Debugf("Building replica of NodePool: %s", npi.Name())
 		model.BuildReplicaNodePool(knp, npi)
 	} else {
 		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
@@ -217,7 +216,7 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 		knp = model.ConvertToKarpenterNodePool(npi, u.GetName())
 	}
 
-	npUnstr, err := autoscaling.ToUnstructured(knp)
+	npUnstr, err := convertNodePoolToUnstructured(knp)
 	if err != nil {
 		return err
 	}
@@ -264,4 +263,26 @@ func isCreatedByDatadog(labels map[string]string) bool {
 		return true
 	}
 	return false
+}
+
+// Helper function to convert a typed Karpenter NodePool object to unstructured. Handles custom Go types gracefully
+func convertNodePoolToUnstructured(np interface{}) (*unstructured.Unstructured, error) {
+	// Marshal the structured object to JSON bytes.
+	bytes, err := json.Marshal(np)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal the JSON bytes into a map[string]interface{}.
+	var unstructuredMap map[string]interface{}
+	if err := json.Unmarshal(bytes, &unstructuredMap); err != nil {
+		return nil, err
+	}
+
+	// Wrap the map in unstructured.Unstructured.
+	unstructuredObj := &unstructured.Unstructured{
+		Object: unstructuredMap,
+	}
+
+	return unstructuredObj, nil
 }
