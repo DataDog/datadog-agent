@@ -178,11 +178,9 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 
 			if ok {
 				// Metric has already been defined, merge it.
-				update, hashed, entry := fl.mergeMetricTagListEntry(metric, currentHashed, currentEntry)
-				if update {
-					tags[metric.Name] = *hashed
-					tagEntries[metric.Name] = *entry
-				}
+				hashed, entry := fl.mergeMetricTagListEntry(metric, currentHashed, currentEntry)
+				tags[metric.Name] = hashed
+				tagEntries[metric.Name] = entry
 			} else {
 				hashedTags := hashTags(metric.Tags)
 				var rcAction action
@@ -216,7 +214,7 @@ func (fl *FilterList) buildTagFilterListConfig(tagFilterListUpdates []filteredTa
 
 // mergeMetricTagListEntry merges the given metric entry with the current entry.
 // It needs to merge with both the hashed and unhashed variants.
-func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (bool, *hashedMetricTagList, *MetricTagListEntry) {
+func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed hashedMetricTagList, currentEntry MetricTagListEntry) (hashedMetricTagList, MetricTagListEntry) {
 
 	if (currentHashed.action == Exclude) == metric.ExcludeTag {
 		// Both metrics define the same action so we can just merge the list.
@@ -224,7 +222,7 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 
 		// Merge unhashed tags too
 		currentEntry.Tags = append(currentEntry.Tags, metric.Tags...)
-		return true, &currentHashed, &currentEntry
+		return currentHashed, currentEntry
 	} else if currentHashed.action == Include {
 		// We always prefer the exclude tag, overwrite the existing config with this one.
 		hashedTags := hashTags(metric.Tags)
@@ -242,12 +240,12 @@ func (fl *FilterList) mergeMetricTagListEntry(metric tagEntry, currentHashed has
 		}
 		fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
 
-		return true, &hashed, &entry
+		return hashed, entry
 	}
 
 	// We always prefer the exclude tag, ignore this include tag configuration.
 	fl.log.Debugf("tag filterlist configures conflicting tags for metric %v", metric.Name)
-	return false, nil, nil
+	return currentHashed, currentEntry
 }
 
 func hashTags(tags []string) []uint64 {
