@@ -2117,9 +2117,8 @@ func (g GPU) SlicingMode() string {
 		return "mig"
 	} else if len(g.ChildrenGPUUUIDs) > 0 {
 		return "mig-parent"
-	} else {
-		return "none"
 	}
+	return "none"
 }
 
 // GPUComputeCapability represents the compute capability version of a GPU.
