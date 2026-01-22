@@ -33,11 +33,14 @@ def build(
 
     version = get_version(ctx, include_git=True)
 
-    # ldflags: -s -w to reduce binary size
+    # ldflags: -s -w to reduce binary size, -s not compatible with FIPS
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     ldflags = f"-X main.appVersion={version}"
     if not no_strip_binary:
-        ldflags += " -s -w"
+        if fips_mode:
+            ldflags += " -w"
+        else:
+            ldflags += " -s -w"
 
     # gcflags: -l disables inlining to reduce binary size
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
