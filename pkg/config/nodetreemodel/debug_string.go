@@ -8,6 +8,8 @@
 package nodetreemodel
 
 import (
+	"runtime/debug"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -15,6 +17,7 @@ import (
 type treeDebugger struct{}
 
 func panicInTest(format string, params ...interface{}) {
+	debug.PrintStack()
 	log.Errorf(format, params...)
 }
 
