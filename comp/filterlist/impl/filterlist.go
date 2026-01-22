@@ -292,7 +292,7 @@ func (fl *FilterList) restoreMetricFilterListFromLocalConfig() {
 }
 
 func (fl *FilterList) restoreTagFilterListFromLocalConfig() {
-	fl.log.Debug("Restoring metric filterlist with local config.")
+	fl.log.Debug("Restoring tag metric filterlist with local config.")
 
 	fl.tlmTagFilterListUpdates.Inc()
 	fl.tlmTagFilterListSize.Set(float64(len(fl.localFilterListConfig.tagFilterList)))
