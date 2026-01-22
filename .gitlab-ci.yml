@@ -961,7 +961,6 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
         - cmd/**/*_windows*.go
         - cmd/agent/windows/**/*
         - cmd/agent/windows_resources/**/*
