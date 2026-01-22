@@ -254,7 +254,7 @@ pkg_mklink(
     name = "libpython_symlink",
     link_name = "lib/libpython{}.so".format(VERSION_STR),
     target = "libpython{}.so.1.0".format(VERSION_STR),
-    attributes = pkg_attributes("0755")
+    attributes = pkg_attributes("0644")
 )
 
 pkg_mklink(
@@ -284,7 +284,7 @@ pkg_files(
     renames = {
         "libs_unix_no_symlinks": REMOVE_BASE_DIRECTORY,
     },
-    attributes = pkg_attributes("0755")
+    attributes = pkg_attributes("0644")
 )
 
 pkg_files(
