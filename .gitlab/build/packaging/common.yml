@@ -12,7 +12,7 @@
   if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
     echo "📊 Starting package measurement..."
 
-    # If the gate name contains "suse", use the SUSE package directory, 
+    # If the gate name contains "suse", use the SUSE package directory,
     # otherwise use the default package directory
     [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]] && \
     BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE" || \
@@ -26,7 +26,7 @@
     fi
 
     # RPM uses x86_64 and aarch64 for architecture.
-    # If STATIC_QUALITY_GATE_ARCH is set (which is the case for RPM packages), use it, 
+    # If STATIC_QUALITY_GATE_ARCH is set (which is the case for RPM packages), use it,
     # otherwise use PACKAGE_ARCH (which is the architecture of the package)
     ARCH_VAR="${STATIC_QUALITY_GATE_ARCH:-${PACKAGE_ARCH}}"
 
