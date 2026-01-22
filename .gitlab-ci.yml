@@ -961,18 +961,12 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
-        - cmd/**/*_windows*.go
-        - cmd/agent/windows/**/*
-        - cmd/agent/windows_resources/**/*
-        - cmd/dogstatsd/windows_resources/**/*
-        - cmd/installer/windows_resources/**/*
-        - cmd/otel-agent/windows/**/*
-        - cmd/otel-agent/windows_resources/**/*
-        - cmd/process-agent/windows_resources/**/*
-        - cmd/security-agent/windows_resources/**/*
-        - cmd/system-probe/windows_resources/**/*
-        - cmd/trace-agent/windows/**/*
+        - cmd/agent/**/*
+        - cmd/installer/**/*
+        - cmd/process-agent/**/*
+        - cmd/security-agent/**/*
+        - cmd/system-probe/**/*
+        - cmd/trace-agent/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
@@ -1023,7 +1017,7 @@ workflow:
   - changes:
       paths:
         - pkg/discovery/module/*
-        - pkg/network/**/*_windows*.go
+        - pkg/network/**/*
         - pkg/process/monitor/*
         - pkg/util/kernel/**/*
         - test/new-e2e/tests/sysprobe-functional/**/*
@@ -1034,7 +1028,7 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - pkg/security/**/*_windows*.go
+        - pkg/security/**/*
         - pkg/eventmonitor/**/*
         - test/new-e2e/tests/security-agent-functional/**/*
       compare_to: $COMPARE_TO_BRANCH
