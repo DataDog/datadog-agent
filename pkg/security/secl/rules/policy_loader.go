@@ -109,7 +109,7 @@ func (p *PolicyLoader) NewPolicyReady() <-chan struct{} {
 	p.Lock()
 	defer p.Unlock()
 
-	ch := make(chan struct{})
+	ch := make(chan struct{}, 5)
 	p.listeners = append(p.listeners, ch)
 	return ch
 }

@@ -33,3 +33,8 @@ func (r *Reloader) Chan() <-chan struct{} {
 func (r *Reloader) Stop() {
 	close(r.reloadChan)
 }
+
+// Reload reloads the policies
+func (r *Reloader) Reload() {
+	r.reloadChan <- struct{}{}
+}

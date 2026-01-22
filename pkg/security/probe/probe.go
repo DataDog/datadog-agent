@@ -416,13 +416,14 @@ func (p *Probe) ReplayEvents() {
 }
 
 // NewRuleSet returns a new ruleset
-func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.RuleSet {
+func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool, loadRate time.Duration) *rules.RuleSet {
 	ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 	ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
 	ruleOpts.WithSupportedDiscarders(SupportedDiscarders)
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
+	ruleOpts.WithLoadRate(loadRate)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {

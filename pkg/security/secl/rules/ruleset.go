@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cast"
 
@@ -337,9 +338,15 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*PolicyRule) *multierror.Error {
 	var result *multierror.Error
 
-	for _, pRule := range pRules {
+	for i, pRule := range pRules {
 		if _, err := rs.AddRule(parsingContext, pRule); err != nil {
 			result = multierror.Append(result, err)
+		}
+
+		// Apply rate limiting between rule additions if configured
+		// Skip sleep after the last rule
+		if rs.opts.LoadRate > 0 && i < len(pRules)-1 {
+			time.Sleep(rs.opts.LoadRate)
 		}
 	}
 

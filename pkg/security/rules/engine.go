@@ -69,6 +69,7 @@ type RuleEngine struct {
 	pid              uint32
 	wg               sync.WaitGroup
 	ipc              ipc.Component
+	loadPoliciesChan chan struct{}
 
 	// userspace filtering metrics (avoid statsd calls in event hot path)
 	noMatchCounters []atomic.Uint64
@@ -97,6 +98,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 		rulesetListeners: rulesetListeners,
 		pid:              utils.Getpid(),
 		ipc:              ipc,
+		loadPoliciesChan: make(chan struct{}, 1),
 	}
 
 	engine.noMatchCounters = make([]atomic.Uint64, model.MaxAllEventType)
@@ -182,31 +184,8 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		DisableEnforcement: !e.config.EnforcementEnabled,
 	}
 
-	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %w", err)
-	}
-
 	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-
-		for range reloadChan {
-			if err := e.ReloadPolicies(); err != nil {
-				seclog.Errorf("failed to reload policies: %s", err)
-			}
-		}
-	}()
-
-	e.wg.Add(1)
-	go func() {
-		defer e.wg.Done()
-
-		for range e.policyLoader.NewPolicyReady() {
-			if err := e.ReloadPolicies(); err != nil {
-				seclog.Errorf("failed to reload policies: %s", err)
-			}
-		}
-	}()
+	go e.handlePolicyReloads(reloadChan)
 
 	e.wg.Add(1)
 	go func() {
@@ -227,13 +206,52 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}) erro
 		}
 	}()
 
+	e.startSendHeartbeatEvents(ctx)
+
 	for _, provider := range e.policyProviders {
 		provider.Start()
 	}
 
-	e.startSendHeartbeatEvents(ctx)
+	// load policies
+	e.loadPoliciesChan <- struct{}{}
 
 	return nil
+}
+
+// handlePolicyReloads monitors channels for policy reload triggers
+func (e *RuleEngine) handlePolicyReloads(reloadChan <-chan struct{}) {
+	defer e.wg.Done()
+
+	chans := 3
+
+	for chans > 0 {
+		select {
+		case _, ok := <-e.loadPoliciesChan:
+			if !ok {
+				chans--
+				continue
+			}
+			if err := e.LoadPolicies(); err != nil {
+				seclog.Errorf("failed to reload policies: %s", err)
+			}
+		case _, ok := <-reloadChan:
+			if !ok {
+				chans--
+				continue
+			}
+			if err := e.LoadPolicies(); err != nil {
+				seclog.Errorf("failed to reload policies: %s", err)
+			}
+		case _, ok := <-e.policyLoader.NewPolicyReady():
+			if !ok {
+				chans--
+				continue
+			}
+			if err := e.LoadPolicies(); err != nil {
+				seclog.Errorf("failed to reload policies: %s", err)
+			}
+		}
+	}
 }
 
 func (e *RuleEngine) startSendHeartbeatEvents(ctx context.Context) {
@@ -331,13 +349,6 @@ func (e *RuleEngine) StartRunningMetrics(ctx context.Context) {
 	}()
 }
 
-// ReloadPolicies reloads the policies
-func (e *RuleEngine) ReloadPolicies() error {
-	seclog.Infof("reload policies")
-
-	return e.LoadPolicies(e.policyProviders, true)
-}
-
 // AddPolicyProvider add a provider
 func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
 	e.Lock()
@@ -346,8 +357,13 @@ func (e *RuleEngine) AddPolicyProvider(provider rules.PolicyProvider) {
 }
 
 // LoadPolicies loads the policies
-func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedReport bool) error {
-	seclog.Infof("load policies")
+func (e *RuleEngine) LoadPolicies() error {
+	return e.LoadPoliciesFromProviders(e.policyProviders)
+}
+
+// LoadPoliciesFromProviders loads the policies
+func (e *RuleEngine) LoadPoliciesFromProviders(providers []rules.PolicyProvider) error {
+	start := time.Now()
 
 	e.Lock()
 	defer e.Unlock()
@@ -355,10 +371,9 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 	e.reloading.Store(true)
 	defer e.reloading.Store(false)
 
-	// load policies
 	e.policyLoader.SetProviders(providers)
 
-	rs := e.probe.NewRuleSet(e.getEventTypeEnabled())
+	rs := e.probe.NewRuleSet(e.getEventTypeEnabled(), e.config.PolicyLoadRate)
 
 	filteredRules, loadErrs := rs.LoadPolicies(e.policyLoader, e.policyOpts)
 	if loadErrs.ErrorOrNil() != nil {
@@ -416,10 +431,10 @@ func (e *RuleEngine) LoadPolicies(providers []rules.PolicyProvider, sendLoadedRe
 
 	e.notifyAPIServer(ruleIDs, policies)
 
-	if sendLoadedReport {
-		monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
-		e.policyMonitor.SetPolicies(policies)
-	}
+	monitor.ReportRuleSetLoaded(rulesetLoadedEvent, e.eventSender, e.statsdClient)
+	e.policyMonitor.SetPolicies(policies)
+
+	seclog.Infof("policies loaded in %s", time.Since(start))
 
 	return nil
 }
@@ -590,9 +605,13 @@ func (e *RuleEngine) RuleMatch(ctx *eval.Context, rule *rules.Rule, event eval.E
 
 // Stop stops the rule engine
 func (e *RuleEngine) Stop() {
+	close(e.loadPoliciesChan)
+
+	e.Lock()
 	for _, provider := range e.policyProviders {
 		_ = provider.Close()
 	}
+	defer e.Unlock()
 
 	// close the policy loader and all the related providers
 	if e.policyLoader != nil {

@@ -7,6 +7,8 @@
 package rules
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/log"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -35,6 +37,7 @@ type Opts struct {
 	EventTypeEnabled           map[eval.EventType]bool
 	StateScopes                map[Scope]VariableProviderFactory
 	Logger                     log.Logger
+	LoadRate                   time.Duration
 	ruleActionPerformedCb      RuleActionPerformedCb
 }
 
@@ -83,6 +86,14 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 // WithRuleActionPerformedCb sets the rule action performed callback
 func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
 	o.ruleActionPerformedCb = cb
+	return o
+}
+
+// WithLoadRate sets the rate at which rules are added to the ruleset.
+// If set to a non-zero duration, there will be a sleep of this duration
+// between adding each rule. This can be useful to throttle rule loading.
+func (o *Opts) WithLoadRate(rate time.Duration) *Opts {
+	o.LoadRate = rate
 	return o
 }
 

@@ -96,8 +96,10 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		return nil, err
 	}
 
+	policyReloader := NewReloader()
+
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc, policyReloader)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +118,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		sendStatsChan: make(chan chan bool, 1),
 		grpcCmdServer: grpcutils.NewServer(family, socketPath),
 		selfTester:    selfTester,
-		reloader:      NewReloader(),
+		reloader:      policyReloader,
 		crtelemetry:   crtelemetry,
 	}
 

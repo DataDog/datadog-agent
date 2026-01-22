@@ -60,22 +60,3 @@ func NewSelfTestEvent(acc *events.AgentContainerContext, success []eval.RuleID, 
 	return events.NewCustomRule(events.SelfTestRuleID, events.SelfTestRuleDesc),
 		events.NewCustomEvent(model.CustomEventType, evt)
 }
-
-// SetOnNewPoliciesReadyCb implements the PolicyProvider interface
-func (t *SelfTester) SetOnNewPoliciesReadyCb(_ func()) {
-}
-
-// Type return the type of this policy provider
-func (t *SelfTester) Type() string {
-	return PolicyProviderType
-}
-
-// RuleMatch implement the rule engine interface
-func (t *SelfTester) RuleMatch(_ *eval.Context, rule *rules.Rule, event eval.Event) bool {
-	// send if not selftest related events
-	return !t.IsExpectedEvent(rule, event, t.probe)
-}
-
-// EventDiscarderFound implement the rule engine interface
-func (t *SelfTester) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, _ eval.Field, _ eval.EventType) {
-}
