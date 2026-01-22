@@ -34,15 +34,10 @@ def build(
     version = get_version(ctx, include_git=True)
 
     # ldflags: -s -w to reduce binary size
-    # -s = strip Go symbol table (breaks FIPS verification with `go tool nm`)
-    # -w = strip DWARF debug info (safe for FIPS, keeps Go symbol table)
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     ldflags = f"-X main.appVersion={version}"
     if not no_strip_binary:
-        if fips_mode:
-            ldflags += " -w"
-        else:
-            ldflags += " -s -w"
+        ldflags += " -s -w"
 
     # gcflags: -l disables inlining to reduce binary size
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
