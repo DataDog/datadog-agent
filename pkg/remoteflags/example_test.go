@@ -61,6 +61,10 @@ func (h *algorithmFlagHandler) SafeRecover(err error, failedValue remoteflags.Fl
 	h.parent.algorithmEnabled = false // Safe default
 }
 
+func (h *algorithmFlagHandler) IsHealthy() bool {
+	return true // Implement actual health check logic
+}
+
 // debugFlagHandler handles the debug feature flag
 type debugFlagHandler struct {
 	parent *myComponent
@@ -83,6 +87,10 @@ func (h *debugFlagHandler) OnNoConfig() {
 func (h *debugFlagHandler) SafeRecover(err error, failedValue remoteflags.FlagValue) {
 	log.Errorf("Debug flag error (value: %v): %v", failedValue, err)
 	h.parent.debugEnabled = false // Safe default
+}
+
+func (h *debugFlagHandler) IsHealthy() bool {
+	return true // Implement actual health check logic
 }
 
 // Example_interfaceBased demonstrates the recommended interface-based subscription pattern.
@@ -145,11 +153,15 @@ func Example_basicUsage() {
 		func() {
 			log.Info("Flag not present in configuration")
 		},
-		// onApplyError: REQUIRED - Handles errors and ensures correct state
+		// safeRecover: REQUIRED - Handles errors and ensures correct state
 		func(err error, failedValue remoteflags.FlagValue) {
 			log.Errorf("Error with flag (value: %v): %v", failedValue, err)
 			// Ensure feature is in a safe state
 			forceAlgorithmToSafeState()
+		},
+		// isHealthy: Called periodically to check component health after flag activation
+		func() bool {
+			return true // Implement actual health check
 		},
 	)
 
@@ -197,6 +209,9 @@ func Example_withComponent() {
 				log.Errorf("Flag apply error (value: %v): %v, forcing safe state", failedValue, err)
 				c.newAlgoEnabled = false // Safe default
 			},
+			func() bool {
+				return true // Health check
+			},
 		)
 	}
 
@@ -242,6 +257,7 @@ func Example_multipleFlags() {
 			func(err error, failedValue remoteflags.FlagValue) {
 				log.Errorf("Flag %s apply error (value: %v): %v", flagName, failedValue, err)
 			},
+			func() bool { return true },
 		)
 		if err != nil {
 			log.Errorf("Failed to subscribe to %s: %v", flag.name, err)
@@ -276,6 +292,7 @@ func Example_statefulFeature() {
 			log.Errorf("Apply error (value: %v): %v", failedValue, err)
 			manager.featureState[FlagEnableNewAlgorithm] = false
 		},
+		func() bool { return true },
 	)
 
 	// Check current state
@@ -305,6 +322,7 @@ func Example_errorHandlingStrategies() {
 			// Conservative: ensure experimental feature is disabled
 			disableExperimentalFeature()
 		},
+		func() bool { return true },
 	)
 
 	// Strategy 2: Production-aligned - maintain stable state on error
@@ -321,6 +339,7 @@ func Example_errorHandlingStrategies() {
 			// Maintain current stable production behavior
 			ensureStableProductionState()
 		},
+		func() bool { return true },
 	)
 
 	// Strategy 3: Feature-specific logic - logging should default to off
@@ -337,6 +356,7 @@ func Example_errorHandlingStrategies() {
 			// Enhanced logging should be off unless explicitly enabled
 			disableEnhancedLogging()
 		},
+		func() bool { return true },
 	)
 }
 
