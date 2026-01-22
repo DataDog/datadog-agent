@@ -574,10 +574,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exec.Process.ContainerContext))
+				return int(ev.Exec.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.id":
@@ -585,10 +585,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exec.Process.ContainerContext)
+				return string(ev.Exec.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.container.tags":
@@ -778,10 +778,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.Exit.Process.ContainerContext))
+				return int(ev.Exit.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.id":
@@ -789,10 +789,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.Exit.Process.ContainerContext)
+				return string(ev.Exit.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.container.tags":
@@ -1074,14 +1074,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &element.ProcessContext.Process.ContainerContext))
+					result := int(element.ProcessContext.Process.ContainerContext.CreatedAt)
 					return []int{result}
 				}
 				if result, ok := ctx.IntCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) int {
-					return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &current.ProcessContext.Process.ContainerContext))
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.ContainerContext.CreatedAt)
 				})
 				ctx.IntCache[field] = results
 				return results
@@ -1101,14 +1101,14 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					if element == nil {
 						return nil
 					}
-					result := ev.FieldHandlers.ResolveContainerID(ev, &element.ProcessContext.Process.ContainerContext)
+					result := string(element.ProcessContext.Process.ContainerContext.ContainerID)
 					return []string{result}
 				}
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
-				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, ev, func(ev *Event, current *ProcessCacheEntry) string {
-					return ev.FieldHandlers.ResolveContainerID(ev, &current.ProcessContext.Process.ContainerContext)
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) string {
+					return string(current.ProcessContext.Process.ContainerContext.ContainerID)
 				})
 				ctx.StringCache[field] = results
 				return results
@@ -1501,10 +1501,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) int {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Process.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.id":
@@ -1512,10 +1512,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			EvalFnc: func(ctx *eval.Context) string {
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Process.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Process.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.container.tags":
@@ -1645,10 +1645,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return 0
 				}
-				return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext))
+				return int(ev.BaseEvent.ProcessContext.Parent.ContainerContext.CreatedAt)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.id":
@@ -1659,10 +1659,10 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.FieldHandlers.ResolveContainerID(ev, &ev.BaseEvent.ProcessContext.Parent.ContainerContext)
+				return string(ev.BaseEvent.ProcessContext.Parent.ContainerContext.ContainerID)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.container.tags":
@@ -2968,21 +2968,12 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exit.cause":
 		return ev.setUint32FieldValue("exit.cause", &ev.Exit.Cause, value)
 	case "exit.cmdline":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.cmdline", &ev.Exit.Process.CmdLine, value)
 	case "exit.code":
 		return ev.setUint32FieldValue("exit.code", &ev.Exit.Code, value)
 	case "exit.container.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.container.created_at", &ev.Exit.Process.ContainerContext.CreatedAt, value)
 	case "exit.container.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.container.id"}
@@ -2990,69 +2981,30 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "exit.container.tags":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.created_at", &ev.Exit.Process.CreatedAt, value)
 	case "exit.envp":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envp", &ev.Exit.Process.Envp, value)
 	case "exit.envs":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envs", &ev.Exit.Process.Envs, value)
 	case "exit.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.name", &ev.Exit.Process.FileEvent.BasenameStr, value)
 	case "exit.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
 	case "exit.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.path", &ev.Exit.Process.FileEvent.PathnameStr, value)
 	case "exit.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.pid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
 	case "exit.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user", &ev.Exit.Process.User, value)
 	case "exit.user_sid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_sid", &ev.Exit.Process.OwnerSidString, value)
 	case "open.registry.key_name":
 		return ev.setStringFieldValue("open.registry.key_name", &ev.OpenRegistryKey.Registry.KeyName, value)

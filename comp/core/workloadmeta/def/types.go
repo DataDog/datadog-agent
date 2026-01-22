@@ -647,6 +647,11 @@ type Container struct {
 	// ResolvedAllocatedResources is the list of resources allocated to this pod. Requires the
 	// PodResources API to query that data.
 	ResolvedAllocatedResources []ContainerAllocatedResource
+	// GPUDeviceIDs contains the GPU device UUIDs assigned to this container.
+	// Format: ["GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"]
+	// Note: Currently only reliably populated in ECS environments, where it is extracted
+	// from the NVIDIA_VISIBLE_DEVICES environment variable set by the ECS agent.
+	GPUDeviceIDs []string
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -740,6 +745,11 @@ func (c Container) String(verbose bool) string {
 				_, _ = fmt.Fprintln(&sb, "Localhost Profile:", c.SecurityContext.SeccompProfile.LocalhostProfile)
 			}
 		}
+	}
+
+	if len(c.GPUDeviceIDs) > 0 {
+		_, _ = fmt.Fprintln(&sb, "----------- GPU Info -----------")
+		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
 	}
 
 	if c.ECSContainer != nil {
@@ -1984,6 +1994,12 @@ type GPU struct {
 	// specific.
 	Device string
 
+	// GPUType is the normalized model type of the GPU (e.g., "a100", "t4", "h100").
+	// This is extracted from the Device name and normalized to lowercase.
+	// For RTX cards, includes the rtx prefix (e.g., "rtx_a6000").
+	// Empty string if the type cannot be determined.
+	GPUType string
+
 	// DriverVersion is the version of the driver used for the gpu device
 	DriverVersion string
 
@@ -2077,6 +2093,7 @@ func (g GPU) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Vendor:", g.Vendor)
 	_, _ = fmt.Fprintln(&sb, "Driver Version:", g.DriverVersion)
 	_, _ = fmt.Fprintln(&sb, "Device:", g.Device)
+	_, _ = fmt.Fprintln(&sb, "GPU Type:", g.GPUType)
 	_, _ = fmt.Fprintln(&sb, "Active PIDs:", g.ActivePIDs)
 	_, _ = fmt.Fprintln(&sb, "Index:", g.Index)
 	_, _ = fmt.Fprintln(&sb, "Architecture:", g.Architecture)

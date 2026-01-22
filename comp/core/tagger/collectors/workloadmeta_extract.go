@@ -761,6 +761,9 @@ func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *t
 	tagList.AddLow(tags.GPUDriverVersion, gpu.DriverVersion)
 	tagList.AddLow(tags.GPUVirtualizationMode, gpu.VirtualizationMode)
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
+	if gpu.GPUType != "" {
+		tagList.AddLow(tags.GPUType, strings.ToLower(gpu.GPUType))
+	}
 
 	if gpu.DeviceType == workloadmeta.GPUDeviceTypeMIG {
 		tagList.AddLow(tags.GPUSlicingMode, "mig")
@@ -1029,7 +1032,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 
 func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workloadmeta.Container, tags *taglist.TagList) {
 	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
-		for _, pair := range strings.Split(otelResourceAttributes, ",") {
+		for pair := range strings.SplitSeq(otelResourceAttributes, ",") {
 			fields := strings.SplitN(pair, "=", 2)
 			if len(fields) != 2 {
 				log.Debugf("invalid OpenTelemetry resource attribute: %s", pair)

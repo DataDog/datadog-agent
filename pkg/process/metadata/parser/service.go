@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Masterminds/semver"
+	"github.com/Masterminds/semver/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	javaparser "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java"
@@ -119,6 +119,38 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
+// ExtractSingle extracts process metadata from a single process
+func (d *ServiceExtractor) ExtractSingle(proc *procutil.Process) {
+	if !d.enabled {
+		return
+	}
+
+	if meta, seen := d.serviceByPID[proc.Pid]; seen {
+		// check the service metadata is for the same process
+		if len(proc.Cmdline) == len(meta.cmdline) {
+			if len(proc.Cmdline) == 0 || proc.Cmdline[0] == meta.cmdline[0] {
+				return
+			}
+		}
+	}
+	meta := d.extractServiceMetadata(proc)
+	if meta != nil {
+		if log.ShouldLog(log.TraceLvl) {
+			log.Tracef("detected service metadata: %v", meta)
+		}
+		d.serviceByPID[proc.Pid] = meta
+	}
+}
+
+// Remove deletes process metadata for the provided PID
+func (d *ServiceExtractor) Remove(pid int32) {
+	if !d.enabled {
+		return
+	}
+
+	delete(d.serviceByPID, pid)
+}
+
 // GetServiceContext returns the service context for the PID
 func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
@@ -159,7 +191,7 @@ func (d *ServiceExtractor) extractServiceMetadata(process *procutil.Process) *se
 	cmdOrig := cmd
 	envs, cmd := extractEnvsFromCommand(cmd)
 	if len(envs) > 0 { // evaluate and skip the envs
-		svc, ok := chooseServiceNameFromEnvs(envs)
+		svc, ok := ChooseServiceNameFromEnvs(envs)
 		if ok {
 			return &serviceMetadata{
 				cmdline:        cmdOrig,
@@ -258,19 +290,19 @@ func extractEnvsFromCommand(cmd []string) ([]string, []string) {
 	return cmd[:pos], cmd[pos:]
 }
 
-// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// ChooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
 // returns the service name, true if found, otherwise "", false
-func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+func ChooseServiceNameFromEnvs(envs []string) (string, bool) {
 	for _, env := range envs {
-		if strings.HasPrefix(env, "DD_SERVICE=") {
-			svc := strings.TrimPrefix(env, "DD_SERVICE=")
+		if after, ok := strings.CutPrefix(env, "DD_SERVICE="); ok {
+			svc := after
 			return svc, len(svc) > 0
 		}
 		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
-			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
-			for _, p := range parts {
-				if strings.HasPrefix(p, "service:") {
-					svc := strings.TrimPrefix(p, "service:")
+			parts := strings.SplitSeq(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for p := range parts {
+				if after, ok := strings.CutPrefix(p, "service:"); ok {
+					svc := after
 					return svc, len(svc) > 0
 				}
 			}
@@ -386,8 +418,8 @@ func parseCommandContextJava(se *ServiceExtractor, process *procutil.Process, ar
 					// take the project name after the package 'org.apache.' while stripping off the remaining package
 					// and class name
 					arg = arg[len(javaApachePrefix):]
-					if idx := strings.Index(arg, "."); idx != -1 {
-						return arg[:idx]
+					if before, _, ok := strings.Cut(arg, "."); ok {
+						return before
 					}
 				}
 				if idx := strings.LastIndex(arg, "."); idx != -1 && idx+1 < len(arg) {

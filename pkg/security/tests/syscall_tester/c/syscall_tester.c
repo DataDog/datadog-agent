@@ -183,9 +183,13 @@ int ptrace_traceme() {
     if (child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         raise(SIGSTOP);
+        // Child process exits after being continued
+        _exit(0);
     } else {
         wait(NULL);
         ptrace(PTRACE_CONT, child, 42, NULL);
+        // Wait for child to exit
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -194,10 +198,15 @@ int ptrace_attach() {
     int child = fork();
     if (child == 0) {
         sleep(3);
+        _exit(0);
     } else {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+        // Detach and terminate child process
+        ptrace(PTRACE_DETACH, child, 0, NULL);
+        kill(child, SIGTERM);
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -637,11 +646,21 @@ int test_accept(int argc, char** argv) {
 
 int test_bind_af_inet(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc < 3 || argc > 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3 (optional): port number (default: 4242)\n");
         return EXIT_FAILURE;
+    }
+
+    int port = 4242;
+    if (argc == 4) {
+        port = atoi(argv[3]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Invalid port number: %s\n", argv[3]);
+            return EXIT_FAILURE;
+        }
     }
 
     char* proto = argv[2];
@@ -674,7 +693,7 @@ int test_bind_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin_port = htons(4242);
+    addr.sin_port = htons(port);
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("Failed to bind port");
         return EXIT_FAILURE;
@@ -691,9 +710,19 @@ int test_bind_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (argc != 2) {
+    if (argc < 2 || argc > 3) {
         fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2 (optional): port number (default: 4242)\n");
         return EXIT_FAILURE;
+    }
+
+    int port = 4242;
+    if (argc == 3) {
+        port = atoi(argv[2]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Invalid port number: %s\n", argv[2]);
+            return EXIT_FAILURE;
+        }
     }
 
     struct sockaddr_in6 addr;
@@ -710,7 +739,7 @@ int test_bind_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin6_port = htons(4242);
+    addr.sin6_port = htons(port);
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("Failed to bind port");
         return EXIT_FAILURE;

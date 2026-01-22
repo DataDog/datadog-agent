@@ -111,13 +111,27 @@ func (l *Loop) handleTask(
 	task *types.Task,
 	credential *privateconnection.PrivateCredentials,
 ) {
+	logger := log.FromContext(ctx).With(
+		log.String(observability.TaskIDTagName, task.Data.ID),
+		log.String(observability.ActionFqnTagName, task.GetFQN()),
+	)
 	taskCtx, taskCtxCancel := context.WithCancel(ctx)
 	defer taskCtxCancel()
 
-	output, err := l.runner.RunTask(taskCtx, task, credential)
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(taskCtx, l.runner.config.TaskTimeoutSeconds)
+	defer timeoutCancel()
+
+	output, err := l.runner.RunTask(timeoutCtx, task, credential)
+
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, l.runner.config.TaskTimeoutSeconds, logger); isTimeout {
+		l.publishFailure(ctx, task, timeoutErr)
+		return
+	}
+
 	if err == nil {
 		l.publishSuccess(ctx, task, output)
 	} else {
+		logger.Warn("task execution failed", log.ErrorField(err))
 		l.publishFailure(ctx, task, err)
 	}
 }
