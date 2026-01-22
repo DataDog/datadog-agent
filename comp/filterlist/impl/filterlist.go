@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
-	"github.com/twmb/murmur3"
 )
 
 // Requires contains the config for RC
@@ -112,7 +111,6 @@ func NewFilterList(log log.Component, config config.Component, telemetrycomp tel
 		tlmTagFilterListUpdates:    tlmTagFilterListUpdates,
 		tlmTagFilterListSize:       tlmTagFilterListSize,
 	}
-
 	fl.SetTagFilterListFromEntries(localFilterListConfig.tagFilterList)
 	fl.SetMetricFilterList(localFilterListConfig.metricNames, localFilterListConfig.matchPrefix)
 
@@ -213,10 +211,7 @@ func (fl *FilterList) createHistogramsFilterList(metricNames []string) []string 
 func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 	hashedTags := make(map[string]hashedMetricTagList, len(metricTags))
 	for name, tags := range metricTags {
-		hashed := make([]uint64, 0, len(tags.Tags))
-		for _, tag := range tags.Tags {
-			hashed = append(hashed, murmur3.StringSum64(tag))
-		}
+		hashed := hashTags(tags.Tags)
 
 		var action action
 		if tags.Action == "exclude" {

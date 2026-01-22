@@ -17,7 +17,6 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,6 +33,14 @@ type resultTester struct {
 	Unknowns int
 }
 
+func newFilterList(t *testing.T) (*FilterList, config.Component) {
+	cfg := make(map[string]interface{})
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	return NewFilterList(logComponent, configComponent, telemetryComponent), configComponent
+}
+
 // Validating that the Agent isn't crashing on malformed updates.
 func TestMalformedFilterListUpdate(t *testing.T) {
 	require := require.New(t)
@@ -45,12 +52,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 	}
 	reset := func() updateRes { return updateRes{} }
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, _ := newFilterList(t)
 
 	results := reset()
 
@@ -143,12 +145,7 @@ func TestMalformedFilterListUpdate(t *testing.T) {
 func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -183,12 +180,7 @@ func TestFilterListUpdateWithValidMetrics(t *testing.T) {
 func TestFilterListUpdateWithValidTags(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -234,12 +226,7 @@ func TestFilterListUpdateWithValidTags(t *testing.T) {
 func TestFilterListIgnoresUnknownSections(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -296,12 +283,7 @@ func TestFilterListIgnoresUnknownSections(t *testing.T) {
 func TestFilterListUpdateWithMergedTags(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -363,12 +345,7 @@ func TestFilterListUpdateWithMergedTags(t *testing.T) {
 func TestFilterListUpdateWithConflictingActions(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -430,12 +407,7 @@ func TestFilterListUpdateWithConflictingActions(t *testing.T) {
 func TestFilterListUpdateWithCombinedMetricsAndTags(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -591,12 +563,7 @@ func TestFilterListUpdateEmptyRestoresLocal(t *testing.T) {
 func TestFilterListUpdateWithIncludeMode(t *testing.T) {
 	require := require.New(t)
 
-	cfg := make(map[string]interface{})
-
-	logComponent := logmock.New(t)
-	configComponent := config.NewMockWithOverrides(t, cfg)
-	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
-	filterList := NewFilterList(logComponent, configComponent, telemetryComponent)
+	filterList, configComponent := newFilterList(t)
 
 	results := updateRes{}
 	callback := func(path string, status state.ApplyStatus) {
@@ -637,7 +604,6 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 	require := require.New(t)
 
 	cfg := make(map[string]interface{})
-	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	logComponent := logmock.New(t)
 	configComponent := config.NewMockWithOverrides(t, cfg)
@@ -723,4 +689,156 @@ func TestFilterListUpdateMultipleMetrics(t *testing.T) {
 		},
 		metricMap["metric.three"],
 	)
+}
+
+// TestMergeMetricTagListEntry_SameActionInclude tests merging tags when both entries have Include action
+func TestMergeMetricTagListEntry_SameActionInclude(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	// Setup: current entry with Include action
+	currentHashed := hashedMetricTagList{
+		action: Include,
+		tags:   hashTags([]string{"env", "host"}),
+	}
+	currentEntry := MetricTagListEntry{
+		MetricName: "test.metric",
+		Action:     "include",
+		Tags:       []string{"env", "host"},
+	}
+
+	// New entry also with Include action
+	newMetric := tagEntry{
+		Name:       "test.metric",
+		ExcludeTag: false,
+		Tags:       []string{"pod", "cluster"},
+	}
+
+	// Execute merge
+	updated, hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+
+	// Verify results
+	require.True(updated, "merge should return true when actions match")
+	require.NotNil(hashedResult)
+	require.NotNil(entryResult)
+
+	require.Equal(Include, hashedResult.action)
+	require.Equal("include", entryResult.Action)
+
+	require.ElementsMatch(hashTags([]string{"env", "host", "pod", "cluster"}), hashedResult.tags)
+	require.ElementsMatch([]string{"env", "host", "pod", "cluster"}, entryResult.Tags)
+}
+
+// TestMergeMetricTagListEntry_SameActionExclude tests merging tags when both entries have Exclude action
+func TestMergeMetricTagListEntry_SameActionExclude(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	// Setup: current entry with Exclude action
+	currentHashed := hashedMetricTagList{
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host"}),
+	}
+	currentEntry := MetricTagListEntry{
+		MetricName: "test.metric",
+		Action:     "exclude",
+		Tags:       []string{"env", "host"},
+	}
+
+	// New entry also with Exclude action
+	newMetric := tagEntry{
+		Name:       "test.metric",
+		ExcludeTag: true,
+		Tags:       []string{"pod", "cluster"},
+	}
+
+	// Execute merge
+	updated, hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+
+	// Verify results
+	require.True(updated, "merge should return true when actions match")
+	require.NotNil(hashedResult)
+	require.NotNil(entryResult)
+
+	require.Equal(Exclude, hashedResult.action)
+	require.Equal("exclude", entryResult.Action)
+
+	require.ElementsMatch([]string{"env", "host", "pod", "cluster"}, entryResult.Tags)
+	require.ElementsMatch(hashTags([]string{"env", "host", "pod", "cluster"}), hashedResult.tags, 4)
+}
+
+// TestMergeMetricTagListEntry_IncludeOverriddenByExclude tests that Exclude overwrites Include
+func TestMergeMetricTagListEntry_IncludeOverriddenByExclude(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	// Setup: current entry with Include action
+	currentHashed := hashedMetricTagList{
+		action: Include,
+		tags:   hashTags([]string{"env", "host"}),
+	}
+	currentEntry := MetricTagListEntry{
+		MetricName: "test.metric",
+		Action:     "include",
+		Tags:       []string{"env", "host"},
+	}
+
+	// New entry with Exclude action (should overwrite)
+	newMetric := tagEntry{
+		Name:       "test.metric",
+		ExcludeTag: true,
+		Tags:       []string{"pod"},
+	}
+
+	// Execute merge
+	updated, hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+
+	// Verify results
+	require.True(updated, "merge should return true when overwriting Include with Exclude")
+	require.NotNil(hashedResult)
+	require.NotNil(entryResult)
+
+	require.Equal(Exclude, hashedResult.action)
+	require.Equal("exclude", entryResult.Action)
+
+	require.ElementsMatch(hashTags([]string{"pod"}), hashedResult.tags)
+	require.ElementsMatch([]string{"pod"}, entryResult.Tags)
+
+	require.Equal("test.metric", entryResult.MetricName)
+}
+
+// TestMergeMetricTagListEntry_ExcludeIgnoresInclude tests that Exclude entry ignores Include updates
+func TestMergeMetricTagListEntry_ExcludeIgnoresInclude(t *testing.T) {
+	require := require.New(t)
+
+	filterList, _ := newFilterList(t)
+
+	// Setup: current entry with Exclude action
+	currentHashed := hashedMetricTagList{
+		action: Exclude,
+		tags:   hashTags([]string{"env", "host"}),
+	}
+	currentEntry := MetricTagListEntry{
+		MetricName: "test.metric",
+		Action:     "exclude",
+		Tags:       []string{"env", "host"},
+	}
+
+	// New entry with Include action (should be ignored)
+	newMetric := tagEntry{
+		Name:       "test.metric",
+		ExcludeTag: false,
+		Tags:       []string{"pod"},
+	}
+
+	// Execute merge
+	updated, hashedResult, entryResult := filterList.mergeMetricTagListEntry(newMetric, currentHashed, currentEntry)
+
+	// Verify results
+	require.False(updated, "merge should return false when Exclude ignores Include")
+	require.Nil(hashedResult, "should return nil when not updating")
+	require.Nil(entryResult, "should return nil when not updating")
 }
