@@ -3468,7 +3468,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.HandleNetworkRemediation(rule, ev, policy, string(reportStatus))
+			p.HandleNetworkRemediation(rule, ev, report)
 		}
 	}
 }

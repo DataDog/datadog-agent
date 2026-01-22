@@ -128,7 +128,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			} else {
 				out.Scope = string(in.String())
 			}
-		case "remediation":
+		case "remediation_action":
 			if in.IsNull() {
 				in.Skip()
 			} else {
@@ -220,7 +220,7 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 		out.String(string(in.Scope))
 	}
 	{
-		const prefix string = ",\"remediation\":"
+		const prefix string = ",\"remediation_action\":"
 		out.RawString(prefix)
 		out.String(string(in.Remediation))
 	}

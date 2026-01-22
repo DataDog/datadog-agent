@@ -15,11 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes/rawpacket"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -82,7 +80,7 @@ type RemediationEvent struct {
 	EventType   string                      `json:"event_type"`
 	Service     string                      `json:"service"`
 	Scope       string                      `json:"scope"`
-	Remediation string                      `json:"remediation"`
+	Remediation string                      `json:"remediation_action"`
 	Status      string                      `json:"status"`
 	Timestamp   int64                       `json:"timestamp"`
 	RuleTags    RuleTags                    `json:"rule_tags,omitempty"`
@@ -113,21 +111,36 @@ func getRemediationTagBool(rule *rules.Rule) bool {
 	return false
 }
 
-func getRemediationKey(rule *rules.Rule) string {
+func generateKillActionKey(ruleID string, scope string, signal string) string {
+	return "kill_" + ruleID + scope + signal
+}
+
+func generateNetworkIsolationActionKey(ruleID string, filter string) string {
+	hash := sha256.Sum256([]byte(filter))
+	return "net_" + ruleID + hex.EncodeToString(hash[:10])
+
+}
+
+func getRemediationKeys(rule *rules.Rule) []string {
+	keys := []string{}
 	if getRemediationTagBool(rule) {
-		return "rem_" + getAgentEventID(rule)
+		// Should not have multiple remediation actions
+		keys = append(keys, "rem_"+getAgentEventID(rule))
 	}
 	for _, action := range rule.Actions {
 		if action.Def.Kill != nil {
-			return "kill_" + utils.RandString(10)
+			// We assume this combination unique
+			scope := action.Def.Kill.Scope
+			signal := action.Def.Kill.Signal
+
+			keys = append(keys, generateKillActionKey(rule.ID, scope, signal))
 		}
 		if action.Def.NetworkFilter != nil {
 			filter := action.Def.NetworkFilter.BPFFilter
-			hash := sha256.Sum256([]byte(filter))
-			return "n_f_" + rule.ID + hex.EncodeToString(hash[:10])
+			keys = append(keys, generateNetworkIsolationActionKey(rule.ID, filter))
 		}
 	}
-	return ""
+	return keys
 }
 
 // NewRemediationEvent creates a new Remediation event from the latest action report
@@ -210,32 +223,34 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 			}
 
 			var actionType uint8
-			remediationKey := getRemediationKey(rule)
+			remediationKeys := getRemediationKeys(rule)
 
-			if action.Def.NetworkFilter != nil {
-				actionType = RemediationTypeNetworkIsolation
-				// If isolation is new, create a new entry in the map
-				if _, exists := p.activeRemediations[remediationKey]; !exists {
-					p.activeRemediations[remediationKey] = &Remediation{
-						actionType:   actionType,
-						triggered:    false,
-						isolationNew: true,
-						scope:        action.Def.NetworkFilter.Scope,
-						ruleTags:     getTagsFromRule(rule),
+			for _, remediationKey := range remediationKeys {
+				if action.Def.NetworkFilter != nil {
+					actionType = RemediationTypeNetworkIsolation
+					// If isolation is new, create a new entry in the map
+					if _, exists := p.activeRemediations[remediationKey]; !exists {
+						p.activeRemediations[remediationKey] = &Remediation{
+							actionType:   actionType,
+							triggered:    false,
+							isolationNew: true,
+							scope:        action.Def.NetworkFilter.Scope,
+							ruleTags:     getTagsFromRule(rule),
+						}
+					} else {
+						// Otherwise, update the entry
+						p.activeRemediations[remediationKey].isolationReApplied = true
 					}
-				} else {
-					// Otherwise, update the entry
-					p.activeRemediations[remediationKey].isolationReApplied = true
-				}
-			} else if action.Def.Kill != nil && getRemediationTagBool(rule) {
-				// No need to create kill actions entries here if there is no remediation
-				actionType = RemediationTypeKill
-				// Create a new entry for kill actions
-				p.activeRemediations[remediationKey] = &Remediation{
-					actionType: actionType,
-					triggered:  false,
-					scope:      action.Def.Kill.Scope,
-					ruleTags:   getTagsFromRule(rule),
+				} else if action.Def.Kill != nil && getRemediationTagBool(rule) {
+					// No need to create kill actions entries here if there is no remediation
+					actionType = RemediationTypeKill
+					// Create a new entry for kill actions
+					p.activeRemediations[remediationKey] = &Remediation{
+						actionType: actionType,
+						triggered:  false,
+						scope:      action.Def.Kill.Scope,
+						ruleTags:   getTagsFromRule(rule),
+					}
 				}
 			}
 		}
@@ -251,12 +266,8 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 }
 
 func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event) {
-	remediationKey := getRemediationKey(rule)
-	if remediationKey == "" {
-		seclog.Warnf("no rule action key found for rule")
-		return
-	}
 	if killReport, ok := ev.ActionReports[len(ev.ActionReports)-1].(*KillActionReport); ok {
+		remediationKey := generateKillActionKey(rule.ID, killReport.Scope, killReport.Signal)
 		p.activeRemediationsLock.Lock()
 		defer p.activeRemediationsLock.Unlock()
 		remediation, found := p.activeRemediations[remediationKey]
@@ -297,12 +308,8 @@ func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event) {
 	}
 }
 
-func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, policy rawpacket.Policy, status string) {
-	remediationKey := getRemediationKey(rule)
-	if remediationKey == "" {
-		seclog.Warnf("no rule action key found for rule")
-		return
-	}
+func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, report *RawPacketActionReport) {
+	remediationKey := generateNetworkIsolationActionKey(rule.ID, report.Filter)
 	p.activeRemediationsLock.Lock()
 	defer p.activeRemediationsLock.Unlock()
 
@@ -319,10 +326,10 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 		remediation.processContext.PID = ev.ProcessContext.Process.Pid
 		remediation.containerContext.ID = string(ev.ProcessContext.Process.ContainerContext.ContainerID)
 		remediation.containerContext.CreatedAt = ev.ProcessContext.Process.ContainerContext.CreatedAt
-		remediation.policy = policy.String()
+		remediation.policy = string(report.Policy)
 	}
 	// Send an event
-	networkFilterEvent := NewRemediationEvent(p, remediationKey, status, "network_isolation")
+	networkFilterEvent := NewRemediationEvent(p, remediationKey, string(report.Status), "network_isolation")
 	p.SendRemediationEvent(networkFilterEvent)
 
 }
