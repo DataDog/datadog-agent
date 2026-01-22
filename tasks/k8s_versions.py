@@ -10,11 +10,15 @@ import json
 import os
 import re
 import sys
+from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.kind_node_image import get_github_rc_releases
+
+if TYPE_CHECKING:
+    import semver
 
 try:
     import requests
@@ -27,13 +31,17 @@ except ImportError:
     yaml = None
 
 try:
-    import semver
+    import semver as _semver
 except ImportError:
-    semver = None
+    _semver = None
 
 DOCKER_HUB_API_URL = "https://hub.docker.com/v2/repositories/kindest/node/tags"
 VERSIONS_FILE = "k8s_versions.json"
 E2E_YAML_PATH = ".gitlab/test/e2e/e2e.yml"
+
+# Regex pattern for Kubernetes version (release and RC supported)
+# Matches: v1.35.0, v1.35.0-rc.1, etc.
+K8S_VERSION_PATTERN = r'v?\d+\.\d+(?:\.\d+)?(?:-rc\.\d+)?'
 
 
 def _check_dependencies():
@@ -43,7 +51,7 @@ def _check_dependencies():
         missing.append('requests')
     if yaml is None:
         missing.append('pyyaml')
-    if semver is None:
+    if _semver is None:
         missing.append('semver')
 
     if missing:
@@ -53,7 +61,7 @@ def _check_dependencies():
         )
 
 
-def _parse_version(version_str: str) -> semver.VersionInfo | None:  # type: ignore
+def _parse_version(version_str: str) -> semver.VersionInfo | None:
     """
     Parse a Kubernetes version string into a semver VersionInfo object.
 
@@ -70,7 +78,7 @@ def _parse_version(version_str: str) -> semver.VersionInfo | None:  # type: igno
     clean_version = version_str.lstrip('v')
 
     try:
-        return semver.VersionInfo.parse(clean_version)
+        return _semver.VersionInfo.parse(clean_version)
     except (ValueError, AttributeError):
         return None
 
@@ -258,7 +266,7 @@ def _extract_version_from_latest_job(content: str) -> dict[str, str] | None:
     lines = content.split('\n')
     line = lines[extra_params_line]
 
-    pattern = r'kubernetesVersion=(v?\d+\.\d+(?:\.\d+)?(?:@sha256:[a-f0-9]+)?)'
+    pattern = rf'kubernetesVersion=({K8S_VERSION_PATTERN}(?:@sha256:[a-f0-9]+)?)'
     match = re.search(pattern, line)
 
     if match:
@@ -333,7 +341,7 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
     print(f"Updating new-e2e-containers-k8s-latest job to {desired_latest_version}")
     old_line = lines[extra_params_line]
     new_line = re.sub(
-        r'kubernetesVersion=v?\d+\.\d+\.\d+@sha256:[a-f0-9]+',
+        rf'kubernetesVersion={K8S_VERSION_PATTERN}@sha256:[a-f0-9]+',
         f'kubernetesVersion={desired_latest_version}@{desired_latest_digest}',
         old_line,
     )
