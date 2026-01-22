@@ -5,15 +5,15 @@
 
 //go:build !observer
 
-// Package fx defines the fx options for the observer component.
-package fx
+// Package observer provides a component for observing data flowing through the agent.
+package observer
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for the observer component.
+// Bundle defines the fx options for the observer bundle.
 // This is a noop implementation when the observer build tag is not set.
-func Module() fxutil.Module {
-	return fxutil.Component()
+func Bundle() fxutil.BundleOptions {
+	return fxutil.Bundle()
 }
