@@ -1393,7 +1393,7 @@ func TestRemediationCustomEvents(t *testing.T) {
 				t.Error("signal timeout")
 			}
 			return nil
-		}, func(rule *rules.Rule, customEvent *model.Event) bool {
+		}, func(_ *rules.Rule, _ *model.Event) bool {
 			return true
 		}, time.Second*5, "kill_remediation")
 
