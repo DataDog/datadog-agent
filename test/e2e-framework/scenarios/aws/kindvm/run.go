@@ -262,7 +262,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 	}
 
-	if params.deployOperator && params.operatorDDAOptions != nil {
+	if params.deployOperator && len(params.operatorDDAOptions) > 0 {
 		// Deploy the datadog CSI driver
 		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
 			return err
@@ -278,7 +278,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 	}
 
-	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
+	if params.agentOptions == nil || len(params.operatorDDAOptions) == 0 {
 		env.Agent = nil
 	}
 
