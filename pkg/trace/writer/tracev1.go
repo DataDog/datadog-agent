@@ -357,7 +357,7 @@ func (w *TraceWriterV1) recordEvent(t eventType, data *eventData) {
 		w.stats.Retries.Inc()
 
 	case eventTypeSent:
-		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes) // TODO: Undo when done
+		log.Debugf("Flushed traces to the API; time: %s, bytes: %d", data.duration, data.bytes)
 		w.timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
