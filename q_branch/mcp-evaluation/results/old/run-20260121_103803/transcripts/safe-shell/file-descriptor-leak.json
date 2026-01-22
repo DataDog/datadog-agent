@@ -1,0 +1,761 @@
+[
+  {
+    "subtype": "init",
+    "data": {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/matthew.deguzman/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation",
+      "session_id": "a6abb738-95f0-4f6a-abc8-53f9865d1710",
+      "tools": [
+        "Task",
+        "TaskOutput",
+        "Bash",
+        "Glob",
+        "Grep",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "WebSearch",
+        "KillShell",
+        "AskUserQuestion",
+        "Skill",
+        "EnterPlanMode",
+        "mcp__mcp-eval__safe_shell_execute"
+      ],
+      "mcp_servers": [
+        {
+          "name": "mcp-eval",
+          "status": "connected"
+        }
+      ],
+      "model": "claude-opus-4-5-20251101",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "compact",
+        "context",
+        "cost",
+        "init",
+        "pr-comments",
+        "release-notes",
+        "review",
+        "security-review"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "claude_code_version": "2.1.1",
+      "output_style": "default",
+      "agents": [
+        "Bash",
+        "general-purpose",
+        "statusline-setup",
+        "Explore",
+        "Plan"
+      ],
+      "skills": [],
+      "plugins": [],
+      "uuid": "c76d62c6-9ada-4696-8670-aa32002340ad"
+    }
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01JZqxSLskppn8z32kZJqDnG', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ulimit -n && cat /proc/sys/fs/file-nr'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01PnTZHMBJKiNEnphnXvc2eo', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/sys/fs/file-max'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Jfz8pYaPqoXd1sPXQPvutw', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'lsof 2>/dev/null | wc -l'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01JZqxSLskppn8z32kZJqDnG', content='{\"command\":\"ulimit -n && cat /proc/sys/fs/file-nr\",\"exit_code\":0,\"output\":\"256\\\\n1271\\\\t0\\\\t9223372036854775807\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "fde99210-8ac4-4cdd-a667-858ff897414a",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01PnTZHMBJKiNEnphnXvc2eo', content='{\"command\":\"cat /proc/sys/fs/file-max\",\"exit_code\":0,\"output\":\"9223372036854775807\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "68e140e2-2dd8-4be6-8ee8-a78961f51554",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Jfz8pYaPqoXd1sPXQPvutw', content='{\"command\":\"lsof 2>/dev/null | wc -l\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "16d99ebe-4cd3-4827-acde-ac6deac3de98",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Interesting! I can already see a critical issue - the system is experiencing \"fork: retry: Resource temporarily unavailable\" errors, suggesting resource exhaustion. Also, the user limit for open files is very low at 256. Let me dig deeper.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01MjwQWfr9CenRcAsLGRMXrQ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/$(cat /proc/self/stat | awk \\'{print $1}\\')/limits | grep -i \"open files\"'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_014uRayfSMvDmKUSUuCZskvB', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ps aux 2>/dev/null | head -20'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_014TjRfXjVNGkt4M4Q2FwneQ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /proc/*/fd 2>/dev/null | head -100'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01MjwQWfr9CenRcAsLGRMXrQ', content='{\"command\":\"cat /proc/$(cat /proc/self/stat | awk \\'{print $1}\\')/limits | grep -i \\\\\"open files\\\\\"\",\"error\":\"exit status 254\",\"exit_code\":254,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "1f1fb354-2446-45de-be7b-f8cece3b08a7",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_014uRayfSMvDmKUSUuCZskvB', content='{\"command\":\"ps aux 2>/dev/null | head -20\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\nUSER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\\\\nroot           1  0.6  0.2  36632 18672 ?        Ss   11:25   0:00 /usr/lib/systemd/systemd --switched-root --system --deserialize=51 no_timer_check\\\\nroot           2  0.0  0.0      0     0 ?        S    11:25   0:00 [kthreadd]\\\\nroot           3  0.0  0.0      0     0 ?        S    11:25   0:00 [pool_workqueue_release]\\\\nroot           4  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-rcu_gp]\\\\nroot           5  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-sync_wq]\\\\nroot           6  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-kvfree_rcu_reclaim]\\\\nroot           7  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-slub_flushwq]\\\\nroot           8  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-netns]\\\\nroot           9  0.0  0.0      0     0 ?        I    11:25   0:00 [kworker/0:0-cgroup_free]\\\\nroot          10  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/0:0H-events_highpri]\\\\nroot          11  0.0  0.0      0     0 ?        I    11:25   0:00 [kworker/0:1-cgroup_free]\\\\nroot          12  0.1  0.0      0     0 ?        I    11:25   0:00 [kworker/u16:0-flush-btrfs-1]\\\\nroot          13  0.0  0.0      0     0 ?        I<   11:25   0:00 [kworker/R-mm_percpu_wq]\\\\nroot          14  0.1  0.0      0     0 ?        I    11:25   0:00 [kworker/u16:1-btrfs-delalloc]\\\\nroot          15  0.0  0.0      0     0 ?        S    11:25   0:00 [ksoftirqd/0]\\\\nroot          16  0.0  0.0      0     0 ?        I    11:25   0:00 [rcu_preempt]\\\\nroot          17  0.0  0.0      0     0 ?        S    11:25   0:00 [rcu_exp_par_gp_kthread_worker/0]\\\\nroot          18  0.0  0.0      0     0 ?        S    11:25   0:00 [rcu_exp_gp_kthread_worker]\\\\nroot          19  0.0  0.0      0     0 ?        S    11:25   0:00 [migration/0]\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "36368948-a39c-4930-aa3a-5b837ec42c33",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_014TjRfXjVNGkt4M4Q2FwneQ', content='{\"command\":\"ls -la /proc/*/fd 2>/dev/null | head -100\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/proc/1205/fd:\\\\ntotal 0\\\\ndr-x------. 2 lima lima 14 Jan 21 11:25 .\\\\ndr-xr-xr-x. 9 lima lima  0 Jan 21 11:25 ..\\\\nlr-x------. 1 lima lima 64 Jan 21 11:25 0\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 1\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 10\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 11\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 12\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 13\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 2\\\\nlr-x------. 1 lima lima 64 Jan 21 11:25 3\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 4\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 5\\\\nlr-x------. 1 lima lima 64 Jan 21 11:27 6\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 7\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 8\\\\nlr-x------. 1 lima lima 64 Jan 21 11:25 9\\\\n\\\\n/proc/1206/fd:\\\\ntotal 0\\\\ndr-x------. 2 lima lima  8 Jan 21 11:25 .\\\\ndr-xr-xr-x. 9 lima lima  0 Jan 21 11:25 ..\\\\nlr-x------. 1 lima lima 64 Jan 21 11:25 0\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 1\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 2\\\\nlr-x------. 1 lima lima 64 Jan 21 11:25 3\\\\nlrwx------. 1 lima lima 64 Jan 21 11:25 4\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 5\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 6\\\\nlrwx------. 1 lima lima 64 Jan 21 11:27 7\\\\n\\\\n/proc/2760/fd:\\\\ntotal 0\\\\ndr-x------. 2 lima lima 473 Jan 21 11:27 .\\\\ndr-xr-xr-x. 9 lima lima   0 Jan 21 11:26 ..\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 0\\\\nl-wx------. 1 lima lima  64 Jan 21 11:27 1\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 10\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 100\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 101\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 102\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 103\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 104\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 105\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 106\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 107\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 108\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 109\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 11\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 110\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 111\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 112\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 113\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 114\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 115\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 116\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 117\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 118\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 119\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 12\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 120\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 121\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 122\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 123\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 124\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 125\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 126\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 127\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 128\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 129\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 13\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 130\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 131\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 132\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 133\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 134\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 135\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 136\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 137\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 138\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 139\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 14\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 140\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 141\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 142\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 143\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 144\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 145\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 146\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 147\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 148\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 149\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 15\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 150\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 151\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 152\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 153\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 154\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 155\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ce9a521d-ed01-475a-a871-ce0772189ecb",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I found a key issue - PID 2760 has a massive number of file descriptors (473+). Let me investigate this process further and get more details about the file descriptor situation.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01EFefYMYAMQA3Q8xHxMRUtr', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls /proc/2760/fd | wc -l'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01F4h58wSYKTxYwVLJSEVpdP', name='mcp__mcp-eval__safe_shell_execute', input={'command': \"cat /proc/2760/cmdline | tr '\\\\0' ' '\"})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01HoyftH4tHMnMzxoXvLAega', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/limits'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_011up2Ep8mhUAj3GxaJr77uy', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /proc/2760/fd/ | tail -30'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01EFefYMYAMQA3Q8xHxMRUtr', content='{\"command\":\"ls /proc/2760/fd | wc -l\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n553\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "085bb7bb-026b-412b-9e8b-a0d1d3465699",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01F4h58wSYKTxYwVLJSEVpdP', content='{\"command\":\"cat /proc/2760/cmdline | tr \\'\\\\\\\\0\\' \\' \\'\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\npython3 service.py \",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "e971c6d9-7779-4f60-a3a1-83339dddeb11",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01HoyftH4tHMnMzxoXvLAega', content='{\"command\":\"cat /proc/2760/limits\",\"exit_code\":0,\"output\":\"Limit                     Soft Limit           Hard Limit           Units     \\\\nMax cpu time              unlimited            unlimited            seconds   \\\\nMax file size             unlimited            unlimited            bytes     \\\\nMax data size             unlimited            unlimited            bytes     \\\\nMax stack size            8388608              unlimited            bytes     \\\\nMax core file size        unlimited            unlimited            bytes     \\\\nMax resident set          unlimited            unlimited            bytes     \\\\nMax processes             31615                31615                processes \\\\nMax open files            1024                 524288               files     \\\\nMax locked memory         8388608              8388608              bytes     \\\\nMax address space         unlimited            unlimited            bytes     \\\\nMax file locks            unlimited            unlimited            locks     \\\\nMax pending signals       31615                31615                signals   \\\\nMax msgqueue size         819200               819200               bytes     \\\\nMax nice priority         0                    0                    \\\\nMax realtime priority     0                    0                    \\\\nMax realtime timeout      unlimited            unlimited            us        \\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "3de7f577-39b5-428a-8445-340ca2c7adc1",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_011up2Ep8mhUAj3GxaJr77uy', content='{\"command\":\"ls -la /proc/2760/fd/ | tail -30\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\nls: cannot read symbolic link \\'/proc/2760/fd/0\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/1\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/2\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/3\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/4\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/5\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/6\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/7\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/8\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/9\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/10\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/11\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/12\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/13\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/14\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/15\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/16\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/17\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/18\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/19\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/20\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/21\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/22\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/23\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/24\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/25\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/26\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/27\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/28\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/29\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/30\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/31\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/32\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/33\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/34\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/35\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/36\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/37\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/38\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/39\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/40\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/41\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/42\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/43\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/44\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/45\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/46\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/47\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/48\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/49\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/50\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/51\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/52\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/53\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/54\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/55\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/56\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/57\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/58\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/59\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/60\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/61\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/62\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/63\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/64\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/65\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/66\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/67\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/68\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/69\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/70\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/71\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/72\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/73\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/74\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/75\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/76\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/77\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/78\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/79\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/80\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/81\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/82\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/83\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/84\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/85\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/86\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/87\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/88\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/89\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/90\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/91\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/92\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/93\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/94\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/95\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/96\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/97\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/98\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/99\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/100\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/101\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/102\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/103\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/104\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/105\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/106\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/107\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/108\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/109\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/110\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/111\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/112\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/113\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/114\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/115\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/116\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/117\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/118\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/119\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/120\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/121\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/122\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/123\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/124\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/125\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/126\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/127\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/128\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/129\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/130\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/131\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/132\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/133\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/134\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/135\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/136\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/137\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/138\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/139\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/140\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/141\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/142\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/143\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/144\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/145\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/146\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/147\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/148\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/149\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/150\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/151\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/152\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/153\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/154\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/155\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/156\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/157\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/158\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/159\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/160\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/161\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/162\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/163\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/164\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/165\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/166\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/167\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/168\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/169\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/170\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/171\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/172\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/173\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/174\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/175\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/176\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/177\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/178\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/179\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/180\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/181\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/182\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/183\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/184\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/185\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/186\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/187\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/188\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/189\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/190\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/191\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/192\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/193\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/194\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/195\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/196\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/197\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/198\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/199\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/200\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/201\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/202\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/203\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/204\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/205\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/206\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/207\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/208\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/209\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/210\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/211\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/212\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/213\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/214\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/215\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/216\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/217\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/218\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/219\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/220\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/221\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/222\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/223\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/224\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/225\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/226\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/227\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/228\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/229\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/230\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/231\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/232\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/233\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/234\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/235\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/236\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/237\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/238\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/239\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/240\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/241\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/242\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/243\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/244\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/245\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/246\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/247\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/248\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/249\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/250\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/251\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/252\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/253\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/254\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/255\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/256\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/257\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/258\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/259\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/260\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/261\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/262\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/263\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/264\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/265\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/266\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/267\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/268\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/269\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/270\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/271\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/272\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/273\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/274\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/275\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/276\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/277\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/278\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/279\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/280\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/281\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/282\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/283\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/284\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/285\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/286\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/287\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/288\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/289\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/290\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/291\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/292\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/293\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/294\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/295\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/296\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/297\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/298\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/299\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/300\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/301\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/302\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/303\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/304\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/305\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/306\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/307\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/308\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/309\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/310\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/311\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/312\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/313\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/314\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/315\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/316\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/317\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/318\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/319\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/320\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/321\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/322\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/323\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/324\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/325\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/326\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/327\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/328\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/329\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/330\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/331\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/332\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/333\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/334\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/335\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/336\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/337\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/338\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/339\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/340\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/341\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/342\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/343\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/344\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/345\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/346\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/347\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/348\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/349\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/350\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/351\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/352\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/353\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/354\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/355\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/356\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/357\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/358\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/359\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/360\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/361\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/362\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/363\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/364\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/365\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/366\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/367\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/368\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/369\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/370\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/371\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/372\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/373\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/374\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/375\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/376\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/377\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/378\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/379\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/380\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/381\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/382\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/383\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/384\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/385\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/386\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/387\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/388\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/389\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/390\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/391\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/392\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/393\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/394\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/395\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/396\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/397\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/398\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/399\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/400\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/401\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/402\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/403\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/404\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/405\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/406\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/407\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/408\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/409\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/410\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/411\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/412\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/413\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/414\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/415\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/416\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/417\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/418\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/419\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/420\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/421\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/422\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/423\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/424\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/425\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/426\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/427\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/428\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/429\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/430\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/431\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/432\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/433\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/434\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/435\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/436\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/437\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/438\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/439\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/440\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/441\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/442\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/443\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/444\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/445\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/446\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/447\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/448\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/449\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/450\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/451\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/452\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/453\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/454\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/455\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/456\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/457\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/458\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/459\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/460\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/461\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/462\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/463\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/464\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/465\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/466\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/467\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/468\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/469\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/470\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/471\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/472\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/473\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/474\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/475\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/476\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/477\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/478\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/479\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/480\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/481\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/482\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/483\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/484\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/485\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/486\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/487\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/488\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/489\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/490\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/491\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/492\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/493\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/494\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/495\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/496\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/497\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/498\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/499\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/500\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/501\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/502\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/503\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/504\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/505\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/506\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/507\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/508\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/509\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/510\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/511\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/512\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/513\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/514\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/515\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/516\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/517\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/518\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/519\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/520\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/521\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/522\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/523\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/524\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/525\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/526\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/527\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/528\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/529\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/530\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/531\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/532\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/533\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/534\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/535\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/536\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/537\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/538\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/539\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/540\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/541\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/542\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/543\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/544\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/545\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/546\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/547\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/548\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/549\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/550\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/551\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/552\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/553\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/554\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/555\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/556\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/557\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/558\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/559\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/560\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/561\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/562\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/563\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/564\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/565\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/566\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/567\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/568\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/569\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/570\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/571\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/572\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/573\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/574\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/575\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/576\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/577\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/578\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/579\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/580\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/581\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/582\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/583\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/584\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/585\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/586\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/587\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/588\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/589\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/590\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/591\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/592\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/593\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/594\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/595\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/596\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/597\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/598\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/599\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/600\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/601\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/602\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/603\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/604\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/605\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/606\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/607\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/608\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/609\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/610\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/611\\': Permission denied\\\\nls: cannot read symbolic link \\'/proc/2760/fd/612\\': Permission denied\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 72\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 73\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 74\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 75\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 76\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 77\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 78\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 79\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 8\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 80\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 81\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 82\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 83\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 84\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 85\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 86\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 87\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 88\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 89\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 9\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 90\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 91\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 92\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 93\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 94\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 95\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 96\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 97\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 98\\\\nlr-x------. 1 lima lima  64 Jan 21 11:27 99\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "73213b34-35e6-4c6b-aeb2-cfc85f433c61",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Excellent findings! I can now see the problem clearly. Let me get more details about the service and check system-wide memory and process information.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01981HSwj5F81qQRosKWueYN', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/status'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_017vuYBTbMDbC1LYUMoBcmKM', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/meminfo | head -15'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01AyBQYFoV3cYdtSKYT5hi2w', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /home/*/service.py 2>/dev/null || cat /service.py 2>/dev/null || find /home -name \"service.py\" -type f 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01981HSwj5F81qQRosKWueYN', content='{\"command\":\"cat /proc/2760/status\",\"exit_code\":0,\"output\":\"Name:\\\\tpython3\\\\nUmask:\\\\t0022\\\\nState:\\\\tS (sleeping)\\\\nTgid:\\\\t2760\\\\nNgid:\\\\t0\\\\nPid:\\\\t2760\\\\nPPid:\\\\t1\\\\nTracerPid:\\\\t0\\\\nUid:\\\\t502\\\\t502\\\\t502\\\\t502\\\\nGid:\\\\t1000\\\\t1000\\\\t1000\\\\t1000\\\\nFDSize:\\\\t1024\\\\nGroups:\\\\t1000 \\\\nNStgid:\\\\t2760\\\\nNSpid:\\\\t2760\\\\nNSpgid:\\\\t2718\\\\nNSsid:\\\\t2718\\\\nKthread:\\\\t0\\\\nVmPeak:\\\\t   16748 kB\\\\nVmSize:\\\\t   16748 kB\\\\nVmLck:\\\\t       0 kB\\\\nVmPin:\\\\t       0 kB\\\\nVmHWM:\\\\t   12112 kB\\\\nVmRSS:\\\\t   12112 kB\\\\nRssAnon:\\\\t    6704 kB\\\\nRssFile:\\\\t    5408 kB\\\\nRssShmem:\\\\t       0 kB\\\\nVmData:\\\\t    8280 kB\\\\nVmStk:\\\\t     132 kB\\\\nVmExe:\\\\t       4 kB\\\\nVmLib:\\\\t    7184 kB\\\\nVmPTE:\\\\t      68 kB\\\\nVmSwap:\\\\t       0 kB\\\\nHugetlbPages:\\\\t       0 kB\\\\nCoreDumping:\\\\t0\\\\nTHP_enabled:\\\\t1\\\\nuntag_mask:\\\\t0xffffffffffffff\\\\nThreads:\\\\t1\\\\nSigQ:\\\\t0/31615\\\\nSigPnd:\\\\t0000000000000000\\\\nShdPnd:\\\\t0000000000000000\\\\nSigBlk:\\\\t0000000000000000\\\\nSigIgn:\\\\t0000000001001006\\\\nSigCgt:\\\\t0000000000000000\\\\nCapInh:\\\\t0000000000000000\\\\nCapPrm:\\\\t0000000000000000\\\\nCapEff:\\\\t0000000000000000\\\\nCapBnd:\\\\t000001ffffffffff\\\\nCapAmb:\\\\t0000000000000000\\\\nNoNewPrivs:\\\\t0\\\\nSeccomp:\\\\t0\\\\nSeccomp_filters:\\\\t0\\\\nSpeculation_Store_Bypass:\\\\tvulnerable\\\\nSpeculationIndirectBranch:\\\\tunknown\\\\nCpus_allowed:\\\\tf\\\\nCpus_allowed_list:\\\\t0-3\\\\nMems_allowed:\\\\t00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000000,00000001\\\\nMems_allowed_list:\\\\t0\\\\nvoluntary_ctxt_switches:\\\\t70\\\\nnonvoluntary_ctxt_switches:\\\\t1\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "02f2c59b-de7e-4351-ad53-ac24cc62f381",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_017vuYBTbMDbC1LYUMoBcmKM', content='{\"command\":\"cat /proc/meminfo | head -15\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\nMemTotal:        8098140 kB\\\\nMemFree:         6053020 kB\\\\nMemAvailable:    7647736 kB\\\\nBuffers:            5812 kB\\\\nCached:          1714332 kB\\\\nSwapCached:            0 kB\\\\nActive:           827008 kB\\\\nInactive:         999524 kB\\\\nActive(anon):     107008 kB\\\\nInactive(anon):        0 kB\\\\nActive(file):     720000 kB\\\\nInactive(file):   999524 kB\\\\nUnevictable:           0 kB\\\\nMlocked:               0 kB\\\\nSwapTotal:       8097788 kB\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "b57d8ea3-eb28-4c32-be7b-89bac1f59945",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01AyBQYFoV3cYdtSKYT5hi2w', content='{\"command\":\"cat /home/*/service.py 2>/dev/null || cat /service.py 2>/dev/null || find /home -name \\\\\"service.py\\\\\" -type f 2>/dev/null\",\"exit_code\":0,\"output\":\"\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "720939e0-1cf4-4872-a1ff-d549b2f121d1",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Let me find the service.py file and see what the application is doing:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_0145xJcNjjzRfiFsvhv9ziWu', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/cwd'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01YKFFj7c4Mc2DwWQq3iehfb', name='mcp__mcp-eval__safe_shell_execute', input={'command': \"cat /proc/2760/environ | tr '\\\\0' '\\\\n' | head -20\"})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015eK1XZtgWRpyKgmVmnkg6t', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /proc/2760/cwd/'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_0145xJcNjjzRfiFsvhv9ziWu', content='{\"command\":\"cat /proc/2760/cwd\",\"error\":\"exit status 1\",\"exit_code\":1,\"output\":\"cat: /proc/2760/cwd: Permission denied\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "bf9df415-f67f-458b-b3a9-6c64a125dce1",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01YKFFj7c4Mc2DwWQq3iehfb', content='{\"command\":\"cat /proc/2760/environ | tr \\'\\\\\\\\0\\' \\'\\\\\\\\n\\' | head -20\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\ncat: /proc/2760/environ: Permission denied\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "293ad26b-1974-4808-97f4-f23b306de5ba",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015eK1XZtgWRpyKgmVmnkg6t', content='{\"command\":\"ls -la /proc/2760/cwd/\",\"error\":\"exit status 2\",\"exit_code\":2,\"output\":\"ls: cannot access \\'/proc/2760/cwd/\\': Permission denied\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "1ef62eaa-4a59-4414-a2bb-93e4a59d27fb",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Let me look at all processes and file descriptor usage across all users to understand the overall picture better:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01FcKzTiV8UL3WKY8tbgZTHo', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'for pid in /proc/[0-9]*/fd; do echo \"$pid: $(ls \"$pid\" 2>/dev/null | wc -l)\"; done 2>/dev/null | sort -t: -k2 -nr | head -20'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_016fnxyGzE8QFTR8Kney6ivk', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/fdinfo/100 2>/dev/null || cat /proc/2760/fdinfo/50 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Y5vHfkKnCUP6Azx1fcHxSH', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /etc/security/limits.conf 2>/dev/null || cat /etc/security/limits.d/*.conf 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01FcKzTiV8UL3WKY8tbgZTHo', content='{\"command\":\"for pid in /proc/[0-9]*/fd; do echo \\\\\"$pid: $(ls \\\\\"$pid\\\\\" 2>/dev/null | wc -l)\\\\\"; done 2>/dev/null | sort -t: -k2 -nr | head -20\",\"error\":\"exit status 254\",\"exit_code\":254,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "2c157662-9efe-41a2-923c-4a0b54e76493",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_016fnxyGzE8QFTR8Kney6ivk', content='{\"command\":\"cat /proc/2760/fdinfo/100 2>/dev/null || cat /proc/2760/fdinfo/50 2>/dev/null\",\"error\":\"exit status 1\",\"exit_code\":1,\"output\":\"\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "379a6d20-e8de-4a66-9e18-c9bbfcb52ef1",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Y5vHfkKnCUP6Azx1fcHxSH', content='{\"command\":\"cat /etc/security/limits.conf 2>/dev/null || cat /etc/security/limits.d/*.conf 2>/dev/null\",\"exit_code\":0,\"output\":\"# /etc/security/limits.conf\\\\n#\\\\n#This file sets the resource limits for the users logged in via PAM.\\\\n#It does not affect resource limits of the system services.\\\\n#\\\\n#Also note that configuration files in /etc/security/limits.d directory,\\\\n#which are read in alphabetical order, override the settings in this\\\\n#file in case the domain is the same or more specific.\\\\n#That means, for example, that setting a limit for wildcard domain here\\\\n#can be overridden with a wildcard setting in a config file in the\\\\n#subdirectory, but a user specific setting here can be overridden only\\\\n#with a user specific setting in the subdirectory.\\\\n#\\\\n#Each line describes a limit for a user in the form:\\\\n#\\\\n#<domain>        <type>  <item>  <value>\\\\n#\\\\n#Where:\\\\n#<domain> can be:\\\\n#        - a user name\\\\n#        - a group name, with @group syntax\\\\n#        - the wildcard *, for default entry\\\\n#        - the wildcard %, can be also used with %group syntax,\\\\n#                 for maxlogin limit\\\\n#\\\\n#<type> can have the two values:\\\\n#        - \\\\\"soft\\\\\" for enforcing the soft limits\\\\n#        - \\\\\"hard\\\\\" for enforcing hard limits\\\\n#\\\\n#<item> can be one of the following:\\\\n#        - core - limits the core file size (KB)\\\\n#        - data - max data size (KB)\\\\n#        - fsize - maximum filesize (KB)\\\\n#        - memlock - max locked-in-memory address space (KB)\\\\n#        - nofile - max number of open file descriptors\\\\n#        - rss - max resident set size (KB)\\\\n#        - stack - max stack size (KB)\\\\n#        - cpu - max CPU time (MIN)\\\\n#        - nproc - max number of processes\\\\n#        - as - address space limit (KB)\\\\n#        - maxlogins - max number of logins for this user\\\\n#        - maxsyslogins - max number of logins on the system\\\\n#        - priority - the priority to run user process with\\\\n#        - locks - max number of file locks the user can hold\\\\n#        - sigpending - max number of pending signals\\\\n#        - msgqueue - max memory used by POSIX message queues (bytes)\\\\n#        - nice - max nice priority allowed to raise to values: [-20, 19]\\\\n#        - rtprio - max realtime priority\\\\n#\\\\n#<domain>      <type>  <item>         <value>\\\\n#\\\\n\\\\n#*               soft    core            0\\\\n#*               hard    rss             10000\\\\n#@student        hard    nproc           20\\\\n#@faculty        soft    nproc           20\\\\n#@faculty        hard    nproc           50\\\\n#ftp             hard    nproc           0\\\\n#@student        -       maxlogins       4\\\\n\\\\n# End of file\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ceb5477c-3360-424f-8f34-5e5caba45993",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Let me check additional details about the service process and find what files it has open:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015TztQ39yUZnruzkMMdvdkH', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/stat'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01JA4tgH7nRcLbKZsBnfeLW7', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /etc/systemd/system/*.service 2>/dev/null | head -20'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01BCEEntF62xRSyrg6RYixYG', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'dmesg 2>/dev/null | tail -30'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015TztQ39yUZnruzkMMdvdkH', content='{\"command\":\"cat /proc/2760/stat\",\"exit_code\":0,\"output\":\"2760 (python3) S 1 2718 2718 0 -1 4194304 2283 0 0 0 1 0 0 0 20 0 1 0 5280 18501632 3384 18446744073709551615 1 1 0 0 0 0 0 16781318 0 0 0 0 17 2 0 0 0 0 0 0 0 0 0 0 0 0 0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "aeae5b3c-c9e5-4a52-88e6-3bb674a58cfc",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01JA4tgH7nRcLbKZsBnfeLW7', content='{\"command\":\"ls -la /etc/systemd/system/*.service 2>/dev/null | head -20\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\nlrwxrwxrwx. 1 root root  45 Apr  9  2025 /etc/systemd/system/dbus-org.freedesktop.home1.service -> /usr/lib/systemd/system/systemd-homed.service\\\\nlrwxrwxrwx. 1 root root  57 Apr  9  2025 /etc/systemd/system/dbus-org.freedesktop.nm-dispatcher.service -> /usr/lib/systemd/system/NetworkManager-dispatcher.service\\\\nlrwxrwxrwx. 1 root root  44 Apr  9  2025 /etc/systemd/system/dbus-org.freedesktop.oom1.service -> /usr/lib/systemd/system/systemd-oomd.service\\\\nlrwxrwxrwx. 1 root root  48 Apr  9  2025 /etc/systemd/system/dbus-org.freedesktop.resolve1.service -> /usr/lib/systemd/system/systemd-resolved.service\\\\nlrwxrwxrwx. 1 root root  43 Apr  9  2025 /etc/systemd/system/dbus.service -> /usr/lib/systemd/system/dbus-broker.service\\\\n-rw-r--r--. 1 root root 242 Jan 21 10:42 /etc/systemd/system/lima-guestagent.service\\\\n-rw-r--r--. 1 lima lima 286 Jan 21 10:47 /etc/systemd/system/mcp-server.service\\\\nlrwxrwxrwx. 1 root root   9 Jan 21 10:46 /etc/systemd/system/systemd-binfmt.service -> /dev/null\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "a93d94df-08f0-4804-a7fc-617a9b6844de",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01BCEEntF62xRSyrg6RYixYG', content='{\"command\":\"dmesg 2>/dev/null | tail -30\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "e5bd6f59-d6ad-4d09-bbf1-06b1934d8307",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"I see there's an mcp-server.service. Let me examine it and check more details:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01GW5LRCXztqzvFQe1zwKQKz', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /etc/systemd/system/mcp-server.service'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01XRpSPurL2SA1y9Qx9TLDoQ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /home/lima/*.py 2>/dev/null || ls -la /home/*/app/*.py 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01AEpv6ZFapHuz4VD6fnkC9P', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /var/log/messages 2>/dev/null | tail -50 || journalctl -n 50 2>/dev/null | head -50'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01GW5LRCXztqzvFQe1zwKQKz', content='{\"command\":\"cat /etc/systemd/system/mcp-server.service\",\"exit_code\":0,\"output\":\"[Unit]\\\\nDescription=MCP Evaluation Server\\\\nAfter=network.target\\\\n\\\\n[Service]\\\\nType=simple\\\\nUser=lima\\\\nWorkingDirectory=/mcp\\\\nExecStart=/mcp/bin/mcp-server -mode safe-shell -port 8080\\\\nRestart=always\\\\nRestartSec=5\\\\nStandardOutput=journal\\\\nStandardError=journal\\\\n\\\\n[Install]\\\\nWantedBy=multi-user.target\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ef19b3ee-783e-41cc-bbc3-3fc3f2ffe3ef",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01XRpSPurL2SA1y9Qx9TLDoQ', content='{\"command\":\"ls -la /home/lima/*.py 2>/dev/null || ls -la /home/*/app/*.py 2>/dev/null\",\"error\":\"exit status 2\",\"exit_code\":2,\"output\":\"\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "120c1419-4fba-44e1-8098-b4ad25f6592c",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01AEpv6ZFapHuz4VD6fnkC9P', content='{\"command\":\"cat /var/log/messages 2>/dev/null | tail -50 || journalctl -n 50 2>/dev/null | head -50\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "06a34d71-619c-4ad9-a36a-007efefd8016",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_018juskR1Jkbq3CBBFrc2cTw', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /home/lima/'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Qz4zT5wXYbadUftUmRXs5Z', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'find /home -name \"*.py\" 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01B2cbypmXN793wuUrBBhdrE', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2760/maps | head -30'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_018juskR1Jkbq3CBBFrc2cTw', content='{\"command\":\"ls -la /home/lima/\",\"error\":\"exit status 2\",\"exit_code\":2,\"output\":\"ls: cannot access \\'/home/lima/\\': No such file or directory\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "007f1cd4-da4d-4e35-942f-73a94676cb3d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Qz4zT5wXYbadUftUmRXs5Z', content='{\"command\":\"find /home -name \\\\\"*.py\\\\\" 2>/dev/null\",\"exit_code\":0,\"output\":\"/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/gdb_load_rust_pretty_printers.py\\\\n/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/gdb_lookup.py\\\\n/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/gdb_providers.py\\\\n/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/lldb_lookup.py\\\\n/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/lldb_providers.py\\\\n/home/lima.linux/.rustup/toolchains/stable-aarch64-unknown-linux-gnu/lib/rustlib/etc/rust_types.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "6c426f35-103a-4227-968c-2d9683d0cfa4",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01B2cbypmXN793wuUrBBhdrE', content='{\"command\":\"cat /proc/2760/maps | head -30\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\ncat: /proc/2760/maps: Permission denied\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "3139494f-07f3-4c73-8d68-305944a6cf1a",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Y88qNGvWodbaGXjumrDVPk', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /home/lima.linux/*.py 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01F9xHMquKLaiS4a9JSUquSq', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_012weporZD5Dfn2ePQJmiZPZ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /tmp/*.py 2>/dev/null | head -10'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Y88qNGvWodbaGXjumrDVPk', content='{\"command\":\"ls -la /home/lima.linux/*.py 2>/dev/null\",\"error\":\"exit status 2\",\"exit_code\":2,\"output\":\"\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "0127dce0-1359-4cad-aab4-f624e4e68cc5",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01F9xHMquKLaiS4a9JSUquSq', content='{\"command\":\"ls -la /\",\"exit_code\":0,\"output\":\"total 36\\\\ndr-xr-xr-x.   1 root root  246 Jan 21 10:47 .\\\\ndr-xr-xr-x.   1 root root  246 Jan 21 10:47 ..\\\\ndr-xr-xr-x.   1 root root    0 Jul 29 20:00 afs\\\\nlrwxrwxrwx.   1 root root    7 Jul 29 20:00 bin -> usr/bin\\\\ndr-xr-xr-x.   8 root root 4096 Jan 21 10:45 boot\\\\n-rw-rw-r--.   1 root root  142 Apr  9  2025 config.bootoptions\\\\n-rw-rw-r--.   1 root root   53 Apr  9  2025 config.partids\\\\ndrwxr-xr-x.  16 root root 3800 Jan 21 11:25 dev\\\\ndrwxr-xr-x.   1 root root 2676 Jan 21 11:25 etc\\\\ndrwxrwxr-x.   1 root root   10 Apr  9  2025 grub2\\\\ndrwxr-xr-x.   1 root root   20 Jul 29 20:00 home\\\\nlrwxrwxrwx.   1 root root    7 Jul 29 20:00 lib -> usr/lib\\\\nlrwxrwxrwx.   1 root root    9 Jul 29 20:00 lib64 -> usr/lib64\\\\ndrwxr-xr-x.   1 root root   10 Jan 21 10:46 .local\\\\ndrwxr-xr-x.   1 lima lima  180 Jan 20 11:58 mcp\\\\ndrwxr-xr-x.   1 root root    0 Jul 29 20:00 media\\\\ndrwxr-xr-x.   1 root root   22 Jul 29 20:00 mnt\\\\ndrwxr-xr-x.   1 root root   34 Jan 21 11:26 opt\\\\ndr-xr-xr-x. 209 root root    0 Jan 21 11:25 proc\\\\n-rw-rw-r--.   1 root root 1880 Apr  9  2025 .profile\\\\ndr-xr-x---.   1 root root   98 Jul 29 20:00 root\\\\ndrwxr-xr-x.  41 root root 1040 Jan 21 11:25 run\\\\nlrwxrwxrwx.   1 root root    8 Jul 29 20:00 sbin -> usr/sbin\\\\ndrwxr-xr-x.   1 root root    0 Jul 29 20:00 srv\\\\ndr-xr-xr-x.  12 root root    0 Jan 21 11:25 sys\\\\ndrwxrwxrwt.  12 root root  320 Jan 21 11:26 tmp\\\\ndrwxr-xr-x.   1 root root  100 Jan 21 10:43 usr\\\\ndrwxr-xr-x.   1 root root  170 Jan 21 10:55 var\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "05aaf4c5-c113-491c-9856-0cff4fe932ca",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_012weporZD5Dfn2ePQJmiZPZ', content='{\"command\":\"ls -la /tmp/*.py 2>/dev/null | head -10\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "6e6dd09a-ddeb-48ba-a113-da9d57210915",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Ws8o4FJFbncB57uUMPXE8H', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /opt/'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_017YAGYcfN7f4jM2xrJpJZfe', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /opt/service.py 2>/dev/null || cat /tmp/service.py 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01FzrYdQ88YsGit9gzEuB9mP', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'find / -name \"service.py\" 2>/dev/null | head -5'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Ws8o4FJFbncB57uUMPXE8H', content='{\"command\":\"ls -la /opt/\",\"exit_code\":0,\"output\":\"total 0\\\\ndrwxr-xr-x. 1 root root  34 Jan 21 11:26 .\\\\ndr-xr-xr-x. 1 root root 246 Jan 21 10:47 ..\\\\ndrwxr-xr-x. 1 root root  20 Jan 21 11:26 metrics_collector\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "a83227f5-a88f-4001-9ec3-9373f988200d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_017YAGYcfN7f4jM2xrJpJZfe', content='{\"command\":\"cat /opt/service.py 2>/dev/null || cat /tmp/service.py 2>/dev/null\",\"error\":\"exit status 1\",\"exit_code\":1,\"output\":\"\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "8861696c-3e7f-4886-a0b0-105498bbf106",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01FzrYdQ88YsGit9gzEuB9mP', content='{\"command\":\"find / -name \\\\\"service.py\\\\\" 2>/dev/null | head -5\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/opt/metrics_collector/service.py\\\\n/usr/lib64/python3.13/site-packages/dbus/service.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "3939c993-40c5-4b13-ac4b-5fecd4418a84",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='Found the service! Let me examine the Python service causing the file descriptor leak:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01QRBdVaYy5FSfFuF6cN594d', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /opt/metrics_collector/service.py'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01L2uNfZVCuXGYEh4XRDfsHc', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /opt/metrics_collector/'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01QRBdVaYy5FSfFuF6cN594d', content='{\"command\":\"cat /opt/metrics_collector/service.py\",\"exit_code\":0,\"output\":\"#!/usr/bin/env python3\\\\nimport time\\\\nfrom datetime import datetime\\\\n\\\\n\\\\ndef log(msg):\\\\n    timestamp = datetime.now().strftime(\\\\\"%Y-%m-%d %H:%M:%S.%f\\\\\")[:-3]\\\\n    print(f\\\\\"[{timestamp}] {msg}\\\\\", flush=True)\\\\n\\\\n\\\\ndef main():\\\\n    log(\\\\\"Metrics collector started\\\\\")\\\\n\\\\n    file_handles = []\\\\n    count = 0\\\\n\\\\n    while True:\\\\n        try:\\\\n            # Open files without closing them\\\\n            for _ in range(10):\\\\n                fh = open(\\'/dev/null\\', \\'r\\')\\\\n                file_handles.append(fh)  # Keep reference to prevent GC\\\\n                count += 1\\\\n\\\\n            if count % 100 == 0:\\\\n                log(f\\\\\"Collected {count} metric sources\\\\\")\\\\n\\\\n            time.sleep(1)\\\\n\\\\n        except OSError as e:\\\\n            log(f\\\\\"Error opening metric source: {e}\\\\\")\\\\n            time.sleep(5)\\\\n        except Exception as e:\\\\n            log(f\\\\\"Unexpected error: {e}\\\\\")\\\\n            time.sleep(5)\\\\n\\\\n\\\\nif __name__ == \\\\\"__main__\\\\\":\\\\n    try:\\\\n        main()\\\\n    except KeyboardInterrupt:\\\\n        log(\\\\\"Metrics collector stopped\\\\\")\\\\n    except Exception as e:\\\\n        log(f\\\\\"Fatal error: {e}\\\\\")\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "af415783-fea6-46d4-9349-2c925855cf8a",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01L2uNfZVCuXGYEh4XRDfsHc', content='{\"command\":\"ls -la /opt/metrics_collector/\",\"exit_code\":0,\"output\":\"total 4\\\\ndrwxr-xr-x. 1 root root   20 Jan 21 11:26 .\\\\ndrwxr-xr-x. 1 root root   34 Jan 21 11:26 ..\\\\n-rwxr-xr-x. 1 lima lima 1045 Jan 15 12:03 service.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ca9c11f2-a843-4eba-898b-2af9854b8126",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"I've found the root cause. Let me check if there's a systemd service file for this and get the final system state:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01TR6jEAw1qSLizQGDx1jLa5', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /etc/systemd/system/ | grep -i metric 2>/dev/null || echo \"No dedicated service file found\"'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01HKmsgGYzhUAubNT2rZLkwu', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls /proc/2760/fd 2>/dev/null | wc -l'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01TR6jEAw1qSLizQGDx1jLa5', content='{\"command\":\"ls -la /etc/systemd/system/ | grep -i metric 2>/dev/null || echo \\\\\"No dedicated service file found\\\\\"\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\nNo dedicated service file found\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "6023b3ab-c3b7-44cd-bebe-1b986910b8f5",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01HKmsgGYzhUAubNT2rZLkwu', content='{\"command\":\"ls /proc/2760/fd 2>/dev/null | wc -l\",\"exit_code\":0,\"output\":\"/bin/bash: fork: retry: Resource temporarily unavailable\\\\n/bin/bash: fork: retry: Resource temporarily unavailable\\\\n1024\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "760342ca-df43-4874-bf3b-370f2b229131",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='The process now has **1024 file descriptors** (its soft limit), confirming it has hit its limit. Let me verify the current state and prepare the final analysis:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01XarkofrC49BGGY53oqGzyi', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/sys/fs/file-nr'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01XarkofrC49BGGY53oqGzyi', content='{\"command\":\"cat /proc/sys/fs/file-nr\",\"exit_code\":0,\"output\":\"2052\\\\t0\\\\t9223372036854775807\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "74c561a1-f43e-4ab3-862b-82caab6aec2d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='---\\n\\n# Investigation Complete - Root Cause Analysis\\n\\n## Problem Summary\\nThe production server **mcp-eval-safe-shell** is experiencing \"too many open files\" errors and severe resource exhaustion. The system is unable to fork new processes reliably, showing repeated `fork: retry: Resource temporarily unavailable` errors.\\n\\n## Root Cause\\nA **file descriptor leak** in the Python application `/opt/metrics_collector/service.py` (PID 2760) is the root cause.\\n\\n### The Bug in the Code\\nThe service contains a critical bug on lines 18-22:\\n\\n```python\\n# Open files without closing them\\nfor _ in range(10):\\n    fh = open(\\'/dev/null\\', \\'r\\')\\n    file_handles.append(fh)  # Keep reference to prevent GC\\n    count += 1\\n```\\n\\n**The application:**\\n1. Opens 10 file handles per second in a loop\\n2. Stores them in a list (`file_handles`) to prevent garbage collection\\n3. **Never closes them**\\n4. Continues until it exhausts available file descriptors\\n\\n## Evidence\\n\\n| Metric | Value | Significance |\\n|--------|-------|--------------|\\n| PID 2760 open FDs | **1,024** | Hit the soft limit |\\n| Process soft limit | 1,024 files | Cannot open more files |\\n| Process hard limit | 524,288 files | Would allow increase |\\n| Shell ulimit | 256 | Very low for diagnostic shell |\\n| System-wide open files | 2,052 | Total across all processes |\\n| Process command | `python3 service.py` | The leaking application |\\n| Parent PID | 1 (systemd) | Running as a daemon |\\n\\n### Key Observations:\\n1. Process **reached its 1,024 FD soft limit** exactly\\n2. The service keeps references to file handles intentionally to \"prevent GC\"\\n3. System is so strained that even `fork()` calls are failing\\n4. The \"fork: retry: Resource temporarily unavailable\" errors appeared throughout investigation\\n\\n## Impact\\n\\n| Resource | Impact Level |\\n|----------|-------------|\\n| File descriptors | **CRITICAL** - Process maxed out |\\n| Process creation | **CRITICAL** - Fork failures system-wide |\\n| System responsiveness | **HIGH** - Commands failing to execute |\\n| Service availability | **HIGH** - metrics_collector unable to function |\\n| Memory | LOW - Only 12MB RSS, system has 7.6GB available |\\n\\n## Mitigation Steps\\n\\n### Immediate Actions (to restore service):\\n\\n1. **Kill the offending process:**\\n   ```bash\\n   kill -9 2760\\n   ```\\n\\n2. **If it restarts automatically, disable and stop:**\\n   ```bash\\n   # If there\\'s a systemd service:\\n   systemctl stop metrics-collector\\n   systemctl disable metrics-collector\\n   ```\\n\\n### Short-term Fix (code fix required):\\n\\nFix the file descriptor leak in `/opt/metrics_collector/service.py`:\\n\\n```python\\n# BEFORE (buggy):\\nfh = open(\\'/dev/null\\', \\'r\\')\\nfile_handles.append(fh)\\n\\n# AFTER (fixed - use context manager):\\nwith open(\\'/dev/null\\', \\'r\\') as fh:\\n    # Do work with file\\n    pass  # File automatically closed\\n\\n# OR if you need to keep files open temporarily:\\ndef collect_metric():\\n    with open(\\'/dev/null\\', \\'r\\') as fh:\\n        data = fh.read()\\n    return data  # File closed on return\\n```\\n\\n### Long-term Improvements:\\n\\n1. **Increase process limits** (if legitimately needed):\\n   ```bash\\n   # In /etc/security/limits.d/metrics-collector.conf\\n   lima soft nofile 65536\\n   lima hard nofile 65536\\n   ```\\n\\n2. **Add monitoring for file descriptor usage:**\\n   ```bash\\n   # Alert when FD usage > 80% of limit\\n   watch -n 5 \\'ls /proc/$(pgrep -f service.py)/fd | wc -l\\'\\n   ```\\n\\n3. **Add resource limits in systemd service file:**\\n   ```ini\\n   [Service]\\n   LimitNOFILE=4096\\n   ```\\n\\n4. **Implement proper resource cleanup** in the application with `try/finally` or context managers\\n\\n5. **Add application-level monitoring** to track open file handles and alert on leaks')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "subtype": "success",
+    "duration_ms": 170517,
+    "duration_api_ms": 102141,
+    "is_error": false,
+    "num_turns": 40,
+    "session_id": "a6abb738-95f0-4f6a-abc8-53f9865d1710",
+    "total_cost_usd": 0.5395292500000001,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 28150,
+      "cache_read_input_tokens": 491556,
+      "output_tokens": 4032,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 28150
+      }
+    },
+    "result": "---\n\n# Investigation Complete - Root Cause Analysis\n\n## Problem Summary\nThe production server **mcp-eval-safe-shell** is experiencing \"too many open files\" errors and severe resource exhaustion. The system is unable to fork new processes reliably, showing repeated `fork: retry: Resource temporarily unavailable` errors.\n\n## Root Cause\nA **file descriptor leak** in the Python application `/opt/metrics_collector/service.py` (PID 2760) is the root cause.\n\n### The Bug in the Code\nThe service contains a critical bug on lines 18-22:\n\n```python\n# Open files without closing them\nfor _ in range(10):\n    fh = open('/dev/null', 'r')\n    file_handles.append(fh)  # Keep reference to prevent GC\n    count += 1\n```\n\n**The application:**\n1. Opens 10 file handles per second in a loop\n2. Stores them in a list (`file_handles`) to prevent garbage collection\n3. **Never closes them**\n4. Continues until it exhausts available file descriptors\n\n## Evidence\n\n| Metric | Value | Significance |\n|--------|-------|--------------|\n| PID 2760 open FDs | **1,024** | Hit the soft limit |\n| Process soft limit | 1,024 files | Cannot open more files |\n| Process hard limit | 524,288 files | Would allow increase |\n| Shell ulimit | 256 | Very low for diagnostic shell |\n| System-wide open files | 2,052 | Total across all processes |\n| Process command | `python3 service.py` | The leaking application |\n| Parent PID | 1 (systemd) | Running as a daemon |\n\n### Key Observations:\n1. Process **reached its 1,024 FD soft limit** exactly\n2. The service keeps references to file handles intentionally to \"prevent GC\"\n3. System is so strained that even `fork()` calls are failing\n4. The \"fork: retry: Resource temporarily unavailable\" errors appeared throughout investigation\n\n## Impact\n\n| Resource | Impact Level |\n|----------|-------------|\n| File descriptors | **CRITICAL** - Process maxed out |\n| Process creation | **CRITICAL** - Fork failures system-wide |\n| System responsiveness | **HIGH** - Commands failing to execute |\n| Service availability | **HIGH** - metrics_collector unable to function |\n| Memory | LOW - Only 12MB RSS, system has 7.6GB available |\n\n## Mitigation Steps\n\n### Immediate Actions (to restore service):\n\n1. **Kill the offending process:**\n   ```bash\n   kill -9 2760\n   ```\n\n2. **If it restarts automatically, disable and stop:**\n   ```bash\n   # If there's a systemd service:\n   systemctl stop metrics-collector\n   systemctl disable metrics-collector\n   ```\n\n### Short-term Fix (code fix required):\n\nFix the file descriptor leak in `/opt/metrics_collector/service.py`:\n\n```python\n# BEFORE (buggy):\nfh = open('/dev/null', 'r')\nfile_handles.append(fh)\n\n# AFTER (fixed - use context manager):\nwith open('/dev/null', 'r') as fh:\n    # Do work with file\n    pass  # File automatically closed\n\n# OR if you need to keep files open temporarily:\ndef collect_metric():\n    with open('/dev/null', 'r') as fh:\n        data = fh.read()\n    return data  # File closed on return\n```\n\n### Long-term Improvements:\n\n1. **Increase process limits** (if legitimately needed):\n   ```bash\n   # In /etc/security/limits.d/metrics-collector.conf\n   lima soft nofile 65536\n   lima hard nofile 65536\n   ```\n\n2. **Add monitoring for file descriptor usage:**\n   ```bash\n   # Alert when FD usage > 80% of limit\n   watch -n 5 'ls /proc/$(pgrep -f service.py)/fd | wc -l'\n   ```\n\n3. **Add resource limits in systemd service file:**\n   ```ini\n   [Service]\n   LimitNOFILE=4096\n   ```\n\n4. **Implement proper resource cleanup** in the application with `try/finally` or context managers\n\n5. **Add application-level monitoring** to track open file handles and alert on leaks",
+    "structured_output": null
+  }
+]
