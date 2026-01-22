@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
@@ -133,7 +134,9 @@ func NewDecoderWithFraming(source *sources.ReplaceableSource, parser parsers.Par
 }
 
 func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regexp.Regexp, tailerInfo *status.InfoRegistry, outputChan chan *message.Message, detectedPattern *DetectedPattern) LineHandler {
-	outputFn := func(m *message.Message) { outputChan <- m }
+	outputFn := func(msg *message.Message) {
+		outputChan <- msg
+	}
 	maxContentSize := config.MaxMessageSizeBytes(pkgconfigsetup.Datadog())
 
 	// construct the lineHandler
@@ -146,16 +149,45 @@ func buildLineHandler(source *sources.ReplaceableSource, multiLinePattern *regex
 		}
 	}
 	if lineHandler == nil {
+		// Priority order for line handlers:
+		// 1. Legacy auto multiline (if explicitly enabled)
+		// 2. New auto multiline with aggregation (if explicitly enabled)
+		// 3. Detection-only tagging (tags without aggregation, enabled by default as fallback)
+		// 4. Single line handler (no multiline detection)
 		if source.Config().LegacyAutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
 			lineHandler = getLegacyAutoMultilineHandler(outputFn, multiLinePattern, maxContentSize, source, detectedPattern, tailerInfo)
 		} else if source.Config().AutoMultiLineEnabled(pkgconfigsetup.Datadog()) {
-			lineHandler = NewAutoMultilineHandler(outputFn, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples)
+			lineHandler = getAutoMultilineAggregatingHandler(outputFn, maxContentSize, tailerInfo, source)
+		} else if pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line_detection_tagging") {
+			lineHandler = getAutoMultilineDetectingHandler(outputFn, tailerInfo, maxContentSize, source)
 		} else {
 			lineHandler = NewSingleLineHandler(outputFn, maxContentSize)
 		}
 	}
-
 	return lineHandler
+}
+
+func getAutoMultilineDetectingHandler(outputFn func(msg *message.Message), tailerInfo *status.InfoRegistry, maxContentSize int, source *sources.ReplaceableSource) LineHandler {
+	// JSON aggregation is disabled in detection mode for consistency - we don't want to combine JSON
+	// while only tagging everything else
+	aggregator := automultilinedetection.NewDetectingAggregator(outputFn, tailerInfo)
+	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, false)
+}
+
+func getAutoMultilineAggregatingHandler(outputFn func(msg *message.Message), maxContentSize int, tailerInfo *status.InfoRegistry, source *sources.ReplaceableSource) LineHandler {
+	aggregator := automultilinedetection.NewCombiningAggregator(
+		outputFn,
+		maxContentSize,
+		pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
+		pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
+		tailerInfo)
+
+	// Read JSON aggregation setting from config, can be overridden by source settings
+	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
+	if source.Config().AutoMultiLineOptions != nil && source.Config().AutoMultiLineOptions.EnableJSONAggregation != nil {
+		enableJSONAggregation = *source.Config().AutoMultiLineOptions.EnableJSONAggregation
+	}
+	return NewAutoMultilineHandler(aggregator, maxContentSize, config.AggregationTimeout(pkgconfigsetup.Datadog()), tailerInfo, source.Config().AutoMultiLineOptions, source.Config().AutoMultiLineSamples, enableJSONAggregation)
 }
 
 func getLegacyAutoMultilineHandler(outputFn func(*message.Message), multiLinePattern *regexp.Regexp, maxContentSize int, source *sources.ReplaceableSource, detectedPattern *DetectedPattern, tailerInfo *status.InfoRegistry) LineHandler {

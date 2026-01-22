@@ -184,7 +184,7 @@ func (c *CloudRunJobs) setSpanModifier() {
 		return
 	}
 
-	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan.TraceID, c.jobSpan.SpanID)
+	modifier := serverlessInitTrace.NewCloudRunJobsSpanModifier(c.jobSpan)
 	if ta, ok := c.traceAgent.(serverlessInitTrace.SpanModifierSetter); ok {
 		ta.SetSpanModifier(modifier)
 	}

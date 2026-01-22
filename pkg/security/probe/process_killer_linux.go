@@ -16,7 +16,6 @@ import (
 	psutil "github.com/shirou/gopsutil/v4/process"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
@@ -34,6 +33,7 @@ func getBinariesExcluded() []string {
 		filepath.Join(installPath, "embedded/bin/process-agent"),
 		filepath.Join(installPath, "embedded/bin/system-probe"),
 		filepath.Join(installPath, "embedded/bin/cws-instrumentation"),
+		filepath.Join(installPath, "embedded/bin/privateactionrunner"),
 		filepath.Join(installPath, "bin/datadog-cluster-agent"),
 		// installer - these use wildcards and remain hard-coded
 		"/opt/datadog-packages/datadog-agent/*/bin/agent/agent",
@@ -42,6 +42,7 @@ func getBinariesExcluded() []string {
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/process-agent",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/system-probe",
 		"/opt/datadog-packages/datadog-agent/*/embedded/bin/cws-instrumentation",
+		"/opt/datadog-packages/datadog-agent/*/embedded/bin/privateactionrunner",
 		"/opt/datadog-packages/datadog-agent/*/bin/datadog-cluster-agent",
 		"/opt/datadog-packages/datadog-installer/*/bin/installer/installer",
 	}
@@ -102,18 +103,17 @@ func (p *ProcessKillerLinux) Kill(sig uint32, pc *killContext) error {
 }
 
 func (p *ProcessKillerLinux) getProcesses(scope string, ev *model.Event, entry *model.ProcessCacheEntry) ([]killContext, error) {
-	containerID := entry.ContainerContext.ContainerID
-	if containerID != "" && scope == "container" {
+	if scope == "container" && !entry.ContainerContext.IsNull() {
 		pcs := []killContext{}
 
 		// Use the CGroupResolver to get all PIDs of the container
 		if p.cgroupResolver != nil {
-			var pids []uint32
-			if workload, found := p.cgroupResolver.GetContainerWorkload(containerutils.ContainerID(containerID)); found {
-				pids = workload.GetPIDs()
+			cacheEntry := p.cgroupResolver.GetCacheEntryContainerID(entry.ContainerContext.ContainerID)
+			if cacheEntry == nil {
+				return pcs, errors.New("container not found")
 			}
 
-			for _, pid := range pids {
+			for _, pid := range cacheEntry.GetPIDs() {
 				if pid < 1 {
 					continue
 				}

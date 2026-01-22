@@ -23,8 +23,8 @@ func GetTraceAgentDefaultEnv(c pkgconfigmodel.Reader) string {
 		log.Debugf("Setting DefaultEnv to %q (from 'env' config option)", defaultEnv)
 	} else {
 		for _, tag := range GetConfiguredTags(c, false) {
-			if strings.HasPrefix(tag, "env:") {
-				defaultEnv = strings.TrimPrefix(tag, "env:")
+			if after, ok := strings.CutPrefix(tag, "env:"); ok {
+				defaultEnv = after
 				log.Debugf("Setting DefaultEnv to %q (from `env:` entry under the 'tags' config option: %q)", defaultEnv, tag)
 				return defaultEnv
 			}

@@ -64,6 +64,7 @@
     paths:
     - test/e2e-framework/testing/**/*
     - test/new-e2e/go.mod
+    - go.mod
 .on_packaging_change:
 - !reference [.except_mergequeue]
 - changes:

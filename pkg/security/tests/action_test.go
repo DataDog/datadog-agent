@@ -655,7 +655,7 @@ func TestActionHash(t *testing.T) {
 
 	t.Run("open-process-exit", func(t *testing.T) {
 		test.msgSender.flush()
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			go func() {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
@@ -672,7 +672,7 @@ func TestActionHash(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_open")
-		})
+		}, "hash_action_open")
 
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("hash_action_open")
@@ -702,7 +702,7 @@ func TestActionHash(t *testing.T) {
 
 	t.Run("open-timeout", func(t *testing.T) {
 		test.msgSender.flush()
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			go func() {
 				timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
@@ -720,7 +720,7 @@ func TestActionHash(t *testing.T) {
 			return nil
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_open")
-		})
+		}, "hash_action_open")
 
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("hash_action_open")
@@ -750,7 +750,7 @@ func TestActionHash(t *testing.T) {
 
 	t.Run("exec", func(t *testing.T) {
 		test.msgSender.flush()
-		test.WaitSignal(t, func() error {
+		test.WaitSignalFromRule(t, func() error {
 			cmd := exec.Command(testExecutable, "/tmp/aaa")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
@@ -759,7 +759,7 @@ func TestActionHash(t *testing.T) {
 			return err
 		}, func(_ *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "hash_action_exec")
-		})
+		}, "hash_action_exec")
 		err = retry.Do(func() error {
 			msg := test.msgSender.getMsg("hash_action_exec")
 			if msg == nil {
@@ -827,7 +827,7 @@ func TestActionKillWithSignature(t *testing.T) {
 	defer cleanupTail()
 
 	// Start tail -F and wait for the rule to trigger
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		// Start tail
 		tailCmd = exec.Command("tail", "-F", testFilePath)
 		if err := tailCmd.Start(); err != nil {
@@ -838,7 +838,7 @@ func TestActionKillWithSignature(t *testing.T) {
 		assertTriggeredRule(t, rule, "test_exec_trigger")
 		// Capture the signature from the event
 		capturedSignature = event.FieldHandlers.ResolveSignature(event)
-	})
+	}, "test_exec_trigger")
 
 	// Verify we got a valid signature
 	if capturedSignature == "" {
@@ -923,13 +923,13 @@ func TestActionKillWithSignature(t *testing.T) {
 
 	// Now start a new tail process - it should NOT be killed because it has a different signature
 	var tailCmd2 *exec.Cmd
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		tailCmd2 = exec.Command("tail", "-f", testFilePath)
 		return tailCmd2.Start()
 	}, func(_ *model.Event, rule *rules.Rule) {
 		// Only test_exec_trigger should match because the signature is different
 		assertTriggeredRule(t, rule, "test_exec_trigger")
-	})
+	}, "test_exec_trigger")
 
 	// Verify that the second tail is still running (not killed due to different signature)
 	done2 := make(chan error, 1)
@@ -954,6 +954,10 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	if testEnvironment == DockerEnvironment {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
+
+	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
 
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
@@ -1007,7 +1011,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	var tailCmd *exec.Cmd
 
 	// Run tail inside the container and wait for the rule to trigger
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		// Start tail -f on the test file inside the container (runs indefinitely)
 		tailCmd = dockerInstance.Command("tail", []string{"-f", testFilePath}, []string{})
 		return tailCmd.Start()
@@ -1015,7 +1019,7 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		assertTriggeredRule(t, rule, "test_container_exec_trigger")
 		// Capture the signature from the event
 		capturedSignature = event.FieldHandlers.ResolveSignature(event)
-	})
+	}, "test_container_exec_trigger")
 
 	// Verify we got a valid signature
 	if capturedSignature == "" {
@@ -1119,13 +1123,13 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 	}
 
 	var tailCmd2 *exec.Cmd
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		tailCmd2 = dockerInstance2.Command("tail", []string{"-f", testFilePath}, []string{})
 		return tailCmd2.Start()
 	}, func(_ *model.Event, rule *rules.Rule) {
 		// Only test_container_exec_trigger should match because the signature is different
 		assertTriggeredRule(t, rule, "test_container_exec_trigger")
-	})
+	}, "test_container_exec_trigger")
 
 	// Verify that the second container is still running (not killed due to different signature)
 	err = retry.Do(func() error {
@@ -1211,14 +1215,14 @@ func TestActionKillContainerWithSignatureBroadRule(t *testing.T) {
 
 	// Run cat inside the container and wait for the rule to trigger
 	// cat will exit immediately after reading the file, but that's fine for capturing the signature
-	test.WaitSignal(t, func() error {
+	test.WaitSignalFromRule(t, func() error {
 		catCmd = dockerInstance.Command("cat", []string{testFilePath}, []string{})
 		return catCmd.Start()
 	}, func(event *model.Event, rule *rules.Rule) {
 		assertTriggeredRule(t, rule, "test_container_exec_trigger")
 		// Capture the signature from the event
 		capturedSignature = event.FieldHandlers.ResolveSignature(event)
-	})
+	}, "test_container_exec_trigger")
 
 	// Wait for cat to finish
 	if catCmd != nil && catCmd.Process != nil {

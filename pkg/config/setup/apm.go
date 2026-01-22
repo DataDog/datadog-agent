@@ -82,6 +82,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", true, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                           //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
 	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.injection_mode", "auto", "DD_APM_INSTRUMENTATION_INJECTION_MODE")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
 	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
 		var mappings []string
@@ -288,8 +289,8 @@ func parseAnalyzedSpans(env string) (map[string]interface{}, error) {
 	if env == "" {
 		return analyzedSpans, nil
 	}
-	tokens := strings.Split(env, ",")
-	for _, token := range tokens {
+	tokens := strings.SplitSeq(env, ",")
+	for token := range tokens {
 		name, rate, err := parseNameAndRate(token)
 		if err != nil {
 			return nil, err

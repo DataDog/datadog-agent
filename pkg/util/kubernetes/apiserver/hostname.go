@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 // HostNodeName retrieves the hostname from the apiserver, pod name will be retrieved from DD_POD_NAME.
@@ -27,7 +28,7 @@ func HostNodeName(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("could not fetch our self pod name: %w", err)
 	}
 
-	nodeName, err := c.GetNodeForPod(ctx, common.GetMyNamespace(), podName)
+	nodeName, err := c.GetNodeForPod(ctx, namespace.GetMyNamespace(), podName)
 	if err != nil {
 		return "", fmt.Errorf("could not fetch the host nodename from the apiserver: %s", err)
 	}
