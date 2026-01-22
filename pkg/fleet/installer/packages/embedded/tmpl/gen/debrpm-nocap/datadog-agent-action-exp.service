@@ -2,7 +2,7 @@
 Description=Datadog Private Action Runner Experiment
 After=network.target datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
-Conflicts=datadog-agent.service datadog-agent-privateactionrunner.service
+Conflicts=datadog-agent.service datadog-agent-action.service
 
 [Service]
 Type=simple
