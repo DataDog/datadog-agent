@@ -226,15 +226,17 @@ func (fl *FilterList) SetTagFilterList(metricTags map[string]MetricTagList) {
 		}
 	}
 
-	fl.setTagFilterList(hashedTags)
+	fl.setTagFilterList(tagMatcher{
+		MetricTags: hashedTags,
+	})
 }
 
-func (fl *FilterList) setTagFilterList(metricTags map[string]hashedMetricTagList) {
-	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags))
+func (fl *FilterList) setTagFilterList(metricTags tagMatcher) {
+	fl.log.Debugf("SetTagFilterList with %d metrics", len(metricTags.MetricTags))
 
-	fl.tagFilterList = tagMatcher{
-		MetricTags: metricTags,
-	}
+	fl.updateTagMtx.Lock()
+	fl.tagFilterList = metricTags
+	fl.updateTagMtx.Unlock()
 
 	fl.updateTagMtx.RLock()
 	defer fl.updateTagMtx.RUnlock()
@@ -242,6 +244,13 @@ func (fl *FilterList) setTagFilterList(metricTags map[string]hashedMetricTagList
 	for _, update := range fl.tagFilterListUpdate {
 		update(&fl.tagFilterList)
 	}
+}
+
+// SetTagFilterListFromEntries takes a list of tag filter list objects that
+// were loaded from the config file, converts and hashes the tags in a format
+// used internally. Any registered callbacks are informed of the update.
+func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) {
+	fl.setTagFilterList(loadTagFilterList(entries, fl.log))
 }
 
 // SetMetricFilterList updates the metric names filter on all running worker.
@@ -267,22 +276,6 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	for _, update := range fl.metricFilterListUpdate {
 		update(fl.filterList, fl.histoFilterList)
-	}
-}
-
-// SetTagFilterListFromEntries takes a list of tag filter list objects that
-// were loaded from the config file, converts and hashes the tags in a format
-// used internally. Any registered callbacks are informed of the update.
-func (fl *FilterList) SetTagFilterListFromEntries(entries []MetricTagListEntry) {
-	fl.log.Debugf("SetTagFilterListFromEntries with %d entries", len(entries))
-
-	fl.tagFilterList = loadTagFilterList(entries, fl.log)
-
-	fl.updateTagMtx.RLock()
-	defer fl.updateTagMtx.RUnlock()
-
-	for _, update := range fl.tagFilterListUpdate {
-		update(&fl.tagFilterList)
 	}
 }
 
@@ -314,6 +307,9 @@ func (fl *FilterList) OnUpdateMetricFilterList(onUpdate func(utilstrings.Matcher
 	fl.metricFilterListUpdate = append(fl.metricFilterListUpdate, onUpdate)
 	fl.updateMetricMtx.Unlock()
 
+	fl.updateMetricMtx.RLock()
+	defer fl.updateMetricMtx.Unlock()
+
 	onUpdate(fl.filterList, fl.histoFilterList)
 }
 
@@ -323,6 +319,9 @@ func (fl *FilterList) OnUpdateTagFilterList(onUpdate func(filterlist.TagMatcher)
 	fl.updateTagMtx.Lock()
 	fl.tagFilterListUpdate = append(fl.tagFilterListUpdate, onUpdate)
 	fl.updateTagMtx.Unlock()
+
+	fl.updateTagMtx.RLock()
+	defer fl.updateTagMtx.RUnlock()
 
 	onUpdate(&fl.tagFilterList)
 }
