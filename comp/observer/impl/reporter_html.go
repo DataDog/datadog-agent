@@ -49,12 +49,14 @@ type timestampedReport struct {
 
 // HTMLReporter is an HTTP server that displays reports and metrics on a local webpage.
 type HTMLReporter struct {
-	mu               sync.RWMutex
-	reports          []timestampedReport
-	storage          *timeSeriesStorage
-	correlationState observer.CorrelationState
-	rawAnomalyState  observer.RawAnomalyState
-	server           *http.Server
+	mu                    sync.RWMutex
+	reports               []timestampedReport
+	storage               *timeSeriesStorage
+	correlationState      observer.CorrelationState
+	rawAnomalyState       observer.RawAnomalyState
+	timeClusterCorrelator *TimeClusterCorrelator
+	graphSketchCorrelator *GraphSketchCorrelator
+	server                *http.Server
 }
 
 // NewHTMLReporter creates a new HTMLReporter.
@@ -111,11 +113,26 @@ func (r *HTMLReporter) SetRawAnomalyState(state observer.RawAnomalyState) {
 	r.rawAnomalyState = state
 }
 
+// SetTimeClusterCorrelator sets the time cluster correlator for visualization.
+func (r *HTMLReporter) SetTimeClusterCorrelator(tc *TimeClusterCorrelator) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.timeClusterCorrelator = tc
+}
+
+// SetGraphSketchCorrelator sets the GraphSketch correlator for visualization.
+func (r *HTMLReporter) SetGraphSketchCorrelator(gsc *GraphSketchCorrelator) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.graphSketchCorrelator = gsc
+}
+
 // Start starts the HTTP server on the given address.
 func (r *HTMLReporter) Start(addr string) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", r.handleDashboard)
-	mux.HandleFunc("/graph", r.handleGraphPage)
+	mux.HandleFunc("/graphsketch-correlation", r.handleGraphPage)
+	mux.HandleFunc("/timecluster", r.handleTimeClusterPage)
 	mux.HandleFunc("/api/reports", r.handleAPIReports)
 	mux.HandleFunc("/api/series", r.handleAPISeries)
 	mux.HandleFunc("/api/series/list", r.handleAPISeriesList)
@@ -124,6 +141,8 @@ func (r *HTMLReporter) Start(addr string) error {
 	mux.HandleFunc("/api/raw-anomalies", r.handleAPIRawAnomalies)
 	mux.HandleFunc("/api/graphsketch/edges", r.handleAPIGraphSketchEdges)
 	mux.HandleFunc("/api/graphsketch/stats", r.handleAPIGraphSketchStats)
+	mux.HandleFunc("/api/timecluster/clusters", r.handleAPITimeClusterClusters)
+	mux.HandleFunc("/api/timecluster/stats", r.handleAPITimeClusterStats)
 
 	r.server = &http.Server{
 		Addr:    addr,
@@ -356,8 +375,12 @@ func (r *HTMLReporter) handleDashboard(w http.ResponseWriter, req *http.Request)
     </style>
 </head>
 <body>
-    <div class="header">
+    <div class="header" style="display:flex;justify-content:space-between;align-items:center;">
         <h1>Observer Demo Dashboard</h1>
+        <nav style="display:flex;gap:15px;">
+            <a href="/graphsketch-correlation" style="color:#888;text-decoration:none;font-size:0.9em;">GraphSketch Correlator</a>
+            <a href="/timecluster" style="color:#888;text-decoration:none;font-size:0.9em;">TimeCluster Correlator</a>
+        </nav>
     </div>
 
     <div class="main-layout">
@@ -1475,6 +1498,358 @@ const graphPageHTML = `<!DOCTYPE html>
 
         fetchData();
         setInterval(fetchData, 3000);
+    </script>
+</body>
+</html>
+`
+
+// handleTimeClusterPage serves the TimeCluster visualization page.
+func (r *HTMLReporter) handleTimeClusterPage(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Write([]byte(timeClusterPageHTML))
+}
+
+// handleAPITimeClusterClusters returns all time clusters.
+func (r *HTMLReporter) handleAPITimeClusterClusters(w http.ResponseWriter, _ *http.Request) {
+	r.mu.RLock()
+	tc := r.timeClusterCorrelator
+	r.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if tc == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"clusters": []interface{}{},
+			"error":    "TimeClusterCorrelator not enabled",
+		})
+		return
+	}
+
+	clusters := tc.GetClusters()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"clusters": clusters,
+	})
+}
+
+// handleAPITimeClusterStats returns TimeCluster statistics.
+func (r *HTMLReporter) handleAPITimeClusterStats(w http.ResponseWriter, _ *http.Request) {
+	r.mu.RLock()
+	tc := r.timeClusterCorrelator
+	r.mu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if tc == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"enabled": false,
+			"error":   "TimeClusterCorrelator not enabled",
+		})
+		return
+	}
+
+	stats := tc.GetStats()
+	stats["enabled"] = true
+	json.NewEncoder(w).Encode(stats)
+}
+
+const timeClusterPageHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Cluster Correlator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            background: #0f0f0f; 
+            color: #e0e0e0; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        h1 { 
+            color: #22d3ee;
+            font-size: 1.5em;
+            font-weight: 600;
+        }
+        .nav { display: flex; gap: 15px; }
+        .nav a { 
+            color: #888; 
+            text-decoration: none;
+            font-size: 0.85em;
+            transition: color 0.2s;
+        }
+        .nav a:hover { color: #22d3ee; }
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #1a1a1a;
+            border-radius: 8px;
+        }
+        .stat { display: flex; flex-direction: column; }
+        .stat-label { color: #666; font-size: 0.75em; margin-bottom: 3px; }
+        .stat-value { color: #22d3ee; font-size: 1.4em; font-weight: 600; }
+        .container { display: flex; gap: 25px; flex-wrap: wrap; }
+        .panel {
+            flex: 1;
+            min-width: 400px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        .panel-title {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .cluster {
+            background: #222;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 3px solid #22d3ee;
+        }
+        .cluster-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .cluster-id {
+            color: #22d3ee;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+        .cluster-count {
+            background: #22d3ee;
+            color: #0f0f0f;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.75em;
+            font-weight: 600;
+        }
+        .cluster-time {
+            color: #666;
+            font-size: 0.75em;
+            margin-bottom: 10px;
+        }
+        .cluster-sources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .source-tag {
+            background: #333;
+            color: #9ca3af;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.7em;
+        }
+        .timeline {
+            background: #222;
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .timeline-bar {
+            height: 120px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            position: relative;
+            margin-top: 10px;
+        }
+        .timeline-cluster {
+            position: absolute;
+            height: 100%;
+            background: rgba(34, 211, 238, 0.3);
+            border: 1px solid #22d3ee;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+            color: #22d3ee;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .timeline-cluster:hover {
+            background: rgba(34, 211, 238, 0.5);
+        }
+        .empty-state {
+            color: #555;
+            text-align: center;
+            padding: 50px 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Time Cluster Correlator</h1>
+        <nav class="nav">
+            <a href="/">Dashboard</a>
+            <a href="/graphsketch-correlation">GraphSketch</a>
+            <a href="/timecluster">TimeCluster</a>
+        </nav>
+    </div>
+
+    <div class="stats-bar" id="stats">
+        <div class="stat">
+            <span class="stat-label">Total Clusters</span>
+            <span class="stat-value" id="total-clusters">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Total Anomalies</span>
+            <span class="stat-value" id="total-anomalies">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Slack (seconds)</span>
+            <span class="stat-value" id="slack-seconds">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Window (seconds)</span>
+            <span class="stat-value" id="window-seconds">—</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Largest Cluster</span>
+            <span class="stat-value" id="largest-cluster">—</span>
+        </div>
+    </div>
+
+    <div class="timeline" id="timeline-container">
+        <div class="panel-title">Timeline</div>
+        <div class="timeline-bar" id="timeline"></div>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <div class="panel-title">Clusters (by size)</div>
+            <div id="cluster-list"></div>
+        </div>
+    </div>
+
+    <script>
+        let clusters = [];
+        let stats = {};
+
+        async function fetchData() {
+            try {
+                const [statsRes, clustersRes] = await Promise.all([
+                    fetch('/api/timecluster/stats'),
+                    fetch('/api/timecluster/clusters')
+                ]);
+                stats = await statsRes.json();
+                const clusterData = await clustersRes.json();
+
+                if (stats.enabled === false) {
+                    document.getElementById('stats').innerHTML = '<div class="empty-state">TimeClusterCorrelator not enabled. Run with -time-cluster flag.</div>';
+                    return;
+                }
+
+                document.getElementById('total-clusters').textContent = stats.total_clusters || 0;
+                document.getElementById('total-anomalies').textContent = stats.total_anomalies || 0;
+                document.getElementById('slack-seconds').textContent = stats.slack_seconds || 0;
+                document.getElementById('window-seconds').textContent = stats.window_seconds || 0;
+                document.getElementById('largest-cluster').textContent = stats.largest_cluster_size || 0;
+
+                clusters = clusterData.clusters || [];
+                renderTimeline();
+                renderClusterList();
+            } catch (e) {
+                console.error('Failed to fetch TimeCluster data:', e);
+            }
+        }
+
+        function renderTimeline() {
+            const timeline = document.getElementById('timeline');
+            
+            if (!clusters || clusters.length === 0) {
+                timeline.innerHTML = '<div style="color:#555;text-align:center;padding:20px;">No clusters yet (min 2 anomalies)</div>';
+                return;
+            }
+
+            // Find time range and max anomaly count
+            let minTime = Infinity, maxTime = -Infinity, maxCount = 1;
+            clusters.forEach(c => {
+                if (c.start_time < minTime) minTime = c.start_time;
+                if (c.end_time > maxTime) maxTime = c.end_time;
+                if (c.anomaly_count > maxCount) maxCount = c.anomaly_count;
+            });
+
+            const range = maxTime - minTime || 1;
+
+            let html = '';
+            clusters.forEach((c, i) => {
+                const left = ((c.start_time - minTime) / range) * 100;
+                // Width: based on time span, minimum 3%
+                const w = Math.max(3, ((c.end_time - c.start_time) / range) * 100);
+                // Height: proportional to anomaly count (30% to 100%)
+                const sizeFactor = c.anomaly_count / maxCount;
+                const heightPct = 30 + sizeFactor * 70;
+                // Color: intensity based on size (more anomalies = more vivid cyan)
+                const saturation = 50 + sizeFactor * 40;
+                const lightness = 55 - sizeFactor * 15;
+                html += '<div class="timeline-cluster" style="left:' + left + '%;width:' + w + '%;height:' + heightPct + '%;top:' + (100 - heightPct) / 2 + '%;background:hsla(190,' + saturation + '%,' + lightness + '%,0.8);border-color:hsl(190,' + saturation + '%,' + (lightness - 10) + '%);font-size:' + (10 + sizeFactor * 6) + 'px;font-weight:' + (sizeFactor > 0.5 ? 'bold' : 'normal') + '" title="Cluster ' + c.id + ': ' + c.anomaly_count + ' anomalies (' + (c.end_time - c.start_time) + 's)">' + c.anomaly_count + '</div>';
+            });
+            timeline.innerHTML = html;
+        }
+
+        function renderClusterList() {
+            const list = document.getElementById('cluster-list');
+            
+            if (!clusters || clusters.length === 0) {
+                list.innerHTML = '<div class="empty-state">No clusters detected yet</div>';
+                return;
+            }
+
+            function formatTime(unix) {
+                const d = new Date(unix * 1000);
+                return d.toLocaleTimeString();
+            }
+
+            function shorten(s) {
+                const parts = s.split(':');
+                const name = parts[0];
+                return name.replace(/^(cgroup\.v2\.|smaps_rollup\.|smaps\.)/, '');
+            }
+
+            let html = '';
+            clusters.forEach(c => {
+                html += '<div class="cluster">';
+                html += '<div class="cluster-header">';
+                html += '<span class="cluster-id">Cluster #' + c.id + '</span>';
+                html += '<span class="cluster-count">' + c.anomaly_count + ' anomalies</span>';
+                html += '</div>';
+                html += '<div class="cluster-time">' + formatTime(c.start_time) + ' → ' + formatTime(c.end_time) + ' (' + (c.end_time - c.start_time) + 's)</div>';
+                html += '<div class="cluster-sources">';
+                c.sources.slice(0, 20).forEach(s => {
+                    html += '<span class="source-tag" title="' + s + '">' + shorten(s) + '</span>';
+                });
+                if (c.sources.length > 20) {
+                    html += '<span class="source-tag">+' + (c.sources.length - 20) + ' more</span>';
+                }
+                html += '</div>';
+                html += '</div>';
+            });
+            list.innerHTML = html;
+        }
+
+        fetchData();
+        setInterval(fetchData, 2000);
     </script>
 </body>
 </html>

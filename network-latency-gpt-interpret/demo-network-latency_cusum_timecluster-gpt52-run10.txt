@@ -1,0 +1,69 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 257 metric sources that ever anomalied were grouped into a single “simultaneous” time cluster, meaning the correlator is essentially telling you “everything shifted around the same times,” not separating distinct incident sub-events or causal relationships.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A.
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Baseline/training artifact:** CUSUM learns from the first 25% of the data; if that period is not representative (startup/idle), later “normal operation” looks like a sustained shift, producing massive anomalies across many metrics.  
+   - **System-wide step change (real but not necessarily bad):** a deployment, load increase, node pressure, or cgroup limit change could shift CPU/memory/pressure metrics together without being an incident.  
+   - **Collection/telemetry behavior:** metric shape changes (counters vs gauges, resets, new containers/IDs) can cause widespread “shifts.”  
+   Uncertainty is high because the correlator produced only one giant cluster (no specificity), and several sample anomalies have low σ (0.7–1.3σ), suggesting sensitivity/baseline issues rather than a clear fault.
+
+6. **Supporting evidence (from the data)**  
+   - **Extremely broad co-occurrence:** `total_correlations: 1` with **`source_count: 257`** (“Correlated: 257 anomalies in time window”).  
+   - **Huge anomaly volume:** `total_anomalies: 270861` across `unique_sources_in_anomalies: 257` (suggests sustained/structural shift, not a small incident signature).  
+   - **Many anomalies are weak shifts:** examples show **0.7–1.3σ** shifts (e.g., `cpu_percentage` 0.7σ, `total_cpu_usage_millicores` 0.7σ, `smaps_rollup.pss` 0.8σ).  
+   - **Some stronger shifts exist but across different containers/times:** e.g., `kernel_cpu_percentage` **7.3σ** (todo-backend at `1768514104`) and `system_cpu_percentage` **3.8σ** (todo-redis at `1768514629`), indicating multiple step changes rather than one clean incident.  
+   - **Cluster spans a long window:** `first_seen: 1768514043`, `last_updated: 1768514634` (~10 minutes), consistent with “sustained shift” detection and/or baseline mismatch.

@@ -243,11 +243,13 @@ type observerImpl struct {
 	maxEvents   int
 
 	// Raw anomaly tracking for test bench display
-	rawAnomalies     []observerdef.AnomalyOutput
-	rawAnomalyMu     sync.RWMutex
-	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
-	maxRawAnomalies  int   // max number of raw anomalies to keep (0 = unlimited)
-	currentDataTime  int64 // latest data timestamp seen
+	rawAnomalies       []observerdef.AnomalyOutput
+	rawAnomalyMu       sync.RWMutex
+	rawAnomalyWindow   int64 // seconds to keep raw anomalies (0 = unlimited)
+	maxRawAnomalies    int   // max number of raw anomalies to keep (0 = unlimited)
+	currentDataTime    int64 // latest data timestamp seen
+	totalAnomalyCount  int   // total count of all anomalies ever detected (no cap)
+	uniqueAnomalySources map[string]bool // unique sources that had anomalies
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -278,7 +280,7 @@ func (o *observerImpl) processMetric(source string, m *metricObs) {
 			o.runTSAnalyses(*series, agg)
 
 			// NEW path: Run point-based signal emitters
-			o.runSignalEmitters(*series)
+			o.runSignalEmitters(*series, agg)
 		}
 	}
 
@@ -380,27 +382,36 @@ func (o *observerImpl) runTSAnalyses(series observerdef.Series, agg Aggregate) {
 }
 
 // runSignalEmitters runs point-based signal emitters on a series and processes the signals.
-func (o *observerImpl) runSignalEmitters(series observerdef.Series) {
+// It appends the aggregation suffix to the series name for distinct Source tracking.
+func (o *observerImpl) runSignalEmitters(series observerdef.Series, agg Aggregate) {
+	// Append aggregation suffix to series name for distinct Source tracking (matches runTSAnalyses)
+	seriesWithAgg := series
+	seriesWithAgg.Name = series.Name + ":" + aggSuffix(agg)
+
 	for _, emitter := range o.signalEmitters {
-		signals := emitter.Emit(series)
+		signals := emitter.Emit(seriesWithAgg)
+
 		for _, signal := range signals {
-			// Capture signal as raw anomaly for reporting
-			o.captureSignalAsAnomaly(signal, emitter.Name())
-			// Send signal to signal processors (Layer 2)
+			// Convert signal to anomaly and send to correlators
+			anomaly := o.signalToAnomaly(signal, emitter.Name())
+			o.captureRawAnomaly(anomaly) // For UI display
+			o.processAnomaly(anomaly)    // Send to correlators (GraphSketchCorrelator, etc.)
+			
+			// Also send signal to signal processors (Layer 2)
 			o.processSignal(signal)
 		}
 	}
 }
 
-// captureSignalAsAnomaly converts a Signal to an AnomalyOutput and captures it for reporting.
-func (o *observerImpl) captureSignalAsAnomaly(signal observerdef.Signal, emitterName string) {
+// signalToAnomaly converts a Signal to an AnomalyOutput for use with correlators.
+func (o *observerImpl) signalToAnomaly(signal observerdef.Signal, emitterName string) observerdef.AnomalyOutput {
 	// Build description from signal data
 	desc := fmt.Sprintf("%s signal at timestamp %d", signal.Source, signal.Timestamp)
 	if signal.Score != nil {
 		desc = fmt.Sprintf("%s (score: %.2f) at timestamp %d", signal.Source, *signal.Score, signal.Timestamp)
 	}
 
-	anomaly := observerdef.AnomalyOutput{
+	return observerdef.AnomalyOutput{
 		Source:       signal.Source,
 		Title:        fmt.Sprintf("Signal: %s", signal.Source),
 		Description:  desc,
@@ -411,7 +422,6 @@ func (o *observerImpl) captureSignalAsAnomaly(signal observerdef.Signal, emitter
 			End:   signal.Timestamp, // Point-based: start == end
 		},
 	}
-	o.captureRawAnomaly(anomaly)
 }
 
 // processSignal sends a signal to all signal processors.
@@ -451,6 +461,15 @@ func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
 func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 	o.rawAnomalyMu.Lock()
 	defer o.rawAnomalyMu.Unlock()
+
+	// Always increment total count (no cap)
+	o.totalAnomalyCount++
+
+	// Track unique sources
+	if o.uniqueAnomalySources == nil {
+		o.uniqueAnomalySources = make(map[string]bool)
+	}
+	o.uniqueAnomalySources[anomaly.Source] = true
 
 	// Update current data time
 	if anomaly.TimeRange.End > o.currentDataTime {
@@ -503,6 +522,20 @@ func (o *observerImpl) RawAnomalies() []observerdef.AnomalyOutput {
 	result := make([]observerdef.AnomalyOutput, len(o.rawAnomalies))
 	copy(result, o.rawAnomalies)
 	return result
+}
+
+// TotalAnomalyCount returns the total number of anomalies ever detected (no cap).
+func (o *observerImpl) TotalAnomalyCount() int {
+	o.rawAnomalyMu.RLock()
+	defer o.rawAnomalyMu.RUnlock()
+	return o.totalAnomalyCount
+}
+
+// UniqueAnomalySourceCount returns the number of unique sources that had anomalies.
+func (o *observerImpl) UniqueAnomalySourceCount() int {
+	o.rawAnomalyMu.RLock()
+	defer o.rawAnomalyMu.RUnlock()
+	return len(o.uniqueAnomalySources)
 }
 
 // flushAndReport flushes all anomaly processors and notifies all reporters.
@@ -594,7 +627,8 @@ func (h *handle) ObserveMetric(sample observerdef.MetricView) {
 	}
 
 	// Non-blocking send - drop if channel is full.
-	// TODO: Add telemetry to track dropped observations.
+	// In production, this prevents slow consumers from blocking data ingestion.
+	// For demo comparison, this means faster correlators see more data.
 	select {
 	case h.ch <- obs:
 	default:
@@ -628,7 +662,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	}
 
 	// Non-blocking send - drop if channel is full.
-	// TODO: Add telemetry to track dropped observations.
 	select {
 	case h.ch <- obs:
 	default:

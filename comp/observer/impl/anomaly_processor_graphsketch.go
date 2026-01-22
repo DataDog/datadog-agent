@@ -72,8 +72,8 @@ type GraphSketchCorrelator struct {
 	anomalyBuffer []observer.AnomalyOutput
 
 	// Clusters based on co-occurrence
-	clusters      []*graphCluster
-	nextClusterID int
+	clusters        []*graphCluster
+	nextClusterID   int
 	currentDataTime int64
 
 	// Edge frequency tracking (for quick lookups and reporting)
@@ -92,12 +92,12 @@ type GraphSketchCorrelator struct {
 
 // EdgeInfo stores metadata about a learned edge.
 type EdgeInfo struct {
-	Source1      string
-	Source2      string
-	EdgeKey      string
-	Observations int     // Raw count of observations
-	Frequency    float64 // Decay-weighted frequency
-	FirstSeenUnix int64  // Unix timestamp when this edge was first observed
+	Source1       string
+	Source2       string
+	EdgeKey       string
+	Observations  int     // Raw count of observations
+	Frequency     float64 // Decay-weighted frequency
+	FirstSeenUnix int64   // Unix timestamp when this edge was first observed
 }
 
 // graphCluster represents a group of anomalies with strong co-occurrence.
@@ -562,12 +562,13 @@ func (g *GraphSketchCorrelator) splitEdge(edgeKey string) []string {
 
 // GetLearnedEdges returns all currently learned edges with their frequencies.
 func (g *GraphSketchCorrelator) GetLearnedEdges() []EdgeInfo {
-	// Try to acquire lock with timeout to avoid blocking HTTP handlers
-	if !g.mu.TryRLock() {
-		return nil // Return empty if lock unavailable
-	}
+	g.mu.RLock()
 	defer g.mu.RUnlock()
+	return g.getLearnedEdgesLocked()
+}
 
+// getLearnedEdgesLocked returns edges without acquiring lock (caller must hold lock).
+func (g *GraphSketchCorrelator) getLearnedEdgesLocked() []EdgeInfo {
 	// First pass: collect edges with observation counts only (fast)
 	type edgeCandidate struct {
 		key   string
@@ -715,21 +716,21 @@ func (g *GraphSketchCorrelator) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_edges_seen":     len(g.knownEdges),
-		"active_clusters":      len(g.clusters),
-		"anomaly_buffer_size":  len(g.anomalyBuffer),
-		"current_time_bin":     g.currentTimeBin,
-		"total_observations":   g.totalObservations,
-		"last_new_edge_time":   g.lastNewEdgeTime,
-		"time_since_new_edge":  timeSinceNewEdge,
-		"time_since_process":   timeSinceLastProcess,
-		"stability_status":     stabilityStatus,
-		"stability_percent":    stabilityPercent,
-		"status_icon":          statusIcon,
-		"frozen":               g.frozen,
-		"unique_sources":       len(g.uniqueSources),
-		"edge_coverage":        edgeCoverage,
-		"available":            true, // Indicate that GraphSketch correlator is active
+		"total_edges_seen":    len(g.knownEdges),
+		"active_clusters":     len(g.clusters),
+		"anomaly_buffer_size": len(g.anomalyBuffer),
+		"current_time_bin":    g.currentTimeBin,
+		"total_observations":  g.totalObservations,
+		"last_new_edge_time":  g.lastNewEdgeTime,
+		"time_since_new_edge": timeSinceNewEdge,
+		"time_since_process":  timeSinceLastProcess,
+		"stability_status":    stabilityStatus,
+		"stability_percent":   stabilityPercent,
+		"status_icon":         statusIcon,
+		"frozen":              g.frozen,
+		"unique_sources":      len(g.uniqueSources),
+		"edge_coverage":       edgeCoverage,
+		"available":           true, // Indicate that GraphSketch correlator is active
 	}
 }
 
@@ -747,7 +748,11 @@ func (g *GraphSketchCorrelator) PrintDebugState() {
 	fmt.Printf("Frozen: %t\n", g.frozen)
 
 	fmt.Println("\nTop co-occurrence edges (source pairs that anomaly together):")
-	edges := g.GetTopEdges(10)
+	// Use locked version since we already hold the lock
+	edges := g.getLearnedEdgesLocked()
+	if len(edges) > 10 {
+		edges = edges[:10]
+	}
 	for i, edge := range edges {
 		fmt.Printf("  %d. %s ↔ %s (obs: %d, freq: %.2f)\n", i+1, edge.Source1, edge.Source2, edge.Observations, edge.Frequency)
 	}
@@ -757,4 +762,3 @@ func (g *GraphSketchCorrelator) PrintDebugState() {
 // Ensure GraphSketchCorrelator implements both interfaces
 var _ observer.AnomalyProcessor = (*GraphSketchCorrelator)(nil)
 var _ observer.CorrelationState = (*GraphSketchCorrelator)(nil)
-

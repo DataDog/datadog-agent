@@ -1,0 +1,69 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   Nearly all metrics across CPU, memory, I/O, pids, hugetlb, and even cgroup metadata anomalied at the same timestamps, forming a few large “everything moved together” time clusters—consistent with a node-wide event (or monitoring/collection artifact) rather than a single container-specific issue.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A
+
+4. **Confidence level (high/medium/low)**  
+   **Low**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Metrics pipeline/collection glitch (most likely):** simultaneous anomalies across hundreds of unrelated metrics often happens when scraping pauses, timestamps jump, counters reset, units change, or a parser breaks (LightESD then flags many series at once). Uncertain because raw values and direction (drop vs spike) aren’t shown.  
+   - **Node-level disruption / container runtime event:** kubelet/containerd restart, cgroup hierarchy rebuild, or mass container churn can cause many cgroup “count”/limit/pressure fields to change together. Uncertain because there’s no explicit host-level events/logs here.  
+   - **Real resource incident (CPU/memory/IO pressure):** could be genuine contention causing PSI + usage anomalies together. Uncertain because PSI anomalies shown are mostly `:count` and we don’t see sustained elevated averages except in smaller clusters.
+
+6. **Supporting evidence (from the data)**  
+   - **Huge synchronized clusters:** `time_cluster_8` has **267 sources** anomalous together; other clusters have **184–207 sources** within seconds.  
+   - **Cross-subsystem breadth:** correlated sources include **CPU usage/pressure**, **memory current/events/pressure/stats**, **I/O pressure/stats**, **pids**, **hugetlb**, and **cgroup metadata** (`cgroup.max.depth`, `cgroup.procs`, `events.populated`, etc.).  
+   - **Timing suggests a bursty global event:** clusters occur in a tight window (`first_seen` ~1768514009 to ~1768514078).  
+   - **Extremely large anomaly scores on “count”/config-like metrics:** e.g., `cgroup.v2.cgroup.max.depth:count` score `1e10`, `smaps_rollup.shared_hugetlb:count` score `2e10–3e10`, which often indicates “value became weird/zero/changed format” rather than organic workload behavior.  
+   - **Total volume is enormous:** `total_anomalies: 170565` with only `total_correlations: 9`, implying many repeated anomalies driven by a small number of synchronized events.

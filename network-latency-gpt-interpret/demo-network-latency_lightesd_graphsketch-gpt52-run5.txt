@@ -1,0 +1,70 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All detected anomalies across many containers/metrics are being lumped into a single, highly co-occurring cluster dominated by memory/pressure/smaps metrics, with GraphSketch highlighting a strong association between **cgroup freeze/frozen events** and **memory OOM events** (i.e., when “something happens,” a very broad set of resource metrics tends to spike together).
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **If not high confidence: alternative possibilities and why uncertain?**  
+   - **Likely false-positive storm / instrumentation artifact:** LightESD scores are pegged at `1e10` for many metrics and GraphSketch forms one giant 184-source cluster, which often indicates a step change, reset, scrape gap, counter reset, or metric-definition change rather than a real incident.  
+   - **Real node-level stall/pressure event (CPU/IO/memory contention):** simultaneous anomalies in CPU pressure, IO pressure, swap events, and smaps memory breakdown could reflect a real resource crisis, but the provided output doesn’t show actual values/trends or confirm that OOM/Freeze counters truly incremented.  
+   - **Container churn / lifecycle event:** anomalies in `cgroup.procs`, `nr_descendants`, and “populated/frozen” could come from containers starting/stopping, eviction, or node maintenance; without Kubernetes/node events or raw counter deltas it’s hard to distinguish from failure.
+
+6. **Supporting evidence (from the data)**  
+   - **One massive correlation cluster:** `total_correlations: 1`, `source_count: 184` (“freq: 107478.6, 184 sources”).  
+   - **Cluster title ties freeze ↔ OOM:** “Correlated: `cgroup.v2.cgroup.events.frozen` ↔ `cgroup.v2.memory.events.oom`”.  
+   - **Anomalies span many subsystems:** CPU pressure (`cgroup.v2.cpu.pressure.full.avg10`), IO pressure (`cgroup.v2.io.pressure.full.avg60`), swap events (`cgroup.v2.memory.swap.events.max`), smaps rollup metrics, cgroup process/descendant counts.  
+   - **Extremely saturated anomaly scores:** sample anomalies repeatedly show `score: 10000000000.00`.  
+   - **Strong co-occurrence among smaps metrics:** many edges with ~4k–5k observations and very high frequency scores, suggesting broad synchronized “movement” rather than a single localized metric failure.

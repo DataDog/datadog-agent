@@ -1,0 +1,82 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All anomalous metrics (171 distinct sources across CPU, memory, IO, pids, smaps) are behaving as a single tightly time-coupled event/episode (one GraphSketch cluster), meaning the anomalies co-occur rather than being isolated independent issues.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container is hitting severe **memory pressure leading to OOM (including OOM group kills)**, with concurrent CPU pressure/pid changes consistent with the workload thrashing and then being killed.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities + why uncertain**  
+   - **Metrics artifact / counter-step effect:** Many anomalies are “shifted 1 → 2” on `:count` sources, which could reflect small counter increments being treated as large deviations rather than large resource changes.  
+   - **Short-lived container lifecycle event (start/stop/freeze) rather than sustained leak:** The cluster title references `cgroup...frozen` and many cgroup configuration/stat fields; rapid lifecycle transitions can make many metrics change together.  
+   - **System-wide/node contention:** CPU pressure anomalies could be driven by host contention impacting this BestEffort pod, not necessarily the app itself.  
+   Uncertainty is mainly because the sample shows counter increments and lacks direct magnitude context (e.g., actual `memory.current` values, limits, duration).
+
+6. **Supporting evidence (from the data)**  
+   - Direct OOM signals:  
+     - `cgroup.v2.memory.events.local.oom:count shifted: 1.00 → 2.00 (10.0σ)`  
+     - `cgroup.v2.memory.events.local.oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ)` (repeated)  
+     - Correlation cluster includes `cgroup.v2.memory.events.oom:*` and `...oom_kill` / `...oom_group_kill` sources.
+   - Memory pressure accompanying OOM:  
+     - `cgroup.v2.memory.events.local.high:count shifted: 1.00 → 2.00 (10.0σ)`  
+     - `cgroup.v2.memory.pressure.some.avg10/avg300:count shifted: 1.00 → 2.00 (10.0σ)`  
+     - Cluster includes extensive `cgroup.v2.memory.pressure.{some,full}.*` metrics.
+   - CPU pressure co-occurs:  
+     - `cgroup.v2.cpu.pressure.full.avg10/avg60:count shifted: 1.00 → 2.00 (10.0σ)`  
+     - Cluster includes `cgroup.v2.cpu.pressure.{some,full}.*` and throttling-related CPU stats.
+   - Process/pids impact:  
+     - `cgroup.v2.pids.peak:count shifted: 1.00 → 2.00 (10.0σ)`  
+     - Cluster includes `cgroup.v2.pids.current/max/events.max`.
+   - Correlator indicates “everything moved together”:  
+     - `total_correlations: 1` with `source_count: 171` (single episode).  
+     - Cluster title: `Correlated: cgroup.v2.cgroup.events.frozen:count ↔ cgroup.v2.memory.events.oom:count (freq: 10560.0, 171 sources)`.

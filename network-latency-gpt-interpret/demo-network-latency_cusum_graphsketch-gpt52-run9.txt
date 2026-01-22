@@ -1,0 +1,79 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+All detected anomalies are essentially one co-occurring cluster: when one metric goes abnormal, *many* CPU, memory, IO-pressure, pids, hugetlb, and smaps metrics go abnormal within the same ~10s window—consistent with a single container-level disturbance affecting the whole cgroup (not independent, unrelated issues).
+
+2) **Is there a problem?**  
+**Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+A BestEffort container (`cleanup`) hit severe memory pressure leading to OOM events (including OOM group kills), with associated system-wide pressure/side-effects (CPU/IO pressure and paging activity) during the incident.
+
+4) **Confidence level**  
+**Medium.**
+
+5) **If not high confidence: alternative possibilities + why uncertain**  
+- **Metric/collection artifact or counter-step effect**: many anomalies are “shifted 1→2” on `:count` series, which can happen if the detector is treating monotonically increasing counters as “level” signals; this can inflate “everything changed” clusters.  
+- **Container lifecycle/restart/freeze-unfreeze event**: the cluster includes cgroup freeze/frozen/populated signals; a stop/start or orchestrator action could cause widespread counter increments and transient pressure.  
+- **Host-level contention rather than app bug**: CPU pressure full metrics could be driven by node contention; without node-level context and actual values (not just counter increments), root cause could be outside the container.
+
+6) **Supporting evidence (from the data)**  
+- **Direct OOM indicators:**  
+  - `cgroup.v2.memory.events.local.oom:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.events.local.oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ)` (repeated at adjacent timestamps)
+- **Memory pressure signals:**  
+  - `cgroup.v2.memory.pressure.some.avg10:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.pressure.some.avg300:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.events.local.high:count shifted: 1.00 → 2.00 (10.0σ)`
+- **CPU pressure signals:**  
+  - `cgroup.v2.cpu.pressure.full.avg10/avg60:count shifted: 1.00 → 2.00 (10.0σ)`
+- **Process pressure / growth:**  
+  - `cgroup.v2.pids.peak:count shifted: 1.00 → 2.00 (10.0σ)`
+- **Single correlated cluster covering many subsystems:**  
+  - One correlation group with **171 sources**: `"graphsketch_cluster_0" ... (freq: 10560.0, 171 sources)`
+- **All anomalies tied to same workload identity in samples:**  
+  - Tags repeatedly show `container_name:cleanup`, `qos_class:BestEffort`, same `container_id`, same namespace/pod.

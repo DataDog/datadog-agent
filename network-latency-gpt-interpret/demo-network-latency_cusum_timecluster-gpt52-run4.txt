@@ -1,0 +1,68 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 257 metrics flagged anomalies in the same 1‑second window(s), meaning the detector saw a broad, simultaneous “shift” across CPU, memory, I/O, and even mostly-static cgroup metadata—more consistent with a systemic collection/baseline/change-point artifact than a single workload-specific issue.
+
+2. **Is there a problem?**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   A likely **monitoring/baseline reset or environment-wide state change** caused CUSUM to treat many metrics as shifted at once.
+
+4. **Confidence level**  
+   **Low.**
+
+5. **Alternative possibilities and why uncertain**  
+   - **Real node/container incident (CPU/memory pressure event):** could produce multi-metric shifts, but the cluster includes many “count/static” configuration-like metrics (e.g., max, cpuset, weights) anomalizing too, which is odd for a pure workload spike.  
+   - **Container churn / cgroup recreation:** mass container restart or cgroup tree changes could shift “populated/procs/pids” and related counters, but sample anomalies show different containers and mixed tags, not a single clear restart narrative.  
+   - **CUSUM mis-calibration / non-stationary baseline:** CUSUM learns from the first 25% only; if the system behavior changes later (deploy, load ramp, sampling change), it can avalanche anomalies across many metrics.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster covers everything:** `total_correlations: 1` and “**Correlated: 257 anomalies in time window**” with `source_count: 257`.  
+   - **Very large anomaly volume:** `total_anomalies: 270861` across `unique_sources_in_anomalies: 257` (suggests sustained/wholesale shift, not a few bad metrics).  
+   - **Includes many cgroup “metadata/static-ish” fields anomalizing simultaneously:** e.g., `cgroup.v2.cpu.weight*`, `cgroup.v2.cpu.uclamp.*`, `cgroup.v2.cgroup.max.*`, `cgroup.v2.cpuset.mems.effective`, `cgroup.v2.*.max` alongside runtime stats—suggesting a systemic change or measurement artifact.  
+   - **Sample shows multi-resource shifts across different containers:** CPU shifts (`kernel_cpu_percentage`, `system_cpu_percentage`, `total_cpu_usage_millicores`) and memory shifts (`smaps_rollup.pss`, `cgroup.v2.memory.stat.slab*`, `cgroup.v2.memory.stat.kernel`) occurring around the same timeframe.  
+   - **Correlation window spans a period:** cluster `first_seen: 1768514043` to `last_updated: 1768514634`, consistent with a change-point that persists rather than a brief spike.

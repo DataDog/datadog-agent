@@ -1,0 +1,70 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- Almost all metrics (267 unique sources) anomalied *at the same moments*, forming a few dense time clusters (especially ~1768514009–1768514078). This looks like a **system-wide/collection-wide event** rather than a single isolated container metric drifting on its own.
+
+2) **Is there a problem? (yes/no/unclear)**  
+- **Unclear**.
+
+3) **If yes, what is it? (one sentence)**  
+- N/A.
+
+4) **Confidence level (high/medium/low)**  
+- **Low**.
+
+5) **If not high confidence: alternative possibilities + why uncertain**  
+- **Metrics collection artifact / scrape hiccup / pipeline reset:** The simultaneous anomalies span *almost every subsystem* (CPU, memory, IO, pids, hugetlb, cgroup metadata), which is more typical of a monitoring discontinuity than a real incident affecting everything at once.  
+- **Node-level stall/pressure event (CPU/IO/memory contention):** Could be a brief host-level freeze or saturation causing many counters/pressure signals to jump together.  
+- **Container lifecycle churn (pods starting/stopping or cgroup tree changes):** Many “:count” and cgroup structural metrics anomalied together, consistent with large-scale cgroup changes.  
+Uncertainty is high because the output shows **anomaly scores and co-timing but not the raw values/directions** (spike vs drop, zeros, resets), and TimeCluster does not infer causality.
+
+6) **Supporting evidence (from the data)**  
+- **Very large simultaneous cluster:** `time_cluster_8` = **267 sources**, `first_seen` **1768514043**, `last_updated` **1768514078**.  
+- **Multiple dense adjacent clusters:** `time_cluster_7` (207 sources, **1768514009–1768514019**) plus several **184-source** clusters around **1768514033–1768514042**, suggesting repeated “everything moved together” moments.  
+- **Cross-subsystem breadth:** correlated sources include CPU pressure/stat/weights, IO pressure/stats, memory current/events/stat/zswap/swap, pids, hugetlb, smaps_rollup, and top-level cpu usage/percentages.  
+- **Extremely high anomaly scores on many “count” metrics** in samples (often `score: 10000000000.00`), e.g. `cgroup.v2.cgroup.max.depth:count`, `cgroup.v2.cpu.weight.nice:count`, `cgroup.v2.memory.stat.file_mapped:count`, suggesting structural/counter discontinuities.  
+- **Sample shows different containers implicated** (e.g., `cleanup`, `todo-frontend`, `todo-backend`, `todo-redis`) rather than one container dominating, consistent with a shared underlying event.

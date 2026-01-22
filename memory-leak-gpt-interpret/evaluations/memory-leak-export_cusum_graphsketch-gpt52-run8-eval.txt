@@ -1,0 +1,17 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: memory-leak-gpt-interpret//memory-leak-export_cusum_graphsketch-gpt52-run8.txt
+Problem type: memory leak
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: memory leak...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Problem**: partial - Did it identify memory leak?  
+2. **Score**: 62  
+3. **Evidence**: Mentions “large rise in anonymous memory (RSS/anon)” and “memory pressure” but frames it as a “sustained workload change” and never says “memory leak” / unbounded growth / OOM-kill due to leak.  
+4. **Summary**: It noticed sustained memory (anon/RSS) growth consistent with a leak, but diagnosed it primarily as a workload/CPU shift rather than explicitly identifying a memory leak.

@@ -1,0 +1,17 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: memory-leak-gpt-interpret//memory-leak-export_cusum_graphsketch-gpt52-run1.txt
+Problem type: memory leak
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: memory leak...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Problem**: **partial** - Did it identify memory leak?  
+2. **Score**: **62**  
+3. **Evidence**: Phrases like “sharp rise in anonymous memory (heap)”, “elevated memory footprint”, and “Good for: … memory leaks” imply memory growth but it never explicitly calls it a “memory leak” and frames it as a “sustained workload change.”  
+4. **Summary**: It detected sustained heap/anon memory growth consistent with a leak, but did not clearly diagnose it as an application-level memory leak (and emphasized workload/system factors instead).

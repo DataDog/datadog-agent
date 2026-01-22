@@ -1,0 +1,74 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 66 metrics anomalied together in the same 1‑second windows, indicating a single container-level event/change that simultaneously affected memory (especially anonymous), CPU/CPU pressure/throttling, and some I/O—i.e., one incident rather than independent metric noise.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container experienced a large sustained step-up in anonymous/private memory (likely a memory surge/leak or workload phase change) that coincided with increased CPU activity/pressure and related kernel memory overhead.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities / why uncertain**  
+   - **Legitimate workload phase change (e.g., cache warmup, batch job start, new traffic pattern):** CUSUM flags sustained shifts, which can be “real” changes not necessarily faults.  
+   - **Container restart/redeployment / process churn:** Cluster includes `cgroup.events.populated`, `pids.*`, `cgroup.procs/threads`, consistent with lifecycle changes that can reset baselines and shift metrics.  
+   - **Measurement/baseline artifact:** “Normal” learned from first 25% of data; if that period isn’t representative (startup vs steady state), later steady state can look anomalous.  
+   Uncertain because we don’t see explicit OOM/kill indicators or the absolute memory limit context beyond `memory.max` being listed as anomalous (value not shown).
+
+6. **Supporting evidence (from the data)**  
+   - **Single time-cluster covering everything:** `total_correlations: 1` with `source_count: 66`, `first_seen: 1768261630`, `last_updated: 1768262537`.  
+   - **Big sustained anonymous/private memory shift (~4x):**  
+     - `smaps_rollup.anonymous:avg` **18,479,085 → ~80,3xx,xxx** (**6.3σ**)  
+     - `smaps_rollup.pss_anon:avg` **18,479,085 → ~80,394,131** (**6.3σ**)  
+     - `smaps_rollup.private_dirty:avg` **21,298,180 → ~83,6xx,xxx** (**6.1σ**)  
+     - `smaps_rollup.rss:avg` **23,439,607 → ~86,842,756** (**5.7σ**)  
+     - `cgroup.v2.memory.stat.anon/active_anon` similarly jump to ~80M (**6.3σ**)  
+   - **Memory management stress increases:** `cgroup.v2.memory.stat.pgfault:avg` **6,745 → ~22,6xx** (**~5.2–5.3σ**), `pagetables` **93,684 → 235,927** (**3.9σ**), `kernel` memory up (**2.0–2.8σ**).  
+   - **CPU/pressure/throttling also in the same cluster:** includes `cpu_percentage`, `total_cpu_usage_millicores`, `cgroup.v2.cpu.pressure.*`, `cgroup.v2.cpu.stat.*throttled*`.  
+   - **Process/lifecycle signals also correlated:** includes `cgroup.v2.cgroup.events.populated`, `cgroup.v2.pids.current/peak`, `container.pid_count`, `cgroup.procs/threads`.

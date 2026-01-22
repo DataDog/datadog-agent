@@ -1,0 +1,17 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: memory-leak-gpt-interpret//memory-leak-export_lightesd_graphsketch-gpt52-run6.txt
+Problem type: memory leak
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: memory leak...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Problem**: partial - Did it identify memory leak?  
+2. **Score**: 65  
+3. **Evidence**: Mentions “memory pressure… reclaim/zswap activity and at least one OOM group kill… consistent with a memory exhaustion episode,” but never says “memory leak” or sustained/unbounded memory growth.  
+4. **Summary**: It correctly flags memory pressure/OOM behavior consistent with a leak, but does not explicitly identify the root cause as a memory leak.

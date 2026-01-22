@@ -1,0 +1,69 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+There is a single incident window (~100s) where *almost every* container metric (CPU, memory, IO pressure, cgroup events, smaps) became anomalous at the same timestamps, indicating a broad, simultaneous state change rather than an isolated subsystem issue.
+
+2) **Is there a problem?**  
+**Unclear.**
+
+3) **If yes, what is it? (one sentence)**  
+N/A.
+
+4) **Confidence level**  
+**Low.**
+
+5) **Alternative possibilities + why uncertain**  
+- **Metrics collection/reset artifact (most likely):** Many anomalies are on `:count` series with extreme identical scores (`10000000000.00`), consistent with counters resetting/jumping, missing samples, scrape restart, or a parsing/unit bug—this can make *everything* look anomalous at once.  
+- **Container lifecycle event (restart/recreate/migration):** A container restart can reset many cgroup/stat counters simultaneously and change smaps snapshots abruptly, producing a large simultaneous cluster without an actual resource incident.  
+- **Real host/container-wide resource event (CPU+memory pressure spike):** Possible (CPU pressure + memory pressure + zswap/writeback), but the presence of many “count” anomalies and absurd smaps scores makes it hard to trust this as a genuine workload symptom from this output alone.
+
+6) **Supporting evidence (from the data)**  
+- **Single correlation cluster:** `total_correlations: 1` with **`source_count: 220`** spanning CPU, memory, IO pressure, smaps, hugetlb, pids, cgroup events.  
+- **Tight time window:** `first_seen: 1768261651`, `last_updated: 1768261751` (~100 seconds).  
+- **Many extreme `:count` anomalies:** e.g. `kernel_cpu_percentage:count (score: 10000000000.00)`, `cgroup.v2.memory.stat.anon_thp:count (score: 10000000000.00)`, many others at timestamp `1768261750`.  
+- **Smaps anomalies with absurd scores:** `smaps_rollup.anonymous:avg (score: 153231360000000000.00)` around `1768261750`, suggestive of bad/changed input rather than normal variance.  
+- **Some CPU signal present but not decisive alone:** multiple `kernel_cpu_percentage:avg` outliers (scores ~5–6) in the same general period.

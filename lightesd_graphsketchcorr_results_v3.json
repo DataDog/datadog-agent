@@ -1,0 +1,1549 @@
+{
+  "detector": "LightESD",
+  "correlator": "GraphSketchCorrelator",
+  "timestamp": "2026-01-20T11:31:52-05:00",
+  "total_anomalies": 7118,
+  "unique_sources_in_anomalies": 227,
+  "total_correlations": 5,
+  "total_edges": 200,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.hugetlb.2MB.rsvd.current:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.hugetlb.2MB.rsvd.current:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.pressure:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cgroup.pressure:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.current:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.pids.current:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgsteal_direct:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.pgsteal_direct:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgsteal_khugepaged:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.pgsteal_khugepaged:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.high:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.high:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.swap.high:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.swap.high:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.stat.nr_throttled:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.stat.nr_throttled:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.current:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.current:avg (score: 44994560000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.current:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.current:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "kernel_cpu_percentage:count",
+      "analyzer": "lightesd",
+      "description": "kernel_cpu_percentage:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.workingset_nodereclaim:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.workingset_nodereclaim:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon_thp:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.anon_thp:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "system_cpu_usage_millicores:count",
+      "analyzer": "lightesd",
+      "description": "system_cpu_usage_millicores:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.hugetlb.2MB.max:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.hugetlb.2MB.max:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_anon:avg",
+      "analyzer": "lightesd",
+      "description": "smaps_rollup.pss_anon:avg (score: 44912640000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_anon:count",
+      "analyzer": "lightesd",
+      "description": "smaps_rollup.pss_anon:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgsteal:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.pgsteal:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.file_mapped:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.file_mapped:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.pressure.some.avg10:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.pressure.some.avg10:count (score: 10000000000.00) at timestamp 1768261668",
+      "timestamp": 1768261668,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "graphsketch_cluster_0",
+      "title": "Correlated: cgroup.v2.cgroup.events.populated:count ↔ smaps_rollup.shared_clean:count (freq: 89180.5, 227 sources)",
+      "source_count": 227,
+      "sources": [
+        "cgroup.v2.cgroup.events.frozen:count",
+        "cgroup.v2.cgroup.events.populated:count",
+        "cgroup.v2.cgroup.freeze:count",
+        "cgroup.v2.cgroup.max.depth:count",
+        "cgroup.v2.cgroup.max.descendants:count",
+        "cgroup.v2.cgroup.pressure:count",
+        "cgroup.v2.cgroup.procs:count",
+        "cgroup.v2.cgroup.stat.nr_descendants:count",
+        "cgroup.v2.cgroup.stat.nr_dying_descendants:count",
+        "cgroup.v2.cgroup.threads:count",
+        "cgroup.v2.cpu.idle:count",
+        "cgroup.v2.cpu.max.burst:count",
+        "cgroup.v2.cpu.pressure.full.avg10:avg",
+        "cgroup.v2.cpu.pressure.full.avg10:count",
+        "cgroup.v2.cpu.pressure.full.avg300:avg",
+        "cgroup.v2.cpu.pressure.full.avg300:count",
+        "cgroup.v2.cpu.pressure.full.avg60:avg",
+        "cgroup.v2.cpu.pressure.full.avg60:count",
+        "cgroup.v2.cpu.pressure.full.total:count",
+        "cgroup.v2.cpu.pressure.some.avg10:avg"
+      ],
+      "first_seen": 1768261630,
+      "last_updated": 1768261656
+    },
+    {
+      "pattern": "graphsketch_cluster_2",
+      "title": "Correlated: cgroup.v2.memory.stat.pgscan_direct:count ↔ cgroup.v2.memory.stat.zswapped:count (freq: 60414.6, 3 sources)",
+      "source_count": 3,
+      "sources": [
+        "cgroup.v2.cpu.weight.nice:count",
+        "cgroup.v2.memory.stat.pgscan_direct:count",
+        "cgroup.v2.memory.stat.zswapped:count"
+      ],
+      "first_seen": 1768261655,
+      "last_updated": 1768261655
+    },
+    {
+      "pattern": "graphsketch_cluster_5",
+      "title": "Correlated: cgroup.v2.memory.stat.slab_unreclaimable:avg ↔ cgroup.v2.memory.stat.thp_collapse_alloc:count (freq: 67592.1, 2 sources)",
+      "source_count": 2,
+      "sources": [
+        "cgroup.v2.memory.stat.slab_unreclaimable:avg",
+        "cgroup.v2.memory.stat.thp_collapse_alloc:count"
+      ],
+      "first_seen": 1768261630,
+      "last_updated": 1768261655
+    },
+    {
+      "pattern": "graphsketch_cluster_1",
+      "title": "Correlated: cgroup.v2.hugetlb.2MB.rsvd.max:count ↔ cgroup.v2.memory.events.oom_group_kill:count (freq: 39195.6, 2 sources)",
+      "source_count": 2,
+      "sources": [
+        "cgroup.v2.hugetlb.2MB.rsvd.max:count",
+        "cgroup.v2.memory.events.oom_group_kill:count"
+      ],
+      "first_seen": 1768261655,
+      "last_updated": 1768261655
+    },
+    {
+      "pattern": "graphsketch_cluster_6",
+      "title": "Correlated: cgroup.v2.memory.current:avg ↔ cgroup.v2.memory.pressure.full.avg10:count (freq: 29507.0, 2 sources)",
+      "source_count": 2,
+      "sources": [
+        "cgroup.v2.memory.current:avg",
+        "cgroup.v2.memory.pressure.full.avg10:count"
+      ],
+      "first_seen": 1768261655,
+      "last_updated": 1768261655
+    }
+  ],
+  "edges": [
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 23200,
+      "frequency": 43282.6
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 23200,
+      "frequency": 50739.45
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 22880,
+      "frequency": 58486.55
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 22880,
+      "frequency": 60414.6
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "observations": 21230,
+      "frequency": 60522.2
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "observations": 20964,
+      "frequency": 52359.25
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "observations": 20964,
+      "frequency": 51814.899999999994
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "observations": 20964,
+      "frequency": 47242
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "observations": 20964,
+      "frequency": 73688.65
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "observations": 20706,
+      "frequency": 53169.899999999994
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 19200,
+      "frequency": 54996.494999999995
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 19040,
+      "frequency": 57388.6
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 17400,
+      "frequency": 44318.45
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 17400,
+      "frequency": 53979.55
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 17280,
+      "frequency": 60169.75
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 17160,
+      "frequency": 66915.845
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 17160,
+      "frequency": 61596.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.file_dirty:avg",
+      "observations": 15902,
+      "frequency": 67903.95
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.file_dirty:avg",
+      "observations": 15902,
+      "frequency": 45435.7
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 15900,
+      "frequency": 56875.6
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 15860,
+      "frequency": 57703.9
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.file_dirty:avg",
+      "observations": 15710,
+      "frequency": 63522.8
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.file_dirty:avg",
+      "observations": 15710,
+      "frequency": 71179.1
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 15580,
+      "frequency": 72538.73
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 15549,
+      "frequency": 59613.5
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 15549,
+      "frequency": 49902.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 15450,
+      "frequency": 60169.75
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 15450,
+      "frequency": 61596.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 15448,
+      "frequency": 50447.65
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 15448,
+      "frequency": 48329.2
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 15423,
+      "frequency": 61556.975
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 15423,
+      "frequency": 60225.899999999994
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 15324,
+      "frequency": 47289.5
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 15324,
+      "frequency": 67071.95
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 15314,
+      "frequency": 49945.85
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 15314,
+      "frequency": 52425.785
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 15190,
+      "frequency": 50457.7
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 15190,
+      "frequency": 73688.65
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 15178,
+      "frequency": 45027.9
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 15178,
+      "frequency": 45445.6
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 15062,
+      "frequency": 47659.5
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 15062,
+      "frequency": 53687.35
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 15058,
+      "frequency": 51595.2
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 15058,
+      "frequency": 44385.15
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 15008,
+      "frequency": 52977.5
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 15008,
+      "frequency": 46289.85
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 14858,
+      "frequency": 46132.35
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 14858,
+      "frequency": 43060
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 14758,
+      "frequency": 60522.2
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 14758,
+      "frequency": 66101.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 14734,
+      "frequency": 61114.8
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 14734,
+      "frequency": 60225.899999999994
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 14630,
+      "frequency": 51639.2525
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 14630,
+      "frequency": 60991.1
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 14629,
+      "frequency": 58066
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 14629,
+      "frequency": 66101.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 14614,
+      "frequency": 54622.25
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 14614,
+      "frequency": 56834.95
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 14590,
+      "frequency": 43530.05
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 14525,
+      "frequency": 42530.35
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 14525,
+      "frequency": 51905.15
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 14290,
+      "frequency": 54814.75
+    },
+    {
+      "source1": "system_cpu_usage_millicores:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 14276,
+      "frequency": 70305.35
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 14220,
+      "frequency": 50329.65
+    },
+    {
+      "source1": "system_cpu_usage_millicores:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 14019,
+      "frequency": 59591.35
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 13950,
+      "frequency": 55081.15
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 13900,
+      "frequency": 61345.25
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 13888,
+      "frequency": 71956
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 13800,
+      "frequency": 51337.55
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 13644,
+      "frequency": 43631.3
+    },
+    {
+      "source1": "system_cpu_percentage:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 13622,
+      "frequency": 67592.05
+    },
+    {
+      "source1": "system_cpu_percentage:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 13398,
+      "frequency": 89180.5
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 13382,
+      "frequency": 41050.8
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 13285,
+      "frequency": 59630.149999999994
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 13163,
+      "frequency": 40453.25
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 13120,
+      "frequency": 55453.45
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 12960,
+      "frequency": 64970.8
+    },
+    {
+      "source1": "smaps_rollup.pss:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 12649,
+      "frequency": 56869.4
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 12649,
+      "frequency": 54020.3
+    },
+    {
+      "source1": "system_cpu_usage_millicores:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 12560,
+      "frequency": 38335.4775
+    },
+    {
+      "source1": "total_cpu_percentage:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 12377,
+      "frequency": 57308.899999999994
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 12373,
+      "frequency": 39357.6775
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 12361,
+      "frequency": 41830.4025
+    },
+    {
+      "source1": "user_cpu_percentage:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 12359,
+      "frequency": 49064.05
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 12328,
+      "frequency": 56917.2025
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 12289,
+      "frequency": 60344.6125
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 12285,
+      "frequency": 63765.65
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 12282,
+      "frequency": 58172.4
+    },
+    {
+      "source1": "total_cpu_percentage:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 12259,
+      "frequency": 57231.399999999994
+    },
+    {
+      "source1": "system_cpu_usage_millicores:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 12257,
+      "frequency": 57854.1275
+    },
+    {
+      "source1": "system_cpu_percentage:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 12181,
+      "frequency": 51639.2525
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 12154,
+      "frequency": 61999.649999999994
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 12150,
+      "frequency": 43980.4
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 12123,
+      "frequency": 65719.05
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 12123,
+      "frequency": 50385.5
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 12120,
+      "frequency": 49064
+    },
+    {
+      "source1": "system_cpu_percentage:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 12112,
+      "frequency": 53254.2625
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 12102,
+      "frequency": 67491.8625
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 12083,
+      "frequency": 55334.7
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 12080,
+      "frequency": 67781.1
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 12063,
+      "frequency": 51675.5525
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 12060,
+      "frequency": 71179.1
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 12057,
+      "frequency": 60991.1
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 12031,
+      "frequency": 70305.35
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 12031,
+      "frequency": 51522.5025
+    },
+    {
+      "source1": "total_cpu_usage_millicores:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 12019,
+      "frequency": 67592.05
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 12012,
+      "frequency": 61868.4
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11991,
+      "frequency": 74790.1125
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 11987,
+      "frequency": 56834.95
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 11987,
+      "frequency": 61868.4
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 11968,
+      "frequency": 59501.65
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 11964,
+      "frequency": 52094.625
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 11960,
+      "frequency": 63549.292499999996
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 11960,
+      "frequency": 67781.1
+    },
+    {
+      "source1": "total_cpu_percentage:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11954,
+      "frequency": 57634.2025
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 11944,
+      "frequency": 43376.205
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11910,
+      "frequency": 48870.8
+    },
+    {
+      "source1": "kernel_cpu_usage_millicores:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 11909,
+      "frequency": 47296.020000000004
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 11904,
+      "frequency": 44305.4125
+    },
+    {
+      "source1": "total_cpu_usage_millicores:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 11901,
+      "frequency": 89180.5
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11831,
+      "frequency": 58172.4
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11809,
+      "frequency": 46307.2025
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 11807,
+      "frequency": 63522.8
+    },
+    {
+      "source1": "system_cpu_percentage:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11807,
+      "frequency": 55252.3125
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 11804,
+      "frequency": 71956
+    },
+    {
+      "source1": "cpu_percentage:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 11759,
+      "frequency": 61556.975
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 11729,
+      "frequency": 48401.15
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 11726,
+      "frequency": 71956
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "system_cpu_usage_millicores:avg",
+      "observations": 11700,
+      "frequency": 41828.4
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 11686,
+      "frequency": 43919.2825
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 11676,
+      "frequency": 43919.2825
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 11663,
+      "frequency": 48205.225
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.file_dirty:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 11576,
+      "frequency": 63549.292499999996
+    },
+    {
+      "source1": "kernel_cpu_percentage:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 11550,
+      "frequency": 72538.73
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.pss_dirty:avg",
+      "observations": 11543,
+      "frequency": 64205.45
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.private_dirty:avg",
+      "observations": 11537,
+      "frequency": 64970.8
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "kernel_cpu_usage_millicores:avg",
+      "observations": 11460,
+      "frequency": 70305.35
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "user_cpu_percentage:avg",
+      "observations": 11340,
+      "frequency": 60344.6125
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "system_cpu_percentage:avg",
+      "observations": 11160,
+      "frequency": 73688.65
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "user_cpu_usage_millicores:avg",
+      "observations": 11100,
+      "frequency": 74790.1125
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "source2": "kernel_cpu_percentage:avg",
+      "observations": 11040,
+      "frequency": 61999.649999999994
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pagetables:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 9760,
+      "frequency": 44215.585
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.kernel:avg",
+      "source2": "cgroup.v2.memory.stat.slab:avg",
+      "observations": 9600,
+      "frequency": 49553.95
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.pagetables:avg",
+      "observations": 9412,
+      "frequency": 57308.899999999994
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.pagetables:avg",
+      "observations": 9412,
+      "frequency": 42348.8
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.pagetables:avg",
+      "observations": 9364,
+      "frequency": 61345.25
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.pagetables:avg",
+      "observations": 9364,
+      "frequency": 64205.45
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.kernel:avg",
+      "observations": 9212,
+      "frequency": 63765.65
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg10:avg",
+      "source2": "cgroup.v2.memory.stat.kernel:avg",
+      "observations": 9212,
+      "frequency": 89180.5
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.full.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.kernel:avg",
+      "observations": 9160,
+      "frequency": 54425.1
+    },
+    {
+      "source1": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "source2": "cgroup.v2.memory.stat.kernel:avg",
+      "observations": 9160,
+      "frequency": 51295
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8643,
+      "frequency": 41015.85
+    },
+    {
+      "source1": "smaps_rollup.pss:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8522,
+      "frequency": 48401.15
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8522,
+      "frequency": 54622.25
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8483,
+      "frequency": 64970.8
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8437,
+      "frequency": 47745.55
+    },
+    {
+      "source1": "smaps_rollup.pss:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 8430,
+      "frequency": 41848.25
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8332,
+      "frequency": 67491.8625
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8301,
+      "frequency": 51220.25
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.anonymous:avg",
+      "observations": 8297,
+      "frequency": 43292.3
+    },
+    {
+      "source1": "smaps_rollup.pss:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 8264,
+      "frequency": 51949.05
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "cgroup.v2.memory.stat.active_anon:avg",
+      "observations": 8262,
+      "frequency": 56917.2025
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "cgroup.v2.memory.stat.anon:avg",
+      "observations": 8216,
+      "frequency": 71179.1
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 8206,
+      "frequency": 60344.6125
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.pss:avg",
+      "observations": 8188,
+      "frequency": 41110.7
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8182,
+      "frequency": 67903.95
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8144,
+      "frequency": 43321.7
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.anonymous:avg",
+      "observations": 8144,
+      "frequency": 51337.55
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "cgroup.v2.memory.peak:avg",
+      "observations": 8115,
+      "frequency": 37683.7
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8104,
+      "frequency": 48205.225
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.anonymous:avg",
+      "observations": 8099,
+      "frequency": 51220.25
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 8092,
+      "frequency": 56997.9
+    },
+    {
+      "source1": "smaps_rollup.referenced:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8092,
+      "frequency": 74790.1125
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "cgroup.v2.memory.stat.anon:avg",
+      "observations": 8064,
+      "frequency": 59613.5
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 8056,
+      "frequency": 41076.5
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 8045,
+      "frequency": 39895.75
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 8012,
+      "frequency": 67491.8625
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 8006,
+      "frequency": 46560.65
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.anonymous:avg",
+      "observations": 8000,
+      "frequency": 59501.65
+    },
+    {
+      "source1": "cgroup.v2.memory.current:avg",
+      "source2": "cgroup.v2.memory.stat.pgfault:avg",
+      "observations": 7975,
+      "frequency": 37441.75
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "cgroup.v2.memory.stat.active_anon:avg",
+      "observations": 7962,
+      "frequency": 40368
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 7937,
+      "frequency": 40082.05
+    },
+    {
+      "source1": "smaps_rollup.anonymous:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 7934,
+      "frequency": 67071.95
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "cgroup.v2.memory.stat.anon:avg",
+      "observations": 7924,
+      "frequency": 45526.0175
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 7912,
+      "frequency": 52701.35
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 7899,
+      "frequency": 44259.85
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.rss:avg",
+      "observations": 7873,
+      "frequency": 89180.5
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.anonymous:avg",
+      "observations": 7862,
+      "frequency": 43949
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 7857,
+      "frequency": 52095.3
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 7847,
+      "frequency": 51000.595
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.active_anon:avg",
+      "source2": "cgroup.v2.memory.stat.pgfault:avg",
+      "observations": 7829,
+      "frequency": 46258.55
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.anon:avg",
+      "source2": "cgroup.v2.memory.stat.pgfault:avg",
+      "observations": 7790,
+      "frequency": 58066
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.referenced:avg",
+      "observations": 7776,
+      "frequency": 44259.85
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 7759,
+      "frequency": 72538.73
+    },
+    {
+      "source1": "cgroup.v2.memory.peak:avg",
+      "source2": "cgroup.v2.memory.stat.pgfault:avg",
+      "observations": 7697,
+      "frequency": 54425.1
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pgfault:avg",
+      "source2": "smaps_rollup.pss_anon:avg",
+      "observations": 7627,
+      "frequency": 50771.05
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pagetables:avg",
+      "source2": "total_cpu_percentage:avg",
+      "observations": 7497,
+      "frequency": 59630.149999999994
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pagetables:avg",
+      "source2": "cpu_percentage:avg",
+      "observations": 7359,
+      "frequency": 56997.9
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pagetables:avg",
+      "source2": "cgroup.v2.memory.stat.slab_reclaimable:avg",
+      "observations": 7320,
+      "frequency": 51522.5025
+    },
+    {
+      "source1": "cgroup.v2.memory.stat.pagetables:avg",
+      "source2": "total_cpu_usage_millicores:avg",
+      "observations": 7319,
+      "frequency": 55453.45
+    }
+  ]
+}

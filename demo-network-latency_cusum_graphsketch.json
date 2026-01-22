@@ -1,0 +1,1655 @@
+{
+  "detector": "CUSUM",
+  "correlator": "GraphSketchCorrelator",
+  "timestamp": "2026-01-20T17:31:34-05:00",
+  "total_anomalies": 1896,
+  "unique_sources_in_anomalies": 171,
+  "total_correlations": 1,
+  "total_edges": 200,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.cpu.pressure.full.avg60:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.full.avg60:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513989,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.events.local.oom_group_kill:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.events.local.oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513989,
+      "tags": [
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.events.local.oom_group_kill:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.events.local.oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.full.avg60:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.full.avg60:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.full.avg10:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.pressure.full.avg10:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.peak:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.pids.peak:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "smaps_rollup.shared_hugetlb:count",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.shared_hugetlb:count shifted: 1.50 → 3.50 (2.8σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.events.local.oom:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.events.local.oom:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.vmalloc:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.vmalloc:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup"
+      ]
+    },
+    {
+      "source": "cgroup.v2.hugetlb.2MB.events.max:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.hugetlb.2MB.events.max:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pglazyfree:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pglazyfree:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.shmem:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.shmem:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    },
+    {
+      "source": "smaps_rollup.shared_dirty:count",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.shared_dirty:count shifted: 1.50 → 3.50 (2.8σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgmajfault:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pgmajfault:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.workingset_restore_file:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.workingset_restore_file:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.events.local.high:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.events.local.high:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight.nice:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.cpu.weight.nice:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.pressure.some.avg300:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.pressure.some.avg300:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.slab_reclaimable:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.slab_reclaimable:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c",
+        "qos_class:BestEffort",
+        "container_id:8d187518563f"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.pressure.some.avg10:count",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.pressure.some.avg10:count shifted: 1.00 → 2.00 (10.0σ above baseline)",
+      "timestamp": 1768513990,
+      "tags": [
+        "qos_class:BestEffort",
+        "container_id:8d187518563f",
+        "container_name:cleanup",
+        "pod_name:redacted-t8skh",
+        "namespace:fgm-run-7cc5530c"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "graphsketch_cluster_0",
+      "title": "Correlated: cgroup.v2.cgroup.events.frozen:count ↔ cgroup.v2.memory.events.oom:count (freq: 10560.0, 171 sources)",
+      "source_count": 171,
+      "sources": [
+        "cgroup.v2.cgroup.events.frozen:count",
+        "cgroup.v2.cgroup.events.populated:count",
+        "cgroup.v2.cgroup.freeze:count",
+        "cgroup.v2.cgroup.max.depth:count",
+        "cgroup.v2.cgroup.max.descendants:count",
+        "cgroup.v2.cgroup.pressure:count",
+        "cgroup.v2.cgroup.stat.nr_descendants:count",
+        "cgroup.v2.cgroup.stat.nr_dying_descendants:count",
+        "cgroup.v2.cpu.idle:count",
+        "cgroup.v2.cpu.max.burst:count",
+        "cgroup.v2.cpu.pressure.full.avg10:count",
+        "cgroup.v2.cpu.pressure.full.avg300:count",
+        "cgroup.v2.cpu.pressure.full.avg60:count",
+        "cgroup.v2.cpu.pressure.full.total:count",
+        "cgroup.v2.cpu.pressure.some.avg10:count",
+        "cgroup.v2.cpu.pressure.some.avg300:count",
+        "cgroup.v2.cpu.pressure.some.avg60:count",
+        "cgroup.v2.cpu.pressure.some.total:count",
+        "cgroup.v2.cpu.stat.burst_usec:count",
+        "cgroup.v2.cpu.stat.core_sched.force_idle_usec:count",
+        "cgroup.v2.cpu.stat.local.throttled_usec:count",
+        "cgroup.v2.cpu.stat.nr_bursts:count",
+        "cgroup.v2.cpu.stat.nr_periods:count",
+        "cgroup.v2.cpu.stat.nr_throttled:count",
+        "cgroup.v2.cpu.stat.throttled_usec:count",
+        "cgroup.v2.cpu.uclamp.max:count",
+        "cgroup.v2.cpu.uclamp.min:count",
+        "cgroup.v2.cpu.weight.nice:count",
+        "cgroup.v2.cpu.weight:count",
+        "cgroup.v2.cpuset.mems.effective:count",
+        "cgroup.v2.hugetlb.1GB.current:count",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count",
+        "cgroup.v2.hugetlb.1GB.events.max:count",
+        "cgroup.v2.hugetlb.1GB.max:count",
+        "cgroup.v2.hugetlb.1GB.rsvd.current:count",
+        "cgroup.v2.hugetlb.1GB.rsvd.max:count",
+        "cgroup.v2.hugetlb.2MB.current:count",
+        "cgroup.v2.hugetlb.2MB.events.local.max:count",
+        "cgroup.v2.hugetlb.2MB.events.max:count",
+        "cgroup.v2.hugetlb.2MB.max:count",
+        "cgroup.v2.hugetlb.2MB.rsvd.current:count",
+        "cgroup.v2.hugetlb.2MB.rsvd.max:count",
+        "cgroup.v2.io.pressure.full.avg10:count",
+        "cgroup.v2.io.pressure.full.avg300:count",
+        "cgroup.v2.io.pressure.full.avg60:count",
+        "cgroup.v2.io.pressure.full.total:count",
+        "cgroup.v2.io.pressure.some.avg10:count",
+        "cgroup.v2.io.pressure.some.avg300:count",
+        "cgroup.v2.io.pressure.some.avg60:count",
+        "cgroup.v2.io.pressure.some.total:count",
+        "cgroup.v2.io.weight.default:count",
+        "cgroup.v2.memory.current:count",
+        "cgroup.v2.memory.events.high:count",
+        "cgroup.v2.memory.events.local.high:count",
+        "cgroup.v2.memory.events.local.low:count",
+        "cgroup.v2.memory.events.local.max:count",
+        "cgroup.v2.memory.events.local.oom:count",
+        "cgroup.v2.memory.events.local.oom_group_kill:count",
+        "cgroup.v2.memory.events.local.oom_kill:count",
+        "cgroup.v2.memory.events.low:count",
+        "cgroup.v2.memory.events.max:count",
+        "cgroup.v2.memory.events.oom:count",
+        "cgroup.v2.memory.events.oom_group_kill:count",
+        "cgroup.v2.memory.events.oom_kill:count",
+        "cgroup.v2.memory.high:count",
+        "cgroup.v2.memory.low:count",
+        "cgroup.v2.memory.max:count",
+        "cgroup.v2.memory.min:count",
+        "cgroup.v2.memory.oom.group:count",
+        "cgroup.v2.memory.peak:count",
+        "cgroup.v2.memory.pressure.full.avg10:count",
+        "cgroup.v2.memory.pressure.full.avg300:count",
+        "cgroup.v2.memory.pressure.full.avg60:count",
+        "cgroup.v2.memory.pressure.full.total:count",
+        "cgroup.v2.memory.pressure.some.avg10:count",
+        "cgroup.v2.memory.pressure.some.avg300:count",
+        "cgroup.v2.memory.pressure.some.avg60:count",
+        "cgroup.v2.memory.pressure.some.total:count",
+        "cgroup.v2.memory.stat.active_anon:count",
+        "cgroup.v2.memory.stat.active_file:count",
+        "cgroup.v2.memory.stat.anon:count",
+        "cgroup.v2.memory.stat.anon_thp:count",
+        "cgroup.v2.memory.stat.file:count",
+        "cgroup.v2.memory.stat.file_dirty:count",
+        "cgroup.v2.memory.stat.file_mapped:count",
+        "cgroup.v2.memory.stat.file_thp:count",
+        "cgroup.v2.memory.stat.file_writeback:count",
+        "cgroup.v2.memory.stat.inactive_anon:count",
+        "cgroup.v2.memory.stat.inactive_file:count",
+        "cgroup.v2.memory.stat.kernel:count",
+        "cgroup.v2.memory.stat.kernel_stack:count",
+        "cgroup.v2.memory.stat.pagetables:count",
+        "cgroup.v2.memory.stat.percpu:count",
+        "cgroup.v2.memory.stat.pgactivate:count",
+        "cgroup.v2.memory.stat.pgdeactivate:count",
+        "cgroup.v2.memory.stat.pgfault:count",
+        "cgroup.v2.memory.stat.pglazyfree:count",
+        "cgroup.v2.memory.stat.pglazyfreed:count",
+        "cgroup.v2.memory.stat.pgmajfault:count",
+        "cgroup.v2.memory.stat.pgrefill:count",
+        "cgroup.v2.memory.stat.pgscan:count",
+        "cgroup.v2.memory.stat.pgscan_direct:count",
+        "cgroup.v2.memory.stat.pgscan_khugepaged:count",
+        "cgroup.v2.memory.stat.pgscan_kswapd:count",
+        "cgroup.v2.memory.stat.pgsteal:count",
+        "cgroup.v2.memory.stat.pgsteal_direct:count",
+        "cgroup.v2.memory.stat.pgsteal_khugepaged:count",
+        "cgroup.v2.memory.stat.pgsteal_kswapd:count",
+        "cgroup.v2.memory.stat.sec_pagetables:count",
+        "cgroup.v2.memory.stat.shmem:count",
+        "cgroup.v2.memory.stat.shmem_thp:count",
+        "cgroup.v2.memory.stat.slab:count",
+        "cgroup.v2.memory.stat.slab_reclaimable:count",
+        "cgroup.v2.memory.stat.slab_unreclaimable:count",
+        "cgroup.v2.memory.stat.sock:count",
+        "cgroup.v2.memory.stat.swapcached:count",
+        "cgroup.v2.memory.stat.thp_collapse_alloc:count",
+        "cgroup.v2.memory.stat.thp_fault_alloc:count",
+        "cgroup.v2.memory.stat.thp_swpout:count",
+        "cgroup.v2.memory.stat.thp_swpout_fallback:count",
+        "cgroup.v2.memory.stat.unevictable:count",
+        "cgroup.v2.memory.stat.vmalloc:count",
+        "cgroup.v2.memory.stat.workingset_activate_anon:count",
+        "cgroup.v2.memory.stat.workingset_activate_file:count",
+        "cgroup.v2.memory.stat.workingset_nodereclaim:count",
+        "cgroup.v2.memory.stat.workingset_refault_anon:count",
+        "cgroup.v2.memory.stat.workingset_refault_file:count",
+        "cgroup.v2.memory.stat.workingset_restore_anon:count",
+        "cgroup.v2.memory.stat.workingset_restore_file:count",
+        "cgroup.v2.memory.stat.zswap:count",
+        "cgroup.v2.memory.stat.zswapped:count",
+        "cgroup.v2.memory.stat.zswpin:count",
+        "cgroup.v2.memory.stat.zswpout:count",
+        "cgroup.v2.memory.stat.zswpwb:count",
+        "cgroup.v2.memory.swap.current:count",
+        "cgroup.v2.memory.swap.events.fail:count",
+        "cgroup.v2.memory.swap.events.high:count",
+        "cgroup.v2.memory.swap.events.max:count",
+        "cgroup.v2.memory.swap.high:count",
+        "cgroup.v2.memory.swap.max:count",
+        "cgroup.v2.memory.swap.peak:count",
+        "cgroup.v2.memory.zswap.current:count",
+        "cgroup.v2.memory.zswap.max:count",
+        "cgroup.v2.memory.zswap.writeback:count",
+        "cgroup.v2.pids.current:count",
+        "cgroup.v2.pids.events.max:count",
+        "cgroup.v2.pids.max:count",
+        "cgroup.v2.pids.peak:count",
+        "container.pid_count:count",
+        "smaps_rollup.anon_huge_pages:count",
+        "smaps_rollup.anonymous:count",
+        "smaps_rollup.file_pmd_mapped:count",
+        "smaps_rollup.ksm:count",
+        "smaps_rollup.lazy_free:count",
+        "smaps_rollup.locked:count",
+        "smaps_rollup.private_clean:count",
+        "smaps_rollup.private_dirty:count",
+        "smaps_rollup.private_hugetlb:count",
+        "smaps_rollup.pss:count",
+        "smaps_rollup.pss_anon:count",
+        "smaps_rollup.pss_dirty:count",
+        "smaps_rollup.pss_file:count",
+        "smaps_rollup.pss_shmem:count",
+        "smaps_rollup.referenced:count",
+        "smaps_rollup.rss:count",
+        "smaps_rollup.shared_clean:count",
+        "smaps_rollup.shared_dirty:count",
+        "smaps_rollup.shared_hugetlb:count",
+        "smaps_rollup.shmem_pmd_mapped:count",
+        "smaps_rollup.swap:count",
+        "smaps_rollup.swap_pss:count"
+      ],
+      "first_seen": 1768513985,
+      "last_updated": 1768513987
+    }
+  ],
+  "edges": [
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 4440
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 6280
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 6060
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 7580
+    },
+    {
+      "source1": "smaps_rollup.shared_hugetlb:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6008
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 5940
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 5900
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6764
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 7780
+    },
+    {
+      "source1": "smaps_rollup.shared_clean:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 6704
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7460
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 8572
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 8984
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7440
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7860
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.private_clean:count",
+      "observations": 400,
+      "frequency": 5440
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7860
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 8284
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 7860
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6544
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 5868
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 6360
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.locked:count",
+      "observations": 400,
+      "frequency": 6384
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 7648
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7160
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6280
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 6540
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 8064
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7780
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 7624
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7680
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7500
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6748
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 7804
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.locked:count",
+      "observations": 400,
+      "frequency": 7508
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7144
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 5508
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 7680
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6380
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 6420
+    },
+    {
+      "source1": "smaps_rollup.shared_dirty:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7900
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.locked:count",
+      "observations": 400,
+      "frequency": 7260
+    },
+    {
+      "source1": "smaps_rollup.shmem_pmd_mapped:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 8064
+    },
+    {
+      "source1": "smaps_rollup.shared_dirty:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 5720
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.lazy_free:count",
+      "observations": 400,
+      "frequency": 7340
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 6644
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 9084
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 8920
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 5440
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7928
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 5900
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.private_clean:count",
+      "observations": 400,
+      "frequency": 6624
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 7080
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6280
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 7860
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 6480
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7240
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 8704
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7160
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7164
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6600
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 6784
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7560
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 7452
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7360
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7720
+    },
+    {
+      "source1": "smaps_rollup.shmem_pmd_mapped:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6600
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 6680
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 5220
+    },
+    {
+      "source1": "smaps_rollup.shared_hugetlb:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 8824
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.private_clean:count",
+      "observations": 400,
+      "frequency": 8284
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 8308
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7144
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6600
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7432
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 5480
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 7032
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 6508
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7800
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 6580
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 7228
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 8684
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 7040
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7040
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 5940
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 5720
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 8280
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6360
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 6436
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 10560
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 8920
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 6900
+    },
+    {
+      "source1": "smaps_rollup.shared_clean:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 9440
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 8820
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 9440
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 9524
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 6880
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7364
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6744
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 8100
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 7600
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 6500
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7928
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6320
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 7604
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6900
+    },
+    {
+      "source1": "smaps_rollup.swap:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6400
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 8400
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7452
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 7980
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7460
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.lazy_free:count",
+      "observations": 400,
+      "frequency": 8572
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 7144
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 6420
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 8284
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6588
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 6684
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7480
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6480
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 7920
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 7260
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 7148
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7320
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 8480
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.anonymous:count",
+      "observations": 400,
+      "frequency": 8120
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7920
+    },
+    {
+      "source1": "smaps_rollup.referenced:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7624
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.locked:count",
+      "observations": 400,
+      "frequency": 6924
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7040
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.private_dirty:count",
+      "observations": 400,
+      "frequency": 6160
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7920
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7680
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 8064
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 5100
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.private_hugetlb:count",
+      "observations": 400,
+      "frequency": 6440
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7020
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7624
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 8120
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6588
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 6624
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6840
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7420
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7228
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 9280
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 8400
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 7780
+    },
+    {
+      "source1": "smaps_rollup.shared_clean:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6860
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6840
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 6320
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7780
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.ksm:count",
+      "observations": 400,
+      "frequency": 9084
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6368
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 8820
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 6540
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 8480
+    },
+    {
+      "source1": "smaps_rollup.shared_clean:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 6588
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6860
+    },
+    {
+      "source1": "smaps_rollup.pss_shmem:count",
+      "source2": "smaps_rollup.referenced:count",
+      "observations": 400,
+      "frequency": 8320
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7452
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 400,
+      "frequency": 7360
+    },
+    {
+      "source1": "smaps_rollup.rss:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7360
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 8284
+    },
+    {
+      "source1": "smaps_rollup.shared_dirty:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6920
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 8200
+    },
+    {
+      "source1": "smaps_rollup.locked:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 6384
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6580
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 6960
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 6480
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 400,
+      "frequency": 8820
+    },
+    {
+      "source1": "smaps_rollup.shared_dirty:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 5760
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 7340
+    },
+    {
+      "source1": "smaps_rollup.lazy_free:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 8648
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.private_clean:count",
+      "observations": 400,
+      "frequency": 8200
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 6840
+    },
+    {
+      "source1": "smaps_rollup.pss_dirty:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 6924
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 400,
+      "frequency": 6624
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.swap:count",
+      "observations": 400,
+      "frequency": 8100
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.shared_hugetlb:count",
+      "observations": 400,
+      "frequency": 7604
+    },
+    {
+      "source1": "smaps_rollup.pss:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 6820
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.ksm:count",
+      "observations": 400,
+      "frequency": 6588
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 400,
+      "frequency": 10560
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 7148
+    },
+    {
+      "source1": "smaps_rollup.shared_hugetlb:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 7040
+    },
+    {
+      "source1": "smaps_rollup.ksm:count",
+      "source2": "smaps_rollup.lazy_free:count",
+      "observations": 400,
+      "frequency": 6460
+    },
+    {
+      "source1": "smaps_rollup.private_clean:count",
+      "source2": "smaps_rollup.rss:count",
+      "observations": 400,
+      "frequency": 8684
+    },
+    {
+      "source1": "smaps_rollup.pss_anon:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 400,
+      "frequency": 6588
+    },
+    {
+      "source1": "smaps_rollup.shared_clean:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 400,
+      "frequency": 7280
+    },
+    {
+      "source1": "smaps_rollup.anon_huge_pages:count",
+      "source2": "smaps_rollup.private_clean:count",
+      "observations": 400,
+      "frequency": 7480
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.pss:count",
+      "observations": 400,
+      "frequency": 6924
+    },
+    {
+      "source1": "smaps_rollup.private_hugetlb:count",
+      "source2": "smaps_rollup.swap_pss:count",
+      "observations": 400,
+      "frequency": 5424
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.pss_anon:count",
+      "observations": 320,
+      "frequency": 6560
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.lazy_free:count",
+      "observations": 320,
+      "frequency": 5844
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 320,
+      "frequency": 6720
+    },
+    {
+      "source1": "smaps_rollup.private_dirty:count",
+      "source2": "smaps_rollup.pss_file:count",
+      "observations": 320,
+      "frequency": 6504
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.pss_dirty:count",
+      "observations": 320,
+      "frequency": 8604
+    },
+    {
+      "source1": "smaps_rollup.pss_file:count",
+      "source2": "smaps_rollup.shared_clean:count",
+      "observations": 320,
+      "frequency": 8320
+    },
+    {
+      "source1": "smaps_rollup.pss_file:count",
+      "source2": "smaps_rollup.shared_dirty:count",
+      "observations": 320,
+      "frequency": 6560
+    },
+    {
+      "source1": "smaps_rollup.anonymous:count",
+      "source2": "smaps_rollup.pss_file:count",
+      "observations": 320,
+      "frequency": 6436
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.shmem_pmd_mapped:count",
+      "observations": 320,
+      "frequency": 6644
+    },
+    {
+      "source1": "smaps_rollup.file_pmd_mapped:count",
+      "source2": "smaps_rollup.pss_shmem:count",
+      "observations": 320,
+      "frequency": 8100
+    }
+  ]
+}

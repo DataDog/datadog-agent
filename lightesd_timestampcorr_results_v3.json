@@ -1,0 +1,301 @@
+{
+  "detector": "LightESD",
+  "correlator": "TimeClusterCorrelator",
+  "timestamp": "2026-01-20T11:39:43-05:00",
+  "total_anomalies": 59875,
+  "unique_sources_in_anomalies": 227,
+  "total_correlations": 1,
+  "sample_anomalies": [
+    {
+      "source": "cgroup.v2.memory.events.oom_group_kill:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.events.oom_group_kill:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.full.total:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.full.total:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgsteal_khugepaged:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.pgsteal_khugepaged:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.workingset_nodereclaim:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.workingset_nodereclaim:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg300:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg300:avg (score: 200000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg300:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg300:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.hugetlb.2MB.rsvd.max:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.hugetlb.2MB.rsvd.max:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.pids.events.max:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.pids.events.max:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.weight.nice:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.weight.nice:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.total:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.total:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cgroup.threads:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cgroup.threads:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.kernel_stack:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.memory.stat.kernel_stack:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "smaps_rollup.ksm:count",
+      "analyzer": "lightesd",
+      "description": "smaps_rollup.ksm:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo"
+      ]
+    },
+    {
+      "source": "cgroup.v2.io.pressure.some.avg300:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.io.pressure.some.avg300:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:avg (score: 2225000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:count",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:count (score: 10000000000.00) at timestamp 1768261750",
+      "timestamp": 1768261750,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:avg (score: 75000000.00) at timestamp 1768261708",
+      "timestamp": 1768261708,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:avg (score: 75000000.00) at timestamp 1768261709",
+      "timestamp": 1768261709,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:avg (score: 50000000.00) at timestamp 1768261704",
+      "timestamp": 1768261704,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.cpu.pressure.some.avg60:avg",
+      "analyzer": "lightesd",
+      "description": "cgroup.v2.cpu.pressure.some.avg60:avg (score: 50000000.00) at timestamp 1768261705",
+      "timestamp": 1768261705,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1",
+      "title": "Correlated: 220 anomalies in time window",
+      "source_count": 220,
+      "sources": [
+        "cgroup.v2.cgroup.events.frozen:count",
+        "cgroup.v2.cgroup.events.populated:count",
+        "cgroup.v2.cgroup.freeze:count",
+        "cgroup.v2.cgroup.max.depth:count",
+        "cgroup.v2.cgroup.max.descendants:count",
+        "cgroup.v2.cgroup.pressure:count",
+        "cgroup.v2.cgroup.procs:count",
+        "cgroup.v2.cgroup.stat.nr_descendants:count",
+        "cgroup.v2.cgroup.stat.nr_dying_descendants:count",
+        "cgroup.v2.cgroup.threads:count",
+        "cgroup.v2.cpu.idle:count",
+        "cgroup.v2.cpu.max.burst:count",
+        "cgroup.v2.cpu.pressure.full.avg10:avg",
+        "cgroup.v2.cpu.pressure.full.avg10:count",
+        "cgroup.v2.cpu.pressure.full.avg300:avg",
+        "cgroup.v2.cpu.pressure.full.avg300:count",
+        "cgroup.v2.cpu.pressure.full.avg60:avg",
+        "cgroup.v2.cpu.pressure.full.avg60:count",
+        "cgroup.v2.cpu.pressure.full.total:count",
+        "cgroup.v2.cpu.pressure.some.avg10:avg"
+      ],
+      "first_seen": 1768261651,
+      "last_updated": 1768261751
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "detector": "LightESD",
+  "correlator": "TimeClusterCorrelator",
+  "timestamp": "2026-01-16T17:21:46-05:00",
+  "total_anomalies": 135234,
+  "unique_sources_in_anomalies": 229,
+  "total_correlations": 14,
+  "correlations": [
+    {
+      "pattern": "time_cluster_55885",
+      "title": "Correlated: 16 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cgroup.stat.nr_dying_descendants:count",
+        "cgroup.v2.cpu.pressure.some.avg300:avg",
+        "cgroup.v2.cpu.stat.user_usec:avg",
+        "cgroup.v2.cpuset.mems.effective:count",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count",
+        "cgroup.v2.hugetlb.1GB.rsvd.max:count",
+        "cgroup.v2.memory.events.high:count",
+        "cgroup.v2.memory.events.oom_group_kill:count",
+        "cgroup.v2.memory.pressure.some.avg60:count",
+        "cgroup.v2.memory.stat.active_anon:avg",
+        "cgroup.v2.memory.stat.active_anon:count",
+        "cgroup.v2.memory.stat.pagetables:avg",
+        "cgroup.v2.memory.stat.pgsteal:count",
+        "cgroup.v2.memory.zswap.current:count",
+        "smaps_rollup.pss_dirty:avg",
+        "smaps_rollup.rss:avg"
+      ],
+      "first_seen": 1768262439,
+      "last_updated": 1768262446
+    },
+    {
+      "pattern": "time_cluster_52554",
+      "title": "Correlated: 12 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cgroup.pressure:count",
+        "cgroup.v2.cpu.pressure.some.avg300:avg",
+        "cgroup.v2.cpu.stat.nr_periods:avg",
+        "cgroup.v2.memory.events.oom_group_kill:count",
+        "cgroup.v2.memory.oom.group:count",
+        "cgroup.v2.memory.stat.file_dirty:avg",
+        "cgroup.v2.memory.stat.file_dirty:count",
+        "cgroup.v2.memory.stat.pagetables:avg",
+        "cgroup.v2.memory.stat.pgfault:avg",
+        "cgroup.v2.memory.stat.sec_pagetables:count",
+        "cgroup.v2.memory.stat.workingset_restore_file:count",
+        "total_cpu_usage_millicores:avg"
+      ],
+      "first_seen": 1768262414,
+      "last_updated": 1768262420
+    },
+    {
+      "pattern": "time_cluster_53698",
+      "title": "Correlated: 9 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.stat.system_usec:avg",
+        "cgroup.v2.cpuset.mems.effective:count",
+        "cgroup.v2.memory.oom.group:count",
+        "cgroup.v2.memory.peak:avg",
+        "cgroup.v2.memory.pressure.some.avg60:count",
+        "cgroup.v2.memory.stat.file_dirty:count",
+        "kernel_cpu_percentage:avg",
+        "total_cpu_usage_millicores:avg",
+        "total_cpu_usage_millicores:count"
+      ],
+      "first_seen": 1768262422,
+      "last_updated": 1768262429
+    },
+    {
+      "pattern": "time_cluster_49577",
+      "title": "Correlated: 7 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.pressure.full.avg300:avg",
+        "cgroup.v2.memory.stat.active_anon:avg",
+        "cgroup.v2.memory.stat.inactive_file:count",
+        "cgroup.v2.memory.stat.pagetables:avg",
+        "cgroup.v2.memory.stat.pglazyfree:count",
+        "system_cpu_usage_millicores:count",
+        "user_cpu_percentage:avg"
+      ],
+      "first_seen": 1768262388,
+      "last_updated": 1768262393
+    },
+    {
+      "pattern": "time_cluster_49278",
+      "title": "Correlated: 4 anomalies in time window",
+      "sources": [
+        "kernel_cpu_usage_millicores:avg",
+        "smaps_rollup.pss_anon:avg",
+        "smaps_rollup.pss_anon:count",
+        "user_cpu_percentage:avg"
+      ],
+      "first_seen": 1768262386,
+      "last_updated": 1768262386
+    },
+    {
+      "pattern": "time_cluster_51401",
+      "title": "Correlated: 4 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpuset.mems.effective:count",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count",
+        "smaps_rollup.anonymous:avg",
+        "smaps_rollup.anonymous:count"
+      ],
+      "first_seen": 1768262404,
+      "last_updated": 1768262405
+    },
+    {
+      "pattern": "time_cluster_55004",
+      "title": "Correlated: 4 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.stat.system_usec:avg",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count",
+        "cgroup.v2.io.pressure.some.total:count",
+        "smaps_rollup.rss:avg"
+      ],
+      "first_seen": 1768262431,
+      "last_updated": 1768262434
+    },
+    {
+      "pattern": "time_cluster_50360",
+      "title": "Correlated: 3 anomalies in time window",
+      "sources": [
+        "cgroup.v2.memory.stat.workingset_restore_anon:count",
+        "smaps_rollup.anonymous:avg",
+        "smaps_rollup.referenced:avg"
+      ],
+      "first_seen": 1768262394,
+      "last_updated": 1768262395
+    },
+    {
+      "pattern": "time_cluster_50858",
+      "title": "Correlated: 3 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.stat.nr_periods:avg",
+        "cgroup.v2.memory.stat.pgfault:avg",
+        "smaps_rollup.ksm:count"
+      ],
+      "first_seen": 1768262399,
+      "last_updated": 1768262400
+    },
+    {
+      "pattern": "time_cluster_51710",
+      "title": "Correlated: 3 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpuset.mems.effective:count",
+        "cgroup.v2.memory.stat.kernel:avg",
+        "smaps_rollup.anonymous:avg"
+      ],
+      "first_seen": 1768262407,
+      "last_updated": 1768262408
+    },
+    {
+      "pattern": "time_cluster_52305",
+      "title": "Correlated: 3 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.pressure.some.avg300:avg",
+        "cgroup.v2.cpu.pressure.some.avg300:count",
+        "cgroup.v2.cpu.stat.nr_periods:avg"
+      ],
+      "first_seen": 1768262411,
+      "last_updated": 1768262411
+    },
+    {
+      "pattern": "time_cluster_55487",
+      "title": "Correlated: 3 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cgroup.pressure:count",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count",
+        "cgroup.v2.memory.stat.sec_pagetables:count"
+      ],
+      "first_seen": 1768262435,
+      "last_updated": 1768262436
+    },
+    {
+      "pattern": "time_cluster_50686",
+      "title": "Correlated: 2 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.pressure.some.total:avg",
+        "kernel_cpu_percentage:avg"
+      ],
+      "first_seen": 1768262397,
+      "last_updated": 1768262398
+    },
+    {
+      "pattern": "time_cluster_52054",
+      "title": "Correlated: 2 anomalies in time window",
+      "sources": [
+        "cgroup.v2.cpu.stat.nr_periods:avg",
+        "cgroup.v2.hugetlb.1GB.events.local.max:count"
+      ],
+      "first_seen": 1768262409,
+      "last_updated": 1768262410
+    }
+  ]
+}

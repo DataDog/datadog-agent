@@ -31,7 +31,7 @@ type TimeClusterConfig struct {
 // DefaultTimeClusterConfig returns a TimeClusterConfig with default values.
 func DefaultTimeClusterConfig() TimeClusterConfig {
 	return TimeClusterConfig{
-		SlackSeconds:   5,
+		SlackSeconds:   1, // Only 1 second slack - anomalies must be nearly simultaneous
 		MinClusterSize: 2,
 		WindowSeconds:  60,
 	}
@@ -39,9 +39,10 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 
 // timeCluster represents a group of temporally-related anomalies.
 type timeCluster struct {
-	id        int
-	anomalies map[string]observer.AnomalyOutput // keyed by Source for dedup
-	timeRange observer.TimeRange                // union of all anomaly time ranges
+	id          int
+	anomalies   map[string]observer.AnomalyOutput // keyed by Source for dedup
+	timeRange   observer.TimeRange                // union of all anomaly time ranges (for reporting)
+	anchorRange observer.TimeRange                // fixed anchor range for overlap checks (doesn't expand)
 }
 
 // TimeClusterCorrelator clusters anomalies based purely on time overlap.
@@ -82,10 +83,10 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 		c.currentDataTime = anomaly.TimeRange.End
 	}
 
-	// Find clusters this anomaly overlaps with
+	// Find clusters this anomaly overlaps with (using anchor range, not expanded range)
 	var overlapping []*timeCluster
 	for _, cluster := range c.clusters {
-		if c.timeRangesOverlap(anomaly.TimeRange, cluster.timeRange) {
+		if c.timeRangesOverlap(anomaly.TimeRange, cluster.anchorRange) {
 			overlapping = append(overlapping, cluster)
 		}
 	}
@@ -94,9 +95,10 @@ func (c *TimeClusterCorrelator) Process(anomaly observer.AnomalyOutput) {
 		// No overlap - create new cluster
 		c.nextClusterID++
 		newCluster := &timeCluster{
-			id:        c.nextClusterID,
-			anomalies: map[string]observer.AnomalyOutput{anomaly.Source: anomaly},
-			timeRange: anomaly.TimeRange,
+			id:          c.nextClusterID,
+			anomalies:   map[string]observer.AnomalyOutput{anomaly.Source: anomaly},
+			timeRange:   anomaly.TimeRange,
+			anchorRange: anomaly.TimeRange, // Fixed anchor - won't expand
 		}
 		c.clusters = append(c.clusters, newCluster)
 	} else if len(overlapping) == 1 {
@@ -117,7 +119,8 @@ func (c *TimeClusterCorrelator) timeRangesOverlap(a, b observer.TimeRange) bool 
 	return a.Start <= b.End+slack && b.Start <= a.End+slack
 }
 
-// addToCluster adds an anomaly to a cluster, updating time range and deduping by source.
+// addToCluster adds an anomaly to a cluster, updating time range (for display) and deduping by source.
+// Note: anchorRange is NOT expanded - this prevents cluster creep.
 func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly observer.AnomalyOutput) {
 	// Dedup by source - keep the one with later End time (more recent data)
 	if existing, ok := cluster.anomalies[anomaly.Source]; ok {
@@ -128,7 +131,7 @@ func (c *TimeClusterCorrelator) addToCluster(cluster *timeCluster, anomaly obser
 		cluster.anomalies[anomaly.Source] = anomaly
 	}
 
-	// Expand cluster time range
+	// Expand display time range (for UI), but NOT anchorRange
 	if anomaly.TimeRange.Start < cluster.timeRange.Start {
 		cluster.timeRange.Start = anomaly.TimeRange.Start
 	}
@@ -157,12 +160,19 @@ func (c *TimeClusterCorrelator) mergeClusters(clusters []*timeCluster) *timeClus
 				merged.anomalies[source] = anomaly
 			}
 		}
-		// Expand time range
+		// Expand display time range
 		if other.timeRange.Start < merged.timeRange.Start {
 			merged.timeRange.Start = other.timeRange.Start
 		}
 		if other.timeRange.End > merged.timeRange.End {
 			merged.timeRange.End = other.timeRange.End
+		}
+		// Expand anchor range (for merges only - allows merged clusters to accept wider overlap)
+		if other.anchorRange.Start < merged.anchorRange.Start {
+			merged.anchorRange.Start = other.anchorRange.Start
+		}
+		if other.anchorRange.End > merged.anchorRange.End {
+			merged.anchorRange.End = other.anchorRange.End
 		}
 	}
 
@@ -198,6 +208,68 @@ func (c *TimeClusterCorrelator) evictOldClusters() {
 		}
 	}
 	c.clusters = newClusters
+}
+
+// TimeClusterInfo represents a cluster for visualization.
+type TimeClusterInfo struct {
+	ID           int      `json:"id"`
+	Sources      []string `json:"sources"`
+	StartTime    int64    `json:"start_time"`
+	EndTime      int64    `json:"end_time"`
+	AnomalyCount int      `json:"anomaly_count"`
+}
+
+// GetClusters returns clusters that meet the minimum size threshold for visualization.
+func (c *TimeClusterCorrelator) GetClusters() []TimeClusterInfo {
+	var result []TimeClusterInfo
+	for _, cluster := range c.clusters {
+		// Only include clusters that meet minimum size
+		if len(cluster.anomalies) < c.config.MinClusterSize {
+			continue
+		}
+
+		sources := make([]string, 0, len(cluster.anomalies))
+		for source := range cluster.anomalies {
+			sources = append(sources, source)
+		}
+		sort.Strings(sources)
+		result = append(result, TimeClusterInfo{
+			ID:           cluster.id,
+			Sources:      sources,
+			StartTime:    cluster.timeRange.Start,
+			EndTime:      cluster.timeRange.End,
+			AnomalyCount: len(cluster.anomalies),
+		})
+	}
+	// Sort by size (largest first), then by time
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].AnomalyCount != result[j].AnomalyCount {
+			return result[i].AnomalyCount > result[j].AnomalyCount
+		}
+		return result[i].StartTime > result[j].StartTime // most recent first
+	})
+	return result
+}
+
+// GetStats returns statistics about the correlator state.
+func (c *TimeClusterCorrelator) GetStats() map[string]interface{} {
+	totalAnomalies := 0
+	maxClusterSize := 0
+	for _, cluster := range c.clusters {
+		totalAnomalies += len(cluster.anomalies)
+		if len(cluster.anomalies) > maxClusterSize {
+			maxClusterSize = len(cluster.anomalies)
+		}
+	}
+	return map[string]interface{}{
+		"total_clusters":       len(c.clusters),
+		"total_anomalies":      totalAnomalies,
+		"largest_cluster_size": maxClusterSize,
+		"slack_seconds":        c.config.SlackSeconds,
+		"window_seconds":       c.config.WindowSeconds,
+		"min_cluster_size":     c.config.MinClusterSize,
+		"current_data_time":    c.currentDataTime,
+	}
 }
 
 // ActiveCorrelations returns clusters that meet the minimum size threshold.

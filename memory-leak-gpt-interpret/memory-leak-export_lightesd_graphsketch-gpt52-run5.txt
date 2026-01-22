@@ -1,0 +1,76 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- Almost all anomalies are happening together as one big “everything moved” cluster (227 metrics), which is typical of a container lifecycle/measurement discontinuity (start/stop/cgroup repopulation) rather than a single resource bottleneck.  
+- There are smaller, more specific co-anomaly groups pointing to **memory pressure and reclaim activity** (direct reclaim + zswap), plus a signal that **OOM-group kills** co-occur with hugetlb reservation-limit metrics.
+
+2) **Is there a problem?**  
+**Unclear.**
+
+3) **If yes, what is it? (one sentence)**  
+N/A
+
+4) **Confidence level**  
+**Low**
+
+5) **Alternative possibilities & why uncertain (not high confidence)**  
+- **Container restart / cgroup repopulation / metrics reset**: the dominant 227-source cluster includes many `:count` metrics and cgroup “populated/procs/threads” style fields, which often jump on lifecycle events and can trigger outlier detectors.  
+- **True memory pressure episode (reclaim + zswap) possibly leading to OOM kills**: there are explicit correlated pairs involving `pgscan_direct`↔`zswapped` and `memory.current`↔`memory.pressure.full.avg10`, plus `oom_group_kill` correlated with a hugetlb limit metric—but these appear in tiny clusters (2–3 sources) and only at a single timestamp, so it’s hard to tell if it was sustained/real vs transient/reporting artifact.  
+- **Instrumentation/derivation bug in CPU “usage” series**: extremely large anomaly “scores” on CPU usage-related metrics (and also smaps averages) suggest unit/derivative/reset issues rather than real CPU consumption.
+
+6) **Supporting evidence (from the data)**  
+- **Mass co-anomaly cluster:** `graphsketch_cluster_0` has **227 sources** with very high reported frequency (**87427.5**) spanning CPU, memory, IO pressure, smaps, pids, etc.  
+- **Lifecycle-ish signals inside the big cluster:** includes `cgroup.v2.cgroup.events.populated:count`, `cgroup.v2.cgroup.procs:count`, `cgroup.v2.cgroup.threads:count`, `nr_dying_descendants:count`.  
+- **Memory pressure/reclaim correlations:**  
+  - `graphsketch_cluster_2`: `cgroup.v2.memory.stat.pgscan_direct:count` ↔ `cgroup.v2.memory.stat.zswapped:count` (freq **58158.6**, 3 sources).  
+  - `graphsketch_cluster_6`: `cgroup.v2.memory.current:avg` ↔ `cgroup.v2.memory.pressure.full.avg10:count` (freq **29012.2**, 2 sources).  
+- **OOM correlation:** `graphsketch_cluster_1`: `cgroup.v2.memory.events.oom_group_kill:count` ↔ `cgroup.v2.hugetlb.2MB.rsvd.max:count` (freq **38035.5**, 2 sources).  
+- **Suspicious/extreme anomaly magnitudes suggesting resets/units:**  
+  - `cgroup.v2.cpu.stat.usage_usec:avg` anomaly score **3.753e13** (multiple consecutive seconds).  
+  - `total_cpu_usage_millicores:avg` anomaly score **1.903e11**.  
+  - Many `:count` anomalies with score **1e10** at the same timestamp (e.g., zswap, nr_dying_descendants, uclamp.max, several smaps counts).

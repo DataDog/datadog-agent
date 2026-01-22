@@ -1,0 +1,74 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   GraphSketch found one big cluster where **almost every metric (184 sources) anomalied together within ~10s**, centered on **cgroup freeze/frozen events and memory OOM events**—i.e., a single system/container lifecycle event is driving widespread “simultaneous” anomalies rather than many independent issues.
+
+2. **Is there a problem?**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   A burst of **container-level memory pressure culminating in OOM events and/or cgroup freeze activity** affecting multiple containers at the same time.
+
+4. **Confidence level**  
+   **Low.**
+
+5. **Alternative possibilities / why uncertain**  
+   - **Instrumentation/collection artifact or restart:** Many metrics can “jump” together if the exporter restarts, counters reset, or cgroups are recreated; LightESD flags those as extreme outliers, and GraphSketch then correlates everything.  
+   - **Planned orchestration event:** Node drain, pod eviction, or a cleanup job could cause **freeze/thaw + process count changes** without a true resource incident.  
+   - **Short window with mass state transition:** The anomalies are clustered into a very tight time range; without actual metric values/trends, it’s hard to distinguish **real OOMs** from **counter/state transitions**.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster**: `total_correlations: 1` with `source_count: 184` (nearly all anomalous sources tied together).  
+   - **Cluster title indicates key pair**: “**cgroup.v2.cgroup.events.frozen ↔ cgroup.v2.memory.events.oom**”.  
+   - **Tight timing**: `first_seen: 1768513985`, `last_updated: 1768514033` (~48s window).  
+   - **Widespread resource-pressure signals included in cluster**: CPU/IO/memory pressure metrics (e.g., `cgroup.v2.cpu.pressure.full.*`, `cgroup.v2.io.pressure.full.*`, `cgroup.v2.memory.pressure.full.*`).  
+   - **Sample anomalies show abrupt changes across multiple containers** around the same timestamps (1768513985/1768514035):  
+     - `cgroup.v2.memory.swap.events.max`, `cgroup.v2.io.pressure.full.avg60` (todo-frontend)  
+     - `cgroup.v2.memory.stat.workingset_refault_anon`, `smaps_rollup.pss_file`, `cgroup.v2.cgroup.procs` (todo-backend)  
+     - `cgroup.v2.cpu.pressure.full.avg10`, `kernel_cpu_percentage` (cleanup)  
+   - **Extremely high LightESD scores** (`1e10`) for many metrics suggests “step/reset/state change” type outliers, consistent with either a real incident or a telemetry lifecycle event.

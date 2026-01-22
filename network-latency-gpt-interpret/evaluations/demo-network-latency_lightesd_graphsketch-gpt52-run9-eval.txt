@@ -1,0 +1,17 @@
+============================================================
+EVALUATION
+============================================================
+Diagnosis file: network-latency-gpt-interpret/demo-network-latency_lightesd_graphsketch-gpt52-run9.txt
+Problem type: network latency
+Model: gpt-5.2-2025-12-11
+============================================================
+
+Checking if diagnosis identified: network latency...
+
+============================================================
+EVALUATION RESULT:
+============================================================
+1. **Identified Problem**: no - Did it identify network latency?  
+2. **Score**: 10  
+3. **Evidence**: Focused on “memory pressure / OOM / swapping / IO pressure,” “container lifecycle/restart,” “metrics pipeline/scrape issue,” and stated “Unclear,” with no mention of network latency/delay.  
+4. **Summary**: The diagnosis missed the injected network latency and instead discussed broad systemic/memory/metrics-artifact possibilities.

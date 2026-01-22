@@ -1,0 +1,72 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 257 metric sources anomalied together in the same 1‑second windows, meaning the correlator is essentially reporting a “everything shifted at once” event rather than identifying a specific causal relationship; it’s a broad, simultaneous regime change affecting CPU, memory, IO, and even mostly-static cgroup fields.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A (unclear).
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **Alternative possibilities and why uncertain**  
+   - **Telemetry/collection artifact or restart**: Seeing anomalies across many “count/static-ish” cgroup files and across all subsystems at once is more consistent with an exporter restart, changed scrape target, or baseline reset than with a single workload issue.  
+   - **Container/pod lifecycle event (mass start/stop/migration)**: A coordinated rollout or node/container restart can shift many metrics simultaneously (CPU, memory, pids, pressure).  
+   - **Real workload incident**: Could be a genuine system-wide load increase, but the “everything at once” clustering plus huge anomaly volume makes it hard to isolate a single failing component from this output alone.  
+   Uncertainty is driven by **TimeCluster** only grouping by simultaneity (no causality) and **CUSUM** flagging sustained shifts—so a global step-change in instrumentation or environment can look like a massive incident.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster covering all sources**: `total_correlations: 1`, cluster title: *“Correlated: 257 anomalies in time window”*, `source_count: 257`.  
+   - **Very large anomaly volume**: `total_anomalies: 270861` with `unique_sources_in_anomalies: 257` (nearly every metric source flagged).  
+   - **Cluster spans many subsystems simultaneously**: CPU (`cpu_percentage`, `kernel_cpu_*`, `system_cpu_*`), memory (`cgroup.v2.memory.*`, `smaps_rollup.*`), IO pressure/stats (`cgroup.v2.io.*`), pids (`cgroup.v2.pids.*`), and even cgroup metadata/events (`cgroup.v2.cgroup.*`).  
+   - **Example “shift” anomalies across different containers near the same period**:  
+     - `kernel_cpu_percentage:avg` for `todo-backend` shifted `0.16 → 1.46 (7.3σ)` at `1768514104`.  
+     - `system_cpu_percentage:avg` for `todo-redis` shifted `0.03 → 0.34 (3.8σ)` at `1768514629`.  
+     - Memory slab for `todo-redis`: `cgroup.v2.memory.stat.slab:avg` `40150 → 237517` at `1768514629`.  
+   - **Correlation window is broad**: cluster `first_seen: 1768514043`, `last_updated: 1768514634`, consistent with a sustained regime shift rather than a brief localized spike.

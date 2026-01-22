@@ -1,0 +1,71 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   A single tight time cluster (~100s) where *almost every* container cgroup metric (CPU, memory, IO pressure, pids, smaps) flagged simultaneously, meaning the “incident” is dominated by a synchronized, cross-metric event rather than a small subset of metrics drifting.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A (unclear).
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **If not high confidence: alternative possibilities + why uncertain**  
+   - **Metrics pipeline/collector artifact (most likely):** Many anomalies are on `:count` series and have absurd scores (`1e10` / `1e17+`), which often happens with missing data, resets, schema/type changes, or a scrape/aggregation bug; this can make *many* unrelated metrics look anomalous at once.  
+   - **Container lifecycle event (restart/migration/cgroup recreation):** A stop/start can cause many cgroup files to reset/jump simultaneously and trigger `TimeCluster` without an actual resource incident.  
+   - **Real short-lived resource incident (CPU+memory pressure spike):** Possible because CPU/kernel CPU and memory pressure metrics are included, but the evidence shown is dominated by suspiciously extreme anomaly scores rather than realistic resource values.  
+   **Uncertain because** the output provides anomaly *scores and co-occurrence*, but not the underlying metric values/baselines, and the extreme scores suggest detector/pipeline edge cases.
+
+6. **Supporting evidence (from the data)**  
+   - **One correlation only:** `total_correlations: 1` with `source_count: 220`, indicating a single synchronized event.  
+   - **Narrow time window:** cluster `first_seen: 1768261651`, `last_updated: 1768261751` (~100 seconds).  
+   - **Cross-domain metrics co-anomalied together:** CPU (`cpu_percentage`, `kernel_cpu_percentage`, `cpu.stat.*`), memory (`memory.current`, `memory.pressure.*`, `memory.events.*`, `memory.stat.*`), IO pressure (`io.pressure.*`), pids (`pids.current`, `container.pid_count`), smaps (`smaps_rollup.*`).  
+   - **Suspicious anomaly scores on `:count` series:** e.g., `kernel_cpu_percentage:count (score: 10000000000.00)`, `cgroup.v2.memory.stat.anon_thp:count (score: 10000000000.00)` at timestamp `1768261750`.  
+   - **Implausibly huge scores on smaps averages:** `smaps_rollup.anonymous:avg (score: 153231360000000000.00)` around `1768261747–1750`.  
+   - **Some genuine-looking outliers present but mixed with the above:** `kernel_cpu_percentage:avg` anomalies with scores ~5.2–5.9 across multiple timestamps.

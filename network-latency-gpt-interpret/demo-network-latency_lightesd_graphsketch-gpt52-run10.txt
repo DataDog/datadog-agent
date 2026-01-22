@@ -1,0 +1,81 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   GraphSketch found a single very large co-anomaly cluster (184 metrics) where CPU, memory, IO, pids, and cgroup state/event counters tend to anomaly together within ~10 seconds—i.e., one “system-wide/container-wide disturbance” rather than isolated metric glitches.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   A short, intense **resource-pressure event** affecting multiple containers—dominated by **memory pressure (swap/zswap/thrashing) with accompanying CPU/IO pressure**, consistent with a transient near-OOM / heavy reclaim episode.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities and why uncertain?**  
+   - **Metrics collection/reset artifact or counter discontinuity**: many anomalies have an extreme identical score (1e10) across many counters, which can happen when counters reset, scrape gaps occur, or units change.  
+   - **Container lifecycle event (restart/freeze/unfreeze/cgroup repopulation)**: anomalies include cgroup freeze/frozen/populated and procs/descendants metrics, which can all change abruptly during restarts or orchestrator actions.  
+   - **Workload-driven memory mapping change (THP/hugetlb/smaps shifts) without true “fault”**: the edge list is dominated by smaps_rollup correlations, which can move together during normal phase changes (alloc/mmap, JIT, cache warmup).  
+   Uncertainty is mainly because the JSON shows co-anomalies and co-occurrence edges, but not the *direction/magnitude* of changes nor explicit confirmation that OOM_kill happened (only “oom” is in the correlated source list, not shown in sample anomalies).
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster covering almost everything**: `total_correlations: 1`, cluster has `source_count: 184` with title mentioning **`cgroup...frozen` ↔ `cgroup...memory.events.oom`** and very high `freq: 107478.6`.  
+   - **Memory pressure / reclaim / swap indicators anomalous** (samples):  
+     - `cgroup.v2.memory.swap.events.max:count` (todo-frontend)  
+     - `cgroup.v2.memory.stat.workingset_refault_anon:count` (todo-backend)  
+     - `cgroup.v2.memory.stat.zswpin:count` (todo-redis)  
+     - THP-related shifts: `cgroup.v2.memory.stat.anon_thp:count`, `cgroup.v2.memory.stat.file_thp:count`  
+   - **CPU/IO pressure indicators anomalous** (samples):  
+     - `cgroup.v2.cpu.pressure.full.avg10:count` (cleanup)  
+     - `cgroup.v2.io.pressure.full.avg60:count` (todo-frontend)  
+     - `kernel_cpu_percentage:count` (cleanup)  
+   - **Abrupt cgroup/process state changes** (samples):  
+     - `cgroup.v2.cgroup.procs:count` (todo-backend)  
+     - `cgroup.v2.cgroup.stat.nr_descendants:count` (todo-backend)  
+     - Cluster includes `cgroup.v2.cgroup.events.frozen/populated` and `cgroup.v2.cgroup.freeze`.  
+   - **Cross-container impact**: sample anomalies span multiple pods/containers (`todo-backend`, `todo-frontend`, `todo-redis`, `cleanup`) in the same namespace.

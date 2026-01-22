@@ -1,0 +1,71 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- GraphSketch found **one big cluster** where **171 metrics** across CPU pressure, memory pressure/stat/events, I/O pressure, pids, hugetlb, and smaps **all anomalied together within the same short window**, suggesting **a single underlying container-level event** driving broad resource stress and kernel accounting changes rather than independent metric glitches.
+
+2) **Is there a problem?**  
+- **Yes.**
+
+3) **If yes, what is it? (one sentence)**  
+- The container likely **hit severe memory pressure leading to OOM (including OOM group kill), with accompanying CPU pressure and process count changes**, consistent with a workload that exceeded its memory constraints (or leaked/expanded rapidly) and was killed.
+
+4) **Confidence level**  
+- **Medium**
+
+5) **Alternative possibilities / why uncertain (not high confidence)**  
+- **Metric “count” semantics / step changes:** Many anomalies are “shifted 1.00 → 2.00 (10σ)”, which can happen when a counter increments once (an event) and CUSUM treats it as a sustained shift; this can inflate “problem” appearance without showing duration/impact.  
+- **Normal lifecycle event (restart/cleanup job):** A short-lived “cleanup” container could legitimately spike pids/pressure and trigger OOM if it’s BestEffort; without container exit codes/events, it’s unclear if this was expected/benign.  
+- **Node-level contention vs container-local:** CPU/IO pressure signals can reflect host contention; without host-level metrics or other pods’ anomalies, attribution to this container vs node is uncertain.
+
+6) **Supporting evidence (from the data)**  
+- **OOM signals:** `cgroup.v2.memory.events.local.oom:count shifted: 1.00 → 2.00 (10.0σ)` and `...oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ)` (multiple timestamps).  
+- **Memory pressure:** `cgroup.v2.memory.pressure.some.avg10/avg300:count shifted: 1.00 → 2.00 (10.0σ)`; cluster also includes `memory.pressure.full.*`.  
+- **CPU pressure concurrent:** `cgroup.v2.cpu.pressure.full.avg10/avg60:count shifted: 1.00 → 2.00 (10.0σ)`; cluster includes `cpu.pressure.*` and throttling stats.  
+- **Process activity:** `cgroup.v2.pids.peak:count shifted: 1.00 → 2.00 (10.0σ)` plus `pids.current/events.max/max` in the correlated set.  
+- **Broad correlated cluster:** single correlation `graphsketch_cluster_0` with **171 sources**, titled `...frozen ↔ ...memory.events.oom... (freq: 10560.0)`, spanning CPU/memory/IO/hugetlb/smaps, indicating co-occurrence rather than isolated blips.  
+- **Hugetlb involvement:** `cgroup.v2.hugetlb.2MB.events.max:count shifted: 1.00 → 2.00 (10.0σ)` and many hugetlb metrics in the cluster (possible hugepage limit pressure).  
+- **Context tags point to one container/pod:** anomalies tagged `container_name:cleanup`, `qos_class:BestEffort`, same `container_id` and namespace.

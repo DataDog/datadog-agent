@@ -1,0 +1,71 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**LightESD Detector:**
+Detects statistical outliers using robust methods.
+- Removes trend (if values generally go up/down)
+- Removes seasonality (hourly/daily patterns)
+- Finds points statistically far from the median
+- Uses robust stats (median, MAD) to avoid being fooled by outliers
+- Good for: sudden spikes, brief anomalies in noisy data
+- Not good for: gradual shifts
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All detected anomalies are being lumped into a single very large co-occurrence cluster (184 metrics) anchored on **cgroup freeze/frozen** and **memory OOM events**, meaning many metrics “changed together” in the same short window—more consistent with a **container lifecycle/control-plane event (freeze/stop/evict/restart)** than a single narrow resource regression.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear**.
+
+3. **If yes, what is it? (one sentence)**  
+   N/A.
+
+4. **Confidence level (high/medium/low)**  
+   **Low**.
+
+5. **If not high confidence: alternative possibilities & why uncertain**  
+   - **Expected container restarts/termination/eviction:** lifecycle transitions can spike/reset many cgroup/smaps counters simultaneously, creating a huge correlated cluster without an underlying performance issue.  
+   - **Actual memory pressure leading to OOM kills:** the cluster title includes `memory.events.oom`, and there are swap/IO pressure anomalies, but we don’t see the *values* or whether `oom_kill` incremented versus just `oom`/`high` events.  
+   - **Instrumentation/collection artifact:** the repeated extreme score (`1e10`) across many unrelated metrics suggests a systematic step change (e.g., counter reset, missing data imputed as 0, scrape issue) that can trigger LightESD broadly.  
+   Uncertainty is high because the output lacks anomaly magnitudes/directions and mixes multiple containers/pods; GraphSketch is reporting co-occurrence, not causality.
+
+6. **Supporting evidence (from the data)**  
+   - **Single giant correlation group:** `total_correlations: 1`, `source_count: 184` with title `... frozen ↔ ... oom ... (184 sources)`  
+   - **Lifecycle/control signals present:** `cgroup.v2.cgroup.events.frozen`, `cgroup.v2.cgroup.freeze`, `cgroup.v2.cgroup.events.populated`, `cgroup.v2.cgroup.procs` anomalous  
+   - **Memory/pressure signals present in cluster & samples:** `cgroup.v2.memory.events.oom:*`, `memory.pressure.*`, `memory.swap.events.max`, `io.pressure.full.avg60`  
+   - **Anomalies across multiple pods/containers at same timestamps:** samples at `1768513985` and `1768514035` for `todo-backend`, `todo-frontend`, `todo-redis`, `cleanup`  
+   - **Uniform extreme scores suggesting a broad step event:** many sample anomalies show `score: 10000000000.00` across diverse metrics (CPU pressure, smaps, memory stats, pids)

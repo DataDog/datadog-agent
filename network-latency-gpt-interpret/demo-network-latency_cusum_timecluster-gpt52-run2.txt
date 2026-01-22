@@ -1,0 +1,71 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+- All 257 metric sources that ever anomalied were grouped into a *single* time cluster, meaning the correlator is effectively saying “everything anomalied together” over the same incident window; it does **not** isolate a smaller causal set.
+
+2) **Is there a problem? (yes/no/unclear)**  
+- **Unclear**
+
+3) **If yes, what is it? (one sentence)**  
+- N/A
+
+4) **Confidence level (high/medium/low)**  
+- **Low**
+
+5) **If not high confidence: alternative possibilities & why uncertain**  
+- **Baseline/training artifact:** CUSUM “learns normal” from the first 25%—if workload ramps up after that (deployment warmup, traffic increase), it will flag a sustained “shift” across many metrics.  
+- **Metric collection / label explosion:** The single cluster contains many `:count` and config-like fields (`*.max`, `*.events.*`, `cpu_limit_millicores`) that shouldn’t “shift” due to runtime behavior; widespread anomalies across such fields suggests instrumentation/aggregation changes or counters behaving differently rather than one true resource incident.  
+- **Container lifecycle churn:** Multiple different containers/pods are involved (frontend/backend/redis/cleanup); simultaneous anomalies could reflect pods starting/stopping around the same time, changing smaps/cgroup readings.  
+- **Real incident is possible but not isolated:** Some samples show CPU and memory increases, but the correlation output is too coarse (everything grouped) to attribute to one subsystem.
+
+6) **Supporting evidence (from the data)**  
+- **Correlation degenerates to “everything”:** `total_correlations: 1` and the only cluster is **“Correlated: 257 anomalies”** with `source_count: 257`, spanning CPU, memory, IO pressure, pids, and many `:count` metrics.  
+- **Very large anomaly volume:** `total_anomalies: 270861` with `unique_sources_in_anomalies: 257` (near 1:1 with sources), consistent with a broad sustained shift vs a localized fault.  
+- **Anomalies span multiple unrelated containers:** samples include `todo-redis`, `todo-backend`, `todo-frontend`, and `cleanup` with different container_ids.  
+- **Some real resource shifts exist, but mixed strength:**  
+  - CPU-related shifts (e.g., `kernel_cpu_percentage:avg shifted 0.16 → 1.46 (7.3σ)`; `system_cpu_percentage:avg 0.03 → 0.34 (3.8σ)`)  
+  - Memory/slab and smaps shifts (e.g., `cgroup.v2.memory.stat.slab:avg 40150 → 237517`; `smaps_rollup.pss:avg 19.9M → 32.2M`)  
+- **Cluster includes many fields that often don’t reflect runtime load directly:** presence of `cgroup.v2.memory.max:*`, `cpu_limit_millicores:*`, numerous `*.events.*` and `*.max`/`*.peak`/`:count` metrics inside the correlated set suggests a non-specific “global change” signal.

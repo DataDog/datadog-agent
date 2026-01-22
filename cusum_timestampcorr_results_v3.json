@@ -1,0 +1,301 @@
+{
+  "detector": "CUSUM",
+  "correlator": "TimeClusterCorrelator",
+  "timestamp": "2026-01-20T11:35:48-05:00",
+  "total_anomalies": 82064,
+  "unique_sources_in_anomalies": 66,
+  "total_correlations": 1,
+  "sample_anomalies": [
+    {
+      "source": "smaps_rollup.anonymous:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.anonymous:avg shifted: 18479085.63 → 80328454.01 (6.3σ above baseline)",
+      "timestamp": 1768262497,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.anonymous:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.anonymous:avg shifted: 18479085.63 → 80216214.40 (6.3σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_dirty:avg shifted: 21298180.59 → 83424339.99 (6.1σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17"
+      ]
+    },
+    {
+      "source": "smaps_rollup.pss_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.pss_anon:avg shifted: 18479085.63 → 80394131.20 (6.3σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pagetables:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pagetables:avg shifted: 93684.52 → 235927.29 (3.9σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "smaps_rollup.rss:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.rss:avg shifted: 23439607.96 → 86842756.30 (5.7σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_anon:avg shifted: 18478966.24 → 80214464.00 (6.3σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.private_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.private_dirty:avg shifted: 21298180.59 → 83599498.90 (6.1σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.anon:avg shifted: 18479296.86 → 80394131.20 (6.3σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.peak:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.peak:avg shifted: 19269797.31 → 81666588.98 (6.2σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "smaps_rollup.referenced:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.referenced:avg shifted: 23439341.63 → 87024943.10 (5.7σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgfault:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pgfault:avg shifted: 6745.52 → 22692.67 (5.3σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.kernel:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.kernel:avg shifted: 346084.45 → 700416.00 (2.8σ above baseline)",
+      "timestamp": 1768262498,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.kernel:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.kernel:avg shifted: 346084.45 → 590506.67 (2.0σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "smaps_rollup.private_clean:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.private_clean:avg shifted: 2119257.54 → 2960896.00 (0.7σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.pgfault:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.pgfault:avg shifted: 6745.52 → 22663.10 (5.2σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "namespace:default",
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.active_anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.active_anon:avg shifted: 18478966.24 → 80458680.11 (6.3σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "smaps_rollup.private_dirty:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.private_dirty:avg shifted: 21298180.59 → 83665802.28 (6.1σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    },
+    {
+      "source": "smaps_rollup.anonymous:avg",
+      "analyzer": "cusum_detector",
+      "description": "smaps_rollup.anonymous:avg shifted: 18479085.63 → 80282376.39 (6.3σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default",
+        "qos_class:Burstable"
+      ]
+    },
+    {
+      "source": "cgroup.v2.memory.stat.anon:avg",
+      "analyzer": "cusum_detector",
+      "description": "cgroup.v2.memory.stat.anon:avg shifted: 18479296.86 → 80282376.39 (6.3σ above baseline)",
+      "timestamp": 1768262499,
+      "tags": [
+        "qos_class:Burstable",
+        "container_id:17f44d806b17",
+        "container_name:foo",
+        "pod_name:redacted-22bda9b6",
+        "namespace:default"
+      ]
+    }
+  ],
+  "correlations": [
+    {
+      "pattern": "time_cluster_1",
+      "title": "Correlated: 66 anomalies in time window",
+      "source_count": 66,
+      "sources": [
+        "cgroup.v2.cgroup.events.populated:avg",
+        "cgroup.v2.cgroup.pressure:avg",
+        "cgroup.v2.cgroup.procs:avg",
+        "cgroup.v2.cgroup.threads:avg",
+        "cgroup.v2.cpu.pressure.full.avg10:avg",
+        "cgroup.v2.cpu.pressure.full.avg300:avg",
+        "cgroup.v2.cpu.pressure.full.avg60:avg",
+        "cgroup.v2.cpu.pressure.full.total:avg",
+        "cgroup.v2.cpu.pressure.some.avg10:avg",
+        "cgroup.v2.cpu.pressure.some.avg300:avg",
+        "cgroup.v2.cpu.pressure.some.avg60:avg",
+        "cgroup.v2.cpu.pressure.some.total:avg",
+        "cgroup.v2.cpu.stat.local.throttled_usec:avg",
+        "cgroup.v2.cpu.stat.nr_periods:avg",
+        "cgroup.v2.cpu.stat.nr_throttled:avg",
+        "cgroup.v2.cpu.stat.system_usec:avg",
+        "cgroup.v2.cpu.stat.throttled_usec:avg",
+        "cgroup.v2.cpu.stat.usage_usec:avg",
+        "cgroup.v2.cpu.stat.user_usec:avg",
+        "cgroup.v2.cpu.weight.nice:avg"
+      ],
+      "first_seen": 1768261630,
+      "last_updated": 1768262537
+    }
+  ]
+}

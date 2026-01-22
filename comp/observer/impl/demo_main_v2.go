@@ -7,7 +7,9 @@ package observerimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
@@ -33,8 +35,6 @@ type DemoV2Config struct {
 	EnableLightESD bool
 	// EnableGraphSketch enables the GraphSketch edge anomaly detector (produces point-based signals)
 	EnableGraphSketch bool
-	// EnableFFADE enables the F-FADE frequency-based anomaly detector (Layer 2 processor)
-	EnableFFADE bool
 
 	// Correlator selection (mutually exclusive)
 	// UseTimeClusterCorrelator uses time-based clustering (anomalies within N seconds cluster together)
@@ -42,6 +42,14 @@ type DemoV2Config struct {
 	// EnableGraphSketchCorrelator enables the GraphSketch-based anomaly correlator
 	// This detects unusual co-occurrence patterns between anomalies
 	EnableGraphSketchCorrelator bool
+
+	// OutputFile is the path to write JSON results (anomalies + correlations)
+	// If empty, no file is written
+	OutputFile string
+
+	// ProcessAllData if true, processes all parquet data without time limit
+	// If false, runs for a fixed duration based on TimeScale
+	ProcessAllData bool
 }
 
 // RunDemoV2 runs the demo with the new signal-based architecture.
@@ -56,22 +64,33 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		config.TimeScale = 0.1
 	}
 
-	fmt.Printf("Starting observer demo V2 (timeScale=%.2f, duration=%.1fs)\n", config.TimeScale, phaseTotalDuration*config.TimeScale)
+	if config.ProcessAllData {
+		fmt.Println("Starting observer demo V2 (processing ALL data, no time limit)")
+	} else {
+		fmt.Printf("Starting observer demo V2 (timeScale=%.2f, duration=%.1fs)\n", config.TimeScale, phaseTotalDuration*config.TimeScale)
+	}
 
-	// Correlator selection (mutually exclusive)
+	// Correlator selection (mutually exclusive for primary correlator)
 	var correlator observerdef.AnomalyProcessor
+	var correlationState observerdef.CorrelationState
 	var gsCorrelator *GraphSketchCorrelator // Keep a specific pointer for debug and freezing
+	var tcCorrelator *TimeClusterCorrelator // Keep a specific pointer for visualization
+
 	if config.EnableGraphSketchCorrelator {
 		gsc := NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
 		correlator = gsc
+		correlationState = gsc
 		gsCorrelator = gsc // Store for later debug print and freeze
 	} else if config.UseTimeClusterCorrelator {
-		correlator = NewTimeClusterCorrelator(DefaultTimeClusterConfig())
+		tc := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
+		correlator = tc
+		correlationState = tc
+		tcCorrelator = tc // Store for visualization
 	}
 
 	stdoutReporter := &StdoutReporter{}
-	if correlator != nil {
-		stdoutReporter.SetCorrelationState(correlator.(observerdef.CorrelationState))
+	if correlationState != nil {
+		stdoutReporter.SetCorrelationState(correlationState)
 	}
 
 	storage := newTimeSeriesStorage()
@@ -82,8 +101,14 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	var htmlReporter *HTMLReporter
 	if config.HTTPAddr != "" {
 		htmlReporter = NewHTMLReporter()
-		if correlator != nil {
-			htmlReporter.SetCorrelationState(correlator.(observerdef.CorrelationState))
+		if correlationState != nil {
+			htmlReporter.SetCorrelationState(correlationState)
+		}
+		if gsCorrelator != nil {
+			htmlReporter.SetGraphSketchCorrelator(gsCorrelator)
+		}
+		if tcCorrelator != nil {
+			htmlReporter.SetTimeClusterCorrelator(tcCorrelator)
 		}
 		htmlReporter.SetStorage(storage)
 		reporters = append(reporters, htmlReporter)
@@ -95,45 +120,37 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		}
 	}
 
-	// Build signal emitters list based on config (for point-based anomaly detection)
+	// Build signal emitters list based on config
 	var emitters []observerdef.SignalEmitter
 	var emitterNames []string
 
-	// CUSUM goes on the OLD path (TimeSeriesAnalysis) for range-based visualization
-	// Other emitters go on the NEW path (SignalEmitter) for point-based visualization
+	// OLD path for TimeSeriesAnalysis (range-based anomaly detection)
 	var tsAnalysesForRanges []observerdef.TimeSeriesAnalysis
 	var tsAnalysisNames []string
 
 	if config.EnableCUSUM {
-		// Use CUSUM as TimeSeriesAnalysis for range-based anomalies (shaded regions on charts)
 		tsAnalysesForRanges = append(tsAnalysesForRanges, NewCUSUMDetector())
-		tsAnalysisNames = append(tsAnalysisNames, "CUSUM (ranges)")
+		tsAnalysisNames = append(tsAnalysisNames, "CUSUM")
 	}
 	if config.EnableLightESD {
 		emitters = append(emitters, NewLightESDEmitter(DefaultLightESDConfig()))
-		emitterNames = append(emitterNames, "LightESD (points)")
+		emitterNames = append(emitterNames, "LightESD")
 	}
 	if config.EnableGraphSketch {
 		emitters = append(emitters, NewGraphSketchEmitter(DefaultGraphSketchConfig()))
-		emitterNames = append(emitterNames, "GraphSketch (points)")
+		emitterNames = append(emitterNames, "GraphSketch")
 	}
 
 	// Build signal processors list based on config
 	var processors []observerdef.SignalProcessor
-	var processorNames []string
-
-	if config.EnableFFADE {
-		processors = append(processors, NewFFADEProcessor(DefaultFFADEConfig()))
-		processorNames = append(processorNames, "F-FADE")
-	}
 
 	fmt.Println("---")
 	fmt.Println("Enabled algorithms:")
-	if len(tsAnalysisNames) > 0 {
-		fmt.Printf("  Range-based (OLD path): %v\n", tsAnalysisNames)
-	}
 	if len(emitterNames) > 0 {
-		fmt.Printf("  Point-based (NEW path): %v\n", emitterNames)
+		fmt.Printf("  Detector: %v\n", emitterNames)
+	}
+	if len(tsAnalysisNames) > 0 {
+		fmt.Printf("  Detector (legacy): %v\n", tsAnalysisNames)
 	}
 	if config.EnableGraphSketchCorrelator {
 		fmt.Println("  Correlator: GraphSketchCorrelator (co-occurrence patterns)")
@@ -141,9 +158,6 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		fmt.Println("  Correlator: TimeClusterCorrelator (time proximity)")
 	} else {
 		fmt.Println("  Correlator: None (individual anomalies)")
-	}
-	if len(processorNames) > 0 {
-		fmt.Printf("  Layer 2 (Processors): %v\n", processorNames)
 	}
 	fmt.Println("---")
 
@@ -167,9 +181,9 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		signalProcessors: processors,
 		reporters:        reporters,
 		storage:          storage,
-		obsCh:            make(chan observation, 1000),
-		rawAnomalyWindow: 0,   // 0 = unlimited - keep all anomalies during demo
-		maxRawAnomalies:  500, // keep up to 500 raw anomalies
+		obsCh:            make(chan observation, 10000000), // Very large buffer (10M) to prevent drops during demo with large datasets
+		rawAnomalyWindow: 0,                              // 0 = unlimited - keep all anomalies during demo
+		maxRawAnomalies:  500,                            // keep up to 500 raw anomalies
 	}
 	go obs.run()
 
@@ -216,16 +230,34 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 			BaselineNoise: 0.1,
 		})
 
-		// Run the generator with a timeout for the scenario duration (70s scaled)
-		scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
-		ctx, cancel = context.WithTimeout(context.Background(), scenarioDuration)
-		defer cancel()
+		// Run the generator - either with timeout or until all data is processed
+		if config.ProcessAllData {
+			// No timeout - process all parquet data
+			ctx, cancel = context.WithCancel(context.Background())
+			defer cancel()
+			fmt.Println("[parquet-replay] Processing ALL data (no time limit)...")
+		} else {
+			// Run with timeout for the scenario duration (70s scaled)
+			scenarioDuration := time.Duration(float64(phaseTotalDuration) * float64(time.Second) * config.TimeScale)
+			ctx, cancel = context.WithTimeout(context.Background(), scenarioDuration)
+			defer cancel()
+		}
 
 		generator.Run(ctx)
 	}
 
-	// Small buffer to let final events flush through the pipeline
-	time.Sleep(time.Duration(float64(500*time.Millisecond) * config.TimeScale))
+	// Let final events flush through the pipeline (fixed 2 seconds, not scaled)
+	fmt.Println("[demo] Waiting for pipeline to flush...")
+	time.Sleep(2 * time.Second)
+
+	// Flush any remaining anomalies from correlators
+	if correlator != nil {
+		fmt.Println("[demo] Flushing correlator...")
+		correlator.Flush()
+	}
+
+	// Another small wait for any final processing
+	time.Sleep(500 * time.Millisecond)
 
 	// Print final cluster state
 	stdoutReporter.PrintFinalState()
@@ -239,6 +271,11 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	fmt.Println("---")
 	fmt.Println("Demo complete.")
 
+	// Export results to file if requested
+	if config.OutputFile != "" {
+		exportResults(config, obs, correlationState, gsCorrelator)
+	}
+
 	// Keep HTTP server running if started (so user can explore results)
 	if htmlReporter != nil {
 		fmt.Println("")
@@ -247,5 +284,156 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 
 		// Block forever - wait for interrupt signal
 		select {}
+	}
+}
+
+// DemoResults contains the exported demo results for comparison between detectors.
+type DemoResults struct {
+	// Metadata about the run
+	Detector   string `json:"detector"`
+	Correlator string `json:"correlator"`
+	Timestamp  string `json:"timestamp"`
+
+	// Summary counts (for quick comparison)
+	TotalAnomalies           int `json:"total_anomalies"`
+	UniqueSourcesInAnomalies int `json:"unique_sources_in_anomalies"`
+	TotalCorrelations        int `json:"total_correlations"`
+	TotalEdges               int `json:"total_edges,omitempty"`
+
+	// Sample of anomalies (first 20 for reference)
+	SampleAnomalies []AnomalySample `json:"sample_anomalies,omitempty"`
+
+	// Correlations found (from GraphSketchCorrelator or TimeClusterCorrelator)
+	Correlations []CorrelationResult `json:"correlations"`
+
+	// GraphSketch edges (if using GraphSketchCorrelator) - all edges
+	Edges []EdgeResult `json:"edges,omitempty"`
+}
+
+// AnomalySample is a simplified anomaly for the sample output.
+type AnomalySample struct {
+	Source      string   `json:"source"`
+	Analyzer    string   `json:"analyzer"`
+	Description string   `json:"description"`
+	Timestamp   int64    `json:"timestamp"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// CorrelationResult represents a correlation pattern.
+type CorrelationResult struct {
+	Pattern     string   `json:"pattern"`
+	Title       string   `json:"title"`
+	SourceCount int      `json:"source_count"`
+	Sources     []string `json:"sources"` // top 20 sources only
+	FirstSeen   int64    `json:"first_seen"`
+	LastUpdated int64    `json:"last_updated"`
+}
+
+// EdgeResult represents a GraphSketch edge.
+type EdgeResult struct {
+	Source1      string  `json:"source1"`
+	Source2      string  `json:"source2"`
+	Observations int     `json:"observations"`
+	Frequency    float64 `json:"frequency"`
+}
+
+func exportResults(config DemoV2Config, obs *observerImpl, correlationState observerdef.CorrelationState, gsCorrelator *GraphSketchCorrelator) {
+	// Determine detector name
+	detectorName := "unknown"
+	if config.EnableCUSUM {
+		detectorName = "CUSUM"
+	} else if config.EnableLightESD {
+		detectorName = "LightESD"
+	} else if config.EnableGraphSketch {
+		detectorName = "GraphSketch"
+	}
+
+	// Determine correlator name
+	correlatorName := "none"
+	if config.EnableGraphSketchCorrelator {
+		correlatorName = "GraphSketchCorrelator"
+	} else if config.UseTimeClusterCorrelator {
+		correlatorName = "TimeClusterCorrelator"
+	}
+
+	results := DemoResults{
+		Detector:   detectorName,
+		Correlator: correlatorName,
+		Timestamp:  time.Now().Format(time.RFC3339),
+	}
+
+	// Get total anomaly counts (uncapped)
+	results.TotalAnomalies = obs.TotalAnomalyCount()
+	results.UniqueSourcesInAnomalies = obs.UniqueAnomalySourceCount()
+
+	// Export sample of anomalies (first 20)
+	rawAnomalies := obs.RawAnomalies()
+	sampleSize := 20
+	if len(rawAnomalies) < sampleSize {
+		sampleSize = len(rawAnomalies)
+	}
+	for i := 0; i < sampleSize; i++ {
+		a := rawAnomalies[i]
+		results.SampleAnomalies = append(results.SampleAnomalies, AnomalySample{
+			Source:      a.Source,
+			Analyzer:    a.AnalyzerName,
+			Description: a.Description,
+			Timestamp:   a.TimeRange.End,
+			Tags:        a.Tags,
+		})
+	}
+
+	// Export correlations (with all sources)
+	if correlationState != nil {
+		activeCorrs := correlationState.ActiveCorrelations()
+		for _, c := range activeCorrs {
+			results.Correlations = append(results.Correlations, CorrelationResult{
+				Pattern:     c.Pattern,
+				Title:       c.Title,
+				SourceCount: len(c.Sources),
+				Sources:     c.Sources, // All sources, not truncated
+				FirstSeen:   c.FirstSeen,
+				LastUpdated: c.LastUpdated,
+			})
+		}
+	}
+	results.TotalCorrelations = len(results.Correlations)
+
+	// Export all GraphSketch edges if available
+	if gsCorrelator != nil {
+		allEdges := gsCorrelator.GetLearnedEdges()
+		results.TotalEdges = len(allEdges)
+
+		for _, e := range allEdges {
+			results.Edges = append(results.Edges, EdgeResult{
+				Source1:      e.Source1,
+				Source2:      e.Source2,
+				Observations: e.Observations,
+				Frequency:    e.Frequency,
+			})
+		}
+		fmt.Printf("  - %d edges exported\n", len(results.Edges))
+	}
+
+	// Write to file
+	f, err := os.Create(config.OutputFile)
+	if err != nil {
+		fmt.Printf("Failed to create output file: %v\n", err)
+		return
+	}
+	defer f.Close()
+
+	encoder := json.NewEncoder(f)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(results); err != nil {
+		fmt.Printf("Failed to write results: %v\n", err)
+		return
+	}
+
+	fmt.Printf("Results written to: %s\n", config.OutputFile)
+	fmt.Printf("  - %d anomalies (%d unique sources)\n", results.TotalAnomalies, results.UniqueSourcesInAnomalies)
+	fmt.Printf("  - %d correlations\n", results.TotalCorrelations)
+	if results.TotalEdges > 0 {
+		fmt.Printf("  - %d edges\n", results.TotalEdges)
 	}
 }

@@ -1,0 +1,75 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 66 distinct metrics anomalied together in the same 1‑second window(s), indicating a single container-level event that simultaneously changed memory, CPU/pressure/throttling, I/O, and process/thread counts.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container experienced a sustained step-up in **anonymous memory usage** (likely a memory leak or large in-memory allocation), accompanied by increased page faults and secondary system pressure (CPU PSI/throttling and some I/O activity).
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Expected workload phase change / cache-like behavior**: a legitimate transition to a higher steady-state working set can look like a “shift” to CUSUM; without app context, it’s hard to call it pathological.  
+   - **Container restart / reconfiguration / limit change**: the cluster includes cgroup “events/procs/threads” signals; a restart or scaling event could cause broad metric shifts.  
+   - **Instrumentation/collection artifact**: 82k anomalies and “everything moves together” can occur if a sampling/labeling change or baseline-learning mismatch happened; we don’t see raw time series to confirm monotonic growth vs step change vs measurement change.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster**: `total_correlations: 1` with `source_count: 66` spanning memory, CPU, PSI, I/O, and pids.  
+   - **Large sustained memory shift** (examples):  
+     - `smaps_rollup.anonymous:avg` **18,479,085 → ~80,3xx,xxx** (**6.3σ**)  
+     - `smaps_rollup.pss_anon:avg` **18,479,085 → ~80,394,131** (**6.3σ**)  
+     - `smaps_rollup.rss:avg` **23,439,608 → ~86,842,756** (**5.7σ**)  
+     - `cgroup.v2.memory.peak:avg` **19,269,797 → ~81,666,589** (**6.2σ**)  
+   - **Memory-management stress indicators increased**:  
+     - `cgroup.v2.memory.stat.pgfault:avg` **6,745 → ~22,6xx** (**~5.2–5.3σ**)  
+     - `cgroup.v2.memory.stat.pagetables:avg` **93,685 → 235,927** (**3.9σ**)  
+     - `cgroup.v2.memory.stat.kernel:avg` **346,084 → 700,416** (**2.8σ**)  
+   - **Breadth of affected subsystems in the same time cluster**: CPU usage + `cpu.pressure.*`, throttling (`cpu.stat.*throttled*`), I/O writes (`io.stat.wbytes/wios`), and pids (`pids.current/peak`, `container.pid_count`).  
+   - **Sustained window**: correlation `first_seen: 1768261630` and `last_updated: 1768262537` (spanning many minutes), consistent with a sustained shift rather than a brief spike.

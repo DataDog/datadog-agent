@@ -1,0 +1,72 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**TimeCluster Correlator:**
+Groups metrics that anomaly at the exact same time (within 1 second).
+- Simple temporal grouping, no learning
+- Creates clusters of simultaneous anomalies
+- Good for: quick grouping during incidents
+- Fast processing, but doesn't understand relationships
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All 257 metric sources anomalied in the same 1-second windows, so the correlator formed a single giant “everything changed together” cluster; it indicates simultaneity but not a causal relationship, and is consistent with a broad state change or an instrumentation/baseline shift.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Unclear.**
+
+3. **If yes, what is it? (one sentence)**  
+   N/A
+
+4. **Confidence level (high/medium/low)**  
+   **Low.**
+
+5. **If not high confidence: alternative possibilities and why uncertain**  
+   - **Baseline/training artifact:** CUSUM “learns normal” from the first 25%; if the workload changed after that (deploy, warmup, traffic ramp), CUSUM will flag sustained “shifts” across many metrics without an actual incident.  
+   - **Metric collection change / restart / tag or identity churn:** a scrape/agent restart or container recreation can cause step-changes or new series that look like shifts across many cgroup/smaps counters simultaneously.  
+   - **Real workload shift (traffic spike or batch job):** could genuinely raise CPU and memory (including slab) across multiple containers, but the sample shows mixed magnitudes and some low-σ shifts, which makes severity hard to judge from this summary alone.  
+   Uncertain because TimeCluster groups purely by timestamp and the output doesn’t show whether user-facing symptoms (OOMs, throttling, errors, latency) occurred—only that many metrics deviated from an early baseline.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlation cluster containing all sources:** `total_correlations: 1`, cluster has `source_count: 257` titled “Correlated: 257 anomalies in time window”.  
+   - **Huge anomaly volume and breadth:** `total_anomalies: 270861`, `unique_sources_in_anomalies: 257`.  
+   - **Sustained “shift” style anomalies across CPU + memory + pids:** e.g.  
+     - `kernel_cpu_percentage:avg shifted: 0.16 → 1.46 (7.3σ)` (todo-backend)  
+     - `system_cpu_percentage:avg shifted: 0.03 → 0.34 (3.8σ)` (todo-redis)  
+     - `cgroup.v2.memory.stat.slab:avg shifted: 40150 → 237517` and `slab_unreclaimable` increase (todo-redis)  
+     - `cgroup.v2.pids.current:avg shifted: 1.01 → 6.00 (2.2σ)` (todo-redis)  
+   - **Time span suggests a long-running regime change rather than a brief incident:** cluster `first_seen: 1768514043`, `last_updated: 1768514634` (~10 minutes).

@@ -1,0 +1,72 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1. **What do the correlations tell you?**  
+   All detected anomalies largely move together as one big cluster (66 metrics), meaning the system sees a single “event” affecting CPU usage/throttling/pressure, memory (anon/file/slab), PIDs/threads, and some I/O at the same time—so it’s not isolated noise in one metric.
+
+2. **Is there a problem? (yes/no/unclear)**  
+   **Yes.**
+
+3. **If yes, what is it? (one sentence)**  
+   The container experienced a sustained workload change that sharply increased CPU usage (especially kernel/system time) alongside a large rise in anonymous memory (RSS/anon), causing CPU contention/throttling and memory pressure.
+
+4. **Confidence level (high/medium/low)**  
+   **Medium.**
+
+5. **If not high confidence: alternative possibilities & why uncertain**  
+   - **Legitimate step-change in workload/traffic** rather than a fault: many metrics shift together, but the data doesn’t show app-level errors/latency.  
+   - **Configuration/limit change** (CPU/memory limits, weight/nice) driving new throttling behavior: `memory.max` and `cpu.weight.nice` shift, but we can’t confirm an actual spec change vs measurement artifact.  
+   - **Container restart / process model change**: pids/procs/threads metrics anomaly with others, but there’s no explicit restart/OOM-kill signal shown.  
+   Uncertainty is because CUSUM reports “shift from baseline” (not necessarily bad) and we don’t have outcomes (OOM kills, latency, failures) or absolute limit context.
+
+6. **Supporting evidence (from the data)**  
+   - **Single correlated cluster across 66 sources**: `total_correlations: 1`, cluster includes CPU pressure/throttling, memory current/peak/max, smaps RSS/PSS, pids/procs/threads.  
+   - **CPU usage jump**: `cgroup.v2.cpu.stat.usage_usec:avg 5112.81 → 64695.17 (3.5σ)`; **system time** `2293.39 → 44878.00 (7.8σ)`.  
+   - **CPU throttling/pressure anomalies**: `nr_throttled`, `throttled_usec`, multiple `cpu.pressure.*` metrics in the correlated set; high-frequency edges among throttling/pressure metrics.  
+   - **Anonymous memory growth**: `cgroup.v2.memory.stat.anon:avg 6.36M → 28.6M (4.2σ)`, `active_anon` similar; `cgroup.v2.memory.peak` `6.9M → 29.4M (3.9σ)`.  
+   - **Memory limit/setting shift**: `cgroup.v2.memory.max:avg 160,259,973.73 → 268,435,456.00`.  
+   - **Process/thread activity changes**: `cgroup.v2.pids.peak 4.78 → 8.00`, `cgroup.v2.cgroup.procs` shifted; strong edge `memory.stat.kernel_stack ↔ pids.current` (17,484 observations).  
+   - **Large smaps change**: `smaps_rollup.shared_clean:avg 64,252 → 4,143,104 (8.1σ)` indicating a major memory mapping/cache footprint change concurrent with the event.

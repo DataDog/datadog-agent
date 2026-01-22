@@ -22,12 +22,15 @@ func main() {
 	lightESD := flag.Bool("lightesd", false, "enable LightESD statistical outlier detector")
 	graphSketch := flag.Bool("graphsketch", false, "enable GraphSketch edge anomaly detector")
 
-	// Layer 2 processors
-	ffade := flag.Bool("ffade", false, "enable F-FADE frequency-based anomaly detector")
-
-	// Correlator selection (mutually exclusive)
+	// Correlator selection
 	timeClusterCorrelator := flag.Bool("time-cluster", true, "use TimeClusterCorrelator to group anomalies by timestamp proximity")
 	graphSketchCorrelator := flag.Bool("graphsketch-correlator", false, "use GraphSketchCorrelator to group anomalies by co-occurrence patterns")
+
+	// Output
+	outputFile := flag.String("output", "", "path to write JSON results (anomalies + correlations)")
+
+	// Processing mode
+	processAll := flag.Bool("all", false, "process all parquet data without time limit")
 
 	flag.Parse()
 
@@ -46,8 +49,9 @@ func main() {
 		EnableCUSUM:                 enableCUSUM,
 		EnableLightESD:              *lightESD,
 		EnableGraphSketch:           *graphSketch,
-		EnableFFADE:                 *ffade,
 		UseTimeClusterCorrelator:    *timeClusterCorrelator,
 		EnableGraphSketchCorrelator: *graphSketchCorrelator,
+		OutputFile:                  *outputFile,
+		ProcessAllData:              *processAll,
 	})
 }

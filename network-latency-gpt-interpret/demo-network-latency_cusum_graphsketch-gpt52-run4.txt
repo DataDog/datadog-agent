@@ -1,0 +1,77 @@
+============================================================
+PROMPT (context only, JSON data omitted):
+============================================================
+This is anomaly detection output from Linux container metrics (cgroup v2, smaps, CPU, memory, I/O).
+
+The data was processed by two components:
+1. An anomaly detector (identifies abnormal metric values)
+2. A correlator (groups anomalies that occur together)
+
+
+**CUSUM Detector:**
+Detects sustained shifts from baseline using cumulative sum of deviations.
+- Learns "normal" from first 25% of data
+- Accumulates "debt" when values deviate from normal
+- Triggers when cumulative deviation exceeds threshold
+- Good for: gradual changes, memory leaks, sustained CPU increases
+- Not good for: brief spikes that quickly return to normal
+
+
+**GraphSketch Correlator:**
+Learns which metrics frequently anomaly together over time.
+- Tracks "edges" (pairs of metrics that co-occur within 10 seconds)
+- Counts co-occurrence frequency with time decay (recent matters more)
+- Reports edges with observation counts and frequency scores
+- Good for: finding root causes, understanding metric relationships
+- Slower processing, learns patterns over time
+
+
+**JSON fields:**
+- total_anomalies: How many anomaly events were detected
+- unique_sources_in_anomalies: How many different metrics had anomalies
+- correlations: Groups of metrics that anomalied together
+- edges (if GraphSketch): Pairs of metrics and how often they co-occurred
+- sample_anomalies: A few example anomalies for context
+
+
+[JSON data omitted]
+
+Be concise. Answer: 1. What do correlations mean? 2. Problem? 3. What? 4. Confidence 5. If uncertain, alternatives? 6. Evidence
+============================================================
+
+Analyzing with gpt-5.2-2025-12-11...
+
+============================================================
+RESPONSE:
+============================================================
+1) **What do the correlations tell you?**  
+All detected anomalies collapse into a single large co-occurring cluster (171 metrics) spanning CPU pressure/throttling, memory pressure/stat/events (including OOM), I/O pressure, pids, and smaps—i.e., one container experienced a broad, simultaneous resource-stress episode rather than isolated metric glitches.
+
+2) **Is there a problem?**  
+Yes.
+
+3) **If yes, what is it? (one sentence)**  
+The `cleanup` container (BestEffort) hit severe memory pressure culminating in OOM/oom_group_kill, with accompanying CPU pressure and other resource contention signals.
+
+4) **Confidence level**  
+High.
+
+5) **If not high confidence: alternative possibilities and uncertainty**  
+N/A.
+
+6) **Supporting evidence (from the data)**  
+- Memory OOM signals:  
+  - `cgroup.v2.memory.events.local.oom:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.events.local.oom_group_kill:count shifted: 1.00 → 2.00 (10.0σ)` (appears multiple times)  
+- Memory pressure signals:  
+  - `cgroup.v2.memory.pressure.some.avg10:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.pressure.some.avg300:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.memory.events.local.high:count shifted: 1.00 → 2.00 (10.0σ)`  
+- CPU contention signals:  
+  - `cgroup.v2.cpu.pressure.full.avg60:count shifted: 1.00 → 2.00 (10.0σ)`  
+  - `cgroup.v2.cpu.pressure.full.avg10:count shifted: 1.00 → 2.00 (10.0σ)`  
+- Process/resource stress indicator:  
+  - `cgroup.v2.pids.peak:count shifted: 1.00 → 2.00 (10.0σ)`  
+- Correlator output indicates one unified event across the system’s resource subsystems:  
+  - Single correlation: `graphsketch_cluster_0` with **171 sources**; title explicitly links `...frozen...` ↔ `...memory.events.oom...` and includes CPU/memory/I/O pressure metrics.  
+- Scoped to a single workload: tags on sample anomalies consistently point to `container_name:cleanup`, `qos_class:BestEffort`, same namespace/pod/container_id.
