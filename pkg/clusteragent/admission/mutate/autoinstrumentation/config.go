@@ -75,6 +75,10 @@ type Config struct {
 	// This is used for picking a default service name for a given pod,
 	// see [[serviceNameMutator]].
 	podMetaAsTags podMetaAsTags
+
+	// csiEnabled indicates if CSI injection is enabled in the cluster agent configuration.
+	// When false, CSI mode requests will fall back to init_container mode.
+	csiEnabled bool
 }
 
 var excludedContainerNames = map[string]bool{
@@ -110,6 +114,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 
 	containerRegistry := mutatecommon.ContainerRegistry(datadogConfig, "admission_controller.auto_instrumentation.container_registry")
 	mutateUnlabelled := datadogConfig.GetBool("admission_controller.mutate_unlabelled")
+	csiEnabled := datadogConfig.GetBool("csi.enabled")
 
 	return &Config{
 		Webhook:                       NewWebhookConfig(datadogConfig),
@@ -124,6 +129,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 		profilingClientLibraryMutator: profilingClientLibraryConfigMutators(datadogConfig),
 		containerFilter:               excludedContainerNamesContainerFilter,
 		podMetaAsTags:                 getPodMetaAsTags(datadogConfig),
+		csiEnabled:                    csiEnabled,
 	}, nil
 }
 
