@@ -955,6 +955,10 @@ func TestActionKillContainerWithSignature(t *testing.T) {
 		t.Skip("Skip test spawning docker containers on docker")
 	}
 
+	checkKernelCompatibility(t, "skip on CentOS7", func(kv *kernel.Version) bool {
+		return kv.IsRH7Kernel()
+	})
+
 	if _, err := whichNonFatal("docker"); err != nil {
 		t.Skip("Skip test where docker is unavailable")
 	}
