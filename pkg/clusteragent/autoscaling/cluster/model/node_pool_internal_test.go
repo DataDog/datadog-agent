@@ -397,6 +397,99 @@ func TestBuildNodePoolPatch(t *testing.T) {
 			},
 		},
 		{
+			name: "instance type requirements operator has changed",
+			minNodePool: NodePoolInternal{
+				name:                     "default",
+				recommendedInstanceTypes: []string{"m5.large", "t3.micro"},
+				labels:                   map[string]string{"kubernetes.io/arch": "amd64", "kubernetes.io/os": "linux"},
+				taints: []corev1.Taint{
+					{
+						Key:    "node",
+						Value:  "test",
+						Effect: corev1.TaintEffectNoSchedule,
+					},
+				},
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Taints: []corev1.Taint{
+								{
+									Key:    "node",
+									Value:  "test",
+									Effect: corev1.TaintEffectNoSchedule,
+								},
+							},
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/arch",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"amd64"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      "kubernetes.io/os",
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"linux"},
+									},
+								},
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpNotIn,
+										Values:   []string{"m5.large", "t3.micro"},
+									},
+								},
+							},
+							NodeClassRef: &karpenterv1.NodeClassReference{
+								Kind:  "EC2NodeClass",
+								Name:  "default",
+								Group: "karpenter.k8s.aws",
+							},
+						},
+					},
+				},
+			},
+			expectedPatch: map[string]any{
+				"metadata": map[string]any{
+					"labels": map[string]any{
+						datadogModifiedLabelKey: "true",
+					},
+				},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]string{
+								kubernetes.AutoscalingLabelKey: "true",
+							},
+						},
+						"spec": map[string]any{
+							"requirements": []map[string]any{
+								{
+									"key":      "kubernetes.io/arch",
+									"operator": "In",
+									"values":   []string{"amd64"},
+								},
+								{
+									"key":      "kubernetes.io/os",
+									"operator": "In",
+									"values":   []string{"linux"},
+								},
+								{
+									"key":      corev1.LabelInstanceTypeStable,
+									"operator": "In",
+									"values":   []string{"m5.large", "t3.micro"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "instance type requirements have not changed",
 			minNodePool: NodePoolInternal{
 				name:                     "default",

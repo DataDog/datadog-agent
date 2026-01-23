@@ -8,8 +8,6 @@
 package model
 
 import (
-	"slices"
-
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -277,15 +275,14 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
 			instanceTypeLabelExists = true
-			r.Operator = "In"
-			originalInstanceTypes := r.Values
-			recommendedInstanceTypes := npi.RecommendedInstanceTypes()
-			slices.Sort(originalInstanceTypes)
-			slices.Sort(recommendedInstanceTypes)
-
-			if !slices.Equal(originalInstanceTypes, recommendedInstanceTypes) {
+			if r.Operator != corev1.NodeSelectorOpIn {
 				isUpdated = true
-				r.Values = recommendedInstanceTypes
+				r.Operator = corev1.NodeSelectorOpIn
+			}
+
+			if !areSlicesEqual(r.Values, npi.RecommendedInstanceTypes()) {
+				isUpdated = true
+				r.Values = npi.RecommendedInstanceTypes()
 			}
 		}
 
@@ -330,4 +327,22 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	}
 
 	return patchData
+}
+
+// areSlicesEqual returns true if the two string slices contain the same elements regardless of order
+func areSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	set := make(map[string]bool)
+	for _, v := range a {
+		set[v] = true
+	}
+	for _, v := range b {
+		if !set[v] {
+			return false
+		}
+	}
+	return true
 }
