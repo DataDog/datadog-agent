@@ -39,7 +39,7 @@ func (mr *NoOpResolver) SyncCacheFromListMount() error {
 }
 
 // Delete a mount from the cache
-func (mr *NoOpResolver) Delete(_ uint32) error {
+func (mr *NoOpResolver) Delete(_ uint32, _ uint64) error {
 	return nil
 }
 
