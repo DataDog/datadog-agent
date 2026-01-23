@@ -299,17 +299,15 @@ func PrepareTracerPayload(tp *idx.TracerPayload) *PreparedTracerPayload {
 
 // PrepareTracerPayloadWithChunks creates a PreparedTracerPayload using only
 // a subset of chunks from the source payload. This is useful for splitting
-// large payloads while reusing the string table.
+// large payloads while reusing the string table. PreparedTracerPayloads must not be modified to avoid race conditions.
 func PrepareTracerPayloadWithChunks(source *idx.TracerPayload, chunks []*idx.TraceChunk) *PreparedTracerPayload {
 	if source == nil {
 		return &PreparedTracerPayload{Payload: nil, compactor: nil, Size: 0}
 	}
 	// Create a new TracerPayload with the same metadata but only the specified chunks
-	// We copy the strings table to avoid modifying the original payload during compaction
-	newStrings := make([]string, len(source.Strings))
-	copy(newStrings, source.Strings)
+	// The resulting TP must not have any strings modified after this point.
 	tp := &idx.TracerPayload{
-		Strings:            newStrings,
+		Strings:            source.Strings,
 		ContainerIDRef:     source.ContainerIDRef,
 		LanguageNameRef:    source.LanguageNameRef,
 		LanguageVersionRef: source.LanguageVersionRef,
