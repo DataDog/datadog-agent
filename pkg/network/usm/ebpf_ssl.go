@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -552,7 +553,11 @@ func newSSLProgramProtocolFactory(m *manager.Manager, c *config.Config) (protoco
 	}
 
 	var err error
-	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, monitor.GetProcessMonitor())
+	o.attacher, err = uprobes.NewUprobeAttacher(consts.USMModuleName, UsmTLSAttacherName, attacherConfig, m, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: monitor.GetProcessMonitor(),
+		Telemetry:      telemetry.GetCompatComponent(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("error initializing uprobes attacher: %s", err)
 	}
