@@ -48,8 +48,7 @@ const (
 
 	// InstallPath is the default install path for the agent
 	// It might be overridden at build time
-	installPath = "/opt/datadog-agent"
-	runPath     = "/opt/datadog-agent/run"
+	defaultInstallPath = "/opt/datadog-agent"
 
 	// PID file path
 	pidFilePath = "/var/run/datadog/datadog-agent.pid"
@@ -71,8 +70,6 @@ const (
 	DefaultSystemProbeLogFile   = systemProbeLogFile
 	DefaultStatsdSocket         = statsdSocket
 	DefaultReceiverSocket       = receiverSocket
-	DefaultRunPath              = runPath
-	InstallPath                 = installPath
 )
 
 var (
@@ -82,7 +79,8 @@ var (
 	pyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// distPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
-	runPath  = filepath.Join(GetInstallPath(), "run")
+	// runPath is dependent on the InstallPath of the agent
+	runPath = filepath.Join(GetInstallPath(), "run")
 )
 
 // Config path getters
@@ -277,5 +275,5 @@ func GetInstallPathFromExecutable(start string) string {
 		}
 		currentDir = parentDir
 	}
-	return InstallPath // Fallback to the default install path
+	return defaultInstallPath // Fallback to the default install path
 }

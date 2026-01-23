@@ -8,7 +8,6 @@
 package setup
 
 import (
-	"os"
 	"path/filepath"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -63,7 +62,7 @@ func osinit() {
 		log.Errorf("Failed to get executable path: %v", err)
 		return
 	}
-	InstallPath = defaultpaths.GetInstallPathFromExecutable(_here)
+	InstallPath = defaultpaths.GetInstallPath()
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
