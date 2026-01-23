@@ -105,13 +105,6 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         self.make_test(changed_files, expected_labels)
 
-    def test_multiple_files_single_team_best(self):
-        # agent-platform has more files than security so only one team will be assigned
-        changed_files = ['.gitignore', '.gitlab-ci.yml', '.gitlab/security.yml']
-        expected_labels = ['team/team-everything']
-
-        self.make_test(changed_files, expected_labels)
-
     def test_multiple_files_multiple_teams(self):
         changed_files = ['.gitignore', '.gitlab/security.yml']
         expected_labels = ['team/team-everything', 'team/team-b']
@@ -124,21 +117,15 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         self.make_test(changed_files, expected_labels, pr_labels=['qa/done'])
 
-    def test_skip_has_team_label(self):
-        changed_files = ['.gitignore']
-        expected_labels = ['team/team-a']
-
-        self.make_test(changed_files, expected_labels, pr_labels=['team/team-a'])
-
     def test_invalid_team_label(self):
         changed_files = ['.gitignore']
         expected_labels = []
 
         self.make_test(changed_files, expected_labels, possible_labels=['team/team-doc'])
 
-    def test_remove_triage_label(self):
+    def test_remove_triage_label_extend_teams(self):
         changed_files = ['.gitignore']
-        expected_labels = ['team/team-a']
+        expected_labels = ['team/team-a', 'team/team-everything']
 
         self.make_test(changed_files, expected_labels, pr_labels=['team/triage', 'team/team-a'])
 
