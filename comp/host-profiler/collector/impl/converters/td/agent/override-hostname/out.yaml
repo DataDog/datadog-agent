@@ -6,6 +6,14 @@ processors:
     infraattributes:
         allow_hostname_override: true
         some_config: value
+    resource/default:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: host_profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
 receivers:
     hostprofiler:
         symbol_uploader:
@@ -17,5 +25,6 @@ service:
                 - otlphttp
             processors:
                 - infraattributes
+                - resource/default
             receivers:
                 - hostprofiler
