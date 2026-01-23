@@ -10,6 +10,9 @@
 package imageresolver
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
