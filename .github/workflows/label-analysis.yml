@@ -3,89 +3,133 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [labeled, unlabeled]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
+  workflow_run:
+    workflows: ["Add labels to PR", "Add labels to community PRs"]
+    types: [completed]
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  GH_REPO: ${{ github.repository }}
 
 permissions: {}
 
 jobs:
-  assign-team-label:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
+  get-pr-context:
+    if: |
+      (github.event_name == 'pull_request' && github.triggering_actor != 'dd-devflow[bot]') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    outputs:
+      PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+      HEAD_REF: ${{ steps.context.outputs.head_ref }}
+      IS_FORK: ${{ steps.context.outputs.is_fork }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - name: Install dda
-        uses: ./.github/actions/install-dda
-        with:
-          features: legacy-tasks
-      - name: Auto assign team label
-        env:
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
-      - name: Add the internal label
+      - name: Get PR number from artifact (workflow_run)
+        if: github.event_name == 'workflow_run'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.issues.addLabels({
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: process.env.PR_ID,
-              labels: ['internal']
+              run_id: ${{ github.event.workflow_run.id }},
             });
+            const matchArtifact = artifacts.data.artifacts.find(artifact => artifact.name === 'pr_number');
+            if (!matchArtifact) {
+              core.setFailed('No pr_number artifact found');
+              return;
+            }
+            const download = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: matchArtifact.id,
+              archive_format: 'zip',
+            });
+            const fs = require('fs');
+            fs.writeFileSync('${{ github.workspace }}/pr_number.zip', Buffer.from(download.data));
+      - name: Extract PR number artifact
+        if: github.event_name == 'workflow_run'
+        run: unzip pr_number.zip
+      - name: Get PR context
+        id: context
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+              echo "is_fork=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_fork=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            pr_number=$(cat pr_number.txt)
+            echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+            echo "head_ref=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+            if [[ "${{ github.event.workflow_run.head_repository.full_name }}" != "${{ github.repository }}" ]]; then
+              echo "is_fork=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "is_fork=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
   release-note-check:
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    needs: get-pr-context
     runs-on: ubuntu-latest
     steps:
+      # Checkout base repo for trusted code (tasks, dda install)
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: main
           fetch-depth: 0
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/actions/install-dda
+            tasks
           persist-credentials: false
+      # Fetch and checkout only releasenotes folders from PR (data only, no code execution)
+      # Using refs/pull/NUMBER/head works for both fork and non-fork PRs
+      - name: Fetch PR head
+        run: git fetch origin "refs/pull/${{ needs.get-pr-context.outputs.PR_NUMBER }}/head"
+      - name: Checkout releasenotes from PR
+        run: git checkout FETCH_HEAD -- releasenotes releasenotes-dca releasenotes-installscript 2>/dev/null || true
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
       - name: Check release note
         env:
-          BRANCH_NAME: ${{ github.head_ref }}
-          PR_ID: ${{ github.event.pull_request.number }}
+          BRANCH_NAME: ${{ needs.get-pr-context.outputs.HEAD_REF }}
+          PR_ID: ${{ needs.get-pr-context.outputs.PR_NUMBER }}
         run: dda inv -- -e linter.releasenote
+
   fetch-labels:
-    needs: assign-team-label
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    needs: get-pr-context
     runs-on: ubuntu-latest
     outputs:
       LABELS: ${{ steps.pr-labels.outputs.LABELS }}
     steps:
       - name: Get PR labels
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_NUMBER: ${{ github.event.number }}
         id: pr-labels
+        env:
+          PR_NUMBER: ${{ needs.get-pr-context.outputs.PR_NUMBER }}
         run: |
           labels="$(curl --retry 4 -fsSL \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$GH_REPO/pulls/$PR_NUMBER" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/$PR_NUMBER" \
             | jq -r '[.labels[].name] | join(" ")')"
-          echo "Fetched labels for PR $EVENT_NUMBER: $labels"
+          echo "Fetched labels for PR $PR_NUMBER: $labels"
           echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
+
   team-label-check:
-    needs: fetch-labels
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    needs: [get-pr-context, fetch-labels]
     runs-on: ubuntu-latest
     steps:
       - name: Check team assignment
@@ -100,18 +144,23 @@ jobs:
               exit 0
             fi
           done
-          echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
+          echo "PR ${{ needs.get-pr-context.outputs.PR_NUMBER }} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
+
   skip-qa-check:
-    needs: fetch-labels
-    if: github.triggering_actor != 'dd-devflow[bot]'
+    needs: [get-pr-context, fetch-labels]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
+          ref: main
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/actions/install-dda
+            tasks
           persist-credentials: false
       - name: Install dda
         uses: ./.github/actions/install-dda
@@ -119,21 +168,22 @@ jobs:
           features: legacy-tasks
       - name: Check qa/[done|no-code-change] labels are not set together
         env:
-          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS }}
         run: |
           dda inv -- -e github.check-qa-labels --labels "${LABELS[@]}"
 
   agenttelemetry-list-change-ack-check:
-    if: github.triggering_actor != 'dd-devflow[bot]' && github.event.pull_request.head.repo.full_name == github.repository # Run only on non-fork PRs
+    needs: get-pr-context
+    if: needs.get-pr-context.outputs.IS_FORK == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ needs.get-pr-context.outputs.HEAD_REF }}
       - name: Install dda
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
       - name: Check agent telemetry metric list
-        run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ github.event.pull_request.number }}
+        run: dda inv -- -e github.agenttelemetry-list-change-ack-check --pr-id=${{ needs.get-pr-context.outputs.PR_NUMBER }}
