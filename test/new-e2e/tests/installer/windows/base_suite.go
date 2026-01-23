@@ -6,12 +6,13 @@
 package installer
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -472,7 +473,7 @@ func (s *BaseSuite) MustStartExperimentPreviousVersion() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.startExperimentPreviousVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -564,7 +565,7 @@ func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.WaitForDaemonToStop(func() {
 		_, err := s.StartExperimentCurrentVersion()
 		s.Require().NoError(err, "daemon should stop cleanly")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 10))
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(10))
 
 	// Assert
 	// have to wait for experiment to finish installing
@@ -613,30 +614,31 @@ func (s *BaseSuite) AssertSuccessfulAgentPromoteExperiment(version string) {
 func (s *BaseSuite) WaitForInstallerService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
-	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
+	return s.WaitForServicesWithBackoff(state, []string{consts.ServiceName}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 }
 
 // WaitForAgentService waits for the Datadog Agent service to be in the expected state
 func (s *BaseSuite) WaitForAgentService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
-	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), "datadogagent")
+	return s.WaitForServicesWithBackoff(state, []string{"datadogagent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
-func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, services ...string) error {
-	return backoff.Retry(func() error {
+func (s *BaseSuite) WaitForServicesWithBackoff(state string, services []string, opts ...backoff.RetryOption) error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		for _, service := range services {
 			status, err := windowscommon.GetServiceStatus(s.Env().RemoteHost, service)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			if !strings.Contains(status, state) {
-				return fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
+				return nil, fmt.Errorf("service %s is not in state %s, status: %s", service, state, status)
 			}
 		}
-		return nil
-	}, b)
+		return nil, nil
+	}, opts...)
+	return err
 }
 
 // AssertSuccessfulConfigStartExperiment that config experiment started successfully
@@ -680,7 +682,7 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 }
 
 // WaitForDaemonToStop waits for the daemon service PID or start time to change after the function is called.
-func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
+func (s *BaseSuite) WaitForDaemonToStop(f func(), opts ...backoff.RetryOption) {
 	s.T().Helper()
 
 	// service must be running before we can get the PID
@@ -700,25 +702,25 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 
 	f()
 
-	err = backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (any, error) {
 		newPID, err := windowscommon.GetServicePID(s.Env().RemoteHost, consts.ServiceName)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if newPID != originalPID {
 			// PID changed, the daemon has restarted
-			return nil
+			return nil, nil
 		}
 		// PID is the same, check if start time changed (in case of PID reuse)
 		newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if newStartTime != originalStartTime {
 			// Start time changed, the daemon has restarted with the same PID
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("daemon PID %d with start time %d is still running", newPID, newStartTime)
-	}, b)
+		return nil, fmt.Errorf("daemon PID %d with start time %d is still running", newPID, newStartTime)
+	}, opts...)
 	s.Require().NoError(err)
 }
