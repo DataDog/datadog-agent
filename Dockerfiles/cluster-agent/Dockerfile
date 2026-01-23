@@ -1,7 +1,8 @@
 ARG BASE_IMAGE_UBUNTU_VERSION=24.04
 ARG BASE_IMAGE_UBUNTU_NAME=noble
+ARG BASE_IMAGE_REGISTRY=docker.io
 
-FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
+FROM ${BASE_IMAGE_REGISTRY}/ubuntu:$BASE_IMAGE_UBUNTU_VERSION AS nosys-seccomp
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
