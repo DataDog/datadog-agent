@@ -68,6 +68,39 @@ func TestNewConfig(t *testing.T) {
 				InitRetryDelay: 1 * time.Second,
 			},
 		},
+		{
+			name: "configured_bucket_id",
+			configFactory: func(t *testing.T) config.Component {
+				mockConfig := config.NewMock(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890")
+				return mockConfig
+			},
+			expectedState: Config{
+				Site:           "datadoghq.com",
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				RCClient:       nil,
+				MaxInitRetries: 5,
+				InitRetryDelay: 1 * time.Second,
+				BucketID:       "1",
+			},
+		},
+		{
+			name: "missing_api_key",
+			configFactory: func(t *testing.T) config.Component {
+				mockConfig := config.NewMock(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				return mockConfig
+			},
+			expectedState: Config{
+				Site:           "datadoghq.com",
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				RCClient:       nil,
+				MaxInitRetries: 5,
+				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
+			},
+		},
 	}
 
 	for _, tt := range tests {

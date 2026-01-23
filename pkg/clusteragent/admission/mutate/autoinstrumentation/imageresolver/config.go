@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
+const (
+	rolloutBucketCount = 10 // Max number of buckets for gradual rollout
+)
+
 // RemoteConfigClient defines the interface we need for remote config operations
 type RemoteConfigClient interface {
 	GetConfigs(product string) map[string]state.RawConfig
@@ -29,6 +33,16 @@ type Config struct {
 	RCClient       RemoteConfigClient
 	MaxInitRetries int
 	InitRetryDelay time.Duration
+	BucketID       string
+}
+
+func calculateRolloutBucket(apiKey string) string {
+	if apiKey == "" {
+		return "0"
+	}
+	hash := sha256.Sum256([]byte(apiKey))
+	hashInt := binary.BigEndian.Uint64(hash[:8])
+	return strconv.Itoa(int(hashInt % rolloutBucketCount))
 }
 
 // NewConfig creates a new Config
@@ -39,5 +53,6 @@ func NewConfig(cfg config.Component, rcClient RemoteConfigClient) Config {
 		RCClient:       rcClient,
 		MaxInitRetries: 5,
 		InitRetryDelay: 1 * time.Second,
+		BucketID:       calculateRolloutBucket(cfg.GetString("api_key")),
 	}
 }
