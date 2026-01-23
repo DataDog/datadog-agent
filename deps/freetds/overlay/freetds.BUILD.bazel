@@ -213,11 +213,7 @@ cc_library(
 cc_shared_library(
     name = "tdsodbc_so",
     deps = [":tdsodbc"],
-<<<<<<< HEAD
-    # The versioned file
     shared_lib_name = "libtdsocbc.so",
-=======
->>>>>>> main
     dynamic_deps = [
         "@unixodbc//:libodbc_so",
     ],
