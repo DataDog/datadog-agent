@@ -60,6 +60,18 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 				Timestamp: 1767709263,
 			},
 		},
+		{
+			name:                      "TMOS",
+			profile:                   DefaultProfile("tmos"),
+			fixture:                   loadFixture("tmos", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
+		{
+			name:                      "AOSCX",
+			profile:                   DefaultProfile("aoscx"),
+			fixture:                   loadFixture("aoscx", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -98,6 +110,12 @@ func Test_DefaultProfiles_Startup(t *testing.T) {
 			expectedExtractedMetadata: &ExtractedMetadata{
 				Timestamp: 1767899167,
 			},
+		},
+		{
+			name:                      "AOSCX",
+			profile:                   DefaultProfile("aoscx"),
+			fixture:                   loadFixture("aoscx", Startup),
+			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
 	}
 	for _, tt := range tests {

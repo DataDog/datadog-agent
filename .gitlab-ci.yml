@@ -864,10 +864,13 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - .gitlab/**/*
+        - .gitlab/deploy/**/*
+        - .gitlab/test/e2e_install_packages/**/*
+        - .gitlab/test/e2e/e2e.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
+        - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
       compare_to: $COMPARE_TO_BRANCH
@@ -959,7 +962,12 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
+        - cmd/agent/**/*
+        - cmd/installer/**/*
+        - cmd/process-agent/**/*
+        - cmd/security-agent/**/*
+        - cmd/system-probe/**/*
+        - cmd/trace-agent/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
@@ -1172,6 +1180,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_releasenotes_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - releasenotes/notes/**/*.yaml
+        - releasenotes-dca/notes/**/*.yaml
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
