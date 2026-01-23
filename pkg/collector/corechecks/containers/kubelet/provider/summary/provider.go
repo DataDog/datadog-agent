@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/google/uuid"
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -115,16 +116,20 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		podUID := podStats.PodRef.UID
 		podData, err := p.store.GetKubernetesPod(podUID) //from workloadmeta store
 		if err != nil || podData == nil {
-			// Edge case for static pods running on the node.
-			// When kubelet_use_api_server is enabled, workloadmeta gets pod data from the API server
-			// which uses the canonical pod UID e.g., 85a6cc02-4460-....
-			// However, /stats/summary always comes from the kubelet
-			// which uses the mirror pod hash 9b3c1a2d... for static pods. This causes a UID mismatch.
-			// In this case, fall back to lookup by name/namespace.
-			if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+			if !pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+				log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
+				continue
+			}
+			// Edge case for static pods when kubelet_use_api_server is enabled.
+			// Workloadmeta gets pod data from the API server which uses the canonical
+			// pod UID (e.g., 85a6cc02-4460-4f8a-b5f0-...), but /stats/summary comes
+			// from kubelet which uses the mirror pod hash (e.g., 9b3c1a2d4e5f...).
+			// We detect mirror hashes by checking if the UID is not a valid UUID,
+			// then fall back to lookup by name/namespace.
+			if _, parseErr := uuid.Parse(podUID); parseErr != nil {
 				podData, err = p.store.GetKubernetesPodByName(podStats.PodRef.Name, podStats.PodRef.Namespace)
 				if err != nil || podData == nil {
-					log.Infof("Couldn't get pod data from workloadmeta store for pod %s/%s (uid=%s), error = %v",
+					log.Infof("Couldn't get static pod data from workloadmeta store for pod %s/%s (uid=%s) with kubelet_use_api_server enabled, error = %v",
 						podStats.PodRef.Namespace, podStats.PodRef.Name, podStats.PodRef.UID, err)
 					continue
 				}
