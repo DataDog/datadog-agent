@@ -49,6 +49,7 @@ func (c *craneCache) Get(registry string, repository string, tag string) (*Resol
 			},
 			WhenCached: time.Now(),
 		}
+		return c.cache[repository][tag].ResolvedImage, true
 	}
 	return nil, false
 }
