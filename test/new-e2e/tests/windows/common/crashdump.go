@@ -6,13 +6,15 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
-	"github.com/cenkalti/backoff/v4"
 )
 
 const (
@@ -245,20 +247,21 @@ func waitForRebootFunc(host *components.RemoteHost, b backoff.BackOff, rebootFun
 		return fmt.Errorf("failed to reboot: %w", err)
 	}
 
-	return backoff.Retry(func() error {
+	_, err = backoff.Retry(context.Background(), func() (any, error) {
 		err := host.Reconnect()
 		if err != nil {
-			return err
+			return nil, err
 		}
 		out, err = host.Execute("(Get-CimInstance Win32_OperatingSystem).LastBootUpTime")
 		if err != nil {
-			return err
+			return nil, err
 		}
 		bootTime := strings.TrimSpace(out)
 		fmt.Println("current boot time:", bootTime)
 		if bootTime == lastBootTime {
-			return errors.New("boot time has not changed")
+			return nil, errors.New("boot time has not changed")
 		}
-		return nil
-	}, b)
+		return nil, nil
+	}, backoff.WithBackOff(b))
+	return err
 }

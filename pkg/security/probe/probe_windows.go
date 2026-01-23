@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	lru "github.com/hashicorp/golang-lru/v2"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -1147,16 +1147,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	event.PIDContext.Pid = pid
-	err := backoff.Retry(func() error {
+	_, err := backoff.Retry(context.Background(), func() (any, error) {
 		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, nil)
 		event.ProcessCacheEntry = entry
 		// use ProcessCacheEntry process context as process context
 		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 		if !isResolved {
-			return fmt.Errorf("could not resolve process for Process: %v", pid)
+			return nil, fmt.Errorf("could not resolve process for Process: %v", pid)
 		}
-		return nil
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
+		return nil, nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(50*time.Millisecond)), backoff.WithMaxTries(5))
 
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
