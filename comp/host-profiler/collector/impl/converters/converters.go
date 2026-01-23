@@ -284,19 +284,6 @@ func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
 	return nil
 }
 
-var (
-	profilerNameResourceProcessorElement = confMap{
-		"key":    "profiler_name",
-		"value":  "host_profiler",
-		"action": "upsert",
-	}
-	profilerVersionResourceProcessorElement = confMap{
-		"key":    "profiler_version",
-		"value":  version.AgentPackageVersion,
-		"action": "upsert",
-	}
-)
-
 func addProfilerMetadataTags(conf confMap) error {
 	processors, err := Ensure[[]any](conf, "service::pipelines::profiles::processors")
 	if err != nil {
@@ -324,8 +311,20 @@ func addProfilerMetadataTags(conf confMap) error {
 	if err != nil {
 		return err
 	}
-	attributes = append(attributes, profilerNameResourceProcessorElement)
-	attributes = append(attributes, profilerVersionResourceProcessorElement)
+
+	profilerNameElement := confMap{
+		"key":    "profiler_name",
+		"value":  "host_profiler",
+		"action": "upsert",
+	}
+	profilerVersionElement := confMap{
+		"key":    "profiler_version",
+		"value":  version.AgentPackageVersion,
+		"action": "upsert",
+	}
+
+	attributes = append(attributes, profilerNameElement)
+	attributes = append(attributes, profilerVersionElement)
 	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
 		return err
 	}

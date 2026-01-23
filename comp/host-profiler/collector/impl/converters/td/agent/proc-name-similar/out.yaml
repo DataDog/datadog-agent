@@ -8,6 +8,14 @@ processors:
         allow_hostname_override: true
     infraattributes_custom: {}
     myresourcedetection: {}
+    resource/default:
+        attributes:
+            - action: upsert
+              key: profiler_name
+              value: host_profiler
+            - action: upsert
+              key: profiler_version
+              value: 7.0.0-test
 receivers:
     hostprofiler:
         symbol_uploader:
@@ -25,5 +33,6 @@ service:
                 - myresourcedetection
                 - batch
                 - infraattributes/default
+                - resource/default
             receivers:
                 - hostprofiler

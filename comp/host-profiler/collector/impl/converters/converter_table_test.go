@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
 	"gopkg.in/yaml.v3"
@@ -53,6 +54,13 @@ func (m *mockConfig) GetStringMapStringSlice(key string) map[string][]string {
 		}
 	}
 	return map[string][]string{}
+}
+
+const testVersion = "7.0.0-test"
+
+func init() {
+	// Override version for tests to ensure golden files are version-independent
+	version.AgentVersion = testVersion
 }
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
