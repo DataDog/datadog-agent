@@ -114,7 +114,6 @@
 /.gitlab/test/integration_test/otel.yml                   @DataDog/agent-devx @DataDog/opentelemetry-agent
 /.gitlab/deploy/internal_image_deploy/internal_image_deploy.yml            @DataDog/agent-delivery
 /.gitlab/deploy/internal_kubernetes_deploy/internal_kubernetes_deploy.yml  @DataDog/agent-delivery
-/.gitlab/deploy/internal_kubernetes_deploy/k8s_staging_deployment_pr.yml  @DataDog/agent-delivery
 /.gitlab/build/package_deps_build/package_deps_build.yml   @DataDog/agent-devx @DataDog/ebpf-platform
 /.gitlab/build/source_test/golang_deps_diff.yml            @DataDog/agent-runtimes
 /.gitlab/build/source_test/*                               @DataDog/agent-devx
