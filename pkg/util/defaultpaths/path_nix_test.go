@@ -56,6 +56,16 @@ func TestCommonRootOrPath(t *testing.T) {
 			path:     dogstatsDProtocolLogFile,
 			expected: "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log",
 		},
+		{
+			name:     "pyChecksPath is transformed",
+			path:     pyChecksPath,
+			expected: "/opt/datadog-agent/checks.d",
+		},
+		{
+			name:     "runPath is transformed",
+			path:     runPath,
+			expected: "/opt/datadog-agent/run",
+		},
 	}
 
 	// Test with empty root - should return original path
@@ -84,6 +94,8 @@ func TestGettersWithCommonRoot(t *testing.T) {
 		assert.Equal(t, "/etc/datadog-agent", GetConfPath())
 		assert.Equal(t, "/var/log/datadog/agent.log", GetLogFile())
 		assert.Equal(t, "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
+		assert.Equal(t, "/opt/datadog-agent/checks.d", GetPyChecksPath())
+		assert.Equal(t, "/var/run/datadog", GetRunPath())
 	})
 
 	// Test with common root set
@@ -98,6 +110,10 @@ func TestGettersWithCommonRoot(t *testing.T) {
 		assert.Equal(t, "/opt/datadog-agent/logs/jmxinfo", GetJMXFlareDirectory())
 		assert.Equal(t, "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
 		assert.Equal(t, "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log", GetStreamlogsLogFile())
+		// pyChecksPath is under /opt/datadog-agent, so transformation applies
+		assert.Equal(t, "/opt/datadog-agent/checks.d", GetPyChecksPath())
+		// runPath transforms from /var/run/datadog to {root}/run
+		assert.Equal(t, "/opt/datadog-agent/run", GetRunPath())
 	})
 
 	// Test with custom common root
@@ -105,5 +121,9 @@ func TestGettersWithCommonRoot(t *testing.T) {
 		SetCommonRoot("/custom/path")
 		assert.Equal(t, "/custom/path/etc", GetConfPath())
 		assert.Equal(t, "/custom/path/logs/agent.log", GetLogFile())
+		// pyChecksPath /opt/datadog-agent/checks.d transforms to {root}/checks.d
+		assert.Equal(t, "/custom/path/checks.d", GetPyChecksPath())
+		// runPath /var/run/datadog transforms to {root}/run
+		assert.Equal(t, "/custom/path/run", GetRunPath())
 	})
 }

@@ -8,12 +8,10 @@
 package defaultpaths
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Default paths for Linux systems following the Filesystem Hierarchy Standard (FHS).
@@ -43,16 +41,21 @@ const (
 	checkFlareDirectory = "/var/log/datadog/checks/"
 	jmxFlareDirectory   = "/var/log/datadog/jmxinfo/"
 
-	// Socket paths (in /var/run/datadog, needs transformation)
+	// Socket paths
 	statsdSocket   = "/var/run/datadog/dsd.socket"
 	receiverSocket = "/var/run/datadog/apm.socket"
 
-	// InstallPath is the default install path for the agent
-	// It might be overridden at build time
-	defaultInstallPath = "/opt/datadog-agent"
+	// Run path
+	runPath = "/var/run/datadog"
 
 	// PID file path
 	pidFilePath = "/var/run/datadog/datadog-agent.pid"
+
+	// Python checks path (bundled integrations-core checks)
+	pyChecksPath = "/opt/datadog-agent/checks.d"
+
+	// Default install path fallback
+	defaultInstallPath = "/opt/datadog-agent"
 )
 
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
@@ -74,16 +77,11 @@ const (
 )
 
 var (
-	// InstallPath is the default install path for the agent executable
-	// It might be overridden at build time and we cache it to avoid directory traversal
-	cachedInstallPath = ""
-	InstallPath       = GetInstallPath()
-	// pyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	pyChecksPath = filepath.Join(InstallPath, "..", "..", "checks.d")
+	// _here is the directory containing the agent executable
+	_here, _ = executable.Folder()
 	// distPath holds the path to the folder containing distribution files
-	distPath = filepath.Join(InstallPath, "dist")
-	// runPath is dependent on the InstallPath of the agent
-	runPath = filepath.Join(InstallPath, "run")
+	// This is relative to the executable location, not the install root
+	distPath = filepath.Join(_here, "dist")
 )
 
 // Config path getters
@@ -208,26 +206,32 @@ func GetRunPath() string {
 
 // GetPyChecksPath returns the path to the python checks directory
 func GetPyChecksPath() string {
-	return pyChecksPath
+	return CommonRootOrPath(commonRoot, pyChecksPath)
 }
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
+	if _here == "" {
+		// Fallback if executable.Folder() failed during init
+		return CommonRootOrPath(commonRoot, "/opt/datadog-agent/bin/agent/dist")
+	}
 	return distPath
 }
 
-// GetInstallPath returns the fully qualified path to the datadog-agent executable
+// GetInstallPath returns the install root path for the agent (e.g., /opt/datadog-agent).
+// When commonRoot is set, this returns the common root path.
 func GetInstallPath() string {
-	if cachedInstallPath == "" {
-		// Agent binary
-		_here, err := executable.Folder()
-		if err != nil {
-			log.Errorf("Failed to get executable path: %v", err)
-			return defaultInstallPath
-		}
-		cachedInstallPath = GetInstallPathFromExecutable(_here)
+	return CommonRootOrPath(commonRoot, defaultInstallPath)
+}
+
+// GetBinPath returns the directory containing the agent executable.
+// This is used by code that needs to find files relative to the executable location.
+func GetBinPath() string {
+	if _here == "" {
+		// Fallback if executable.Folder() failed during init
+		return CommonRootOrPath(commonRoot, "/opt/datadog-agent/bin/agent")
 	}
-	return cachedInstallPath
+	return _here
 }
 
 // CommonRootOrPath will optionally transform the path to use the common root path depending
@@ -266,26 +270,4 @@ func CommonRootOrPath(root, path string) string {
 	default:
 		return path
 	}
-}
-
-// GetInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
-// That directory will become the install path.
-//
-// If not found, returns the default InstallPath.
-func GetInstallPathFromExecutable(start string) string {
-	// Start from the current directory
-	currentDir := start
-
-	for {
-		installRoot := filepath.Join(currentDir, ".install_root")
-		if _, err := os.Stat(installRoot); err == nil {
-			return currentDir
-		}
-		parentDir := filepath.Dir(currentDir)
-		if parentDir == currentDir {
-			break
-		}
-		currentDir = parentDir
-	}
-	return defaultInstallPath // Fallback to the default install path
 }

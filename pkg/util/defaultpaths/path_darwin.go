@@ -48,6 +48,12 @@ const (
 
 	// PID file path
 	pidFilePath = "/opt/datadog-agent/run/datadog-agent.pid"
+
+	// Python checks path (bundled integrations-core checks)
+	pyChecksPath = "/opt/datadog-agent/checks.d"
+
+	// Default install path
+	defaultInstallPath = "/opt/datadog-agent"
 )
 
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
@@ -70,11 +76,10 @@ const (
 )
 
 var (
+	// _here is the directory containing the agent executable
 	_here, _ = executable.Folder()
-
-	// pyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	pyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// distPath holds the path to the folder containing distribution files
+	// This is relative to the executable location, not the install root
 	distPath = filepath.Join(_here, "dist")
 )
 
@@ -200,16 +205,31 @@ func GetRunPath() string {
 
 // GetPyChecksPath returns the path to the python checks directory
 func GetPyChecksPath() string {
-	return pyChecksPath
+	return CommonRootOrPath(commonRoot, pyChecksPath)
 }
 
 // GetDistPath returns the fully qualified path to the 'dist' directory
 func GetDistPath() string {
+	if _here == "" {
+		// Fallback if executable.Folder() failed during init
+		return CommonRootOrPath(commonRoot, "/opt/datadog-agent/bin/agent/dist")
+	}
 	return distPath
 }
 
-// GetInstallPath returns the fully qualified path to the datadog-agent executable
+// GetInstallPath returns the install root path for the agent (e.g., /opt/datadog-agent).
+// When commonRoot is set, this returns the common root path.
 func GetInstallPath() string {
+	return CommonRootOrPath(commonRoot, defaultInstallPath)
+}
+
+// GetBinPath returns the directory containing the agent executable.
+// This is used by code that needs to find files relative to the executable location.
+func GetBinPath() string {
+	if _here == "" {
+		// Fallback if executable.Folder() failed during init
+		return CommonRootOrPath(commonRoot, "/opt/datadog-agent/bin/agent")
+	}
 	return _here
 }
 
@@ -218,9 +238,8 @@ func GetInstallPath() string {
 //	/opt/datadog-agent/etc/** -> {root}/etc/**
 //	/opt/datadog-agent/logs/** -> {root}/logs/**
 //	/opt/datadog-agent/run/** -> {root}/run/**
-//
-// This is...probably a no-op since the default common root is also /opt/datadog-agent. But
-// in the future if we change it this should work automatically.
+//	/opt/datadog-agent/** -> {root}/**
+//	/opt/datadog-agent -> {root}
 func CommonRootOrPath(root, path string) string {
 	if root == "" {
 		return path
@@ -242,6 +261,11 @@ func CommonRootOrPath(root, path string) string {
 		return filepath.Join(root, "run", rest)
 	case path == "/opt/datadog-agent/run":
 		return filepath.Join(root, "run")
+	case strings.HasPrefix(path, "/opt/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/opt/datadog-agent/")
+		return filepath.Join(root, rest)
+	case path == "/opt/datadog-agent":
+		return root
 	default:
 		return path
 	}

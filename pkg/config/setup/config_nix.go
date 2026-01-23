@@ -57,7 +57,7 @@ func osinit() {
 	InstallPath = defaultpaths.GetInstallPath()
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
-	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	DefaultSystemProbeAddress = filepath.Join(defaultpaths.GetRunPath(), "sysprobe.sock")
 	defaultSystemProbeBPFDir = filepath.Join(InstallPath, "embedded/share/system-probe/ebpf")
 }
 

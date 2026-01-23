@@ -23,7 +23,8 @@ func TestLinuxGetIPCServerPath(t *testing.T) {
 
 		path, enabled := GetIPCServerPath()
 		require.True(t, enabled)
-		require.Equal(t, "/opt/datadog-agent/run/agent_ipc.socket", path)
+		// Default Linux FHS path for run directory is /var/run/datadog
+		require.Equal(t, "/var/run/datadog/agent_ipc.socket", path)
 	})
 }
 
