@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Default paths for Linux systems following the Filesystem Hierarchy Standard (FHS).
@@ -73,14 +74,16 @@ const (
 )
 
 var (
-	// utility variables
-	_here, _ = executable.Folder()
+	// InstallPath is the default install path for the agent executable
+	// It might be overridden at build time and we cache it to avoid directory traversal
+	cachedInstallPath = ""
+	InstallPath       = GetInstallPath()
 	// pyChecksPath holds the path to the python checks from integrations-core shipped with the agent
-	pyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
+	pyChecksPath = filepath.Join(InstallPath, "..", "..", "checks.d")
 	// distPath holds the path to the folder containing distribution files
-	distPath = filepath.Join(_here, "dist")
+	distPath = filepath.Join(InstallPath, "dist")
 	// runPath is dependent on the InstallPath of the agent
-	runPath = filepath.Join(GetInstallPath(), "run")
+	runPath = filepath.Join(InstallPath, "run")
 )
 
 // Config path getters
@@ -215,7 +218,16 @@ func GetDistPath() string {
 
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
-	return GetInstallPathFromExecutable(_here)
+	if cachedInstallPath == "" {
+		// Agent binary
+		_here, err := executable.Folder()
+		if err != nil {
+			log.Errorf("Failed to get executable path: %v", err)
+			return
+		}
+		cachedInstallPath = GetInstallPathFromExecutable(_here)
+	}
+	return cachedInstallPath
 }
 
 // CommonRootOrPath will optionally transform the path to use the common root path depending

@@ -12,8 +12,6 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/executable"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Variables that are overridden at init
@@ -56,12 +54,6 @@ var (
 // called by init in config.go, to ensure any os-specific config is done
 // in time
 func osinit() {
-	// Agent binary
-	_here, err := executable.Folder()
-	if err != nil {
-		log.Errorf("Failed to get executable path: %v", err)
-		return
-	}
 	InstallPath = defaultpaths.GetInstallPath()
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
