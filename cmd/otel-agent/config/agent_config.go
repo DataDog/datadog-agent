@@ -122,11 +122,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Log configuration state for debugging nodetreemodel issues
-		log.Warnf("OTel agent config loaded: logs_enabled=%v, config_lib=%s", 
+		log.Warnf("OTel agent config loaded: logs_enabled=%v, config_lib=%s",
 			pkgconfig.GetBool("logs_enabled"), pkgconfig.GetLibType())
-		
+
 		var ok bool
 		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
 		if !ok {

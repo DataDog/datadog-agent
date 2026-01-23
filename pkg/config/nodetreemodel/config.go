@@ -506,14 +506,14 @@ func (c *ntmConfig) BuildSchema() {
 
 func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
-	
+
 	// Log if logs_enabled is a known key for debugging
 	if _, ok := c.knownKeys["logs_enabled"]; ok {
 		log.Warnf("nodetreemodel: logs_enabled IS a known key")
 	} else {
 		log.Warnf("nodetreemodel: logs_enabled is NOT a known key - this is a problem!")
 	}
-	
+
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
