@@ -73,8 +73,16 @@ func NewLogsAgentComponent(deps Dependencies) option.Option[logsagentpipeline.Co
 
 // NewLogsAgent returns a new instance of Agent with the given dependencies
 func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
-	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
-		if deps.Config.GetBool("log_enabled") {
+	logsEnabled := deps.Config.GetBool("logs_enabled")
+	logEnabled := deps.Config.GetBool("log_enabled")
+	configLibType := deps.Config.GetLibType()
+	
+	// Log configuration state for debugging nodetreemodel issues
+	deps.Log.Warnf("logs-agent initialization: logs_enabled=%v, log_enabled=%v, config_lib=%s", 
+		logsEnabled, logEnabled, configLibType)
+	
+	if logsEnabled || logEnabled {
+		if logEnabled {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
 		}
 
@@ -95,7 +103,8 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		return logsAgent
 	}
 
-	deps.Log.Debug("logs-agent disabled")
+	deps.Log.Warnf("logs-agent disabled: logs_enabled=%v, log_enabled=%v, config_lib=%s", 
+		logsEnabled, logEnabled, configLibType)
 	return nil
 }
 

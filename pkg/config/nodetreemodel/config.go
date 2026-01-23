@@ -506,6 +506,14 @@ func (c *ntmConfig) BuildSchema() {
 
 func (c *ntmConfig) buildSchema() {
 	c.buildEnvVars()
+	
+	// Log if logs_enabled is a known key for debugging
+	if _, ok := c.knownKeys["logs_enabled"]; ok {
+		log.Warnf("nodetreemodel: logs_enabled IS a known key")
+	} else {
+		log.Warnf("nodetreemodel: logs_enabled is NOT a known key - this is a problem!")
+	}
+	
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
@@ -535,6 +543,10 @@ func (c *ntmConfig) buildEnvVars() {
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
+				// Log specifically for logs_enabled to debug nodetreemodel issues
+				if configKey == "logs_enabled" {
+					log.Warnf("nodetreemodel: found env var %s=%s for config key logs_enabled", envVar, value)
+				}
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
 				} else {

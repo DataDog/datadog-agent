@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logLevel int
@@ -121,6 +122,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
+		
+		// Log configuration state for debugging nodetreemodel issues
+		log.Warnf("OTel agent config loaded: logs_enabled=%v, config_lib=%s", 
+			pkgconfig.GetBool("logs_enabled"), pkgconfig.GetLibType())
+		
 		var ok bool
 		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
 		if !ok {
@@ -146,7 +152,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
-	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
+	log.Warnf("OTel agent setting log level to: %v", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values
