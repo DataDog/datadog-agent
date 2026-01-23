@@ -8,6 +8,7 @@
 package defaultpaths
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -45,8 +46,10 @@ const (
 	statsdSocket   = "/var/run/datadog/dsd.socket"
 	receiverSocket = "/var/run/datadog/apm.socket"
 
-	// Run path
-	runPath = "/var/run/datadog"
+	// InstallPath is the default install path for the agent
+	// It might be overridden at build time
+	installPath = "/opt/datadog-agent"
+	runPath     = "/opt/datadog-agent/run"
 
 	// PID file path
 	pidFilePath = "/var/run/datadog/datadog-agent.pid"
@@ -69,6 +72,7 @@ const (
 	DefaultStatsdSocket         = statsdSocket
 	DefaultReceiverSocket       = receiverSocket
 	DefaultRunPath              = runPath
+	InstallPath                 = installPath
 )
 
 var (
@@ -78,6 +82,7 @@ var (
 	pyChecksPath = filepath.Join(_here, "..", "..", "checks.d")
 	// distPath holds the path to the folder containing distribution files
 	distPath = filepath.Join(_here, "dist")
+	runPath  = filepath.Join(GetInstallPath(), "run")
 )
 
 // Config path getters
@@ -212,15 +217,16 @@ func GetDistPath() string {
 
 // GetInstallPath returns the fully qualified path to the datadog-agent executable
 func GetInstallPath() string {
-	return _here
+	return GetInstallPathFromExecutable(_here)
 }
 
 // CommonRootOrPath will optionally transform the path to use the common root path depending
 // on the configuration.
 //
 //	/etc/datadog-agent/** -> {root}/etc/**
-//	/var/log/datadog/** -> {root}/logs/**
-//	/var/run/datadog/** -> {root}/run/**
+//	/var/log/datadog/**   -> {root}/logs/**
+//	/var/run/datadog/**   -> {root}/run/**
+//	/opt/datadog-agent/** -> {root}/**
 func CommonRootOrPath(root, path string) string {
 	if root == "" {
 		return path
@@ -242,7 +248,34 @@ func CommonRootOrPath(root, path string) string {
 		return filepath.Join(root, "run", rest)
 	case path == "/var/run/datadog":
 		return filepath.Join(root, "run")
+	case strings.HasPrefix(path, "/opt/datadog-agent/"):
+		rest := strings.TrimPrefix(path, "/opt/datadog-agent/")
+		return filepath.Join(root, rest)
+	case path == "/opt/datadog-agent":
+		return root
 	default:
 		return path
 	}
+}
+
+// GetInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
+// That directory will become the install path.
+//
+// If not found, returns the default InstallPath.
+func GetInstallPathFromExecutable(start string) string {
+	// Start from the current directory
+	currentDir := start
+
+	for {
+		installRoot := filepath.Join(currentDir, ".install_root")
+		if _, err := os.Stat(installRoot); err == nil {
+			return currentDir
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return InstallPath // Fallback to the default install path
 }

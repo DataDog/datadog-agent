@@ -63,7 +63,7 @@ func osinit() {
 		log.Errorf("Failed to get executable path: %v", err)
 		return
 	}
-	InstallPath = getInstallPathFromExecutable(_here)
+	InstallPath = defaultpaths.GetInstallPathFromExecutable(_here)
 
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent")
 	DefaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
@@ -72,26 +72,4 @@ func osinit() {
 
 // FleetConfigOverride is a no-op on Linux
 func FleetConfigOverride(_ pkgconfigmodel.Config) {
-}
-
-// getInstallPathFromExecutable will go up the directory chain from start in search of a .install_root file.
-// That directory will become the install path.
-//
-// If not found, returns the default InstallPath.
-func getInstallPathFromExecutable(start string) string {
-	// Start from the current directory
-	currentDir := start
-
-	for {
-		installRoot := filepath.Join(currentDir, ".install_root")
-		if _, err := os.Stat(installRoot); err == nil {
-			return currentDir
-		}
-		parentDir := filepath.Dir(currentDir)
-		if parentDir == currentDir {
-			break
-		}
-		currentDir = parentDir
-	}
-	return InstallPath // Fallback to the default install path
 }
