@@ -160,12 +160,15 @@ def create_mode_summary(df: pd.DataFrame) -> pd.DataFrame:
     # Reset index to make mode a column
     summary = summary.reset_index()
 
-    # Reorder columns to match consolidate_results.py
+    # Reorder columns (excluding completed_count)
     summary = summary[[
-        'mode', 'total_scenarios', 'completed_count',
+        'mode', 'total_scenarios',
         'avg_score', 'min_score', 'max_score',
         'avg_duration_sec', 'avg_turns', 'avg_cost', 'total_cost'
     ]]
+
+    # Sort by avg_score in descending order
+    summary = summary.sort_values('avg_score', ascending=False)
 
     return summary
 
