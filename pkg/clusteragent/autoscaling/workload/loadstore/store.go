@@ -112,7 +112,8 @@ func createEntitiesFromPayload(payload *gogen.MetricPayload) map[*Entity]*Entity
 					entity.PodOwnerkind = Deployment
 				case "replicaset":
 					entity.PodOwnerkind = ReplicaSet
-				// TODO: add more cases
+				case "statefulset":
+					entity.PodOwnerkind = StatefulSet
 				default:
 					entity.PodOwnerkind = Unsupported
 				}
