@@ -92,6 +92,11 @@ func (e *WindowsHost) SetAgentClientOptions(options ...agentclientparams.Option)
 	e.Agent.ClientOptions = options
 }
 
+// SetEnvironment implements windows.WindowsHostOutputs
+func (e *WindowsHost) SetEnvironment(env config.Env) {
+	e.Environment = env
+}
+
 // Diagnose returns a string containing the diagnosis of the environment
 func (e *WindowsHost) Diagnose(outputDir string) (string, error) {
 	diagnoses := []string{}

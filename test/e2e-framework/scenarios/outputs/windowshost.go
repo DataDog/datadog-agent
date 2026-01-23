@@ -6,6 +6,7 @@
 package outputs
 
 import (
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
@@ -68,5 +69,10 @@ func (h *WindowsHost) DisableActiveDirectory() {
 
 // SetAgentClientOptions sets the agent client options
 func (h *WindowsHost) SetAgentClientOptions(options ...agentclientparams.Option) {
+	return
+}
+
+// SetEnvironment is a no-op for outputs (only used in test environments)
+func (h *WindowsHost) SetEnvironment(env config.Env) {
 	return
 }

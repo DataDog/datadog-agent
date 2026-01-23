@@ -8,6 +8,7 @@ package windows
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
@@ -36,11 +37,14 @@ type WindowsHostOutputs interface {
 	DisableAgent()
 	DisableActiveDirectory()
 	SetAgentClientOptions(options ...agentclientparams.Option)
+	SetEnvironment(env config.Env)
 }
 
 // RunWithEnv deploys a Windows EC2 environment using provided env and params.
 // It accepts WindowsHostOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
 func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env WindowsHostOutputs, params *RunParams) error {
+	// Set the environment for test code access
+	env.SetEnvironment(&awsEnv)
 
 	// Force Windows OS
 	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(compos.WindowsServerDefault))
