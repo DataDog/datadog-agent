@@ -19,9 +19,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-rc.1 // indirect
@@ -37,7 +35,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/flavor v0.76.0-rc.1 // indirect
@@ -46,7 +43,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.76.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-rc.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-rc.1 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
