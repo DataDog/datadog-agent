@@ -1,0 +1,25 @@
+From d5a65aeec342485072e6610abe2d59ecb3cf0be8 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Fri, 23 Jan 2026 09:01:28 +0100
+Subject: [PATCH 4/4] remove -ffunction-sections / -fdata-sections
+
+---
+ toolchain/cc_toolchain_config.bzl | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/toolchain/cc_toolchain_config.bzl b/toolchain/cc_toolchain_config.bzl
+index b8ae535..4a205c8 100644
+--- a/toolchain/cc_toolchain_config.bzl
++++ b/toolchain/cc_toolchain_config.bzl
+@@ -213,8 +213,6 @@ def _impl(ctx):
+                             "-g0",
+                             "-O2",
+                             "-DNDEBUG",
+-                            "-ffunction-sections",
+-                            "-fdata-sections",
+                         ],
+                     ),
+                 ],
+-- 
+2.43.0
+
