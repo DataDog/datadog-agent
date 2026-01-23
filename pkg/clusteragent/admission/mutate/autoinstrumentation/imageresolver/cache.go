@@ -23,10 +23,21 @@ type CacheEntry struct {
 	WhenCached    time.Time
 }
 
+type DigestFetcher interface {
+	Digest(ref string) (string, error)
+}
+
+type craneDigestFetcher struct{}
+
+func (c *craneDigestFetcher) Digest(ref string) (string, error) {
+	return crane.Digest(ref)
+}
+
 type craneCache struct {
-	cache map[string]map[string]CacheEntry
-	ttl   time.Duration
-	mu    sync.RWMutex
+	cache   map[string]map[string]CacheEntry
+	ttl     time.Duration
+	mu      sync.RWMutex
+	fetcher DigestFetcher
 }
 
 func (c *craneCache) Get(registry string, repository string, tag string) (*ResolvedImage, bool) {
@@ -41,7 +52,7 @@ func (c *craneCache) Get(registry string, repository string, tag string) (*Resol
 			return c.cache[repository][tag].ResolvedImage, true
 		}
 	}
-	if digest, err := crane.Digest(registry + "/" + repository + ":" + tag); err == nil {
+	if digest, err := c.fetcher.Digest(registry + "/" + repository + ":" + tag); err == nil {
 		c.cache[repository][tag] = CacheEntry{
 			ResolvedImage: &ResolvedImage{
 				FullImageRef:     registry + "/" + repository + "@" + digest,
@@ -56,8 +67,9 @@ func (c *craneCache) Get(registry string, repository string, tag string) (*Resol
 
 func NewCache(ttl time.Duration) Cache {
 	return &craneCache{
-		cache: make(map[string]map[string]CacheEntry),
-		ttl:   ttl,
-		mu:    sync.RWMutex{},
+		cache:   make(map[string]map[string]CacheEntry),
+		ttl:     ttl,
+		mu:      sync.RWMutex{},
+		fetcher: &craneDigestFetcher{},
 	}
 }
