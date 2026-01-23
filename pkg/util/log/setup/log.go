@@ -247,5 +247,6 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 
 func init() {
 	_ = seelog.RegisterCustomFormatter("CustomSyslogHeader", syslog.CreateSyslogHeaderFormatter)
+	_ = seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
 	seelog.RegisterReceiver("syslog", &syslog.Receiver{})
 }

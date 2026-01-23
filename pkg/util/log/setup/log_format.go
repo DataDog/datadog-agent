@@ -13,8 +13,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/cihub/seelog"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
@@ -29,7 +27,6 @@ func buildCommonFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string 
 
 // buildJSONFormat returns the log JSON format seelog string
 func buildJSONFormat(loggerName LoggerName, cfg pkgconfigmodel.Reader) string {
-	_ = seelog.RegisterCustomFormatter("QuoteMsg", createQuoteMsgFormatter)
 	if loggerName == "JMXFETCH" {
 		return `{"msg":%QuoteMsg}%n`
 	}
