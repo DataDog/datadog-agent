@@ -275,6 +275,12 @@ enum global_rate_limiter_type {
     RAW_PACKET_ACTION_LIMITER,
 };
 
+enum PATH_ID_INVALIDATE_TYPE {
+    PATH_ID_INVALIDATE_TYPE_NONE = 0, // no invalidate
+    PATH_ID_INVALIDATE_TYPE_LOCAL = 1, // only the local path id is invalidated, mosly non dir related events
+    PATH_ID_INVALIDATE_TYPE_GLOBAL = 2, // the global path id is invalidated, meaning impacting the volume
+};
+
 #define TAIL_CALL_FNC_NAME(name, ...) tail_call_##name(__VA_ARGS__)
 #define TAIL_CALL_FNC(name, ...) TAIL_CALL_TARGET("\"" #name "\"") \
 	int TAIL_CALL_FNC_NAME(name, __VA_ARGS__)
