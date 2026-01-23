@@ -80,7 +80,7 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 
 	// If no profile found and there's a cgroup ID, try cgroup-based lookup
 	if profile == nil && event.ProcessContext.Process.CGroup.CGroupID != "" {
-		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
+		_, tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
 		if err != nil {
 			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.ProcessContext.Process.CGroup.CGroupID, err)
 			return

@@ -27,6 +27,16 @@ const (
 	WorkloadSelectorDeleted
 )
 
+// WorkloadType represents the type of workload
+type WorkloadType int
+
+const (
+	WorkloadTypeUnknown WorkloadType = iota
+	WorkloadTypePodSandbox
+	WorkloadTypeContainer
+	WorkloadTypeCGroup
+)
+
 // Tagger defines a Tagger for the Tags Resolver
 type Tagger interface {
 	Tag(entity types.EntityID, cardinality types.TagCardinality) ([]string, error)
@@ -49,48 +59,67 @@ type DefaultResolver struct {
 
 // Resolve returns the tags for the given id
 func (t *DefaultResolver) Resolve(id containerutils.WorkloadID) []string {
-	tags, _ := t.ResolveWithErr(id)
+	_, tags, _ := t.ResolveWithErr(id)
 	return tags
 }
 
 // ResolveWithErr returns the tags for the given id
-func (t *DefaultResolver) ResolveWithErr(id containerutils.WorkloadID) ([]string, error) {
+func (t *DefaultResolver) ResolveWithErr(id containerutils.WorkloadID) (WorkloadType, []string, error) {
 	return t.resolveWorkloadTags(id)
 }
 
 // resolveWorkloadTags resolves tags for a workload ID, handling both container and cgroup workloads
-func (t *DefaultResolver) resolveWorkloadTags(id containerutils.WorkloadID) ([]string, error) {
+func (t *DefaultResolver) resolveWorkloadTags(id containerutils.WorkloadID) (WorkloadType, []string, error) {
 	if id == nil {
-		return nil, errors.New("nil workload id")
+		return WorkloadTypeUnknown, nil, errors.New("nil workload id")
 	}
 
 	switch v := id.(type) {
 	case containerutils.ContainerID:
 		if len(v) == 0 {
-			return nil, errors.New("empty container id")
+			return WorkloadTypeUnknown, nil, errors.New("empty container id")
 		}
 		// Resolve as a container ID
 		return GetTagsOfContainer(t.tagger, v)
 	case containerutils.CGroupID:
 		if len(v) == 0 {
-			return nil, errors.New("empty cgroup id")
+			return WorkloadTypeUnknown, nil, errors.New("empty cgroup id")
 		}
 		// CGroup resolution is only supported on Linux
-		return nil, errors.New("cgroup resolution not supported on this platform")
+		return WorkloadTypeUnknown, nil, errors.New("cgroup resolution not supported on this platform")
 	default:
-		return nil, fmt.Errorf("unknown workload id type: %T", id)
+		return WorkloadTypeUnknown, nil, fmt.Errorf("unknown workload id type: %T", id)
 	}
 }
 
 // GetTagsOfContainer returns the tags for the given container id
 // exported to share the code with other non-resolver users of tagger
-func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) ([]string, error) {
+func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (WorkloadType, []string, error) {
 	if tagger == nil {
-		return nil, nil
+		return WorkloadTypeUnknown, nil, nil
 	}
 
 	entityID := types.NewEntityID(types.ContainerID, string(containerID))
-	return tagger.Tag(entityID, types.OrchestratorCardinality)
+	tags, err := tagger.Tag(entityID, types.OrchestratorCardinality)
+	if err != nil {
+		return WorkloadTypeUnknown, nil, err
+	}
+
+	if len(tags) != 0 {
+		return WorkloadTypeContainer, tags, nil
+	}
+
+	// If no tags found for the container ID, it might be a sandbox/pause container.
+	// In this case, try to resolve tags using the same ID as a pod UID.
+	podEntityID := types.NewEntityID(types.KubernetesPodUID, string(containerID))
+	podTags, err := tagger.Tag(podEntityID, types.OrchestratorCardinality)
+	if err != nil {
+		return WorkloadTypeUnknown, nil, err
+	}
+	if len(podTags) == 0 {
+		return WorkloadTypeUnknown, nil, nil
+	}
+	return WorkloadTypePodSandbox, podTags, nil
 }
 
 // GetValue return the tag value for the given id and tag name
