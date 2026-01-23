@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -30,10 +31,10 @@ type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
 	filter        mutatecommon.MutationFilter
-	imageResolver ImageResolver
+	imageResolver imageresolver.Resolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver) *mutatorCore {
 	return &mutatorCore{
 		config:        config,
 		wmeta:         wmeta,
@@ -101,6 +102,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 		}
 
 		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			InjectionMode:               m.config.Instrumentation.InjectionMode,
 			DefaultResourceRequirements: m.config.defaultResourceRequirements,
 			InitSecurityContext:         m.config.initSecurityContext,
 			ContainerFilter:             m.config.containerFilter,

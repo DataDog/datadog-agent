@@ -16,6 +16,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
+	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -36,6 +37,7 @@ func TestBundleDependencies(t *testing.T) {
 		haagentmock.Module(),
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
+		filterlistfx.MockModule(),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 	)
 }

@@ -176,6 +176,13 @@ func SetSystemProbe(cfg pkgconfigmodel.BuildableConfig) {
 	systemProbe = cfg
 }
 
+func init() {
+	osinit()
+
+	// init default for code that access the config before it initialized
+	InitConfigObjects("", "")
+}
+
 // Variables to initialize at start time
 var (
 	// StartTime is the agent startup time
@@ -263,17 +270,55 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Setup){
 	autoscaling,
 }
 
-func init() {
-	osinit()
+type configLibBackend struct {
+	ConfNodeTreeModel string `yaml:"conf_nodetreemodel"`
+}
 
-	datadog = create.NewConfig("datadog")
-	systemProbe = create.NewConfig("system-probe")
+func resolveConfigLibType(cliPath string, defaultDir string) string {
+	configPath := ""
+	for _, path := range []string{cliPath, defaultDir} {
+		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+			path = filepath.Join(path, "datadog.yaml")
+		}
+
+		if _, err := os.Stat(path); err == nil {
+			configPath = path
+		}
+	}
+
+	if configPath == "" {
+		return ""
+	}
+
+	yamlFile, err := os.ReadFile(configPath)
+	if err != nil {
+		return ""
+	}
+
+	conf := configLibBackend{}
+	err = yaml.Unmarshal(yamlFile, &conf)
+	if err != nil {
+		return ""
+	}
+	return conf.ConfNodeTreeModel
+}
+
+// InitConfigObjects initializes the global config objects use across the code. This should never be called anywhere
+// but from the main.
+func InitConfigObjects(cliPath string, defaultDir string) {
+	// We first load the configuration to see which config library should be used.
+	configLib := resolveConfigLibType(cliPath, defaultDir)
+
+	datadog = create.NewConfig("datadog", configLib)
+	systemProbe = create.NewConfig("system-probe", configLib)
 
 	// Configuration defaults
 	initConfig()
 
 	datadog.(pkgconfigmodel.BuildableConfig).BuildSchema()
 	systemProbe.(pkgconfigmodel.BuildableConfig).BuildSchema()
+
+	log.Infof("config lib used: %s", datadog.GetLibType())
 }
 
 // initCommonWithServerless initializes configs that are common to all agents, in particular serverless.
@@ -1234,6 +1279,10 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
+	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 
 	// Agent Workload Filtering config
 	config.BindEnvAndSetDefault("cel_workload_exclude", []interface{}{})
@@ -1250,7 +1299,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("statsd_metric_blocklist", []string{})
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
-	config.BindEnvAndSetDefault("metric_tag_filterlist", map[string]interface{}{})
+	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1302,6 +1351,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnv("ipc_address") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc.socket_path", filepath.Join(defaultRunPath, "agent_ipc.socket"))
+	config.BindEnvAndSetDefault("agent_ipc.use_socket", false)
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
@@ -1390,6 +1441,10 @@ func agent(config pkgconfigmodel.Setup) {
 		"winkmem",
 		"winproc",
 	})
+	// integration.basic.excluded: checks to exclude (user configured)
+	config.BindEnvAndSetDefault("integration.basic.excluded", []string{})
+	// integration.basic.additional: additional checks to allow beyond the default set (user configured)
+	config.BindEnvAndSetDefault("integration.basic.additional", []string{})
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
@@ -2007,6 +2062,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// WARNING: 'by_modification_time' is less performant than 'by_name' and will trigger
 	// more disk I/O at the wildcard log paths
 	config.BindEnvAndSetDefault("logs_config.file_wildcard_selection_mode", "by_name")
+
+	// Opt-in recursive glob for file log paths (supports **). Default false to preserve current behavior.
+	config.BindEnvAndSetDefault("logs_config.enable_recursive_glob", false)
 
 	// Max size in MB an integration logs file can use
 	config.BindEnvAndSetDefault("logs_config.integrations_logs_files_max_size", 10)

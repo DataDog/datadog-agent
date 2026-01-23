@@ -29,14 +29,16 @@ import (
 // as services (i.e., processes with a non-nil Service property).
 type ProcessListener struct {
 	workloadmetaListener
-	tagger tagger.Component
+	tagger         tagger.Component
+	processFilters workloadfilter.FilterBundle
 }
 
 // NewProcessListener returns a new ProcessListener.
 func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-processlistener"
 	l := &ProcessListener{
-		tagger: options.Tagger,
+		tagger:         options.Tagger,
+		processFilters: options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -70,6 +72,14 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	if process.ContainerID != "" {
 		log.Debugf("process %d (%s) is container-bound (container: %s), skipping", process.Pid, process.Comm, process.ContainerID)
 		return
+	}
+
+	if l.processFilters != nil {
+		filterableProcess := workloadmetafilter.CreateProcess(process)
+		if l.processFilters.IsExcluded(filterableProcess) {
+			log.Debugf("Process %d excluded from AD process listener by CEL filter", process.Pid)
+			return
+		}
 	}
 
 	// Build ports from Service.TCPPorts
