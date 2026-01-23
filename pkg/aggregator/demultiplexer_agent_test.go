@@ -223,6 +223,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 			return serie.Name == "dist.metric"
 		})
 
+		require.NotEqualf(-1, metric, "dist.metric not found in %+v", s.sketches)
 		tags := strings.Split(s.sketches[metric].Tags.Join(","), ",")
 		require.ElementsMatch(expected, tags)
 	}
