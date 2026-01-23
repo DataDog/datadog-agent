@@ -34,8 +34,8 @@ CLI_EXTRAS = {
 VTPROTO_PACKAGES = {'stateful'}
 
 VTPROTO_CLI_EXTRAS = {
-    # Limit vtproto to marshal/unmarshal/size and enable pooling.
-    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size+pool',
+    # Limit vtproto to marshal/unmarshal/size to avoid re-emitting gRPC stubs.
+    'stateful': '--go-vtproto_opt=features=marshal+unmarshal+size',
 }
 
 
@@ -66,22 +66,6 @@ def _plugin_path(env_var: str, default_name: str) -> str:
         return candidate
     # Fallback: let protoc resolve from PATH using the default_name.
     return default_name
-
-
-def _vtprotobuf_include_paths() -> list[str]:
-    """
-    Return optional include paths for vtprotobuf's bundled protos.
-    """
-    include_paths: list[str] = []
-    mod_cache = os.getenv("GOMODCACHE")
-    if not mod_cache:
-        gopath = os.getenv("GOPATH") or os.path.join(Path.home(), "go")
-        mod_cache = os.path.join(gopath, "pkg", "mod")
-    if os.path.isdir(mod_cache):
-        candidates = glob.glob(os.path.join(mod_cache, "github.com", "planetscale", "vtprotobuf@*", "include"))
-        if candidates:
-            include_paths.append(sorted(candidates, reverse=True)[0])
-    return include_paths
 
 
 # Allow selecting specific protoc-gen-go binaries for legacy vs. new API.
@@ -143,7 +127,6 @@ def generate(ctx, pre_commit=False):
             # Generate Go/grpc stubs (protobuf API v2) and optional vtproto helpers.
             go_cli_extras = CLI_EXTRAS.get(pkg, '')
             include_args = [f"-I{proto_root}", f"-I{protodep_root}"]
-            include_args += [f"-I{path}" for path in _vtprotobuf_include_paths()]
             go_opt_args = []
             if "module=" not in go_cli_extras and GO_PLUGIN_OPTS:
                 go_opt_args.append(GO_PLUGIN_OPTS)

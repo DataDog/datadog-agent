@@ -2,20 +2,17 @@ syntax = "proto3";
 
 package datadog.intake.stateful;
 option go_package = "pkg/proto/pbgo/statefulpb";
-import "github.com/planetscale/vtprotobuf/vtproto/ext.proto";
 
 // ---------------------------------------------------------------------------
 // Dictionary-encoded
 // ---------------------------------------------------------------------------
 
 message DictEntryDefine {
-  option (vtproto.mempool) = true;
   uint64 id = 1;
   string value = 2;
 }
 
 message DictEntryDelete {
-  option (vtproto.mempool) = true;
   uint64 id = 1;
 }
 
@@ -27,7 +24,6 @@ message DictEntryDelete {
 // it's more accurate than a marker
 // PatternDefine is also used to signal a update to an existing pattern.
 message PatternDefine {
-  option (vtproto.mempool) = true;
   uint64 pattern_id = 1;
   string template = 2;
   uint32 param_count = 3;
@@ -35,7 +31,6 @@ message PatternDefine {
 }
 
 message PatternDelete {
-  option (vtproto.mempool) = true;
   uint64 pattern_id = 1;
 }
 
@@ -44,18 +39,15 @@ message PatternDelete {
 // ---------------------------------------------------------------------------
 
 message TagSet {
-  option (vtproto.mempool) = true;
   DynamicValue tagset = 1;
 }
 
 message Tag {
-  option (vtproto.mempool) = true;
   DynamicValue key = 1;
   DynamicValue value = 2;
 }
 
 message Log {
-  option (vtproto.mempool) = true;
   sint64 timestamp = 1;
   oneof content {
     StructuredLog structured = 2;
@@ -70,14 +62,12 @@ message Log {
 }
 
 message StructuredLog {
-  option (vtproto.mempool) = true;
   uint64 pattern_id = 1;
   repeated DynamicValue dynamic_values = 2;
   bytes json_context = 3;
 }
 
 message DynamicValue {
-  option (vtproto.mempool) = true;
   oneof value {
     int64 int_value = 1;
     double float_value = 2;
@@ -92,7 +82,6 @@ message DynamicValue {
 // Currently we are doing it at batch level. This message below is not used,
 // we declare it here for future use.
 message DeltaEncodingSync {
-  option (vtproto.mempool) = true;
   uint64 timestamp = 1;
   uint64 pattern_id = 2;
   TagSet tags = 3;
@@ -103,7 +92,6 @@ message DeltaEncodingSync {
 // ---------------------------------------------------------------------------
 
 message Datum {
-  option (vtproto.mempool) = true;
   oneof data {
     PatternDefine pattern_define = 1;
     PatternDelete pattern_delete = 2;
@@ -117,14 +105,12 @@ message Datum {
 // DatumSequence wraps a sequence of Datum messages
 // Used for serialization in application-level compression
 message DatumSequence {
-  option (vtproto.mempool) = true;
   repeated Datum data = 1;
 }
 
 // data is sequence of pattern/dictionary changes + logs
 // the ordering is significant, must be processed in order
 message StatefulBatch {
-  option (vtproto.mempool) = true;
   uint32 batch_id = 1;
 
   // Bytes of a serialized and compressed DatumSequence.
@@ -133,7 +119,6 @@ message StatefulBatch {
 }
 
 message BatchStatus {
-  option (vtproto.mempool) = true;
   uint32 batch_id = 1;
 
   // TODO: only OK is used right now - should we just remove this enum?

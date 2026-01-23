@@ -285,8 +285,6 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	datumSeq := &statefulpb.DatumSequence{
 		Data: grpcDatums,
 	}
-	// Once serialized we don't need the datums anymore
-	defer releaseLogDatums(grpcDatums)
 
 	serialized, err := datumSeq.MarshalVT()
 	if err != nil {
@@ -319,18 +317,4 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
 	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
-}
-
-func releaseLogDatums(datums []*statefulpb.Datum) {
-	for _, datum := range datums {
-		if datum == nil {
-			continue
-		}
-		logDatum := datum.GetLogs()
-		if logDatum == nil {
-			continue
-		}
-		logDatum.ReturnToVTPool()
-		datum.ReturnToVTPool()
-	}
 }

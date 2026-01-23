@@ -196,10 +196,12 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 
 	dictID, isNew := mt.tagManager.AddString(allTagsString)
 
-	tagSet := statefulpb.TagSetFromVTPool()
-	tagSet.Tagset = statefulpb.DynamicValueFromVTPool()
-	tagSet.Tagset.Value = &statefulpb.DynamicValue_DictIndex{
-		DictIndex: dictID,
+	tagSet := &statefulpb.TagSet{
+		Tagset: &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_DictIndex{
+				DictIndex: dictID,
+			},
+		},
 	}
 
 	return tagSet, allTagsString, dictID, isNew
@@ -332,61 +334,61 @@ func buildDictEntryDefine(id uint64, value string) *statefulpb.Datum {
 func (mt *MessageTranslator) encodeDynamicValue(value string) (*statefulpb.DynamicValue, uint64, bool) {
 	// Try parsing as int64
 	if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
-		dynamicValue := statefulpb.DynamicValueFromVTPool()
-		dynamicValue.Value = &statefulpb.DynamicValue_IntValue{
-			IntValue: intVal,
-		}
-		return dynamicValue, 0, false
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_IntValue{
+				IntValue: intVal,
+			},
+		}, 0, false
 	}
 
 	// Try parsing as float64
 	if floatVal, err := strconv.ParseFloat(value, 64); err == nil {
-		dynamicValue := statefulpb.DynamicValueFromVTPool()
-		dynamicValue.Value = &statefulpb.DynamicValue_FloatValue{
-			FloatValue: floatVal,
-		}
-		return dynamicValue, 0, false
+		return &statefulpb.DynamicValue{
+			Value: &statefulpb.DynamicValue_FloatValue{
+				FloatValue: floatVal,
+			},
+		}, 0, false
 	}
 
 	// Try dictionary encoding for string values
 	dictID, isNew := mt.tagManager.AddString(value)
-	dynamicValue := statefulpb.DynamicValueFromVTPool()
-	dynamicValue.Value = &statefulpb.DynamicValue_DictIndex{
-		DictIndex: dictID,
-	}
-	return dynamicValue, dictID, isNew
+	return &statefulpb.DynamicValue{
+		Value: &statefulpb.DynamicValue_DictIndex{
+			DictIndex: dictID,
+		},
+	}, dictID, isNew
 }
 
 // buildStructuredLog creates a Datum containing a StructuredLog
 func buildStructuredLog(timestamp int64, patternID uint64, dynamicValues []*statefulpb.DynamicValue, tagSet *statefulpb.TagSet, jsonContext []byte) *statefulpb.Datum {
-	datum := statefulpb.DatumFromVTPool()
-	log := statefulpb.LogFromVTPool()
-	structured := statefulpb.StructuredLogFromVTPool()
-	structured.PatternId = patternID
-	structured.DynamicValues = dynamicValues
-	structured.JsonContext = jsonContext
-	log.Timestamp = timestamp
-	log.Content = &statefulpb.Log_Structured{
-		Structured: structured,
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
+				Timestamp: timestamp,
+				Content: &statefulpb.Log_Structured{
+					Structured: &statefulpb.StructuredLog{
+						PatternId:     patternID,
+						DynamicValues: dynamicValues,
+						JsonContext:   jsonContext,
+					},
+				},
+				Tags: tagSet,
+			},
+		},
 	}
-	log.Tags = tagSet
-	datum.Data = &statefulpb.Datum_Logs{
-		Logs: log,
-	}
-	return datum
 }
 
 // buildRawLog creates a Datum containing a raw log (no pattern)
 func buildRawLog(content string, ts time.Time, tagSet *statefulpb.TagSet) *statefulpb.Datum {
-	datum := statefulpb.DatumFromVTPool()
-	log := statefulpb.LogFromVTPool()
-	log.Timestamp = ts.UnixNano() / nanoToMillis
-	log.Content = &statefulpb.Log_Raw{
-		Raw: content,
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_Logs{
+			Logs: &statefulpb.Log{
+				Timestamp: ts.UnixNano() / nanoToMillis,
+				Content: &statefulpb.Log_Raw{
+					Raw: content,
+				},
+				Tags: tagSet,
+			},
+		},
 	}
-	log.Tags = tagSet
-	datum.Data = &statefulpb.Datum_Logs{
-		Logs: log,
-	}
-	return datum
 }

@@ -7,7 +7,6 @@
 package statefulpb
 
 import (
-	_ "github.com/planetscale/vtprotobuf/vtproto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1022,72 +1021,72 @@ var File_datadog_stateful_stateful_encoding_proto protoreflect.FileDescriptor
 
 const file_datadog_stateful_stateful_encoding_proto_rawDesc = "" +
 	"\n" +
-	"(datadog/stateful/stateful_encoding.proto\x12\x17datadog.intake.stateful\x1a3github.com/planetscale/vtprotobuf/vtproto/ext.proto\"=\n" +
+	"(datadog/stateful/stateful_encoding.proto\x12\x17datadog.intake.stateful\"7\n" +
 	"\x0fDictEntryDefine\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x04R\x02id\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x04\xa8\xa6\x1f\x01\"'\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value\"!\n" +
 	"\x0fDictEntryDelete\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\x04R\x02id:\x04\xa8\xa6\x1f\x01\"\x8c\x01\n" +
+	"\x02id\x18\x01 \x01(\x04R\x02id\"\x86\x01\n" +
 	"\rPatternDefine\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\x04R\tpatternId\x12\x1a\n" +
 	"\btemplate\x18\x02 \x01(\tR\btemplate\x12\x1f\n" +
 	"\vparam_count\x18\x03 \x01(\rR\n" +
 	"paramCount\x12\x19\n" +
-	"\bpos_list\x18\x04 \x03(\rR\aposList:\x04\xa8\xa6\x1f\x01\"4\n" +
+	"\bpos_list\x18\x04 \x03(\rR\aposList\".\n" +
 	"\rPatternDelete\x12\x1d\n" +
 	"\n" +
-	"pattern_id\x18\x01 \x01(\x04R\tpatternId:\x04\xa8\xa6\x1f\x01\"M\n" +
+	"pattern_id\x18\x01 \x01(\x04R\tpatternId\"G\n" +
 	"\x06TagSet\x12=\n" +
-	"\x06tagset\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x06tagset:\x04\xa8\xa6\x1f\x01\"\x81\x01\n" +
+	"\x06tagset\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x06tagset\"{\n" +
 	"\x03Tag\x127\n" +
 	"\x03key\x18\x01 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x03key\x12;\n" +
-	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value:\x04\xa8\xa6\x1f\x01\"\xc7\x01\n" +
+	"\x05value\x18\x02 \x01(\v2%.datadog.intake.stateful.DynamicValueR\x05value\"\xc1\x01\n" +
 	"\x03Log\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x12R\ttimestamp\x12H\n" +
 	"\n" +
 	"structured\x18\x02 \x01(\v2&.datadog.intake.stateful.StructuredLogH\x00R\n" +
 	"structured\x12\x12\n" +
 	"\x03raw\x18\x03 \x01(\tH\x00R\x03raw\x123\n" +
-	"\x04tags\x18\x04 \x01(\v2\x1f.datadog.intake.stateful.TagSetR\x04tags:\x04\xa8\xa6\x1f\x01B\t\n" +
-	"\acontent\"\xa5\x01\n" +
+	"\x04tags\x18\x04 \x01(\v2\x1f.datadog.intake.stateful.TagSetR\x04tagsB\t\n" +
+	"\acontent\"\x9f\x01\n" +
 	"\rStructuredLog\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x01 \x01(\x04R\tpatternId\x12L\n" +
 	"\x0edynamic_values\x18\x02 \x03(\v2%.datadog.intake.stateful.DynamicValueR\rdynamicValues\x12!\n" +
-	"\fjson_context\x18\x03 \x01(\fR\vjsonContext:\x04\xa8\xa6\x1f\x01\"\xa5\x01\n" +
+	"\fjson_context\x18\x03 \x01(\fR\vjsonContext\"\x9f\x01\n" +
 	"\fDynamicValue\x12\x1d\n" +
 	"\tint_value\x18\x01 \x01(\x03H\x00R\bintValue\x12!\n" +
 	"\vfloat_value\x18\x02 \x01(\x01H\x00R\n" +
 	"floatValue\x12#\n" +
 	"\fstring_value\x18\x03 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
 	"\n" +
-	"dict_index\x18\x04 \x01(\x04H\x00R\tdictIndex:\x04\xa8\xa6\x1f\x01B\a\n" +
-	"\x05value\"\x8b\x01\n" +
+	"dict_index\x18\x04 \x01(\x04H\x00R\tdictIndexB\a\n" +
+	"\x05value\"\x85\x01\n" +
 	"\x11DeltaEncodingSync\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x04R\ttimestamp\x12\x1d\n" +
 	"\n" +
 	"pattern_id\x18\x02 \x01(\x04R\tpatternId\x123\n" +
-	"\x04tags\x18\x03 \x01(\v2\x1f.datadog.intake.stateful.TagSetR\x04tags:\x04\xa8\xa6\x1f\x01\"\xf9\x03\n" +
+	"\x04tags\x18\x03 \x01(\v2\x1f.datadog.intake.stateful.TagSetR\x04tags\"\xf3\x03\n" +
 	"\x05Datum\x12O\n" +
 	"\x0epattern_define\x18\x01 \x01(\v2&.datadog.intake.stateful.PatternDefineH\x00R\rpatternDefine\x12O\n" +
 	"\x0epattern_delete\x18\x02 \x01(\v2&.datadog.intake.stateful.PatternDeleteH\x00R\rpatternDelete\x12V\n" +
 	"\x11dict_entry_define\x18\x03 \x01(\v2(.datadog.intake.stateful.DictEntryDefineH\x00R\x0fdictEntryDefine\x12V\n" +
 	"\x11dict_entry_delete\x18\x04 \x01(\v2(.datadog.intake.stateful.DictEntryDeleteH\x00R\x0fdictEntryDelete\x12\\\n" +
 	"\x13delta_encoding_sync\x18\x05 \x01(\v2*.datadog.intake.stateful.DeltaEncodingSyncH\x00R\x11deltaEncodingSync\x122\n" +
-	"\x04logs\x18\x06 \x01(\v2\x1c.datadog.intake.stateful.LogH\x00R\x04logs:\x04\xa8\xa6\x1f\x01B\x06\n" +
-	"\x04data\"I\n" +
+	"\x04logs\x18\x06 \x01(\v2\x1c.datadog.intake.stateful.LogH\x00R\x04logsB\x06\n" +
+	"\x04data\"C\n" +
 	"\rDatumSequence\x122\n" +
-	"\x04data\x18\x01 \x03(\v2\x1e.datadog.intake.stateful.DatumR\x04data:\x04\xa8\xa6\x1f\x01\"D\n" +
+	"\x04data\x18\x01 \x03(\v2\x1e.datadog.intake.stateful.DatumR\x04data\">\n" +
 	"\rStatefulBatch\x12\x19\n" +
 	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x12\x12\n" +
-	"\x04data\x18\x02 \x01(\fR\x04data:\x04\xa8\xa6\x1f\x01\"\x92\x01\n" +
+	"\x04data\x18\x02 \x01(\fR\x04data\"\x8c\x01\n" +
 	"\vBatchStatus\x12\x19\n" +
 	"\bbatch_id\x18\x01 \x01(\rR\abatchId\x12C\n" +
 	"\x06status\x18\x02 \x01(\x0e2+.datadog.intake.stateful.BatchStatus.StatusR\x06status\"\x1d\n" +
 	"\x06Status\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\x06\n" +
-	"\x02OK\x10\x01:\x04\xa8\xa6\x1f\x012u\n" +
+	"\x02OK\x10\x012u\n" +
 	"\x13StatefulLogsService\x12^\n" +
 	"\n" +
 	"LogsStream\x12&.datadog.intake.stateful.StatefulBatch\x1a$.datadog.intake.stateful.BatchStatus(\x010\x01B\x1bZ\x19pkg/proto/pbgo/statefulpbb\x06proto3"
