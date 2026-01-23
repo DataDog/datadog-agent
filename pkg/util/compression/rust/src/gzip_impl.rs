@@ -5,7 +5,43 @@ use crate::error::{CompressionResult, DdCompressionError};
 use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
+
+/// A writer that writes to a fixed-size slice, tracking the position.
+/// Returns an error if the buffer is too small.
+struct SliceWriter<'a> {
+    buf: &'a mut [u8],
+    pos: usize,
+}
+
+impl<'a> SliceWriter<'a> {
+    fn new(buf: &'a mut [u8]) -> Self {
+        Self { buf, pos: 0 }
+    }
+
+    fn position(&self) -> usize {
+        self.pos
+    }
+}
+
+impl<'a> Write for SliceWriter<'a> {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        let available = self.buf.len() - self.pos;
+        if data.len() > available {
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "buffer too small",
+            ));
+        }
+        self.buf[self.pos..self.pos + data.len()].copy_from_slice(data);
+        self.pos += data.len();
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Default gzip compression level (matches Go agent default).
 pub const DEFAULT_GZIP_LEVEL: i32 = 6;
@@ -44,14 +80,17 @@ impl Default for GzipCompressor {
 }
 
 impl Compressor for GzipCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Gzip
     }
 
+    #[inline(always)]
     fn level(&self) -> i32 {
         self.level
     }
 
+    #[inline(always)]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
@@ -66,6 +105,24 @@ impl Compressor for GzipCompressor {
             .map_err(|_| DdCompressionError::CompressionFailed)
     }
 
+    #[inline(always)]
+    fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if src.is_empty() {
+            return Ok(0);
+        }
+
+        let writer = SliceWriter::new(dst);
+        let mut encoder = GzEncoder::new(writer, self.compression());
+        encoder
+            .write_all(src)
+            .map_err(|_| DdCompressionError::BufferTooSmall)?;
+        let writer = encoder
+            .finish()
+            .map_err(|_| DdCompressionError::BufferTooSmall)?;
+        Ok(writer.position())
+    }
+
+    #[inline(always)]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
@@ -79,12 +136,22 @@ impl Compressor for GzipCompressor {
         Ok(output)
     }
 
+    #[inline(always)]
     fn compress_bound(&self, source_len: usize) -> usize {
-        // Gzip worst case: input + 5 bytes per 32KB block + 18 bytes header/trailer
-        // Formula from Go implementation: sourceLen + (sourceLen/32768)*5 + 18
-        source_len + (source_len / 32768) * 5 + 18
+        // Gzip worst case: zlib deflateBound + 18 bytes for gzip header/trailer
+        // The deflate compression can expand incompressible data by:
+        // - 5 bytes for each 16KB block + 1 byte per 32KB block
+        // - Plus gzip header (10 bytes) and trailer (8 bytes)
+        // Using a conservative formula that matches real-world behavior:
+        // For small inputs, the overhead can be significant, so we add extra safety margin.
+        //
+        // More conservative formula: input + 5 * (input / 16383 + 1) + 18
+        // This ensures enough room for block headers even for small inputs.
+        let num_blocks = (source_len / 16383) + 1;
+        source_len + (5 * num_blocks) + 18
     }
 
+    #[inline]
     fn new_stream(&self) -> Box<dyn StreamCompressor> {
         Box::new(GzipStreamCompressor::new(self.level))
     }
@@ -113,10 +180,12 @@ impl GzipStreamCompressor {
 }
 
 impl StreamCompressor for GzipStreamCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Gzip
     }
 
+    #[inline(always)]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -133,6 +202,7 @@ impl StreamCompressor for GzipStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -148,6 +218,7 @@ impl StreamCompressor for GzipStreamCompressor {
         }
     }
 
+    #[inline]
     fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -164,6 +235,7 @@ impl StreamCompressor for GzipStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn get_output(&self) -> &[u8] {
         if let Some(ref encoder) = self.encoder {
             encoder.get_ref()
@@ -172,6 +244,7 @@ impl StreamCompressor for GzipStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn bytes_written(&self) -> usize {
         self.bytes_written
     }

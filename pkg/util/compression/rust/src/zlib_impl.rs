@@ -5,7 +5,43 @@ use crate::error::{CompressionResult, DdCompressionError};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
+
+/// A writer that writes to a fixed-size slice, tracking the position.
+/// Returns an error if the buffer is too small.
+struct SliceWriter<'a> {
+    buf: &'a mut [u8],
+    pos: usize,
+}
+
+impl<'a> SliceWriter<'a> {
+    fn new(buf: &'a mut [u8]) -> Self {
+        Self { buf, pos: 0 }
+    }
+
+    fn position(&self) -> usize {
+        self.pos
+    }
+}
+
+impl<'a> Write for SliceWriter<'a> {
+    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
+        let available = self.buf.len() - self.pos;
+        if data.len() > available {
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "buffer too small",
+            ));
+        }
+        self.buf[self.pos..self.pos + data.len()].copy_from_slice(data);
+        self.pos += data.len();
+        Ok(data.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
 
 /// Default zlib compression level.
 pub const DEFAULT_ZLIB_LEVEL: i32 = 6;
@@ -44,14 +80,17 @@ impl Default for ZlibCompressor {
 }
 
 impl Compressor for ZlibCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zlib
     }
 
+    #[inline(always)]
     fn level(&self) -> i32 {
         self.level
     }
 
+    #[inline(always)]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
@@ -66,6 +105,24 @@ impl Compressor for ZlibCompressor {
             .map_err(|_| DdCompressionError::CompressionFailed)
     }
 
+    #[inline(always)]
+    fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if src.is_empty() {
+            return Ok(0);
+        }
+
+        let writer = SliceWriter::new(dst);
+        let mut encoder = ZlibEncoder::new(writer, self.compression());
+        encoder
+            .write_all(src)
+            .map_err(|_| DdCompressionError::BufferTooSmall)?;
+        let writer = encoder
+            .finish()
+            .map_err(|_| DdCompressionError::BufferTooSmall)?;
+        Ok(writer.position())
+    }
+
+    #[inline(always)]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
@@ -79,12 +136,19 @@ impl Compressor for ZlibCompressor {
         Ok(output)
     }
 
+    #[inline(always)]
     fn compress_bound(&self, source_len: usize) -> usize {
-        // Zlib worst case formula from the Go implementation:
-        // sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
-        source_len + (source_len >> 12) + (source_len >> 14) + (source_len >> 25) + 13
+        // Zlib worst case formula - conservative estimate to handle small inputs:
+        // For small inputs, deflate can expand data, so we need extra room.
+        // Based on zlib's deflateBound formula but more conservative for small inputs.
+        // Base: source_len + (source_len >> 12) + (source_len >> 14) + (source_len >> 25) + 13
+        // Add extra margin for small inputs: at least 6 bytes per 16KB block + header
+        let base = source_len + (source_len >> 12) + (source_len >> 14) + (source_len >> 25) + 13;
+        let num_blocks = (source_len / 16383) + 1;
+        base + (5 * num_blocks)
     }
 
+    #[inline]
     fn new_stream(&self) -> Box<dyn StreamCompressor> {
         Box::new(ZlibStreamCompressor::new(self.level))
     }
@@ -113,10 +177,12 @@ impl ZlibStreamCompressor {
 }
 
 impl StreamCompressor for ZlibStreamCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zlib
     }
 
+    #[inline(always)]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -133,6 +199,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -148,6 +215,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
+    #[inline]
     fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -164,6 +232,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn get_output(&self) -> &[u8] {
         if let Some(ref encoder) = self.encoder {
             encoder.get_ref()
@@ -172,6 +241,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn bytes_written(&self) -> usize {
         self.bytes_written
     }

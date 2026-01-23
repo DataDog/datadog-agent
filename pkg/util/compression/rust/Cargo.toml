@@ -11,8 +11,12 @@ name = "datadog_compression"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [dependencies]
-zstd = "0.13"
-flate2 = "1.0"
+# Use zstd with thin backend - uses pre-built C library for faster compilation
+# while maintaining identical runtime performance to the bundled build.
+# The "zstdmt" feature enables multithreaded compression support.
+zstd = { version = "0.13", default-features = false, features = ["thin", "zstdmt"] }
+# Use flate2 with zlib-ng backend for better compression performance
+flate2 = { version = "1.0", default-features = false, features = ["zlib-ng"] }
 libc = "0.2"
 
 [dev-dependencies]

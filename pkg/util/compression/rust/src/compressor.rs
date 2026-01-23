@@ -50,6 +50,23 @@ pub trait Compressor: Send + Sync {
     /// Compresses the input data and returns the compressed output.
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>>;
 
+    /// Compresses the input data directly into a caller-provided buffer (zero-copy).
+    ///
+    /// This method eliminates the need for an intermediate allocation by
+    /// compressing directly into a buffer provided by the caller.
+    ///
+    /// # Arguments
+    /// * `src` - Source data to compress
+    /// * `dst` - Destination buffer to write compressed data into
+    ///
+    /// # Returns
+    /// The number of bytes written to `dst` on success, or an error if compression
+    /// fails or if `dst` is too small (returns `BufferTooSmall`).
+    ///
+    /// # Note
+    /// Use `compress_bound(src.len())` to determine the required buffer size.
+    fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize>;
+
     /// Decompresses the input data and returns the decompressed output.
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>>;
 

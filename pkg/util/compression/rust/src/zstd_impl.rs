@@ -37,22 +37,46 @@ impl Default for ZstdCompressor {
 }
 
 impl Compressor for ZstdCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zstd
     }
 
+    #[inline(always)]
     fn level(&self) -> i32 {
         self.level
     }
 
+    #[inline(always)]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
         }
 
-        zstd::encode_all(src, self.level).map_err(|_| DdCompressionError::CompressionFailed)
+        // Use bulk compression with pre-allocated output buffer for better performance.
+        // This is more efficient than zstd::encode_all which creates intermediate buffers.
+        let bound = zstd::zstd_safe::compress_bound(src.len());
+        let mut output = vec![0u8; bound];
+
+        let compressed_size = zstd::bulk::compress_to_buffer(src, &mut output, self.level)
+            .map_err(|_| DdCompressionError::CompressionFailed)?;
+
+        output.truncate(compressed_size);
+        Ok(output)
     }
 
+    #[inline(always)]
+    fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if src.is_empty() {
+            return Ok(0);
+        }
+
+        // Use zstd's bulk compression API that writes directly to a buffer
+        zstd::bulk::compress_to_buffer(src, dst, self.level)
+            .map_err(|_| DdCompressionError::BufferTooSmall)
+    }
+
+    #[inline(always)]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
@@ -61,11 +85,13 @@ impl Compressor for ZstdCompressor {
         zstd::decode_all(src).map_err(|_| DdCompressionError::DecompressionFailed)
     }
 
+    #[inline(always)]
     fn compress_bound(&self, source_len: usize) -> usize {
         // Use zstd's compress_bound which gives the worst-case size
         zstd::zstd_safe::compress_bound(source_len)
     }
 
+    #[inline]
     fn new_stream(&self) -> Box<dyn StreamCompressor> {
         Box::new(ZstdStreamCompressor::new(self.level))
     }
@@ -74,7 +100,6 @@ impl Compressor for ZstdCompressor {
 /// Streaming zstd compressor.
 pub struct ZstdStreamCompressor {
     encoder: Option<zstd::stream::Encoder<'static, Vec<u8>>>,
-    output: Vec<u8>,
     bytes_written: usize,
     finished: bool,
 }
@@ -87,7 +112,6 @@ impl ZstdStreamCompressor {
 
         Self {
             encoder,
-            output: Vec::new(),
             bytes_written: 0,
             finished: false,
         }
@@ -95,10 +119,12 @@ impl ZstdStreamCompressor {
 }
 
 impl StreamCompressor for ZstdStreamCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zstd
     }
 
+    #[inline(always)]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -115,6 +141,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -130,6 +157,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
+    #[inline]
     fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -147,6 +175,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn get_output(&self) -> &[u8] {
         if let Some(ref encoder) = self.encoder {
             encoder.get_ref()
@@ -155,6 +184,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
+    #[inline(always)]
     fn bytes_written(&self) -> usize {
         self.bytes_written
     }

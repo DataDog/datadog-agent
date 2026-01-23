@@ -20,27 +20,42 @@ impl Default for NoopCompressor {
 }
 
 impl Compressor for NoopCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Noop
     }
 
+    #[inline(always)]
     fn level(&self) -> i32 {
         0
     }
 
+    #[inline(always)]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         Ok(src.to_vec())
     }
 
+    #[inline(always)]
+    fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if dst.len() < src.len() {
+            return Err(DdCompressionError::BufferTooSmall);
+        }
+        dst[..src.len()].copy_from_slice(src);
+        Ok(src.len())
+    }
+
+    #[inline(always)]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         Ok(src.to_vec())
     }
 
+    #[inline(always)]
     fn compress_bound(&self, source_len: usize) -> usize {
         // No expansion for passthrough
         source_len
     }
 
+    #[inline]
     fn new_stream(&self) -> Box<dyn StreamCompressor> {
         Box::new(NoopStreamCompressor::new())
     }
@@ -69,10 +84,12 @@ impl Default for NoopStreamCompressor {
 }
 
 impl StreamCompressor for NoopStreamCompressor {
+    #[inline(always)]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Noop
     }
 
+    #[inline(always)]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -82,6 +99,7 @@ impl StreamCompressor for NoopStreamCompressor {
         Ok(data.len())
     }
 
+    #[inline(always)]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -90,6 +108,7 @@ impl StreamCompressor for NoopStreamCompressor {
         Ok(())
     }
 
+    #[inline]
     fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -99,10 +118,12 @@ impl StreamCompressor for NoopStreamCompressor {
         Ok(std::mem::take(&mut self.buffer))
     }
 
+    #[inline(always)]
     fn get_output(&self) -> &[u8] {
         &self.buffer
     }
 
+    #[inline(always)]
     fn bytes_written(&self) -> usize {
         self.buffer.len()
     }

@@ -9,10 +9,15 @@
 //! # Safety
 //! All FFI functions in this module expect callers to provide valid pointers.
 //! This is standard for C FFI - the caller is responsible for pointer validity.
+//!
+//! # Performance
+//! This module uses a concrete enum `ConcreteCompressor` instead of `Box<dyn Compressor>`
+//! to eliminate vtable overhead on hot paths. The compiler can inline method calls
+//! and potentially devirtualize operations.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
 use crate::compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
-use crate::error::DdCompressionError;
+use crate::error::{CompressionResult, DdCompressionError};
 use crate::gzip_impl::GzipCompressor;
 use crate::noop_impl::NoopCompressor;
 use crate::zlib_impl::ZlibCompressor;
@@ -65,9 +70,83 @@ impl DdBuffer {
     }
 }
 
+/// Concrete compressor enum that eliminates vtable overhead.
+/// Using an enum instead of `Box<dyn Compressor>` allows the compiler to:
+/// - Inline method calls
+/// - Eliminate dynamic dispatch overhead
+/// - Better optimize hot paths
+pub enum ConcreteCompressor {
+    Zstd(ZstdCompressor),
+    Gzip(GzipCompressor),
+    Zlib(ZlibCompressor),
+    Noop(NoopCompressor),
+}
+
+impl ConcreteCompressor {
+    #[inline(always)]
+    pub fn algorithm(&self) -> DdCompressionAlgorithm {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.algorithm(),
+            ConcreteCompressor::Gzip(c) => c.algorithm(),
+            ConcreteCompressor::Zlib(c) => c.algorithm(),
+            ConcreteCompressor::Noop(c) => c.algorithm(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.compress(src),
+            ConcreteCompressor::Gzip(c) => c.compress(src),
+            ConcreteCompressor::Zlib(c) => c.compress(src),
+            ConcreteCompressor::Noop(c) => c.compress(src),
+        }
+    }
+
+    #[inline(always)]
+    pub fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.decompress(src),
+            ConcreteCompressor::Gzip(c) => c.decompress(src),
+            ConcreteCompressor::Zlib(c) => c.decompress(src),
+            ConcreteCompressor::Noop(c) => c.decompress(src),
+        }
+    }
+
+    #[inline(always)]
+    pub fn compress_bound(&self, source_len: usize) -> usize {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.compress_bound(source_len),
+            ConcreteCompressor::Gzip(c) => c.compress_bound(source_len),
+            ConcreteCompressor::Zlib(c) => c.compress_bound(source_len),
+            ConcreteCompressor::Noop(c) => c.compress_bound(source_len),
+        }
+    }
+
+    #[inline(always)]
+    pub fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.compress_into(src, dst),
+            ConcreteCompressor::Gzip(c) => c.compress_into(src, dst),
+            ConcreteCompressor::Zlib(c) => c.compress_into(src, dst),
+            ConcreteCompressor::Noop(c) => c.compress_into(src, dst),
+        }
+    }
+
+    #[inline(always)]
+    pub fn new_stream(&self) -> Box<dyn StreamCompressor> {
+        match self {
+            ConcreteCompressor::Zstd(c) => c.new_stream(),
+            ConcreteCompressor::Gzip(c) => c.new_stream(),
+            ConcreteCompressor::Zlib(c) => c.new_stream(),
+            ConcreteCompressor::Noop(c) => c.new_stream(),
+        }
+    }
+}
+
 /// Opaque handle to a compressor.
 pub struct DdCompressor {
-    inner: Box<dyn Compressor>,
+    inner: ConcreteCompressor,
 }
 
 /// Opaque handle to a stream compressor.
@@ -95,11 +174,11 @@ pub extern "C" fn dd_compressor_new(
     algorithm: DdCompressionAlgorithm,
     level: c_int,
 ) -> *mut DdCompressor {
-    let compressor: Box<dyn Compressor> = match algorithm {
-        DdCompressionAlgorithm::Zstd => Box::new(ZstdCompressor::new(level)),
-        DdCompressionAlgorithm::Gzip => Box::new(GzipCompressor::new(level)),
-        DdCompressionAlgorithm::Zlib => Box::new(ZlibCompressor::new(level)),
-        DdCompressionAlgorithm::Noop => Box::new(NoopCompressor::new()),
+    let compressor = match algorithm {
+        DdCompressionAlgorithm::Zstd => ConcreteCompressor::Zstd(ZstdCompressor::new(level)),
+        DdCompressionAlgorithm::Gzip => ConcreteCompressor::Gzip(GzipCompressor::new(level)),
+        DdCompressionAlgorithm::Zlib => ConcreteCompressor::Zlib(ZlibCompressor::new(level)),
+        DdCompressionAlgorithm::Noop => ConcreteCompressor::Noop(NoopCompressor::new()),
     };
 
     Box::into_raw(Box::new(DdCompressor { inner: compressor }))
@@ -238,6 +317,83 @@ pub extern "C" fn dd_compressor_compress_bound(
 
     let compressor = unsafe { &*compressor };
     compressor.inner.compress_bound(source_len)
+}
+
+/// Compresses data directly into a caller-provided buffer (zero-copy).
+///
+/// This function eliminates the need for an intermediate allocation by
+/// compressing directly into a buffer provided by the caller.
+///
+/// # Arguments
+/// * `compressor` - Valid compressor handle
+/// * `src` - Source data to compress
+/// * `src_len` - Length of source data
+/// * `dst` - Destination buffer to write compressed data
+/// * `dst_capacity` - Capacity of the destination buffer
+/// * `out_written` - Pointer to receive the number of bytes written
+///
+/// # Returns
+/// Error code indicating success or failure. On success, `out_written` contains
+/// the number of bytes written to `dst`. If the buffer is too small,
+/// `DD_COMPRESSION_ERROR_BUFFER_TOO_SMALL` is returned.
+///
+/// # Safety
+/// - `compressor` must be a valid handle from `dd_compressor_new()`.
+/// - `src` must be valid for `src_len` bytes (can be NULL if `src_len` is 0).
+/// - `dst` must be valid for `dst_capacity` bytes.
+/// - `out_written` must be a valid pointer.
+#[no_mangle]
+pub extern "C" fn dd_compressor_compress_into(
+    compressor: *const DdCompressor,
+    src: *const u8,
+    src_len: size_t,
+    dst: *mut u8,
+    dst_capacity: size_t,
+    out_written: *mut size_t,
+) -> DdCompressionError {
+    if compressor.is_null() || out_written.is_null() {
+        return DdCompressionError::InvalidHandle;
+    }
+
+    if dst.is_null() && dst_capacity > 0 {
+        return DdCompressionError::InvalidInput;
+    }
+
+    let compressor = unsafe { &*compressor };
+    let src_slice = if src.is_null() || src_len == 0 {
+        &[]
+    } else {
+        unsafe { slice::from_raw_parts(src, src_len) }
+    };
+
+    // Handle empty input
+    if src_slice.is_empty() {
+        unsafe {
+            *out_written = 0;
+        }
+        return DdCompressionError::Ok;
+    }
+
+    let dst_slice = if dst.is_null() {
+        &mut []
+    } else {
+        unsafe { slice::from_raw_parts_mut(dst, dst_capacity) }
+    };
+
+    match compressor.inner.compress_into(src_slice, dst_slice) {
+        Ok(written) => {
+            unsafe {
+                *out_written = written;
+            }
+            DdCompressionError::Ok
+        }
+        Err(e) => {
+            unsafe {
+                *out_written = 0;
+            }
+            e
+        }
+    }
 }
 
 /// Returns the content-encoding string for this compressor.
@@ -656,5 +812,138 @@ mod tests {
 
         let encoding = dd_compressor_content_encoding(ptr::null());
         assert!(encoding.is_null());
+    }
+
+    #[test]
+    fn test_ffi_compress_into() {
+        let compressor = dd_compressor_new(DdCompressionAlgorithm::Zstd, 3);
+        let data = b"Hello, World! This is a test of FFI compress_into.";
+
+        // Get compress bound and allocate buffer
+        let bound = dd_compressor_compress_bound(compressor, data.len());
+        let mut dst = vec![0u8; bound];
+        let mut out_written: size_t = 0;
+
+        // Compress directly into the buffer
+        let result = dd_compressor_compress_into(
+            compressor,
+            data.as_ptr(),
+            data.len(),
+            dst.as_mut_ptr(),
+            dst.len(),
+            &mut out_written,
+        );
+        assert_eq!(result, DdCompressionError::Ok);
+        assert!(out_written > 0);
+        assert!(out_written <= bound);
+
+        // Decompress and verify
+        let mut decompressed = DdBuffer::null();
+        let result = dd_compressor_decompress(
+            compressor,
+            dst.as_ptr(),
+            out_written,
+            &mut decompressed,
+        );
+        assert_eq!(result, DdCompressionError::Ok);
+
+        let decompressed_slice =
+            unsafe { slice::from_raw_parts(decompressed.data, decompressed.len) };
+        assert_eq!(decompressed_slice, data);
+
+        dd_buffer_free(decompressed);
+        dd_compressor_free(compressor);
+    }
+
+    #[test]
+    fn test_ffi_compress_into_buffer_too_small() {
+        let compressor = dd_compressor_new(DdCompressionAlgorithm::Zstd, 3);
+        let data = b"Hello, World! This is a test of buffer too small error.";
+
+        // Allocate a buffer that's definitely too small
+        let mut dst = vec![0u8; 1];
+        let mut out_written: size_t = 0;
+
+        let result = dd_compressor_compress_into(
+            compressor,
+            data.as_ptr(),
+            data.len(),
+            dst.as_mut_ptr(),
+            dst.len(),
+            &mut out_written,
+        );
+        assert_eq!(result, DdCompressionError::BufferTooSmall);
+        assert_eq!(out_written, 0);
+
+        dd_compressor_free(compressor);
+    }
+
+    #[test]
+    fn test_ffi_compress_into_empty_input() {
+        let compressor = dd_compressor_new(DdCompressionAlgorithm::Zstd, 3);
+
+        let mut dst = vec![0u8; 100];
+        let mut out_written: size_t = 0;
+
+        // Empty input should succeed with 0 bytes written
+        let result = dd_compressor_compress_into(
+            compressor,
+            ptr::null(),
+            0,
+            dst.as_mut_ptr(),
+            dst.len(),
+            &mut out_written,
+        );
+        assert_eq!(result, DdCompressionError::Ok);
+        assert_eq!(out_written, 0);
+
+        dd_compressor_free(compressor);
+    }
+
+    #[test]
+    fn test_ffi_compress_into_all_algorithms() {
+        let algorithms = [
+            DdCompressionAlgorithm::Zstd,
+            DdCompressionAlgorithm::Gzip,
+            DdCompressionAlgorithm::Zlib,
+            DdCompressionAlgorithm::Noop,
+        ];
+
+        for algo in &algorithms {
+            let compressor = dd_compressor_new(*algo, 3);
+            let data = b"Test data for all algorithms in compress_into.";
+
+            let bound = dd_compressor_compress_bound(compressor, data.len());
+            let mut dst = vec![0u8; bound];
+            let mut out_written: size_t = 0;
+
+            let result = dd_compressor_compress_into(
+                compressor,
+                data.as_ptr(),
+                data.len(),
+                dst.as_mut_ptr(),
+                dst.len(),
+                &mut out_written,
+            );
+            assert_eq!(result, DdCompressionError::Ok);
+            assert!(out_written > 0);
+
+            // Verify round-trip
+            let mut decompressed = DdBuffer::null();
+            let result = dd_compressor_decompress(
+                compressor,
+                dst.as_ptr(),
+                out_written,
+                &mut decompressed,
+            );
+            assert_eq!(result, DdCompressionError::Ok);
+
+            let decompressed_slice =
+                unsafe { slice::from_raw_parts(decompressed.data, decompressed.len) };
+            assert_eq!(decompressed_slice, data);
+
+            dd_buffer_free(decompressed);
+            dd_compressor_free(compressor);
+        }
     }
 }

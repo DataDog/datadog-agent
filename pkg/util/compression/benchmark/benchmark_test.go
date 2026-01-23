@@ -116,3 +116,78 @@ func BenchmarkZstdStream_Rust_Medium(b *testing.B) {
 		_ = stream.Close()
 	}
 }
+
+// Benchmarks for CompressInto (zero-copy API)
+// These compare the zero-copy API against the standard Compress API
+
+func BenchmarkZstdCompressInto_Rust_Small(b *testing.B) {
+	comp := rustimpl.NewZstd(3).(*rustimpl.RustCompressor)
+	defer comp.Close()
+	dst := make([]byte, comp.CompressBound(len(smallPayload)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.CompressInto(smallPayload, dst)
+	}
+}
+
+func BenchmarkZstdCompressInto_Rust_Medium(b *testing.B) {
+	comp := rustimpl.NewZstd(3).(*rustimpl.RustCompressor)
+	defer comp.Close()
+	dst := make([]byte, comp.CompressBound(len(mediumPayload)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.CompressInto(mediumPayload, dst)
+	}
+}
+
+func BenchmarkZstdCompressInto_Rust_Large(b *testing.B) {
+	comp := rustimpl.NewZstd(3).(*rustimpl.RustCompressor)
+	defer comp.Close()
+	dst := make([]byte, comp.CompressBound(len(largePayload)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.CompressInto(largePayload, dst)
+	}
+}
+
+// Gzip benchmarks for CompressInto
+func BenchmarkGzipCompressInto_Rust_Medium(b *testing.B) {
+	comp := rustimpl.NewGzip(6).(*rustimpl.RustCompressor)
+	defer comp.Close()
+	dst := make([]byte, comp.CompressBound(len(mediumPayload)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.CompressInto(mediumPayload, dst)
+	}
+}
+
+func BenchmarkGzipCompress_Rust_Medium(b *testing.B) {
+	comp := rustimpl.NewGzip(6)
+	defer comp.(*rustimpl.RustCompressor).Close()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.Compress(mediumPayload)
+	}
+}
+
+// Memory allocation benchmarks
+func BenchmarkZstdCompress_Rust_Medium_Allocs(b *testing.B) {
+	comp := rustimpl.NewZstd(3)
+	defer comp.(*rustimpl.RustCompressor).Close()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.Compress(mediumPayload)
+	}
+}
+
+func BenchmarkZstdCompressInto_Rust_Medium_Allocs(b *testing.B) {
+	comp := rustimpl.NewZstd(3).(*rustimpl.RustCompressor)
+	defer comp.Close()
+	dst := make([]byte, comp.CompressBound(len(mediumPayload)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = comp.CompressInto(mediumPayload, dst)
+	}
+}
