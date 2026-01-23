@@ -40,24 +40,24 @@ Remote Agent                      Core Agent
 
 ### gRPC Service
 
-\`\`\`protobuf
+```protobuf
 service AgentSecure {
   rpc StreamConfigEvents(ConfigStreamRequest) returns (stream ConfigEvent);
 }
-\`\`\`
+```
 
 ### Messages
 
 **Request:**
-\`\`\`protobuf
+```protobuf
 message ConfigStreamRequest {
   string name = 1;        // Client identifier (e.g., "system-probe")
   string session_id = 2;  // From RAR registration (required)
 }
-\`\`\`
+```
 
 **Response Stream:**
-\`\`\`protobuf
+```protobuf
 message ConfigEvent {
   oneof event {
     ConfigSnapshot snapshot = 1;  // Sent first, then on resync
@@ -82,21 +82,21 @@ message ConfigSetting {
   string key = 2;                // Setting name
   google.protobuf.Value value = 3; // Typed value (string, int, bool, etc.)
 }
-\`\`\`
+```
 
 ## Configuration
 
 The config stream is automatically enabled when the component is loaded. No explicit configuration required.
 
 **Optional settings:**
-\`\`\`yaml
+```yaml
 # datadog.yaml
 config_stream:
   sleep_interval: 10ms  # Backoff on non-terminal errors (default: 10ms)
 
 remote_agent_registry:
   enabled: true  # Required for RAR-gated authorization
-\`\`\`
+```
 
 ## Telemetry
 
@@ -104,14 +104,14 @@ The component exports the following metrics for monitoring:
 
 | Metric | Type | Description |
 |--------|------|-------------|
-| \`configstream.subscribers\` | Gauge | Number of active subscribers |
-| \`configstream.snapshots_sent\` | Counter | Snapshots sent (including resyncs) |
-| \`configstream.updates_sent\` | Counter | Incremental updates sent |
-| \`configstream.discontinuities\` | Counter | Sequence gaps detected (triggers resync) |
-| \`configstream.dropped_updates\` | Counter | Updates dropped (slow consumers) |
+| `configstream.subscribers` | Gauge | Number of active subscribers |
+| `configstream.snapshots_sent` | Counter | Snapshots sent (including resyncs) |
+| `configstream.updates_sent` | Counter | Incremental updates sent |
+| `configstream.discontinuities` | Counter | Sequence gaps detected (triggers resync) |
+| `configstream.dropped_updates` | Counter | Updates dropped (slow consumers) |
 
 **Monitoring examples:**
-\`\`\`promql
+```promql
 # Check for slow consumers
 rate(configstream_dropped_updates[5m]) > 0
 
@@ -120,19 +120,19 @@ rate(configstream_discontinuities[5m])
 
 # Track active subscribers
 configstream_subscribers
-\`\`\`
+```
 
 ## Testing
 
 ### Unit Tests
 
-\`\`\`bash
+```bash
 cd comp/core/configstream/impl
 go test -tags test -v
 
 # Run specific test
 go test -tags test -v -run TestPhase0ExitCriteria
-\`\`\`
+```
 
 **Test coverage:**
 - Snapshot-first delivery with origin field
@@ -147,7 +147,7 @@ go test -tags test -v -run TestPhase0ExitCriteria
 
 Build and run the standalone test client:
 
-\`\`\`bash
+```bash
 # Build
 go build -o bin/config-stream-client ./cmd/config-stream-client
 
@@ -157,86 +157,86 @@ go build -o bin/config-stream-client ./cmd/config-stream-client
   --auth-token $(cat /opt/datadog-agent/run/auth_token) \\
   --name my-test-client \\
   --duration 60s
-\`\`\`
+```
 
-See \`cmd/config-stream-client/README.md\` for detailed usage.
+See `cmd/config-stream-client/README.md` for detailed usage.
 
 ## Troubleshooting
 
 ### Client Cannot Subscribe
 
 **Symptoms:**
-\`\`\`
+```
 rpc error: code = Unauthenticated desc = session_id required
-\`\`\`
+```
 
 **Solution:**
 1. Ensure remote agent registers with RAR first
-2. Pass \`session_id\` from RAR registration to \`ConfigStreamRequest\`
-3. Check RAR is enabled: \`remote_agent_registry.enabled: true\`
+2. Pass `session_id` from RAR registration to `ConfigStreamRequest`
+3. Check RAR is enabled: `remote_agent_registry.enabled: true`
 
 ### No Snapshot Received
 
 **Symptoms:** Client connects but times out waiting for snapshot
 
 **Solution:**
-\`\`\`bash
+```bash
 # Check core-agent logs
 grep "configstream" /var/log/datadog/agent.log
 
 # Look for:
 # "New subscriber 'X' joining the config stream"
 # "Failed to create config snapshot"
-\`\`\`
+```
 
 ### Frequent Resyncs
 
-**Symptoms:** Many \`Discontinuity detected\` warnings in logs
+**Symptoms:** Many `Discontinuity detected` warnings in logs
 
 **Solution:**
-- Check \`configstream.dropped_updates\` metric
+- Check `configstream.dropped_updates` metric
 - Optimize consumer processing
 - Increase buffer if needed (code change)
 
 ### Authentication Failures
 
 **Symptoms:**
-\`\`\`
+```
 rpc error: code = PermissionDenied desc = session_id 'xxx' not found
-\`\`\`
+```
 
 **Solution:**
 1. Verify RAR registration succeeded
-2. Check \`session_id\` is not expired
-3. Call \`RefreshRemoteAgent()\` periodically (every 30s recommended)
+2. Check `session_id` is not expired
+3. Call `RefreshRemoteAgent()` periodically (every 30s recommended)
 
 ## Development
 
 ### Modifying the Protocol
 
-1. **Edit proto:** \`pkg/proto/datadog/model/v1/model.proto\`
+1. **Edit proto:** `pkg/proto/datadog/model/v1/model.proto`
 2. **Regenerate:**
-   \`\`\`bash
+   ```bash
    source ~/venv/bin/activate
    dda inv protobuf.generate
-   \`\`\`
-3. **Update implementation:** \`comp/core/configstream/impl/configstream.go\`
-4. **Add tests:** \`comp/core/configstream/impl/configstream_test.go\`
+   ```
+3. **Update implementation:** `comp/core/configstream/impl/configstream.go`
+4. **Add tests:** `comp/core/configstream/impl/configstream_test.go`
 
 ### Debugging
 
 Enable debug logging:
 
-\`\`\`yaml
+```yaml
 # datadog.yaml
 log_level: debug
-\`\`\`
+```
 
 **Key log messages:**
-- \`New subscriber 'X' joining the config stream\` - Subscription started
-- \`Discontinuity detected for subscriber 'X'\` - Gap found, sending snapshot
-- \`Dropping config update for subscriber 'X'\` - Slow consumer, channel full
-- \`Config stream authorized for remote agent\` - RAR auth succeeded
+- `New subscriber 'X' joining the config stream` - Subscription started
+- `Discontinuity detected for subscriber 'X'` - Gap found, sending snapshot
+- `Dropping config update for subscriber 'X'` - Slow consumer, channel full
+- `Config stream authorized for remote agent` - RAR auth succeeded
 
 ## Performance
 
@@ -255,5 +255,5 @@ log_level: debug
 ## Contact
 
 - **Teams:** agent-metric-pipelines, agent-configuration
-- **Component:** \`comp/core/configstream\`
-- **Test Client:** \`cmd/config-stream-client\`
+- **Component:** `comp/core/configstream`
+- **Test Client:** `cmd/config-stream-client`
