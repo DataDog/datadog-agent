@@ -198,9 +198,8 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 }
 
 type testLogArgs struct {
-	Filter   testLogFilterArgs
-	Expect   testLogExpectArgs
-	Optional testLogExpectArgs
+	Filter testLogFilterArgs
+	Expect testLogExpectArgs
 }
 
 type testLogFilterArgs struct {
@@ -308,9 +307,6 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				// Allow additional logsource tags (e.g. logsource:stdout, logsource:stderr) without failing the test.
 				optionalTags := []*regexp.Regexp{
 					regexp.MustCompile("logsource:.*"),
-				}
-				if args.Optional.Tags != nil {
-					optionalTags = lo.Map(*args.Optional.Tags, func(tag string, _ int) *regexp.Regexp { return regexp.MustCompile(tag) })
 				}
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)
