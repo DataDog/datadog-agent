@@ -73,6 +73,23 @@ func TestNewConfig(t *testing.T) {
 				BucketID:       "0",
 			},
 		},
+		{
+			name: "bucket_id_based_on_api_key",
+			configFactory: func(t *testing.T) config.Component {
+				mockConfig := config.NewMock(t)
+				mockConfig.SetWithoutSource("site", "datadoghq.com")
+				mockConfig.SetWithoutSource("api_key", "1234567890")
+				return mockConfig
+			},
+			expectedState: Config{
+				Site:           "datadoghq.com",
+				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
+				RCClient:       nil,
+				MaxInitRetries: 5,
+				InitRetryDelay: 1 * time.Second,
+				BucketID:       "2",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,16 +130,4 @@ func TestCalculateRolloutBucket_EvenlyDistributed(t *testing.T) {
 			"Bucket %s has too many samples: %d (expected between %d and %d)",
 			bucket, count, minCount, maxCount)
 	}
-}
-
-func TestCalculateRolloutBucket_Deterministic(t *testing.T) {
-	// Same API key should always produce same bucket
-	apiKey := "test-api-key-12345"
-
-	bucket1 := calculateRolloutBucket(apiKey)
-	bucket2 := calculateRolloutBucket(apiKey)
-	bucket3 := calculateRolloutBucket(apiKey)
-
-	require.Equal(t, bucket1, bucket2, "Same API key should produce same bucket")
-	require.Equal(t, bucket2, bucket3, "Same API key should produce same bucket")
 }
