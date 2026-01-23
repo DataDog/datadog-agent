@@ -526,6 +526,34 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
+// This wraps the MSI installation with performance tracing and service status checking.
+//
+// Usage:
+//
+//	s.InstallWithXperf(
+//	    installerwindows.WithMSILogFile("install.log"),
+//	)
+//
+// The xperf trace will be collected automatically if the test fails.
+func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
+	s.T().Helper()
+
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
+
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
@@ -587,6 +615,13 @@ func (s *BaseSuite) WaitForInstallerService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
 	return s.WaitForServicesWithBackoff(state, []string{consts.ServiceName}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
+}
+
+// WaitForAgentService waits for the Datadog Agent service to be in the expected state
+func (s *BaseSuite) WaitForAgentService(state string) error {
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), "datadogagent")
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
