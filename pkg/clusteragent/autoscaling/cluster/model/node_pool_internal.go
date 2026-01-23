@@ -8,6 +8,8 @@
 package model
 
 import (
+	"slices"
+
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -172,11 +174,14 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 	}
 
 	// Convert instance types into a requirement
+	// sort the instance types first for readability
+	instanceTypes := n.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
 	reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
 		NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 			Key:      corev1.LabelInstanceTypeStable,
 			Operator: corev1.NodeSelectorOpIn,
-			Values:   n.recommendedInstanceTypes,
+			Values:   instanceTypes,
 		},
 	})
 
@@ -211,11 +216,14 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 
 	// Update NodePool with recommendation
 	instanceTypeLabelFound := false
+	instanceTypes := npi.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
+
 	for i := range knp.Spec.Template.Spec.Requirements {
 		r := &knp.Spec.Template.Spec.Requirements[i]
 		if r.Key == corev1.LabelInstanceTypeStable {
 			r.Operator = corev1.NodeSelectorOpIn
-			r.Values = npi.RecommendedInstanceTypes()
+			r.Values = instanceTypes
 
 			instanceTypeLabelFound = true
 			break
@@ -227,7 +235,7 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 					Key:      corev1.LabelInstanceTypeStable,
 					Operator: corev1.NodeSelectorOpIn,
-					Values:   npi.RecommendedInstanceTypes(),
+					Values:   instanceTypes,
 				},
 			},
 		)
@@ -272,6 +280,10 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	// Build requirements patch, only updating values for the instance types
 	updatedRequirements := []map[string]any{}
 	instanceTypeLabelExists := false
+	// sort the recommended instance types for readability
+	instanceTypes := npi.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
+
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
 			instanceTypeLabelExists = true
@@ -280,9 +292,9 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 				r.Operator = corev1.NodeSelectorOpIn
 			}
 
-			if !areSlicesEqual(r.Values, npi.RecommendedInstanceTypes()) {
+			if !slices.Equal(r.Values, instanceTypes) {
 				isUpdated = true
-				r.Values = npi.RecommendedInstanceTypes()
+				r.Values = instanceTypes
 			}
 		}
 
@@ -298,7 +310,7 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      corev1.LabelInstanceTypeStable,
 			"operator": "In",
-			"values":   npi.RecommendedInstanceTypes(),
+			"values":   instanceTypes,
 		})
 	}
 
@@ -327,22 +339,4 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	}
 
 	return patchData
-}
-
-// areSlicesEqual returns true if the two string slices contain the same elements regardless of order
-func areSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	set := make(map[string]bool)
-	for _, v := range a {
-		set[v] = true
-	}
-	for _, v := range b {
-		if !set[v] {
-			return false
-		}
-	}
-	return true
 }

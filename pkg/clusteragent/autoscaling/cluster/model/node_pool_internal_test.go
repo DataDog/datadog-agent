@@ -130,7 +130,7 @@ func TestBuildNodePoolSpec(t *testing.T) {
 			name: "basic",
 			minNodePool: NodePoolInternal{
 				name:                     "default",
-				recommendedInstanceTypes: []string{"m5.large", "t3.micro"},
+				recommendedInstanceTypes: []string{"t3.micro", "m5.large"},
 				labels:                   map[string]string{"kubernetes.io/arch": "amd64", "kubernetes.io/os": "linux"},
 				taints: []corev1.Taint{
 					{
@@ -286,7 +286,7 @@ func TestBuildReplicaNodePool(t *testing.T) {
 			foundInstanceType := false
 			for _, r := range np.Spec.Template.Spec.Requirements {
 				if r.Key == corev1.LabelInstanceTypeStable {
-					assert.Equal(t, tt.minNodePool.recommendedInstanceTypes, r.Values)
+					assert.Equal(t, tt.minNodePool.RecommendedInstanceTypes(), r.Values)
 					foundInstanceType = true
 					break
 				}
@@ -490,7 +490,7 @@ func TestBuildNodePoolPatch(t *testing.T) {
 			},
 		},
 		{
-			name: "instance type requirements have not changed",
+			name: "instance type requirements order has changed",
 			minNodePool: NodePoolInternal{
 				name:                     "default",
 				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
@@ -505,6 +505,55 @@ func TestBuildNodePoolPatch(t *testing.T) {
 										Key:      corev1.LabelInstanceTypeStable,
 										Operator: corev1.NodeSelectorOpIn,
 										Values:   []string{"t3.micro", "c5.xlarge"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedPatch: map[string]any{
+				"metadata": map[string]any{
+					"labels": map[string]any{
+						datadogModifiedLabelKey: "true",
+					},
+				},
+				"spec": map[string]any{
+					"template": map[string]any{
+						"metadata": map[string]any{
+							"labels": map[string]string{
+								kubernetes.AutoscalingLabelKey: "true",
+							},
+						},
+						"spec": map[string]any{
+							"requirements": []map[string]any{
+								{
+									"key":      corev1.LabelInstanceTypeStable,
+									"operator": "In",
+									"values":   []string{"c5.xlarge", "t3.micro"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "instance type requirements have not changed",
+			minNodePool: NodePoolInternal{
+				name:                     "default",
+				recommendedInstanceTypes: []string{"c5.xlarge", "t3.micro"},
+			},
+			nodePool: karpenterv1.NodePool{
+				Spec: karpenterv1.NodePoolSpec{
+					Template: karpenterv1.NodeClaimTemplate{
+						Spec: karpenterv1.NodeClaimTemplateSpec{
+							Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+								{
+									NodeSelectorRequirement: corev1.NodeSelectorRequirement{
+										Key:      corev1.LabelInstanceTypeStable,
+										Operator: corev1.NodeSelectorOpIn,
+										Values:   []string{"c5.xlarge", "t3.micro"},
 									},
 								},
 							},
