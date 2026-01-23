@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build sharedlibrarycheck && test
+//go:build sharedlibrarycheck
 
 package sharedlibrarycheck
 
@@ -50,7 +50,9 @@ func TestCancelCheck(t *testing.T) {
 }
 
 func newFakeCheck(senderManager sender.SenderManager) (*Check, error) {
-	c, err := newCheck(senderManager, "fake_check", ffi.NewSharedLibraryLoader("fake/library/folder/path"), ffi.GetNoopLibrary())
+	sharedLibraryLoader := ffi.NewSharedLibraryLoader("fake/library/folder/path")
+
+	c, err := newCheck(senderManager, "fake_check", sharedLibraryLoader, ffi.GetNoopLibrary())
 
 	// Remove check finalizer that may trigger race condition while testing
 	if err == nil {
