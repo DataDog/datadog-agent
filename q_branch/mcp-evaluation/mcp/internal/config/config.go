@@ -46,12 +46,14 @@ func (c *Config) validate() error {
 
 	// Validate mode
 	validModes := map[string]bool{
-		"bash":       true,
-		"safe-shell": true,
-		"tools":      true,
+		"bash":              true,
+		"safe-shell":        true,
+		"tools":             true,
+		"tools-safe-shell":  true,
+		"tools-bash":        true,
 	}
 	if !validModes[c.Mode] {
-		return fmt.Errorf("invalid mode: %s (must be one of: bash, safe-shell, tools)", c.Mode)
+		return fmt.Errorf("invalid mode: %s (must be one of: bash, safe-shell, tools, tools-safe-shell, tools-bash)", c.Mode)
 	}
 
 	return nil

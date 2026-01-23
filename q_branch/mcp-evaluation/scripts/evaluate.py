@@ -33,8 +33,14 @@ MCP_EVAL_DIR = Path(__file__).parent.parent
 SCENARIOS_DIR = MCP_EVAL_DIR / "scenarios"
 RESULTS_DIR = MCP_EVAL_DIR / "results"
 SCRIPTS_DIR = MCP_EVAL_DIR / "scripts"
-MODES = ["bash", "safe-shell", "tools"]
-VM_PORTS = {"bash": 8081, "safe-shell": 8082, "tools": 8083}
+MODES = ["bash", "safe-shell", "tools", "tools-safe-shell", "tools-bash"]
+VM_PORTS = {
+    "bash": 8081,
+    "safe-shell": 8082,
+    "tools": 8083,
+    "tools-safe-shell": 8084,
+    "tools-bash": 8085
+}
 
 # Scenarios list
 SCENARIOS = [
@@ -719,7 +725,7 @@ Examples:
     parser.add_argument(
         "--modes",
         nargs="+",
-        choices=["bash", "safe-shell", "tools"],
+        choices=MODES,
         default=None,
         help="Modes to evaluate (default: all modes)"
     )
@@ -741,6 +747,13 @@ Examples:
         "--run-dir",
         type=Path,
         help="Existing run directory (required for --grade-only)"
+    )
+
+    parser.add_argument(
+        "--results-dir",
+        type=Path,
+        default=None,
+        help="Directory to store results (default: results/)"
     )
 
     args = parser.parse_args()
@@ -788,9 +801,13 @@ async def main():
             return
         print(f"Using existing run directory: {run_dir}\n")
     else:
+        # Determine base results directory
+        base_results_dir = args.results_dir if args.results_dir else RESULTS_DIR
+        base_results_dir.mkdir(parents=True, exist_ok=True)
+
         # Create timestamped run directory
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_dir = RESULTS_DIR / f"run-{timestamp}"
+        run_dir = base_results_dir / f"run-{timestamp}"
         run_dir.mkdir(parents=True, exist_ok=True)
         print(f"Run directory: {run_dir}\n")
 

@@ -130,7 +130,7 @@ def create_score_comparison_chart(summary_sheet, results: List[Dict[str, Any]], 
     pivot = pivot.sort_index()
 
     # Get modes in consistent order
-    mode_order = ['bash', 'safe-shell', 'tools']
+    mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash']
     available_modes = [m for m in mode_order if m in pivot.columns]
     pivot = pivot[available_modes]
 
@@ -144,9 +144,11 @@ def create_score_comparison_chart(summary_sheet, results: List[Dict[str, Any]], 
 
     # Colors for each mode
     colors = {
-        'bash': '#1f77b4',         # Blue
-        'safe-shell': '#ff7f0e',   # Orange
-        'tools': '#2ca02c'         # Green
+        'bash': '#1f77b4',              # Blue
+        'safe-shell': '#ff7f0e',        # Orange
+        'tools': '#2ca02c',             # Green
+        'tools-safe-shell': '#d62728',  # Red
+        'tools-bash': '#9467bd'         # Purple
     }
 
     # Create bars for each mode
