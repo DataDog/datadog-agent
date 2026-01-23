@@ -217,12 +217,16 @@ func TestUpdateTagFilterList(t *testing.T) {
 			Tags:      []string{"tag1:one", "tag2:two", "tag3:three", "tag4:four"},
 		})
 
+		require.Eventually(func() bool {
+			return len(demux.statsd.workers[0].samplesChan) == 0
+		}, time.Second, time.Millisecond)
 		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
 
 		metric := slices.IndexFunc(s.sketches, func(serie *metrics.SketchSeries) bool {
 			return serie.Name == "dist.metric"
 		})
 
+		require.NotEqualf(-1, metric, "dist.metric not found in %+v", s.sketches)
 		tags := strings.Split(s.sketches[metric].Tags.Join(","), ",")
 		require.ElementsMatch(expected, tags)
 	}
@@ -313,6 +317,9 @@ func TestUpdateMetricFilterList(t *testing.T) {
 			Name: "original.blocked", Value: 42, Mtype: metrics.HistogramType, Timestamp: ts,
 		})
 
+		require.Eventually(func() bool {
+			return len(demux.statsd.workers[0].samplesChan) == 0
+		}, time.Second, time.Millisecond)
 		demux.ForceFlushToSerializer(time.Unix(int64(ts+30), 0), true)
 
 		// We should always contain the average of the histogram.
