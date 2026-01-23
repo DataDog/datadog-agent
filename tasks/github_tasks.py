@@ -200,18 +200,10 @@ def assign_team_label(_, pr_id=-1):
         print('No team found')
         return
 
-    # Check for 'team/' labels
-    labels = gh.get_pr_labels(pr_id)
-    has_team = False
-    for label in labels:
-        if label.startswith('team/'):
-            if label != 'team/triage':
-                has_team = True
-            else:
-                _remove_pr_label(gh, pr_id, 'team/triage')
+    # Remove 'team/triage' label if it exists
+    if 'team/triage' in gh.get_pr_labels(pr_id):
+        _remove_pr_label(gh, pr_id, 'team/triage')
 
-    if has_team:
-        return
     _assign_pr_team_labels(gh, pr_id, teams)
 
 
