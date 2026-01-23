@@ -304,7 +304,6 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, pid uint32) (string, error
 // Insert a new mount point in the cache
 func (mr *Resolver) Insert(m model.Mount) error {
 	if m.MountID == 0 {
-		seclog.Warnf("Tried to insert a mount with mount id 0")
 		return ErrMountUndefined
 	}
 
