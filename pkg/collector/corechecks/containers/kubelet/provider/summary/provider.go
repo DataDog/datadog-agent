@@ -124,7 +124,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 				podData, err = p.store.GetKubernetesPodByName(podStats.PodRef.Name, podStats.PodRef.Namespace)
 				if err != nil || podData == nil {
-					log.Debugf("Couldn't get pod data from workloadmeta store for pod %s/%s (uid=%s), error = %v",
+					log.Infof("Couldn't get pod data from workloadmeta store for pod %s/%s (uid=%s), error = %v",
 						podStats.PodRef.Namespace, podStats.PodRef.Name, podStats.PodRef.UID, err)
 					continue
 				}
