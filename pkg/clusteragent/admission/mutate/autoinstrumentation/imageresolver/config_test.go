@@ -35,6 +35,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
 			},
 		},
 		{
@@ -51,6 +52,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
 			},
 		},
 		{
@@ -66,6 +68,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
+				BucketID:       "0",
 			},
 		},
 		{
@@ -83,22 +86,6 @@ func TestNewConfig(t *testing.T) {
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
 				BucketID:       "1",
-			},
-		},
-		{
-			name: "missing_api_key",
-			configFactory: func(t *testing.T) config.Component {
-				mockConfig := config.NewMock(t)
-				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				return mockConfig
-			},
-			expectedState: Config{
-				Site:           "datadoghq.com",
-				DDRegistries:   map[string]struct{}{"gcr.io/datadoghq": {}, "docker.io/datadog": {}, "public.ecr.aws/datadog": {}},
-				RCClient:       nil,
-				MaxInitRetries: 5,
-				InitRetryDelay: 1 * time.Second,
-				BucketID:       "0",
 			},
 		},
 	}
