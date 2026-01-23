@@ -75,10 +75,11 @@ type Resolver struct {
 	dentryResolver        *dentry.Resolver
 
 	// metrics
-	addedCgroups    atomic.Int64
-	deletedCgroups  atomic.Int64
-	fallbackSucceed atomic.Int64
-	fallbackFailed  atomic.Int64
+	addedCgroups      atomic.Int64
+	deletedCgroups    atomic.Int64
+	fallbackSucceed   atomic.Int64
+	fallbackFailed    atomic.Int64
+	sandboxContainers atomic.Int64
 }
 
 // NewResolver returns a new cgroups monitor
@@ -141,6 +142,11 @@ func (cr *Resolver) removeCacheEntry(cacheEntry *cgroupModel.CacheEntry) {
 
 	cr.cacheEntriesByPathKey.Remove(cacheEntry.GetCGroupPathKey().Inode)
 
+	// Decrement sandbox counter if this was a sandbox container
+	if cacheEntry.Sandbox() {
+		cr.sandboxContainers.Dec()
+	}
+
 	cr.deletedCgroups.Inc()
 }
 
@@ -181,6 +187,9 @@ func (cr *Resolver) pushNewCacheEntry(pid uint32, containerContext model.Contain
 	// add the new CGroup to the cache
 	if !containerContext.IsNull() {
 		cr.containerCacheEntries.Add(containerContext.ContainerID, cacheEntry)
+		if containerContext.Sandbox() {
+			cr.sandboxContainers.Inc()
+		}
 	} else {
 		cr.hostCacheEntries.Add(cgroupContext.CGroupID, cacheEntry)
 	}
@@ -431,14 +440,31 @@ func (cr *Resolver) Len() int {
 	return cr.cacheEntriesByPathKey.Len()
 }
 
+// SetSandbox marks a cache entry as a sandbox/pause container and updates the counter
+func (cr *Resolver) SetSandbox(cacheEntry *cgroupModel.CacheEntry) {
+	if cacheEntry.SetSandbox() {
+		cr.sandboxContainers.Inc()
+	}
+}
+
 // SendStats sends stats
 func (cr *Resolver) SendStats() error {
 	cr.Lock()
 	defer cr.Unlock()
 
-	if val := float64(cr.containerCacheEntries.Len()); val > 0 {
+	sandboxCount := cr.sandboxContainers.Load()
+
+	// Report active containers excluding sandbox containers
+	if val := float64(cr.containerCacheEntries.Len()) - float64(sandboxCount); val > 0 {
 		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverActiveContainerWorkloads, val, []string{}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricCGroupResolverActiveContainerWorkloads: %w", err)
+		}
+	}
+
+	// Report sandbox containers count
+	if sandboxCount > 0 {
+		if err := cr.statsdClient.Gauge(metrics.MetricCGroupResolverSandboxContainers, float64(sandboxCount), []string{}, 1.0); err != nil {
+			return fmt.Errorf("couldn't send MetricCGroupResolverSandboxContainers: %w", err)
 		}
 	}
 

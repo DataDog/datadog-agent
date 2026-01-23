@@ -77,6 +77,8 @@ const (
 	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
 	KubernetesPodUID EntityIDPrefix = "kubernetes_pod_uid"
+	// KubernetesPodSandbox is the prefix `kubernetes_pod_sandbox` for sandbox/pause containers
+	KubernetesPodSandbox EntityIDPrefix = "kubernetes_pod_sandbox"
 	// Process is the prefix `process`
 	Process EntityIDPrefix = "process"
 	// InternalID is the prefix `internal`
@@ -99,6 +101,7 @@ func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 		KubernetesDeployment:   {},
 		KubernetesMetadata:     {},
 		KubernetesPodUID:       {},
+		KubernetesPodSandbox:   {},
 		Process:                {},
 		InternalID:             {},
 		GPU:                    {},

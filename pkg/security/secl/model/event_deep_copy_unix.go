@@ -310,6 +310,7 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied := ContainerContext{}
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
+	copied.IsSandbox = fieldToCopy.IsSandbox
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied

@@ -362,6 +362,7 @@ func (a *APIServer) start(ctx context.Context) {
 				if a.containerFilter != nil {
 					containerName, imageName, podNamespace := utils.GetContainerFilterTags(msg.tags)
 					if a.containerFilter.IsExcluded(nil, containerName, imageName, podNamespace) {
+						seclog.Debugf("Event for rule `%s` excluded by container filter: container_name=%s, image_name=%s, pod_namespace=%s", msg.ruleID, containerName, imageName, podNamespace)
 						// similar return value as if we had sent the message
 						return true
 					}

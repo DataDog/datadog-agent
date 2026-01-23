@@ -74,6 +74,7 @@ List of the available variables:
 | [`process.ancestors.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.is_sandbox`](#common-containercontext-is_sandbox-doc) | indicates if this is a sandbox/pause container |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.envp`](#common-process-envp-doc) | Environment variables of the process |
@@ -91,6 +92,7 @@ List of the available variables:
 | [`process.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.is_sandbox`](#common-containercontext-is_sandbox-doc) | indicates if this is a sandbox/pause container |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.envp`](#common-process-envp-doc) | Environment variables of the process |
@@ -103,6 +105,7 @@ List of the available variables:
 | [`process.parent.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.is_sandbox`](#common-containercontext-is_sandbox-doc) | indicates if this is a sandbox/pause container |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.envp`](#common-process-envp-doc) | Environment variables of the process |
@@ -201,6 +204,7 @@ A process was executed or forked
 | [`exec.cmdline`](#common-process-cmdline-doc) | Command line of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.is_sandbox`](#common-containercontext-is_sandbox-doc) | indicates if this is a sandbox/pause container |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.envp`](#common-process-envp-doc) | Environment variables of the process |
@@ -226,6 +230,7 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.is_sandbox`](#common-containercontext-is_sandbox-doc) | indicates if this is a sandbox/pause container |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.envp`](#common-process-envp-doc) | Environment variables of the process |
@@ -419,6 +424,15 @@ Type: string
 Definition: ID of the container
 
 `*.id` has 5 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
+
+
+### `*.is_sandbox` {#common-containercontext-is_sandbox-doc}
+Type: bool
+
+Definition: indicates if this is a sandbox/pause container
+
+`*.is_sandbox` has 5 possible prefixes:
 `exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container`
 
 

@@ -347,5 +347,8 @@ func containerdClient(container containerd.Container) fake.MockedContainerdClien
 		MockTaskPids: func(string, containerd.Container) ([]containerd.ProcessInfo, error) {
 			return nil, nil
 		},
+		MockIsSandbox: func(string, containerd.Container) (bool, error) {
+			return false, nil
+		},
 	}
 }

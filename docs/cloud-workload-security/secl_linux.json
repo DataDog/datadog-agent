@@ -143,6 +143,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.ancestors.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "process.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -693,6 +698,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "process.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -1146,6 +1156,11 @@
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -2776,6 +2791,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "exec.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "exec.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -3383,6 +3403,11 @@
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "exit.container.tags",
@@ -5378,6 +5403,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -5928,6 +5958,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "ptrace.tracee.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "ptrace.tracee.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -6381,6 +6416,11 @@
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -7722,6 +7762,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -8272,6 +8317,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "setrlimit.target.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "setrlimit.target.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -8725,6 +8775,11 @@
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -9643,6 +9698,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "signal.target.ancestors.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -10193,6 +10253,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "signal.target.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "signal.target.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -10646,6 +10711,11 @@
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -13158,6 +13228,31 @@
         "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_sandbox",
+      "link": "common-containercontext-is_sandbox-doc",
+      "type": "bool",
+      "definition": "indicates if this is a sandbox/pause container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",

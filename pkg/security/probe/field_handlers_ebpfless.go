@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	tagsresolver "github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"golang.org/x/net/bpf"
 
@@ -193,7 +194,9 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *m
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFLessFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ContainerID != "" {
-		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ContainerID)
+		workloadType, tags, _ := fh.resolvers.TagsResolver.ResolveWithErr(e.ContainerID)
+		e.Tags = tags
+		e.IsSandbox = workloadType == tagsresolver.WorkloadTypePodSandbox
 	}
 	return e.Tags
 }

@@ -116,7 +116,7 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	evt.Container.ID = string(msg.ContainerContext.ID)
 
 	if tagger != nil {
-		tags, err := tags.GetTagsOfContainer(tagger, containerutils.ContainerID(msg.ContainerContext.ID))
+		_, tags, err := tags.GetTagsOfContainer(tagger, containerutils.ContainerID(msg.ContainerContext.ID))
 		if err != nil {
 			seclog.Errorf("Failed to get tags for container %s: %v", msg.ContainerContext.ID, err)
 		} else {

@@ -80,7 +80,7 @@ func (m *Manager) LookupEventInProfiles(event *model.Event) {
 
 	// If no profile found and there's a cgroup ID, try cgroup-based lookup
 	if profile == nil && event.ProcessContext.Process.CGroup.CGroupID != "" {
-		tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
+		_, tags, err := m.resolvers.TagsResolver.ResolveWithErr(event.ProcessContext.Process.CGroup.CGroupID)
 		if err != nil {
 			seclog.Errorf("failed to resolve tags for cgroup %s: %v", event.ProcessContext.Process.CGroup.CGroupID, err)
 			return
@@ -400,6 +400,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
 	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
+		seclog.Debugf("Workload excluded by container filter: container_name=%s, image_name=%s, pod_namespace=%s", containerName, imageName, podNamespace)
 		return
 	}
 

@@ -910,7 +910,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
 		} else if event.ProcessContext.Process.CGroup.IsResolved() {
 			workloadID = event.ProcessContext.Process.CGroup.CGroupID
-			tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
+			_, tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
 			if err != nil {
 				seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
 				return

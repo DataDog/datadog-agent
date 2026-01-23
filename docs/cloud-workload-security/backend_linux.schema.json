@@ -300,6 +300,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variables values"
+        },
+        "is_sandbox": {
+          "type": "boolean",
+          "description": "Indicates if the container is a sandbox/pause container"
         }
       },
       "additionalProperties": false,
