@@ -13,9 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestOpen_NonExistentFile(t *testing.T) {
+	loader := NewSharedLibraryLoader(t.TempDir())
+
+	_, err := loader.Open("/path/that/does/not/exist.so")
+	assert.Error(t, err)
+}
+
 func TestRun_NullLibraryPointer(t *testing.T) {
-	libraryFolder := t.TempDir()
-	loader := NewSharedLibraryLoader(libraryFolder)
+	loader := NewSharedLibraryLoader(t.TempDir())
 
 	err := loader.Run(nil, "", "", "")
 	assert.EqualError(t, err, "Pointer to 'Library' struct is NULL")
@@ -28,8 +34,7 @@ func TestRun_NullLibraryPointer(t *testing.T) {
 }
 
 func TestRun_LibraryWithNullSymbols(t *testing.T) {
-	libraryFolder := t.TempDir()
-	loader := NewSharedLibraryLoader(libraryFolder)
+	loader := NewSharedLibraryLoader(t.TempDir())
 
 	lib := NewLibraryWithNullSymbols()
 
