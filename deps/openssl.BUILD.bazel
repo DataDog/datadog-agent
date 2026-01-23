@@ -2,7 +2,7 @@ load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@bazel_skylib//rules:select_file.bzl", "select_file")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "pkg_mkdirs")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -161,8 +161,6 @@ configure_make(
     }),
     out_data_dirs = [
         "lib/pkgconfig",
-        "lib/engines-3",
-        "lib/ossl-modules",
     ],
     out_data_files = select({
         # In practice, we shouldn't usually need the config file that the build produces.
@@ -278,11 +276,26 @@ pkg_files(
     ),
 )
 
+pkg_mkdirs(
+    name = "openssl_dirs",
+    # These are locations that are pointed at by the binary for various purposes,
+    # and which are standard in OpenSSL installations.
+    # We don't really need the "default" contents as created by the OpenSSL build,
+    # but we do have tests that check for the presence of these folders, and this will
+    # also affect directory ownership for packages.
+    dirs = [
+        "ssl",
+        "lib/engines-3",
+        "ossl-modules",
+    ],
+)
+
 pkg_install(
     name = "install",
     srcs = [
         ":openssl_files",
         ":openssl_bin_files",
+        ":openssl_dirs",
         ":libssl_with_symlink",
         ":libcrypto_with_symlink",
     ],

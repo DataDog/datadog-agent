@@ -48,8 +48,6 @@ build do
     files_to_patch = [
       "lib/libssl#{lib_extension}",
       "lib/libcrypto#{lib_extension}",
-      "lib/engines-3/*#{lib_extension}",
-      "lib/ossl-modules/*#{lib_extension}",
       "lib/pkgconfig/*.pc",
       "bin/openssl",
     ].map { |path| "#{install_dir}/embedded/#{path}" }
