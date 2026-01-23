@@ -279,6 +279,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault("event_monitoring_config.network_process.enabled", true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
+	// Metrics for the time that kernel events take to get processed (security event monitoring / CWS)
+	cfg.BindEnvAndSetDefault("event_processing_time.enabled", false)
+
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_all_probes", false)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_kernel_filters", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_approvers", false)  // will be set to true by sanitize() if enable_kernel_filters is true
