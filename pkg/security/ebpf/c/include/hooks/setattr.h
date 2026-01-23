@@ -58,7 +58,7 @@ int hook_security_inode_setattr(ctx_t *ctx) {
     syscall->setattr.dentry = dentry;
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
-    set_file_inode(dentry, &syscall->setattr.file, 0);
+    set_file_inode(dentry, &syscall->setattr.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     switch (syscall->type) {
     case EVENT_UTIME:
