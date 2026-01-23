@@ -223,7 +223,7 @@ func GetInstallPath() string {
 		_here, err := executable.Folder()
 		if err != nil {
 			log.Errorf("Failed to get executable path: %v", err)
-			return
+			return defaultInstallPath
 		}
 		cachedInstallPath = GetInstallPathFromExecutable(_here)
 	}
