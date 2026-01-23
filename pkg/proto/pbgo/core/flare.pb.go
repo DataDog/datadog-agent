@@ -7,10 +7,6 @@
 package core
 
 import (
-	context "context"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -178,86 +174,4 @@ func file_datadog_remoteagent_flare_proto_init() {
 	File_datadog_remoteagent_flare_proto = out.File
 	file_datadog_remoteagent_flare_proto_goTypes = nil
 	file_datadog_remoteagent_flare_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// FlareProviderClient is the client API for FlareProvider service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type FlareProviderClient interface {
-	// Gets all relevant flare files of a remote agent.
-	GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error)
-}
-
-type flareProviderClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewFlareProviderClient(cc grpc.ClientConnInterface) FlareProviderClient {
-	return &flareProviderClient{cc}
-}
-
-func (c *flareProviderClient) GetFlareFiles(ctx context.Context, in *GetFlareFilesRequest, opts ...grpc.CallOption) (*GetFlareFilesResponse, error) {
-	out := new(GetFlareFilesResponse)
-	err := c.cc.Invoke(ctx, "/datadog.remoteagent.flare.v1.FlareProvider/GetFlareFiles", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// FlareProviderServer is the server API for FlareProvider service.
-type FlareProviderServer interface {
-	// Gets all relevant flare files of a remote agent.
-	GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error)
-}
-
-// UnimplementedFlareProviderServer can be embedded to have forward compatible implementations.
-type UnimplementedFlareProviderServer struct {
-}
-
-func (*UnimplementedFlareProviderServer) GetFlareFiles(context.Context, *GetFlareFilesRequest) (*GetFlareFilesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetFlareFiles not implemented")
-}
-
-func RegisterFlareProviderServer(s *grpc.Server, srv FlareProviderServer) {
-	s.RegisterService(&_FlareProvider_serviceDesc, srv)
-}
-
-func _FlareProvider_GetFlareFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetFlareFilesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(FlareProviderServer).GetFlareFiles(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/datadog.remoteagent.flare.v1.FlareProvider/GetFlareFiles",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(FlareProviderServer).GetFlareFiles(ctx, req.(*GetFlareFilesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _FlareProvider_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "datadog.remoteagent.flare.v1.FlareProvider",
-	HandlerType: (*FlareProviderServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "GetFlareFiles",
-			Handler:    _FlareProvider_GetFlareFiles_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "datadog/remoteagent/flare.proto",
 }

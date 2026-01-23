@@ -70,6 +70,10 @@ type LibraryConfig struct {
 
 // LibraryInjectionConfig contains all configuration needed to perform APM library injection.
 type LibraryInjectionConfig struct {
+	// InjectionMode determines the method for injecting libraries into pods.
+	// Possible values: "auto" (default), "init_container" and "csi".
+	InjectionMode string
+
 	// DefaultResourceRequirements are the default resource requirements for init containers.
 	// If empty, the provider will compute requirements based on the pod's existing resources.
 	DefaultResourceRequirements map[corev1.ResourceName]resource.Quantity
