@@ -211,6 +211,38 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
+type tagBasedResolver struct {
+	cache               Cache
+	bucketID            string
+	datadoghqRegistries map[string]struct{}
+}
+
+func (r *tagBasedResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("%s is not a Datadoghq registry, not resolving", registry)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
+		return nil, false
+	}
+
+	bucketTag := fmt.Sprintf("%s-%s", tag, r.bucketID)
+
+	resolved, ok := r.cache.Get(registry, repository, bucketTag)
+	if !ok {
+		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
+		return nil, false
+	}
+	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, resolved.FullImageRef)
+	return resolved, true
+}
+
+func newTagBasedResolver(cfg Config) Resolver {
+	return &tagBasedResolver{
+		cache:               NewCache(1 * time.Hour), // DEV: Make this configurable
+		bucketID:            cfg.BucketID,
+		datadoghqRegistries: cfg.DDRegistries,
+	}
+}
+
 // New creates the appropriate Resolver based on whether
 // a remote config client is available.
 func New(cfg Config) Resolver {
