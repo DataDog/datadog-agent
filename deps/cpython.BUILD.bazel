@@ -143,7 +143,7 @@ configure_make(
         "//conditions:default": [],
     }),
     copts = [
-        "-O3",
+        "-O2",
     ],
     env = {
         "OPT": "-DNDEBUG -fwrapv",
