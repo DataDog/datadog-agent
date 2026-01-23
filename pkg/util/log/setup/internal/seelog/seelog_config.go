@@ -85,7 +85,7 @@ func (c *Config) Render() (string, error) {
 		syslogURI = fmt.Sprintf(`<custom name="syslog" formatid="syslog-%s" data-uri="%s" />`, xmlEscape(c.format), xmlEscape(c.syslogURI))
 	}
 
-	jsonSyslogFormat := xmlEscape(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n`)
+	jsonSyslogFormat := xmlEscape(`{"agent":"` + strings.ToLower(c.loggerName) + `","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":%QuoteMsg%ExtraJSONContext}%n`)
 
 	return fmt.Sprintf(seelogConfigurationTemplate, xmlEscape(c.logLevel), xmlEscape(c.format), consoleLoggingEnabled, logfile, syslogURI, c.jsonFormat, c.commonFormat, c.syslogRFC, jsonSyslogFormat, xmlEscape(c.loggerName)), nil
 }
@@ -204,7 +204,7 @@ func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string
 	relfile := formatters.ShortFilePath(frame)
 	extraContext := formatters.ExtraJSONContext(r)
 
-	return fmt.Sprintf(`%s {"agent":"%s","level":"%s","relfile":"%s","line":"%d","msg":"%s"%s}`+"\n", syslogHeader, strings.ToLower(c.loggerName), level, relfile, frame.Line, r.Message, extraContext)
+	return fmt.Sprintf(`%s {"agent":"%s","level":"%s","relfile":"%s","line":"%d","msg":%s%s}`+"\n", syslogHeader, strings.ToLower(c.loggerName), level, relfile, frame.Line, formatters.Quote(r.Message), extraContext)
 }
 
 // EnableConsoleLog sets enable or disable console logging depending on the parameter value

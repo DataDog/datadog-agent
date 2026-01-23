@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+//go:build test
+
 // Package hpflareextension defines the OpenTelemetry Extension implementation.
 package hpflareextension
 
@@ -22,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/confmap"
 
 	"go.uber.org/zap"
@@ -31,7 +34,10 @@ func getTestExtension(optIpc ipc.Component) (*DDExtension, error) {
 	telemetry := component.TelemetrySettings{}
 	cfg := &Config{
 		HTTPConfig: &confighttp.ServerConfig{
-			Endpoint: "localhost:0",
+			NetAddr: confignet.AddrConfig{
+				Endpoint:  "localhost:0",
+				Transport: confignet.TransportTypeTCP,
+			},
 		},
 	}
 

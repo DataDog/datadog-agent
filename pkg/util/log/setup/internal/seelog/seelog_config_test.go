@@ -206,3 +206,17 @@ func TestJsonSyslogFormatter(t *testing.T) {
 
 	require.Equal(t, expected, msg)
 }
+
+func TestJsonSyslogFormatterEscaping(t *testing.T) {
+	cfg := Config{loggerName: "CORE", syslogRFC: true}
+	record := stdslog.Record{
+		PC:      callerPC(),
+		Level:   stdslog.LevelInfo,
+		Message: `test "quoted" message`,
+		Time:    time.Now(),
+	}
+	msg := cfg.jsonSyslogFormatter(context.Background(), record)
+
+	// Verify the message field is properly escaped with backslashes
+	require.Contains(t, msg, `"msg":"test \"quoted\" message"`)
+}

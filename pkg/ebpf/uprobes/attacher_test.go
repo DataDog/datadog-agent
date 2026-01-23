@@ -934,7 +934,15 @@ func testUprobeAttacherInner(t *testing.T, attacherFunc func(useEventStream bool
 		},
 	}
 
-	RunTestAttacher(t, LibraryAndMainAttacherTestConfigName, attacher, target, config)
+	// The process event stream can lose events sometimes and causes flaky tests. We
+	// use the configuration with sync enabled in that case to avoid them. The netlink
+	// set of tests will still cover the part without sync enabled.
+	attacherConfigName := LibraryAndMainAttacherTestConfigName
+	if useEventStream {
+		attacherConfigName = LibraryAndMainAttacherWithSyncTestConfigName
+	}
+
+	RunTestAttacher(t, attacherConfigName, attacher, target, config)
 }
 
 func TestUprobeAttacher(t *testing.T) {

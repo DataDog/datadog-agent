@@ -32,8 +32,6 @@ int __attribute__((always_inline)) handle_exec_event(ctx_t *ctx, struct syscall_
     syscall->exec.file.path_key.mount_id = mount_id;
     set_file_inode(syscall->exec.dentry, &syscall->exec.file, 0);
 
-    inc_mount_ref(mount_id);
-
     // resolve dentry
     syscall->resolver.key = syscall->exec.file.path_key;
     syscall->resolver.dentry = syscall->exec.dentry;

@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 
+	"golang.org/x/net/idna"
+
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -202,7 +204,10 @@ var wellKnownSitesRe = regexp.MustCompile(`(?:datadoghq|datad0g)\.(?:com|eu)$|dd
 // Using FQDN will prevent useless DNS queries built with the search domains of `/etc/resolv.conf`.
 // https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
 func BuildURLWithPrefix(prefix, site string) string {
-	site = strings.TrimSpace(strings.ToLower(site))
+	site = strings.TrimSpace(site)
+	if normalized, err := idna.Lookup.ToASCII(site); err == nil {
+		site = normalized
+	}
 	if pkgconfigsetup.Datadog().GetBool("convert_dd_site_fqdn.enabled") && wellKnownSitesRe.MatchString(site) && !strings.HasSuffix(site, ".") {
 		site += "."
 	}

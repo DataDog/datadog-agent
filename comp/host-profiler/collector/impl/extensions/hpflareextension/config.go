@@ -27,7 +27,7 @@ var _ component.Config = (*Config)(nil)
 // Validate checks if the extension configuration is valid
 func (c *Config) Validate() error {
 
-	if c.HTTPConfig == nil || c.HTTPConfig.Endpoint == "" {
+	if c.HTTPConfig == nil || c.HTTPConfig.NetAddr.Endpoint == "" {
 		return errHTTPEndpointRequired
 	}
 
