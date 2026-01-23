@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// package secretbackend contains e2e tests for secret management
-package secretbackend
+// package sgcembedded contains e2e tests for secret management
+package sgcembedded
 
 import (
 	_ "embed"
