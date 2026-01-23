@@ -1,7 +1,7 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides: datadog-agent-privateactionrunner
+# Provides: datadog-agent-action
 # Short-Description: Start and stop datadog private action runner
 # Description: Datadog Private Action Runner
 # Required-Start: $remote_fs
@@ -16,9 +16,9 @@ ETC_DIR="{etc_dir}"
 INSTALL_DIR="{install_dir}"
 AGENTPATH="$INSTALL_DIR/embedded/bin/privateactionrunner"
 PIDFILE="$INSTALL_DIR/run/privateactionrunner.pid"
-AGENT_ARGS="run --cfgpath=$ETC_DIR/datadog.yaml --pid=$PIDFILE"
+AGENT_ARGS="run --cfgpath=$ETC_DIR/datadog.yaml"
 AGENT_USER="dd-agent"
-NAME="datadog-agent-privateactionrunner"
+NAME="datadog-agent-action"
 DESC="Datadog Private Action Runner"
 
 
