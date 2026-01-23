@@ -268,7 +268,8 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 }
 
 // BuildNodePoolPatch is used to construct a JSON patch if the NodePool requirements have changed
-func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, map[string]any) {
+// returns a nil patch if the NodePool requirements have not changed
+func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
 	isUpdated := false
 	// Build requirements patch, only updating values for the instance types
 	updatedRequirements := []map[string]any{}
@@ -305,7 +306,7 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, m
 	}
 
 	if !isUpdated {
-		return false, map[string]any{}
+		return nil
 	}
 
 	patchData := map[string]any{
@@ -328,5 +329,5 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) (bool, m
 		},
 	}
 
-	return isUpdated, patchData
+	return patchData
 }

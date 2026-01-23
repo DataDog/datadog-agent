@@ -298,11 +298,10 @@ func TestBuildReplicaNodePool(t *testing.T) {
 
 func TestBuildNodePoolPatch(t *testing.T) {
 	tests := []struct {
-		name              string
-		nodePool          karpenterv1.NodePool
-		minNodePool       NodePoolInternal
-		expectedPatch     map[string]any
-		expectedIsUpdated bool
+		name          string
+		nodePool      karpenterv1.NodePool
+		minNodePool   NodePoolInternal
+		expectedPatch map[string]any
 	}{
 		{
 			name: "instance type requirements have changed",
@@ -396,7 +395,6 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expectedIsUpdated: true,
 		},
 		{
 			name: "instance type requirements have not changed",
@@ -421,8 +419,7 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expectedPatch:     map[string]any{},
-			expectedIsUpdated: false,
+			expectedPatch: nil,
 		},
 		{
 			name: "instance type requirements do not exist",
@@ -464,15 +461,13 @@ func TestBuildNodePoolPatch(t *testing.T) {
 					},
 				},
 			},
-			expectedIsUpdated: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resultIsUpdated, resultPatch := BuildNodePoolPatch(&tt.nodePool, tt.minNodePool)
+			resultPatch := BuildNodePoolPatch(&tt.nodePool, tt.minNodePool)
 			assert.Equal(t, tt.expectedPatch, resultPatch, "Resulting patch does not match expected patch")
-			assert.Equal(t, tt.expectedIsUpdated, resultIsUpdated, "Resulting is updated does not match expected is updated")
 		})
 	}
 }
