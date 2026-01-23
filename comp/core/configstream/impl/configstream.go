@@ -50,6 +50,9 @@ type configStream struct {
 	unsubscribeChan chan string
 	stopChan        chan struct{}
 
+	// Cached origin (set once at initialization to avoid lock contention)
+	origin string
+
 	// Telemetry metrics
 	subscribersGauge     telemetry.Gauge
 	snapshotsSent        telemetry.Counter
@@ -82,6 +85,9 @@ func NewComponent(reqs Requires) Provides {
 	cs.updatesSent = reqs.Telemetry.NewCounter("configstream", "updates_sent", []string{}, "Number of config updates sent")
 	cs.discontinuitiesCount = reqs.Telemetry.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
 	cs.droppedUpdates = reqs.Telemetry.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
+
+	// Cache origin once at initialization to avoid lock contention in OnUpdate callback
+	cs.origin = cs.getConfigOrigin()
 
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
@@ -132,14 +138,11 @@ func (cs *configStream) run() {
 			return
 		}
 
-		// Get the config origin (filename without path)
-		origin := cs.getConfigOrigin()
-
 		configUpdate := &pb.ConfigEvent{
 			Event: &pb.ConfigEvent_Update{
 				Update: &pb.ConfigUpdate{
 					SequenceId: int32(sequenceID),
-					Origin:     origin,
+					Origin:     cs.origin,
 					Setting: &pb.ConfigSetting{
 						Key:    setting,
 						Value:  pbValue,
@@ -292,14 +295,11 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 		})
 	}
 
-	// Get the config origin (filename without path)
-	origin := cs.getConfigOrigin()
-
 	snapshot := &pb.ConfigEvent{
 		Event: &pb.ConfigEvent_Snapshot{
 			Snapshot: &pb.ConfigSnapshot{
 				SequenceId: int32(sequenceID),
-				Origin:     origin,
+				Origin:     cs.origin,
 				Settings:   settings,
 			},
 		},

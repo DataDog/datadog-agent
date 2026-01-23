@@ -319,7 +319,7 @@ done:
 // newConfigStreamForTest creates a config stream for testing without lifecycle
 func newConfigStreamForTest(cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
-	
+
 	cs := &configStream{
 		config:          cfg,
 		log:             logger,
@@ -337,15 +337,14 @@ func newConfigStreamForTest(cfg config.Component, logger log.Component) *configS
 	cs.discontinuitiesCount = telemetryComp.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
 	cs.droppedUpdates = telemetryComp.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
 
+	// Cache origin once at initialization (same as NewComponent)
+	cs.origin = cs.getConfigOrigin()
+
 	// Start the run loop in the background
 	go cs.run()
 
 	return cs
 }
-
-// ============================================================================
-// Original tests (preserved)
-// ============================================================================
 
 // configInterceptor is a test-specific mock for the config component that allows
 // intercepting and dropping OnUpdate calls to simulate discontinuities.
