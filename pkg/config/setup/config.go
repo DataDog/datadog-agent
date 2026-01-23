@@ -2855,7 +2855,11 @@ func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
 	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
+	value := config.GetString(key)
+	trimmed := strings.TrimSpace(value)
+	if value != trimmed {
+		config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
+	}
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
