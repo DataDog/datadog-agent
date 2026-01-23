@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetrynoops "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -61,6 +62,9 @@ func TestPhase0ExitCriteria(t *testing.T) {
 
 			// Verify snapshot has sequence ID
 			assert.Greater(t, snapshot.SequenceId, int32(0), "Snapshot should have sequence ID > 0")
+
+			// Verify origin field is populated
+			assert.NotEmpty(t, snapshot.Origin, "Snapshot should have origin field populated")
 
 			// Verify snapshot contains settings
 			assert.NotEmpty(t, snapshot.Settings, "Snapshot should contain settings")
@@ -122,6 +126,11 @@ func TestPhase0ExitCriteria(t *testing.T) {
 
 		// Verify we got updates
 		assert.GreaterOrEqual(t, len(updates), 1, "Should receive at least one update")
+
+		// Verify origin field is populated in all updates
+		for _, update := range updates {
+			assert.NotEmpty(t, update.Origin, "Update should have origin field populated")
+		}
 
 		// Verify sequence IDs are ordered
 		for i := 1; i < len(updates); i++ {
@@ -309,14 +318,24 @@ done:
 
 // newConfigStreamForTest creates a config stream for testing without lifecycle
 func newConfigStreamForTest(cfg config.Component, logger log.Component) *configStream {
+	telemetryComp := telemetrynoops.GetCompatComponent()
+	
 	cs := &configStream{
 		config:          cfg,
 		log:             logger,
+		telemetry:       telemetryComp,
 		subscribers:     make(map[string]*subscription),
 		subscribeChan:   make(chan *subscription),
 		unsubscribeChan: make(chan string),
 		stopChan:        make(chan struct{}),
 	}
+
+	// Initialize telemetry metrics (same as NewComponent)
+	cs.subscribersGauge = telemetryComp.NewGauge("configstream", "subscribers", []string{}, "Number of active config stream subscribers")
+	cs.snapshotsSent = telemetryComp.NewCounter("configstream", "snapshots_sent", []string{}, "Number of config snapshots sent")
+	cs.updatesSent = telemetryComp.NewCounter("configstream", "updates_sent", []string{}, "Number of config updates sent")
+	cs.discontinuitiesCount = telemetryComp.NewCounter("configstream", "discontinuities", []string{}, "Number of discontinuities detected")
+	cs.droppedUpdates = telemetryComp.NewCounter("configstream", "dropped_updates", []string{}, "Number of dropped config updates due to full channels")
 
 	// Start the run loop in the background
 	go cs.run()
@@ -358,6 +377,7 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 		Lifecycle: lc,
 		Log:       log,
 		Config:    config,
+		Telemetry: telemetrynoops.GetCompatComponent(),
 	}
 
 	provides := NewComponent(reqs)

@@ -1,79 +1,99 @@
 # Config Stream: Phase 0 Implementation
 
 **Status:** ✅ Complete  
-**Date:** January 2026
+**Date:** January 2026  
+**Base:** Built on top of [PR #39877](https://patch-diff.githubusercontent.com/raw/DataDog/datadog-agent/pull/39877.diff)
 
 ## Overview
 
-Phase 0 establishes the producer-side infrastructure for streaming configuration from core-agent to remote agents via RAR (Remote Agent Registry).
+Phase 0 establishes the producer-side infrastructure for streaming configuration from core-agent to remote agents via RAR (Remote Agent Registry). This implementation builds on the foundation laid by PR #39877, adding missing pieces for production readiness.
 
-## What Was Implemented
+## What PR #39877 Provided
 
-### 1. Config Event Bus with Sequencing
+PR #39877 implemented the core streaming infrastructure:
 
-**Location:** `pkg/config/nodetreemodel/config.go`
+### 1. **Config Event Bus with Sequencing**
+- Location: `pkg/config/nodetreemodel/config.go`
+- Increments `sequenceID` on every config mutation
+- Emits notifications via `OnUpdate` callback
 
-Every config mutation increments `sequenceID` and emits notifications:
+### 2. **Config Stream Component**
+- Location: `comp/core/configstream/impl/configstream.go`
+- Snapshot generation with consistent point-in-time view
+- Update fan-out to all subscribers via channels
+- Discontinuity detection and automatic resync
+- Non-blocking subscriber management (buffered channels)
 
-```go
-c.sequenceID++
-// Notify all receivers with (key, source, oldValue, newValue, sequenceID)
-for _, receiver := range receivers {
-    receiver(key, source, previousValue, newValue, c.sequenceID)
-}
-```
+### 3. **gRPC Service**
+- Proto: `pkg/proto/datadog/model/v1/model.proto`
+- Service: `AgentSecure.StreamConfigEvents` on IPC with mTLS
+- Request/response messages defined
 
-### 2. Config Stream Component
+### 4. **RAR-Gated Authorization** 
+- Location: `comp/core/configstream/server/server.go`
+- Validates `session_id` from `ConfigStreamRequest`
+- Uses `RemoteAgentRegistry.RefreshRemoteAgent()` to authorize
 
-**Location:** `comp/core/configstream/impl/configstream.go`
+### 5. **Comprehensive Testing**
+- Component tests in `configstream_test.go`
+- Server tests with mock RAR
+- Test client in `cmd/config-stream-client/`
 
-- **Snapshot generation:** Consistent point-in-time view of all config
-- **Update fan-out:** Broadcasts to all subscribers
-- **Discontinuity detection:** Automatically resyncs clients that fall behind
-- **Non-blocking:** Buffered channels (100 events), slow consumers don't block others
+## What We Added (Phase 0 Refinements)
 
-### 3. gRPC Service with RAR-Gating
+### 1. **Origin Field Population**
 
-**Proto:** `pkg/proto/datadog/model/v1/model.proto`
+**Problem:** Proto defined `origin` field in `ConfigSnapshot` and `ConfigUpdate`, but it was never populated.
 
-```protobuf
-message ConfigStreamRequest {
-  string name = 1;
-  string session_id = 2;  // Required: from RAR registration
-}
-
-message ConfigEvent {
-  oneof event {
-    ConfigSnapshot snapshot = 1;  // Always sent first
-    ConfigUpdate update = 2;      // Incremental changes
-  }
-}
-```
-
-**Service:** `AgentSecure.StreamConfigEvents` on IPC with mTLS
-
-### 4. RAR-Gated Authorization
-
-**Location:** `comp/core/configstream/server/server.go`
+**Solution:** Added `getConfigOrigin()` helper and populated origin in both snapshot and update creation.
 
 ```go
-func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream) error {
-    // 1. Validate session_id is provided
-    if req.SessionId == "" {
-        return status.Error(codes.Unauthenticated, "session_id required")
+// Get the config origin (filename without path)
+func (cs *configStream) getConfigOrigin() string {
+    configFile := cs.config.ConfigFileUsed()
+    if configFile == "" {
+        return "core-agent" // Fallback
     }
-    
-    // 2. Check RAR registry
-    if !s.registry.RefreshRemoteAgent(req.SessionId) {
-        return status.Errorf(codes.PermissionDenied, "session_id not found")
-    }
-    
-    // 3. Stream config events
-    eventsCh, unsubscribe := s.comp.Subscribe(req)
-    defer unsubscribe()
-    // ... send snapshot + updates
+    return filepath.Base(configFile)
 }
 ```
+
+**Changes:**
+- `comp/core/configstream/impl/configstream.go:284-293` - Added `getConfigOrigin()` method
+- `comp/core/configstream/impl/configstream.go:262` - Populate origin in snapshots
+- `comp/core/configstream/impl/configstream.go:120` - Populate origin in updates
+
+### 2. **Telemetry Metrics**
+
+**Problem:** No observability into streaming behavior (subscribers, updates sent, discontinuities, etc.)
+
+**Solution:** Added comprehensive telemetry metrics for monitoring.
+
+**Metrics:**
+- `configstream.subscribers` (Gauge) - Number of active subscribers
+- `configstream.snapshots_sent` (Counter) - Snapshots sent (including resyncs)
+- `configstream.updates_sent` (Counter) - Incremental updates sent
+- `configstream.discontinuities` (Counter) - Gaps detected and resynced
+- `configstream.dropped_updates` (Counter) - Updates dropped due to full channels
+
+**Changes:**
+- `comp/core/configstream/impl/configstream.go:38-53` - Added telemetry fields to `configStream` struct
+- `comp/core/configstream/impl/configstream.go:58-68` - Initialize metrics in `NewComponent`
+- `comp/core/configstream/impl/configstream.go:178-182` - Track subscriber additions
+- `comp/core/configstream/impl/configstream.go:195-198` - Track subscriber removals
+- `comp/core/configstream/impl/configstream.go:228-241` - Track updates, discontinuities, and drops
+
+### 3. **Test Enhancements**
+
+**Problem:** Tests didn't verify origin field or telemetry behavior.
+
+**Solution:** Added assertions for origin field in existing tests.
+
+**Changes:**
+- `comp/core/configstream/impl/configstream_test.go:11` - Import telemetry noop component
+- `comp/core/configstream/impl/configstream_test.go:316-333` - Updated test helper to include telemetry
+- `comp/core/configstream/impl/configstream_test.go:65` - Assert origin field in snapshot test
+- `comp/core/configstream/impl/configstream_test.go:130-132` - Assert origin field in update test
 
 ## Architecture
 
@@ -96,53 +116,92 @@ Pull-to-Open                      Push-to-Deliver
 (client connects)                 (server streams)
 ```
 
+## Protocol Specification
+
+**Request:**
+```protobuf
+message ConfigStreamRequest {
+  string name = 1;        // Client identifier
+  string session_id = 2;  // From RAR registration (required)
+}
+```
+
+**Response Stream:**
+```protobuf
+message ConfigEvent {
+  oneof event {
+    ConfigSnapshot snapshot = 1;  // Always sent first
+    ConfigUpdate update = 2;      // Incremental changes
+  }
+}
+
+message ConfigSnapshot {
+  string origin = 1;              // e.g., "datadog.yaml"
+  int32 sequence_id = 2;          // Monotonic ID
+  repeated ConfigSetting settings = 3;
+}
+
+message ConfigUpdate {
+  string origin = 1;              // e.g., "datadog.yaml"
+  int32 sequence_id = 2;          // Monotonic ID  
+  ConfigSetting setting = 3;      // Single changed setting
+}
+
+message ConfigSetting {
+  string source = 1;              // e.g., "file", "env-var", "remote-config"
+  string key = 2;                 // Setting name
+  google.protobuf.Value value = 3;
+}
+```
+
 ## Key Invariants
 
 1. **Snapshot-first:** Every subscriber receives complete snapshot before updates
-2. **Ordered delivery:** Sequence IDs are strictly increasing
-3. **Automatic resync:** Gaps trigger snapshot resend
+2. **Ordered delivery:** Sequence IDs are strictly increasing per subscriber
+3. **Automatic resync:** Gaps trigger snapshot resend (logged as warnings)
 4. **RAR-gated:** Only registered remote agents can subscribe
 5. **Single source of truth:** Config resolved once in core-agent
+6. **Origin tracking:** Every event identifies its config source file
 
-## Files Changed
+## Files Modified
 
 ### Core Implementation
-- `pkg/config/nodetreemodel/config.go` - Sequence ID tracking
-- `comp/core/configstream/impl/configstream.go` - Stream component
-- `comp/core/configstream/server/server.go` - gRPC server with RAR auth
-- `comp/api/grpcserver/impl-agent/grpc.go` - Server wiring
-
-### Protocol
-- `pkg/proto/datadog/model/v1/model.proto` - Added `session_id` field
-- `pkg/proto/pbgo/core/model.pb.go` - Generated
+- ✅ `comp/core/configstream/impl/configstream.go` - Added origin + telemetry
+- ✅ `comp/core/configstream/server/server.go` - (Already had RAR-gating from PR)
 
 ### Testing
-- `comp/core/configstream/impl/configstream_test.go` - Component tests
-- `comp/core/configstream/server/server_test.go` - Server tests with mock RAR
-- `cmd/config-stream-client/` - Test client
+- ✅ `comp/core/configstream/impl/configstream_test.go` - Added origin assertions + telemetry support
+
+### No Changes Needed
+- `pkg/proto/datadog/model/v1/model.proto` - (Already had origin field from PR)
+- `comp/core/configstream/server/server.go` - (Already had RAR auth from PR)
+- `comp/api/grpcserver/impl-agent/grpc.go` - (Already wired from PR)
 
 ## Testing
 
 All tests passing:
 
 ```bash
-# Component tests (7 test cases)
+# Run Phase 0 exit criteria tests
 cd comp/core/configstream/impl
+go test -tags test -v -run TestPhase0ExitCriteria
+
+# Run all component tests (4 test suites, 10 test cases)
 go test -tags test -v
 
-# Server tests (with RAR-gating)
-cd comp/core/configstream/server
+# Run server tests (with RAR-gating)
+cd ../server
 go test -tags test -v
 ```
 
-Test coverage:
-- ✅ Snapshot-first delivery
+**Test Coverage:**
+- ✅ Snapshot-first delivery with origin field
 - ✅ Ordered sequence IDs
-- ✅ Correct typed values
-- ✅ Multiple subscribers
-- ✅ Discontinuity resync
+- ✅ Correct typed values (string, int, bool, float)
+- ✅ Multiple subscribers (fan-out)
+- ✅ Discontinuity detection and resync
 - ✅ Config layering and unsets
-- ✅ RAR authorization
+- ✅ RAR authorization (session_id validation)
 - ✅ Unsubscribe cleanup
 
 ## Configuration
@@ -158,42 +217,86 @@ config_stream:
   sleep_interval: 10ms  # Backpressure on non-terminal errors
 ```
 
+## Telemetry Usage
+
+Monitor stream health with:
+
+```promql
+# Number of active subscribers
+configstream_subscribers
+
+# Rate of snapshots sent (including resyncs)
+rate(configstream_snapshots_sent[5m])
+
+# Rate of incremental updates
+rate(configstream_updates_sent[5m])
+
+# Discontinuities detected (should be rare)
+rate(configstream_discontinuities[5m])
+
+# Dropped updates (indicates slow consumers)
+rate(configstream_dropped_updates[5m])
+```
+
 ## Exit Criteria
 
 | Criterion | Status |
 |-----------|--------|
-| Config event bus + sequencing | ✅ Complete |
-| Snapshot creation | ✅ Complete |
-| `AgentSecure.StreamConfigEvents` on IPC | ✅ Complete |
-| RAR-gated authorization | ✅ Complete |
-| Test client validation | ✅ Complete |
+| Config event bus + sequencing | ✅ Complete (PR #39877) |
+| Snapshot creation | ✅ Complete (PR #39877) |
+| `AgentSecure.StreamConfigEvents` on IPC | ✅ Complete (PR #39877) |
+| RAR-gated authorization | ✅ Complete (PR #39877) |
+| Origin field populated | ✅ **Complete (This PR)** |
+| Telemetry metrics | ✅ **Complete (This PR)** |
+| Test client validation | ✅ Complete (PR #39877) |
 
-## Limitations (Phase 1+)
+## Limitations (Addressed in Phase 1+)
 
-1. **No consumer library:** Remote agents must implement gRPC client manually
-2. **No startup gating:** Can't block until config received
-3. **No change notifications:** Can't subscribe to specific keys
-4. **No origin filtering:** All config sent (datadog.yaml, system-probe.yaml, etc.)
+Phase 0 provides server-side streaming infrastructure. Future phases add:
 
-## Next: Phase 1
+1. **Phase 1:** Consumer library for remote agents
+2. **Phase 2:** Integrate into one pilot agent (e.g., system-probe)
+3. **Phase 3:** Migrate all remote agents
+4. **Phase 4:** Remove legacy `configsync`
 
-Implement consumer library (`comp/core/configstreamconsumer`):
+### What's Missing for Remote Agents
+
+- **No consumer library:** Remote agents must implement gRPC client manually
+- **No startup gating:** Can't block until config received
+- **No change notifications:** Can't subscribe to specific keys
+- **No `model.Reader` implementation:** Can't use familiar config interface
+
+## Next: Phase 1 - Consumer Library
+
+Implement `comp/core/configstreamconsumer` to provide:
 
 ```go
-type Consumer interface {
-    Start(ctx) error              // Includes RAR registration
-    WaitReady(ctx) error          // Block until snapshot
-    Reader() model.Reader         // Config accessor
+type Component interface {
+    Start(ctx) error              // Initiates stream connection
+    WaitReady(ctx) error          // Blocks until snapshot received
+    Reader() model.Reader         // Config accessor (familiar interface)
     Subscribe() <-chan ChangeEvent // Change notifications
 }
 ```
 
-Remote agents will use:
+**Remote agents will use:**
 ```go
-consumer.WaitReady(ctx)  // Block startup
-cfg := consumer.Reader() // Read config
+// In main()
+consumer.Start(ctx)
+consumer.WaitReady(ctx)  // Block startup until config ready
+
+// In application code
+cfg := consumer.Reader()
+apiKey := cfg.GetString("api_key")
+
+// For hot-reloading
+changes, unsubscribe := consumer.Subscribe()
+for change := range changes {
+    log.Infof("Config changed: %s = %v", change.Key, change.NewValue)
+}
 ```
 
 ---
 
-**Phase 0 Complete:** Infrastructure ready for remote agent migration
+**Phase 0 Status:** ✅ Complete  
+**Foundation:** Server-side streaming infrastructure ready for consumer integration
