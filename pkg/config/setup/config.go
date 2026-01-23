@@ -1300,6 +1300,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+
+	// Private Action Runner
+	config.BindEnvAndSetDefault("privateactionrunner.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
