@@ -13,7 +13,6 @@
       fi
     - AGENT_BASE_IMAGE_TAG=registry.ddbuild.io/ci/datadog-agent/agent-base-image${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-$ARCH
     - TARGET_TAG=${IMAGE}${ECR_RELEASE_SUFFIX}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}$TAG_SUFFIX-$ARCH
-    - !reference [.login_to_docker_readonly]
     # Caching setup
     - DOCKER_CACHE_REGISTRY_TARGET="${IMAGE}${TAG_SUFFIX}-${ARCH}:cache"
     - CACHE_SOURCE="--cache-from type=registry,ref=${DOCKER_CACHE_REGISTRY_TARGET}"
@@ -69,6 +68,7 @@
           --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
           --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
           --build-arg DD_GIT_COMMIT_SHA=${CI_COMMIT_SHA} \
+          --build-arg BASE_IMAGE_REGISTRY \
           $BUILD_ARG \
           ${EXTRA_BUILD_CONTEXT} \
           --file $BUILD_CONTEXT/Dockerfile \
@@ -88,6 +88,7 @@
         --build-arg AGENT_BASE_IMAGE_TAG=${AGENT_BASE_IMAGE_TAG} \
         --build-arg CI \
         --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} \
+        --build-arg BASE_IMAGE_REGISTRY \
         $BUILD_ARG \
         $TARGET_ARG \
         --build-arg DD_GIT_REPOSITORY_URL=https://github.com/DataDog/datadog-agent \
@@ -110,6 +111,8 @@
         crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
       fi
     - !reference [.static_quality_gate_docker]
+  variables:
+    BASE_IMAGE_REGISTRY: "registry.ddbuild.io/images/mirror"
   # Workaround for temporary network failures
   retry: 2
   timeout: 30m
