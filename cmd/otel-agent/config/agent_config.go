@@ -124,7 +124,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		}
 
 		// Log configuration state for debugging nodetreemodel issues
-		log.Warnf("OTel agent config loaded: logs_enabled=%v, config_lib=%s",
+		log.Errorf("OTel agent config loaded: logs_enabled=%v, config_lib=%s",
 			pkgconfig.GetBool("logs_enabled"), pkgconfig.GetLibType())
 
 		var ok bool
@@ -152,7 +152,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
-	log.Warnf("OTel agent setting log level to: %v", logLevelReverseMap[activeLogLevel])
+	log.Errorf("OTel agent setting log level to: %v", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
 
 	// Override config read (if any) with Default values

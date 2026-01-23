@@ -505,16 +505,21 @@ func (c *ntmConfig) BuildSchema() {
 }
 
 func (c *ntmConfig) buildSchema() {
+	log.Errorf("nodetreemodel: buildSchema() called, ready=%v, allowDynamicSchema=%v",
+		c.ready.Load(), c.allowDynamicSchema.Load())
+
 	c.buildEnvVars()
 
 	// Log if logs_enabled is a known key for debugging
 	if _, ok := c.knownKeys["logs_enabled"]; ok {
-		log.Warnf("nodetreemodel: logs_enabled IS a known key")
+		log.Errorf("nodetreemodel: logs_enabled IS a known key")
 	} else {
-		log.Warnf("nodetreemodel: logs_enabled is NOT a known key - this is a problem!")
+		log.Errorf("nodetreemodel: logs_enabled is NOT a known key - this is a problem!")
 	}
 
 	c.ready.Store(true)
+	log.Errorf("nodetreemodel: buildSchema() completed, setting ready=true")
+
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
@@ -545,7 +550,7 @@ func (c *ntmConfig) buildEnvVars() {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
 				// Log specifically for logs_enabled to debug nodetreemodel issues
 				if configKey == "logs_enabled" {
-					log.Warnf("nodetreemodel: found env var %s=%s for config key logs_enabled", envVar, value)
+					log.Errorf("nodetreemodel: found env var %s=%s for config key logs_enabled", envVar, value)
 				}
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
@@ -619,7 +624,8 @@ func (c *ntmConfig) IsSet(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return false
 	}
 
@@ -659,7 +665,8 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return false
 	}
 
@@ -758,7 +765,8 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
+		return nil, log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 	}
 	pathParts := splitKey(key)
 	curr := c.root

@@ -78,7 +78,7 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 	configLibType := deps.Config.GetLibType()
 
 	// Log configuration state for debugging nodetreemodel issues
-	deps.Log.Warnf("logs-agent initialization: logs_enabled=%v, log_enabled=%v, config_lib=%s",
+	deps.Log.Errorf("logs-agent initialization: logs_enabled=%v, log_enabled=%v, config_lib=%s",
 		logsEnabled, logEnabled, configLibType)
 
 	if logsEnabled || logEnabled {
@@ -103,7 +103,7 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		return logsAgent
 	}
 
-	deps.Log.Warnf("logs-agent disabled: logs_enabled=%v, log_enabled=%v, config_lib=%s",
+	deps.Log.Errorf("logs-agent disabled: logs_enabled=%v, log_enabled=%v, config_lib=%s",
 		logsEnabled, logEnabled, configLibType)
 	return nil
 }
