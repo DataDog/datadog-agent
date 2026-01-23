@@ -864,7 +864,9 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - .gitlab/**/*
+        - .gitlab/deploy/**/*
+        - .gitlab/test/e2e_install_packages/**/*
+        - .gitlab/test/e2e/e2e.yml
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
@@ -960,7 +962,12 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        - cmd/**/*
+        - cmd/agent/**/*
+        - cmd/installer/**/*
+        - cmd/process-agent/**/*
+        - cmd/security-agent/**/*
+        - cmd/system-probe/**/*
+        - cmd/trace-agent/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
