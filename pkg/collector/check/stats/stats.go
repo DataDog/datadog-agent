@@ -11,10 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
+
+	"github.com/DataDog/agent-payload/v5/healthplatform"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -148,7 +150,7 @@ type Stats struct {
 	m                        sync.Mutex
 	Telemetry                bool // do we want telemetry on this Check
 	HASupported              bool
-	healthPlatform           healthplatform.Component // health platform component for reporting issues
+	healthPlatform           healthplatformdef.Component // health platform component for reporting issues
 }
 
 //nolint:revive
@@ -170,7 +172,7 @@ type StatsCheck interface {
 }
 
 // NewStats returns a new check stats instance
-func NewStats(c StatsCheck, healthPlatform healthplatform.Component) *Stats {
+func NewStats(c StatsCheck, healthPlatform healthplatformdef.Component) *Stats {
 	stats := Stats{
 		CheckID:                  c.ID(),
 		CheckName:                c.String(),
@@ -321,7 +323,7 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		string(cs.CheckID),
 		cs.CheckName,
 		&healthplatform.IssueReport{
-			IssueID: "check-execution-failure",
+			IssueId: "check-execution-failure",
 			Context: context,
 			Tags:    []string{cs.CheckName, cs.CheckLoader},
 		},

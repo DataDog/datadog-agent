@@ -525,6 +525,34 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
+// This wraps the MSI installation with performance tracing and service status checking.
+//
+// Usage:
+//
+//	s.InstallWithXperf(
+//	    installerwindows.WithMSILogFile("install.log"),
+//	)
+//
+// The xperf trace will be collected automatically if the test fails.
+func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
+	s.T().Helper()
+
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
+
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
 // MustStartExperimentCurrentVersion start an experiment with current version of the Agent
 func (s *BaseSuite) MustStartExperimentCurrentVersion() {
 	s.T().Helper()
@@ -588,6 +616,13 @@ func (s *BaseSuite) WaitForInstallerService(state string) error {
 	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), consts.ServiceName)
 }
 
+// WaitForAgentService waits for the Datadog Agent service to be in the expected state
+func (s *BaseSuite) WaitForAgentService(state string) error {
+	// usually waiting after MSI runs so we have to wait awhile
+	// max wait is 30*30 -> 900 seconds (15 minutes)
+	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), "datadogagent")
+}
+
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
 func (s *BaseSuite) WaitForServicesWithBackoff(state string, b backoff.BackOff, services ...string) error {
 	return backoff.Retry(func() error {
@@ -644,7 +679,7 @@ func (s *BaseSuite) AssertSuccessfulConfigStopExperiment() {
 		HasARunningDatadogAgentService()
 }
 
-// WaitForDaemonToStop waits for the daemon service PID to change after the function is called.
+// WaitForDaemonToStop waits for the daemon service PID or start time to change after the function is called.
 func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.T().Helper()
 
@@ -657,6 +692,9 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 	s.Require().NoError(err)
 	s.Require().Greater(originalPID, 0)
 
+	originalStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, originalPID)
+	s.Require().NoError(err)
+
 	s.startxperf()
 	defer s.collectxperf()
 
@@ -667,10 +705,20 @@ func (s *BaseSuite) WaitForDaemonToStop(f func(), b backoff.BackOff) {
 		if err != nil {
 			return err
 		}
-		if newPID == originalPID {
-			return fmt.Errorf("daemon PID %d is still running", newPID)
+		if newPID != originalPID {
+			// PID changed, the daemon has restarted
+			return nil
 		}
-		return nil
+		// PID is the same, check if start time changed (in case of PID reuse)
+		newStartTime, err := windowscommon.GetProcessStartTimeAsFileTimeUtc(s.Env().RemoteHost, newPID)
+		if err != nil {
+			return err
+		}
+		if newStartTime != originalStartTime {
+			// Start time changed, the daemon has restarted with the same PID
+			return nil
+		}
+		return fmt.Errorf("daemon PID %d with start time %d is still running", newPID, newStartTime)
 	}, b)
 	s.Require().NoError(err)
 }

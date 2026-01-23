@@ -54,7 +54,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 	}
 
 	if secconfig.RuntimeSecurity.IsRuntimeEnabled() {
-		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, secmoduleOpts, deps.Compression, deps.Ipc)
+		cws, err := secmodule.NewCWSConsumer(evm, secconfig.RuntimeSecurity, deps.WMeta, deps.FilterStore, secmoduleOpts, deps.Compression, deps.Ipc)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +77,7 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		log.Info("event monitoring network consumer initialized")
 
 		if netconfig.DirectSend {
-			dp, err := sender.NewDockerProxyConsumer(evm, deps.Log)
+			dp, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
 			if err != nil {
 				return nil, err
 			}
