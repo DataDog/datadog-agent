@@ -9,6 +9,7 @@
 package sender
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"hash/fnv"
@@ -204,6 +205,7 @@ type directSender struct {
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 	resolver   *containerResolver
+	encodeBuf  bytes.Buffer
 
 	// Used to cache the hash result of the host name and the pid of the system-probe.
 	// Being used as part of getRequestID method.
