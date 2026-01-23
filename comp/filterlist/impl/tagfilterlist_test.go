@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package aggregator
+package filterlistimpl
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ import (
 )
 
 func TestNewTagMatcher(t *testing.T) {
-	matcher := NewTagMatcher(map[string]MetricTagList{
+	matcher := newTagMatcher(map[string]MetricTagList{
 		"metric1": {
 			Tags:   []string{"env", "host"},
 			Action: "exclude",
@@ -29,17 +29,17 @@ func TestNewTagMatcher(t *testing.T) {
 	})
 
 	assert.NotNil(t, matcher)
-	assert.Equal(t, matcher.Metrics["metric1"], HashedMetricTagList{
+	assert.Equal(t, matcher.MetricTags["metric1"], hashedMetricTagList{
 		tags:   []uint64{murmur3.StringSum64("env"), murmur3.StringSum64("host")},
 		action: Exclude,
 	})
 
-	assert.Equal(t, matcher.Metrics["metric2"], HashedMetricTagList{
+	assert.Equal(t, matcher.MetricTags["metric2"], hashedMetricTagList{
 		tags:   []uint64{},
 		action: Include,
 	})
 
-	assert.Equal(t, matcher.Metrics["metric3"], HashedMetricTagList{
+	assert.Equal(t, matcher.MetricTags["metric3"], hashedMetricTagList{
 		tags:   []uint64{murmur3.StringSum64("pod")},
 		action: Exclude,
 	})
@@ -82,7 +82,7 @@ func TestTagMatcher(t *testing.T) {
 		},
 	}
 
-	matcher := NewTagMatcher(metrics)
+	matcher := newTagMatcher(metrics)
 
 	// Test metric1 tags are excluded
 	keepTagFunc, shouldStrip := matcher.ShouldStripTags("metric1")
