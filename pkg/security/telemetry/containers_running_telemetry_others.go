@@ -10,15 +10,17 @@ package telemetry
 import (
 	"context"
 
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-go/v5/statsd"
+
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // ContainersRunningTelemetry reports environment information (e.g containers running) when the runtime security component is running
 type ContainersRunningTelemetry struct{}
 
 // NewContainersRunningTelemetry creates a new ContainersRunningTelemetry instance (not supported on non-linux platforms)
-func NewContainersRunningTelemetry(_ ContainersRunningTelemetryConfig, _ statsd.ClientInterface, _ workloadmeta.Component) (*ContainersRunningTelemetry, error) {
+func NewContainersRunningTelemetry(_ ContainersRunningTelemetryConfig, _ statsd.ClientInterface, _ workloadmeta.Component, _ workloadfilter.Component) (*ContainersRunningTelemetry, error) {
 	return nil, nil
 }
 

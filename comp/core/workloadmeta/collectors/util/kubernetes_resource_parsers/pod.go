@@ -89,6 +89,12 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
 			c.Resources.MemoryRequest = kubernetes.FormatMemoryRequests(memoryReq)
 		}
+		if cpuLimit, found := container.Resources.Limits[corev1.ResourceCPU]; found {
+			c.Resources.CPULimit = kubernetes.FormatCPURequests(cpuLimit)
+		}
+		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
+			c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
+		}
 		containersList = append(containersList, c)
 	}
 

@@ -868,6 +868,7 @@ workflow:
         - omnibus/config/**/*
         - pkg/fleet/**/*
         - cmd/installer/**/*
+        - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
       compare_to: $COMPARE_TO_BRANCH
@@ -1172,6 +1173,17 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
+.on_releasenotes_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - releasenotes/notes/**/*.yaml
+        - releasenotes-dca/notes/**/*.yaml
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true
