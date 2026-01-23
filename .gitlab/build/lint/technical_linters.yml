@@ -13,6 +13,12 @@ lint_licenses:
     - dda inv -- -e lint-licenses
   needs: ["go_tools_deps", "go_deps"]
 
+lint_rust_licenses:
+  extends: .lint
+  script:
+    - dda inv -- -e install-rust-license-tool
+    - dda inv -- -e lint-rust-licenses
+
 lint_shell:
   extends: .lint
   script:
