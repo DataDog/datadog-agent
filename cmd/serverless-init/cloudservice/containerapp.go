@@ -139,7 +139,7 @@ func NewContainerApp() *ContainerApp {
 }
 
 // Init initializes ContainerApp specific code
-func (c *ContainerApp) Init(_ interface{}) error {
+func (c *ContainerApp) Init(_ *TracingContext) error {
 	// For ContainerApp, the customers must set DD_AZURE_SUBSCRIPTION_ID
 	// and DD_AZURE_RESOURCE_GROUP.
 	// These environment variables are optional for now. Once we go GA,
@@ -161,7 +161,7 @@ func (c *ContainerApp) Init(_ interface{}) error {
 }
 
 // Shutdown emits the shutdown metric for ContainerApp
-func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 
