@@ -40,9 +40,7 @@ type Config struct {
 }
 
 func calculateRolloutBucket(apiKey string) string {
-	if apiKey == "" {
-		return "0"
-	}
+	// If the API key is empty for whatever reason, resolves to bucket 2
 	hash := sha256.Sum256([]byte(apiKey))
 	hashInt := binary.BigEndian.Uint64(hash[:8])
 	return strconv.Itoa(int(hashInt % rolloutBucketCount))
