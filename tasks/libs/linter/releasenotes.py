@@ -203,17 +203,21 @@ def validate_rst(text: str) -> list[RSTLintError]:
         return errors
 
     # Parse the warning stream for errors
-    # Format: <string>:LINE: (LEVEL/NUM) Message
+    # Formats:
+    #   <string>:LINE: (LEVEL/NUM) Message  (with line number)
+    #   <string>: (LEVEL/NUM) Message       (without line number)
+    #   /path/to/file:LINE: (LEVEL/NUM) Message  (with real path, e.g. from .. include::)
     warning_output = warning_stream.getvalue()
     if warning_output:
         level_map = {'INFO': 'info', 'WARNING': 'warning', 'ERROR': 'error', 'SEVERE': 'severe'}
+        # Regex: source:optional_line: (LEVEL/NUM) message
+        warning_pattern = re.compile(r'^[^:]+:(?:(\d+):)? \(([A-Z]+)/\d+\) (.+)')
         for line in warning_output.strip().split('\n'):
             if not line:
                 continue
-            # Parse docutils warning format: <string>:LINE: (LEVEL/NUM) Message
-            match = re.match(r'<string>:(\d+): \(([A-Z]+)/\d+\) (.+)', line)
+            match = warning_pattern.match(line)
             if match:
-                line_num = int(match.group(1))
+                line_num = int(match.group(1)) if match.group(1) else None
                 level_str = match.group(2)
                 message = match.group(3)
                 level = level_map.get(level_str, 'warning')
