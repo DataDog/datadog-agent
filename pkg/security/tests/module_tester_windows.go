@@ -228,7 +228,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if !opts.staticOpts.disableRuntimeSecurity {
 		// force a reload of the policies
-		testMod.ruleEngine.LoadPolicies()
+		err = testMod.ruleEngine.LoadPolicies()
+		if err != nil {
+			testMod.Close()
+			return nil, err
+		}
 
 		if ruleSetloadedErr.ErrorOrNil() != nil {
 			defer testMod.Close()
