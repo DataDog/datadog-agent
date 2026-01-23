@@ -1176,6 +1176,17 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_releasenotes_changes:
+  - <<: *if_main_branch
+  - !reference [.except_mergequeue]
+  - changes:
+      paths:
+        - releasenotes/notes/**/*.yaml
+        - releasenotes-dca/notes/**/*.yaml
+      compare_to: $COMPARE_TO_BRANCH
+  - when: manual
+    allow_failure: true
+
 .except_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: never

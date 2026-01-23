@@ -35,6 +35,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/impl"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
@@ -803,6 +804,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	ipcComp := ipcmock.New(t)
 
+	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
+
 	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
 	if err != nil {
 		return nil, err
@@ -814,7 +817,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		msgSender := newFakeMsgSender(testMod)
 
 		compression := logscompression.NewComponent()
-		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
+		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, nil, mockFilterStore, module.Opts{EventSender: testMod, MsgSender: msgSender}, compression, ipcComp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
 		}

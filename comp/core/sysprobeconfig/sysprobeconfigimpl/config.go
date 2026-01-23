@@ -10,6 +10,7 @@ package sysprobeconfigimpl
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -42,6 +43,8 @@ type dependencies struct {
 	fx.In
 
 	Params Params
+	// Enforce loading order between core agent config and system-probe config
+	CoreConfig config.Component
 }
 
 func setupConfig(sysProbeConfFilePath string, fleetPoliciesDirPath string) (*sysconfigtypes.Config, error) {

@@ -132,7 +132,7 @@ func easyjson71693981DecodeGithubComDataDogDatadogAgentPkgSecurityProbe1(in *jle
 			if in.IsNull() {
 				in.Skip()
 			} else {
-				out.RemediationAction = string(in.String())
+				out.Remediation = string(in.String())
 			}
 		case "status":
 			if in.IsNull() {
@@ -222,7 +222,7 @@ func easyjson71693981EncodeGithubComDataDogDatadogAgentPkgSecurityProbe1(out *jw
 	{
 		const prefix string = ",\"remediation_action\":"
 		out.RawString(prefix)
-		out.String(string(in.RemediationAction))
+		out.String(string(in.Remediation))
 	}
 	{
 		const prefix string = ",\"status\":"

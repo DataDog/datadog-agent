@@ -170,7 +170,7 @@ require (
 	github.com/DataDog/datadog-traceroute v1.0.3
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
-	github.com/DataDog/go-sqllexer v0.1.10
+	github.com/DataDog/go-sqllexer v0.1.12
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7

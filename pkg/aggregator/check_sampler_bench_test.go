@@ -17,7 +17,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
@@ -64,12 +64,12 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	orchestratorForwarder := option.New[forwarder.Forwarder](forwarder.NoopForwarder{})
 	eventPlatformForwarder := option.NewPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname, logscompressionmock.NewMockCompressor()))
 	haAgent := haagentmock.NewMockHaAgent()
-	filterList := filterlist.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, haAgent, deps.Compressor, taggerComponent, filterList, "hostname")
 	defer demux.Stop(true)
 
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
-	matcher := NewTagMatcher(map[string]MetricTagList{})
+	matcher := filterlistimpl.NewNoopTagMatcher()
 
 	bucket := &metrics.HistogramBucket{
 		Name:       "my.histogram",
@@ -90,7 +90,7 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 func benchmarkAddBucketWideBounds(bucketValue int64, b *testing.B) {
 	taggerComponent := taggerfxmock.SetupFakeTagger(b)
 	checkSampler := newCheckSampler(1, true, true, 1000, true, tags.NewStore(true, "bench"), checkid.ID("hello:world:1234"), taggerComponent)
-	matcher := NewTagMatcher(map[string]MetricTagList{})
+	matcher := filterlistimpl.NewNoopTagMatcher()
 
 	bounds := []float64{0, .0005, .001, .003, .005, .007, .01, .015, .02, .025, .03, .04, .05, .06, .07, .08, .09, .1, .5, 1, 5, 10}
 	bucket := &metrics.HistogramBucket{

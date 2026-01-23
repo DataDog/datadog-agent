@@ -58,7 +58,7 @@ type dnsParser struct {
 	layers             []gopacket.LayerType
 	ipv4Payload        *layers.IPv4
 	ipv6Payload        *layers.IPv6
-	udpPayload         *layers.UDP
+	udpPayload         *udpWithDNSSupport
 	tcpPayload         *tcpWithDNSSupport
 	dnsPayload         *layers.DNS
 	collectDNSStats    bool
@@ -69,7 +69,7 @@ type dnsParser struct {
 func newDNSParser(layerType gopacket.LayerType, cfg *config.Config) *dnsParser {
 	ipv4Payload := &layers.IPv4{}
 	ipv6Payload := &layers.IPv6{}
-	udpPayload := &layers.UDP{}
+	udpPayload := &udpWithDNSSupport{}
 	tcpPayload := &tcpWithDNSSupport{}
 	dnsPayload := &layers.DNS{}
 	queryTypes := getRecordedQueryTypes(cfg)

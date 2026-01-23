@@ -140,8 +140,7 @@ func (p *MinimalPod) DeepCopyObject() runtime.Object {
 		out.Spec.Volumes = make([]MinimalVolume, len(p.Spec.Volumes))
 		for i := range p.Spec.Volumes {
 			if p.Spec.Volumes[i].PersistentVolumeClaim != nil {
-				out.Spec.Volumes[i].PersistentVolumeClaim =
-					p.Spec.Volumes[i].PersistentVolumeClaim.DeepCopy()
+				out.Spec.Volumes[i].PersistentVolumeClaim = p.Spec.Volumes[i].PersistentVolumeClaim.DeepCopy()
 			}
 		}
 	}
@@ -308,6 +307,12 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 		}
 		if memoryReq, found := container.Resources.Requests[corev1.ResourceMemory]; found {
 			c.Resources.MemoryRequest = kubeutil.FormatMemoryRequests(memoryReq)
+		}
+		if cpuLimit, found := container.Resources.Limits[corev1.ResourceCPU]; found {
+			c.Resources.CPULimit = kubeutil.FormatCPURequests(cpuLimit)
+		}
+		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
+			c.Resources.MemoryLimit = kubeutil.FormatMemoryRequests(memoryLimit)
 		}
 		containersList = append(containersList, c)
 	}

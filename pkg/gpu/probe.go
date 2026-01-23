@@ -468,7 +468,7 @@ func getAttacherConfig(cfg *config.Config) uprobes.AttacherConfig {
 		ScanProcessesInterval:          cfg.ScanProcessesInterval,
 		EnablePeriodicScanNewProcesses: true,
 		EnableDetailedLogging:          cfg.AttacherDetailedLogs,
-		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf,
+		ExcludeTargets:                 uprobes.ExcludeInternal | uprobes.ExcludeSelf | uprobes.ExcludeBuildkit | uprobes.ExcludeContainerdTmp,
 	}
 }
 

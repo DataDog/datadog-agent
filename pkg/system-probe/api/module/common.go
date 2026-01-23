@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -43,6 +44,7 @@ type FactoryDependencies struct {
 	CoreConfig     config.Component
 	Log            log.Component
 	WMeta          workloadmeta.Component
+	FilterStore    workloadfilter.Component
 	Tagger         tagger.Component
 	Telemetry      telemetry.Component
 	Compression    logscompression.Component

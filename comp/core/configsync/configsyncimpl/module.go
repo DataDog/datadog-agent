@@ -75,7 +75,7 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 		compURL = &url.URL{
 			Scheme: "https+unix", // +unix gets trimmed by the ipc client and indicates to use agent_ipc.socket_path in the ipc client
 			Host:   "localhost:", // this is required for using the mTLS cert validating the hostname in the request
-			Path:   "/config/v1",
+			Path:   "/config/v1/",
 		}
 	} else {
 		host := deps.Config.GetString("agent_ipc.host")
@@ -88,7 +88,7 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 		compURL = &url.URL{
 			Scheme: "https",
 			Host:   net.JoinHostPort(host, strconv.Itoa(port)),
-			Path:   "/config/v1",
+			Path:   "/config/v1/",
 		}
 	}
 

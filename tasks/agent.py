@@ -91,6 +91,7 @@ AGENT_CORECHECKS = [
     "versa",
     "network_config_management",
     "battery",
+    "cloud_hostinfo",
 ]
 
 WINDOWS_CORECHECKS = [

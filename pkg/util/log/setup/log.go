@@ -9,6 +9,7 @@ package logs
 import (
 	"errors"
 	"io"
+	stdslog "log/slog"
 	"strings"
 
 	"github.com/cihub/seelog"
@@ -16,6 +17,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 	"github.com/DataDog/datadog-agent/pkg/util/log/syslog"
 )
@@ -58,6 +60,8 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 		_ = seelog.ReplaceLogger(logger)
 	} else {
 		loggerInterface.Infof("%s: using slog logger", loggerName)
+		handler := loggerInterface.(*slog.Wrapper).Handler()
+		stdslog.SetDefault(stdslog.New(handler))
 	}
 	log.SetupLogger(loggerInterface, seelogLogLevel.String())
 
@@ -73,15 +77,18 @@ func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, sys
 			log.Warnf("Unable to set new log level: %v", err)
 			return
 		}
-		logger, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
+		loggerInterface, err := buildLogger(loggerName, seelogLogLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, cfg)
 		if err != nil {
 			return
 		}
-		if logger, ok := logger.(seelog.LoggerInterface); ok {
+		if logger, ok := loggerInterface.(seelog.LoggerInterface); ok {
 			_ = seelog.ReplaceLogger(logger)
+		} else {
+			handler := loggerInterface.(*slog.Wrapper).Handler()
+			stdslog.SetDefault(stdslog.New(handler))
 		}
 		// We wire the new logger with the Datadog logic
-		log.ChangeLogLevel(logger, seelogLogLevel)
+		log.ChangeLogLevel(loggerInterface, seelogLogLevel)
 	})
 	return nil
 }

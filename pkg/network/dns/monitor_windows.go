@@ -14,7 +14,7 @@ import (
 
 // NewReverseDNS starts snooping on DNS traffic to allow IP -> domain reverse resolution
 func NewReverseDNS(cfg *config.Config, telemetrycomp telemetry.Component) (ReverseDNS, error) {
-	packetSrc, err := newWindowsPacketSource(telemetrycomp)
+	packetSrc, err := newWindowsPacketSource(telemetrycomp, cfg.DNSMonitoringPortList)
 	if err != nil {
 		return nil, err
 	}

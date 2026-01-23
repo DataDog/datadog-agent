@@ -254,7 +254,7 @@ func (ih *invHost) fillData() {
 	ih.data.DmiBoardAssetTag = dmi.GetBoardAssetTag()
 	ih.data.DmiBoardVendor = dmi.GetBoardVendor()
 
-	cloudProvider, cloudAccountID := cloudproviders.DetectCloudProvider(context.Background(), ih.conf.GetBool("inventories_collect_cloud_provider_account_id"), ih.log)
+	cloudProvider, cloudAccountID := cloudproviders.DetectCloudProvider(context.Background(), ih.conf.GetBool("inventories_collect_cloud_provider_account_id"))
 	ih.data.CloudProvider = cloudProvider
 	ih.data.CloudProviderAccountID = cloudAccountID
 

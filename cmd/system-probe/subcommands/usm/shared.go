@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -40,6 +41,7 @@ func makeOneShotCommand(
 					LogParams: log.ForOneShot(command.LoggerName, "off", false),
 				}),
 				core.Bundle(),
+				secretsnoopfx.Module(),
 			)
 		},
 		SilenceUsage: true,

@@ -69,12 +69,12 @@ func (a *AppService) GetSource() metrics.MetricSource {
 }
 
 // Init is empty for AppService
-func (a *AppService) Init(_ interface{}) error {
+func (a *AppService) Init(_ *TracingContext) error {
 	return nil
 }
 
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ interface{}, _ error) {
+func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
 }
 

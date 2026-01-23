@@ -1,0 +1,30 @@
+Current configuration:
+!
+!Version ArubaOS-CX PL.10.13.0005
+!export-password: default
+hostname TEST_SW123
+user admin group administrators password ciphertext AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+clock timezone europe/berlin
+tacacs-server host 192.168.0.1 key ciphertext AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+tacacs-server host 192.168.0.1 key ciphertext AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+vlan 1
+vlan 42
+    name TEST
+interface 1/1/1
+    description TEST
+    no shutdown
+    vlan access 42
+    spanning-tree bpdu-guard
+    spanning-tree port-type admin-edge
+interface 1/1/52
+    description TEST
+    no shutdown
+    vlan trunk native 1
+    vlan trunk allowed 42
+interface vlan 1
+    ip dhcp
+interface vlan 42
+    ip address 192.168.0.2
+snmp-server community AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+snmp-server host 192.168.0.1 trap version v2c community AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+ip route 0.0.0.0/0 192.168.0.1

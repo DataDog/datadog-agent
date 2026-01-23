@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
 func benchmarkContextResolver(numContexts int, b *testing.B) {
 	var samples []metrics.MetricSample
-	matcher := NewTagMatcher(map[string]MetricTagList{})
+	matcher := filterlistimpl.NewNoopTagMatcher()
 
 	for i := 0; i < numContexts; i++ {
 		samples = append(samples, metrics.MetricSample{

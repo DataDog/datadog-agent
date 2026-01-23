@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    The Datadog Agent now collects AWS Spot preemption events (requires IMDS access) as Datadog events.
