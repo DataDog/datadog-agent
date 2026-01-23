@@ -180,5 +180,5 @@ func TestCraneCache_Get_Concurrent(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	require.Equal(t, 1, fetcher.callCount)
+	require.Equal(t, 1, fetcher.callCount, "Should have called Digest once")
 }
