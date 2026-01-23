@@ -82,8 +82,9 @@ func (r *Recommender) process(ctx context.Context) {
 	targets := make([]loadstore.Target, 0, len(podAutoscalers))
 	for _, pa := range podAutoscalers {
 		targets = append(targets, loadstore.Target{
-			Namespace:    pa.Namespace(),
-			PodOwnerName: pa.Spec().TargetRef.Name,
+			Namespace: pa.Namespace(),
+			Kind:      pa.Spec().TargetRef.Kind,
+			Name:      pa.Spec().TargetRef.Name,
 		})
 	}
 	lStore.SetTargets(targets)

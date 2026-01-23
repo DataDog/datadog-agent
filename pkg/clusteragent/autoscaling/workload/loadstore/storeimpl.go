@@ -57,8 +57,9 @@ type podList struct {
 
 // targetKey is used for fast lookup of targets
 type targetKey struct {
-	namespace    string
-	podOwnerName string
+	namespace string
+	kind      PodOwnerType
+	name      string
 }
 
 // EntityStore manages mappings between entities and their hashed keys.
@@ -91,7 +92,7 @@ func (es *EntityStore) SetEntitiesValues(entities map[*Entity]*EntityValue) {
 			continue
 		}
 		// Filter based on registered targets
-		if !es.matchesTarget(entity) {
+		if !es.matchesTargetLocked(entity) {
 			continue
 		}
 		entityHash := hashEntityToUInt64(entity)
@@ -256,28 +257,34 @@ func (es *EntityStore) SetTargets(targets []Target) {
 	// Clear existing targets and rebuild
 	es.targets = make(map[targetKey]struct{}, len(targets))
 	for _, t := range targets {
-		if t.Namespace == "" || t.PodOwnerName == "" {
+		if t.Namespace == "" || t.Kind == "" || t.Name == "" {
 			continue // Skip malformed targets
 		}
+		kind := podOwnerTypeFromString(t.Kind)
+		if kind == Unsupported {
+			continue // Skip unsupported kinds
+		}
 		key := targetKey{
-			namespace:    t.Namespace,
-			podOwnerName: t.PodOwnerName,
+			namespace: t.Namespace,
+			kind:      kind,
+			name:      t.Name,
 		}
 		es.targets[key] = struct{}{}
 	}
 	log.Debugf("Updated loadstore targets: %d targets registered", len(es.targets))
 }
 
-// matchesTarget checks if an entity matches any registered target.
+// matchesTargetLocked checks if an entity matches any registered target.
 // Returns true if no targets are registered (backward compatible - accept all entities).
 // NOTE: Caller must hold es.lock.
-func (es *EntityStore) matchesTarget(entity *Entity) bool {
+func (es *EntityStore) matchesTargetLocked(entity *Entity) bool {
 	if len(es.targets) == 0 {
 		return true // No targets = accept all (backward compatible)
 	}
 	key := targetKey{
-		namespace:    entity.Namespace,
-		podOwnerName: entity.PodOwnerName,
+		namespace: entity.Namespace,
+		kind:      entity.PodOwnerkind,
+		name:      entity.PodOwnerName,
 	}
 	_, ok := es.targets[key]
 	return ok

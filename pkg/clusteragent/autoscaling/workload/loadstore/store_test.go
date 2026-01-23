@@ -109,8 +109,8 @@ func TestStoreAndPurgeEntities(t *testing.T) {
 	}
 	// Set targets to test filtering behavior (without targets, all entities would be accepted anyway)
 	store.SetTargets([]Target{
-		{Namespace: "test", PodOwnerName: "redis_test"},
-		{Namespace: "test", PodOwnerName: "nginx_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
 	})
 	for _, timeDelta := range []int64{100, 85, 70} {
 		for i := 0; i < numPayloads; i++ {
@@ -152,8 +152,8 @@ func TestGetMetrics(t *testing.T) {
 	}
 	// Set targets to test filtering behavior (without targets, all entities would be accepted anyway)
 	store.SetTargets([]Target{
-		{Namespace: "test", PodOwnerName: "redis_test"},
-		{Namespace: "test", PodOwnerName: "nginx_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
 	})
 	for _, timeDelta := range []int64{100, 85, 80} {
 		for i := 0; i < numPayloads; i++ {
@@ -235,35 +235,35 @@ func TestSetTargets(t *testing.T) {
 
 	// Set multiple targets
 	targets := []Target{
-		{Namespace: "ns1", PodOwnerName: "deploy1"},
-		{Namespace: "ns2", PodOwnerName: "deploy2"},
-		{Namespace: "ns1", PodOwnerName: "deploy3"},
+		{Namespace: "ns1", Kind: "Deployment", Name: "deploy1"},
+		{Namespace: "ns2", Kind: "Deployment", Name: "deploy2"},
+		{Namespace: "ns1", Kind: "Deployment", Name: "deploy3"},
 	}
 	store.SetTargets(targets)
 	assert.Equal(t, 3, len(store.targets))
 
 	// Verify specific targets are registered
-	_, exists := store.targets[targetKey{namespace: "ns1", podOwnerName: "deploy1"}]
+	_, exists := store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy1"}]
 	assert.True(t, exists)
-	_, exists = store.targets[targetKey{namespace: "ns2", podOwnerName: "deploy2"}]
+	_, exists = store.targets[targetKey{namespace: "ns2", kind: Deployment, name: "deploy2"}]
 	assert.True(t, exists)
-	_, exists = store.targets[targetKey{namespace: "ns1", podOwnerName: "deploy3"}]
+	_, exists = store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy3"}]
 	assert.True(t, exists)
 
 	// Update targets (replaces existing)
 	newTargets := []Target{
-		{Namespace: "ns3", PodOwnerName: "deploy4"},
+		{Namespace: "ns3", Kind: "Deployment", Name: "deploy4"},
 	}
 	store.SetTargets(newTargets)
 	assert.Equal(t, 1, len(store.targets))
-	_, exists = store.targets[targetKey{namespace: "ns3", podOwnerName: "deploy4"}]
+	_, exists = store.targets[targetKey{namespace: "ns3", kind: Deployment, name: "deploy4"}]
 	assert.True(t, exists)
 	// Old targets should be gone
-	_, exists = store.targets[targetKey{namespace: "ns1", podOwnerName: "deploy1"}]
+	_, exists = store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy1"}]
 	assert.False(t, exists)
 }
 
-// TestInvalidTargetsAreSkipped verifies that malformed targets (empty namespace or podOwnerName) are skipped
+// TestInvalidTargetsAreSkipped verifies that malformed targets (empty namespace, kind, or name) are skipped
 func TestInvalidTargetsAreSkipped(t *testing.T) {
 	store := EntityStore{
 		key2ValuesMap: make(map[uint64]*dataItem),
@@ -274,15 +274,16 @@ func TestInvalidTargetsAreSkipped(t *testing.T) {
 
 	// Set targets with some invalid entries
 	store.SetTargets([]Target{
-		{Namespace: "", PodOwnerName: "deploy1"},        // Invalid: empty namespace
-		{Namespace: "ns1", PodOwnerName: ""},            // Invalid: empty podOwnerName
-		{Namespace: "", PodOwnerName: ""},               // Invalid: both empty
-		{Namespace: "test", PodOwnerName: "redis_test"}, // Valid
+		{Namespace: "", Kind: "Deployment", Name: "deploy1"},        // Invalid: empty namespace
+		{Namespace: "ns1", Kind: "Deployment", Name: ""},            // Invalid: empty name
+		{Namespace: "ns1", Kind: "", Name: "deploy1"},               // Invalid: empty kind
+		{Namespace: "ns1", Kind: "DaemonSet", Name: "deploy1"},      // Invalid: unsupported kind
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"}, // Valid
 	})
 
 	// Only the valid target should be registered
 	assert.Equal(t, 1, len(store.targets), "Only valid targets should be registered")
-	_, exists := store.targets[targetKey{namespace: "test", podOwnerName: "redis_test"}]
+	_, exists := store.targets[targetKey{namespace: "test", kind: Deployment, name: "redis_test"}]
 	assert.True(t, exists, "Valid target should be registered")
 }
 
@@ -297,12 +298,12 @@ func TestFilteringMixedEntities(t *testing.T) {
 
 	// Set target for only redis_test
 	store.SetTargets([]Target{
-		{Namespace: "test", PodOwnerName: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
 	})
 
 	// Create mixed entities - some matching, some not
 	for i := 0; i < 50; i++ {
-		// These match the target (namespace="test", podOwnerName="redis_test")
+		// These match the target (namespace="test", kind=Deployment, name="redis_test")
 		payload := createSeriesPayload(i, 100)
 		entities := createEntitiesFromPayload(payload)
 		store.SetEntitiesValues(entities)
@@ -343,7 +344,7 @@ func TestDynamicTargetUpdates(t *testing.T) {
 
 	// Initially set target for redis_test
 	store.SetTargets([]Target{
-		{Namespace: "test", PodOwnerName: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
 	})
 
 	// Store redis entities
@@ -360,8 +361,8 @@ func TestDynamicTargetUpdates(t *testing.T) {
 
 	// Update targets to include nginx_test as well
 	store.SetTargets([]Target{
-		{Namespace: "test", PodOwnerName: "redis_test"},
-		{Namespace: "test", PodOwnerName: "nginx_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
 	})
 
 	// Store nginx entities
