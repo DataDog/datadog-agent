@@ -111,3 +111,17 @@ func (p *Permission) CheckOwner(path string) error {
 
 	return nil
 }
+
+// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
+func CheckOwnerAndPermissions(path string) error {
+	p, err := NewPermission()
+	if err != nil {
+		return err
+	}
+
+	if err := p.CheckOwner(path); err != nil {
+		return err
+	}
+
+	return CheckRights(path, true)
+}
