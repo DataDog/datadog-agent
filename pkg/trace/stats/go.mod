@@ -11,7 +11,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0
 	github.com/DataDog/datadog-go/v5 v5.8.2
 	github.com/DataDog/sketches-go v1.4.7
-	github.com/golang/protobuf v1.5.4
 	github.com/google/gofuzz v1.2.0
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/collector/pdata v1.49.0
@@ -27,7 +26,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2 // indirect
-	github.com/DataDog/go-sqllexer v0.1.10 // indirect
+	github.com/DataDog/go-sqllexer v0.1.12 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
