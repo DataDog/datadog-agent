@@ -322,13 +322,14 @@ func (p *Pod) ToBytes() ([]byte, error) {
 }
 
 // CreatePod creates a Filterable Pod object.
-func CreatePod(id, name, namespace string, annotations map[string]string) *Pod {
+func CreatePod(id, name, namespace string, annotations, labels map[string]string) *Pod {
 	return &Pod{
 		FilterPod: &core.FilterPod{
 			Id:          id,
 			Name:        name,
 			Namespace:   namespace,
 			Annotations: annotations,
+			Labels:      labels,
 		},
 	}
 }

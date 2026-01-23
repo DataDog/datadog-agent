@@ -12,7 +12,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -60,13 +59,17 @@ type SidecarInjectionPattern interface {
 
 	// InjectSidecar is called by the admission webhook to inject the processor sidecar
 	// Returns (modified bool, error)
-	// The pod needs to match the [PodSelector] for this method to be called.
+	// The pod needs to match the PodMatchExpressions for this method to be called.
 	InjectSidecar(ctx context.Context, pod *corev1.Pod, namespace string) (bool, error)
 
-	// SidecarDeleted is called when a pod that has matched the [PodSelected] is being deleted
+	// SidecarDeleted is called when a pod that has matched the PodMatchExpressions is being deleted
 	SidecarDeleted(ctx context.Context, pod *corev1.Pod, ns string) error
 
-	// PodSelector returns the label selector for pods that should receive the sidecar
-	// This is derived from the Gateway/resource being watched
-	PodSelector() labels.Selector
+	// PodMatchExpressions returns CEL expressions for matching pods that should receive the sidecar.
+	// Returns two expressions for the same logical match condition:
+	//   - matchConditionExpr: Uses "object.metadata.labels" for Kubernetes admission webhook MatchConditions
+	//   - filterExpr: Uses "pod.labels" for workloadfilter runtime evaluation
+	// Example: ("'app' in object.metadata.labels", "'app' in pod.labels")
+	// Both expressions represent the same match logic but use different variable conventions.
+	PodMatchExpressions() (matchConditionExpr, filterExpr string)
 }

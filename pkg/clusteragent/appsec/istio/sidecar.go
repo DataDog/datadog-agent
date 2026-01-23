@@ -10,7 +10,6 @@ package istio
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
@@ -18,8 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
 )
 
 const (
@@ -27,12 +24,7 @@ const (
 )
 
 var (
-	_               appsecconfig.SidecarInjectionPattern = (*istioGatewaySidecarPattern)(nil)
-	podSelectorOnce                                      = sync.OnceValue(func() labels.Selector {
-		selector := labels.NewSelector()
-		reqName, _ := labels.NewRequirement(gatewayClassNamePodLabel, selection.Exists, nil)
-		return selector.Add(*reqName)
-	})
+	_ appsecconfig.SidecarInjectionPattern = (*istioGatewaySidecarPattern)(nil)
 )
 
 // istioGatewaySidecarPattern wraps the external pattern for SIDECAR mode
@@ -82,6 +74,12 @@ func (e *istioGatewaySidecarPattern) SidecarDeleted(context.Context, *corev1.Pod
 	return nil
 }
 
-func (e *istioGatewaySidecarPattern) PodSelector() labels.Selector {
-	return podSelectorOnce()
+// PodMatchExpressions returns CEL expressions for matching pods with the gateway class name label.
+// This matches pods created by Istio gateways that should receive the appsec processor sidecar.
+// Returns both the MatchCondition expression and the workloadfilter expression.
+func (e *istioGatewaySidecarPattern) PodMatchExpressions() (matchConditionExpr, filterExpr string) {
+	// Check if the gateway.networking.k8s.io/gateway-class-name label exists
+	matchConditionExpr = "'" + gatewayClassNamePodLabel + "' in object.metadata.labels"
+	filterExpr = "'" + gatewayClassNamePodLabel + "' in pod.labels"
+	return matchConditionExpr, filterExpr
 }
