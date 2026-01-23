@@ -4366,3 +4366,137 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 		})
 	}
 }
+
+// TestAgentComputedStatsContainerTags verifies that when the agent computes stats
+// from traces (not client-computed), the statsInput includes container tags.
+// This is a regression test for the bug where statsInput.ContainerTags was not
+// populated, causing missing tags like 'datacenter' in trace metrics.
+func TestAgentComputedStatsContainerTags(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	
+	// Mock container tags function that returns tags for a given container ID
+	expectedTags := []string{"datacenter:us-east-1", "env:prod", "image:nginx:latest"}
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		if cid == "test-container-id" {
+			return expectedTags, nil
+		}
+		return nil, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	// Create a test trace payload
+	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
+		Service:  "test-service",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "GET /api/test",
+		Type:     "web",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+	}, 1))
+	tp.ContainerID = "test-container-id"
+
+	// Process the payload with ClientComputedStats=false so agent computes stats
+	agnt.Process(&api.Payload{
+		TracerPayload:       tp,
+		Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		ClientComputedStats: false, // Agent should compute stats
+		ContainerTags:       nil,   // Start with no container tags
+	})
+
+	// Verify that the concentrator received stats input with container tags
+	mco := agnt.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.stats, 1, "should have received exactly 1 stats input")
+
+	statsInput := mco.stats[0]
+	assert.Equal(t, "test-container-id", statsInput.ContainerID, "container ID should be set")
+	assert.Equal(t, expectedTags, statsInput.ContainerTags, "container tags should be populated")
+}
+
+// TestAgentComputedStatsNoContainerID verifies that when there's no container ID,
+// the ContainerTags function is still called (with empty string) but returns empty tags.
+func TestAgentComputedStatsNoContainerID(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	
+	// ContainerTags function should be called even with empty container ID
+	// It should return nil/empty for empty container IDs
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		if cid == "" {
+			return nil, nil
+		}
+		return []string{"should:not:be:returned"}, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
+		Service:  "test-service",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "GET /api/test",
+		Type:     "web",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+	}, 1))
+	// No container ID set
+	tp.ContainerID = ""
+
+	agnt.Process(&api.Payload{
+		TracerPayload:       tp,
+		Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		ClientComputedStats: false,
+		ContainerTags:       nil,
+	})
+
+	mco := agnt.Concentrator.(*mockConcentrator)
+	require.Len(t, mco.stats, 1)
+
+	statsInput := mco.stats[0]
+	assert.Equal(t, "", statsInput.ContainerID)
+	assert.Nil(t, statsInput.ContainerTags, "container tags should be nil when no container ID")
+}
+
+// TestClientComputedStatsNoContainerTagsNeeded verifies that when the client
+// computes stats, the agent doesn't need to populate statsInput.ContainerTags
+// because the stats input is empty (no agent-side stats computation).
+func TestClientComputedStatsNoContainerTagsNeeded(t *testing.T) {
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	
+	cfg.ContainerTags = func(cid string) ([]string, error) {
+		return []string{"datacenter:us-east-1"}, nil
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+	defer cancel()
+
+	tp := testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(&pb.Span{
+		Service:  "test-service",
+		TraceID:  1,
+		SpanID:   1,
+		Resource: "GET /api/test",
+		Type:     "web",
+		Start:    time.Now().Add(-time.Second).UnixNano(),
+		Duration: (100 * time.Millisecond).Nanoseconds(),
+	}, 1))
+	tp.ContainerID = "test-container-id"
+
+	agnt.Process(&api.Payload{
+		TracerPayload:       tp,
+		Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
+		ClientComputedStats: true, // Client computed stats
+		ContainerTags:       nil,
+	})
+
+	// When ClientComputedStats=true, no stats should be sent to concentrator
+	mco := agnt.Concentrator.(*mockConcentrator)
+	assert.Len(t, mco.stats, 0, "should not send stats to concentrator when client computes them")
+}

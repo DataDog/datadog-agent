@@ -435,6 +435,8 @@ func (a *Agent) Process(p *api.Payload) {
 			log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID, err)
 		} else {
 			p.ContainerTags = cTags
+			// Populate statsInput.ContainerTags so agent-computed stats include container tags
+			statsInput.ContainerTags = cTags
 		}
 	}
 
@@ -609,6 +611,8 @@ func (a *Agent) ProcessV1(p *api.PayloadV1) {
 			log.Debugf("Failed getting container tags for ID %s: %v", p.TracerPayload.ContainerID(), err)
 		} else {
 			p.ContainerTags = cTags
+			// Populate statsInput.ContainerTags so agent-computed stats include container tags
+			statsInput.ContainerTags = cTags
 		}
 	}
 
