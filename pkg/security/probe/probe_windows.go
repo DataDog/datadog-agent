@@ -18,7 +18,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -32,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
@@ -1415,7 +1413,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 }
 
 // NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*WindowsProbe, error) {
+func NewWindowsProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*WindowsProbe, error) {
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
@@ -1428,11 +1426,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, ipc ipc.Component, opt
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
-	}
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
 	}
 
 	fh, err := NewFieldHandlers(config, p.Resolvers, hostname)
@@ -1600,7 +1593,7 @@ func (p *WindowsProbe) EnableEnforcement(state bool) {
 }
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {
 	opts.normalize()
 
 	p, err := newProbe(config, opts)
@@ -1608,7 +1601,7 @@ func NewProbe(config *config.Config, ipc ipc.Component, opts Opts) (*Probe, erro
 		return nil, err
 	}
 
-	pp, err := NewWindowsProbe(p, config, ipc, opts)
+	pp, err := NewWindowsProbe(p, config, hostname, opts)
 	if err != nil {
 		return nil, err
 	}
