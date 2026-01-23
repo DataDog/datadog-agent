@@ -4374,7 +4374,7 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 func TestAgentComputedStatsContainerTags(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	
+
 	// Mock container tags function that returns tags for a given container ID
 	expectedTags := []string{"datacenter:us-east-1", "env:prod", "image:nginx:latest"}
 	cfg.ContainerTags = func(cid string) ([]string, error) {
@@ -4422,7 +4422,7 @@ func TestAgentComputedStatsContainerTags(t *testing.T) {
 func TestAgentComputedStatsNoContainerID(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	
+
 	// ContainerTags function should be called even with empty container ID
 	// It should return nil/empty for empty container IDs
 	cfg.ContainerTags = func(cid string) ([]string, error) {
@@ -4469,8 +4469,8 @@ func TestAgentComputedStatsNoContainerID(t *testing.T) {
 func TestClientComputedStatsNoContainerTagsNeeded(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
-	
-	cfg.ContainerTags = func(cid string) ([]string, error) {
+
+	cfg.ContainerTags = func(_ string) ([]string, error) {
 		return []string{"datacenter:us-east-1"}, nil
 	}
 
