@@ -77,7 +77,7 @@ func TestCraneCache_Get_Success(t *testing.T) {
 					},
 				}
 			},
-			setupMock:         func(m *mockDigestFetcher) {},
+			setupMock:         func(_ *mockDigestFetcher) {},
 			repository:        "dd-lib-python-init",
 			tag:               "v1",
 			expectedDigest:    "test-registry/dd-lib-python-init@sha256:cacheddigest",
