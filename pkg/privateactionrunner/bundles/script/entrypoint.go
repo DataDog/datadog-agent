@@ -17,6 +17,7 @@ func NewScript() *Script {
 	return &Script{
 		actions: map[string]types.Action{
 			"runPredefinedScript": NewRunPredefinedScriptHandler(),
+			"runShellScript":      NewRunShellScriptHandler(),
 			"testConnection":      NewTestConnectionHandler(),
 			"enrichScript":        NewEnrichScriptHandler(),
 		},

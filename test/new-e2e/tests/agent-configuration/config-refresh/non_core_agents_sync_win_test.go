@@ -53,6 +53,7 @@ func (v *configRefreshWindowsSuite) TestConfigRefresh() {
 		"ApmCmdPort":               apmCmdPort,
 		"ProcessCmdPort":           processCmdPort,
 		"SecurityCmdPort":          securityCmdPort,
+		"AgentIpcUseSocket":        agentIpcUseSocket, // NamedPipe is not implemented yet for windows
 		"AgentIpcPort":             agentIpcPort,
 		"SecretBackendCommandAllowGroupExecPermOption": "false", // this is not supported on Windows
 	}
