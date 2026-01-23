@@ -23,6 +23,9 @@ import (
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"gopkg.in/yaml.v2"
 
 	"github.com/spf13/cobra"
 )
@@ -117,6 +120,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		RunE:  oneShotRunE(otelAgentCfg),
 	}
 	cmd.AddCommand(otelCmd)
+
+	sysProbeCmd := &cobra.Command{
+		Use:   "system-probe",
+		Short: "Print the system-probe config as loaded by the core Agent",
+		Long:  ``,
+		RunE:  oneShotRunE(systemProbeCfg),
+	}
+	cmd.AddCommand(sysProbeCmd)
 
 	return cmd
 }
@@ -242,5 +253,26 @@ func otelAgentCfg(_ log.Component, config config.Component, client ipc.HTTPClien
 		return err
 	}
 	fmt.Println(extensionResp.RuntimeConfig)
+	return nil
+}
+
+// systemProbeCfg prints the system-probe configuration as loaded by the core Agent.
+// This is not the live system-probe process runtime, but the Agent's merged view
+// (defaults + files + env). Secrets are scrubbed.
+func systemProbeCfg(_ log.Component, _ ipc.HTTPClient, _ *cliParams) error {
+	spAll := pkgconfigsetup.SystemProbe().AllSettings()
+	if len(spAll) == 0 {
+		fmt.Println("# system-probe config not loaded by the Agent")
+		return nil
+	}
+	raw, err := yaml.Marshal(spAll)
+	if err != nil {
+		return err
+	}
+	scrubbed, err := scrubber.ScrubBytes(raw)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(scrubbed))
 	return nil
 }
