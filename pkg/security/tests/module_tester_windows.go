@@ -171,7 +171,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 
-	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, ipcComp, emopts)
+	testMod.eventMonitor, err = eventmonitor.NewEventMonitor(emconfig, secconfig, "functional_tests_host", emopts)
 	if err != nil {
 		return nil, err
 	}

@@ -12,6 +12,7 @@ import (
 	"context"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -24,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -111,10 +113,31 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 			continue
 		}
 
-		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
+		podUID := podStats.PodRef.UID
+		podData, err := p.store.GetKubernetesPod(podUID) //from workloadmeta store
 		if err != nil || podData == nil {
-			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
-			continue
+			if !pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+				log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
+				continue
+			}
+			// Edge case for static pods when kubelet_use_api_server is enabled.
+			// Workloadmeta gets pod data from the API server which uses the canonical
+			// pod UID (e.g., 85a6cc02-4460-4f8a-b5f0-...), but /stats/summary comes
+			// from kubelet which uses the mirror pod hash (e.g., 9b3c1a2d4e5f...).
+			// We detect mirror hashes by checking if the UID lacks dashes (canonical
+			// UUIDs have dashes, mirror hashes don't), then fall back to name/namespace lookup.
+			if !strings.Contains(podUID, "-") {
+				podData, err = p.store.GetKubernetesPodByName(podStats.PodRef.Name, podStats.PodRef.Namespace)
+				if err != nil || podData == nil {
+					log.Infof("Couldn't get static pod data from workloadmeta store for pod %s/%s (uid=%s) with kubelet_use_api_server enabled, error = %v",
+						podStats.PodRef.Namespace, podStats.PodRef.Name, podStats.PodRef.UID, err)
+					continue
+				}
+				podUID = podData.ID
+			} else {
+				log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
+				continue
+			}
 		}
 
 		if p.podFilter.IsExcluded(workloadmetafilter.CreatePod(podData)) {
@@ -122,7 +145,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		}
 
 		if podData.Phase == "Running" || podData.Phase == "Pending" {
-			p.processPodStats(sender, podStats, useStatsAsSource, rateFilterList)
+			p.processPodStats(sender, podStats, podUID, useStatsAsSource, rateFilterList)
 		}
 		p.processContainerStats(sender, podStats, podData, useStatsAsSource)
 	}
@@ -155,13 +178,14 @@ func (p *Provider) processSystemStats(sender sender.Sender,
 
 func (p *Provider) processPodStats(sender sender.Sender,
 	podStats *kubeletv1alpha1.PodStats,
+	podUID string,
 	useStatsAsSource bool,
 	rateFilterList []*regexp.Regexp) {
 	if podStats == nil {
 		return
 	}
 
-	entityID := types.NewEntityID(types.KubernetesPodUID, podStats.PodRef.UID)
+	entityID := types.NewEntityID(types.KubernetesPodUID, podUID)
 	podTags, _ := p.tagger.Tag(entityID,
 		types.OrchestratorCardinality)
 

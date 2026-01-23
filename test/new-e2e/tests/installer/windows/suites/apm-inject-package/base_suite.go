@@ -10,7 +10,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	installerwindows "github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows"
 )
@@ -37,7 +37,7 @@ func (s *baseSuite) assertSuccessfulPromoteExperiment() {
 	s.Require().Host(s.Env().RemoteHost).HasDatadogInstaller().Status().
 		HasPackage("datadog-apm-inject")
 	// verify the driver is running by checking the service status
-	s.Require().NoError(s.WaitForServicesWithBackoff("Running", backoff.NewConstantBackOff(30*time.Second), "ddinjector"))
+	s.Require().NoError(s.WaitForServicesWithBackoff("Running", []string{"ddinjector"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second))))
 }
 
 func (s *baseSuite) assertDriverInjections(enabled bool) {

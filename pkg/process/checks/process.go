@@ -252,6 +252,10 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	if err != nil {
 		return nil, err
 	}
+	if len(procs) == 0 {
+		log.Tracef("No processes found")
+		return CombinedRunResult{}, nil
+	}
 
 	// stores lastPIDs to be used by RTProcess
 	p.lastPIDs = p.lastPIDs[:0]
