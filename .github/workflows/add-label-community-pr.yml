@@ -1,5 +1,5 @@
 ---
-name: Handle External Contributor PRs
+name: Add labels to community PRs
 
 on:
   # run in the context of the base branch, so that it still works in PR from forks
@@ -9,8 +9,8 @@ on:
 permissions: {}
 
 jobs:
-  external-contributor-prs:
-    name: Handle Fork PRs
+  add-label-community-prs:
+    name: Add labels to community PRs
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -31,19 +31,13 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Set label on external contributor PRs
+      - name: Set community label and warn teams
         if: github.event.action == 'opened'
-        run: |
-          dda inv -- -e github.handle-community-pr --repo="$GH_REPO" --pr-id="$NUMBER" --labels="$LABELS"
+        run: dda inv -- -e github.handle-community-pr --repo="${{ github.repository }}" --pr-id="${{ github.event.number }}" --labels="community"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          NUMBER: ${{ github.event.number }}
-          # labels is a comma-separated list of tags
-          LABELS: community
-      - name: Auto assign team label
+      - name: Assign team label
+        run: dda inv -- -e github.assign-team-label --pr-id="${{ github.event.pull_request.number }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_ID: ${{ github.event.pull_request.number }}
-        run: dda inv -- -e github.assign-team-label --pr-id="$PR_ID"
