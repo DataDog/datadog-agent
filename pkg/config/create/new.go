@@ -11,9 +11,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
+	"github.com/DataDog/datadog-agent/pkg/config/viperconfig"
 )
 
 // NewConfig returns a config with the given name
 func NewConfig(name string, _ string) model.BuildableConfig {
-	return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	viperImpl := viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_"))         // nolint: forbidigo // legit use case
+	nodetreeImpl := nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	return teeconfig.NewTeeConfig(nodetreeImpl, viperImpl)
 }
