@@ -813,6 +813,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	testMod.probe = testMod.eventMonitor.Probe
 
 	var ruleSetloadedErr *multierror.Error
+	var ruleSetloadedErrMu sync.Mutex
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
@@ -831,7 +832,9 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.eventMonitor.RegisterEventConsumer(cws)
 
 		testMod.ruleEngine.SetRulesetLoadedCallback(func(rs *rules.RuleSet, err *multierror.Error) {
+			ruleSetloadedErrMu.Lock()
 			ruleSetloadedErr = err
+			ruleSetloadedErrMu.Unlock()
 			log.Infof("Adding test module as listener")
 			rs.AddListener(testMod)
 		})
@@ -879,9 +882,13 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return nil, err
 		}
 
-		if ruleSetloadedErr.ErrorOrNil() != nil {
+		ruleSetloadedErrMu.Lock()
+		ruleSetloadedErrCopy := ruleSetloadedErr
+		ruleSetloadedErrMu.Unlock()
+
+		if ruleSetloadedErrCopy.ErrorOrNil() != nil {
 			testMod.Close()
-			return nil, ruleSetloadedErr.ErrorOrNil()
+			return nil, ruleSetloadedErrCopy.ErrorOrNil()
 		}
 	}
 
