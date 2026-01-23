@@ -1,0 +1,35 @@
+[package]
+name = "datadog-compression"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Compression library for Datadog Agent with C FFI"
+license = "Apache-2.0"
+
+[lib]
+name = "datadog_compression"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[dependencies]
+zstd = "0.13"
+flate2 = "1.0"
+libc = "0.2"
+
+[dev-dependencies]
+proptest = "1.4"
+
+[profile.release]
+lto = "fat"
+opt-level = 3
+strip = "symbols"
+panic = "abort"
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1
+
+[features]
+default = ["zstd", "gzip", "zlib"]
+zstd = []
+gzip = []
+zlib = []
