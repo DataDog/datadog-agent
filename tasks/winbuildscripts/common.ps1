@@ -366,7 +366,7 @@ This function requires AWS CLI to be available and properly configured.
 #>
 function Initialize-CIIdentity() {
     Write-Host "Assuming CI role..."
-    C:\ci-identities-gitlab-job-client.exe assume-role
+    C:\devtools\ci-identities-gitlab-job-client.exe assume-role
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Failed to assume CI role (exit code: $LASTEXITCODE)"
         exit 1
