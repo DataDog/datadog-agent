@@ -1,207 +1,259 @@
 # Config Stream Component
 
-Streams configuration from core-agent to remote agents in real-time. Config is resolved once and pushed to all processes.
+Streams configuration from core-agent to remote agents in real-time. Configuration is resolved once in the core-agent and pushed to all registered remote agents, ensuring consistency and enabling hot-reload without restarts.
 
-## Documentation
+## Overview
 
-- **[PHASE0.md](PHASE0.md)** - Phase 0 implementation details
-- **[PROJECT.md](PROJECT.md)** - Overall project vision and roadmap
+The config stream component provides:
+- **Real-time config updates** from core-agent to remote agents
+- **RAR-gated authorization** - only registered remote agents can subscribe
+- **Snapshot-first delivery** - complete config state before incremental updates
+- **Automatic resync** on gaps or disconnections
+- **Origin tracking** - identifies which config file (e.g., `datadog.yaml`) changes came from
 
-## Quick Start
+## How It Works
 
-### Core Agent (Phase 0 ✅)
-
-Automatically enabled. Config changes are streamed to all RAR-registered remote agents.
-
-### Remote Agents (Phase 1 🚧)
-
-```go
-// Future: Consumer library handles everything
-consumer.WaitReady(ctx)  // Block until config received
-cfg := consumer.Reader() // Use config
+```
+Remote Agent                      Core Agent
+┌────────────────┐               ┌─────────────────────────┐
+│ 1. Register    │──────────────>│ RAR: Get session_id     │
+│    with RAR    │<──────────────│                         │
+└────────────────┘               └─────────────────────────┘
+        │
+        │ session_id
+        ▼
+┌────────────────┐               ┌─────────────────────────┐
+│ 2. Stream      │──────────────>│ Server: Validate RAR    │
+│    ConfigEvents│  + session_id │   → Send snapshot       │
+│                │<──────────────│   → Push updates        │
+└────────────────┘               └─────────────────────────┘
 ```
 
-**Current:** Manually implement gRPC client. See `cmd/config-stream-client/` for example.
+**Flow:**
+1. Remote agent registers with RAR, receives `session_id`
+2. Remote agent calls `StreamConfigEvents` with `session_id`
+3. Core-agent validates `session_id` against RAR
+4. Core-agent sends initial snapshot (all config settings)
+5. Core-agent streams incremental updates as config changes
 
-## Key Features
+## Protocol Specification
 
-- **Snapshot-first:** Complete config state before updates
-- **Ordered delivery:** Sequence IDs guarantee ordering
-- **RAR-gated:** Only registered remote agents can subscribe
-- **Auto-resync:** Gaps trigger automatic snapshot resend
-- **Non-blocking:** Slow consumers don't affect others
+### gRPC Service
+
+\`\`\`protobuf
+service AgentSecure {
+  rpc StreamConfigEvents(ConfigStreamRequest) returns (stream ConfigEvent);
+}
+\`\`\`
+
+### Messages
+
+**Request:**
+\`\`\`protobuf
+message ConfigStreamRequest {
+  string name = 1;        // Client identifier (e.g., "system-probe")
+  string session_id = 2;  // From RAR registration (required)
+}
+\`\`\`
+
+**Response Stream:**
+\`\`\`protobuf
+message ConfigEvent {
+  oneof event {
+    ConfigSnapshot snapshot = 1;  // Sent first, then on resync
+    ConfigUpdate update = 2;      // Incremental changes
+  }
+}
+
+message ConfigSnapshot {
+  string origin = 1;                  // Config file (e.g., "datadog.yaml")
+  int32 sequence_id = 2;              // Monotonic sequence ID
+  repeated ConfigSetting settings = 3; // All config settings
+}
+
+message ConfigUpdate {
+  string origin = 1;        // Config file (e.g., "datadog.yaml")
+  int32 sequence_id = 2;    // Monotonic sequence ID
+  ConfigSetting setting = 3; // Single changed setting
+}
+
+message ConfigSetting {
+  string source = 1;             // "file", "env-var", "remote-config", etc.
+  string key = 2;                // Setting name
+  google.protobuf.Value value = 3; // Typed value (string, int, bool, etc.)
+}
+\`\`\`
+
+## Configuration
+
+The config stream is automatically enabled when the component is loaded. No explicit configuration required.
+
+**Optional settings:**
+\`\`\`yaml
+# datadog.yaml
+config_stream:
+  sleep_interval: 10ms  # Backoff on non-terminal errors (default: 10ms)
+
+remote_agent_registry:
+  enabled: true  # Required for RAR-gated authorization
+\`\`\`
+
+## Telemetry
+
+The component exports the following metrics for monitoring:
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| \`configstream.subscribers\` | Gauge | Number of active subscribers |
+| \`configstream.snapshots_sent\` | Counter | Snapshots sent (including resyncs) |
+| \`configstream.updates_sent\` | Counter | Incremental updates sent |
+| \`configstream.discontinuities\` | Counter | Sequence gaps detected (triggers resync) |
+| \`configstream.dropped_updates\` | Counter | Updates dropped (slow consumers) |
+
+**Monitoring examples:**
+\`\`\`promql
+# Check for slow consumers
+rate(configstream_dropped_updates[5m]) > 0
+
+# Monitor resync frequency (should be near zero)
+rate(configstream_discontinuities[5m])
+
+# Track active subscribers
+configstream_subscribers
+\`\`\`
 
 ## Testing
 
 ### Unit Tests
 
-```bash
+\`\`\`bash
 cd comp/core/configstream/impl
 go test -tags test -v
-```
+
+# Run specific test
+go test -tags test -v -run TestPhase0ExitCriteria
+\`\`\`
+
+**Test coverage:**
+- Snapshot-first delivery with origin field
+- Ordered sequence IDs
+- Correct typed values (string, int, bool, float)
+- Multiple subscribers (fan-out)
+- Discontinuity detection and resync
+- Config layering and unsets
+- RAR authorization
 
 ### Integration Test Client
 
-```bash
+Build and run the standalone test client:
+
+\`\`\`bash
 # Build
 go build -o bin/config-stream-client ./cmd/config-stream-client
 
 # Run (requires running core-agent)
-./bin/config-stream-client --ipc-address localhost:5001
-```
+./bin/config-stream-client \\
+  --ipc-address localhost:5001 \\
+  --auth-token $(cat /opt/datadog-agent/run/auth_token) \\
+  --name my-test-client \\
+  --duration 60s
+\`\`\`
 
-See `cmd/config-stream-client/README.md` for details.
-
-## Key Features
-
-### 1. Snapshot-First Delivery
-
-Every subscriber receives a complete snapshot before any updates:
-
-```
-Client connects → Snapshot (seq=100, all settings)
-                → Update (seq=101, log_level=debug)
-                → Update (seq=102, feature_flag=true)
-```
-
-### 2. Ordered Sequence IDs
-
-Updates are delivered in strictly increasing sequence ID order. Gaps trigger automatic resync:
-
-```
-Client at seq=100 → Update seq=105 arrives
-                  → Gap detected (101-104 missing)
-                  → Snapshot sent (seq=105, all settings)
-```
-
-### 3. Multiple Subscribers
-
-Multiple remote agents can subscribe simultaneously. Each gets independent snapshot + updates:
-
-```
-system-probe  → Subscribe → Snapshot (seq=100) → Update (seq=101) ...
-trace-agent   → Subscribe → Snapshot (seq=100) → Update (seq=101) ...
-process-agent → Subscribe → Snapshot (seq=100) → Update (seq=101) ...
-```
-
-### 4. Non-Blocking Fan-Out
-
-Slow consumers don't block others:
-- Buffered channels (100 events)
-- Dropped events logged as warnings
-- Fast consumers unaffected
-
-### 5. Automatic Resync
-
-Discontinuities automatically trigger resync:
-- Client falls behind → snapshot sent
-- Client reconnects → snapshot sent
-- No manual intervention required
-
-## Security
-
-- **mTLS:** All IPC communication encrypted
-- **Authentication:** Bearer token required
-- **Authorization:** Only authenticated agents can subscribe
-
-## Performance
-
-### Benchmarks
-
-- **Snapshot generation:** ~1-2ms for ~350 settings
-- **Update fan-out:** ~10-50μs per subscriber
-- **Memory:** ~100KB per subscriber (buffered channel)
-
-### Optimization
-
-- Lazy snapshot generation (only when needed)
-- Shared snapshots across subscribers in same cycle
-- Buffered channels prevent blocking
+See \`cmd/config-stream-client/README.md\` for detailed usage.
 
 ## Troubleshooting
 
-### Client Not Receiving Snapshot
+### Client Cannot Subscribe
+
+**Symptoms:**
+\`\`\`
+rpc error: code = Unauthenticated desc = session_id required
+\`\`\`
+
+**Solution:**
+1. Ensure remote agent registers with RAR first
+2. Pass \`session_id\` from RAR registration to \`ConfigStreamRequest\`
+3. Check RAR is enabled: \`remote_agent_registry.enabled: true\`
+
+### No Snapshot Received
 
 **Symptoms:** Client connects but times out waiting for snapshot
 
-**Causes:**
-1. Component not started (check lifecycle hooks)
-2. Config not initialized (check `config.Component`)
-3. Subscriber channel full (check logs for warnings)
-
 **Solution:**
-```bash
+\`\`\`bash
 # Check core-agent logs
 grep "configstream" /var/log/datadog/agent.log
 
-# Check if component is running
-datadog-agent status | grep -i config
-```
+# Look for:
+# "New subscriber 'X' joining the config stream"
+# "Failed to create config snapshot"
+\`\`\`
 
-### Sequence ID Gaps
+### Frequent Resyncs
 
-**Symptoms:** Frequent resync warnings in logs
-
-**Causes:**
-1. Rapid config changes (expected behavior)
-2. Slow consumer (channel full)
-3. Network issues (reconnection)
+**Symptoms:** Many \`Discontinuity detected\` warnings in logs
 
 **Solution:**
-- Increase buffer size (modify component)
+- Check \`configstream.dropped_updates\` metric
 - Optimize consumer processing
-- Check network latency
+- Increase buffer if needed (code change)
 
-### Authentication Errors
+### Authentication Failures
 
-**Symptoms:** `rpc error: code = Unauthenticated`
-
-**Causes:**
-1. Wrong auth token
-2. Token expired
-3. IPC component not initialized
+**Symptoms:**
+\`\`\`
+rpc error: code = PermissionDenied desc = session_id 'xxx' not found
+\`\`\`
 
 **Solution:**
-```bash
-# Verify auth token
-cat /opt/datadog-agent/run/auth_token
-
-# Check IPC server is running
-netstat -an | grep 5001
-```
+1. Verify RAR registration succeeded
+2. Check \`session_id\` is not expired
+3. Call \`RefreshRemoteAgent()\` periodically (every 30s recommended)
 
 ## Development
 
-### Adding New Features
+### Modifying the Protocol
 
-1. **Modify proto:** `pkg/proto/datadog/model/v1/model.proto`
-2. **Regenerate:** `dda inv protobuf.generate`
-3. **Update component:** `comp/core/configstream/impl/configstream.go`
-4. **Add tests:** `comp/core/configstream/impl/configstream_test.go`
+1. **Edit proto:** \`pkg/proto/datadog/model/v1/model.proto\`
+2. **Regenerate:**
+   \`\`\`bash
+   source ~/venv/bin/activate
+   dda inv protobuf.generate
+   \`\`\`
+3. **Update implementation:** \`comp/core/configstream/impl/configstream.go\`
+4. **Add tests:** \`comp/core/configstream/impl/configstream_test.go\`
 
 ### Debugging
 
 Enable debug logging:
 
-```bash
-# In datadog.yaml
+\`\`\`yaml
+# datadog.yaml
 log_level: debug
+\`\`\`
 
-# Or at runtime
-datadog-agent config set log_level debug
-```
+**Key log messages:**
+- \`New subscriber 'X' joining the config stream\` - Subscription started
+- \`Discontinuity detected for subscriber 'X'\` - Gap found, sending snapshot
+- \`Dropping config update for subscriber 'X'\` - Slow consumer, channel full
+- \`Config stream authorized for remote agent\` - RAR auth succeeded
 
-Watch for:
-- `New subscriber 'X' joining the config stream`
-- `Discontinuity detected for subscriber 'X'`
-- `Dropping config update for subscriber 'X'`
+## Performance
 
-## Component Status
+**Benchmarks** (approximate, based on ~350 settings):
+- Snapshot generation: ~1-2ms
+- Update fan-out: ~10-50μs per subscriber
+- Memory per subscriber: ~100KB (buffered channel)
 
-- ✅ **Phase 0:** Complete (See [PHASE0.md](PHASE0.md))
-- 🚧 **Phase 1:** Next (Consumer library)
+## Security
+
+- **mTLS:** All IPC communication encrypted
+- **Bearer token:** Required for authentication
+- **RAR authorization:** Only registered agents can subscribe
+- **No config secrets:** Sensitive values handled by secrets backend
 
 ## Contact
 
-- **Team:** agent-runtimes, agent-configuration
-- **Component:** `comp/core/configstream`
+- **Teams:** agent-metric-pipelines, agent-configuration
+- **Component:** \`comp/core/configstream\`
+- **Test Client:** \`cmd/config-stream-client\`

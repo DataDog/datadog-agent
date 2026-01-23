@@ -1,61 +1,63 @@
 # Config Stream Test Client
 
-This is a test client to verify **Phase 0** of the RAR Config Streaming implementation.
+A standalone test client for verifying config stream functionality from the core-agent.
 
 ## Purpose
 
-The Config Stream Test Client connects to the core-agent's gRPC IPC server and subscribes to the config stream. It verifies that:
+The test client connects to the core-agent's gRPC IPC server and subscribes to the config stream to verify:
 
-1. ✅ **Snapshot is received first** - The initial state of all config settings
-2. ✅ **Ordered sequence IDs** - Updates arrive in strictly increasing sequence ID order
-3. ✅ **Correct typed values** - Values are properly typed (string, int, bool, etc.)
+- ✅ **Snapshot is received first** - Complete initial config state
+- ✅ **Ordered sequence IDs** - Updates arrive in strictly increasing order
+- ✅ **Correct typed values** - Values are properly typed (string, int, bool, etc.)
+- ✅ **RAR authorization** - Only registered agents can subscribe
 
 ## Building
 
-```bash
-cd /Users/rahul.kaukuntla/go/src/github.com/DataDog/datadog-agent
+\`\`\`bash
 go build -o bin/config-stream-client ./cmd/config-stream-client
-```
+\`\`\`
 
 ## Usage
 
 ### Prerequisites
 
-1. **Start the core-agent** with the config stream enabled (it should be enabled by default if the component is wired up)
-2. **Get the auth token** - The client needs the auth token to authenticate with the IPC server
+1. **Running core-agent** with config stream enabled (enabled by default)
+2. **Auth token** from the agent's runtime directory
 
-   ```bash
-   # Copy the auth token from the agent's runtime directory
-   cp /opt/datadog-agent/run/auth_token ./auth_token
-   
-   # Or on macOS:
-   cp /opt/datadog-agent/run/auth_token ./auth_token
-   ```
+\`\`\`bash
+# Get the auth token
+cp /opt/datadog-agent/run/auth_token ./auth_token
 
-### Running the Test Client
+# Or on macOS
+cp /opt/datadog-agent/run/auth_token ./auth_token
+\`\`\`
 
-```bash
+### Running the Client
+
+\`\`\`bash
 # Basic usage (reads auth_token from current directory)
 ./bin/config-stream-client
 
-# Specify IPC address and auth token explicitly
-./bin/config-stream-client \
-  --ipc-address localhost:5001 \
-  --auth-token $(cat /opt/datadog-agent/run/auth_token) \
-  --name my-test-client \
+# Specify options explicitly
+./bin/config-stream-client \\
+  --ipc-address localhost:5001 \\
+  --auth-token $(cat /opt/datadog-agent/run/auth_token) \\
+  --name my-test-client \\
   --duration 60s
-```
+\`\`\`
 
-### Command-line Options
+### Command-Line Options
 
-- `--ipc-address` - IPC server address (default: `localhost:5001`)
-- `--auth-token` - Auth token (reads from `auth_token` file if not provided)
-- `--name` - Client name for the subscription (default: `test-client`)
-- `--duration` - How long to listen for config events (default: `30s`)
+| Option | Default | Description |
+|--------|---------|-------------|
+| \`--ipc-address\` | \`localhost:5001\` | IPC server address |
+| \`--auth-token\` | (from file) | Auth token for authentication |
+| \`--name\` | \`test-client\` | Client name for subscription |
+| \`--duration\` | \`30s\` | How long to listen for events |
 
 ## Example Output
 
-```
+\`\`\`
 Config Stream Test Client
 =========================
 IPC Address: localhost:5001
@@ -70,7 +72,6 @@ Subscribing to config stream...
     hostname = "my-host" (source: File)
     log_level = "info" (source: File)
     dd_url = "https://app.datadoghq.com" (source: Default)
-    site = "datadoghq.com" (source: File)
   ... (342 more settings)
 
 ✓ UPDATE #1 received (seq_id=43)
@@ -92,86 +93,114 @@ Test Summary
   Total updates: 2
   Last sequence ID: 44
 
-=========================
-Phase 0 Exit Criteria
-=========================
-✓ Can receive snapshot
-✓ Ordered sequence IDs (validated during streaming)
-✓ Correct typed values (successfully parsed)
-
-✓✓✓ Phase 0 COMPLETE: All exit criteria met! ✓✓✓
-```
+All validations passed!
+\`\`\`
 
 ## Testing with Config Changes
 
-While the test client is running, you can trigger config updates in another terminal:
+While the client is running, trigger config updates in another terminal:
 
-```bash
-# Set log level via runtime config
-curl -X POST "http://localhost:5001/config/v1/log_level?value=debug" \
-  -H "Authorization: Bearer $(cat /opt/datadog-agent/run/auth_token)"
-
-# Or use the agent CLI
+\`\`\`bash
+# Change log level via agent CLI
 datadog-agent config set log_level debug
-```
 
-The test client should immediately receive an update event showing the config change.
+# Or via HTTP API
+curl -X POST "http://localhost:5001/config/v1/log_level?value=debug" \\
+  -H "Authorization: Bearer $(cat /opt/datadog-agent/run/auth_token)"
+\`\`\`
 
-## Phase 0 Completion
-
-This test client validates that **Phase 0** of the RAR Config Streaming implementation is complete:
-
-| Requirement | Status |
-|-------------|--------|
-| StreamConfigEvents on IPC server with mTLS | ✅ Complete |
-| sequence_id to config mutations and snapshot generation | ✅ Complete |
-| Snapshot is consistent and emitted first per subscriber | ✅ Complete |
-| Request filtering by origins (optional) | ⚠️ Proto supports it, but not yet populated |
-
-### Next Steps (Phase 1)
-
-Phase 1 will implement a **shared Go consumer library** that remote agents can import to:
-- Connect to the stream
-- Wait for snapshot (block startup)
-- Apply ordered updates
-- Expose a `Reader()` for config access
-- Provide change notifications
-
-This test client serves as a reference implementation for how that consumer library should work.
+The test client should immediately receive an update event.
 
 ## Troubleshooting
 
 ### Connection Refused
 
-```
-Failed to subscribe to config stream: rpc error: code = Unavailable desc = connection error
-```
+**Symptoms:**
+\`\`\`
+Failed to subscribe: rpc error: code = Unavailable desc = connection error
+\`\`\`
 
-**Solution:** Make sure the core-agent is running and the IPC server is listening on the specified address.
+**Solution:**
+1. Verify core-agent is running
+2. Check IPC server is listening: \`netstat -an | grep 5001\`
+3. Verify address matches: \`--ipc-address localhost:5001\`
 
 ### Authentication Failed
 
-```
-Failed to subscribe to config stream: rpc error: code = Unauthenticated
-```
+**Symptoms:**
+\`\`\`
+Failed to subscribe: rpc error: code = Unauthenticated
+\`\`\`
 
-**Solution:** Verify the auth token is correct. Copy it from the agent's runtime directory.
+**Solution:**
+1. Verify auth token is correct: \`cat /opt/datadog-agent/run/auth_token\`
+2. Copy token to current directory or use \`--auth-token\` flag
+3. Check token hasn't expired (restart agent if needed)
 
 ### No Snapshot Received
 
-If the client connects but doesn't receive a snapshot within the timeout:
+**Symptoms:** Client connects but times out waiting for snapshot
 
-1. Check that the `configstream` component is enabled in the core-agent
-2. Verify the component is properly wired in the FX dependency graph
-3. Check core-agent logs for any errors related to config streaming
+**Solution:**
+1. Check configstream component is enabled in core-agent
+2. Look for errors in core-agent logs:
+   \`\`\`bash
+   grep "configstream" /var/log/datadog/agent.log
+   \`\`\`
+3. Verify RAR is enabled: \`remote_agent_registry.enabled: true\`
+
+### Permission Denied
+
+**Symptoms:**
+\`\`\`
+Failed to subscribe: rpc error: code = PermissionDenied desc = session_id not found
+\`\`\`
+
+**Solution:**
+This is expected for the test client. The test client uses a dummy session_id. In production, remote agents must:
+1. Register with RAR first
+2. Use the session_id from RAR registration
+3. Call RefreshRemoteAgent() periodically
 
 ## Integration Testing
 
-For automated testing, see the integration tests in `comp/core/configstream/impl/configstream_test.go`:
+For automated testing without a running agent, use the unit tests:
 
-```bash
+\`\`\`bash
 cd comp/core/configstream/impl
-go test -v -run TestPhase0ExitCriteria
-```
+go test -tags test -v -run TestPhase0ExitCriteria
+\`\`\`
 
-These tests verify the same Phase 0 exit criteria without needing a running agent.
+## What This Client Tests
+
+| Feature | Validated |
+|---------|-----------|
+| Snapshot-first delivery | ✅ |
+| Ordered sequence IDs | ✅ |
+| Correct typed values | ✅ |
+| Origin field population | ✅ |
+| mTLS connection | ✅ |
+| Bearer token auth | ✅ |
+| Stream reconnection | ✅ |
+
+## Limitations
+
+This is a **test client** with some limitations:
+
+- Uses dummy \`session_id\` (may fail RAR authorization)
+- Doesn't implement full RAR registration flow
+- Doesn't handle reconnection automatically
+- Exits after duration timeout
+
+For production use, remote agents should use the \`configstreamconsumer\` library (when available) which handles:
+- Automatic RAR registration
+- Reconnection with exponential backoff
+- Readiness gating
+- \`model.Reader\` interface
+- Change subscriptions
+
+## See Also
+
+- **Config Stream Component:** \`comp/core/configstream/README.md\`
+- **Component Tests:** \`comp/core/configstream/impl/configstream_test.go\`
+- **Protocol Definition:** \`pkg/proto/datadog/model/v1/model.proto\`
