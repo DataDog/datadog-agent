@@ -85,7 +85,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
-				BucketID:       "1",
+				BucketID:       "2",
 			},
 		},
 	}
