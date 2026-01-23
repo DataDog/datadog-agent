@@ -37,7 +37,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
-				BucketID:       "0",
+				BucketID:       "2",
 			},
 		},
 		{
@@ -54,7 +54,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
-				BucketID:       "0",
+				BucketID:       "2",
 			},
 		},
 		{
@@ -70,7 +70,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
-				BucketID:       "0",
+				BucketID:       "2",
 			},
 		},
 		{
@@ -78,7 +78,7 @@ func TestNewConfig(t *testing.T) {
 			configFactory: func(t *testing.T) config.Component {
 				mockConfig := config.NewMock(t)
 				mockConfig.SetWithoutSource("site", "datadoghq.com")
-				mockConfig.SetWithoutSource("api_key", "1234567890")
+				mockConfig.SetWithoutSource("api_key", "1234567890abcdef")
 				return mockConfig
 			},
 			expectedState: Config{
@@ -87,7 +87,7 @@ func TestNewConfig(t *testing.T) {
 				RCClient:       nil,
 				MaxInitRetries: 5,
 				InitRetryDelay: 1 * time.Second,
-				BucketID:       "2",
+				BucketID:       "0",
 			},
 		},
 	}
