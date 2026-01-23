@@ -253,6 +253,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return nil, err
 	}
 	if len(procs) == 0 {
+		log.Tracef("No processes found")
 		return CombinedRunResult{}, nil
 	}
 
