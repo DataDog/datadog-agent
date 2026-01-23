@@ -62,6 +62,8 @@ const (
 	maxRetryForMsgWithSSHContext = 62
 	maxRetryForRegularMsgs       = 5
 	retryDelay                   = time.Second
+	// size of the queue after which we force sending events even if not resolved
+	queueLimit = 15
 )
 
 type pendingMsg struct {
@@ -249,25 +251,33 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg) bool) {
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
 	a.queueLock.Lock()
 	defer a.queueLock.Unlock()
 
+	queueSize := len(a.queue)
+
 	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
-		if msg.sendAfter.After(now) {
+		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
+
+		// apply the delay only if the queue is not full
+		if queueSize < queueLimit && msg.sendAfter.After(now) {
 			return false
 		}
 
-		if cb(msg) {
+		if cb(msg, queueSize < queueLimit) {
+			queueSize--
 			return true
 		}
 
 		msgMaxRetry := msg.getMaxRetry()
 		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("failed to sent event, max retry reached: %d", msg.retry)
+			seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
+
+			queueSize--
 			return true
 		}
-		seclog.Tracef("failed to sent event, retry %d/%d", msg.retry, msgMaxRetry)
+		seclog.Warnf("failed to sent event, retry %d/%d, queue size: %d", msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -336,8 +346,12 @@ func (a *APIServer) start(ctx context.Context) {
 	for {
 		select {
 		case now := <-ticker.C:
-			a.dequeue(now, func(msg *pendingMsg) bool {
-				if msg.extTagsCb != nil {
+			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
+				if !isRetryAllowed {
+					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
+				}
+
+				if msg.extTagsCb != nil && isRetryAllowed {
 					tags, retryable := msg.extTagsCb()
 					if len(tags) == 0 && retryable && msg.retry < msg.getMaxRetry() {
 						return false
@@ -352,7 +366,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 
 				// not fully resolved, retry
-				if !msg.isResolved() && msg.retry < msg.getMaxRetry() {
+				if !msg.isResolved() && isRetryAllowed && msg.retry < msg.getMaxRetry() {
 					return false
 				}
 
