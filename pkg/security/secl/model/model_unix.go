@@ -519,7 +519,8 @@ type InvalidateDentryEvent struct {
 
 // MountReleasedEvent defines a mount released event
 type MountReleasedEvent struct {
-	MountID uint32
+	MountID       uint32
+	MountIDUnique uint64
 }
 
 // LinkEvent represents a link event

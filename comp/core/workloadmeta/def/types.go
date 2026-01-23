@@ -2112,6 +2112,15 @@ func (g GPU) String(verbose bool) string {
 	return sb.String()
 }
 
+func (g GPU) SlicingMode() string {
+	if g.DeviceType == GPUDeviceTypeMIG {
+		return "mig"
+	} else if len(g.ChildrenGPUUUIDs) > 0 {
+		return "mig-parent"
+	}
+	return "none"
+}
+
 // GPUComputeCapability represents the compute capability version of a GPU.
 type GPUComputeCapability struct {
 	// Major represents the major version of the compute capability.
