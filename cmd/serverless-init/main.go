@@ -9,7 +9,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -172,7 +171,8 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent
 }
 
-var azureServerlessTags = []string{
+var serverlessProfileTags = []string{
+	// Azure tags
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -184,24 +184,25 @@ var azureServerlessTags = []string{
 	"aas.subscription.id",
 	"aas.resource.group",
 	"aas.resource.id",
+	// Cloud-agnostic origin tag
 	"_dd.origin",
 }
 
 func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
-	var azureTags strings.Builder
-	for _, azureServerlessTag := range azureServerlessTags {
-		if value, ok := tags[azureServerlessTag]; ok {
-			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
+	profileTags := make(map[string]string)
+	for _, serverlessProfileTag := range serverlessProfileTags {
+		if value, ok := tags[serverlessProfileTag]; ok {
+			profileTags[serverlessProfileTag] = value
 		}
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		AzureServerlessTags: azureTags.String(),
-		FunctionTags:        functionTags,
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		AdditionalProfileTags: profileTags,
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

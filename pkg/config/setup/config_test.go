@@ -1060,6 +1060,18 @@ func TestPeerTagsEnv(t *testing.T) {
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
 }
 
+func TestAdditionalProfileTagsEnv(t *testing.T) {
+	testConfig := newTestConf(t)
+	require.Empty(t, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+
+	t.Setenv("DD_APM_ADDITIONAL_PROFILE_TAGS", `{"_dd.origin":"appservice","env":"staging"}`)
+	testConfig = newTestConf(t)
+	require.Equal(t, map[string]string{
+		"_dd.origin": "appservice",
+		"env":        "staging",
+	}, testConfig.GetStringMapString("apm_config.additional_profile_tags"))
+}
+
 func TestLogDefaults(t *testing.T) {
 	// New config
 	c := newEmptyMockConf(t)
