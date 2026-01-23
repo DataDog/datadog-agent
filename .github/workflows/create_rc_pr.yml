@@ -8,7 +8,7 @@ on:
 permissions: {}
 
 jobs:
-  find_release_branches:
+  create_rc_pr:
     runs-on: ubuntu-latest
     permissions:
       id-token: write # This is required for getting the required OIDC token from GitHub
@@ -29,15 +29,15 @@ jobs:
         with:
           features: legacy-tasks
 
-      - name: Check previous agent 6 RC status
-        env:
-          DD_SITE: "datadoghq.com"
-          DD_API_KEY: ${{ secrets.DD_API_KEY }}
-          DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
-          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          dda inv -- -e release.check-previous-agent6-rc
+#      - name: Check previous agent 6 RC status
+#        env:
+#          DD_SITE: "datadoghq.com"
+#          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+#          DD_APP_KEY: ${{ secrets.DD_APP_KEY }}
+#          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        run: |
+#          dda inv -- -e release.check-previous-agent6-rc
 
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
