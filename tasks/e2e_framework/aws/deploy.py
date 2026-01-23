@@ -4,10 +4,8 @@ from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from pydantic_core._pydantic_core import ValidationError
 
-from tasks.e2e_framework import config, tool
-from tasks.e2e_framework.config import Config, get_full_profile_path
+from tasks.e2e_framework import tool
 from tasks.e2e_framework.deploy import deploy as common_deploy
 
 default_public_path_key_name = "ddinfra:aws/defaultPublicKeyPath"
@@ -39,14 +37,21 @@ def deploy(
     helm_config: str | None = None,
     local_package: str | None = None,
 ) -> str:
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
+
     flags = extra_flags if extra_flags else {}
 
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
-    flags[default_public_path_key_name] = _get_public_path_key_name(cfg, public_key_required)
+    defaultPublicKeyPath = cfg.get_aws().publicKeyPath
+    if public_key_required and defaultPublicKeyPath is None:
+        raise Exit(f"Your scenario requires to define {default_public_path_key_name} in the configuration file")
+    flags[default_public_path_key_name] = defaultPublicKeyPath
 
     privateKeyPath = cfg.get_aws().privateKeyPath
     if privateKeyPath is not None:
@@ -66,7 +71,7 @@ def deploy(
 
         # The command already has a traceback
         if not output or output.return_code != 0:
-            exit(1)
+            raise Exit(code=1)
 
     if cfg.get_aws().teamTag is None or cfg.get_aws().teamTag == "":
         raise Exit(
@@ -119,10 +124,3 @@ def _check_key_pair(key_pair_to_search: str | None):
             + f"You may have issue to connect to the remote instance. Possible values are \n{key_pairs}. "
             + "You can skip this check by setting `checkKeyPair: false` in the config"
         )
-
-
-def _get_public_path_key_name(cfg: Config, require: bool) -> str | None:
-    defaultPublicKeyPath = cfg.get_aws().publicKeyPath
-    if require and defaultPublicKeyPath is None:
-        raise Exit(f"Your scenario requires to define {default_public_path_key_name} in the configuration file")
-    return defaultPublicKeyPath

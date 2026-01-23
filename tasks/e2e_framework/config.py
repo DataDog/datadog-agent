@@ -1,3 +1,5 @@
+import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Optional
 
@@ -183,3 +185,33 @@ def get_full_profile_path(profile_path: str | None = None) -> str:
             Path(profile_path).expanduser().absolute()
         )  # Return absolute path to config file, handle "~"" with expanduser
     return str(Path.home().joinpath(profile_filename))
+
+
+def get_api_key(cfg: Config | None) -> str:
+    return _get_key("API KEY", cfg, lambda c: c.get_agent().apiKey, "E2E_API_KEY", 32)
+
+
+def get_app_key(cfg: Config | None) -> str:
+    return _get_key("APP KEY", cfg, lambda c: c.get_agent().appKey, "E2E_APP_KEY", 40)
+
+
+def _get_key(
+    key_name: str,
+    cfg: Config | None,
+    get_key: Callable[[Config], str | None],
+    env_key_name: str,
+    expected_size: int,
+) -> str:
+    key: str | None = None
+
+    # first try in config
+    if cfg is not None:
+        key = get_key(cfg)
+    if key is None or len(key) == 0:
+        # the try in env var
+        key = os.getenv(env_key_name)
+    if key is None or len(key) != expected_size:
+        raise Exit(
+            f"The scenario requires a valid {key_name} with a length of {expected_size} characters but none was found. You must define it in the config file"
+        )
+    return key

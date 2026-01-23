@@ -8,7 +8,13 @@ from typing import Any
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from termcolor import colored
+
+try:
+    from termcolor import colored
+except ImportError:
+
+    def colored(*args):  # type: ignore
+        return args[0]
 
 
 def is_windows():
@@ -223,7 +229,7 @@ def notify_windows():
 # ensure we run pulumi from a directory with a Pulumi.yaml file
 # defaults to the project root directory
 def get_pulumi_dir_flag():
-    root_path = os.path.join(_get_root_path(), "test", "e2e-framework", "run")
+    root_path = get_pulumi_run_folder()
     current_path = os.getcwd()
     if not os.path.isfile(os.path.join(current_path, "Pulumi.yaml")):
         return f"-C {root_path}"
@@ -233,6 +239,10 @@ def get_pulumi_dir_flag():
 def _get_root_path() -> str:
     folder = pathlib.Path(__file__).parent.parent.resolve()
     return str(folder.parent)
+
+
+def get_pulumi_run_folder() -> str:
+    return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
 
 
 class RemoteHost:

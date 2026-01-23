@@ -1,10 +1,8 @@
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic_core._pydantic_core import ValidationError
 
-from tasks.e2e_framework import config, doc
-from tasks.e2e_framework.config import get_full_profile_path
+from tasks.e2e_framework import doc
 from tasks.e2e_framework.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
 
@@ -47,10 +45,14 @@ def create_openshift(
     Create an OpenShift environment.
     """
 
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
+
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
     # Use parameter if provided during invoke setup, otherwise use config
     if not pull_secret_path:

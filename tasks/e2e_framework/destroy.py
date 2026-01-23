@@ -2,11 +2,9 @@ import subprocess
 
 from invoke.context import Context
 from invoke.exceptions import Exit
-from pydantic import ValidationError
 
 from tasks.e2e_framework import tool
 
-from . import config
 from .tool import error, get_stack_name, get_stack_name_prefix, info
 
 
@@ -20,6 +18,9 @@ def destroy(
     """
     Destroy an environment
     """
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
 
     full_stack_name = get_stack_name(stack, scenario_name)
     pulumi_dir_flag = tool.get_pulumi_dir_flag()

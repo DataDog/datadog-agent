@@ -1,9 +1,8 @@
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic_core._pydantic_core import ValidationError
 
-from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.azure import doc as azure_doc
 from tasks.e2e_framework.azure.common import (
     get_architectures,
@@ -12,7 +11,6 @@ from tasks.e2e_framework.azure.common import (
     get_deploy_job,
     get_os_families,
 )
-from tasks.e2e_framework.config import get_full_profile_path
 from tasks.e2e_framework.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
 from tasks.e2e_framework.tool import add_known_host as add_known_host_func
@@ -68,10 +66,14 @@ def create_vm(
     Create a new virtual machine on azure.
     """
 
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
+
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
     if not cfg.get_azure().publicKeyPath:
         raise Exit("The field `azure.publicKeyPath` is required in the config file")

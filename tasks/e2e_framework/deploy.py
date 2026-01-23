@@ -1,15 +1,11 @@
-import os
-from collections.abc import Callable
 from typing import Any
 
 import boto3
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic import ValidationError
 
-from . import config, tool
-from .config import Config, get_full_profile_path
+from . import tool
 
 
 def deploy(
@@ -34,6 +30,10 @@ def deploy(
     helm_config: str | None = None,
     local_package: str | None = None,
 ) -> str:
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
+
     flags = extra_flags if extra_flags else {}
 
     if install_agent is None:
@@ -48,7 +48,7 @@ def deploy(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
     flags["scenario"] = scenario_name
     flags["ddagent:version"] = agent_version
@@ -64,7 +64,7 @@ def deploy(
     flags["ddagent:pipeline_id"] = "" if pipeline_id is None else pipeline_id
 
     if install_agent:
-        flags["ddagent:apiKey"] = _get_api_key(cfg)
+        flags["ddagent:apiKey"] = config.get_api_key(cfg)
 
     # add stack params values
     stackParams = cfg.get_stack_params()
@@ -73,7 +73,7 @@ def deploy(
             flags[f"{namespace}:{key}"] = value
 
     if app_key_required:
-        flags["ddagent:appKey"] = _get_app_key(cfg)
+        flags["ddagent:appKey"] = config.get_app_key(cfg)
 
     return _deploy(
         ctx,
@@ -186,33 +186,3 @@ def _deploy(
         pty = False
     ctx.run(cmd, pty=pty)
     return stack_name
-
-
-def _get_api_key(cfg: Config | None) -> str:
-    return _get_key("API KEY", cfg, lambda c: c.get_agent().apiKey, "E2E_API_KEY", 32)
-
-
-def _get_app_key(cfg: Config | None) -> str:
-    return _get_key("APP KEY", cfg, lambda c: c.get_agent().appKey, "E2E_APP_KEY", 40)
-
-
-def _get_key(
-    key_name: str,
-    cfg: Config | None,
-    get_key: Callable[[Config], str | None],
-    env_key_name: str,
-    expected_size: int,
-) -> str:
-    key: str | None = None
-
-    # first try in config
-    if cfg is not None:
-        key = get_key(cfg)
-    if key is None or len(key) == 0:
-        # the try in env var
-        key = os.getenv(env_key_name)
-    if key is None or len(key) != expected_size:
-        raise Exit(
-            f"The scenario requires a valid {key_name} with a length of {expected_size} characters but none was found. You must define it in the config file"
-        )
-    return key

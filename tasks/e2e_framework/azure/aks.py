@@ -4,10 +4,8 @@ import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic_core._pydantic_core import ValidationError
 
-from tasks.e2e_framework import config, doc, tool
-from tasks.e2e_framework.config import get_full_profile_path
+from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.deploy import deploy
 from tasks.e2e_framework.destroy import destroy
 
@@ -46,10 +44,14 @@ def create_aks(
     Create a new AKS environment. It lasts around 5 minutes.
     """
 
+    from pydantic_core._pydantic_core import ValidationError
+
+    from tasks.e2e_framework import config
+
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
 
     extra_flags = {
         "ddinfra:env": f"az/{account if account else cfg.get_azure().account}",

@@ -88,11 +88,10 @@ from tasks.custom_task.custom_task import custom__call__
 # e2e-framework tasks
 from tasks.e2e_framework import aws as e2e_aws
 from tasks.e2e_framework import azure as e2e_azure
-from tasks.e2e_framework import ci as e2e_ci
 from tasks.e2e_framework import gcp as e2e_gcp
 from tasks.e2e_framework import localpodman as e2e_localpodman
-from tasks.e2e_framework import setup as e2e_setup
 from tasks.e2e_framework import test as e2e_test
+from tasks.e2e_framework.setup import setup as e2e_setup
 from tasks.fuzz import fuzz
 from tasks.fuzz_infra import build_and_upload_fuzz
 from tasks.go import (
@@ -263,7 +262,6 @@ ns.add_collection(e2e_localpodman.collection, "localpodman")
 # e2e namespace with setup, ci, and test
 e2e_ns = Collection("e2e")
 e2e_ns.add_collection(e2e_setup)
-e2e_ns.add_collection(e2e_ci)
 e2e_ns.add_collection(e2e_test)
 ns.add_collection(e2e_ns)
 

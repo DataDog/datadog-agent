@@ -5,9 +5,8 @@ import yaml
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic import ValidationError
 
-from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws import doc as aws_doc
 from tasks.e2e_framework.aws.common import get_aws_wrapper
 from tasks.e2e_framework.aws.deploy import deploy
@@ -116,6 +115,9 @@ def create_eks(
 
 def _show_connection_message(ctx: Context, full_stack_name: str, config_path: str | None):
     import pyperclip
+    from pydantic import ValidationError
+
+    from tasks.e2e_framework import config
 
     outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
     kubeconfig_output = json.loads(outputs["dd-Cluster-eks"]["kubeConfig"])

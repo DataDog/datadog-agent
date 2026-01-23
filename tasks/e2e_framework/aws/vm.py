@@ -3,9 +3,8 @@ import json
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
-from pydantic import ValidationError
 
-from tasks.e2e_framework import config, doc, tool
+from tasks.e2e_framework import doc, tool
 from tasks.e2e_framework.aws import doc as aws_doc
 from tasks.e2e_framework.aws.common import (
     get_architectures,
@@ -238,7 +237,8 @@ def _filter_aws_resource(resource, instance_id: str | None = None, ip: str | Non
 
 def _get_windows_password(
     ctx: Context,
-    cfg: config.Config,
+    aws_account: str,
+    private_key_path: str,
     full_stack_name: str,
     use_aws_vault: bool | None = True,
     instance_id: str | None = None,
@@ -258,13 +258,12 @@ def _get_windows_password(
         if not _filter_aws_resource(r, instance_id, ip):
             continue
         vm_id = r["id"]
-        aws_account = cfg.get_aws().get_account()
+
         # TODO: could xref with r['inputs']['keyName']
-        key_path = cfg.get_aws().privateKeyPath
-        if not key_path:
+        if not private_key_path:
             raise Exit("No privateKeyPath found in the config.")
         password = tool.get_aws_instance_password_data(
-            ctx, vm_id, key_path, aws_account=aws_account, use_aws_vault=use_aws_vault
+            ctx, vm_id, private_key_path, aws_account=aws_account, use_aws_vault=use_aws_vault
         )
         if password:
             out.append({"vm_id": vm_id, "resource": r, "password": password})
@@ -291,6 +290,10 @@ def get_vm_password(
     """
     Get the password of a new virtual machine in a stack.
     """
+    from pydantic import ValidationError
+
+    from tasks.e2e_framework import config
+
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
@@ -299,7 +302,15 @@ def get_vm_password(
     if not stack_name:
         raise Exit("Please provide a stack name to connect to.")
 
-    out = _get_windows_password(ctx, cfg, stack_name, use_aws_vault=use_aws_vault, instance_id=instance_id, ip=ip)
+    out = _get_windows_password(
+        ctx,
+        cfg.get_aws().get_account(),
+        cfg.get_aws().privateKeyPath,
+        stack_name,
+        use_aws_vault=use_aws_vault,
+        instance_id=instance_id,
+        ip=ip,
+    )
     if not out:
         raise Exit(
             "No VM found in the stack, or no password available. Verify that keyPairName and publicKeyPath are an RSA key. run `inv setup.debug` for automated help."
