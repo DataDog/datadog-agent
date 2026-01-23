@@ -47,7 +47,7 @@ func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
 		Name:                defaultKindName,
 		vmOptions:           []ec2.VMOption{},
-		agentOptions:        []kubernetesagentparams.Option{},
+		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
 		fakeintakeOptions:   []fakeintake.Option{},
 		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
 		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
