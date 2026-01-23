@@ -203,17 +203,14 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 		// Get NodeClass. If there's none or more than one, then we should not create the NodePool
 		ncList, err := c.Client.Resource(nodeClassGVR).List(ctx, metav1.ListOptions{})
 		if err != nil {
-			c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to list NodeClasses: %v", err)
 			return fmt.Errorf("unable to list NodeClasses: %w", err)
 		}
 
 		if len(ncList.Items) == 0 {
-			c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "No NodeClasses found, NodePool cannot be created")
 			return errors.New("no NodeClasses found, NodePool cannot be created")
 		}
 
 		if len(ncList.Items) > 1 {
-			c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
 			return fmt.Errorf("too many NodeClasses found (%v), NodePool cannot be created", len(ncList.Items))
 		}
 
@@ -223,13 +220,11 @@ func (c *Controller) createNodePool(ctx context.Context, npi model.NodePoolInter
 
 	npUnstr, err := convertNodePoolToUnstructured(knp)
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to convert NodePool to unstructured: %v", err)
 		return err
 	}
 
 	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
-		c.eventRecorder.Eventf(knp, corev1.EventTypeWarning, model.FailedNodepoolCreateEventReason, "Failed to create NodePool: %v", err)
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
 

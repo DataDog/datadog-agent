@@ -10,8 +10,6 @@ package model
 const (
 	// SuccessfulNodepoolCreateEventReason is the event reason when a nodepool is created successfully
 	SuccessfulNodepoolCreateEventReason = "SuccessfulNodepoolCreate"
-	// FailedNodepoolCreateEventReason is the event reason when a nodepool creation fails
-	FailedNodepoolCreateEventReason = "FailedNodepoolCreate"
 	// SuccessfulNodepoolUpdateEventReason is the event reason when a nodepool is updated successfully
 	SuccessfulNodepoolUpdateEventReason = "SuccessfulNodepoolUpdate"
 	// FailedNodepoolUpdateEventReason is the event reason when a nodepool update fails
