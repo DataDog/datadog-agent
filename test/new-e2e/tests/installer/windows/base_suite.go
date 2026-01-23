@@ -621,7 +621,7 @@ func (s *BaseSuite) WaitForInstallerService(state string) error {
 func (s *BaseSuite) WaitForAgentService(state string) error {
 	// usually waiting after MSI runs so we have to wait awhile
 	// max wait is 30*30 -> 900 seconds (15 minutes)
-	return s.WaitForServicesWithBackoff(state, backoff.WithMaxRetries(backoff.NewConstantBackOff(30*time.Second), 30), "datadogagent")
+	return s.WaitForServicesWithBackoff(state, []string{"datadogagent"}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 }
 
 // WaitForServicesWithBackoff waits for the specified services to be in the desired state using backoff retry.
