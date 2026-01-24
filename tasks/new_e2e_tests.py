@@ -10,6 +10,7 @@ import os
 import os.path
 import re
 import shutil
+import sys
 import tempfile
 import threading
 from collections import defaultdict
@@ -23,8 +24,9 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
-from tasks.libs.common.git import get_commit_sha, get_modified_files
+from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import get_default_modules
 from tasks.libs.common.utils import (
@@ -34,6 +36,8 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
+from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.releasing.version import get_version
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
@@ -1124,3 +1128,266 @@ def _get_agent_qa_ecr_password(ctx: Context) -> str:
         )
         return ""
     return ecr_password_res.stdout.strip()
+
+
+def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) -> tuple[str, str] | None:
+    """
+    Find the most recent successful pipeline on the given branch (or current branch if not specified).
+    Returns (pipeline_id, commit_sha) or None if not found.
+    """
+    try:
+        # Explicitly use GITLAB_TOKEN if set, to avoid ddtool OAuth issues
+        token = os.environ.get('GITLAB_TOKEN')
+        repo = get_gitlab_repo(token=token)
+
+        # Try the specified branch, current branch, then main
+        branches_to_try = []
+        if branch:
+            branches_to_try.append(branch)
+        else:
+            try:
+                current = get_current_branch(ctx)
+                if current:
+                    branches_to_try.append(current)
+            except Exception:
+                pass
+        branches_to_try.append("main")
+
+        for ref in branches_to_try:
+            # Get pipelines on this branch, ordered by most recent
+            pipelines = repo.pipelines.list(ref=ref, per_page=10, order_by='updated_at', get_all=False)
+            for pipeline in pipelines:
+                if pipeline.status == "success":
+                    return str(pipeline.id), pipeline.sha[:8]
+
+        return None
+    except Exception as e:
+        print(f"Warning: Could not query GitLab for recent pipelines: {e}")
+        if 'GITLAB_TOKEN' not in os.environ:
+            print("Hint: Set GITLAB_TOKEN environment variable with a GitLab Personal Access Token (read_api scope)")
+        return None
+
+
+def _find_local_msi_build(pkg: str | None = None) -> str | None:
+    """
+    Find a local MSI build in the omnibus/pkg directory.
+
+    Args:
+        pkg: Optional package name or pattern to search for.
+             Can be a full filename (e.g., "datadog-agent-7.75.0-devel.git.59.ac0523a-1-x86_64.msi"),
+             a partial name (e.g., "datadog-agent-7.75"), or None to find the most recent MSI.
+
+    Returns the absolute path to the MSI file, or None if not found.
+    """
+    import glob
+
+    # Standard output directory for local MSI builds
+    output_dir = os.path.join(os.getcwd(), "omnibus", "pkg")
+
+    if not os.path.isdir(output_dir):
+        return None
+
+    if pkg:
+        # If pkg is provided, search for it
+        # Check if it's an absolute path first
+        if os.path.isabs(pkg) and os.path.isfile(pkg):
+            return pkg
+
+        # Check if it's a file in the output directory
+        direct_path = os.path.join(output_dir, pkg)
+        if os.path.isfile(direct_path):
+            return direct_path
+
+        # Try as a glob pattern
+        if '*' not in pkg:
+            pkg = f"*{pkg}*"
+        pattern = os.path.join(output_dir, pkg)
+        if not pattern.endswith('.msi'):
+            pattern = f"{pattern}*.msi"
+        msi_files = glob.glob(pattern)
+    else:
+        # Look for agent MSI files (both regular and FIPS)
+        patterns = [
+            os.path.join(output_dir, "datadog-agent-*.msi"),
+            os.path.join(output_dir, "datadog-fips-agent-*.msi"),
+        ]
+        msi_files = []
+        for pattern in patterns:
+            msi_files.extend(glob.glob(pattern))
+
+    if not msi_files:
+        return None
+
+    # Return the most recently modified MSI
+    return max(msi_files, key=os.path.getmtime)
+
+
+def _parse_version_from_msi_filename(msi_path: str) -> tuple[str, str] | None:
+    """
+    Parse version information from MSI filename.
+
+    MSI filename format: datadog-agent-{version}-{arch}.msi
+    Example: datadog-agent-7.75.0-devel.git.59.ac0523a-1-x86_64.msi
+
+    Returns (display_version, package_version) tuple, or None if parsing fails.
+    - display_version: e.g., "7.75.0-devel"
+    - package_version: e.g., "7.75.0-devel.git.59.ac0523a-1"
+    """
+    import re
+
+    filename = os.path.basename(msi_path)
+
+    # Pattern to match: datadog-agent-{version}-{arch}.msi or datadog-fips-agent-{version}-{arch}.msi
+    # Version format: 7.75.0-devel.git.59.ac0523a-1
+    # Arch is typically: x86_64
+    pattern = r'^datadog(?:-fips)?-agent-(.+)-(x86_64|amd64)\.msi$'
+    match = re.match(pattern, filename)
+
+    if not match:
+        return None
+
+    package_version = match.group(1)  # e.g., "7.75.0-devel.git.59.ac0523a-1"
+
+    # Extract display version (everything before .git. or the full version if no .git.)
+    # e.g., "7.75.0-devel.git.59.ac0523a-1" -> "7.75.0-devel"
+    # e.g., "7.75.0-1" -> "7.75.0"
+    if '.git.' in package_version:
+        display_version = package_version.split('.git.')[0]
+    elif package_version.endswith('-1'):
+        # Remove trailing -1 for display version (e.g., "7.75.0-1" -> "7.75.0")
+        display_version = package_version[:-2]
+    else:
+        display_version = package_version
+
+    return display_version, package_version
+
+
+def _path_to_file_url(file_path: str) -> str:
+    """Convert a file path to a file:// URL."""
+    # Normalize the path and convert to forward slashes
+    abs_path = os.path.abspath(file_path)
+    # On Windows, file URLs need three slashes: file:///C:/path
+    if os.name == 'nt':
+        return f"file:///{abs_path.replace(os.sep, '/')}"
+    return f"file://{abs_path}"
+
+
+@task(
+    help={
+        "fmt": "Output format: 'bash' for export commands, 'powershell' for $env: commands, 'json' for JSON output",
+        "build": "Build source: 'local' for local build in omnibus/pkg, 'pipeline' for CI pipeline artifacts (default: pipeline)",
+        "pkg": "Local MSI to use instead of using the most recent one. Only used with --build local",
+        "branch": "Git branch to find pipeline from (default: current branch, falls back to main). Only used with --build pipeline",
+        "pipeline_id": "Override pipeline ID instead of auto-detecting. Only used with --build pipeline",
+    }
+)
+def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline_id=None):
+    """
+    Generate environment variables for running E2E Fleet Automation tests locally.
+
+    This task derives version information and artifact locations to set the required
+    environment variables for running E2E tests.
+
+    Usage:
+        # Use local MSI build from omnibus/pkg directory (Windows)
+        eval $(dda inv new-e2e-tests.setup-env --build local)
+
+        # Use artifacts from a CI pipeline (auto-detects most recent successful pipeline)
+        eval $(dda inv new-e2e-tests.setup-env --build pipeline)
+
+        # Use a specific pipeline
+        eval $(dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 12345678)
+
+        # PowerShell - pipe to Invoke-Expression to execute the commands
+        dda inv new-e2e-tests.setup-env --build local --fmt powershell | Invoke-Expression
+
+        # JSON - for programmatic use
+        dda inv new-e2e-tests.setup-env --build local --fmt json
+
+    Note: The task outputs shell commands (e.g., 'export VAR=value' for bash).
+    Using eval (bash) or Invoke-Expression (PowerShell) executes these commands
+    to actually set the environment variables in your current shell session.
+    Without eval/Invoke-Expression, the commands are just printed but not executed.
+    """
+    env_vars = {}
+
+    if build == "local":
+        # Find local MSI build (Windows)
+        msi_path = _find_local_msi_build(pkg)
+        if msi_path:
+            env_vars["CURRENT_AGENT_MSI_URL"] = _path_to_file_url(msi_path)
+            print(f"# Found local MSI: {msi_path}", file=sys.stderr)
+
+            # Extract version from MSI filename
+            version_info = _parse_version_from_msi_filename(msi_path)
+            if version_info:
+                display_version, package_version = version_info
+                env_vars["CURRENT_AGENT_VERSION"] = display_version
+                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = package_version
+            else:
+                print("Warning: Could not parse version from MSI filename, falling back to git", file=sys.stderr)
+                try:
+                    env_vars["CURRENT_AGENT_VERSION"] = get_version(ctx, include_git=False, include_pre=True)
+                    package_version = get_version(ctx, include_git=True, url_safe=True)
+                    env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
+                except Exception as e:
+                    print(f"Warning: Could not determine current agent version: {e}", file=sys.stderr)
+        else:
+            if pkg:
+                print(f"Warning: No MSI matching '{pkg}' found in omnibus/pkg/.", file=sys.stderr)
+            else:
+                print("Warning: No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", file=sys.stderr)
+
+    elif build == "pipeline":
+        # Find pipeline ID
+        if pipeline_id:
+            env_vars["E2E_PIPELINE_ID"] = pipeline_id
+        else:
+            result = _find_recent_successful_pipeline(ctx, branch)
+            if result:
+                env_vars["E2E_PIPELINE_ID"], _ = result
+                print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
+            else:
+                print("Warning: Could not find a recent successful pipeline. You may need to set E2E_PIPELINE_ID manually or use --build local.", file=sys.stderr)
+
+        # Get version from git
+        try:
+            current_version = get_version(ctx, include_git=False, include_pre=True)
+            env_vars["CURRENT_AGENT_VERSION"] = current_version
+
+            # Get the package version with pipeline ID
+            if env_vars.get("E2E_PIPELINE_ID"):
+                package_version = get_version(
+                    ctx,
+                    include_git=True,
+                    url_safe=True,
+                    include_pipeline_id=True,
+                    pipeline_id=env_vars.get("E2E_PIPELINE_ID"),
+                )
+                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
+            else:
+                package_version = get_version(ctx, include_git=True, url_safe=True)
+                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
+        except Exception as e:
+            print(f"Warning: Could not determine current agent version: {e}", file=sys.stderr)
+
+    else:
+        raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
+
+    # Get stable agent version from release.json (common for both modes)
+    try:
+        stable_version = _get_release_json_value("last_stable::7")
+        env_vars["STABLE_AGENT_VERSION"] = stable_version
+        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
+    except Exception as e:
+        print(f"Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
+
+    # Output in requested format
+    if fmt == "json":
+        print(json.dumps(env_vars, indent=2))
+    elif fmt == "powershell":
+        for key, value in env_vars.items():
+            print(f'$env:{key}="{value}"')
+    else:  # bash
+        for key, value in env_vars.items():
+            print(f'export {key}="{value}"')
