@@ -4,7 +4,7 @@
 #
 # Ubuntu 22.04 with nodejs package has SSL symbols defined in libnode.so.72
 
-FROM ubuntu:22.04
+FROM public.ecr.aws/ubuntu/ubuntu:22.04
 
 # Install nodejs from Ubuntu packages (SSL bundled in libnode.so)
 RUN apt-get update && \
