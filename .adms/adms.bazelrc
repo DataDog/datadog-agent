@@ -1,0 +1,10 @@
+# DO NOT EDIT
+
+# Pull in general ADMS-related configuration
+import %workspace%/.adms/bazel/bazel.bazelrc
+# Configure Python-related Bazel settings
+import %workspace%/.adms/python/python.bazelrc
+# Configure Go-related Bazel settings
+import %workspace%/.adms/go/go.bazelrc
+# Configure Npm-related Bazel settings
+import %workspace%/.adms/npm/npm.bazelrc

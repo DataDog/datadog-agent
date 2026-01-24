@@ -1,0 +1,11 @@
+# DO NOT EDIT
+
+# yarn Configuration
+common --repo_env=YARN_NPM_REGISTRY_SERVER
+common --repo_env=YARN_NPM_ALWAYS_AUTH
+
+# npm Configuration
+common --repo_env=NPM_CONFIG_REGISTRY
+common --repo_env=npm_config_registry
+common --repo_env=NPM_CONFIG_ALWAYS_AUTH
+common --repo_env=npm_config_always_auth
