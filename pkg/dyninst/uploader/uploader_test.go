@@ -31,6 +31,7 @@ type testServer struct {
 
 func (s *testServer) Close() {
 	close(s.close)
+	s.server.CloseClientConnections()
 	s.server.Close()
 }
 
@@ -124,7 +125,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(0), // disable timers
 		)
@@ -166,7 +167,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(2),
 			WithMaxBufferDuration(10*time.Millisecond),
 		)
@@ -207,7 +208,7 @@ func TestDiagnosticsUploader(t *testing.T) {
 		defer ts.Close()
 
 		uploader := NewDiagnosticsUploader(
-			WithURL(ts.serverURL),
+			ts.serverURL,
 			WithMaxBatchItems(1),
 		)
 		defer uploader.Stop()
@@ -238,8 +239,14 @@ func TestLogsUploader(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
+		logsSuffix := "/logs"
+		logsURL, _ := url.Parse(ts.server.URL + logsSuffix)
+		snapshotSuffix := "/snapshots"
+		snapshotsURL, _ := url.Parse(ts.server.URL + snapshotSuffix)
+
 		uploaderFactory := NewLogsUploaderFactory(
-			WithURL(ts.serverURL),
+			logsURL,
+			snapshotsURL,
 			WithMaxBatchItems(2),
 		)
 		defer uploaderFactory.Stop()
@@ -251,11 +258,14 @@ func TestLogsUploader(t *testing.T) {
 		msg1 := json.RawMessage(`{"key":"value1"}`)
 		msg2 := json.RawMessage(`{"key":"value2"}`)
 
-		uploader.Enqueue(msg1)
-		uploader.Enqueue(msg2)
+		// Upload two logs.
+		uploader.EnqueueLog(msg1)
+		uploader.EnqueueLog(msg2)
 
 		// receive and validate request
 		req := <-ts.requests
+		// Check that the request went to the logs URL.
+		assert.Equal(t, logsSuffix, req.r.URL.String())
 		assert.Equal(t, req.r.Header.Get(ddHeaderContainerID), "test_id")
 		assert.Equal(t, req.r.Header.Get(ddHeaderEntityID), "ci:test_id")
 		validateLogsRequest(t, []json.RawMessage{msg1, msg2}, req.r)
@@ -272,14 +282,29 @@ func TestLogsUploader(t *testing.T) {
 				"errors":       0,
 			}, uploaderFactory.Stats())
 		}, 1*time.Second, 10*time.Millisecond)
+
+		// Now upload a snapshot and verify that it goes to the snapshots URL.
+		snapMsg := json.RawMessage(`{"key":"value2"}`)
+		uploader.EnqueueSnapshot(snapMsg)
+		req = <-ts.requests
+		assert.Equal(t, snapshotSuffix, req.r.URL.String())
+		assert.Equal(t, req.r.Header.Get(ddHeaderContainerID), "test_id")
+		assert.Equal(t, req.r.Header.Get(ddHeaderEntityID), "ci:test_id")
+		validateLogsRequest(t, []json.RawMessage{snapMsg}, req.r)
+		req.w.WriteHeader(http.StatusOK)
+		close(req.done)
 	})
 
 	t.Run("failure", func(t *testing.T) {
 		ts := newTestServer()
 		defer ts.Close()
 
+		logsURL, _ := url.Parse(ts.server.URL + "/logs")
+		snapshotsURL, _ := url.Parse(ts.server.URL + "/snapshots")
+
 		uploaderFactory := NewLogsUploaderFactory(
-			WithURL(ts.serverURL),
+			logsURL,
+			snapshotsURL,
 			WithMaxBatchItems(1),
 		)
 		defer uploaderFactory.Stop()
@@ -288,7 +313,7 @@ func TestLogsUploader(t *testing.T) {
 		})
 
 		msg1 := json.RawMessage(`{"key":"value1"}`)
-		uploader.Enqueue(msg1)
+		uploader.EnqueueLog(msg1)
 
 		// receive request
 		req := <-ts.requests

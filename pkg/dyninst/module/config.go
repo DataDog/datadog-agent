@@ -29,10 +29,14 @@ import (
 // Config is the configuration for the dynamic instrumentation module.
 type Config struct {
 	ebpf.Config
-	LogUploaderURL     string
-	DiagsUploaderURL   string
-	SymDBUploadEnabled bool
-	SymDBUploaderURL   string
+	// The URL to upload logs (i.e. events without snapshots) to.
+	LogUploaderURL string
+	// The URL to snapshots to. These go to a different intake than logs because
+	// they go through redaction on the backend.
+	SnapshotsUploaderURL string
+	DiagsUploaderURL     string
+	SymDBUploadEnabled   bool
+	SymDBUploaderURL     string
 	// ProbeTombstoneFilePath is the path to the tombstone file used to detect
 	// if we crashed while loading programs. Empty means don't use tombstone
 	// file.
@@ -70,6 +74,7 @@ func NewConfig(_ *sysconfigtypes.Config) (*Config, error) {
 	c := &Config{
 		Config:                 *ebpf.NewConfig(),
 		LogUploaderURL:         withPath(traceAgentURL, logUploaderPath),
+		SnapshotsUploaderURL:   withPath(traceAgentURL, snapshotsUploaderPath),
 		DiagsUploaderURL:       withPath(traceAgentURL, diagsUploaderPath),
 		SymDBUploadEnabled:     pkgconfigsetup.SystemProbe().GetBool("dynamic_instrumentation.symdb_upload_enabled"),
 		SymDBUploaderURL:       withPath(traceAgentURL, symdbUploaderPath),
@@ -145,9 +150,10 @@ const (
 
 	traceAgentURLEnvVar = "DD_TRACE_AGENT_URL"
 
-	logUploaderPath   = "/debugger/v1/input"
-	diagsUploaderPath = "/debugger/v1/diagnostics"
-	symdbUploaderPath = "/symdb/v1/input"
+	logUploaderPath       = "/debugger/v1/input"
+	snapshotsUploaderPath = "/debugger/v2/input"
+	diagsUploaderPath     = "/debugger/v1/diagnostics"
+	symdbUploaderPath     = "/symdb/v1/input"
 )
 
 var errSchemeRequired = errors.New("scheme is required")
