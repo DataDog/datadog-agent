@@ -23,7 +23,7 @@ const (
 // LibsetToLibSuffixes maps a libset to a list of regexes that match the shared libraries that belong to that libset. Should be
 // the same as in the probes.h file
 var LibsetToLibSuffixes = map[Libset][]string{
-	LibsetCrypto: {"libssl", "crypto", "gnutls"},
+	LibsetCrypto: {"libssl", "crypto", "gnutls", "libnode"},
 	LibsetGPU:    {"libcudart", "libcuda"},
 	LibsetLibc:   {"libc"},
 }
