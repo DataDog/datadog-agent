@@ -245,7 +245,12 @@ func (c *BatchConsumer[V]) process(b *Batch, syncing bool) {
 	// generate a slice of type []V from the batch
 	ptr := pointerToElement[V](b, begin)
 	events := unsafe.Slice(ptr, length)
-
+	if c.proto == "http" && Debug {
+		fmt.Printf("HTTP | processing %d events from cpu %d; end: %d; begin: %d; syncing: %v\n", len(events), cpu, end, begin, syncing)
+		for idx, event := range events {
+			fmt.Printf("HTTP | BatchConsumer.process | cpu %d | idx %d | out of %d | Processing tx %#v\n", cpu, idx, len(events), event)
+		}
+	}
 	c.callback(events)
 }
 
