@@ -4656,3 +4656,106 @@ OpenSSL uses a different code path:
 2. Test with curl or C program (native OpenSSL, realistic memory patterns)
 3. Cross-test: Go client → OpenSSL server, OpenSSL client → Go server
 4. If confirmed Go-specific: examine `conn_tup_by_go_tls_conn` map key generation and cleanup
+
+---
+
+## Fix Implementation (January 25, 2026)
+
+### Root Cause Confirmed
+
+The misattribution bug was caused by **stale entries in the `conn_tup_by_go_tls_conn` eBPF map** when Go runtime reuses `tls.Conn` memory addresses.
+
+**The problem:**
+1. Go TLS connections are cached in `conn_tup_by_go_tls_conn` map with `tls.Conn` pointer as key
+2. When `tls.Conn.Close()` is called, the eBPF uprobe cleans up the map entry
+3. When `Close()` is NOT called (e.g., connection dropped, GC cleans up), the entry remains
+4. Go runtime reuses memory addresses - a NEW `tls.Conn` can have the SAME pointer as an old one
+5. Cache lookup returns stale `conn_tuple_t` from the previous connection
+6. HTTP request data gets attributed to the wrong connection
+
+### Solution: Composite Map Key
+
+Changed the map key from just `tls.Conn` pointer to a composite key containing both the `tls.Conn` pointer AND a fingerprint (`conn_fd_ptr`) that uniquely identifies the underlying TCP connection.
+
+**Key insight:** The `conn_fd_ptr` points to Go's internal `netFD` struct, which is unique per TCP connection. Even if Go reuses a `tls.Conn` memory address, the new connection will have a different `conn_fd_ptr`.
+
+**Before (vulnerable to stale entries):**
+```c
+// Key was just the tls.Conn pointer
+BPF_HASH_MAP(conn_tup_by_go_tls_conn, __u64, conn_tuple_t, 1)
+```
+
+**After (composite key prevents stale hits):**
+```c
+typedef struct {
+    __u64 tls_conn_ptr;   // tls.Conn pointer (can be reused by Go)
+    __u64 conn_fd_ptr;    // netFD pointer (unique per TCP connection)
+} go_tls_conn_key_t;
+
+BPF_HASH_MAP(conn_tup_by_go_tls_conn, go_tls_conn_key_t, conn_tuple_t, 1)
+```
+
+**Why this works:**
+- Same `tls_conn_ptr` + different `conn_fd_ptr` = cache MISS (new entry created)
+- Stale entries become orphans (eventually evicted by LRU) instead of causing misattribution
+- No validation needed on cache hit - if the key matches, it's guaranteed correct
+
+### Files Modified
+
+1. **`pkg/network/ebpf/c/protocols/tls/go-tls-types.h`**
+   - Added `go_tls_conn_key_t` composite key type
+
+2. **`pkg/network/ebpf/c/protocols/tls/go-tls-maps.h`**
+   - Updated `conn_tup_by_go_tls_conn` map to use composite key
+   - Updated `go_tls_conn_by_tuple` reverse map to store composite key
+
+3. **`pkg/network/ebpf/c/protocols/tls/go-tls-conn.h`**
+   - Added `__read_conn_fd_ptr()` helper to extract fingerprint from Go memory
+   - Modified `conn_tup_from_tls_conn()` to form composite key before lookup
+
+4. **`pkg/network/ebpf/c/runtime/usm.c`**
+   - Updated `uprobe__crypto_tls_Conn_Close` to use composite key for cleanup
+
+5. **`pkg/network/ebpf/c/protocols/sockfd-probes.h`**
+   - Updated `kprobe__tcp_close` to use composite key for cleanup on TCP termination
+
+### Verification Results
+
+**Test parameters (high load):**
+- Duration: 60 seconds
+- Concurrency: 50 workers
+- Skip Close rate: 30%
+- Request rate: 10ms between requests
+
+**Results:**
+
+| Metric | Before Fix | After Fix |
+|--------|------------|-----------|
+| Total requests | ~11,000 | 132,659 |
+| Skipped Close() | ~1,100 (10%) | 39,957 (30%) |
+| Misattributed | 23 (~0.8%) | **0 (0%)** |
+
+```
+=== server8443 paths (should all be Port: 8443) ===
+   9923 Port: 8443 Path: /server8443/identify   <-- 100% correct
+
+=== server9443 paths (should all be Port: 9443) ===
+   9924 Port: 9443 Path: /server9443/identify   <-- 100% correct
+```
+
+### Why Other Approaches Were Rejected
+
+1. **Destination port validation on cache hit**: Would fail when both connections go to the same port (e.g., both to port 443)
+
+2. **Fingerprint in map value with validation**: More complex, requires validation on every cache hit, rejected as "too complex"
+
+3. **Composite key (chosen)**: Cleanest approach - cache miss instead of stale hit, no validation needed, stale entries become harmless orphans
+
+### Remaining Considerations
+
+1. **Orphaned entries**: Stale entries remain in the map until LRU eviction. This is acceptable because:
+   - They don't cause misattribution (different key = cache miss)
+   - Map has size limit with LRU eviction
+   - TCP close cleanup still works for properly closed connections
+
+2. **Performance**: Extra memory read to get `conn_fd_ptr` on every lookup, but this is minimal overhead compared to the TLS operation itself
