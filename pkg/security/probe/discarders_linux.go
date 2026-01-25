@@ -65,7 +65,7 @@ type discarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFPro
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevisionOp)
 	return e.Request(req)
 }
 

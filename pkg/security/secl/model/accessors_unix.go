@@ -81,6 +81,8 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.device.ifname":
 		return []eval.EventType{"dns", "imds", "packet"}
+	case "network.device.netns":
+		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.l3_protocol":
 		return []eval.EventType{"dns", "imds", "packet"}
 	case "network.l4_protocol":
@@ -101,6 +103,21 @@ func (_ *Model) GetFieldRestrictions(field eval.Field) []eval.EventType {
 	return nil
 }
 func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int) (eval.Evaluator, error) {
+	// Handle array index access (e.g., field[0])
+	// This is processed here before the switch to support all array fields
+	baseField, arrayIndex, isArrayAccess, err := eval.ExtractArrayIndexAccess(field)
+	if err != nil {
+		return nil, err
+	}
+	if isArrayAccess {
+		// Get the base field evaluator (returns the full array)
+		arrayEvaluator, err := (&Model{}).GetEvaluator(baseField, regID, offset)
+		if err != nil {
+			return nil, err
+		}
+		// Wrap it to return only the specific index
+		return eval.WrapEvaluatorWithArrayIndex(arrayEvaluator, arrayIndex, baseField)
+	}
 	switch field {
 	case "accept.addr.family":
 		return &eval.IntEvaluator{
@@ -1997,6 +2014,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "event.signature":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSignature(ev)
+			},
+			Field:  field,
+			Weight: 500 * eval.HandlerWeight,
+			Offset: offset,
+		}, nil
 	case "event.source":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -3253,6 +3281,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exec.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exec.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exec.pid":
@@ -4632,6 +4671,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "exit.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Exit.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "exit.pid":
@@ -6799,6 +6849,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "network.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.NetworkContext.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "network.l3_protocol":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -6896,6 +6957,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "network_flow_monitor.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.NetworkFlowMonitor.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "network_flow_monitor.flows.destination.ip":
@@ -7798,6 +7870,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "packet.device.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.RawPacket.NetworkContext.Device.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "packet.filter":
@@ -10704,6 +10787,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -12338,6 +12448,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "process.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.BaseEvent.ProcessContext.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.parent.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -13742,6 +13863,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "process.parent.pid":
@@ -16965,6 +17100,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -18599,6 +18761,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.PTrace.Tracee.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.parent.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -20003,6 +20176,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "ptrace.tracee.parent.pid":
@@ -24650,6 +24837,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -26284,6 +26498,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Setrlimit.Target.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.parent.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -27688,6 +27913,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "setrlimit.target.parent.pid":
@@ -31432,6 +31671,33 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.ancestors.netns":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					result := int(element.ProcessContext.Process.PIDContext.NetNS)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					return int(current.ProcessContext.Process.PIDContext.NetNS)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.ancestors.pid":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -33066,6 +33332,17 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.Signal.Target.Process.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.parent.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -34470,6 +34747,20 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.PIDContext.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
 	case "signal.target.parent.pid":
@@ -36231,6 +36522,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"event.os",
 		"event.rule.tags",
 		"event.service",
+		"event.signature",
 		"event.source",
 		"event.timestamp",
 		"exec.args",
@@ -36331,6 +36623,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.is_exec",
 		"exec.is_kworker",
 		"exec.is_thread",
+		"exec.netns",
 		"exec.pid",
 		"exec.ppid",
 		"exec.syscall.path",
@@ -36442,6 +36735,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.is_exec",
 		"exit.is_kworker",
 		"exit.is_thread",
+		"exit.netns",
 		"exit.pid",
 		"exit.ppid",
 		"exit.tid",
@@ -36637,6 +36931,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.destination.is_public",
 		"network.destination.port",
 		"network.device.ifname",
+		"network.device.netns",
 		"network.l3_protocol",
 		"network.l4_protocol",
 		"network.network_direction",
@@ -36646,6 +36941,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.source.port",
 		"network.type",
 		"network_flow_monitor.device.ifname",
+		"network_flow_monitor.device.netns",
 		"network_flow_monitor.flows.destination.ip",
 		"network_flow_monitor.flows.destination.is_public",
 		"network_flow_monitor.flows.destination.port",
@@ -36709,6 +37005,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"packet.destination.is_public",
 		"packet.destination.port",
 		"packet.device.ifname",
+		"packet.device.netns",
 		"packet.filter",
 		"packet.l3_protocol",
 		"packet.l4_protocol",
@@ -36814,6 +37111,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.is_kworker",
 		"process.ancestors.is_thread",
 		"process.ancestors.length",
+		"process.ancestors.netns",
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.ancestors.tid",
@@ -36922,6 +37220,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.is_exec",
 		"process.is_kworker",
 		"process.is_thread",
+		"process.netns",
 		"process.parent.args",
 		"process.parent.args_flags",
 		"process.parent.args_options",
@@ -37012,6 +37311,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.is_exec",
 		"process.parent.is_kworker",
 		"process.parent.is_thread",
+		"process.parent.netns",
 		"process.parent.pid",
 		"process.parent.ppid",
 		"process.parent.tid",
@@ -37141,6 +37441,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.is_kworker",
 		"ptrace.tracee.ancestors.is_thread",
 		"ptrace.tracee.ancestors.length",
+		"ptrace.tracee.ancestors.netns",
 		"ptrace.tracee.ancestors.pid",
 		"ptrace.tracee.ancestors.ppid",
 		"ptrace.tracee.ancestors.tid",
@@ -37249,6 +37550,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.is_exec",
 		"ptrace.tracee.is_kworker",
 		"ptrace.tracee.is_thread",
+		"ptrace.tracee.netns",
 		"ptrace.tracee.parent.args",
 		"ptrace.tracee.parent.args_flags",
 		"ptrace.tracee.parent.args_options",
@@ -37339,6 +37641,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.is_exec",
 		"ptrace.tracee.parent.is_kworker",
 		"ptrace.tracee.parent.is_thread",
+		"ptrace.tracee.parent.netns",
 		"ptrace.tracee.parent.pid",
 		"ptrace.tracee.parent.ppid",
 		"ptrace.tracee.parent.tid",
@@ -37596,6 +37899,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.is_kworker",
 		"setrlimit.target.ancestors.is_thread",
 		"setrlimit.target.ancestors.length",
+		"setrlimit.target.ancestors.netns",
 		"setrlimit.target.ancestors.pid",
 		"setrlimit.target.ancestors.ppid",
 		"setrlimit.target.ancestors.tid",
@@ -37704,6 +38008,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.is_exec",
 		"setrlimit.target.is_kworker",
 		"setrlimit.target.is_thread",
+		"setrlimit.target.netns",
 		"setrlimit.target.parent.args",
 		"setrlimit.target.parent.args_flags",
 		"setrlimit.target.parent.args_options",
@@ -37794,6 +38099,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.is_exec",
 		"setrlimit.target.parent.is_kworker",
 		"setrlimit.target.parent.is_thread",
+		"setrlimit.target.parent.netns",
 		"setrlimit.target.parent.pid",
 		"setrlimit.target.parent.ppid",
 		"setrlimit.target.parent.tid",
@@ -37970,6 +38276,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.is_kworker",
 		"signal.target.ancestors.is_thread",
 		"signal.target.ancestors.length",
+		"signal.target.ancestors.netns",
 		"signal.target.ancestors.pid",
 		"signal.target.ancestors.ppid",
 		"signal.target.ancestors.tid",
@@ -38078,6 +38385,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.is_exec",
 		"signal.target.is_kworker",
 		"signal.target.is_thread",
+		"signal.target.netns",
 		"signal.target.parent.args",
 		"signal.target.parent.args_flags",
 		"signal.target.parent.args_options",
@@ -38168,6 +38476,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.is_exec",
 		"signal.target.parent.is_kworker",
 		"signal.target.parent.is_thread",
+		"signal.target.parent.netns",
 		"signal.target.parent.pid",
 		"signal.target.parent.ppid",
 		"signal.target.parent.tid",
@@ -38314,6 +38623,8 @@ func (ev *Event) GetFields() []eval.Field {
 	}
 	return fields
 }
+
+// GetFieldMetadata returns EventType, reflect.Kind, BasicType, IsArray, error
 func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kind, string, bool, error) {
 	originalField := field
 	// handle legacy field mapping
@@ -38661,6 +38972,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.String, "string", true, nil
 	case "event.service":
 		return "", reflect.String, "string", false, nil
+	case "event.signature":
+		return "", reflect.String, "string", false, nil
 	case "event.source":
 		return "", reflect.String, "string", false, nil
 	case "event.timestamp":
@@ -38861,6 +39174,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Bool, "bool", false, nil
 	case "exec.is_thread":
 		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.netns":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.pid":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.ppid":
@@ -39083,6 +39398,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Bool, "bool", false, nil
 	case "exit.is_thread":
 		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.netns":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.pid":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.ppid":
@@ -39473,6 +39790,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "network.device.ifname":
 		return "", reflect.String, "string", false, nil
+	case "network.device.netns":
+		return "", reflect.Int, "int", false, nil
 	case "network.l3_protocol":
 		return "", reflect.Int, "int", false, nil
 	case "network.l4_protocol":
@@ -39491,6 +39810,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "network_flow_monitor.device.ifname":
 		return "network_flow_monitor", reflect.String, "string", false, nil
+	case "network_flow_monitor.device.netns":
+		return "network_flow_monitor", reflect.Int, "int", false, nil
 	case "network_flow_monitor.flows.destination.ip":
 		return "network_flow_monitor", reflect.Struct, "net.IPNet", false, nil
 	case "network_flow_monitor.flows.destination.is_public":
@@ -39617,6 +39938,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "packet", reflect.Int, "int", false, nil
 	case "packet.device.ifname":
 		return "packet", reflect.String, "string", false, nil
+	case "packet.device.netns":
+		return "packet", reflect.Int, "int", false, nil
 	case "packet.filter":
 		return "packet", reflect.String, "string", false, nil
 	case "packet.l3_protocol":
@@ -39826,6 +40149,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 	case "process.ancestors.is_thread":
 		return "", reflect.Bool, "bool", false, nil
 	case "process.ancestors.length":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.netns":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.pid":
 		return "", reflect.Int, "int", false, nil
@@ -40043,6 +40368,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.is_thread":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.netns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.args":
 		return "", reflect.String, "string", false, nil
 	case "process.parent.args_flags":
@@ -40223,6 +40550,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Bool, "bool", false, nil
 	case "process.parent.is_thread":
 		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.netns":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.pid":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.ppid":
@@ -40481,6 +40810,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.ancestors.length":
 		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.pid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.ppid":
@@ -40697,6 +41028,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.args":
 		return "ptrace", reflect.String, "string", false, nil
 	case "ptrace.tracee.parent.args_flags":
@@ -40877,6 +41210,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Bool, "bool", false, nil
 	case "ptrace.tracee.parent.is_thread":
 		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.netns":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.pid":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.ppid":
@@ -41391,6 +41726,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.ancestors.length":
 		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.pid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.ppid":
@@ -41607,6 +41944,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.args":
 		return "setrlimit", reflect.String, "string", false, nil
 	case "setrlimit.target.parent.args_flags":
@@ -41787,6 +42126,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Bool, "bool", false, nil
 	case "setrlimit.target.parent.is_thread":
 		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.netns":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.pid":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.ppid":
@@ -42139,6 +42480,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.ancestors.length":
 		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.pid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.ppid":
@@ -42355,6 +42698,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.args":
 		return "signal", reflect.String, "string", false, nil
 	case "signal.target.parent.args_flags":
@@ -42535,6 +42880,8 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Bool, "bool", false, nil
 	case "signal.target.parent.is_thread":
 		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.netns":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.pid":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.ppid":
@@ -43192,6 +43539,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setStringArrayFieldValue("event.rule.tags", &ev.BaseEvent.RuleTags, value)
 	case "event.service":
 		return ev.setStringFieldValue("event.service", &ev.BaseEvent.Service, value)
+	case "event.signature":
+		return ev.setStringFieldValue("event.signature", &ev.Signature, value)
 	case "event.source":
 		return ev.setStringFieldValue("event.source", &ev.BaseEvent.Source, value)
 	case "event.timestamp":
@@ -43502,6 +43851,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("exec.is_kworker", &ev.Exec.Process.PIDContext.IsKworker, value)
 	case "exec.is_thread":
 		return ev.setBoolFieldValue("exec.is_thread", &ev.Exec.Process.IsThread, value)
+	case "exec.netns":
+		return ev.setUint32FieldValue("exec.netns", &ev.Exec.Process.PIDContext.NetNS, value)
 	case "exec.pid":
 		return ev.setUint32FieldValue("exec.pid", &ev.Exec.Process.PIDContext.Pid, value)
 	case "exec.ppid":
@@ -43546,76 +43897,34 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.user_session.ssh_session_id":
 		return ev.setUint64FieldValue("exec.user_session.ssh_session_id", &ev.Exec.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "exit.args":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.args", &ev.Exit.Process.Args, value)
 	case "exit.args_flags":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.args_flags", &ev.Exit.Process.Argv, value)
 	case "exit.args_options":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.args_options", &ev.Exit.Process.Argv, value)
 	case "exit.args_truncated":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.args_truncated", &ev.Exit.Process.ArgsTruncated, value)
 	case "exit.argv":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.argv", &ev.Exit.Process.Argv, value)
 	case "exit.argv0":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.argv0", &ev.Exit.Process.Argv0, value)
 	case "exit.auid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.auid", &ev.Exit.Process.Credentials.AUID, value)
 	case "exit.cap_effective":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cap_effective", &ev.Exit.Process.Credentials.CapEffective, value)
 	case "exit.cap_permitted":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cap_permitted", &ev.Exit.Process.Credentials.CapPermitted, value)
 	case "exit.caps_attempted":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.caps_attempted", &ev.Exit.Process.CapsAttempted, value)
 	case "exit.caps_used":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.caps_used", &ev.Exit.Process.CapsUsed, value)
 	case "exit.cause":
 		return ev.setUint32FieldValue("exit.cause", &ev.Exit.Cause, value)
 	case "exit.cgroup.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.cgroup.file.inode", &ev.Exit.Process.CGroup.CGroupFile.Inode, value)
 	case "exit.cgroup.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.cgroup.file.mount_id", &ev.Exit.Process.CGroup.CGroupFile.MountID, value)
 	case "exit.cgroup.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.cgroup.id"}
@@ -43623,26 +43932,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Exit.Process.CGroup.CGroupID = containerutils.CGroupID(rv)
 		return nil
 	case "exit.cgroup.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.cgroup.version", &ev.Exit.Process.CGroup.CGroupVersion, value)
 	case "exit.code":
 		return ev.setUint32FieldValue("exit.code", &ev.Exit.Code, value)
 	case "exit.comm":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.comm", &ev.Exit.Process.Comm, value)
 	case "exit.container.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.container.created_at", &ev.Exit.Process.ContainerContext.CreatedAt, value)
 	case "exit.container.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(string)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.container.id"}
@@ -43650,539 +43947,280 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Exit.Process.ContainerContext.ContainerID = containerutils.ContainerID(rv)
 		return nil
 	case "exit.container.tags":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.container.tags", &ev.Exit.Process.ContainerContext.Tags, value)
 	case "exit.created_at":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.created_at", &ev.Exit.Process.CreatedAt, value)
 	case "exit.egid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.egid", &ev.Exit.Process.Credentials.EGID, value)
 	case "exit.egroup":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.egroup", &ev.Exit.Process.Credentials.EGroup, value)
 	case "exit.envp":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envp", &ev.Exit.Process.Envp, value)
 	case "exit.envs":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.envs", &ev.Exit.Process.Envs, value)
 	case "exit.envs_truncated":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.envs_truncated", &ev.Exit.Process.EnvsTruncated, value)
 	case "exit.euid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.euid", &ev.Exit.Process.Credentials.EUID, value)
 	case "exit.euser":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.euser", &ev.Exit.Process.Credentials.EUser, value)
 	case "exit.file.change_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.change_time", &ev.Exit.Process.FileEvent.FileFields.CTime, value)
 	case "exit.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.extension", &ev.Exit.Process.FileEvent.Extension, value)
 	case "exit.file.filesystem":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.filesystem", &ev.Exit.Process.FileEvent.Filesystem, value)
 	case "exit.file.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.gid", &ev.Exit.Process.FileEvent.FileFields.GID, value)
 	case "exit.file.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.group", &ev.Exit.Process.FileEvent.FileFields.Group, value)
 	case "exit.file.hashes":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.file.hashes", &ev.Exit.Process.FileEvent.Hashes, value)
 	case "exit.file.in_upper_layer":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.in_upper_layer", &ev.Exit.Process.FileEvent.FileFields.InUpperLayer, value)
 	case "exit.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.inode", &ev.Exit.Process.FileEvent.FileFields.PathKey.Inode, value)
 	case "exit.file.mode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint16FieldValue("exit.file.mode", &ev.Exit.Process.FileEvent.FileFields.Mode, value)
 	case "exit.file.modification_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.file.modification_time", &ev.Exit.Process.FileEvent.FileFields.MTime, value)
 	case "exit.file.mount_detached":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.mount_detached", &ev.Exit.Process.FileEvent.MountDetached, value)
 	case "exit.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.mount_id", &ev.Exit.Process.FileEvent.FileFields.PathKey.MountID, value)
 	case "exit.file.mount_visible":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.file.mount_visible", &ev.Exit.Process.FileEvent.MountVisible, value)
 	case "exit.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.name", &ev.Exit.Process.FileEvent.BasenameStr, value)
 	case "exit.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.name.length"}
 	case "exit.file.package.epoch":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.file.package.epoch", &ev.Exit.Process.FileEvent.PkgEpoch, value)
 	case "exit.file.package.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.name", &ev.Exit.Process.FileEvent.PkgName, value)
 	case "exit.file.package.release":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.release", &ev.Exit.Process.FileEvent.PkgRelease, value)
 	case "exit.file.package.source_epoch":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.file.package.source_epoch", &ev.Exit.Process.FileEvent.PkgSrcEpoch, value)
 	case "exit.file.package.source_release":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.source_release", &ev.Exit.Process.FileEvent.PkgSrcRelease, value)
 	case "exit.file.package.source_version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.source_version", &ev.Exit.Process.FileEvent.PkgSrcVersion, value)
 	case "exit.file.package.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.package.version", &ev.Exit.Process.FileEvent.PkgVersion, value)
 	case "exit.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.path", &ev.Exit.Process.FileEvent.PathnameStr, value)
 	case "exit.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.file.path.length"}
 	case "exit.file.rights":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint16FieldValue("exit.file.rights", &ev.Exit.Process.FileEvent.FileFields.Mode, value)
 	case "exit.file.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.file.uid", &ev.Exit.Process.FileEvent.FileFields.UID, value)
 	case "exit.file.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.file.user", &ev.Exit.Process.FileEvent.FileFields.User, value)
 	case "exit.fsgid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.fsgid", &ev.Exit.Process.Credentials.FSGID, value)
 	case "exit.fsgroup":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.fsgroup", &ev.Exit.Process.Credentials.FSGroup, value)
 	case "exit.fsuid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.fsuid", &ev.Exit.Process.Credentials.FSUID, value)
 	case "exit.fsuser":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.fsuser", &ev.Exit.Process.Credentials.FSUser, value)
 	case "exit.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.gid", &ev.Exit.Process.Credentials.GID, value)
 	case "exit.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.group", &ev.Exit.Process.Credentials.Group, value)
 	case "exit.interpreter.file.change_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.change_time", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.change_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.CTime, value)
 	case "exit.interpreter.file.extension":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.extension", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.extension", &ev.Exit.Process.LinuxBinprm.FileEvent.Extension, value)
 	case "exit.interpreter.file.filesystem":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.filesystem", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.filesystem", &ev.Exit.Process.LinuxBinprm.FileEvent.Filesystem, value)
 	case "exit.interpreter.file.gid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.gid", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.gid", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.GID, value)
 	case "exit.interpreter.file.group":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.group", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.group", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Group, value)
 	case "exit.interpreter.file.hashes":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.hashes", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringArrayFieldValue("exit.interpreter.file.hashes", &ev.Exit.Process.LinuxBinprm.FileEvent.Hashes, value)
 	case "exit.interpreter.file.in_upper_layer":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.in_upper_layer", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.in_upper_layer", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.InUpperLayer, value)
 	case "exit.interpreter.file.inode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.inode", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.inode", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.Inode, value)
 	case "exit.interpreter.file.mode":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mode", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint16FieldValue("exit.interpreter.file.mode", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
 	case "exit.interpreter.file.modification_time":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.modification_time", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint64FieldValue("exit.interpreter.file.modification_time", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.MTime, value)
 	case "exit.interpreter.file.mount_detached":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_detached", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.mount_detached", &ev.Exit.Process.LinuxBinprm.FileEvent.MountDetached, value)
 	case "exit.interpreter.file.mount_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_id", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.mount_id", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.PathKey.MountID, value)
 	case "exit.interpreter.file.mount_visible":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.mount_visible", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setBoolFieldValue("exit.interpreter.file.mount_visible", &ev.Exit.Process.LinuxBinprm.FileEvent.MountVisible, value)
 	case "exit.interpreter.file.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.name", &ev.Exit.Process.LinuxBinprm.FileEvent.BasenameStr, value)
 	case "exit.interpreter.file.name.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.name.length"}
 	case "exit.interpreter.file.package.epoch":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.epoch", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setIntFieldValue("exit.interpreter.file.package.epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgEpoch, value)
 	case "exit.interpreter.file.package.name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.name", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.name", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgName, value)
 	case "exit.interpreter.file.package.release":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.release", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgRelease, value)
 	case "exit.interpreter.file.package.source_epoch":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_epoch", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setIntFieldValue("exit.interpreter.file.package.source_epoch", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcEpoch, value)
 	case "exit.interpreter.file.package.source_release":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_release", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.source_release", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcRelease, value)
 	case "exit.interpreter.file.package.source_version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.source_version", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.source_version", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgSrcVersion, value)
 	case "exit.interpreter.file.package.version":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.package.version", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.package.version", &ev.Exit.Process.LinuxBinprm.FileEvent.PkgVersion, value)
 	case "exit.interpreter.file.path":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.path", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.path", &ev.Exit.Process.LinuxBinprm.FileEvent.PathnameStr, value)
 	case "exit.interpreter.file.path.length":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return &eval.ErrFieldReadOnly{Field: "exit.interpreter.file.path.length"}
 	case "exit.interpreter.file.rights":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.rights", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint16FieldValue("exit.interpreter.file.rights", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.Mode, value)
 	case "exit.interpreter.file.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.uid", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setUint32FieldValue("exit.interpreter.file.uid", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.UID, value)
 	case "exit.interpreter.file.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		cont, err := SetInterpreterFields(&ev.Exit.Process.LinuxBinprm, "file.user", value)
 		if err != nil || !cont {
 			return err
 		}
 		return ev.setStringFieldValue("exit.interpreter.file.user", &ev.Exit.Process.LinuxBinprm.FileEvent.FileFields.User, value)
 	case "exit.is_exec":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_exec", &ev.Exit.Process.IsExec, value)
 	case "exit.is_kworker":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_kworker", &ev.Exit.Process.PIDContext.IsKworker, value)
 	case "exit.is_thread":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setBoolFieldValue("exit.is_thread", &ev.Exit.Process.IsThread, value)
+	case "exit.netns":
+		return ev.setUint32FieldValue("exit.netns", &ev.Exit.Process.PIDContext.NetNS, value)
 	case "exit.pid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.pid", &ev.Exit.Process.PIDContext.Pid, value)
 	case "exit.ppid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.ppid", &ev.Exit.Process.PPid, value)
 	case "exit.tid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.tid", &ev.Exit.Process.PIDContext.Tid, value)
 	case "exit.tty_name":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.tty_name", &ev.Exit.Process.TTYName, value)
 	case "exit.uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint32FieldValue("exit.uid", &ev.Exit.Process.Credentials.UID, value)
 	case "exit.user":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user", &ev.Exit.Process.Credentials.User, value)
 	case "exit.user_session.id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_session.id", &ev.Exit.Process.UserSession.ID, value)
 	case "exit.user_session.identity":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_session.identity", &ev.Exit.Process.UserSession.Identity, value)
 	case "exit.user_session.k8s_groups":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringArrayFieldValue("exit.user_session.k8s_groups", &ev.Exit.Process.UserSession.K8SSessionContext.K8SGroups, value)
 	case "exit.user_session.k8s_session_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.user_session.k8s_session_id", &ev.Exit.Process.UserSession.K8SSessionContext.K8SSessionID, value)
 	case "exit.user_session.k8s_uid":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_session.k8s_uid", &ev.Exit.Process.UserSession.K8SSessionContext.K8SUID, value)
 	case "exit.user_session.k8s_username":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_session.k8s_username", &ev.Exit.Process.UserSession.K8SSessionContext.K8SUsername, value)
 	case "exit.user_session.session_type":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.user_session.session_type", &ev.Exit.Process.UserSession.SessionType, value)
 	case "exit.user_session.ssh_auth_method":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.user_session.ssh_auth_method", &ev.Exit.Process.UserSession.SSHSessionContext.SSHAuthMethod, value)
 	case "exit.user_session.ssh_client_ip":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		rv, ok := value.(net.IPNet)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "exit.user_session.ssh_client_ip"}
@@ -44190,19 +44228,10 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		ev.Exit.Process.UserSession.SSHSessionContext.SSHClientIP = rv
 		return nil
 	case "exit.user_session.ssh_client_port":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setIntFieldValue("exit.user_session.ssh_client_port", &ev.Exit.Process.UserSession.SSHSessionContext.SSHClientPort, value)
 	case "exit.user_session.ssh_public_key":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setStringFieldValue("exit.user_session.ssh_public_key", &ev.Exit.Process.UserSession.SSHSessionContext.SSHPublicKey, value)
 	case "exit.user_session.ssh_session_id":
-		if ev.Exit.Process == nil {
-			ev.Exit.Process = &Process{}
-		}
 		return ev.setUint64FieldValue("exit.user_session.ssh_session_id", &ev.Exit.Process.UserSession.SSHSessionContext.SSHSessionID, value)
 	case "imds.aws.is_imds_v2":
 		return ev.setBoolFieldValue("imds.aws.is_imds_v2", &ev.IMDS.AWS.IsIMDSv2, value)
@@ -44563,6 +44592,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("network.destination.port", &ev.NetworkContext.Destination.Port, value)
 	case "network.device.ifname":
 		return ev.setStringFieldValue("network.device.ifname", &ev.NetworkContext.Device.IfName, value)
+	case "network.device.netns":
+		return ev.setUint32FieldValue("network.device.netns", &ev.NetworkContext.Device.NetNS, value)
 	case "network.l3_protocol":
 		return ev.setUint16FieldValue("network.l3_protocol", &ev.NetworkContext.L3Protocol, value)
 	case "network.l4_protocol":
@@ -44586,6 +44617,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("network.type", &ev.NetworkContext.Type, value)
 	case "network_flow_monitor.device.ifname":
 		return ev.setStringFieldValue("network_flow_monitor.device.ifname", &ev.NetworkFlowMonitor.Device.IfName, value)
+	case "network_flow_monitor.device.netns":
+		return ev.setUint32FieldValue("network_flow_monitor.device.netns", &ev.NetworkFlowMonitor.Device.NetNS, value)
 	case "network_flow_monitor.flows.destination.ip":
 		if len(ev.NetworkFlowMonitor.Flows) == 0 {
 			ev.NetworkFlowMonitor.Flows = append(ev.NetworkFlowMonitor.Flows, Flow{})
@@ -44766,6 +44799,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint16FieldValue("packet.destination.port", &ev.RawPacket.NetworkContext.Destination.Port, value)
 	case "packet.device.ifname":
 		return ev.setStringFieldValue("packet.device.ifname", &ev.RawPacket.NetworkContext.Device.IfName, value)
+	case "packet.device.netns":
+		return ev.setUint32FieldValue("packet.device.netns", &ev.RawPacket.NetworkContext.Device.NetNS, value)
 	case "packet.filter":
 		return ev.setStringFieldValue("packet.filter", &ev.RawPacket.Filter, value)
 	case "packet.l3_protocol":
@@ -45091,6 +45126,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.ancestors.is_thread", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.IsThread, value)
 	case "process.ancestors.length":
 		return &eval.ErrFieldReadOnly{Field: "process.ancestors.length"}
+	case "process.ancestors.netns":
+		return ev.setUint32FieldValue("process.ancestors.netns", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.ancestors.pid":
 		return ev.setUint32FieldValue("process.ancestors.pid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.PIDContext.Pid, value)
 	case "process.ancestors.ppid":
@@ -45422,6 +45459,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.is_kworker", &ev.BaseEvent.ProcessContext.Process.PIDContext.IsKworker, value)
 	case "process.is_thread":
 		return ev.setBoolFieldValue("process.is_thread", &ev.BaseEvent.ProcessContext.Process.IsThread, value)
+	case "process.netns":
+		return ev.setUint32FieldValue("process.netns", &ev.BaseEvent.ProcessContext.Process.PIDContext.NetNS, value)
 	case "process.parent.args":
 		return ev.setStringFieldValue("process.parent.args", &ev.BaseEvent.ProcessContext.Parent.Args, value)
 	case "process.parent.args_flags":
@@ -45712,6 +45751,8 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setBoolFieldValue("process.parent.is_kworker", &ev.BaseEvent.ProcessContext.Parent.PIDContext.IsKworker, value)
 	case "process.parent.is_thread":
 		return ev.setBoolFieldValue("process.parent.is_thread", &ev.BaseEvent.ProcessContext.Parent.IsThread, value)
+	case "process.parent.netns":
+		return ev.setUint32FieldValue("process.parent.netns", &ev.BaseEvent.ProcessContext.Parent.PIDContext.NetNS, value)
 	case "process.parent.pid":
 		return ev.setUint32FieldValue("process.parent.pid", &ev.BaseEvent.ProcessContext.Parent.PIDContext.Pid, value)
 	case "process.parent.ppid":
@@ -46636,6 +46677,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "ptrace.tracee.ancestors.length"}
+	case "ptrace.tracee.ancestors.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.ancestors.netns", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "ptrace.tracee.ancestors.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -47345,6 +47394,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.is_thread", &ev.PTrace.Tracee.Process.IsThread, value)
+	case "ptrace.tracee.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.netns", &ev.PTrace.Tracee.Process.PIDContext.NetNS, value)
 	case "ptrace.tracee.parent.args":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -48175,6 +48229,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.PTrace.Tracee.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("ptrace.tracee.parent.is_thread", &ev.PTrace.Tracee.Parent.IsThread, value)
+	case "ptrace.tracee.parent.netns":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("ptrace.tracee.parent.netns", &ev.PTrace.Tracee.Parent.PIDContext.NetNS, value)
 	case "ptrace.tracee.parent.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -49517,6 +49579,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "setrlimit.target.ancestors.length"}
+	case "setrlimit.target.ancestors.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.ancestors.netns", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "setrlimit.target.ancestors.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -50226,6 +50296,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.is_thread", &ev.Setrlimit.Target.Process.IsThread, value)
+	case "setrlimit.target.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.netns", &ev.Setrlimit.Target.Process.PIDContext.NetNS, value)
 	case "setrlimit.target.parent.args":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51056,6 +51131,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("setrlimit.target.parent.is_thread", &ev.Setrlimit.Target.Parent.IsThread, value)
+	case "setrlimit.target.parent.netns":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("setrlimit.target.parent.netns", &ev.Setrlimit.Target.Parent.PIDContext.NetNS, value)
 	case "setrlimit.target.parent.pid":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -52246,6 +52329,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return &eval.ErrFieldReadOnly{Field: "signal.target.ancestors.length"}
+	case "signal.target.ancestors.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint32FieldValue("signal.target.ancestors.netns", &ev.Signal.Target.Ancestor.ProcessContext.Process.PIDContext.NetNS, value)
 	case "signal.target.ancestors.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -52955,6 +53046,11 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setBoolFieldValue("signal.target.is_thread", &ev.Signal.Target.Process.IsThread, value)
+	case "signal.target.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint32FieldValue("signal.target.netns", &ev.Signal.Target.Process.PIDContext.NetNS, value)
 	case "signal.target.parent.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -53785,6 +53881,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setBoolFieldValue("signal.target.parent.is_thread", &ev.Signal.Target.Parent.IsThread, value)
+	case "signal.target.parent.netns":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint32FieldValue("signal.target.parent.netns", &ev.Signal.Target.Parent.PIDContext.NetNS, value)
 	case "signal.target.parent.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}

@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
 
@@ -71,7 +72,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -125,7 +125,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ host.Component,
 			_ inventoryagent.Component,
 			_ inventoryhost.Component,
-			_ inventoryotel.Component,
 			_ haagentmetadata.Component,
 			_ secrets.Component,
 			invChecks inventorychecks.Component,
@@ -146,6 +145,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostname hostnameinterface.Component,
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
+			traceroute traceroute.Component,
 		) error {
 			defer StopAgentWithDefaults()
 
@@ -170,6 +170,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				hostname,
 				ipc,
 				snmpScanManager,
+				traceroute,
 			)
 			if err != nil {
 				return err

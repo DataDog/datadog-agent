@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+// Code generated - DO NOT EDIT.
 
 package model
 
@@ -91,6 +92,7 @@ var bpfMapNames = []string{
 	"selinux_enforce",
 	"selinux_write_b",
 	"setsockopt_even",
+	"setsockopt_leve",
 	"sk_storage_meta",
 	"sock_cookie_pid",
 	"sock_meta",

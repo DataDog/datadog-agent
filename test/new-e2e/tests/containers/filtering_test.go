@@ -10,17 +10,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/redis"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awskind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/kubernetes"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 )
 
 //go:embed fixtures/datadog-agent-legacy-exclude.yml
@@ -103,21 +105,22 @@ type k8sLegacyFilteringSuite struct {
 // TestK8SLegacyFilteringSuite runs the Kubernetes legacy filtering test suite
 func TestK8SLegacyFilteringSuite(t *testing.T) {
 	e2e.Run(t, &k8sLegacyFilteringSuite{}, e2e.WithProvisioner(
-		awskubernetes.KindProvisioner(
-			awskubernetes.WithAgentOptions(
-				kubernetesagentparams.WithHelmValues(legacyContainerExcludeConfig),
-			),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
-			}),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
-			}),
-			// Deploy additional nginx workload except in an excluded namespace
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, "", false, nil)
-			}),
-		),
+		awskind.Provisioner(
+			awskind.WithRunOptions(
+				scenkindvm.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(legacyContainerExcludeConfig),
+				),
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", 80, "", false, nil)
+				}),
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
+				}),
+				// Deploy additional nginx workload except in an excluded namespace
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, 80, "", false, nil)
+				}),
+			)),
 	))
 }
 
@@ -129,20 +132,21 @@ type k8sCELFilteringSuite struct {
 // TestK8SCELFilteringSuite runs the Kubernetes CEL filtering test suite
 func TestK8SCELFilteringSuite(t *testing.T) {
 	e2e.Run(t, &k8sCELFilteringSuite{}, e2e.WithProvisioner(
-		awskubernetes.KindProvisioner(
-			awskubernetes.WithAgentOptions(
-				kubernetesagentparams.WithHelmValues(celContainerExcludeConfig),
-			),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", "", false, nil)
-			}),
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
-			}),
-			// Deploy additional nginx workload except in an excluded namespace
-			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, "", false, nil)
-			}),
-		),
+		awskind.Provisioner(
+			awskind.WithRunOptions(
+				scenkindvm.WithAgentOptions(
+					kubernetesagentparams.WithHelmValues(celContainerExcludeConfig),
+				),
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return nginx.K8sAppDefinition(e, kubeProvider, "workload-nginx", 80, "", false, nil)
+				}),
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return redis.K8sAppDefinition(e, kubeProvider, "default", false, nil)
+				}),
+				// Deploy additional nginx workload except in an excluded namespace
+				scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+					return nginx.K8sAppDefinition(e, kubeProvider, filteredNamespace, 80, "", false, nil)
+				}),
+			)),
 	))
 }

@@ -21,12 +21,12 @@ import (
 
 	testos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
@@ -58,12 +58,14 @@ func TestAgentWindowsSuite(t *testing.T) {
 	e2e.Run[environments.Host](t, &agentSuiteWindows{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
-				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithSecurityAgentConfig(securityAgentConfig),
-					agentparams.WithSystemProbeConfig(systemProbeConfig),
+				awshost.WithRunOptions(
+					ec2.WithAgentOptions(
+						agentparams.WithAgentConfig(agentConfig),
+						agentparams.WithSecurityAgentConfig(securityAgentConfig),
+						agentparams.WithSystemProbeConfig(systemProbeConfig),
+					),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 				),
-				awshost.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
 			),
 		),
 	)

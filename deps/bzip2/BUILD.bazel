@@ -1,4 +1,8 @@
-"""Agent specific BUILD file for bzip2."""
+"""Agent specific BUILD file for the bzip2.
+
+This contains the tests for the library, which are not in the core
+library build file (overlay.BUILD.bazel).
+"""
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 

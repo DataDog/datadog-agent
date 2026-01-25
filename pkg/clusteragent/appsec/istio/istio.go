@@ -51,7 +51,7 @@ type istioInjectionPattern struct {
 
 func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	gvrToName := func(gvr schema.GroupVersionResource) string {
-		return fmt.Sprintf("%s.%s", gvr.Resource, gvr.Group)
+		return gvr.Resource + "." + gvr.Group
 	}
 
 	// Check if the EnvoyFilter CRD is present
@@ -191,7 +191,7 @@ func (i *istioInjectionPattern) createEnvoyFilter(ctx context.Context, namespace
 
 func (i *istioInjectionPattern) newFilter(namespace string) istiov1alpha3.EnvoyFilter {
 	const clusterName = "datadog_appsec_ext_proc_cluster"
-	processorAddress := fmt.Sprintf("%s.%s.svc", i.config.Processor.ServiceName, i.config.Processor.Namespace)
+	processorAddress := i.config.Processor.ServiceName + "." + i.config.Processor.Namespace + ".svc"
 
 	httpFilterPatch, err := i.buildHTTPFilterPatch(clusterName)
 	if err != nil {

@@ -47,6 +47,12 @@ const (
 	UDP ConnectionType = 1
 )
 
+// ConnectionTypeFromString is a map from a lowercase string to ConnectionType
+var ConnectionTypeFromString = map[string]ConnectionType{
+	"tcp": TCP,
+	"udp": UDP,
+}
+
 var (
 	tcpLabels = map[string]string{"ip_proto": TCP.String()}
 	udpLabels = map[string]string{"ip_proto": UDP.String()}

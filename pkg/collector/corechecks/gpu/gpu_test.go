@@ -43,7 +43,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 	// Create check instance using mocks
 	checkGeneric := newCheck(
 		fakeTagger,
@@ -54,8 +54,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -187,7 +186,7 @@ func TestRunDoesNotError(t *testing.T) {
 			}),
 		),
 	)
-	wmetaMock := testutil.GetWorkloadMetaMock(t)
+	wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
 
 	// Create check instance using mocks
 	checkGeneric := newCheck(
@@ -216,10 +215,7 @@ func TestRunDoesNotError(t *testing.T) {
 	})
 
 	// Enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() {
-		pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false)
-	})
+	WithGPUConfigEnabled(t)
 
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	err := checkGeneric.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test")
@@ -241,6 +237,7 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
 			return nil, nvml.SUCCESS // disable process info, we don't want to mock that part here
 		}),
+		testutil.WithMIGDisabled(),
 	)
 	ddnvml.WithMockNVML(t, nvmlMock)
 	curDeviceCount := atomic.Int32{}
@@ -266,13 +263,12 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 	}
 
 	// create check instance using mocks
-	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
 	check, ok := iCheck.(*Check)
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	// configure check
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
@@ -295,6 +291,133 @@ func TestCollectorsOnDeviceChanges(t *testing.T) {
 
 	// simulate device falling off bus
 	curDeviceCount.Add(-1)
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+}
+
+func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
+	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
+	const numSupportedCollectorTypes = 5
+
+	// Use device index 5 which has MIG support in testutil
+	deviceIdx := 5
+	parentUUID := testutil.GPUUUIDs[deviceIdx]
+
+	// Track the number of MIG children dynamically
+	curMIGChildCount := atomic.Int32{}
+	curMIGChildCount.Store(0) // Start with MIG disabled
+
+	// Create the parent device mock
+	parentDevice := testutil.GetDeviceMock(deviceIdx, testutil.WithMockAllDeviceFunctions(), func(d *nvmlmock.Device) {
+		// Override MIG-related functions to be dynamic
+		d.GetMigModeFunc = func() (int, int, nvml.Return) {
+			if curMIGChildCount.Load() > 0 {
+				return nvml.DEVICE_MIG_ENABLE, 0, nvml.SUCCESS
+			}
+			return nvml.DEVICE_MIG_DISABLE, 0, nvml.SUCCESS
+		}
+		d.GetMaxMigDeviceCountFunc = func() (int, nvml.Return) {
+			return int(curMIGChildCount.Load()), nvml.SUCCESS
+		}
+		d.GetMigDeviceHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+			if index >= int(curMIGChildCount.Load()) {
+				return nil, nvml.ERROR_NOT_FOUND
+			}
+			return testutil.GetMIGDeviceMock(deviceIdx, index, testutil.WithMockAllDeviceFunctions()), nvml.SUCCESS
+		}
+	})
+
+	// Setup NVML mock with single parent device
+	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
+		testutil.WithMockAllFunctions(),
+		testutil.WithProcessInfoCallback(func(_ string) ([]nvml.ProcessInfo, nvml.Return) {
+			return nil, nvml.SUCCESS
+		}),
+	)
+	nvmlMock.DeviceGetCountFunc = func() (int, nvml.Return) { return 1, nvml.SUCCESS }
+	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
+		if index == 0 {
+			return parentDevice, nvml.SUCCESS
+		}
+		return nil, nvml.ERROR_INVALID_ARGUMENT
+	}
+	ddnvml.WithMockNVML(t, nvmlMock)
+
+	// Assert function to check collectors match current device state
+	assertCollectors := func(collectors []nvidia.Collector) {
+		migCount := int(curMIGChildCount.Load())
+		var expectedDeviceCount int
+		if migCount > 0 {
+			// When MIG is enabled, we have the parent + MIG children
+			expectedDeviceCount = 1 + migCount
+		} else {
+			// When MIG is disabled, we only have the parent device
+			expectedDeviceCount = 1
+		}
+
+		assert.Len(t, collectors, expectedDeviceCount*numSupportedCollectorTypes,
+			"Expected %d collectors (%d devices * %d collector types), got %d",
+			expectedDeviceCount*numSupportedCollectorTypes, expectedDeviceCount, numSupportedCollectorTypes, len(collectors))
+
+		// Count collectors by UUID
+		actualUUIDs := map[string]int{}
+		for _, c := range collectors {
+			actualUUIDs[c.DeviceUUID()]++
+		}
+
+		// Build expected UUIDs
+		expectedUUIDs := map[string]int{
+			parentUUID: numSupportedCollectorTypes,
+		}
+		for i := 0; i < migCount; i++ {
+			migUUID := testutil.MIGChildrenUUIDs[deviceIdx][i]
+			expectedUUIDs[migUUID] = numSupportedCollectorTypes
+		}
+
+		assert.Equal(t, expectedUUIDs, actualUUIDs)
+	}
+
+	// Create check instance
+	iCheck := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMockWithDefaultGPUs(t))
+	check, ok := iCheck.(*Check)
+	require.True(t, ok)
+
+	// Enable GPU check and configure
+	WithGPUConfigEnabled(t)
+	mockCtrl := gomock.NewController(t)
+	mockContainerProvider := mock_containers.NewMockContainerProvider(mockCtrl)
+	// Expect GetPidToCid to be called and return an empty map (no processes)
+	mockContainerProvider.EXPECT().GetPidToCid(gomock.Any()).Return(map[int]string{}).AnyTimes()
+	check.containerProvider = mockContainerProvider
+	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
+	require.Empty(t, check.collectors)
+	t.Cleanup(func() { check.Cancel() })
+
+	// First run: MIG disabled, should have collectors for parent device only
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+
+	// Second run: no change, collectors should remain the same
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+
+	// Enable MIG with 1 child
+	curMIGChildCount.Store(1)
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+
+	// Increase MIG children count to 2 (max for device index 5)
+	curMIGChildCount.Store(2)
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+
+	// Decrease MIG children count back to 1
+	curMIGChildCount.Store(1)
+	require.NoError(t, check.Run())
+	assertCollectors(check.collectors)
+
+	// Disable MIG completely
+	curMIGChildCount.Store(0)
 	require.NoError(t, check.Run())
 	assertCollectors(check.collectors)
 }
@@ -343,8 +466,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	require.True(t, ok)
 
 	// enable GPU check in configuration right before Configure
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
 	require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(), integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	// we need to cancel the check to make sure all resources and async workers are released
@@ -418,8 +540,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 	mockSender := mocksender.NewMockSenderWithSenderManager(check.ID(), senderManager)
 	check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
-	pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", true)
-	t.Cleanup(func() { pkgconfigsetup.Datadog().SetWithoutSource("gpu.enabled", false) })
+	WithGPUConfigEnabled(t)
 
 	require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test"))
 	t.Cleanup(func() { check.Cancel() })
@@ -541,4 +662,75 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 	require.NoError(t, check.Run())
 
 	mockSender.AssertExpectations(t)
+}
+
+func TestDisabledCollectorsConfiguration(t *testing.T) {
+	tests := []struct {
+		name               string
+		disabledCollectors []string
+		expected           []string
+	}{
+		{
+			name:               "disable gpm collector",
+			disabledCollectors: []string{"gpm"},
+			expected:           []string{"gpm"},
+		},
+		{
+			name:               "disable multiple collectors",
+			disabledCollectors: []string{"gpm", "fields", "sampling"},
+			expected:           []string{"gpm", "fields", "sampling"},
+		},
+		{
+			name:               "disable all collectors",
+			disabledCollectors: []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+			expected:           []string{"stateless", "sampling", "fields", "gpm", "device_events"},
+		},
+		{
+			name:               "no collectors disabled",
+			disabledCollectors: []string{},
+			expected:           []string{},
+		},
+		{
+			name:               "nil disabled_collectors list",
+			disabledCollectors: nil,
+			expected:           []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			wmetaMock := testutil.GetWorkloadMetaMockWithDefaultGPUs(t)
+
+			checkGeneric := newCheck(
+				fakeTagger,
+				testutil.GetTelemetryMock(t),
+				wmetaMock,
+			)
+			check, ok := checkGeneric.(*Check)
+			require.True(t, ok)
+
+			WithGPUConfigEnabled(t)
+			pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", tt.disabledCollectors)
+			t.Cleanup(func() {
+				pkgconfigsetup.Datadog().SetWithoutSource("gpu.disabled_collectors", []string{})
+			})
+
+			check.containerProvider = mock_containers.NewMockContainerProvider(gomock.NewController(t))
+			err := check.Configure(
+				mocksender.CreateDefaultDemultiplexer(),
+				integration.FakeConfigHash,
+				[]byte{},
+				[]byte{},
+				"test",
+			)
+			require.NoError(t, err)
+
+			// Verify the disabled collectors are correctly identified in the check struct
+			assert.Equal(t, len(tt.expected), len(check.disabledCollectors),
+				"expected %d disabled collectors, got %d", len(tt.expected), len(check.disabledCollectors))
+			assert.ElementsMatch(t, tt.expected, check.disabledCollectors,
+				"disabled collectors mismatch")
+		})
+	}
 }

@@ -20,10 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/util"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 const (
@@ -128,7 +129,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFile() {
 	path := suite.testDir + "/1/1.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	util.CreateSources(logSources)
+	testutils.CreateSources(logSources)
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(1, len(files))
@@ -143,7 +144,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := suite.testDir + "/1/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(3, len(files))
@@ -190,7 +191,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromAnyDirectoryWi
 	path := suite.testDir + "/*/*1.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	util.CreateSources(logSources)
+	testutils.CreateSources(logSources)
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(2, len(files))
@@ -207,7 +208,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := suite.testDir + "/1/?.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 
 	suite.Equal(3, len(files))
@@ -249,7 +250,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := suite.testDir + "/*/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -269,7 +270,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/1/*.log"}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: suite.testDir + "/2/*.log"}),
 	}
-	status.InitStatus(mockConfig, util.CreateSources(logSources))
+	status.InitStatus(mockConfig, testutils.CreateSources(logSources))
 	files := fileProvider.FilesToTail(context.Background(), true, logSources, auditor.NewMockAuditor())
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())
@@ -660,6 +661,55 @@ func TestApplyOrdering(t *testing.T) {
 	})
 }
 
+func TestCollectFiles_RecursiveGlobEnabled(t *testing.T) {
+	fs := newTempFs(t)
+	fs.mkDir("alpha")
+	fs.mkDir("alpha/beta")
+	fs.mkDir("gamma")
+	fs.createFile("root.log")
+	fs.createFile("alpha/beta/ab.log")
+	fs.createFile("gamma/g.log")
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("recursive", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("**/*.log"),
+	})
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	paths := make(map[string]bool)
+	for _, f := range files {
+		paths[f.Path] = true
+	}
+	assert.True(t, paths[fs.path("root.log")], "should match top-level file")
+	assert.True(t, paths[fs.path("alpha/beta/ab.log")], "should match nested file")
+	assert.True(t, paths[fs.path("gamma/g.log")], "should match nested file")
+}
+
+func TestCollectFiles_RecursiveGlobDisabled(t *testing.T) {
+	fs := newTempFs(t)
+	fs.mkDir("alpha")
+	fs.mkDir("alpha/beta")
+	fs.createFile("root.log")
+	fs.createFile("alpha/beta/ab.log")
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("recursive-off", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("**/*.log"),
+	})
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.enable_recursive_glob", false, configmodel.SourceCLI)
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+	files, err := fileProvider.CollectFiles(source)
+	// When recursive glob is disabled, a '**' pattern should not expand; expect an error and no matches.
+	assert.Error(t, err)
+	assert.Len(t, files, 0)
+}
+
 func TestContainerIDInContainerLogFile(t *testing.T) {
 	assert := assert.New(t)
 
@@ -748,4 +798,36 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 	}
 	files := fileProvider.FilesToTail(context.Background(), true, sources, auditor.NewMockAuditor())
 	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
+}
+
+func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
+	fs := newTempFs(t)
+	fs.mkDir("alpha")
+	fs.mkDir("alpha/beta")
+	fs.mkDir("gamma")
+	fs.createFile("root.log")
+	fs.createFile("alpha/beta/ab.log")
+	fs.createFile("gamma/g.log")
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("recursive-exclude", &config.LogsConfig{
+		Type:         config.FileType,
+		Path:         fs.path("**/*.log"),
+		ExcludePaths: []string{fs.path("alpha/**/*.log")},
+	})
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	paths := make(map[string]bool)
+	for _, f := range files {
+		paths[f.Path] = true
+	}
+	// Included
+	assert.True(t, paths[fs.path("root.log")], "root should be included")
+	assert.True(t, paths[fs.path("gamma/g.log")], "gamma should be included")
+	// Excluded by pattern
+	assert.False(t, paths[fs.path("alpha/beta/ab.log")], "alpha subtree should be excluded by ExcludePaths")
 }

@@ -452,7 +452,7 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 	if path == "" {
 		// // Don't want to continue in case there is no log file
 		// TODO : use journalctl instead
-		seclog.Warnf("no ssh log file found")
+		seclog.Trace("no ssh log file found")
 		return nil
 	}
 	// Initialize the SSH log reader

@@ -165,6 +165,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
 	}
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
+	}
 
 	s.host.InstallDocker()
 
@@ -204,6 +207,9 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
 	s.host.InstallDocker()
@@ -356,6 +362,9 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	if s.os.Flavor == e2eos.Suse {
 		s.T().Skip("Can't install APM deb/rpm packages on Suse, they were never released")
+	}
+	if s.installMethod == InstallMethodAnsible {
+		s.T().Skip("Ansible doesn't support upgrading from OCI to DEB")
 	}
 
 	s.host.InstallDocker()

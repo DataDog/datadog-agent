@@ -39,6 +39,7 @@ type Module struct {
 	BuildTags           []string
 	Fields              map[string]*StructField // Fields only contains fields that are exposed in SECL
 	AllFields           map[string]*StructField
+	AllStructFields     interface{} // used for event deep copy generation
 	Iterators           map[string]*StructField
 	EventTypes          map[string]*EventTypeMetadata
 	FileFields          []FileField

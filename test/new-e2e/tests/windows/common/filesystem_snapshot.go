@@ -7,8 +7,9 @@ package common
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
 // FileSystemSnapshot represents a snapshot of the system files that can be used to compare against later

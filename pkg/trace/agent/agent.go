@@ -64,6 +64,9 @@ const (
 
 	// tagDecisionMaker specifies the sampling decision maker
 	tagDecisionMaker = "_dd.p.dm"
+
+	// tagAPMMode specifies whether running APM in "edge" mode (may support other modes in the future)
+	tagAPMMode = "_dd.apm_mode"
 )
 
 // Writer is an interface that provides the base functionality of a writing component
@@ -758,6 +761,33 @@ func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.Tr
 	if p.TracerPayload.AppVersion == "" {
 		p.TracerPayload.AppVersion = version.GetAppVersionFromTrace(root, chunk)
 	}
+	if p.TracerPayload.Tags[tagAPMMode] == "" {
+		if mode, ok := root.Meta[tagAPMMode]; ok {
+			if v := normalizeAPMModeSpanTag(mode); v != "" {
+				if p.TracerPayload.Tags == nil {
+					p.TracerPayload.Tags = make(map[string]string)
+				}
+				p.TracerPayload.Tags[tagAPMMode] = mode
+			}
+		}
+	}
+}
+
+// normalizeAPMModeSpanTag validates and normalizes the '_dd.apm_mode' span tag value.
+// Returns the normalized lowercase value if valid (currently only "edge"), or an empty string if invalid.
+// Invalid values are logged at debug level.
+func normalizeAPMModeSpanTag(apmMode string) string {
+	if apmMode == "" {
+		log.Debugf("empty value for '_dd.apm_mode' span tag")
+		return ""
+	}
+	switch strings.ToLower(apmMode) {
+	case "edge":
+		return "edge"
+	default:
+		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
+		return ""
+	}
 }
 
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
@@ -858,7 +888,7 @@ func (a *Agent) processStats(in *pb.ClientStatsPayload, lang, tracerVersion, con
 	shouldObfuscate := obfuscationVersion == ""
 	if !shouldObfuscate {
 		if versionInt, err := strconv.Atoi(obfuscationVersion); err != nil && versionInt < obfuscate.Version {
-			log.Debug("Tracer is using older version of obfuscation %d", versionInt)
+			log.Debugf("Tracer is using older version of obfuscation %d", versionInt)
 		}
 	}
 	for i, group := range in.Stats {

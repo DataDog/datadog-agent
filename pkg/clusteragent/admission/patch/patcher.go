@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -123,13 +124,13 @@ func enableConfig(deploy *corev1.Deployment, req Request) error {
 	if deploy.Spec.Template.Annotations == nil {
 		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
-	versionAnnotKey := fmt.Sprintf(common.LibVersionAnnotKeyFormat, req.LibConfig.Language)
+	versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[versionAnnotKey] = req.LibConfig.Version
 	conf, err := json.Marshal(req.LibConfig)
 	if err != nil {
 		return fmt.Errorf("failed to encode library config: %v", err)
 	}
-	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
+	configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
 	deploy.Spec.Template.Annotations[configAnnotKey] = string(conf)
 	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)
@@ -148,9 +149,9 @@ func disableConfig(deploy *corev1.Deployment, req Request) {
 		deploy.Spec.Template.Annotations = make(map[string]string)
 	}
 
-	versionAnnotKey := fmt.Sprintf(common.LibVersionAnnotKeyFormat, req.LibConfig.Language)
+	versionAnnotKey := annotation.LibraryVersion.Format(req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, versionAnnotKey)
-	configAnnotKey := fmt.Sprintf(common.LibConfigV1AnnotKeyFormat, req.LibConfig.Language)
+	configAnnotKey := annotation.LibraryConfigV1.Format(req.LibConfig.Language)
 	delete(deploy.Spec.Template.Annotations, configAnnotKey)
 	deploy.Spec.Template.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	deploy.Spec.Template.Annotations[k8sutil.RcRevisionAnnotKey] = strconv.FormatInt(req.Revision, 10)

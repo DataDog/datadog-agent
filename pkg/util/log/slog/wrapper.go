@@ -75,7 +75,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 	var pc [1]uintptr
 	runtime.Callers(baseStackDepth+w.extraStackDepth, pc[:])
 	r := slog.NewRecord(
-		time.Now().UTC(),
+		time.Now(),
 		types.ToSlogLevel(level),
 		message,
 		pc[0],
@@ -89,7 +89,7 @@ func (w *Wrapper) handle(level types.LogLevel, message string) {
 
 	err := w.handler.Handle(context.Background(), r)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "slog handler error: %v", err)
+		fmt.Fprintf(os.Stderr, "log: wrapper internal error: %v\n", err)
 	}
 }
 

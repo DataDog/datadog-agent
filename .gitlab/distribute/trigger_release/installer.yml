@@ -1,0 +1,50 @@
+---
+# trigger_release stage
+# Contains jobs related to triggering the release of the Datadog Installer.
+
+# TODO: This is currently separate from the base agent release management trigger as we want to ensure the Agent is not impacted
+# as we adopt the `dd-pkg` tooling for the Installer. We should deduplicate the code between the two files in the future.
+.installer_release_management_trigger:
+  stage: trigger_release
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  # We don't directly depend/need the package deploy jobs, because
+  # that would make us deploy even when there are e2e tests failures etc
+  # We only want to allow automatically triggering agent-release-manangement
+  # pipelines when everything goes well
+  variables:
+    DD_PKG_ARCH: x86_64
+    RELEASE_PRODUCT: datadog-installer
+  script:
+    - !reference [.setup_dd_pkg]
+    - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
+    - |
+      echo "Using artifact gateway: $DD_PKG_GITLAB_URL"
+    - |-
+      dd-pkg promote \
+        --build-pipeline-id $PARENT_PIPELINE_ID \
+        --release-product $RELEASE_PRODUCT \
+        --key-id $PIPELINE_KEY_ALIAS \
+        --release-version $RELEASE_VERSION \
+        --target-repo $TARGET_REPO \
+        --target-channel $BUCKET_BRANCH \
+        $AUTO_RELEASE \
+        $FOLLOW
+  dependencies: []
+
+installer_trigger_auto_staging_release:
+  extends: .installer_release_management_trigger
+  timeout: 2h 30m
+  variables:
+    AUTO_RELEASE: "--auto-release"
+    FOLLOW: "--follow"
+    TARGET_REPO: staging
+  rules:
+    - !reference [.on_deploy_installer]
+
+installer_trigger_manual_prod_release:
+  extends: .installer_release_management_trigger
+  variables:
+    TARGET_REPO: prod
+  rules:
+    - !reference [.on_deploy_installer_stable_or_beta_manual_auto_on_stable]

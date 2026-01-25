@@ -25,8 +25,8 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"golang.org/x/term"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/infra"
 	"github.com/DataDog/datadog-agent/test/new-e2e/system-probe/connector/metric"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"

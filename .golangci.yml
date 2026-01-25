@@ -188,9 +188,16 @@ linters:
             - allowRegex: ^_
         - name: var-declaration
         - name: var-naming
+          # disable package name lint
+          arguments:
+            - []
+            - []
+            - [skipPackageNameChecks: true]
         - name: duplicated-imports
     forbidigo:
       forbid:
+        - pattern: ^.*\.GetLastError$
+          msg: "GetLastError always returns nil in Go because the syscall implementation resets the last error before calling the DLL function (see https://github.com/golang/go/issues/41220). Use the error returned directly from the syscall (third return value) instead."
         - pattern: ^model.NewConfig.*$
           pkg: ^github.com/DataDog/datadog-agent/pkg/config/model$
           msg: use pkg/config/mock instead in tests or the config component
@@ -260,6 +267,10 @@ linters:
     - path: _test\.go
       linters:
         - errcheck
+    # Disable revive for the privateactionrunner package since its mostly source code copied over from the existing PAR
+    - path: "pkg/privateactionrunner/"
+      linters:
+        - revive
     # disable typecheck in folder where it breaks because of build tags
     - path: "pkg/security/"
       linters: [typecheck]

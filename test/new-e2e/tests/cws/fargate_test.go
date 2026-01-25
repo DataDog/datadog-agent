@@ -26,7 +26,7 @@ import (
 	awsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	ecsResources "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ecs"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
 )
 

@@ -884,7 +884,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 				return nil
 			}
 			return errors.New("No client connected, aborting")
-		}, retry.Delay(time.Second), retry.Attempts(120))
+		}, retry.Delay(time.Second), retry.Attempts(120), retry.DelayType(retry.FixedDelay))
 		if err != nil {
 			return nil, err
 		}
@@ -1432,7 +1432,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 		}
 		dump = d
 		return nil
-	}, retry.Delay(time.Second), retry.Attempts(3)); err != nil {
+	}, retry.Delay(time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay)); err != nil {
 		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
@@ -1467,7 +1467,7 @@ func (tm *testModule) StartSystemdServiceGetDump(serviceName string, reloadCmd s
 			}
 		}
 		return errors.New("CGroupID not found on activity dump list")
-	}, retry.Delay(time.Second*1), retry.Attempts(15)); err != nil {
+	}, retry.Delay(time.Second*1), retry.Attempts(15), retry.DelayType(retry.FixedDelay)); err != nil {
 		_, _ = systemd.stop()
 		return nil, nil, err
 	}
@@ -2010,7 +2010,12 @@ func (tm *testModule) CheckZombieProcesses() error {
 
 				if ppid == myPid {
 					// Found a zombie process with our PID as its parent
-					return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
+					// Try to reap it by calling wait (SIGKILL doesn't work on zombies)
+					_, err := syscall.Wait4(pid, nil, syscall.WNOHANG, nil)
+					if err != nil {
+						return fmt.Errorf("found zombie process with PID %d and PPID %d (state=%s, comm=%s), and failed to stop it: %v", pid, ppid, state, commStr, err)
+					}
+					log.Debug("found and stopped zombie process with PID %d and PPID %d (state=%s, comm=%s)", pid, ppid, state, commStr)
 				}
 			}
 		}

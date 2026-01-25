@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <linux/un.h>
 #include <linux/prctl.h>
 #include <err.h>
@@ -182,9 +183,13 @@ int ptrace_traceme() {
     if (child == 0) {
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         raise(SIGSTOP);
+        // Child process exits after being continued
+        _exit(0);
     } else {
         wait(NULL);
         ptrace(PTRACE_CONT, child, 42, NULL);
+        // Wait for child to exit
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -193,10 +198,15 @@ int ptrace_attach() {
     int child = fork();
     if (child == 0) {
         sleep(3);
+        _exit(0);
     } else {
         ptrace(PTRACE_ATTACH, child, 0, NULL);
         wait(NULL);
         sleep(3); // sleep here to let the agent resolve the pid namespace on procfs
+        // Detach and terminate child process
+        ptrace(PTRACE_DETACH, child, 0, NULL);
+        kill(child, SIGTERM);
+        wait(NULL);
     }
     return EXIT_SUCCESS;
 }
@@ -1730,6 +1740,35 @@ int test_prctl_setname(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+int test_dnsloop(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Please specify a domain to resolve\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *domain = argv[1];
+    struct addrinfo hints, *res;
+    int status;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;     // Allow IPv4 or IPv6
+    hints.ai_socktype = SOCK_STREAM; // TCP
+
+    while (1) {
+        status = getaddrinfo(domain, NULL, &hints, &res);
+        if (status == 0) {
+            printf("DNS_OK: %s resolved successfully\n", domain);
+            freeaddrinfo(res);
+        } else {
+            printf("DNS_FAIL: %s failed: %s\n", domain, gai_strerror(status));
+        }
+        fflush(stdout);
+        sleep(1);
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -1845,6 +1884,8 @@ int main(int argc, char **argv) {
             exit_code = test_pause(sub_argc, sub_argv);
         } else if (strcmp(cmd, "prctl-setname") == 0) {
             exit_code = test_prctl_setname(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "dnsloop") == 0) {
+            exit_code = test_dnsloop(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;

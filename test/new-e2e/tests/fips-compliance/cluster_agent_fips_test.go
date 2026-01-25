@@ -13,10 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/provisioners/aws/docker"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	scendocker "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
@@ -61,12 +62,14 @@ func TestFIPSCiphersClusterAgentSuite(t *testing.T) {
 		&fipsServerClusterAgentSuite{},
 		e2e.WithProvisioner(
 			awsdocker.Provisioner(
-				awsdocker.WithAgentOptions(
-					dockeragentparams.WithFIPS(),
-					dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
-					dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-						"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
-					}),
+				awsdocker.WithRunOptions(
+					scendocker.WithAgentOptions(
+						dockeragentparams.WithFIPS(),
+						dockeragentparams.WithExtraComposeManifest("fips-server", pulumi.String(strings.ReplaceAll(clusterAgentDockerCompose, "{APPS_VERSION}", apps.Version))),
+						dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
+							"CLUSTER_AGENT_IMAGE": pulumi.String(clusterAgentImage),
+						}),
+					),
 				),
 			),
 		),

@@ -398,10 +398,6 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 
-### [comp/metadata/inventoryotel](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryotel)
-
-Package inventoryotel implements a component to generate the 'datadog_agent' metadata payload for inventory.
-
 ### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
 *Datadog Team*: agent-delivery
@@ -456,13 +452,17 @@ It does not expose any public methods.
 
 ## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
 
-*Datadog Team*: cloud-network-monitoring
+*Datadog Team*: cloud-network-monitoring network-path
 
 Package networkpath implements the "networkpath" bundle,
 
 ### [comp/networkpath/npcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npcollector)
 
 Package npcollector used to manage network paths
+
+### [comp/networkpath/traceroute](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/traceroute)
+
+Package traceroute provides the traceroute component
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
@@ -766,7 +766,7 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 ### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
 
-*Datadog Team*: network-device-monitoring
+*Datadog Team*: ndm-core ndm-integrations
 
 Package networkdeviceconfig provides the component for retrieving network device configurations.
 

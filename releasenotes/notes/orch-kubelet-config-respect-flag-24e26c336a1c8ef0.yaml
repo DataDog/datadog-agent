@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Implemented a fix so that the Agent does not try to schedule the `orchestrator_kubelet_config` check when
+    the `orchestrator_explorer.kubelet_config_check.enabled` config is
+    set to `false`.

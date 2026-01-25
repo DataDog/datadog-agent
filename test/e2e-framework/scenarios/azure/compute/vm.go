@@ -68,8 +68,6 @@ func NewVM(e azure.Environment, name string, params ...VMOption) (*remote.Host, 
 			compute.AdminUsername,
 			remote.WithPrivateKeyPath(e.DefaultPrivateKeyPath()),
 			remote.WithPrivateKeyPassword(e.DefaultPrivateKeyPassword()),
-			remote.WithDialErrorLimit(e.InfraDialErrorLimit()),
-			remote.WithPerDialTimeoutSeconds(e.InfraPerDialTimeoutSeconds()),
 		)
 		if err != nil {
 			return err
