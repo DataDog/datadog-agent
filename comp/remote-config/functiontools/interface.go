@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/jsonapi"
@@ -13,42 +14,42 @@ import (
 )
 
 type Params struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
+	Kind        reflect.Kind `json:"kind"`
+	Description string       `json:"description"`
 }
 
 type FunctionTool struct {
 	description string
 	params      map[string]Params
-	handler     func(parameters map[string]string) (any, error)
+	handler     func(parameters map[string]any) (any, error)
 }
 
 var registry = map[string]FunctionTool{
 	"list_files": {
 		description: "Recursively list all files under a directory that end with a given extension (e.g. 'log' or 'txt'). Returns full file paths. Commonly used to inspect logs located under '/var/log'.",
 		params: map[string]Params{
-			"directory": {Type: "string", Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
-			"extension": {Type: "string", Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
+			"directory": {Kind: reflect.String, Description: "The directory to search from (search is recursive). For system logs, this is typically '/var/log'."},
+			"extension": {Kind: reflect.String, Description: "The file extension to match, exclusing the dot, e.g. 'log' or 'txt'."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return listFiles(parameters["directory"], parameters["extension"])
+		handler: func(parameters map[string]any) (any, error) {
+			return listFiles(parameters["directory"].(string), parameters["extension"].(string))
 		},
 	},
 	"tail_file": {
 		description: "Read the last N lines of a text file (such as a log file).",
 		params: map[string]Params{
-			"file_path": {Type: "string", Description: "The full path of the file to tail."},
-			"n_lines":   {Type: "integer", Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
+			"file_path": {Kind: reflect.String, Description: "The full path of the file to tail."},
+			"n_lines":   {Kind: reflect.Float64, Description: "The number of lines to read from the end of the file. Usually 10 lines is enough to get the last events."},
 		},
-		handler: func(parameters map[string]string) (any, error) {
-			return tailFile(parameters["file_path"], parameters["n_lines"])
+		handler: func(parameters map[string]any) (any, error) {
+			return tailFile(parameters["file_path"].(string), parameters["n_lines"].(float64))
 		},
 	},
 }
 
 type Tool struct {
-	Name   string            `json:"name" jsonapi:"primary,name"`
-	Params map[string]string `json:"params" jsonapi:"attr,params"`
+	Name   string         `json:"name" jsonapi:"primary,name"`
+	Params map[string]any `json:"params" jsonapi:"attr,params"`
 }
 type ToolCall struct {
 	TaskID string `json:"task_id" jsonapi:"primary,task"`
@@ -114,21 +115,32 @@ func (toolCall ToolCall) Execute() ToolCall {
 		toolCall.Error = "failed to execute: " + toolCall.Error
 		return toolCall
 	}
+
 	functionTool, ok := registry[toolCall.Tool.Name]
 	if !ok {
 		toolCall.Error = fmt.Sprintf("tool '%s' not found", toolCall.Tool.Name)
 		return toolCall
 	}
+
 	if len(registry[toolCall.Tool.Name].params) != len(toolCall.Tool.Params) {
 		toolCall.Error = fmt.Sprintf("expected '%d' parameters, got '%d'", len(registry[toolCall.Tool.Name].params), len(toolCall.Tool.Params))
 		return toolCall
 	}
-	for name := range registry[toolCall.Tool.Name].params {
-		if _, ok := toolCall.Tool.Params[name]; !ok {
-			toolCall.Error = fmt.Sprintf("parameter '%s' is required", name)
+
+	for registryName, registryParam := range registry[toolCall.Tool.Name].params {
+		callParam, ok := toolCall.Tool.Params[registryName]
+		if !ok {
+			toolCall.Error = fmt.Sprintf("parameter '%s' is required", registryName)
+			return toolCall
+		}
+
+		callParamKind := reflect.TypeOf(callParam).Kind()
+		if callParamKind != registryParam.Kind {
+			toolCall.Error = fmt.Sprintf("parameter '%s' should be of kind '%s', got '%s'", registryName, registryParam.Kind, callParamKind)
 			return toolCall
 		}
 	}
+
 	result, err := functionTool.handler(toolCall.Tool.Params)
 	if err != nil {
 		toolCall.Error = err.Error()

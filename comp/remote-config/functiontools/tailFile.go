@@ -2,17 +2,11 @@ package functiontools
 
 import (
 	"bufio"
-	"fmt"
 	"os"
-	"strconv"
 )
 
-func tailFile(path string, n_lines string) ([]string, error) {
-	// Convert the number of lines to an integer
-	n, err := strconv.Atoi(n_lines)
-	if err != nil {
-		return nil, fmt.Errorf("parameter 'n_lines' is not a valid integer: %s", n_lines)
-	}
+func tailFile(path string, n_lines float64) ([]string, error) {
+	n := int(n_lines)
 
 	// Open the file
 	file, err := os.Open(path)
