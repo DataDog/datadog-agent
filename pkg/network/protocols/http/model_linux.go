@@ -45,6 +45,7 @@ func (e *EbpfEvent) Incomplete() bool {
 // ConnTuple returns a `types.ConnectionKey` for the transaction
 func (e *EbpfEvent) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
+		Pid:       e.Tuple.Pid,
 		SrcIPHigh: e.Tuple.Saddr_h,
 		SrcIPLow:  e.Tuple.Saddr_l,
 		DstIPHigh: e.Tuple.Daddr_h,
