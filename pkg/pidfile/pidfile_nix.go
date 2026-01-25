@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build freebsd || linux || netbsd || openbsd || solaris || dragonfly || aix
+//go:build freebsd || linux || netbsd || openbsd || solaris || dragonfly
 
 package pidfile
 

@@ -84,12 +84,6 @@ cc_library(
         "-D_FILE_OFFSET_BITS=64",
     ] + select(
         {
-            #"@platforms//os:aix": [
-            #    "-qpic=small",
-            #    "-O2",
-            #    "-D_ALL_SOURCE",
-            #    "-D_LARGE_FILES",
-            #],
             "@platforms//os:linux": [
                 "-fPIC",
                 "-O3",
@@ -118,13 +112,6 @@ cc_shared_library(
     win_def_file = "libbz2.def",
     deps = [":libbz2"],
     user_link_flags = select({
-        #"//bazel/platforms:os_aix": [
-        #    "-qmkshrobj",
-        #    "-Wl,-soname",
-        #],
-        #"@platforms//os:linux": [
-        #     "-Wl,'@rpath/libbz2.so.1.0.8'",
-        #],
         "@platforms//os:macos": [
             "-shared",
             # "-Wl,-install_name",
