@@ -32,7 +32,7 @@ provision:
   - mode: system
     script: |
       #!/bin/bash
-      set -eux
+      set -eu
       export DEBIAN_FRONTEND=noninteractive
 
       apt-get update
@@ -68,11 +68,11 @@ provision:
   - mode: user
     script: |
       #!/bin/bash
-      set -eux
+      set -eu
       helm repo add datadog https://helm.datadoghq.com
       helm repo update
 
 message: |
   Tools installed: docker, kubectl, kind, helm
 
-  Run setup-k8s-host.sh to create the Kind cluster and configure kubectl.
+  Run ./gadget-dev.py start to create the Kind cluster and configure kubectl.
