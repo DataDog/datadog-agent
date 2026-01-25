@@ -630,6 +630,16 @@ DATADOG_AGENT_RTLOADER_API void set_read_persistent_cache_cb(rtloader_t *, cb_re
 */
 DATADOG_AGENT_RTLOADER_API void set_obfuscate_sql_cb(rtloader_t *, cb_obfuscate_sql_t);
 
+/*! \fn void set_batch_obfuscate_sql_cb(rtloader_t *, cb_batch_obfuscate_sql_t)
+    \brief Sets a callback to be used by rtloader to allow batch obfuscating SQL queries.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_batch_obfuscate_sql_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_batch_obfuscate_sql_cb(rtloader_t *, cb_batch_obfuscate_sql_t);
+
 /*! \fn void set_obfuscate_sql_exec_plan_cb(rtloader_t *, cb_obfuscate_sql_exec_plan_t)
     \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
     check instance.
