@@ -733,7 +733,6 @@
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
 /tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
-/tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
 /tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
 /tasks/installer.py                     @DataDog/fleet
