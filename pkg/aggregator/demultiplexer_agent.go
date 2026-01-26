@@ -188,7 +188,8 @@ func initAgentDemultiplexer(log log.Component,
 		// its worker (process loop + flush/serialization mechanism)
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
-			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore, agg.tagFilterList)
+			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
+			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -301,6 +302,7 @@ func (d *AgentDemultiplexer) run() {
 	// to make sure they are running to receive the initial filter list and any
 	// updates
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
+	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 
 	d.flushLoop() // this is the blocking call
 }
@@ -514,6 +516,23 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.TagMatcher) {
+	d.m.RLock()
+	defer d.m.RUnlock()
+
+	if d.aggregator == nil {
+		// The demultiplexer has stopped and the workers and aggregator are no longer available
+		// to receive updates.
+		return
+	}
+
+	d.aggregator.tagfilterListChan <- tagmatcher
+
+	for _, worker := range d.statsd.workers {
+		worker.tagFilterListChan <- tagmatcher
+	}
+}
+
 // SetSamplersFilterList triggers a reconfiguration of the filter list
 // applied in the samplers.
 func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matcher, histoFilterList utilstrings.Matcher) {
@@ -529,7 +548,7 @@ func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matche
 	// Most metrics coming from dogstatsd will have already been filtered in the listeners.
 	// Histogram metrics need aggregating before we determine the correct name to be filtered.
 	for _, worker := range d.statsd.workers {
-		worker.filterListChan <- histoFilterList
+		worker.metricFilterListChan <- histoFilterList
 	}
 
 	// Metrics from checks are only filtered here, so we need the full filter list.
