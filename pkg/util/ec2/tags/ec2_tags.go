@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -152,17 +153,32 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
+func createEC2Client(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+	opts := []func(*config.LoadOptions) error{config.WithRegion(region)}
+	if creds != nil {
+		opts = append(opts, config.WithCredentialsProvider(creds))
+	}
+
+	cfg, err := config.LoadDefaultConfig(ctx, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
+	}
+	return ec2.NewFromConfig(cfg), nil
+}
+
 func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	instanceIdentity, err := ec2internal.GetInstanceIdentity(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// First, try automatic credentials detection. This works in most scenarios,
-	// except when a more specific role (e.g. task role in ECS) does not have
-	// EC2:DescribeTags permission, but a more general role (e.g. instance role)
-	// does have it.
-	tags, err := getTagsWithCreds(ctx, instanceIdentity, nil)
+	// default client chain (IRSA/ECS/env/instance-profile chain)
+	ec2Client, err := createEC2Client(ctx, instanceIdentity.Region, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	tags, err := getTagsWithClient(ctx, ec2Client, instanceIdentity)
 	if err == nil {
 		return tags, nil
 	}
@@ -176,22 +192,18 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	}
 
 	awsCreds := credentials.NewStaticCredentialsProvider(iamParams.AccessKeyID, iamParams.SecretAccessKey, iamParams.Token)
-	return getTagsWithCreds(ctx, instanceIdentity, awsCreds)
+	legacyClient, err := createEC2Client(ctx, instanceIdentity.Region, awsCreds)
+	if err != nil {
+		return nil, err
+	}
+	return getTagsWithClient(ctx, legacyClient, instanceIdentity)
 }
 
-func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Identity, awsCreds aws.CredentialsProvider) ([]string, error) {
-	connection := ec2.New(ec2.Options{
-		Region:      instanceIdentity.Region,
-		Credentials: awsCreds,
-	})
-
-	// We want to use 'ec2_metadata_timeout' here instead of current context. 'ctx' comes from the agent main and will
-	// only be canceled if the agent is stopped. The default timeout for the AWS SDK is 1 minutes (20s timeout with
-	// 3 retries). Since we call getTagsWithCreds twice in a row, it can be a 2 minutes latency.
+func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, pkgconfigsetup.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond)
 	defer cancel()
 
-	ec2Tags, err := connection.DescribeTags(ctx,
+	out, err := client.DescribeTags(ctx,
 		&ec2.DescribeTagsInput{
 			Filters: []types.Filter{{
 				Name: aws.String("resource-id"),
@@ -207,7 +219,7 @@ func getTagsWithCreds(ctx context.Context, instanceIdentity *ec2internal.EC2Iden
 	}
 
 	tags := []string{}
-	for _, tag := range ec2Tags.Tags {
+	for _, tag := range out.Tags {
 		if isTagExcluded(*tag.Key) {
 			continue
 		}
