@@ -67,7 +67,8 @@ kmt_setup_env_secagent_x64:
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
-    # build connector
+    # build Rust compression library and connector
+    - dda inv rust-compression.build --release
     - pushd $CI_PROJECT_DIR/test/new-e2e
     - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
     - popd

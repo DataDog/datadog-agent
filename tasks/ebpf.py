@@ -7,7 +7,9 @@ from tasks.github_tasks import pr_commenter
 from tasks.kmt import download_complexity_data
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.types.arch import Arch
+from tasks.rust_compression import build as rust_compression_build
 
 try:
     from termcolor import colored
@@ -151,6 +153,10 @@ def collect_verification_stats(
     if not skip_object_files:
         build_object_files(ctx)
         build_cws_object_files(ctx)
+
+    # Build Rust compression library before Go build
+    with gitlab_section("Build Rust compression library", collapsed=True):
+        rust_compression_build(ctx, release=True)
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 

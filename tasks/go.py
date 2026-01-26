@@ -25,9 +25,10 @@ from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
 from tasks.libs.common.user_interactions import yes_no_question
-from tasks.libs.common.utils import TimedOperationResult, get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, gitlab_section, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import generate_dummy_package
+from tasks.rust_compression import build as rust_compression_build
 
 GOOS_MAPPING = {
     "win32": "windows",
@@ -279,6 +280,10 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             # Ensure that none of these modules import the datadog-agent main module.
             if mod.independent:
                 ctx.run(f"go run ./internal/tools/independent-lint/independent.go --path={mod.full_path()}")
+
+        # Build the Rust compression library before attempting Go build
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
         with ctx.cd(dummy_folder):
             ctx.run("go mod tidy")
