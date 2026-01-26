@@ -304,6 +304,9 @@ class FileUtilities:
         file_inventory = []
         files_processed = 0
 
+        # Fetch the pipeline id to potentially omit some files that include it.
+        pipeline_id = os.environ.get('CI_PIPELINE_ID')
+
         if debug:
             all_items = list(directory_path.rglob('*'))
             files_count = sum(1 for item in all_items if item.is_file())
@@ -317,6 +320,9 @@ class FileUtilities:
 
             try:
                 relative_path = str(file_path.relative_to(directory_path))
+                # Avoid files such as opt/datadog-packages/run/datadog-agent/7.76.0-devel.git.716.8d5ec09.pipeline.91823583
+                if pipeline_id and f'pipeline.{relative_path}' in relative_path:
+                    continue
                 # Regular file - use lstat to not follow symlinks
                 file_stat = file_path.lstat()
                 chmod = stat.S_IMODE(file_stat.st_mode)
