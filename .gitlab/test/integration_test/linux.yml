@@ -15,6 +15,7 @@ docker_integration_tests:
   # This job is not stable yet because of rate limit issues and micro vms beta status.
   allow_failure: true
   script:
+    - dda inv rust-compression.build --release
     - dda inv -- -e docker.test
 
 trace_agent_integration_tests:
@@ -23,4 +24,5 @@ trace_agent_integration_tests:
   timeout: 50m
   retry: 2
   script:
+    - dda inv rust-compression.build --release
     - dda inv -- -e integration-tests --race --only="Trace Agent"
