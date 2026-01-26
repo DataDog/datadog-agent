@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -107,6 +108,10 @@ func TestPackages(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture, method)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
+				// incident-48489
+				if method == InstallMethodAnsible {
+					flake.Mark(t)
+				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithRunOptions(
 						ec2.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
