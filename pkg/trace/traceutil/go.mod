@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.76.0-rc.1
 	github.com/stretchr/testify v1.11.1
-	github.com/tinylib/msgp v1.6.2
+	github.com/tinylib/msgp v1.6.3
 )
 
 require (
