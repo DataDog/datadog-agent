@@ -27,7 +27,6 @@ import (
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -79,7 +78,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	//
 	// TODO: should be migrated to a dedicated comp or flavor of the config comp
 	//
-	setup.InitConfigObjects(ddCfg, "")
+	pkgconfigsetup.InitConfigObjects(ddCfg, "")
 
 	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
 	pkgconfig.SetConfigName("OTel")

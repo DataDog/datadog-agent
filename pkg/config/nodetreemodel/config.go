@@ -607,7 +607,7 @@ func (c *ntmConfig) IsSet(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("attempt to call IsSet before config is constructed: %s", key))
+		panic("attempt to call IsSet before config is constructed: " + key)
 	}
 
 	pathParts := splitKey(key)
@@ -646,7 +646,7 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("attempt to call IsConfigured before config is constructed: %s", key))
+		panic("attempt to call IsConfigured before config is constructed: " + key)
 	}
 
 	pathParts := splitKey(key)
@@ -744,7 +744,7 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("attempt to call GetNode before config is constructed: %s", key))
+		panic("attempt to call GetNode before config is constructed: " + key)
 	}
 	pathParts := splitKey(key)
 	curr := c.root
@@ -777,7 +777,7 @@ func (c *ntmConfig) BindEnv(key string, envvars ...string) {
 	defer c.Unlock()
 
 	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("cannot BindEnv() once the config has been marked as ready for use"))
+		panic("cannot BindEnv() once the config has been marked as ready for use")
 	}
 
 	key = strings.ToLower(key)
@@ -805,7 +805,7 @@ func (c *ntmConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 	c.Lock()
 	defer c.Unlock()
 	if c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("cannot SetEnvKeyReplacer() once the config has been marked as ready for use"))
+		panic("cannot SetEnvKeyReplacer() once the config has been marked as ready for use")
 	}
 	c.envKeyReplacer = r
 }
@@ -816,7 +816,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic(fmt.Sprintf("attempt to call MergeConfig before config is constructed"))
+		panic("attempt to call MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)
