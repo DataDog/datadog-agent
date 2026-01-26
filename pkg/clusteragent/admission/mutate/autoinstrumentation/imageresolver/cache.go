@@ -10,8 +10,6 @@ package imageresolver
 import (
 	"sync"
 	"time"
-
-	"github.com/google/go-containerregistry/pkg/crane"
 )
 
 type Cache interface {
@@ -21,16 +19,6 @@ type Cache interface {
 type CacheEntry struct {
 	ResolvedImage *ResolvedImage
 	WhenCached    time.Time
-}
-
-type DigestFetcher interface {
-	Digest(ref string) (string, error)
-}
-
-type craneDigestFetcher struct{}
-
-func (c *craneDigestFetcher) Digest(ref string) (string, error) {
-	return crane.Digest(ref)
 }
 
 type craneCache struct {
@@ -70,6 +58,6 @@ func NewCache(ttl time.Duration) Cache {
 		cache:   make(map[string]map[string]CacheEntry),
 		ttl:     ttl,
 		mu:      sync.RWMutex{},
-		fetcher: &craneDigestFetcher{},
+		fetcher: &httpDigestFetcher{},
 	}
 }
