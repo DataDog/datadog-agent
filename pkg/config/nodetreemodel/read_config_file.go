@@ -34,7 +34,7 @@ func (c *ntmConfig) findConfigFile() {
 // ReadInConfig resets the file tree and reads the configuration from the file system.
 func (c *ntmConfig) ReadInConfig() error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to ReadInConfig before config is constructed")
+		return log.Errorf("attempt to ReadInConfig before config is constructed")
 	}
 
 	c.maybeRebuild()
@@ -61,7 +61,7 @@ func (c *ntmConfig) ReadInConfig() error {
 // ReadConfig resets the file tree and reads the configuration from the provided reader.
 func (c *ntmConfig) ReadConfig(in io.Reader) error {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to ReadConfig before config is constructed")
+		return log.Errorf("attempt to ReadConfig before config is constructed")
 	}
 
 	c.maybeRebuild()

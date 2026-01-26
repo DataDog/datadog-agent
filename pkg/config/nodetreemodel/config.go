@@ -607,7 +607,8 @@ func (c *ntmConfig) IsSet(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to call IsSet before config is constructed: " + key)
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
 	}
 
 	pathParts := splitKey(key)
@@ -646,7 +647,8 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to call IsConfigured before config is constructed: " + key)
+		log.Errorf("attempt to read key before config is constructed: %s", key)
+		return false
 	}
 
 	pathParts := splitKey(key)
@@ -744,7 +746,7 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to call GetNode before config is constructed: " + key)
+		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
 	}
 	pathParts := splitKey(key)
 	curr := c.root
@@ -816,7 +818,7 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 	defer c.Unlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		panic("attempt to call MergeConfig before config is constructed")
+		return errors.New("attempt to MergeConfig before config is constructed")
 	}
 
 	content, err := io.ReadAll(in)
