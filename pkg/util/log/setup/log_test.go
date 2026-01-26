@@ -61,7 +61,7 @@ func initConfig(b *testing.B) *seelogCfg.Config {
 	dir := b.TempDir()
 
 	ddCfg := pkgconfigsetup.Datadog()
-	cfg := seelogCfg.NewSeelogConfig("TEST", "debug", "common", "", buildCommonFormat("TEST", ddCfg), false, nil, commonFormatter("TEST", ddCfg))
+	cfg := seelogCfg.NewSeelogConfig("TEST", "debug", "common", false, nil, commonFormatter("TEST", ddCfg))
 	cfg.EnableConsoleLog(false)
 	cfg.EnableFileLogging(filepath.Join(dir, "test.log"), 1000, 2)
 

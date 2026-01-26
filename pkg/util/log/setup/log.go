@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
-	"github.com/DataDog/datadog-agent/pkg/util/log/slog/formatters"
 )
 
 // LoggerName specifies the name of an instantiated logger.
@@ -28,10 +27,6 @@ const (
 	JMXLoggerName       LoggerName = "JMXFETCH"
 	DogstatsDLoggerName LoggerName = "DOGSTATSD"
 )
-
-func getLogDateFormat(cfg pkgconfigmodel.Reader) string {
-	return formatters.GetLogDateFormat(cfg.GetBool("log_format_rfc3339"))
-}
 
 // SetupLogger sets up a logger with the specified logger name and log level
 // if a non empty logFile is provided, it will also log to the file
@@ -100,7 +95,7 @@ func SetupDogstatsdLogger(logFile string, cfg pkgconfigmodel.Reader) (log.Logger
 }
 
 func buildDogstatsdLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile string, cfg pkgconfigmodel.Reader) (log.LoggerInterface, error) {
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", "", buildCommonFormat(loggerName, cfg), false, nil, commonFormatter(loggerName, cfg))
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), "common", false, nil, commonFormatter(loggerName, cfg))
 
 	// Configuring max roll for log file, if dogstatsd_log_file_max_rolls env var is not set (or set improperly ) within datadog.yaml then default value is 3
 	dogstatsdLogFileMaxRolls := cfg.GetInt("dogstatsd_log_file_max_rolls")
@@ -121,7 +116,7 @@ func buildLogger(loggerName LoggerName, seelogLogLevel log.LogLevel, logFile, sy
 		formatID = "json"
 	}
 
-	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, buildJSONFormat(loggerName, cfg), buildCommonFormat(loggerName, cfg), syslogRFC, jsonFormatter(loggerName, cfg), commonFormatter(loggerName, cfg))
+	config := seelogCfg.NewSeelogConfig(string(loggerName), seelogLogLevel.String(), formatID, syslogRFC, jsonFormatter(loggerName, cfg), commonFormatter(loggerName, cfg))
 	config.EnableConsoleLog(logToConsole)
 	config.EnableFileLogging(logFile, cfg.GetSizeInBytes("log_file_max_size"), uint(cfg.GetInt("log_file_max_rolls")))
 

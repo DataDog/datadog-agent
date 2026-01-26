@@ -194,7 +194,7 @@ func (c *Config) ConfigureSyslog(syslogURI string) {
 }
 
 // NewSeelogConfig returns a Config filled with correct parameters
-func NewSeelogConfig(name, level, format, _, _ string, syslogRFC bool, jsonFormatter, commonFormatter func(ctx context.Context, r stdslog.Record) string) *Config {
+func NewSeelogConfig(name, level, format string, syslogRFC bool, jsonFormatter, commonFormatter func(ctx context.Context, r stdslog.Record) string) *Config {
 	c := &Config{}
 	c.loggerName = name
 	c.format = format
