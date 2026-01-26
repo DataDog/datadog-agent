@@ -66,11 +66,12 @@ func jsonFormatter(loggerName LoggerName, cfg pkgconfigmodel.Reader) func(ctx co
 	return func(_ context.Context, r slog.Record) string {
 		date := dateFmt(r.Time)
 		level := formatters.UppercaseLevel(r.Level)
-		shortFilePath := formatters.ShortFilePath(formatters.Frame(r))
-		line := formatters.Frame(r).Line
-		funcShort := formatters.ShortFunction(formatters.Frame(r))
 		extraContext := formatters.ExtraJSONContext(r)
 
-		return fmt.Sprintf(`{"agent":"%s","time":"%s","level":"%s","file":"%s","line":"%d","func":"%s","msg":%s%s}`+"\n", strings.ToLower(string(loggerName)), date, level, shortFilePath, line, funcShort, formatters.Quote(r.Message), extraContext)
+		frame := formatters.Frame(r)
+		shortFilePath := formatters.ShortFilePath(frame)
+		funcShort := formatters.ShortFunction(frame)
+
+		return fmt.Sprintf(`{"agent":"%s","time":"%s","level":"%s","file":"%s","line":"%d","func":"%s","msg":%s%s}`+"\n", strings.ToLower(string(loggerName)), date, level, shortFilePath, frame.Line, funcShort, formatters.Quote(r.Message), extraContext)
 	}
 }

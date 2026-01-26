@@ -175,19 +175,26 @@ def validate_rst(text: str) -> list[RSTLintError]:
 
     # Lazy import docutils to avoid import errors when not installed
     try:
-        from docutils.core import publish_doctree  # type: ignore[import-untyped]
-        from docutils.nodes import system_message  # type: ignore[import-untyped]
+        from io import StringIO
+
+        from docutils.core import publish_parts  # type: ignore[import-untyped]
+        from docutils.utils import Reporter  # type: ignore[import-untyped]
     except ImportError:
         # docutils not installed, skip RST validation but keep Markdown detection
         return errors
 
-    # Then validate with docutils
+    # Capture docutils warnings/errors via warning_stream
+    # Using publish_parts with full processing to detect unresolved references
+    warning_stream = StringIO()
+
     try:
-        doctree = publish_doctree(
+        publish_parts(
             text,
+            writer_name='html',
             settings_overrides={
-                'report_level': 5,  # Suppress console output (we collect messages from doctree)
-                'halt_level': 5,  # Never halt, collect all errors
+                'report_level': Reporter.INFO_LEVEL,  # Capture INFO and above (for title underline issues)
+                'halt_level': Reporter.SEVERE_LEVEL + 1,  # Never halt, collect all errors
+                'warning_stream': warning_stream,
             },
         )
     except Exception as e:
@@ -195,23 +202,26 @@ def validate_rst(text: str) -> list[RSTLintError]:
         errors.append(RSTLintError(line=None, level='error', message=str(e)))
         return errors
 
-    level_map = {1: 'info', 2: 'warning', 3: 'error', 4: 'severe'}
-
-    for msg in doctree.traverse(system_message):
-        line = msg.get('line')
-        level = level_map.get(msg['level'], 'warning')
-        # Only report warnings and above
-        if msg['level'] >= 2:
-            message_text = msg.astext()
-            # Clean up the message - remove redundant path info and <string>: prefix
-            message_text = message_text.split('\n')[0] if '\n' in message_text else message_text
-            # Remove docutils source prefix like "<string>:15: (WARNING/2) "
-            if message_text.startswith('<string>:'):
-                # Extract just the description part after the level indicator
-                match = re.match(r'<string>:\d+: \([A-Z]+/\d+\) (.+)', message_text)
-                if match:
-                    message_text = match.group(1)
-            errors.append(RSTLintError(line=line, level=level, message=message_text))
+    # Parse the warning stream for errors
+    # Formats:
+    #   <string>:LINE: (LEVEL/NUM) Message  (with line number)
+    #   <string>: (LEVEL/NUM) Message       (without line number)
+    #   /path/to/file:LINE: (LEVEL/NUM) Message  (with real path, e.g. from .. include::)
+    warning_output = warning_stream.getvalue()
+    if warning_output:
+        level_map = {'INFO': 'info', 'WARNING': 'warning', 'ERROR': 'error', 'SEVERE': 'severe'}
+        # Regex: source:optional_line: (LEVEL/NUM) message
+        warning_pattern = re.compile(r'^[^:]+:(?:(\d+):)? \(([A-Z]+)/\d+\) (.+)')
+        for line in warning_output.strip().split('\n'):
+            if not line:
+                continue
+            match = warning_pattern.match(line)
+            if match:
+                line_num = int(match.group(1)) if match.group(1) else None
+                level_str = match.group(2)
+                message = match.group(3)
+                level = level_map.get(level_str, 'warning')
+                errors.append(RSTLintError(line=line_num, level=level, message=message))
 
     return errors
 
