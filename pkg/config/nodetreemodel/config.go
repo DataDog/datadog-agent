@@ -187,6 +187,10 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	if key == "logs_enabled" {
+		log.Errorf("nodetreemodel: Set called for logs_enabled with value=%v, source=%v", newValue, source)
+	}
+
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
@@ -230,8 +234,16 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, newValue) {
+		if key == "logs_enabled" {
+			log.Errorf("nodetreemodel: Set for logs_enabled skipped notification (value unchanged): previousValue=%v, newValue=%v", previousValue, newValue)
+		}
 		c.Unlock()
 		return
+	}
+
+	if key == "logs_enabled" {
+		currentValue := c.leafAtPathFromNode(key, c.root).Get()
+		log.Errorf("nodetreemodel: Set for logs_enabled completed: previousValue=%v, newValue=%v, current value after merge=%v", previousValue, newValue, currentValue)
 	}
 
 	c.sequenceID++
@@ -505,11 +517,13 @@ func (c *ntmConfig) BuildSchema() {
 }
 
 func (c *ntmConfig) buildSchema() {
+	log.Errorf("nodetreemodel: buildSchema() called, knownKeys contains logs_enabled=%v", c.isKnownKey("logs_enabled"))
 	c.buildEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
+	log.Errorf("nodetreemodel: buildSchema() completed")
 }
 
 // Stringify stringifies the config, but only with the test build tag
@@ -535,6 +549,10 @@ func (c *ntmConfig) buildEnvVars() {
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
+				// Log specifically for logs_enabled to debug nodetreemodel issues
+				if configKey == "logs_enabled" {
+					log.Errorf("nodetreemodel: found env var %s=%s for config key logs_enabled", envVar, value)
+				}
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
 				} else {
