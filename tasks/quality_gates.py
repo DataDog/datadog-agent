@@ -146,7 +146,7 @@ def fetch_main_headroom(failing_gates: list[str]) -> dict[str, dict[str, int]]:
 
     # Single query with all metrics for failing gates only
     queries = ",".join(
-        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main,({gate_filter})}} by {{gate_name}}"
+        f"avg:datadog.agent.static_quality_gate.{m}{{git_ref:main AND ({gate_filter})}} by {{gate_name}}"
         for m in metric_map
     )
     result = query_metrics(queries, from_time="now-1d", to_time="now")

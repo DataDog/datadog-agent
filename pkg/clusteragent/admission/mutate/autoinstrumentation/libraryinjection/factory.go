@@ -55,7 +55,9 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 	default:
 		log.Warnf("Unknown injection mode %q for pod %s/%s, using 'auto'", mode, pod.Namespace, pod.Name)
 		fallthrough
-	case InjectionModeAuto, InjectionModeInitContainer:
+	case InjectionModeAuto:
+		return NewAutoProvider(cfg)
+	case InjectionModeInitContainer:
 		return NewInitContainerProvider(cfg)
 	case InjectionModeCSI:
 		return NewCSIProvider(cfg)

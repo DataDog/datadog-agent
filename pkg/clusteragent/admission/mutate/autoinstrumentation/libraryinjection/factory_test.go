@@ -39,10 +39,10 @@ func TestGetProviderForPod(t *testing.T) {
 			expectedProvider: "CSIProvider",
 		},
 		{
-			name:             "no annotation uses default auto (init_container)",
+			name:             "no annotation uses default auto",
 			defaultMode:      libraryinjection.InjectionModeAuto,
 			annotationValue:  nil,
-			expectedProvider: "InitContainerProvider",
+			expectedProvider: "AutoProvider",
 		},
 		{
 			name:             "annotation overrides default: init_container -> csi",
@@ -57,16 +57,16 @@ func TestGetProviderForPod(t *testing.T) {
 			expectedProvider: "InitContainerProvider",
 		},
 		{
-			name:             "annotation auto uses init_container",
+			name:             "annotation auto uses AutoProvider",
 			defaultMode:      libraryinjection.InjectionModeInitContainer,
 			annotationValue:  ptr.To("auto"),
-			expectedProvider: "InitContainerProvider",
+			expectedProvider: "AutoProvider",
 		},
 		{
-			name:             "unknown mode falls back to auto (init_container)",
+			name:             "unknown mode falls back to auto",
 			defaultMode:      libraryinjection.InjectionModeCSI,
 			annotationValue:  ptr.To("unknown_mode"),
-			expectedProvider: "InitContainerProvider",
+			expectedProvider: "AutoProvider",
 		},
 		{
 			name:             "empty annotation uses default",
@@ -101,6 +101,9 @@ func TestGetProviderForPod(t *testing.T) {
 			case "InitContainerProvider":
 				_, ok := provider.(*libraryinjection.InitContainerProvider)
 				assert.True(t, ok, "expected InitContainerProvider")
+			case "AutoProvider":
+				_, ok := provider.(*libraryinjection.AutoProvider)
+				assert.True(t, ok, "expected AutoProvider")
 			}
 		})
 	}
