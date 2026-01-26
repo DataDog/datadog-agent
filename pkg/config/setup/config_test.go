@@ -1508,9 +1508,9 @@ yet_another_key: "********"`
 
 func TestLoadProxyFromEnv(t *testing.T) {
 	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
-	cfg.SetKnown("proxy.http")     //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown("proxy.https")    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.SetKnown("proxy.no_proxy") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.SetDefault("proxy.http", "")
+	cfg.SetDefault("proxy.https", "")
+	cfg.SetDefault("proxy.no_proxy", []string{})
 	t.Setenv("DD_PROXY_HTTP", "http://www.example.com/")
 	cfg.BuildSchema()
 

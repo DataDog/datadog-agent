@@ -286,8 +286,8 @@ func deepCopyArgsEntryPtr(fieldToCopy *ArgsEntry) *ArgsEntry {
 }
 func deepCopyCGroupContext(fieldToCopy CGroupContext) CGroupContext {
 	copied := CGroupContext{}
-	copied.CGroupFile = deepCopyPathKey(fieldToCopy.CGroupFile)
 	copied.CGroupID = fieldToCopy.CGroupID
+	copied.CGroupPathKey = deepCopyPathKey(fieldToCopy.CGroupPathKey)
 	copied.CGroupVersion = fieldToCopy.CGroupVersion
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
 	return copied
@@ -311,7 +311,6 @@ func deepCopyContainerContext(fieldToCopy ContainerContext) ContainerContext {
 	copied.ContainerID = fieldToCopy.ContainerID
 	copied.CreatedAt = fieldToCopy.CreatedAt
 	copied.Releasable = deepCopyReleasablePtr(fieldToCopy.Releasable)
-	copied.Resolved = fieldToCopy.Resolved
 	copied.Tags = deepCopystringArr(fieldToCopy.Tags)
 	return copied
 }
@@ -853,6 +852,7 @@ func deepCopyMount(fieldToCopy Mount) Mount {
 func deepCopyMountReleasedEvent(fieldToCopy MountReleasedEvent) MountReleasedEvent {
 	copied := MountReleasedEvent{}
 	copied.MountID = fieldToCopy.MountID
+	copied.MountIDUnique = fieldToCopy.MountIDUnique
 	return copied
 }
 func deepCopyNetDeviceEvent(fieldToCopy NetDeviceEvent) NetDeviceEvent {

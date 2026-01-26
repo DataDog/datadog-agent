@@ -11,11 +11,10 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"math"
 	"time"
 
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/apis/datadoghq/v1alpha1"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -82,16 +81,6 @@ func tryCheckWPACRD(check checkAPI) error {
 	return nil
 }
 
-func notifyCheckWPACRD() backoff.Notify {
-	attempt := 0
-	return func(_ error, delay time.Duration) {
-		attempt++
-		mins := int(delay.Minutes())
-		secs := int(math.Mod(delay.Seconds(), 60))
-		log.Warnf("WPA CRD missing (attempt=%d): will retry in %dm%ds", attempt, mins, secs)
-	}
-}
-
 func isWPACRDNotFoundError(err error) bool {
 	status, ok := err.(*apierrors.StatusError)
 	if !ok {
@@ -104,27 +93,28 @@ func isWPACRDNotFoundError(err error) bool {
 		details.Kind == "watermarkpodautoscalers"
 }
 
-func checkWPACRD(wpaClient dynamic_client.Interface) backoff.Operation {
+func waitForWPACRD(wpaClient dynamic_client.Interface) {
+	exp := backoff.NewExponentialBackOff()
+	exp.InitialInterval = crdCheckInitialInterval
+	exp.RandomizationFactor = 0
+	exp.Multiplier = crdCheckMultiplier
+	exp.MaxInterval = crdCheckMaxInterval
+	exp.Reset()
+
 	check := func() error {
 		_, err := wpaClient.Resource(gvrWPA).List(context.TODO(), v1.ListOptions{})
 		return err
 	}
-	return func() error {
-		return tryCheckWPACRD(check)
-	}
-}
 
-func waitForWPACRD(wpaClient dynamic_client.Interface) {
-	exp := &backoff.ExponentialBackOff{
-		InitialInterval:     crdCheckInitialInterval,
-		RandomizationFactor: 0,
-		Multiplier:          crdCheckMultiplier,
-		MaxInterval:         crdCheckMaxInterval,
-		MaxElapsedTime:      crdCheckMaxElapsedTime,
-		Clock:               backoff.SystemClock,
-	}
-	exp.Reset()
-	_ = backoff.RetryNotify(checkWPACRD(wpaClient), exp, notifyCheckWPACRD())
+	attempt := 0
+	_, _ = backoff.Retry(context.Background(), func() (any, error) {
+		err := tryCheckWPACRD(check)
+		if err != nil && isWPACRDNotFoundError(err) {
+			attempt++
+			log.Warnf("WPA CRD missing (attempt=%d): will retry", attempt)
+		}
+		return nil, err
+	}, backoff.WithBackOff(exp), backoff.WithMaxElapsedTime(crdCheckMaxElapsedTime))
 }
 
 // enableWPA adds the handlers to the autoscalersController to support WPAs
