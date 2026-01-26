@@ -8,7 +8,8 @@ license = "Apache-2.0"
 
 [lib]
 name = "datadog_compression"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Only build static library - no shared library to avoid runtime linking issues
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 # Use zstd with bundled C library for maximum runtime performance.

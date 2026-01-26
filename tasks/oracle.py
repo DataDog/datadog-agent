@@ -4,12 +4,18 @@ from time import sleep
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.common.utils import gitlab_section
+from tasks.rust_compression import build as rust_compression_build
+
 
 @task
-def test(ctx, verbose=False) -> None:
+def test(ctx, verbose=False, exclude_rust_compression=False) -> None:
     """
     Runs oracle functional tests against a containerized database.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     if not os.environ.get("CI") and not os.environ.get("SKIP_DOCKER"):
         start_docker(ctx, verbose)
