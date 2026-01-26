@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Added `enable_otlp_container_tags_v2` feature gate, which reduces duplication of container tags in OTLP traces.
+    Added ``enable_otlp_container_tags_v2`` feature gate, which reduces duplication of container tags in OTLP traces.
