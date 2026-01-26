@@ -1,0 +1,128 @@
+name: load-generator
+display_name: Load Generator (Locust)
+description: Python-based load generator using Locust framework to simulate user traffic and validate application behavior
+category: _foundation
+type: load-generator
+
+language:
+  name: Python
+  version: "3.11"
+
+framework:
+  name: Locust
+  version: "2.20"
+
+base_image: python:3.11-slim
+uses_official_image: false
+
+ports:
+  - port: 8089
+    protocol: http
+    description: Locust web UI and stats API
+
+environment_variables:
+  - name: LOCUST_HOST
+    description: Target host for load testing
+    required: true
+  - name: LOCUST_USERS
+    description: Number of simulated users
+    default: "10"
+    required: false
+  - name: LOCUST_SPAWN_RATE
+    description: User spawn rate per second
+    default: "1"
+    required: false
+  - name: LOAD_BASELINE_TASK_WEIGHTS
+    description: JSON map of task weights for baseline phase
+    required: false
+  - name: LOAD_INTERVENTION_TASK_WEIGHTS
+    description: JSON map of task weights for intervention phase
+    required: false
+
+dependencies:
+  system:
+    - curl
+  python:
+    - locust>=2.20.0
+    - ddtrace>=2.0.0
+    - requests>=2.31.0
+
+health_check:
+  endpoint: /stats/requests
+  method: GET
+  interval: 30
+  timeout: 10
+
+files_to_refactor:
+  - locustfile.py
+  - requirements.txt
+
+maintainer:
+  team: platform
+  contact: platform@example.com
+  version: 1.0.0
+
+tags:
+  - load-testing
+  - locust
+  - python
+  - performance
+
+# Error guidance for test failures
+error_guidance:
+  - matchers:
+      - "connection refused"
+      - "dial tcp"
+      - "8089"
+    recommendation: |
+      🔌 **LOAD GENERATOR CONNECTION ERROR**
+      Cannot connect to the load generator's stats API (port 8089).
+
+      **Common causes:**
+      1. Load generator container not running or not healthy
+      2. Wrong port being used (dynamic port mapping issue)
+      3. Test running before load generator is ready
+
+      **How to fix:**
+      - Check container status: `docker compose ps load-generator`
+      - Check logs: `docker compose logs load-generator`
+      - Verify port mapping: `docker compose port load-generator 8089`
+      - Ensure test.sh uses dynamic port detection
+
+  - matchers:
+      - "no requests"
+      - "0 requests"
+      - "stats validation failed"
+    recommendation: |
+      📊 **NO LOAD GENERATED**
+      The load generator is running but not sending meaningful traffic to the application.
+
+      **Common causes:**
+      1. `locustfile.py` doesn't define tasks that interact with the application
+      2. LOCUST_HOST environment variable points to wrong URL
+      3. Application endpoints are failing silently
+
+      **How to fix:**
+      - Review `locustfile.py` and ensure TaskSet classes have `@task` methods
+      - Verify LOCUST_HOST matches your backend service
+      - Check application logs for errors: `docker compose logs todo-backend`
+      - Add tasks that call your API endpoints (GET /todos, POST /todos, etc.)
+
+  - matchers:
+      - "all requests failed"
+      - "100% failures"
+      - "failure rate"
+    recommendation: |
+      ❌ **ALL LOAD REQUESTS FAILING**
+      The load generator is sending requests but they're all failing.
+
+      **Common causes:**
+      1. Backend service is down or unhealthy
+      2. Wrong API endpoints in locustfile.py
+      3. Missing authentication or required headers
+
+      **How to fix:**
+      - Check backend status: `docker compose ps`
+      - Verify endpoint URLs in locustfile.py match actual backend routes
+      - Test endpoints manually: `curl http://localhost:8081/api/todos`
+      - Check backend logs for error messages

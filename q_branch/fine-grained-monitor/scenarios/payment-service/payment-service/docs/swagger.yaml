@@ -1,0 +1,181 @@
+basePath: /api
+definitions:
+  main.PaymentRequest:
+    properties:
+      amount:
+        type: number
+      card_holder:
+        type: string
+      card_number:
+        type: string
+      currency:
+        type: string
+      customer_id:
+        type: string
+      cvv:
+        type: string
+      description:
+        type: string
+      expiry_date:
+        type: string
+      merchant_id:
+        type: string
+      transaction_id:
+        type: string
+    required:
+    - amount
+    - card_holder
+    - card_number
+    - currency
+    - cvv
+    - expiry_date
+    - merchant_id
+    type: object
+  main.PaymentResponse:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+      fraud_score:
+        type: number
+      merchant_id:
+        type: string
+      message:
+        type: string
+      processed_at:
+        type: string
+      status:
+        type: string
+      transaction_id:
+        type: string
+    type: object
+  main.ReportRequest:
+    properties:
+      end_date:
+        type: string
+      format:
+        type: string
+      merchant_id:
+        type: string
+      report_type:
+        type: string
+      start_date:
+        type: string
+    required:
+    - end_date
+    - report_type
+    - start_date
+    type: object
+  main.ReportResponse:
+    properties:
+      download_url:
+        type: string
+      end_date:
+        type: string
+      generated_at:
+        type: string
+      record_count:
+        type: integer
+      report_id:
+        type: string
+      report_type:
+        type: string
+      start_date:
+        type: string
+      status:
+        type: string
+      total_amount:
+        type: number
+    type: object
+host: localhost:8081
+info:
+  contact: {}
+  description: Payment processing service with fraud detection
+  title: payment-service API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns service health status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health check
+      tags:
+      - health
+  /internal/generate-report:
+    post:
+      consumes:
+      - application/json
+      description: Generate a compliance report for the specified period
+      parameters:
+      - description: Report Request
+        in: body
+        name: report
+        required: true
+        schema:
+          $ref: '#/definitions/main.ReportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.ReportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Generate compliance report
+      tags:
+      - reports
+  /pay:
+    post:
+      consumes:
+      - application/json
+      description: Process a payment transaction with fraud detection
+      parameters:
+      - description: Payment Request
+        in: body
+        name: payment
+        required: true
+        schema:
+          $ref: '#/definitions/main.PaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.PaymentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "402":
+          description: Payment Required
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Process a payment
+      tags:
+      - payments
+swagger: "2.0"

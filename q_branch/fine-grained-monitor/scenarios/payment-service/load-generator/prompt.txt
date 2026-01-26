@@ -1,0 +1,286 @@
+This is a load-generator component (class: _foundation) for the payment-service-baseline system.
+
+System description: Payment processing service with mixed workload (API + Background Jobs)
+
+# Overview
+
+This load generator is built with Locust and includes sophisticated patterns for causal experiments:
+- **Phase-based design**: Separate baseline and intervention phases for before/after analysis
+- **ON/OFF state machine**: Realistic user burstiness with active/idle periods
+- **Gamma distributions**: Natural timing variability for think times, session lengths, and burst durations
+- **Task dispatcher**: Configurable weights per phase for dynamic workload composition
+- **Datadog APM instrumentation**: Traces, logs, and metrics from the load generator itself
+
+# Your Task: Customize for payment-service-baseline
+
+## 1. Define Application-Specific Data
+
+At the top of `locustfile.py`, replace the example e-commerce data with data relevant to payment-service-baseline:
+
+### Categories
+Replace the `categories` list with content categories, entity types, or filters in your application:
+```python
+categories = [
+    "category1",
+    "category2",
+    # Add your app's categories
+]
+```
+
+### Products/Entities
+Replace the `products` list with IDs of items, entities, or resources your app works with:
+```python
+products = [
+    "entity-id-1",
+    "entity-id-2",
+    # Add IDs that users interact with
+]
+```
+
+### Test User Data
+Update `people.json` with test data appropriate for payment-service-baseline. This might include:
+- User profiles for authentication/checkout flows
+- Test accounts with different permissions
+- Sample request payloads
+
+## 2. Implement Task Methods
+
+Replace the e-commerce task implementations with payment-service-baseline's actual user flows. Each task is marked with `CUSTOMIZE` comments.
+
+### Task Pattern
+Each task should follow this pattern:
+```python
+def _task_my_action(self):
+    """CUSTOMIZE: Description of what this task does."""
+    with self.tracer.start_as_current_span("user_my_action", 
+                                           context=Context(), 
+                                           attributes={"key": "value"}):
+        logging.info("User performing action")
+        response = self.client.get("/api/my-endpoint")
+        # Process response if needed
+```
+
+### Example Task Mappings
+
+| Example Task | Replace With |
+|--------------|--------------|
+| `_task_index()` | Landing page / home page for payment-service-baseline |
+| `_task_browse_product()` | View/read primary entity (article, profile, item) |
+| `_task_get_recommendations()` | Get personalized content or suggestions |
+| `_task_add_to_cart()` | Create or modify user data (add, save, update) |
+| `_task_checkout()` | Complex multi-step workflow (submit, process, confirm) |
+| `_task_view_cart()` | View user's data/state (dashboard, list, summary) |
+
+**Requirements for each task:**
+1. Wrap in `self.tracer.start_as_current_span()` for distributed tracing
+2. Log meaningful information with `logging.info()`
+3. Use `self.client.get/post/put/delete()` for HTTP requests
+4. Add relevant attributes to spans (user ID, entity ID, etc.)
+
+## 3. Update Task Dispatcher Map
+
+In the `dispatch_task()` method, update the `task_map` dictionary to include your custom tasks:
+
+```python
+task_map = {
+    'index': self._task_index,
+    'browse': self._task_browse_entity,
+    'create': self._task_create_entity,
+    'update': self._task_update_entity,
+    'delete': self._task_delete_entity,
+    'search': self._task_search,
+    # Add all your custom tasks here
+}
+```
+
+**Important**: Task names in this map must match the keys you use in environment variables for task weights.
+
+## 4. Configure Task Weights for Experiments
+
+Task weights control the probability distribution of user actions in each phase. Configure via environment variables in `docker-compose.yml`.
+
+**⚠️ DEFAULT BEHAVIOR**: If no task weights are configured (`LOAD_BASELINE_TASK_WEIGHTS` and `LOAD_INTERVENTION_TASK_WEIGHTS` are empty), **ALL tasks in `task_map` will be executed with equal probability (weight=1)**. This ensures the load generator tests multiple endpoints, not just the index page. However, the default tasks are e-commerce placeholders that will likely fail - you MUST customize them for your application.
+
+**RECOMMENDATION**: Always explicitly configure task weights to:
+1. Only run tasks that are implemented and relevant to payment-service-baseline
+2. Control the traffic distribution to match realistic user behavior
+3. Focus load testing on the endpoints you care about
+
+### Baseline Phase
+Normal traffic pattern before the intervention:
+```yaml
+environment:
+  - LOAD_BASELINE_USERS=10
+  - LOAD_BASELINE_SPAWN_RATE=2
+  - LOAD_BASELINE_TASK_WEIGHTS={"browse": 10, "create": 2, "search": 5}
+  - LOAD_BASELINE_ARRIVAL_RATE=1.0
+  - LOAD_BASELINE_THINK_TIME_MEAN=5.0
+```
+
+### Intervention Phase
+Modified traffic pattern during/after the change:
+```yaml
+environment:
+  - LOAD_INTERVENTION_USERS=10
+  - LOAD_INTERVENTION_SPAWN_RATE=2
+  - LOAD_INTERVENTION_TASK_WEIGHTS={"browse": 5, "create": 8, "search": 3}
+  - LOAD_INTERVENTION_ARRIVAL_RATE=2.0
+  - LOAD_INTERVENTION_THINK_TIME_MEAN=5.0
+```
+
+### Example Experiment Scenarios
+
+**Scenario 1: Flash sale (traffic spike with more users)**
+```yaml
+LOAD_WARMUP_DURATION: 300  # 5 minute baseline
+LOAD_BASELINE_USERS: 10
+LOAD_BASELINE_TASK_WEIGHTS: '{"browse": 10, "checkout": 1}'
+LOAD_INTERVENTION_USERS: 50  # 5x more users
+LOAD_INTERVENTION_SPAWN_RATE: 5  # Ramp up quickly
+LOAD_INTERVENTION_TASK_WEIGHTS: '{"browse": 3, "checkout": 10}'
+LOAD_INTERVENTION_ARRIVAL_RATE: 1.5  # Also increase per-user intensity
+```
+
+**Scenario 2: Feature launch (new action introduced, same load)**
+```yaml
+LOAD_WARMUP_DURATION: 180  # 3 minute baseline
+LOAD_BASELINE_USERS: 20
+LOAD_BASELINE_TASK_WEIGHTS: '{"read": 10, "write": 2}'
+LOAD_INTERVENTION_USERS: 20  # Same user count
+LOAD_INTERVENTION_TASK_WEIGHTS: '{"read": 8, "write": 2, "new_feature": 5}'
+```
+
+**Scenario 3: Load increase (same mix, more intensity via user count)**
+```yaml
+LOAD_WARMUP_DURATION: 600  # 10 minute baseline
+LOAD_BASELINE_USERS: 20
+LOAD_BASELINE_SPAWN_RATE: 2
+LOAD_INTERVENTION_USERS: 50  # 2.5x the user count
+LOAD_INTERVENTION_SPAWN_RATE: 5
+LOAD_INTERVENTION_ARRIVAL_RATE: 1.0  # Keep per-user rate same
+```
+
+**Scenario 4: Graceful degradation test (reduce load during intervention)**
+```yaml
+LOAD_BASELINE_USERS: 100
+LOAD_BASELINE_SPAWN_RATE: 10
+LOAD_INTERVENTION_USERS: 20  # Scale down to test recovery
+LOAD_INTERVENTION_SPAWN_RATE: 2
+```
+
+## 5. Key Environment Variables
+
+### Phase-Specific Parameters
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOAD_WARMUP_DURATION` | Seconds in baseline phase before switching to intervention | `0` |
+| **Baseline Phase** | | |
+| `LOAD_BASELINE_USERS` | Number of concurrent users during baseline phase | `10` |
+| `LOAD_BASELINE_SPAWN_RATE` | Users spawned per second during baseline ramp-up | `2` |
+| `LOAD_BASELINE_TASK_WEIGHTS` | JSON dict of task weights for baseline phase | `{}` |
+| `LOAD_BASELINE_ARRIVAL_RATE` | Request rate multiplier for baseline (scales think time inversely) | `1.0` |
+| `LOAD_BASELINE_THINK_TIME_MEAN` | Mean seconds between requests (baseline) | `5.0` |
+| `LOAD_BASELINE_THINK_TIME_CV` | Coefficient of variation for think time (baseline) | `0.5` |
+| **Intervention Phase** | | |
+| `LOAD_INTERVENTION_USERS` | Number of concurrent users during intervention phase | `10` |
+| `LOAD_INTERVENTION_SPAWN_RATE` | Users spawned per second during intervention ramp-up | `2` |
+| `LOAD_INTERVENTION_TASK_WEIGHTS` | JSON dict of task weights for intervention phase | `{}` |
+| `LOAD_INTERVENTION_ARRIVAL_RATE` | Request rate multiplier for intervention | `1.0` |
+| `LOAD_INTERVENTION_THINK_TIME_MEAN` | Mean seconds between requests (intervention) | `5.0` |
+| `LOAD_INTERVENTION_THINK_TIME_CV` | Coefficient of variation for think time (intervention) | `0.5` |
+| **Burstiness & Sessions** | | |
+| `LOAD_BURST_ON_DURATION_MEAN` | Mean seconds in active (ON) state | `30.0` |
+| `LOAD_BURST_ON_DURATION_CV` | Coefficient of variation for ON duration | `0.5` |
+| `LOAD_BURST_OFF_DURATION_MEAN` | Mean seconds in idle (OFF) state | `60.0` |
+| `LOAD_BURST_OFF_DURATION_CV` | Coefficient of variation for OFF duration | `0.5` |
+| `LOAD_SESSION_LENGTH_MEAN` | Mean number of requests per user session | `20.0` |
+| `LOAD_SESSION_LENGTH_CV` | Coefficient of variation for session length | `0.5` |
+
+### Understanding Key Parameters
+
+- **users**: Number of concurrent simulated users (can be different per phase)
+- **spawn_rate**: How quickly users are added during ramp-up (users per second)
+- **arrival_rate**: Per-user intensity multiplier. `arrival_rate=2.0` means 2x the requests per second per user (think time is halved)
+- **think_time_mean**: Average seconds between requests when user is active (ON state)
+- **think_time_cv**: Variability in think time. `0.5` = moderate, `1.0` = high variability
+- **burst ON/OFF durations**: Control realistic user behavior (active periods vs. idle periods)
+- **session_length**: Number of requests before user "leaves" (enters long OFF state)
+
+### Scaling Load: User Count vs. Arrival Rate
+
+There are two ways to increase load:
+
+1. **Increase user count** (`LOAD_INTERVENTION_USERS`): More concurrent users making requests
+   - Use this to simulate more people using the system
+   - Each user maintains independent ON/OFF state and session tracking
+   
+2. **Increase arrival rate** (`LOAD_INTERVENTION_ARRIVAL_RATE`): Each user makes requests faster
+   - Use this to simulate existing users being more active
+   - Think time is divided by arrival_rate
+   
+3. **Combine both**: Maximum load increase with realistic distribution
+
+## 6. Static Resources
+
+If payment-service-baseline requires static resources for load testing (images, files, test data), you can use resources from:
+```
+~/dd/gensim/src/gensim-vibecoder/static-resources/
+```
+
+Available categories:
+- `photos/dogs/` - Dog images (20 files)
+- `photos/cats/` - Cat images (20 files)
+- `photos/food/` - Food images (20 files)
+
+Copy relevant resources to your component directory and load them in your tasks.
+
+## 7. Implementation Checklist
+
+- [ ] Replace `categories` list with payment-service-baseline-specific categories
+- [ ] Replace `products` list with payment-service-baseline-specific entity IDs
+- [ ] Update `people.json` with appropriate test data
+- [ ] Implement all custom task methods (replace e-commerce examples)
+- [ ] Update `task_map` dictionary with your task names
+- [ ] Configure `LOAD_BASELINE_TASK_WEIGHTS` in docker-compose
+- [ ] Configure `LOAD_INTERVENTION_TASK_WEIGHTS` in docker-compose
+- [ ] Test baseline phase (observe normal traffic patterns)
+- [ ] Test intervention phase (observe traffic shift)
+- [ ] Verify Datadog APM traces appear in Datadog
+- [ ] Verify logs include trace context correlation
+
+## 8. Testing Your Load Generator
+
+### Local Testing
+```bash
+cd load-generator
+pip install -r requirements.txt
+locust -f locustfile.py --host=http://localhost:8081
+```
+
+Then open http://localhost:8089 to access the Locust web UI.
+
+### Docker Testing
+```bash
+docker build -t test-load-generator .
+docker run -p 8089:8089 \
+  -e LOCUST_HOST=http://your-service:8081 \
+  -e LOAD_BASELINE_TASK_WEIGHTS='{"browse": 10, "create": 2}' \
+  test-load-generator
+```
+
+### Experiment Testing
+1. Start with `LOAD_WARMUP_DURATION=60` (1 minute baseline)
+2. Monitor metrics during baseline phase
+3. Observe automatic switch to intervention phase
+4. Compare baseline vs. intervention metrics in Datadog
+
+## Notes
+
+- The load generator validates configuration on startup and logs warnings for misconfigured tasks
+- All requests include `baggage` header with `synthetic_request=true` for filtering in Datadog
+- Each user maintains an ON/OFF state machine for realistic burstiness
+- Gamma distributions provide natural variability in timing (more realistic than uniform/exponential)
+- Phase switching happens automatically based on `LOAD_WARMUP_DURATION`
+
+Make sure the load tests cover all major user flows and edge cases for payment-service-baseline.

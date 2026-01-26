@@ -1,0 +1,4 @@
+locust==2.20.0
+# Datadog APM - Direct instrumentation
+# See: https://docs.datadoghq.com/tracing/trace_collection/dd_libraries/python/
+ddtrace>=2.18.1,<3.0.0

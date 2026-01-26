@@ -1,0 +1,62 @@
+[
+  {
+    "email": "alice.smith@example.com",
+    "streetAddress": "123 Main Street",
+    "city": "Seattle",
+    "state": "WA",
+    "country": "USA",
+    "zipCode": "98101",
+    "creditCardNumber": "4111111111111111",
+    "creditCardExpirationMonth": 12,
+    "creditCardExpirationYear": 2030,
+    "creditCardCvv": 123
+  },
+  {
+    "email": "bob.jones@example.com",
+    "streetAddress": "456 Oak Avenue",
+    "city": "Portland",
+    "state": "OR",
+    "country": "USA",
+    "zipCode": "97201",
+    "creditCardNumber": "4532015112830366",
+    "creditCardExpirationMonth": 6,
+    "creditCardExpirationYear": 2029,
+    "creditCardCvv": 456
+  },
+  {
+    "email": "carol.white@example.com",
+    "streetAddress": "789 Pine Road",
+    "city": "San Francisco",
+    "state": "CA",
+    "country": "USA",
+    "zipCode": "94102",
+    "creditCardNumber": "5425233430109903",
+    "creditCardExpirationMonth": 3,
+    "creditCardExpirationYear": 2028,
+    "creditCardCvv": 789
+  },
+  {
+    "email": "david.brown@example.com",
+    "streetAddress": "321 Elm Street",
+    "city": "Austin",
+    "state": "TX",
+    "country": "USA",
+    "zipCode": "73301",
+    "creditCardNumber": "2221000000000009",
+    "creditCardExpirationMonth": 9,
+    "creditCardExpirationYear": 2027,
+    "creditCardCvv": 321
+  },
+  {
+    "email": "emma.davis@example.com",
+    "streetAddress": "654 Maple Drive",
+    "city": "Boston",
+    "state": "MA",
+    "country": "USA",
+    "zipCode": "02108",
+    "creditCardNumber": "5105105105105100",
+    "creditCardExpirationMonth": 11,
+    "creditCardExpirationYear": 2031,
+    "creditCardCvv": 654
+  }
+]
