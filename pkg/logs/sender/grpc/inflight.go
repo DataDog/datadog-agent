@@ -6,10 +6,13 @@
 package grpc
 
 import (
+	"time"
+
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // inflightTracker is a bounded FIFO queue that tracks payloads in two regions:
@@ -39,6 +42,7 @@ type inflightTracker struct {
 	headBatchID    uint32         // BatchID of the oldest sent payload (at head)
 	batchIDCounter uint32         // Next batchID to be assigned when markSent is called
 	snapshot       *snapshotState // Accumulated state for new streams
+	lastSnapshotLog time.Time
 }
 
 // newInflightTracker creates a new bounded inflight tracker with the given capacity
@@ -86,6 +90,7 @@ func (t *inflightTracker) pop() *message.Payload {
 	if payload.StatefulExtra != nil {
 		if extra, ok := payload.StatefulExtra.(*StatefulExtra); ok {
 			t.snapshot.apply(extra)
+			t.maybeLogSnapshot()
 		}
 	}
 
@@ -95,6 +100,20 @@ func (t *inflightTracker) pop() *message.Payload {
 	}
 
 	return payload
+}
+
+const snapshotLogInterval = time.Minute
+
+func (t *inflightTracker) maybeLogSnapshot() {
+	now := time.Now()
+	if !t.lastSnapshotLog.IsZero() && now.Sub(t.lastSnapshotLog) < snapshotLogInterval {
+		return
+	}
+	t.lastSnapshotLog = now
+
+	patternCount, dictCount, estimatedBytes := t.snapshot.stats()
+	log.Debugf("Stateful snapshot stats: patterns=%d dict=%d est_bytes=%d inflight=%d sent=%d buffered=%d",
+		patternCount, dictCount, estimatedBytes, t.totalCount(), t.sentCount(), t.totalCount()-t.sentCount())
 }
 
 // hasUnacked returns true if there are sent payloads awaiting acknowledgment
@@ -238,4 +257,20 @@ func (s *snapshotState) serialize() []byte {
 
 	serialized, _ := proto.Marshal(datumSeq)
 	return serialized
+}
+
+func (s *snapshotState) stats() (patternCount int, dictCount int, estimatedBytes int) {
+	patternCount = len(s.patternMap)
+	dictCount = len(s.dictMap)
+
+	for _, pattern := range s.patternMap {
+		estimatedBytes += len(pattern.Template)
+		estimatedBytes += len(pattern.PosList) * 4
+	}
+
+	for _, entry := range s.dictMap {
+		estimatedBytes += len(entry.Value)
+	}
+
+	return patternCount, dictCount, estimatedBytes
 }
