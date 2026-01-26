@@ -78,9 +78,18 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
 	}
-	crtelemetry, err := telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta, filterStore)
-	if err != nil {
-		return nil, err
+
+	var (
+		crtelemetry *telemetry.ContainersRunningTelemetry
+		err         error
+	)
+
+	// filterStore can be nil, especially in the case of functional tests
+	if filterStore != nil {
+		crtelemetry, err = telemetry.NewContainersRunningTelemetry(crtelemcfg, evm.StatsdClient, wmeta, filterStore)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var selfTester *selftests.SelfTester
