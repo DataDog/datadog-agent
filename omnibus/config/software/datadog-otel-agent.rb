@@ -59,10 +59,16 @@ build do
         end
         env["GOROOT"] = msgoroot
         env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
+        # also update the global env so that the symbol inspector use the correct go version
+        ENV['GOROOT'] = msgoroot
+        ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
       else
         msgoroot = "/usr/local/msgo"
         env["GOROOT"] = msgoroot
         env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
+        # also update the global env so that the symbol inspector use the correct go version
+        ENV['GOROOT'] = msgoroot
+        ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
       end
     end
 
@@ -83,6 +89,27 @@ build do
     else
       copy 'bin/otel-agent/otel-agent', embedded_bin_dir
     end
-
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+
+    # Check that the build tags had an actual effect
+    if fips_mode?
+      if linux_target?
+        block do
+          bin = "#{embedded_bin_dir}/otel-agent"
+          symbol = "_Cfunc__mkcgo_OPENSSL"
+
+          check_block = Proc.new { |binary, symbols|
+            count = symbols.scan(symbol).count
+            if count > 0
+              log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
+            else
+              raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
+            end
+          }.curry
+
+          partially_applied_check = check_block.call(bin)
+          GoSymbolsInspector.new(bin, &partially_applied_check).inspect()
+        end
+      end
+    end
 end
