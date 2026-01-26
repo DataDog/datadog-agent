@@ -99,11 +99,11 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
 			pkgconfig.SetConfigFile(ddCfg)
 		}
-	}
 
-	err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
-	if err != nil {
-		return nil, err
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	//
