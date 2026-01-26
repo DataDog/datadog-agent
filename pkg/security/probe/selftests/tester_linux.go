@@ -69,6 +69,8 @@ func createTargetFile() (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
+	// remove to let the open selftest create the file
+	_ = os.Remove(targetFile.Name())
 
 	return targetFile.Name(), tmpDir, targetFile.Close()
 }

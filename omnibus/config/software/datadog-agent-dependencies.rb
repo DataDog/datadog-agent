@@ -7,14 +7,6 @@ if linux_target?
   dependency 'curl'
 end
 
-if !fips_mode?
-  if !heroku_target?
-    build do
-      command_on_repo_root "bazelisk run -- //deps/secret_connector:install --verbose --destdir=#{install_dir}"
-    end
-  end
-end
-
 dependency 'datadog-agent-data-plane' if linux_target? && !heroku_target?
 
 if (linux_target? && !heroku_target?) || windows_target?

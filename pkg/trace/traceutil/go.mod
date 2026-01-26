@@ -6,7 +6,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.71.0
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0
 	github.com/stretchr/testify v1.11.1
-	github.com/tinylib/msgp v1.6.2
+	github.com/tinylib/msgp v1.6.3
 )
 
 require (
@@ -170,6 +170,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option

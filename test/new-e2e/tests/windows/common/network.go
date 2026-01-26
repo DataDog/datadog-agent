@@ -6,13 +6,14 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 )
 
 // BoundPort represents a port that is bound to a process
@@ -89,22 +90,22 @@ func ListBoundPorts(host *components.RemoteHost) ([]*BoundPort, error) {
 // If the URL is a remote file, it will be downloaded from the VM
 func PutOrDownloadFile(host *components.RemoteHost, url string, destination string) error {
 	// no retry
-	return PutOrDownloadFileWithRetry(host, url, destination, &backoff.StopBackOff{})
+	return PutOrDownloadFileWithRetry(host, url, destination, backoff.WithBackOff(&backoff.StopBackOff{}))
 }
 
 // PutOrDownloadFileWithRetry is similar to PutOrDownloadFile but retries on download failure,
 // local file copy is not retried.
-func PutOrDownloadFileWithRetry(host *components.RemoteHost, url string, destination string, b backoff.BackOff) error {
+func PutOrDownloadFileWithRetry(host *components.RemoteHost, url string, destination string, opts ...backoff.RetryOption) error {
 	if strings.HasPrefix(url, "http://") || strings.HasPrefix(url, "https://") {
-		err := backoff.Retry(func() error {
-			return DownloadFile(host, url, destination)
+		_, err := backoff.Retry(context.Background(), func() (any, error) {
+			return nil, DownloadFile(host, url, destination)
 			// TODO: it would be neat to only retry on web related errors but
 			//       we don't have a way to distinguish them since DownloadFile
 			//       throws a WebException for non web related errors such as
 			//       filename is null or Empty.
 			//       https://learn.microsoft.com/en-us/dotnet/api/system.net.webclient.downloadfile
 			//       example error: Exception calling "DownloadFile" with "2" argument(s): "The remote server returned an error: (503)
-		}, b)
+		}, opts...)
 		if err != nil {
 			return err
 		}

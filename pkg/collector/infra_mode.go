@@ -15,7 +15,7 @@ import (
 // IsCheckAllowed returns true if the check is allowed.
 // When not in basic mode, all checks are allowed (returns true).
 // When in basic mode, only checks in the allowed list or starting with "custom_" are permitted.
-// Note: Legacy keys (excluded_checks, allowed_additional_checks) are aliased to mode-specific
+// Note: Legacy key (allowed_additional_checks) is aliased to mode-specific
 // keys in config.go via applyInfrastructureModeOverrides.
 func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 	if !cfg.GetBool("integration.enabled") {
