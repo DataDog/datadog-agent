@@ -8,6 +8,48 @@
 // This package provides utilities and test suites to validate the installation, uninstallation,
 // and upgrade processes of the Datadog Agent and related components on Windows systems.
 //
+// # Quick Start with setup-env Helper
+//
+//	Configure environment variables for local testing with the setup-env helper:
+//
+// PowerShell:
+//
+//	dda inv new-e2e-tests.setup-env --build local --fmt powershell | Invoke-Expression
+//
+// Bash/WSL:
+//
+//	eval "$(dda inv new-e2e-tests.setup-env --build local)"
+//
+// This automatically detects local MSI/OCI builds in omnibus/pkg/ and sets the appropriate environment variables.
+//
+// ## Using Pipeline Artifacts
+//
+// To use artifacts from a CI pipeline (requires GITLAB_TOKEN environment variable):
+//
+// PowerShell:
+//
+//	$env:GITLAB_TOKEN="your-token"
+//	dda inv new-e2e-tests.setup-env --build pipeline --fmt powershell | Invoke-Expression
+//
+// Bash/WSL:
+//
+//	export GITLAB_TOKEN="your-token"
+//	eval "$(dda inv new-e2e-tests.setup-env --build pipeline)"
+//
+// This auto-detects the most recent successful pipeline on your current branch and sets E2E_PIPELINE_ID
+// along with the version variables.
+//
+// To use a specific pipeline:
+//
+//	dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 40537701 --fmt powershell | Invoke-Expression
+//
+// Options:
+//   - --build local: Use local builds from omnibus/pkg/
+//   - --build pipeline: Use CI pipeline artifacts (requires GITLAB_TOKEN)
+//   - --fmt bash|powershell|json: Output format (default: bash)
+//   - --pkg <name>: Specify a particular Local MSI package to use for --build local
+//   - --pipeline-id <id>: Override pipeline ID for --build pipeline
+//
 // # Running Tests with Pipeline Artifacts
 //
 // To run the tests using artifacts from a specific pipeline, set the following environment variables:

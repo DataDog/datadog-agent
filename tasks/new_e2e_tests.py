@@ -1290,13 +1290,16 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
 
     Usage:
         # Use local MSI build from omnibus/pkg directory (Windows)
-        eval $(dda inv new-e2e-tests.setup-env --build local)
+        dda inv new-e2e-tests.setup-env --build local
 
         # Use artifacts from a CI pipeline (auto-detects most recent successful pipeline)
-        eval $(dda inv new-e2e-tests.setup-env --build pipeline)
+        dda inv new-e2e-tests.setup-env --build pipeline
 
         # Use a specific pipeline
-        eval $(dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 12345678)
+        dda inv new-e2e-tests.setup-env --build pipeline --pipeline-id 12345678
+
+        # Bash/WSL - eval the output to apply the environment variables
+        eval "$(dda inv new-e2e-tests.setup-env --build local)"
 
         # PowerShell - pipe to Invoke-Expression to execute the commands
         dda inv new-e2e-tests.setup-env --build local --fmt powershell | Invoke-Expression
@@ -1332,11 +1335,21 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
                     env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
                 except Exception as e:
                     print(f"Warning: Could not determine current agent version: {e}", file=sys.stderr)
+
+            # Check for matching OCI package
+            if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
+                oci_filename = f"datadog-agent-{env_vars['CURRENT_AGENT_VERSION_PACKAGE']}-windows-amd64.oci.tar"
+                oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
+                if os.path.isfile(oci_path):
+                    env_vars["CURRENT_AGENT_OCI_URL"] = _path_to_file_url(oci_path)
+                    print(f"# Found local OCI: {oci_path}", file=sys.stderr)
+                else:
+                    print(f"# Warning: No OCI matching '{oci_filename}' found in omnibus/pkg/.", file=sys.stderr)
         else:
             if pkg:
-                print(f"Warning: No MSI matching '{pkg}' found in omnibus/pkg/.", file=sys.stderr)
+                print(f"# Warning: No MSI matching '{pkg}' found in omnibus/pkg/.", file=sys.stderr)
             else:
-                print("Warning: No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", file=sys.stderr)
+                print("# Warning: No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", file=sys.stderr)
 
     elif build == "pipeline":
         # Find pipeline ID
@@ -1348,7 +1361,7 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
                 env_vars["E2E_PIPELINE_ID"], _ = result
                 print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
             else:
-                print("Warning: Could not find a recent successful pipeline. You may need to set E2E_PIPELINE_ID manually or use --build local.", file=sys.stderr)
+                print("# Warning: Could not find a recent successful pipeline. You may need to set E2E_PIPELINE_ID manually or use --build local.", file=sys.stderr)
 
         # Get version from git
         try:
@@ -1374,13 +1387,8 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
     else:
         raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
 
-    # Get stable agent version from release.json (common for both modes)
-    try:
-        stable_version = _get_release_json_value("last_stable::7")
-        env_vars["STABLE_AGENT_VERSION"] = stable_version
-        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
-    except Exception as e:
-        print(f"Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
+    env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
+    env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
 
     # Output in requested format
     if fmt == "json":
