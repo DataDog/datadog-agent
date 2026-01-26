@@ -20,7 +20,7 @@ func Load() (*Config, error) {
 	// Define command-line flags
 	flag.IntVar(&cfg.Port, "port", getEnvInt("MCP_EVAL_PORT", 8080), "Port to listen on")
 	flag.StringVar(&cfg.LogLevel, "loglevel", getEnvString("MCP_EVAL_LOGLEVEL", "info"), "Log level (debug, info, warn, error)")
-	flag.StringVar(&cfg.Mode, "mode", getEnvString("MCP_EVAL_MODE", "bash"), "Server mode: bash, safe-shell, or tools")
+	flag.StringVar(&cfg.Mode, "mode", getEnvString("MCP_EVAL_MODE", "bash"), "Server mode: bash, safe-shell, tools, tools-safe-shell, tools-bash, tools-plus")
 
 	flag.Parse()
 
@@ -51,9 +51,10 @@ func (c *Config) validate() error {
 		"tools":             true,
 		"tools-safe-shell":  true,
 		"tools-bash":        true,
+		"tools-plus":        true,
 	}
 	if !validModes[c.Mode] {
-		return fmt.Errorf("invalid mode: %s (must be one of: bash, safe-shell, tools, tools-safe-shell, tools-bash)", c.Mode)
+		return fmt.Errorf("invalid mode: %s (must be one of: bash, safe-shell, tools, tools-safe-shell, tools-bash, tools-plus)", c.Mode)
 	}
 
 	return nil

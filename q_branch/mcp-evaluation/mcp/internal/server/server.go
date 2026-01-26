@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools"
 	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/files"
+	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/kernel"
+	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/logs"
 	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/network"
 	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/process"
 	"github.com/DataDog/datadog-agent/q_branch/mcp-evaluation/mcp/internal/tools/sysinfo"
@@ -294,6 +296,153 @@ func New(port int, mode string) *Server {
 		}
 
 		log.Printf("Registered 16 diagnostic tools + bash fallback")
+
+	case "tools-plus":
+		// Register all 36 diagnostic tools (16 existing + 20 new)
+		var registrationErrors []string
+
+		// ====== EXISTING 16 TOOLS ======
+
+		// System Resources (4 tools)
+		if err := system.NewGetMemoryInfoTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_memory_info: %v", err))
+		}
+		if err := system.NewGetDiskUsageTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_disk_usage: %v", err))
+		}
+		if err := system.NewGetCPUInfoTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_cpu_info: %v", err))
+		}
+		if err := system.NewGetIOStatsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_io_stats: %v", err))
+		}
+
+		// Process Management (3 tools)
+		if err := process.NewListProcessesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("list_processes: %v", err))
+		}
+		if err := process.NewGetProcessInfoTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_process_info: %v", err))
+		}
+		if err := process.NewFindProcessTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("find_process: %v", err))
+		}
+
+		// Network (4 tools)
+		if err := network.NewGetNetworkInterfacesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_network_interfaces: %v", err))
+		}
+		if err := network.NewGetListeningPortsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_listening_ports: %v", err))
+		}
+		if err := network.NewGetNetworkConnectionsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_network_connections: %v", err))
+		}
+		if err := network.NewCheckConnectivityTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("check_connectivity: %v", err))
+		}
+
+		// Files (3 tools)
+		if err := files.NewReadFileTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("read_file: %v", err))
+		}
+		if err := files.NewTailFileTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("tail_file: %v", err))
+		}
+		if err := files.NewSearchFileTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("search_file: %v", err))
+		}
+
+		// System Info (2 tools)
+		if err := sysinfo.NewGetSystemInfoTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_system_info: %v", err))
+		}
+		if err := sysinfo.NewGetEnvironmentTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_environment: %v", err))
+		}
+
+		// ====== NEW 20 TOOLS ======
+
+		// System Resources - Extended (2 tools)
+		if err := system.NewGetSwapDetailsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_swap_details: %v", err))
+		}
+		if err := system.NewGetLoadHistoryTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_load_history: %v", err))
+		}
+
+		// Files - Extended (5 tools)
+		if err := files.NewGetFileMetadataTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_file_metadata: %v", err))
+		}
+		if err := files.NewGetInodeUsageTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_inode_usage: %v", err))
+		}
+		if err := files.NewListDirectoryTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("list_directory: %v", err))
+		}
+		if err := files.NewGetFilesystemInfoTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_filesystem_info: %v", err))
+		}
+		if err := files.NewFindFilesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("find_files: %v", err))
+		}
+
+		// Network - Extended (3 tools)
+		if err := network.NewGetNetworkStatsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_network_stats: %v", err))
+		}
+		if err := network.NewGetRoutingTableTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_routing_table: %v", err))
+		}
+		if err := network.NewResolveDNSTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("resolve_dns: %v", err))
+		}
+
+		// Process - Extended (4 tools)
+		if err := process.NewGetProcessLimitsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_process_limits: %v", err))
+		}
+		if err := process.NewGetProcessThreadsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_process_threads: %v", err))
+		}
+		if err := process.NewGetOpenFilesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_open_files: %v", err))
+		}
+		if err := process.NewGetProcessTreeTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_process_tree: %v", err))
+		}
+
+		// Kernel (3 tools)
+		if err := kernel.NewGetLoadedModulesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_loaded_modules: %v", err))
+		}
+		if err := kernel.NewGetKernelParametersTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_kernel_parameters: %v", err))
+		}
+		if err := kernel.NewGetServiceStatusTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_service_status: %v", err))
+		}
+
+		// Logs (3 tools)
+		if err := logs.NewGetKernelMessagesTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_kernel_messages: %v", err))
+		}
+		if err := logs.NewGetSystemEventsTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_system_events: %v", err))
+		}
+		if err := logs.NewGetSystemJournalTool().Register(mcpServer); err != nil {
+			registrationErrors = append(registrationErrors, fmt.Sprintf("get_system_journal: %v", err))
+		}
+
+		if len(registrationErrors) > 0 {
+			log.Printf("Failed to register some tools:")
+			for _, err := range registrationErrors {
+				log.Printf("  - %s", err)
+			}
+		}
+
+		log.Printf("Registered 36 diagnostic tools (16 existing + 20 new)")
 
 	default:
 		log.Fatalf("Invalid mode: %s (this should not happen - validation failed)", mode)

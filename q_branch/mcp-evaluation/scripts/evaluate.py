@@ -33,13 +33,14 @@ MCP_EVAL_DIR = Path(__file__).parent.parent
 SCENARIOS_DIR = MCP_EVAL_DIR / "scenarios"
 RESULTS_DIR = MCP_EVAL_DIR / "results"
 SCRIPTS_DIR = MCP_EVAL_DIR / "scripts"
-MODES = ["bash", "safe-shell", "tools", "tools-safe-shell", "tools-bash"]
+MODES = ["bash", "safe-shell", "tools", "tools-safe-shell", "tools-bash", "tools-plus"]
 VM_PORTS = {
     "bash": 8081,
     "safe-shell": 8082,
     "tools": 8083,
     "tools-safe-shell": 8084,
-    "tools-bash": 8085
+    "tools-bash": 8085,
+    "tools-plus": 8086
 }
 
 # Scenarios list
@@ -405,7 +406,56 @@ Use the available diagnostic tools effectively. Be thorough but efficient."""
             allowed_tools = ["mcp__mcp-eval__bash_execute"]
         elif self.mode == "safe-shell":
             allowed_tools = ["mcp__mcp-eval__safe_shell_execute"]
-        else:  # tools
+        elif self.mode == "tools-safe-shell":
+            # 16 diagnostic tools + safe-shell fallback
+            allowed_tools = [
+                f"mcp__mcp-eval__{tool}" for tool in [
+                    "get_cpu_info", "get_memory_info", "get_disk_usage",
+                    "get_io_stats", "list_processes", "get_process_info",
+                    "find_process", "get_network_interfaces", "get_listening_ports",
+                    "get_network_connections", "check_connectivity",
+                    "read_file", "tail_file", "search_file",
+                    "get_system_info", "get_environment", "safe_shell_execute"
+                ]
+            ]
+        elif self.mode == "tools-bash":
+            # 16 diagnostic tools + bash fallback
+            allowed_tools = [
+                f"mcp__mcp-eval__{tool}" for tool in [
+                    "get_cpu_info", "get_memory_info", "get_disk_usage",
+                    "get_io_stats", "list_processes", "get_process_info",
+                    "find_process", "get_network_interfaces", "get_listening_ports",
+                    "get_network_connections", "check_connectivity",
+                    "read_file", "tail_file", "search_file",
+                    "get_system_info", "get_environment", "bash_execute"
+                ]
+            ]
+        elif self.mode == "tools-plus":
+            # All 36 diagnostic tools (16 existing + 20 new)
+            allowed_tools = [
+                f"mcp__mcp-eval__{tool}" for tool in [
+                    # System Resources (6 tools: 4 existing + 2 new)
+                    "get_cpu_info", "get_memory_info", "get_disk_usage", "get_io_stats",
+                    "get_swap_details", "get_load_history",
+                    # Process Management (7 tools: 3 existing + 4 new)
+                    "list_processes", "get_process_info", "find_process",
+                    "get_process_limits", "get_process_threads", "get_open_files", "get_process_tree",
+                    # Network (7 tools: 4 existing + 3 new)
+                    "get_network_interfaces", "get_listening_ports", "get_network_connections", "check_connectivity",
+                    "get_network_stats", "get_routing_table", "resolve_dns",
+                    # Files (8 tools: 3 existing + 5 new)
+                    "read_file", "tail_file", "search_file",
+                    "get_file_metadata", "get_inode_usage", "list_directory", "get_filesystem_info", "find_files",
+                    # System Info (2 tools: existing)
+                    "get_system_info", "get_environment",
+                    # Kernel (3 tools: new)
+                    "get_loaded_modules", "get_kernel_parameters", "get_service_status",
+                    # Logs (3 tools: new)
+                    "get_kernel_messages", "get_system_events", "get_system_journal"
+                ]
+            ]
+        else:  # tools (default)
+            # 16 original diagnostic tools
             allowed_tools = [
                 f"mcp__mcp-eval__{tool}" for tool in [
                     "get_cpu_info", "get_memory_info", "get_disk_usage",
