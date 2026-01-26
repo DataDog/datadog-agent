@@ -397,7 +397,7 @@ func TestConcurrentCompressors(t *testing.T) {
 
 // ==================== Finalizer Tests ====================
 
-func TestFinalizerCleanup(t *testing.T) {
+func TestFinalizerCleanup(_ *testing.T) {
 	// This test verifies that the finalizer can clean up resources
 	// when Close() is not called. We can't directly test the finalizer
 	// runs, but we can verify it doesn't crash.

@@ -22,11 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/testutil"
 )
 
 func payloadToString(payload []byte, cfg config.Component) string {
 	compressor := metricscompression.NewCompressorReq(metricscompression.Requires{Cfg: cfg}).Comp
-	p, err := compressor.Decompress(payload)
+	p, err := testutil.Decompress(payload, compressor.ContentEncoding())
 	if err != nil {
 		return err.Error()
 	}
@@ -85,7 +86,7 @@ func TestCompressorLimits(t *testing.T) {
 	p, err := c.Close()
 	require.NoError(t, err)
 	require.Less(t, len(p), maxPayloadSize)
-	d, err := compressor.Decompress(p)
+	d, err := testutil.Decompress(p, compressor.ContentEncoding())
 	require.NoError(t, err)
 	require.Less(t, len(d), maxUncompressedSize)
 }
@@ -250,9 +251,11 @@ func TestTwoPayload(t *testing.T) {
 		},
 		// zstd has large CompressBound overhead (~64 bytes minimum), making exact
 		// split points unpredictable. We verify splitting works and all items are present.
+		// Note: Rust zstd is more efficient than Go zstd, so we need a smaller
+		// max payload size to force splitting.
 		"zstd": {
 			kind:           compression.ZstdKind,
-			maxPayloadSize: 80,
+			maxPayloadSize: 55,
 			items:          []string{"Item00", "Item01", "Item02", "Item03", "Item04", "Item05"},
 			expectExact:    false,
 		},
@@ -283,12 +286,13 @@ func TestTwoPayload(t *testing.T) {
 				require.GreaterOrEqual(t, len(payloads), 2, "expected at least 2 payloads")
 
 				// Verify all items are present across all payloads
-				var allContent string
+				var allContent strings.Builder
 				for _, p := range payloads {
-					allContent += payloadToString(p.GetContent(), mockConfig)
+					allContent.WriteString(payloadToString(p.GetContent(), mockConfig))
 				}
+				content := allContent.String()
 				for _, item := range tc.items {
-					require.Contains(t, allContent, item)
+					require.Contains(t, content, item)
 				}
 			}
 		})
