@@ -367,6 +367,32 @@ class TestInPlacePackageMeasurer(unittest.TestCase):
         self.assertNotIn('is_symlink', result)
         self.assertNotIn('symlink_target', result)
 
+    def test_serialize_file_info_regular_file_with_permissions(self):
+        """Test serializing regular file with permissions info."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo(relative_path="opt/agent/bin/agent", size_bytes=321, chmod=123, owner=0, group=0)
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        self.assertEqual(result['relative_path'], "opt/agent/bin/agent")
+        self.assertEqual(result['chmod'], 123)
+        self.assertEqual(result['owner'], 0)
+        self.assertEqual(result['group'], 0)
+
+    def test_serialize_file_info_regular_file_without_permissions(self):
+        """Test serializing regular file without permissions info provided."""
+        from tasks.static_quality_gates.experimental_gates import ReportBuilder
+
+        file_info = FileInfo("opt/agent/bin/agent", 2048)
+        result = ReportBuilder()._serialize_file_info(file_info)
+
+        self.assertEqual(result['relative_path'], "opt/agent/bin/agent")
+
+        # Should NOT have symlink fields
+        self.assertNotIn('chmod', result)
+        self.assertNotIn('owner', result)
+        self.assertNotIn('group', result)
+
     def test_serialize_file_info_regular_file_without_checksum(self):
         """Test serializing regular file without checksum."""
         from tasks.static_quality_gates.experimental_gates import ReportBuilder
