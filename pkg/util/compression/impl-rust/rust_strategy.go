@@ -42,7 +42,7 @@ var (
 //
 // Thread Safety: RustCompressor is safe for concurrent use from multiple
 // goroutines. The underlying Rust compressor context is protected by a mutex.
-// Each method acquires the lock before accessing the Rust handle.
+// CompressBound() is lock-free (computed in Go). Other methods acquire the mutex.
 //
 // Resource Management: RustCompressor owns native Rust memory that must be freed.
 // Call Close() when done, or rely on the finalizer for automatic cleanup.
@@ -172,16 +172,38 @@ func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
 
 // CompressBound returns the worst-case compressed size for the given input length.
 //
+// Lock-free: This method computes the bound in Go based on the algorithm,
+// avoiding CGO overhead and synchronization.
+//
+// IMPORTANT: These formulas MUST exactly match the Rust implementations.
+// If you modify the Rust compress_bound functions, update these formulas too.
+//
 // Thread-safe: this method can be called concurrently from multiple goroutines.
 func (c *RustCompressor) CompressBound(sourceLen int) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.handle == nil {
+	switch c.algo {
+	case compression.ZstdKind:
+		// Reference: pkg/util/compression/rust/src/zstd_impl.rs:231-234
+		// Uses zstd::zstd_safe::compress_bound() which follows ZSTD_compressBound formula
+		return sourceLen + (sourceLen >> 8) + 32
+	case compression.GzipKind:
+		// Reference: pkg/util/compression/rust/src/gzip_impl.rs:208-219
+		// Formula: source_len + (5 * num_blocks) + 18
+		// where num_blocks = (source_len / 16383) + 1
+		numBlocks := (sourceLen / 16383) + 1
+		return sourceLen + (5 * numBlocks) + 18
+	case compression.ZlibKind, "deflate":
+		// Reference: pkg/util/compression/rust/src/zlib_impl.rs:193-202
+		// Formula: base + (5 * num_blocks)
+		// where base = source_len + (source_len >> 12) + (source_len >> 14) + (source_len >> 25) + 13
+		// and num_blocks = (source_len / 16383) + 1
+		base := sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
+		numBlocks := (sourceLen / 16383) + 1
+		return base + (5 * numBlocks)
+	default:
+		// Reference: pkg/util/compression/rust/src/noop_impl.rs:64-66
+		// Noop returns source_len unchanged
 		return sourceLen
 	}
-
-	return int(C.dd_compressor_compress_bound(c.handle, C.size_t(sourceLen)))
 }
 
 // ContentEncoding returns the HTTP Content-Encoding header value.

@@ -32,18 +32,37 @@ func New(reqs Requires) compression.Compressor {
 }
 
 // CompressInto compresses src directly into dst, returning the number of bytes written.
+// The dst buffer must have capacity >= CompressBound(len(src)).
+// Returns ErrBufferTooSmall if dst doesn't have sufficient capacity.
 func (s *ZstdStrategy) CompressInto(src, dst []byte) (int, error) {
 	if len(src) == 0 {
 		return 0, nil
 	}
 
+	// Check if dst has enough capacity before compression.
+	// CompressLevel will reallocate if cap(dst) is insufficient, which would
+	// result in compressed data NOT being in dst - a subtle bug.
+	bound := zstd.CompressBound(len(src))
+	if cap(dst) < bound {
+		return 0, compression.ErrBufferTooSmall
+	}
+
+	// Use dst[:0] to start writing at the beginning of dst while preserving capacity.
+	// Since we checked capacity above, CompressLevel will write directly to dst's backing array.
 	compressed, err := zstd.CompressLevel(dst[:0], src, s.level)
 	if err != nil {
 		return 0, err
 	}
 
-	if len(compressed) > len(dst) {
-		return 0, compression.ErrBufferTooSmall
+	// Verify the compressed data is actually in dst (same backing array).
+	// This guards against any edge cases where CompressLevel might reallocate.
+	if cap(compressed) != cap(dst) {
+		// This should not happen given the capacity check above, but guard against it.
+		// If it does happen, we need to copy the data to dst.
+		if len(compressed) > cap(dst) {
+			return 0, compression.ErrBufferTooSmall
+		}
+		copy(dst, compressed)
 	}
 
 	return len(compressed), nil

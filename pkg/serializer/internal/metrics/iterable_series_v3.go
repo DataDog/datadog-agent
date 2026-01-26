@@ -141,6 +141,7 @@ type payloadsBuilderV3 struct {
 	resourcesBuf []metrics.Resource
 
 	scratchBuf []byte
+	headerBuf  []byte // reusable buffer for compressed field headers
 
 	stats struct {
 		valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
@@ -217,6 +218,7 @@ func newPayloadsBuilderV3(
 		pipelineContext: pipelineContext,
 
 		scratchBuf: make([]byte, max(payloadHeaderSize, columnHeaderSize)),
+		headerBuf:  make([]byte, max(payloadHeaderSizeBound, columnHeaderSizeBound)),
 	}, nil
 }
 
@@ -284,12 +286,12 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len int) ([]byte, error) {
 	n := binary.PutUvarint(pb.scratchBuf[0:], protobufFieldID(id, pbTypeBytes))
 	n += binary.PutUvarint(pb.scratchBuf[n:], uint64(len))
-	headerBuf := make([]byte, pb.compression.CompressBound(n))
-	written, err := pb.compression.CompressInto(pb.scratchBuf[:n], headerBuf)
+	// Reuse pre-allocated headerBuf to avoid allocation on every call
+	written, err := pb.compression.CompressInto(pb.scratchBuf[:n], pb.headerBuf)
 	if err != nil {
 		return nil, err
 	}
-	return append(dst, headerBuf[:written]...), nil
+	return append(dst, pb.headerBuf[:written]...), nil
 }
 
 func (pb *payloadsBuilderV3) reset() {
