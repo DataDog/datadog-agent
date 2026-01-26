@@ -7,6 +7,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/zstd v1.5.7
 	github.com/klauspost/compress v1.18.3
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
@@ -68,7 +69,6 @@ require (
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
