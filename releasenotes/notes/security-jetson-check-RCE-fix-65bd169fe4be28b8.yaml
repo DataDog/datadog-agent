@@ -8,5 +8,5 @@
 ---
 security:
   - |
-    The Jetson integration now validates the `tegrastats_path` configuration option to prevent command injection.
+    The Jetson integration now validates the ``tegrastats_path`` configuration option to prevent command injection.
     The path must be absolute and cannot contain shell metacharacters or whitespace.
