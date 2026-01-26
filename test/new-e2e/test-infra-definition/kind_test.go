@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	compkube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -33,6 +34,7 @@ func TestMyKindSuite(t *testing.T) {
 			awskindvm.Provisioner(
 				awskindvm.WithRunOptions(
 					scenariokindvm.WithoutFakeIntake(),
+					scenariokindvm.WithAgentOptions(kubernetesagentparams.WithClusterName("kind-test")),
 					scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 						return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
 					}),
