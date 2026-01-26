@@ -265,14 +265,13 @@ def query_gate_metrics_for_commit(commit_sha: str, lookback: str = "now-7d") -> 
                     continue
 
                 # Get the most recent non-null value from pointlist
-                # Points are [timestamp, value] pairs
+                # Point objects have .value property that returns [timestamp, metric_value]
                 pointlist = series["pointlist"]
                 for point in reversed(pointlist):
-                    value = point[1]
-                    if value is not None:
+                    if point and point.value and point.value[1] is not None:
                         if gate_name not in results:
                             results[gate_name] = {}
-                        results[gate_name][metric_key] = int(value)
+                        results[gate_name][metric_key] = int(point.value[1])
                         break
 
         except Exception as e:
