@@ -242,6 +242,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		cfg.MaxRedisStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
+		cfg.DNSMonitoringPortList,
 	)
 
 	return tr, nil
