@@ -82,9 +82,6 @@ func (c *Config) Validate() error {
 			if endpoint.APIKey == "" {
 				return errSymbolEndpointsAPIKeyRequired()
 			}
-			if endpoint.AppKey == "" {
-				return errSymbolEndpointsAppKeyRequired()
-			}
 		}
 	}
 	return nil

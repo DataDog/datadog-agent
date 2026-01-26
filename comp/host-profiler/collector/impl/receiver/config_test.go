@@ -61,6 +61,5 @@ func TestSymbolUploader(t *testing.T) {
 	require.Error(t, errSymbolEndpointsAPIKeyRequired(), cfg.Validate())
 	cfg.SymbolUploader.SymbolEndpoints[0].APIKey = "1234567890"
 	require.Error(t, errSymbolEndpointsAppKeyRequired(), cfg.Validate())
-	cfg.SymbolUploader.SymbolEndpoints[0].AppKey = "1234567890"
 	require.NoError(t, cfg.Validate())
 }
