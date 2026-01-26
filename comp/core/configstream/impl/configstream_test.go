@@ -222,7 +222,7 @@ func TestConfigStream(t *testing.T) {
 
 		// Set nested config values with different sources
 		configComp.Set("logs_config.auto_multi_line_detection", false, model.SourceFile)
-		configComp.Set("logs_config.use_compression", true, model.SourceEnvVar)
+		configComp.Set("logs_config.use_compression", true, model.SourceAgentRuntime)
 
 		eventsCh, unsubscribe := provides.Comp.Subscribe(&pb.ConfigStreamRequest{Name: "test-client-nested"})
 		defer unsubscribe()
@@ -252,8 +252,8 @@ func TestConfigStream(t *testing.T) {
 
 		require.Contains(t, settingsMap, "logs_config.use_compression",
 			"snapshot should contain flattened key logs_config.use_compression")
-		require.Equal(t, model.SourceEnvVar.String(), settingsMap["logs_config.use_compression"],
-			"logs_config.use_compression should have source 'environment'")
+		require.Equal(t, model.SourceAgentRuntime.String(), settingsMap["logs_config.use_compression"],
+			"logs_config.use_compression should have source 'agent-runtime'")
 
 		// Parent keys should not exist as settings (they are containers, not leaf values)
 		require.NotContains(t, settingsMap, "logs_config",
