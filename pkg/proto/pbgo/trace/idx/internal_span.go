@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"strconv"
 	"strings"
 
@@ -166,6 +167,7 @@ func (tp *InternalTracerPayload) Msgsize() int {
 // This should be called before serializing or otherwise exposing the tracer payload to remove any sensitive
 // strings that are no longer referenced
 func (x *TracerPayload) RemoveUnusedStrings() {
+	//TODO: delete me
 	usedStrings := make([]bool, len(x.Strings))
 	usedStrings[x.ContainerIDRef] = true
 	usedStrings[x.LanguageNameRef] = true
@@ -1610,4 +1612,63 @@ func markAttributeStringUsed(usedStrings []bool, value *AnyValue) {
 			markAttributeStringUsed(usedStrings, kv.Value)
 		}
 	}
+}
+
+// NewInternalTraceChunkWithSpan creates a new InternalTraceChunk with a single span from string parameters.
+// This is a convenience function for creating simple trace chunks without manually managing string tables.
+// The tags map is converted to span attributes.
+func NewInternalTraceChunkWithSpan(
+	service, name, resource, spanType string,
+	parentID uint64,
+	startTime int64,
+	tags map[string]string,
+	priority int32,
+	origin string,
+) *InternalTraceChunk {
+	// Create a string table to store all string values
+	strings := NewStringTable()
+
+	// Create attributes map from tags if provided
+	var attributes map[uint32]*AnyValue
+	if len(tags) > 0 {
+		attributes = make(map[uint32]*AnyValue, len(tags))
+	}
+
+	// Create the Span with string references
+	span := &Span{
+		ServiceRef:  strings.Add(service),
+		NameRef:     strings.Add(name),
+		ResourceRef: strings.Add(resource),
+		TypeRef:     strings.Add(spanType),
+		SpanID:      rand.Uint64(),
+		ParentID:    parentID,
+		Start:       uint64(startTime),
+		Duration:    0, // Will be set when the span is completed
+		Attributes:  attributes,
+	}
+
+	// Create an InternalSpan
+	internalSpan := NewInternalSpan(strings, span)
+
+	for key, value := range tags {
+		// Set attributes using SetStringAttribute to maintain backwards compatibility
+		// for special tags like env, version, component, and span.kind
+		internalSpan.SetStringAttribute(key, value)
+	}
+
+	// Follow the legacy behavior of only setting the low 64 bits of the trace ID
+	traceIDBytes := make([]byte, 16)
+	binary.BigEndian.PutUint64(traceIDBytes[8:], rand.Uint64())
+
+	// Create and return the InternalTraceChunk with the single span
+	return NewInternalTraceChunk(
+		strings,
+		priority,
+		origin,
+		nil, // chunk-level attributes
+		[]*InternalSpan{internalSpan},
+		false, // droppedTrace
+		traceIDBytes,
+		0, // samplingMechanism
+	)
 }
