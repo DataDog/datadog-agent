@@ -29,7 +29,7 @@ func NewAutoInstrumentation(datadogConfig config.Component, wmeta workloadmeta.C
 		return nil, fmt.Errorf("failed to create auto instrumentation config: %v", err)
 	}
 
-	imageResolver := NewImageResolver(imageresolver.NewConfig(datadogConfig, rcClient))
+	imageResolver := imageresolver.New(imageresolver.NewConfig(datadogConfig, rcClient))
 	apm, err := NewTargetMutator(config, wmeta, imageResolver)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create auto instrumentation namespace mutator: %v", err)

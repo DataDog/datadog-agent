@@ -53,7 +53,6 @@ func (t *teeConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 // Callbacks are only called if the value is effectively changed.
 func (t *teeConfig) OnUpdate(callback model.NotificationReceiver) {
 	t.baseline.OnUpdate(callback)
-	t.compare.OnUpdate(callback)
 }
 
 // SetTestOnlyDynamicSchema allows more flexible usage of the config, should only be used by tests
