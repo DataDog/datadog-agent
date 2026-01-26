@@ -1,0 +1,26 @@
+exporters:
+  debug: {}
+  logging: {}
+  otlphttp/datadoghq.com_0:
+    headers:
+      dd-api-key: test_api_key_123
+    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+processors:
+  infraattributes/default:
+    allow_hostname_override: true
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+service:
+  pipelines:
+    profiles:
+      exporters:
+      - logging
+      - debug
+      - otlphttp/datadoghq.com_0
+      processors:
+      - infraattributes/default
+      receivers:
+      - hostprofiler
