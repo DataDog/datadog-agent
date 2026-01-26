@@ -1,0 +1,108 @@
+{
+  "commands": [
+    {
+      "type": "running",
+      "values": [
+        "show running-config"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "!Version (.*)?"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(snmp-server host \\S+) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server key).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server key).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(user \\S+ group \\S+ password) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": ".*configuration:\\s*!\\s*!Version.*\\s*(?:!export-password:.*\\s)?",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-config"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "!Version (.*)?"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "^(snmp-server community) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(snmp-server host \\S+) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(radius-server key).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server host \\S+ key) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(tacacs-server key).*",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": "^(user \\S+ group \\S+ password) \\S+(.*)",
+            "replacement": "$1 <secret hidden>"
+          },
+          {
+            "regex": ".*configuration:\\s*!\\s*!Version.*\\s*(?:!export-password:.*\\s)?",
+            "replacement": "",
+            "multiline": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "version",
+      "values": [
+        "show version"
+      ]
+    }
+  ]
+}
