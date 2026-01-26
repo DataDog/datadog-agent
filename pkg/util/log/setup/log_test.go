@@ -10,42 +10,12 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/cihub/seelog"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/util/log/setup/internal/seelog"
 )
-
-func TestSeelogConfig(t *testing.T) {
-	cfg := seelogCfg.NewSeelogConfig("TEST", "off", "common", "", "", false, nil, nil)
-	cfg.EnableConsoleLog(true)
-	cfg.EnableFileLogging("/dev/null", 123, 456)
-
-	seelogConfigStr, err := cfg.Render()
-	assert.Nil(t, err)
-
-	logger, err := seelog.LoggerFromConfigAsString(seelogConfigStr)
-	assert.Nil(t, err)
-	assert.NotNil(t, logger)
-}
-
-func BenchmarkSeelogParallel(b *testing.B) {
-	b.StopTimer()
-
-	cfg := initConfig(b)
-	seelogConfigStr, err := cfg.Render()
-	require.NoError(b, err)
-
-	logger, err := seelog.LoggerFromConfigAsString(seelogConfigStr)
-	require.NoError(b, err)
-	require.NotNil(b, logger)
-	log.SetupLogger(logger, "debug")
-
-	runLogParallel(b)
-}
 
 func BenchmarkSlogParallel(b *testing.B) {
 	b.StopTimer()
@@ -73,21 +43,6 @@ func runLogParallel(b *testing.B) {
 	}
 	wg.Wait()
 	log.Flush()
-}
-
-func BenchmarkSeelogLogger(b *testing.B) {
-	b.StopTimer()
-
-	cfg := initConfig(b)
-	seelogConfigStr, err := cfg.Render()
-	require.NoError(b, err)
-
-	logger, err := seelog.LoggerFromConfigAsString(seelogConfigStr)
-	require.NoError(b, err)
-	require.NotNil(b, logger)
-	log.SetupLogger(logger, "debug")
-
-	runLog(b)
 }
 
 func BenchmarkSlogLogger(b *testing.B) {
