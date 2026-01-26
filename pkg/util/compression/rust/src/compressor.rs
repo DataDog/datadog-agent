@@ -1,6 +1,10 @@
 //! Core compressor traits and types.
 
 use crate::error::{CompressionResult, DdCompressionError};
+use crate::gzip_impl::GzipStreamCompressor;
+use crate::noop_impl::NoopStreamCompressor;
+use crate::zlib_impl::ZlibStreamCompressor;
+use crate::zstd_impl::ZstdStreamCompressor;
 use std::io::Write;
 
 /// Compression algorithm identifiers.
@@ -17,24 +21,126 @@ pub enum DdCompressionAlgorithm {
     Noop = 3,
 }
 
+/// Concrete stream compressor enum that eliminates vtable overhead.
+/// Using an enum instead of `Box<dyn StreamCompressor>` allows the compiler to:
+/// - Inline method calls
+/// - Eliminate dynamic dispatch overhead
+/// - Better optimize hot paths
+#[derive(Debug)]
+pub enum StreamVariant {
+    /// Zstandard streaming compressor.
+    Zstd(ZstdStreamCompressor),
+    /// Gzip streaming compressor.
+    Gzip(GzipStreamCompressor),
+    /// Zlib streaming compressor.
+    Zlib(ZlibStreamCompressor),
+    /// No-op streaming compressor.
+    Noop(NoopStreamCompressor),
+}
+
+impl StreamVariant {
+    /// Returns the compression algorithm for this stream.
+    #[inline]
+    #[must_use]
+    pub fn algorithm(&self) -> DdCompressionAlgorithm {
+        match self {
+            StreamVariant::Zstd(_) => DdCompressionAlgorithm::Zstd,
+            StreamVariant::Gzip(_) => DdCompressionAlgorithm::Gzip,
+            StreamVariant::Zlib(_) => DdCompressionAlgorithm::Zlib,
+            StreamVariant::Noop(_) => DdCompressionAlgorithm::Noop,
+        }
+    }
+
+    /// Writes data to the compression stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is closed or compression fails.
+    #[inline]
+    pub fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
+        match self {
+            StreamVariant::Zstd(s) => s.write(data),
+            StreamVariant::Gzip(s) => s.write(data),
+            StreamVariant::Zlib(s) => s.write(data),
+            StreamVariant::Noop(s) => s.write(data),
+        }
+    }
+
+    /// Flushes buffered data to the output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is closed or flush fails.
+    #[inline]
+    pub fn flush(&mut self) -> CompressionResult<()> {
+        match self {
+            StreamVariant::Zstd(s) => s.flush(),
+            StreamVariant::Gzip(s) => s.flush(),
+            StreamVariant::Zlib(s) => s.flush(),
+            StreamVariant::Noop(s) => s.flush(),
+        }
+    }
+
+    /// Finalizes the stream and returns the compressed data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is closed or finalization fails.
+    #[inline]
+    pub fn finish(self) -> CompressionResult<Vec<u8>> {
+        match self {
+            StreamVariant::Zstd(s) => s.finish(),
+            StreamVariant::Gzip(s) => s.finish(),
+            StreamVariant::Zlib(s) => s.finish(),
+            StreamVariant::Noop(s) => s.finish(),
+        }
+    }
+
+    /// Returns the current compressed output without finalizing.
+    #[inline]
+    #[must_use]
+    pub fn get_output(&self) -> &[u8] {
+        match self {
+            StreamVariant::Zstd(s) => s.get_output(),
+            StreamVariant::Gzip(s) => s.get_output(),
+            StreamVariant::Zlib(s) => s.get_output(),
+            StreamVariant::Noop(s) => s.get_output(),
+        }
+    }
+
+    /// Returns the total uncompressed bytes written so far.
+    #[inline]
+    #[must_use]
+    pub fn bytes_written(&self) -> usize {
+        match self {
+            StreamVariant::Zstd(s) => s.bytes_written(),
+            StreamVariant::Gzip(s) => s.bytes_written(),
+            StreamVariant::Zlib(s) => s.bytes_written(),
+            StreamVariant::Noop(s) => s.bytes_written(),
+        }
+    }
+}
+
 impl DdCompressionAlgorithm {
     /// Returns the HTTP Content-Encoding header value for this algorithm.
+    #[must_use]
     pub fn content_encoding(&self) -> &'static str {
         match self {
-            DdCompressionAlgorithm::Zstd => "zstd",
-            DdCompressionAlgorithm::Gzip => "gzip",
-            DdCompressionAlgorithm::Zlib => "deflate",
-            DdCompressionAlgorithm::Noop => "identity",
+            Self::Zstd => "zstd",
+            Self::Gzip => "gzip",
+            Self::Zlib => "deflate",
+            Self::Noop => "identity",
         }
     }
 
     /// Returns the algorithm name as used in configuration.
+    #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
-            DdCompressionAlgorithm::Zstd => "zstd",
-            DdCompressionAlgorithm::Gzip => "gzip",
-            DdCompressionAlgorithm::Zlib => "zlib",
-            DdCompressionAlgorithm::Noop => "none",
+            Self::Zstd => "zstd",
+            Self::Gzip => "gzip",
+            Self::Zlib => "zlib",
+            Self::Noop => "none",
         }
     }
 }
@@ -48,6 +154,10 @@ pub trait Compressor: Send + Sync {
     fn level(&self) -> i32;
 
     /// Compresses the input data and returns the compressed output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if compression fails.
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>>;
 
     /// Compresses the input data directly into a caller-provided buffer (zero-copy).
@@ -60,15 +170,38 @@ pub trait Compressor: Send + Sync {
     /// * `dst` - Destination buffer to write compressed data into
     ///
     /// # Returns
-    /// The number of bytes written to `dst` on success, or an error if compression
-    /// fails or if `dst` is too small (returns `BufferTooSmall`).
+    /// The number of bytes written to `dst` on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `dst` is too small, or another error if
+    /// compression fails.
     ///
     /// # Note
     /// Use `compress_bound(src.len())` to determine the required buffer size.
     fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize>;
 
     /// Decompresses the input data and returns the decompressed output.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if decompression fails (e.g., invalid compressed data).
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>>;
+
+    /// Decompresses the input data directly into a caller-provided buffer (zero-copy).
+    ///
+    /// # Arguments
+    /// * `src` - Compressed source data
+    /// * `dst` - Destination buffer to write decompressed data into
+    ///
+    /// # Returns
+    /// The number of bytes written to `dst` on success.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BufferTooSmall` if `dst` is too small, or another error if
+    /// decompression fails.
+    fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize>;
 
     /// Returns the worst-case compressed size for the given input length.
     /// This is used to pre-allocate output buffers.
@@ -84,21 +217,40 @@ pub trait Compressor: Send + Sync {
 }
 
 /// Trait for streaming compression operations.
-/// Implements a write-flush-close pattern similar to Go's io.WriteCloser.
+/// Implements a write-flush-close pattern similar to Go's `io.WriteCloser`.
+///
+/// NOTE: For FFI use, prefer `StreamVariant` enum which eliminates
+/// vtable overhead. This trait is kept for flexibility in Rust-only code.
+#[allow(clippy::module_name_repetitions)]
 pub trait StreamCompressor: Send {
     /// Returns the algorithm used by this stream compressor.
     fn algorithm(&self) -> DdCompressionAlgorithm;
 
     /// Writes data to the compression stream.
     /// Returns the number of bytes consumed from the input.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is closed or write fails.
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize>;
 
     /// Flushes any buffered data to the output without finalizing the stream.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is closed or flush fails.
     fn flush(&mut self) -> CompressionResult<()>;
 
     /// Finalizes the compression stream and returns the compressed data.
     /// After calling this method, the stream cannot be used again.
-    fn finish(self: Box<Self>) -> CompressionResult<Vec<u8>>;
+    /// Takes self by value to avoid Box overhead.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the stream is already closed or finalization fails.
+    fn finish(self) -> CompressionResult<Vec<u8>>
+    where
+        Self: Sized;
 
     /// Returns the current compressed output without finalizing.
     /// Useful for checking progress or implementing chunked output.
@@ -110,6 +262,8 @@ pub trait StreamCompressor: Send {
 
 /// A wrapper that provides streaming compression by buffering writes
 /// and compressing on finish.
+#[derive(Debug)]
+#[allow(clippy::module_name_repetitions)]
 pub struct BufferedStreamCompressor<W: Write> {
     algorithm: DdCompressionAlgorithm,
     writer: W,
@@ -117,6 +271,8 @@ pub struct BufferedStreamCompressor<W: Write> {
 }
 
 impl<W: Write> BufferedStreamCompressor<W> {
+    /// Creates a new buffered stream compressor.
+    #[must_use]
     pub fn new(algorithm: DdCompressionAlgorithm, writer: W) -> Self {
         Self {
             algorithm,
@@ -125,6 +281,8 @@ impl<W: Write> BufferedStreamCompressor<W> {
         }
     }
 
+    /// Consumes this compressor and returns the inner writer.
+    #[must_use]
     pub fn into_inner(self) -> W {
         self.writer
     }
@@ -152,7 +310,7 @@ where
             .map_err(|_| DdCompressionError::CompressionFailed)
     }
 
-    fn finish(self: Box<Self>) -> CompressionResult<Vec<u8>> {
+    fn finish(self) -> CompressionResult<Vec<u8>> {
         Ok(self.writer.as_ref().to_vec())
     }
 

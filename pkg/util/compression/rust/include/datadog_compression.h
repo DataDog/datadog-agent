@@ -149,19 +149,113 @@ size_t dd_compressor_compress_bound(const dd_compressor_t *compressor, size_t so
  * @param src_len Length of source data
  * @param dst Destination buffer to write compressed data
  * @param dst_capacity Capacity of the destination buffer
+ * @return On success: positive value indicating bytes written
+ *         On error: negative value (negated dd_compression_error_t)
+ *         Special: 0 when src_len is 0
+ *
+ * @note No memory is allocated; the caller owns the dst buffer
+ * @note Returning the value directly eliminates CGO allocation overhead
+ */
+int64_t dd_compressor_compress_into_fast(
+    const dd_compressor_t *compressor,
+    const uint8_t *src,
+    size_t src_len,
+    uint8_t *dst,
+    size_t dst_capacity
+);
+
+/**
+ * Ultra-fast stateless zstd compression for benchmarking.
+ * This bypasses context reuse and uses the simplest possible path.
+ *
+ * @param src Source data to compress
+ * @param src_len Length of source data
+ * @param dst Destination buffer to write compressed data
+ * @param dst_capacity Capacity of the destination buffer
+ * @param level Compression level (1-22)
+ * @return On success: positive value indicating bytes written
+ *         On error: negative value (negated dd_compression_error_t)
+ *         Special: 0 when src_len is 0
+ */
+int64_t dd_zstd_compress_stateless(
+    const uint8_t *src,
+    size_t src_len,
+    uint8_t *dst,
+    size_t dst_capacity,
+    int level
+);
+
+/**
+ * Direct zstd compression that bypasses enum dispatch.
+ * Uses the compressor's stored zstd context directly.
+ *
+ * @param compressor Valid zstd compressor handle
+ * @param src Source data to compress
+ * @param src_len Length of source data
+ * @param dst Destination buffer to write compressed data
+ * @param dst_capacity Capacity of the destination buffer
+ * @return On success: positive value indicating bytes written
+ *         On error: negative value (negated dd_compression_error_t)
+ *         Special: 0 when src_len is 0
+ */
+int64_t dd_zstd_compress_direct(
+    const dd_compressor_t *compressor,
+    const uint8_t *src,
+    size_t src_len,
+    uint8_t *dst,
+    size_t dst_capacity
+);
+
+/**
+ * Decompresses data directly into a caller-provided buffer (zero-copy).
+ *
+ * This function eliminates the need for an intermediate allocation by
+ * decompressing directly into a buffer provided by the caller. Use
+ * dd_get_decompressed_size() to determine the required buffer size.
+ *
+ * @param compressor Valid compressor handle
+ * @param src Compressed source data
+ * @param src_len Length of compressed data
+ * @param dst Destination buffer to write decompressed data
+ * @param dst_capacity Capacity of the destination buffer
  * @param out_written Pointer to receive the number of bytes written
  * @return Error code (DD_COMPRESSION_ERROR_OK on success,
  *         DD_COMPRESSION_ERROR_BUFFER_TOO_SMALL if dst is too small)
  *
  * @note No memory is allocated; the caller owns the dst buffer
  */
-dd_compression_error_t dd_compressor_compress_into(
+dd_compression_error_t dd_compressor_decompress_into(
     const dd_compressor_t *compressor,
     const uint8_t *src,
     size_t src_len,
     uint8_t *dst,
     size_t dst_capacity,
     size_t *out_written
+);
+
+/**
+ * Returns the decompressed size from the compressed data's frame header/trailer.
+ *
+ * This function reads algorithm-specific metadata to determine the original
+ * uncompressed size without actually decompressing. This enables efficient
+ * two-phase decompression: call this first to get the size, allocate a buffer
+ * (possibly from a pool), then call dd_compressor_decompress_into().
+ *
+ * Algorithm behavior:
+ * - Zstd: Reads frame content size from header (fast, always accurate)
+ * - Gzip: Reads ISIZE from trailer (mod 2^32, may wrap for >4GB files)
+ * - Zlib: Returns 0 (format doesn't store original size)
+ * - Noop: Returns src_len (passthrough, no compression)
+ *
+ * @param compressor Valid compressor handle (used for algorithm selection)
+ * @param src Compressed data
+ * @param src_len Length of compressed data
+ * @return The decompressed size if known, or 0 if unknown/invalid
+ */
+size_t dd_get_decompressed_size(
+    const dd_compressor_t *compressor,
+    const uint8_t *src,
+    size_t src_len
 );
 
 /**

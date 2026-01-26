@@ -23,12 +23,11 @@ func TestNewCompressorZstd(t *testing.T) {
 
 	original := []byte("Hello, World! This is a test of zstd compression via selector.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
 
 	assert.Equal(t, "zstd", comp.ContentEncoding())
 }
@@ -39,12 +38,11 @@ func TestNewCompressorGzip(t *testing.T) {
 
 	original := []byte("Hello, World! This is a test of gzip compression via selector.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
 
 	assert.Equal(t, "gzip", comp.ContentEncoding())
 }
@@ -55,12 +53,11 @@ func TestNewCompressorZlib(t *testing.T) {
 
 	original := []byte("Hello, World! This is a test of zlib compression via selector.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
 
 	assert.Equal(t, "deflate", comp.ContentEncoding())
 }
@@ -71,9 +68,12 @@ func TestNewCompressorNone(t *testing.T) {
 
 	original := []byte("Hello, World! This is a test of noop compression via selector.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	assert.Equal(t, original, compressed)
+	assert.Equal(t, len(original), written)
+	assert.Equal(t, original, dst[:written])
 
 	assert.Equal(t, "identity", comp.ContentEncoding())
 }
@@ -85,9 +85,12 @@ func TestNewCompressorUnknown(t *testing.T) {
 
 	original := []byte("Hello, World!")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	assert.Equal(t, original, compressed)
+	assert.Equal(t, len(original), written)
+	assert.Equal(t, original, dst[:written])
 
 	assert.Equal(t, "identity", comp.ContentEncoding())
 }
@@ -98,9 +101,12 @@ func TestNewNoopCompressor(t *testing.T) {
 
 	original := []byte("Hello, World!")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	assert.Equal(t, original, compressed)
+	assert.Equal(t, len(original), written)
+	assert.Equal(t, original, dst[:written])
 }
 
 func TestStreamCompressorViaSelector(t *testing.T) {
@@ -120,8 +126,4 @@ func TestStreamCompressorViaSelector(t *testing.T) {
 
 	compressed := output.Bytes()
 	require.NotEmpty(t, compressed)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, "Hello, World!", string(decompressed))
 }

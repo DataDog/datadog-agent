@@ -36,7 +36,7 @@ pub mod zlib_impl;
 pub mod zstd_impl;
 
 // Re-export main types for convenience
-pub use compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
+pub use compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor, StreamVariant};
 pub use error::{CompressionResult, DdCompressionError};
 pub use gzip_impl::GzipCompressor;
 pub use noop_impl::NoopCompressor;
@@ -51,6 +51,7 @@ pub use zstd_impl::ZstdCompressor;
 ///
 /// # Returns
 /// A boxed compressor implementing the `Compressor` trait.
+#[must_use]
 pub fn new_compressor(algorithm: DdCompressionAlgorithm, level: i32) -> Box<dyn Compressor> {
     match algorithm {
         DdCompressionAlgorithm::Zstd => Box::new(ZstdCompressor::new(level)),
@@ -67,7 +68,8 @@ pub fn new_compressor(algorithm: DdCompressionAlgorithm, level: i32) -> Box<dyn 
 /// * `level` - Compression level
 ///
 /// # Returns
-/// A boxed compressor, or None if the algorithm name is unknown.
+/// A boxed compressor, or `None` if the algorithm name is unknown.
+#[must_use]
 pub fn new_compressor_by_name(name: &str, level: i32) -> Option<Box<dyn Compressor>> {
     let algorithm = match name {
         "zstd" => DdCompressionAlgorithm::Zstd,
@@ -136,6 +138,12 @@ mod tests {
 
     #[test]
     fn test_stream_round_trip_all_algorithms() {
+        use crate::compressor::StreamVariant;
+        use crate::gzip_impl::GzipStreamCompressor;
+        use crate::noop_impl::NoopStreamCompressor;
+        use crate::zlib_impl::ZlibStreamCompressor;
+        use crate::zstd_impl::ZstdStreamCompressor;
+
         let chunks = [
             b"First chunk of data. ".to_vec(),
             b"Second chunk with more content. ".to_vec(),
@@ -143,14 +151,27 @@ mod tests {
         ];
         let expected: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
 
-        for algorithm in [
-            DdCompressionAlgorithm::Zstd,
-            DdCompressionAlgorithm::Gzip,
-            DdCompressionAlgorithm::Zlib,
-            DdCompressionAlgorithm::Noop,
-        ] {
+        let test_cases: Vec<(DdCompressionAlgorithm, StreamVariant)> = vec![
+            (
+                DdCompressionAlgorithm::Zstd,
+                StreamVariant::Zstd(ZstdStreamCompressor::new(3)),
+            ),
+            (
+                DdCompressionAlgorithm::Gzip,
+                StreamVariant::Gzip(GzipStreamCompressor::new(3)),
+            ),
+            (
+                DdCompressionAlgorithm::Zlib,
+                StreamVariant::Zlib(ZlibStreamCompressor::new(3)),
+            ),
+            (
+                DdCompressionAlgorithm::Noop,
+                StreamVariant::Noop(NoopStreamCompressor::new()),
+            ),
+        ];
+
+        for (algorithm, mut stream) in test_cases {
             let compressor = new_compressor(algorithm, 3);
-            let mut stream = compressor.new_stream();
 
             for chunk in &chunks {
                 stream.write(chunk).expect("write failed");

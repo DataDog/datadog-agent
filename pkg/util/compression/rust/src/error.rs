@@ -5,6 +5,7 @@ use std::fmt;
 /// Error codes returned by compression operations.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::module_name_repetitions)]
 pub enum DdCompressionError {
     /// Operation completed successfully.
     Ok = 0,
@@ -30,24 +31,26 @@ pub enum DdCompressionError {
 
 impl DdCompressionError {
     /// Returns a human-readable description of the error.
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
-            DdCompressionError::Ok => "success",
-            DdCompressionError::InvalidInput => "invalid input data",
-            DdCompressionError::InvalidHandle => "invalid handle",
-            DdCompressionError::AllocationFailed => "memory allocation failed",
-            DdCompressionError::CompressionFailed => "compression failed",
-            DdCompressionError::DecompressionFailed => "decompression failed",
-            DdCompressionError::BufferTooSmall => "output buffer too small",
-            DdCompressionError::StreamClosed => "stream already closed",
-            DdCompressionError::NotSupported => "algorithm not supported",
-            DdCompressionError::InternalError => "internal error",
+            Self::Ok => "success",
+            Self::InvalidInput => "invalid input data",
+            Self::InvalidHandle => "invalid handle",
+            Self::AllocationFailed => "memory allocation failed",
+            Self::CompressionFailed => "compression failed",
+            Self::DecompressionFailed => "decompression failed",
+            Self::BufferTooSmall => "output buffer too small",
+            Self::StreamClosed => "stream already closed",
+            Self::NotSupported => "algorithm not supported",
+            Self::InternalError => "internal error",
         }
     }
 
     /// Returns true if this represents a successful operation.
+    #[must_use]
     pub fn is_ok(&self) -> bool {
-        *self == DdCompressionError::Ok
+        *self == Self::Ok
     }
 }
 

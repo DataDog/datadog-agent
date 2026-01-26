@@ -4,10 +4,12 @@ use crate::compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
 use crate::error::{CompressionResult, DdCompressionError};
 
 /// No-op compressor that passes data through unchanged.
+#[derive(Debug, Clone, Copy)]
 pub struct NoopCompressor;
 
 impl NoopCompressor {
     /// Creates a new no-op compressor.
+    #[must_use]
     pub fn new() -> Self {
         Self
     }
@@ -20,22 +22,22 @@ impl Default for NoopCompressor {
 }
 
 impl Compressor for NoopCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Noop
     }
 
-    #[inline(always)]
+    #[inline]
     fn level(&self) -> i32 {
         0
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         Ok(src.to_vec())
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
         if dst.len() < src.len() {
             return Err(DdCompressionError::BufferTooSmall);
@@ -44,12 +46,21 @@ impl Compressor for NoopCompressor {
         Ok(src.len())
     }
 
-    #[inline(always)]
+    #[inline]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         Ok(src.to_vec())
     }
 
-    #[inline(always)]
+    #[inline]
+    fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if dst.len() < src.len() {
+            return Err(DdCompressionError::BufferTooSmall);
+        }
+        dst[..src.len()].copy_from_slice(src);
+        Ok(src.len())
+    }
+
+    #[inline]
     fn compress_bound(&self, source_len: usize) -> usize {
         // No expansion for passthrough
         source_len
@@ -62,6 +73,7 @@ impl Compressor for NoopCompressor {
 }
 
 /// Streaming no-op compressor.
+#[derive(Debug)]
 pub struct NoopStreamCompressor {
     buffer: Vec<u8>,
     finished: bool,
@@ -69,6 +81,7 @@ pub struct NoopStreamCompressor {
 
 impl NoopStreamCompressor {
     /// Creates a new streaming no-op compressor.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             buffer: Vec::with_capacity(4096),
@@ -84,12 +97,12 @@ impl Default for NoopStreamCompressor {
 }
 
 impl StreamCompressor for NoopStreamCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Noop
     }
 
-    #[inline(always)]
+    #[inline]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -99,7 +112,7 @@ impl StreamCompressor for NoopStreamCompressor {
         Ok(data.len())
     }
 
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -109,7 +122,7 @@ impl StreamCompressor for NoopStreamCompressor {
     }
 
     #[inline]
-    fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
+    fn finish(mut self) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
         }
@@ -118,12 +131,12 @@ impl StreamCompressor for NoopStreamCompressor {
         Ok(std::mem::take(&mut self.buffer))
     }
 
-    #[inline(always)]
+    #[inline]
     fn get_output(&self) -> &[u8] {
         &self.buffer
     }
 
-    #[inline(always)]
+    #[inline]
     fn bytes_written(&self) -> usize {
         self.buffer.len()
     }
@@ -175,8 +188,7 @@ mod tests {
 
     #[test]
     fn test_noop_stream_compressor() {
-        let compressor = NoopCompressor::new();
-        let mut stream = compressor.new_stream();
+        let mut stream = NoopStreamCompressor::new();
 
         let data1 = b"First chunk of data. ";
         let data2 = b"Second chunk of data. ";
@@ -195,8 +207,7 @@ mod tests {
 
     #[test]
     fn test_noop_stream_get_output() {
-        let compressor = NoopCompressor::new();
-        let mut stream = compressor.new_stream();
+        let mut stream = NoopStreamCompressor::new();
 
         stream.write(b"Hello").unwrap();
         assert_eq!(stream.get_output(), b"Hello");
@@ -207,8 +218,7 @@ mod tests {
 
     #[test]
     fn test_noop_stream_bytes_written() {
-        let compressor = NoopCompressor::new();
-        let mut stream = compressor.new_stream();
+        let mut stream = NoopStreamCompressor::new();
 
         assert_eq!(stream.bytes_written(), 0);
 

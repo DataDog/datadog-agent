@@ -8,8 +8,12 @@ package compression
 
 import (
 	"bytes"
+	"errors"
 	"io"
 )
+
+// ErrBufferTooSmall is returned when the destination buffer is too small for the compressed data.
+var ErrBufferTooSmall = errors.New("output buffer too small")
 
 // ZlibKind defines a const value for the zlib compressor
 const ZlibKind = "zlib"
@@ -32,13 +36,20 @@ const ZstdEncoding = "zstd"
 // GzipEncoding is the content-encoding value for Gzip
 const GzipEncoding = "gzip"
 
-// Compressor is the interface that a given compression algorithm
-// needs to implement
+// Compressor is the interface for compression algorithms.
+// All methods are zero-copy for maximum performance.
 type Compressor interface {
-	Compress(src []byte) ([]byte, error)
-	Decompress(src []byte) ([]byte, error)
+	// CompressInto compresses src directly into dst, returning bytes written.
+	// dst must be at least CompressBound(len(src)) bytes.
+	CompressInto(src, dst []byte) (int, error)
+
+	// CompressBound returns the maximum compressed size for the given input length.
 	CompressBound(sourceLen int) int
+
+	// ContentEncoding returns the HTTP Content-Encoding header value.
 	ContentEncoding() string
+
+	// NewStreamCompressor creates a new streaming compressor.
 	NewStreamCompressor(output *bytes.Buffer) StreamCompressor
 }
 

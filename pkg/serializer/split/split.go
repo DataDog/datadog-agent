@@ -39,10 +39,12 @@ func serializeMarshaller(m marshaler.AbstractMarshaler, compress bool, strategy 
 		return nil, nil, err
 	}
 	if compress {
-		compressedPayload, err = strategy.Compress(payload)
-		if err != nil {
-			return nil, nil, err
+		compressedPayload = make([]byte, strategy.CompressBound(len(payload)))
+		n, compErr := strategy.CompressInto(payload, compressedPayload)
+		if compErr != nil {
+			return nil, nil, compErr
 		}
+		compressedPayload = compressedPayload[:n]
 	}
 	return compressedPayload, payload, nil
 }

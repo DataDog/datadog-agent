@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package zstdimpl provides a set of functions for compressing with zstd
+// Package zstdimpl provides zstd compression without CGO
 package zstdimpl
 
 import (
@@ -60,15 +60,18 @@ func New(reqs Requires) compression.Compressor {
 	}
 }
 
-// Compress will compress the data with zstd
-func (s *ZstdNoCgoStrategy) Compress(src []byte) ([]byte, error) {
-	return s.encoder.EncodeAll(src, nil), nil
-}
+// CompressInto compresses src directly into dst, returning the number of bytes written.
+func (s *ZstdNoCgoStrategy) CompressInto(src, dst []byte) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
+	}
 
-// Decompress will decompress the data with zstd
-func (s *ZstdNoCgoStrategy) Decompress(src []byte) ([]byte, error) {
-	decoder, _ := zstd.NewReader(nil)
-	return decoder.DecodeAll(src, nil)
+	compressed := s.encoder.EncodeAll(src, dst[:0])
+	if len(compressed) > len(dst) {
+		return 0, compression.ErrBufferTooSmall
+	}
+
+	return len(compressed), nil
 }
 
 // CompressBound returns the worst case size needed for a destination buffer when using zstd

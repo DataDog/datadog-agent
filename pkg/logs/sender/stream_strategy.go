@@ -39,11 +39,14 @@ func (s *streamStrategy) Start() {
 				msg.Origin.LogSource.LatencyStats.Add(msg.GetLatency())
 			}
 
-			encodedPayload, err := s.compression.Compress(msg.GetContent())
+			content := msg.GetContent()
+			encodedPayload := make([]byte, s.compression.CompressBound(len(content)))
+			n, err := s.compression.CompressInto(content, encodedPayload)
 			if err != nil {
 				log.Warn("Encoding failed - dropping payload", err)
 				return
 			}
+			encodedPayload = encodedPayload[:n]
 
 			unencodedSize := len(msg.GetContent())
 

@@ -23,7 +23,6 @@ import "C"
 import (
 	"bytes"
 	"errors"
-	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -31,46 +30,11 @@ import (
 
 // Errors returned by the Rust compression library
 var (
-	ErrInvalidHandle       = errors.New("invalid compressor handle")
-	ErrCompressionFailed   = errors.New("compression failed")
-	ErrDecompressionFailed = errors.New("decompression failed")
-	ErrStreamClosed        = errors.New("stream already closed")
-	ErrBufferTooSmall      = errors.New("output buffer too small")
+	ErrInvalidHandle     = errors.New("invalid compressor handle")
+	ErrCompressionFailed = errors.New("compression failed")
+	ErrStreamClosed      = errors.New("stream already closed")
+	ErrBufferTooSmall    = errors.New("output buffer too small")
 )
-
-// bufferPool provides reusable byte slices for compression operations.
-// This eliminates allocations on the hot path by reusing buffers.
-var bufferPool = sync.Pool{
-	New: func() interface{} {
-		// Start with a reasonable default size (64KB)
-		// Buffers will grow as needed and be returned to pool
-		buf := make([]byte, 64*1024)
-		return &buf
-	},
-}
-
-// getBuffer retrieves a buffer from the pool with at least minSize capacity.
-// The caller must return the buffer via putBuffer when done.
-func getBuffer(minSize int) *[]byte {
-	buf := bufferPool.Get().(*[]byte)
-	if cap(*buf) < minSize {
-		// Buffer too small, allocate a new one
-		*buf = make([]byte, minSize)
-	} else {
-		// Resize to required size (keeping capacity)
-		*buf = (*buf)[:minSize]
-	}
-	return buf
-}
-
-// putBuffer returns a buffer to the pool for reuse.
-func putBuffer(buf *[]byte) {
-	// Only return reasonably sized buffers to the pool
-	// to avoid holding onto huge buffers indefinitely
-	if cap(*buf) <= 4*1024*1024 { // 4MB max
-		bufferPool.Put(buf)
-	}
-}
 
 // RustCompressor wraps the Rust compression library.
 type RustCompressor struct {
@@ -130,38 +94,7 @@ func NewNoop() compression.Compressor {
 	return New(Requires{Algorithm: "none", Level: 0})
 }
 
-// Compress compresses the input data.
-// This method uses a buffer pool internally to reduce allocations.
-func (c *RustCompressor) Compress(src []byte) ([]byte, error) {
-	if c.handle == nil {
-		return nil, ErrInvalidHandle
-	}
-
-	if len(src) == 0 {
-		return []byte{}, nil
-	}
-
-	// Get a buffer from the pool with enough capacity
-	bound := c.CompressBound(len(src))
-	buf := getBuffer(bound)
-	defer putBuffer(buf)
-
-	// Compress directly into the pooled buffer (zero-copy from Rust side)
-	written, err := c.CompressInto(src, *buf)
-	if err != nil {
-		return nil, err
-	}
-
-	// Allocate final output and copy from pooled buffer
-	// This is the only allocation, and it's exactly the right size
-	out := make([]byte, written)
-	copy(out, (*buf)[:written])
-
-	return out, nil
-}
-
 // CompressInto compresses src directly into dst, returning the number of bytes written.
-// This is the zero-copy API that avoids memory allocation and copying.
 // The dst buffer must be at least CompressBound(len(src)) bytes.
 // Returns ErrBufferTooSmall if dst is too small.
 func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
@@ -177,59 +110,27 @@ func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
 		return 0, ErrBufferTooSmall
 	}
 
-	var outWritten C.size_t
-	result := C.dd_compressor_compress_into(
+	// Use the fast function that returns the result directly (no output parameter)
+	// to eliminate CGO allocation overhead.
+	result := C.dd_compressor_compress_into_fast(
 		c.handle,
 		(*C.uint8_t)(unsafe.Pointer(&src[0])),
 		C.size_t(len(src)),
 		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
 		C.size_t(len(dst)),
-		&outWritten,
 	)
 
-	switch result {
-	case C.DD_COMPRESSION_ERROR_OK:
-		return int(outWritten), nil
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	// Negative result is negated error code
+	switch -result {
 	case C.DD_COMPRESSION_ERROR_BUFFER_TOO_SMALL:
 		return 0, ErrBufferTooSmall
 	default:
 		return 0, ErrCompressionFailed
 	}
-}
-
-// Decompress decompresses the input data.
-func (c *RustCompressor) Decompress(src []byte) ([]byte, error) {
-	if c.handle == nil {
-		return nil, ErrInvalidHandle
-	}
-
-	if len(src) == 0 {
-		return []byte{}, nil
-	}
-
-	var outBuffer C.dd_buffer_t
-	result := C.dd_compressor_decompress(
-		c.handle,
-		(*C.uint8_t)(unsafe.Pointer(&src[0])),
-		C.size_t(len(src)),
-		&outBuffer,
-	)
-
-	if result != C.DD_COMPRESSION_ERROR_OK {
-		return nil, ErrDecompressionFailed
-	}
-
-	if outBuffer.data == nil || outBuffer.len == 0 {
-		return []byte{}, nil
-	}
-
-	// Copy data from Rust-allocated buffer to Go slice
-	out := C.GoBytes(unsafe.Pointer(outBuffer.data), C.int(outBuffer.len))
-
-	// Free the Rust buffer
-	C.dd_buffer_free(outBuffer)
-
-	return out, nil
 }
 
 // CompressBound returns the worst-case compressed size for the given input length.
@@ -287,6 +188,65 @@ func (c *RustCompressor) Close() {
 	}
 }
 
+// ZstdCompressBound returns the worst-case compressed size for zstd.
+func ZstdCompressBound(sourceLen int) int {
+	// zstd compress bound formula
+	return sourceLen + (sourceLen >> 8) + 32
+}
+
+// ZstdCompressStateless compresses using the stateless zstd API (no context reuse).
+// This is for benchmarking to measure the minimum FFI overhead.
+func ZstdCompressStateless(src, dst []byte, level int) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
+	}
+	if len(dst) == 0 {
+		return 0, ErrBufferTooSmall
+	}
+
+	result := C.dd_zstd_compress_stateless(
+		(*C.uint8_t)(unsafe.Pointer(&src[0])),
+		C.size_t(len(src)),
+		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
+		C.size_t(len(dst)),
+		C.int(level),
+	)
+
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	return 0, ErrCompressionFailed
+}
+
+// ZstdCompressDirect compresses using the direct zstd path (bypasses enum dispatch).
+// This is for benchmarking to isolate enum dispatch overhead.
+func (c *RustCompressor) ZstdCompressDirect(src, dst []byte) (int, error) {
+	if c.handle == nil {
+		return 0, ErrInvalidHandle
+	}
+	if len(src) == 0 {
+		return 0, nil
+	}
+	if len(dst) == 0 {
+		return 0, ErrBufferTooSmall
+	}
+
+	result := C.dd_zstd_compress_direct(
+		c.handle,
+		(*C.uint8_t)(unsafe.Pointer(&src[0])),
+		C.size_t(len(src)),
+		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
+		C.size_t(len(dst)),
+	)
+
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	return 0, ErrCompressionFailed
+}
+
 // rustStreamCompressor wraps the Rust stream compressor.
 type rustStreamCompressor struct {
 	stream               *C.dd_stream_t
@@ -315,8 +275,6 @@ func (s *rustStreamCompressor) Write(p []byte) (n int, err error) {
 }
 
 // Flush flushes any buffered data to the output buffer.
-// This ensures output.Len() reflects the current compressed size,
-// which is needed for the serializer's hasRoomForItem logic.
 func (s *rustStreamCompressor) Flush() error {
 	if s.closed || s.stream == nil {
 		return ErrStreamClosed

@@ -284,11 +284,12 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len int) ([]byte, error) {
 	n := binary.PutUvarint(pb.scratchBuf[0:], protobufFieldID(id, pbTypeBytes))
 	n += binary.PutUvarint(pb.scratchBuf[n:], uint64(len))
-	header, err := pb.compression.Compress(pb.scratchBuf[:n])
+	headerBuf := make([]byte, pb.compression.CompressBound(n))
+	written, err := pb.compression.CompressInto(pb.scratchBuf[:n], headerBuf)
 	if err != nil {
 		return nil, err
 	}
-	return append(dst, header...), nil
+	return append(dst, headerBuf[:written]...), nil
 }
 
 func (pb *payloadsBuilderV3) reset() {

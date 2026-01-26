@@ -1,7 +1,17 @@
 //! Zstandard compression implementation using the zstd crate (C bindings).
+//!
+//! This implementation uses `UnsafeCell` for zero-overhead interior mutability.
+//! The FFI layer guarantees that each compressor handle is used by only one thread
+//! at a time (Go handles synchronization at the caller level).
+//!
+//! # Safety
+//!
+//! This compressor is NOT thread-safe. Each instance must only be used from
+//! a single thread at a time. The FFI boundary enforces this invariant.
 
 use crate::compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
 use crate::error::{CompressionResult, DdCompressionError};
+use std::cell::UnsafeCell;
 use std::io::Write;
 
 /// Default zstd compression level (matches Go agent default).
@@ -13,19 +23,107 @@ pub const MIN_ZSTD_LEVEL: i32 = 1;
 /// Maximum valid zstd compression level.
 pub const MAX_ZSTD_LEVEL: i32 = 22;
 
-/// Zstd compressor using C bindings for maximum performance.
+/// Maximum decompressed size we will pre-allocate (256 MB).
+const MAX_PREALLOC_SIZE: usize = 256 * 1024 * 1024;
+
+/// Get the decompressed size from the zstd frame header if available.
+/// Returns `None` if the size cannot be determined cheaply.
+#[inline]
+fn get_decompressed_size(src: &[u8]) -> Option<usize> {
+    // Minimum zstd frame size is ~9 bytes (magic + frame header)
+    if src.len() < 9 {
+        return None;
+    }
+
+    match zstd::zstd_safe::get_frame_content_size(src) {
+        Ok(Some(size)) => usize::try_from(size)
+            .ok()
+            .map(|s| s.min(MAX_PREALLOC_SIZE)),
+        _ => None,
+    }
+}
+
+/// Zstd compressor using UnsafeCell for zero-overhead interior mutability.
+///
+/// # Safety
+///
+/// This type is NOT Sync. It must only be accessed from a single thread at a time.
+/// The FFI layer ensures this by having Go handle synchronization.
 pub struct ZstdCompressor {
     level: i32,
+    /// Compression context - UnsafeCell for zero-overhead access.
+    /// SAFETY: Only accessed from one thread at a time (FFI guarantees this).
+    compressor: UnsafeCell<Option<zstd::bulk::Compressor<'static>>>,
+    /// Decompression context - UnsafeCell for zero-overhead access.
+    /// SAFETY: Only accessed from one thread at a time (FFI guarantees this).
+    decompressor: UnsafeCell<Option<zstd::bulk::Decompressor<'static>>>,
+}
+
+// SAFETY: ZstdCompressor is Send because the underlying zstd contexts can be
+// moved between threads.
+unsafe impl Send for ZstdCompressor {}
+
+// SAFETY: ZstdCompressor is Sync because the FFI layer guarantees that each
+// compressor handle is only accessed by one thread at a time. Go handles
+// synchronization at the caller level. The header documentation explicitly
+// states that compressor handles are thread-safe for Go code (because Go
+// manages the synchronization), while the internal UnsafeCell provides
+// zero-overhead interior mutability on the Rust side.
+unsafe impl Sync for ZstdCompressor {}
+
+impl std::fmt::Debug for ZstdCompressor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZstdCompressor")
+            .field("level", &self.level)
+            .finish_non_exhaustive()
+    }
 }
 
 impl ZstdCompressor {
     /// Creates a new zstd compressor with the specified compression level.
     /// Level is clamped to the valid range [1, 22].
+    #[must_use]
     pub fn new(level: i32) -> Self {
         let clamped_level = level.clamp(MIN_ZSTD_LEVEL, MAX_ZSTD_LEVEL);
+
+        // Pre-create the compressor context
+        let compressor = zstd::bulk::Compressor::new(clamped_level).ok();
+        let decompressor = zstd::bulk::Decompressor::new().ok();
+
         Self {
             level: clamped_level,
+            compressor: UnsafeCell::new(compressor),
+            decompressor: UnsafeCell::new(decompressor),
         }
+    }
+
+    /// Returns the compression level.
+    #[inline]
+    #[must_use]
+    pub fn level(&self) -> i32 {
+        self.level
+    }
+
+    /// Gets mutable access to the compressor context.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure no other references to the compressor exist.
+    /// The FFI layer guarantees single-threaded access per handle.
+    #[inline]
+    unsafe fn compressor_mut(&self) -> &mut Option<zstd::bulk::Compressor<'static>> {
+        &mut *self.compressor.get()
+    }
+
+    /// Gets mutable access to the decompressor context.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure no other references to the decompressor exist.
+    /// The FFI layer guarantees single-threaded access per handle.
+    #[inline]
+    unsafe fn decompressor_mut(&self) -> &mut Option<zstd::bulk::Decompressor<'static>> {
+        &mut *self.decompressor.get()
     }
 }
 
@@ -37,55 +135,88 @@ impl Default for ZstdCompressor {
 }
 
 impl Compressor for ZstdCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zstd
     }
 
-    #[inline(always)]
+    #[inline]
     fn level(&self) -> i32 {
         self.level
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
         }
 
-        // Use bulk compression with pre-allocated output buffer for better performance.
-        // This is more efficient than zstd::encode_all which creates intermediate buffers.
         let bound = zstd::zstd_safe::compress_bound(src.len());
         let mut output = vec![0u8; bound];
 
-        let compressed_size = zstd::bulk::compress_to_buffer(src, &mut output, self.level)
-            .map_err(|_| DdCompressionError::CompressionFailed)?;
-
-        output.truncate(compressed_size);
+        let written = self.compress_into(src, &mut output)?;
+        output.truncate(written);
         Ok(output)
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
         if src.is_empty() {
             return Ok(0);
         }
 
-        // Use zstd's bulk compression API that writes directly to a buffer
-        zstd::bulk::compress_to_buffer(src, dst, self.level)
+        // SAFETY: FFI guarantees single-threaded access per compressor handle.
+        let compressor = unsafe { self.compressor_mut() };
+        let compressor = compressor
+            .as_mut()
+            .ok_or(DdCompressionError::CompressionFailed)?;
+
+        // Use the low-level compress2 directly for maximum performance.
+        // This avoids any additional overhead from the bulk::Compressor wrapper.
+        compressor
+            .compress_to_buffer(src, dst)
             .map_err(|_| DdCompressionError::BufferTooSmall)
     }
 
-    #[inline(always)]
+    #[inline]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
         }
 
-        zstd::decode_all(src).map_err(|_| DdCompressionError::DecompressionFailed)
+        // Get the expected size from the frame header for optimal pre-allocation.
+        let cap = get_decompressed_size(src)
+            .unwrap_or_else(|| src.len().saturating_mul(4).min(MAX_PREALLOC_SIZE));
+
+        // SAFETY: FFI guarantees single-threaded access per compressor handle.
+        let decompressor = unsafe { self.decompressor_mut() };
+        let decompressor = decompressor
+            .as_mut()
+            .ok_or(DdCompressionError::DecompressionFailed)?;
+
+        decompressor
+            .decompress(src, cap)
+            .map_err(|_| DdCompressionError::DecompressionFailed)
     }
 
-    #[inline(always)]
+    #[inline]
+    fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if src.is_empty() {
+            return Ok(0);
+        }
+
+        // SAFETY: FFI guarantees single-threaded access per compressor handle.
+        let decompressor = unsafe { self.decompressor_mut() };
+        let decompressor = decompressor
+            .as_mut()
+            .ok_or(DdCompressionError::BufferTooSmall)?;
+
+        decompressor
+            .decompress_to_buffer(src, dst)
+            .map_err(|_| DdCompressionError::BufferTooSmall)
+    }
+
+    #[inline]
     fn compress_bound(&self, source_len: usize) -> usize {
         // Use zstd's compress_bound which gives the worst-case size
         zstd::zstd_safe::compress_bound(source_len)
@@ -104,8 +235,18 @@ pub struct ZstdStreamCompressor {
     finished: bool,
 }
 
+impl std::fmt::Debug for ZstdStreamCompressor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZstdStreamCompressor")
+            .field("bytes_written", &self.bytes_written)
+            .field("finished", &self.finished)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ZstdStreamCompressor {
     /// Creates a new streaming zstd compressor.
+    #[must_use]
     pub fn new(level: i32) -> Self {
         let output = Vec::with_capacity(4096);
         let encoder = zstd::stream::Encoder::new(output, level).ok();
@@ -119,12 +260,12 @@ impl ZstdStreamCompressor {
 }
 
 impl StreamCompressor for ZstdStreamCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zstd
     }
 
-    #[inline(always)]
+    #[inline]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -141,7 +282,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -158,7 +299,7 @@ impl StreamCompressor for ZstdStreamCompressor {
     }
 
     #[inline]
-    fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
+    fn finish(mut self) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
         }
@@ -175,7 +316,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn get_output(&self) -> &[u8] {
         if let Some(ref encoder) = self.encoder {
             encoder.get_ref()
@@ -184,7 +325,7 @@ impl StreamCompressor for ZstdStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn bytes_written(&self) -> usize {
         self.bytes_written
     }
@@ -250,7 +391,7 @@ mod tests {
     #[test]
     fn test_zstd_stream_compressor() {
         let compressor = ZstdCompressor::new(3);
-        let mut stream = compressor.new_stream();
+        let mut stream = ZstdStreamCompressor::new(3);
 
         let data1 = b"First chunk of data. ";
         let data2 = b"Second chunk of data. ";
@@ -280,6 +421,23 @@ mod tests {
         assert!(compressed.len() < data.len()); // Should compress well
 
         let decompressed = compressor.decompress(&compressed).unwrap();
+        assert_eq!(decompressed, data);
+    }
+
+    #[test]
+    fn test_zstd_compress_into() {
+        let compressor = ZstdCompressor::new(3);
+        let data = b"Test data for compress_into.";
+
+        let bound = compressor.compress_bound(data.len());
+        let mut dst = vec![0u8; bound];
+
+        let written = compressor.compress_into(data, &mut dst).unwrap();
+        assert!(written > 0);
+        assert!(written <= bound);
+
+        // Verify round-trip
+        let decompressed = compressor.decompress(&dst[..written]).unwrap();
         assert_eq!(decompressed, data);
     }
 }

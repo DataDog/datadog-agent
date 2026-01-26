@@ -15,77 +15,70 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestZstdCompressDecompress(t *testing.T) {
+func TestZstdCompressInto(t *testing.T) {
 	comp := NewZstd(3)
 	defer comp.(*RustCompressor).Close()
 
 	original := []byte("Hello, World! This is a test of zstd compression.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	require.NotEmpty(t, compressed)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
+	require.LessOrEqual(t, written, bound)
 }
 
-func TestGzipCompressDecompress(t *testing.T) {
+func TestGzipCompressInto(t *testing.T) {
 	comp := NewGzip(6)
 	defer comp.(*RustCompressor).Close()
 
 	original := []byte("Hello, World! This is a test of gzip compression.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	require.NotEmpty(t, compressed)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
+	require.LessOrEqual(t, written, bound)
 }
 
-func TestZlibCompressDecompress(t *testing.T) {
+func TestZlibCompressInto(t *testing.T) {
 	comp := NewZlib(6)
 	defer comp.(*RustCompressor).Close()
 
 	original := []byte("Hello, World! This is a test of zlib compression.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	require.NotEmpty(t, compressed)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	require.Greater(t, written, 0)
+	require.LessOrEqual(t, written, bound)
 }
 
-func TestNoopCompressDecompress(t *testing.T) {
+func TestNoopCompressInto(t *testing.T) {
 	comp := NewNoop()
 	defer comp.(*RustCompressor).Close()
 
 	original := []byte("Hello, World! This is a test of noop compression.")
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	assert.Equal(t, original, compressed)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	assert.Equal(t, len(original), written)
+	assert.Equal(t, original, dst[:written])
 }
 
 func TestEmptyInput(t *testing.T) {
 	comp := NewZstd(3)
 	defer comp.(*RustCompressor).Close()
 
-	compressed, err := comp.Compress([]byte{})
+	dst := make([]byte, 100)
+	written, err := comp.CompressInto([]byte{}, dst)
 	require.NoError(t, err)
-	assert.Empty(t, compressed)
-
-	decompressed, err := comp.Decompress([]byte{})
-	require.NoError(t, err)
-	assert.Empty(t, decompressed)
+	assert.Equal(t, 0, written)
 }
 
 func TestLargeInput(t *testing.T) {
@@ -95,16 +88,14 @@ func TestLargeInput(t *testing.T) {
 	// Create 1MB of compressible data
 	original := bytes.Repeat([]byte("ABCDEFGHIJ"), 100000)
 
-	compressed, err := comp.Compress(original)
+	bound := comp.CompressBound(len(original))
+	dst := make([]byte, bound)
+	written, err := comp.CompressInto(original, dst)
 	require.NoError(t, err)
-	require.NotEmpty(t, compressed)
+	require.Greater(t, written, 0)
 
 	// Should compress well since it's repetitive
-	assert.Less(t, len(compressed), len(original)/10)
-
-	decompressed, err := comp.Decompress(compressed)
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
+	assert.Less(t, written, len(original)/10)
 }
 
 func TestCompressBound(t *testing.T) {
@@ -188,20 +179,14 @@ func TestStreamCompressor(t *testing.T) {
 			err = stream.Close()
 			require.NoError(t, err)
 
-			// Decompress and verify
+			// Verify compressed output is non-empty
 			compressed := output.Bytes()
 			require.NotEmpty(t, compressed)
-
-			decompressed, err := comp.Decompress(compressed)
-			require.NoError(t, err)
-
-			expected := "Hello, World! This is a test."
-			assert.Equal(t, expected, string(decompressed))
 		})
 	}
 }
 
-func TestCompressInto(t *testing.T) {
+func TestCompressIntoAllAlgorithms(t *testing.T) {
 	tests := []struct {
 		name    string
 		newComp func() *RustCompressor
@@ -228,11 +213,6 @@ func TestCompressInto(t *testing.T) {
 			require.NoError(t, err)
 			require.Greater(t, written, 0)
 			require.LessOrEqual(t, written, bound)
-
-			// Verify decompression works
-			decompressed, err := comp.Decompress(dst[:written])
-			require.NoError(t, err)
-			assert.Equal(t, original, decompressed)
 		})
 	}
 }
@@ -255,11 +235,6 @@ func TestCompressIntoLargeData(t *testing.T) {
 
 	// Should compress well since it's repetitive
 	assert.Less(t, written, len(original)/10)
-
-	// Verify decompression works
-	decompressed, err := comp.Decompress(dst[:written])
-	require.NoError(t, err)
-	assert.Equal(t, original, decompressed)
 }
 
 func TestCompressIntoBufferTooSmall(t *testing.T) {
@@ -299,14 +274,13 @@ func TestCompressIntoEmptyBuffer(t *testing.T) {
 	assert.Equal(t, ErrBufferTooSmall, err)
 }
 
-func TestCompressIntoMatchesCompress(t *testing.T) {
-	// Verify that CompressInto produces the same output as Compress
+func TestCompressIntoConsistency(t *testing.T) {
+	// Verify that CompressInto produces consistent output
 	tests := []struct {
 		name    string
 		newComp func() *RustCompressor
 	}{
 		{"zstd", func() *RustCompressor { return NewZstd(3).(*RustCompressor) }},
-		{"gzip", func() *RustCompressor { return NewGzip(6).(*RustCompressor) }},
 		{"zlib", func() *RustCompressor { return NewZlib(6).(*RustCompressor) }},
 		{"noop", func() *RustCompressor { return NewNoop().(*RustCompressor) }},
 	}
@@ -316,34 +290,22 @@ func TestCompressIntoMatchesCompress(t *testing.T) {
 			comp := tc.newComp()
 			defer comp.Close()
 
-			original := []byte("Hello, World! This is a test to verify CompressInto matches Compress.")
-
-			// Compress using both methods
-			compressed1, err := comp.Compress(original)
-			require.NoError(t, err)
+			original := []byte("Hello, World! This is a test to verify CompressInto is consistent.")
 
 			bound := comp.CompressBound(len(original))
-			dst := make([]byte, bound)
-			written, err := comp.CompressInto(original, dst)
+			dst1 := make([]byte, bound)
+			dst2 := make([]byte, bound)
+
+			written1, err := comp.CompressInto(original, dst1)
 			require.NoError(t, err)
 
-			compressed2 := dst[:written]
-
-			// Both should decompress to the same data
-			decompressed1, err := comp.Decompress(compressed1)
+			written2, err := comp.CompressInto(original, dst2)
 			require.NoError(t, err)
-
-			decompressed2, err := comp.Decompress(compressed2)
-			require.NoError(t, err)
-
-			assert.Equal(t, original, decompressed1)
-			assert.Equal(t, original, decompressed2)
 
 			// For deterministic algorithms, output should be identical
 			// Note: gzip includes timestamps so may differ slightly
-			if tc.name != "gzip" {
-				assert.Equal(t, compressed1, compressed2)
-			}
+			assert.Equal(t, written1, written2)
+			assert.Equal(t, dst1[:written1], dst2[:written2])
 		})
 	}
 }

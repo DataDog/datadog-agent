@@ -1,4 +1,8 @@
-//! Zlib/deflate compression implementation using flate2 (pure Rust).
+//! Zlib/deflate compression implementation using flate2 with zlib-ng backend.
+//!
+//! This implementation uses smart pre-allocation for compression output buffers.
+//! For decompression, we estimate based on typical compression ratios since
+//! zlib format doesn't include original size (unlike gzip).
 
 use crate::compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
 use crate::error::{CompressionResult, DdCompressionError};
@@ -6,6 +10,19 @@ use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::{self, Read, Write};
+
+/// Maximum decompressed size we will pre-allocate (256 MB).
+const MAX_PREALLOC_SIZE: usize = 256 * 1024 * 1024;
+
+/// Estimate decompressed size for zlib.
+///
+/// Unlike gzip, zlib doesn't store the original size, so we estimate based on
+/// typical compression ratios. Most text data compresses 3-5x with deflate.
+/// We use 4x as a reasonable middle ground.
+#[inline]
+fn estimate_zlib_decompressed_size(compressed_len: usize) -> usize {
+    compressed_len.saturating_mul(4).min(MAX_PREALLOC_SIZE)
+}
 
 /// A writer that writes to a fixed-size slice, tracking the position.
 /// Returns an error if the buffer is too small.
@@ -53,6 +70,7 @@ pub const MIN_ZLIB_LEVEL: i32 = 0;
 pub const MAX_ZLIB_LEVEL: i32 = 9;
 
 /// Zlib compressor using flate2.
+#[derive(Debug, Clone, Copy)]
 pub struct ZlibCompressor {
     level: i32,
 }
@@ -60,6 +78,7 @@ pub struct ZlibCompressor {
 impl ZlibCompressor {
     /// Creates a new zlib compressor with the specified compression level.
     /// Level is clamped to the valid range [0, 9].
+    #[must_use]
     pub fn new(level: i32) -> Self {
         let clamped_level = level.clamp(MIN_ZLIB_LEVEL, MAX_ZLIB_LEVEL);
         Self {
@@ -67,7 +86,8 @@ impl ZlibCompressor {
         }
     }
 
-    fn compression(&self) -> Compression {
+    #[allow(clippy::cast_sign_loss)] // level is already clamped to [0, 9]
+    fn compression(self) -> Compression {
         Compression::new(self.level as u32)
     }
 }
@@ -80,23 +100,27 @@ impl Default for ZlibCompressor {
 }
 
 impl Compressor for ZlibCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zlib
     }
 
-    #[inline(always)]
+    #[inline]
     fn level(&self) -> i32 {
         self.level
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
         }
 
-        let mut encoder = ZlibEncoder::new(Vec::new(), self.compression());
+        // Pre-allocate with estimated compressed size.
+        // Typical compression ratio is ~3:1 for text, but we're conservative.
+        // Add zlib header (2 bytes) + adler32 (4 bytes) overhead.
+        let estimated_size = (src.len() / 2) + 6;
+        let mut encoder = ZlibEncoder::new(Vec::with_capacity(estimated_size), (*self).compression());
         encoder
             .write_all(src)
             .map_err(|_| DdCompressionError::CompressionFailed)?;
@@ -105,14 +129,14 @@ impl Compressor for ZlibCompressor {
             .map_err(|_| DdCompressionError::CompressionFailed)
     }
 
-    #[inline(always)]
+    #[inline]
     fn compress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
         if src.is_empty() {
             return Ok(0);
         }
 
         let writer = SliceWriter::new(dst);
-        let mut encoder = ZlibEncoder::new(writer, self.compression());
+        let mut encoder = ZlibEncoder::new(writer, (*self).compression());
         encoder
             .write_all(src)
             .map_err(|_| DdCompressionError::BufferTooSmall)?;
@@ -122,21 +146,50 @@ impl Compressor for ZlibCompressor {
         Ok(writer.position())
     }
 
-    #[inline(always)]
+    #[inline]
     fn decompress(&self, src: &[u8]) -> CompressionResult<Vec<u8>> {
         if src.is_empty() {
             return Ok(Vec::new());
         }
 
+        // Pre-allocate based on estimated compression ratio.
+        // Zlib doesn't store original size, so we estimate 4x expansion.
+        let expected_size = estimate_zlib_decompressed_size(src.len());
         let mut decoder = ZlibDecoder::new(src);
-        let mut output = Vec::new();
+        let mut output = Vec::with_capacity(expected_size);
         decoder
             .read_to_end(&mut output)
             .map_err(|_| DdCompressionError::DecompressionFailed)?;
         Ok(output)
     }
 
-    #[inline(always)]
+    #[inline]
+    fn decompress_into(&self, src: &[u8], dst: &mut [u8]) -> CompressionResult<usize> {
+        if src.is_empty() {
+            return Ok(0);
+        }
+
+        let mut decoder = ZlibDecoder::new(src);
+        let mut pos = 0;
+        loop {
+            if pos >= dst.len() {
+                // Check if there's more data
+                let mut check = [0u8; 1];
+                if decoder.read(&mut check).unwrap_or(0) > 0 {
+                    return Err(DdCompressionError::BufferTooSmall);
+                }
+                break;
+            }
+            match decoder.read(&mut dst[pos..]) {
+                Ok(0) => break,
+                Ok(n) => pos += n,
+                Err(_) => return Err(DdCompressionError::DecompressionFailed),
+            }
+        }
+        Ok(pos)
+    }
+
+    #[inline]
     fn compress_bound(&self, source_len: usize) -> usize {
         // Zlib worst case formula - conservative estimate to handle small inputs:
         // For small inputs, deflate can expand data, so we need extra room.
@@ -161,8 +214,19 @@ pub struct ZlibStreamCompressor {
     finished: bool,
 }
 
+impl std::fmt::Debug for ZlibStreamCompressor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZlibStreamCompressor")
+            .field("bytes_written", &self.bytes_written)
+            .field("finished", &self.finished)
+            .finish_non_exhaustive()
+    }
+}
+
 impl ZlibStreamCompressor {
     /// Creates a new streaming zlib compressor.
+    #[must_use]
+    #[allow(clippy::cast_sign_loss)] // clamped_level is guaranteed to be [0, 9]
     pub fn new(level: i32) -> Self {
         let clamped_level = level.clamp(MIN_ZLIB_LEVEL, MAX_ZLIB_LEVEL);
         let compression = Compression::new(clamped_level as u32);
@@ -177,12 +241,12 @@ impl ZlibStreamCompressor {
 }
 
 impl StreamCompressor for ZlibStreamCompressor {
-    #[inline(always)]
+    #[inline]
     fn algorithm(&self) -> DdCompressionAlgorithm {
         DdCompressionAlgorithm::Zlib
     }
 
-    #[inline(always)]
+    #[inline]
     fn write(&mut self, data: &[u8]) -> CompressionResult<usize> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -199,7 +263,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn flush(&mut self) -> CompressionResult<()> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
@@ -216,7 +280,7 @@ impl StreamCompressor for ZlibStreamCompressor {
     }
 
     #[inline]
-    fn finish(mut self: Box<Self>) -> CompressionResult<Vec<u8>> {
+    fn finish(mut self) -> CompressionResult<Vec<u8>> {
         if self.finished {
             return Err(DdCompressionError::StreamClosed);
         }
@@ -232,7 +296,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn get_output(&self) -> &[u8] {
         if let Some(ref encoder) = self.encoder {
             encoder.get_ref()
@@ -241,7 +305,7 @@ impl StreamCompressor for ZlibStreamCompressor {
         }
     }
 
-    #[inline(always)]
+    #[inline]
     fn bytes_written(&self) -> usize {
         self.bytes_written
     }
@@ -308,7 +372,7 @@ mod tests {
     #[test]
     fn test_zlib_stream_compressor() {
         let compressor = ZlibCompressor::new(6);
-        let mut stream = compressor.new_stream();
+        let mut stream = ZlibStreamCompressor::new(6);
 
         let data1 = b"First chunk of data. ";
         let data2 = b"Second chunk of data. ";
