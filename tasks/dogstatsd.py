@@ -15,7 +15,8 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_root, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -34,10 +35,15 @@ def build(
     build_include=None,
     build_exclude=None,
     go_mod="readonly",
+    exclude_rust_compression=False,
 ):
     """
     Build Dogstatsd
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     build_tags = compute_build_tags_for_flavor(
         build="dogstatsd", flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
     )

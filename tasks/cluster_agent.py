@@ -15,7 +15,9 @@ from invoke.exceptions import Exit
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
+from tasks.libs.common.utils import gitlab_section
 from tasks.libs.dependencies import get_effective_dependencies_env
+from tasks.rust_compression import build as rust_compression_build
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -34,6 +36,7 @@ def build(
     development=True,
     skip_assets=False,
     policies_version=None,
+    exclude_rust_compression=False,
 ):
     """
     Build Cluster Agent
@@ -41,6 +44,10 @@ def build(
      Example invokation:
         dda inv cluster-agent.build
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     build_common(
         ctx,
         BIN_PATH,
