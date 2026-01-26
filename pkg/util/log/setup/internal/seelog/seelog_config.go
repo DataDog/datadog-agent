@@ -90,12 +90,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 
 	// syslog handler (formatter + writer)
 	if c.syslogURI != "" {
-		syslogReceiver := syslog.Receiver{}
-		err := syslogReceiver.AfterParse(seelog.CustomReceiverInitArgs{
-			XmlCustomAttrs: map[string]string{
-				"uri": c.syslogURI,
-			},
-		})
+		syslogReceiver, err := syslog.NewReceiver(c.syslogURI)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +98,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 		if c.format == "json" {
 			syslogFormatter = c.jsonSyslogFormatter
 		}
-		handlerList = append(handlerList, handlers.NewFormat(syslogFormatter, &syslogReceiver))
+		handlerList = append(handlerList, handlers.NewFormat(syslogFormatter, syslogReceiver))
 		closeFuncs = append(closeFuncs, func() { syslogReceiver.Close() })
 	}
 
@@ -135,7 +130,7 @@ func (c *Config) SlogLogger() (types.LoggerInterface, error) {
 // %CustomSyslogHeader(20,<syslog-rfc>) <logger-name> | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n
 func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
-	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
+	syslogHeader := syslogHeaderFormatter(seelog.LogLevel(types.FromSlogLevel(r.Level)))
 
 	frame := formatters.Frame(r)
 	level := formatters.UppercaseLevel(r.Level)
@@ -152,7 +147,7 @@ func (c *Config) commonSyslogFormatter(_ context.Context, r stdslog.Record) stri
 // %CustomSyslogHeader(20,<syslog-rfc>) {"agent":"<lowercase-logger-name>","level":"%LEVEL","relfile":"%ShortFilePath","line":"%Line","msg":"%Msg"%ExtraJSONContext}%n
 func (c *Config) jsonSyslogFormatter(_ context.Context, r stdslog.Record) string {
 	syslogHeaderFormatter := syslog.HeaderFormatter(20, c.syslogRFC)
-	syslogHeader := syslogHeaderFormatter(r.Message, seelog.LogLevel(types.FromSlogLevel(r.Level)), nil)
+	syslogHeader := syslogHeaderFormatter(seelog.LogLevel(types.FromSlogLevel(r.Level)))
 
 	frame := formatters.Frame(r)
 	level := formatters.UppercaseLevel(r.Level)
