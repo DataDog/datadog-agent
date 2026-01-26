@@ -27,6 +27,9 @@ const (
 
 	// InjectionModeCSI uses the Datadog CSI driver to mount library files directly into the pod.
 	InjectionModeCSI InjectionMode = "csi"
+
+	// InjectionModeImageVolume uses an image volume to mount library files directly into the pod.
+	InjectionModeImageVolume InjectionMode = "image_volume"
 )
 
 // ProviderFactory holds the default injection mode and creates providers on demand.
@@ -61,5 +64,7 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 		return NewInitContainerProvider(cfg)
 	case InjectionModeCSI:
 		return NewCSIProvider(cfg)
+	case InjectionModeImageVolume:
+		return NewImageVolumeProvider(cfg)
 	}
 }
