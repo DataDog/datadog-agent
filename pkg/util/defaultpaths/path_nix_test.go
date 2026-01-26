@@ -63,7 +63,7 @@ func TestCommonRootOrPath(t *testing.T) {
 		},
 		{
 			name:     "runPath is transformed",
-			path:     runPath,
+			path:     "/var/run/datadog",
 			expected: "/opt/datadog-agent/run",
 		},
 	}
@@ -89,13 +89,15 @@ func TestGettersWithCommonRoot(t *testing.T) {
 	defer func() { commonRoot = originalRoot }()
 
 	// Test without common root set
+	// Note: GetRunPath() returns {InstallPath}/run for container compatibility,
+	// not the FHS path /var/run/datadog. Containers mount volumes at /opt/datadog-agent/run.
 	t.Run("without common root", func(t *testing.T) {
 		SetCommonRoot("")
 		assert.Equal(t, "/etc/datadog-agent", GetConfPath())
 		assert.Equal(t, "/var/log/datadog/agent.log", GetLogFile())
 		assert.Equal(t, "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log", GetDogstatsDProtocolLogFile())
 		assert.Equal(t, "/opt/datadog-agent/checks.d", GetPyChecksPath())
-		assert.Equal(t, "/var/run/datadog", GetRunPath())
+		assert.Equal(t, "/opt/datadog-agent/run", GetRunPath())
 	})
 
 	// Test with common root set

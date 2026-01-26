@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -1509,6 +1510,9 @@ func TestLoadProxyFromEnv(t *testing.T) {
 }
 
 func TestCommonRootFilePathDefaults(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("CommonRootOrPath is a no-op on Windows by design")
+	}
 	cfg := newTestConf(t)
 
 	t.Setenv("DD_COMMON_ROOT", "/tmp/datadog-agent")

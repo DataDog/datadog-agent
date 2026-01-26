@@ -8,6 +8,7 @@
 package defaultpaths
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -41,15 +42,11 @@ const (
 	checkFlareDirectory = "/var/log/datadog/checks/"
 	jmxFlareDirectory   = "/var/log/datadog/jmxinfo/"
 
-	// Socket paths
-	statsdSocket   = "/var/run/datadog/dsd.socket"
-	receiverSocket = "/var/run/datadog/apm.socket"
-
-	// Run path
-	runPath = "/var/run/datadog"
-
-	// PID file path
-	pidFilePath = "/var/run/datadog/datadog-agent.pid"
+	// Socket paths - these constants are used for config registration defaults.
+	// The actual runtime paths derive from GetRunPath() which uses {InstallPath}/run.
+	// Containers mount volumes at /opt/datadog-agent/run, not /var/run/datadog.
+	defaultStatsdSocket   = "/opt/datadog-agent/run/dsd.socket"
+	defaultReceiverSocket = "/opt/datadog-agent/run/apm.socket"
 
 	// Python checks path (bundled integrations-core checks)
 	pyChecksPath = "/opt/datadog-agent/checks.d"
@@ -72,8 +69,8 @@ const (
 	DefaultHostProfilerLogFile  = hostProfilerLogFile
 	DefaultStreamlogsLogFile    = streamlogsLogFile
 	DefaultSystemProbeLogFile   = systemProbeLogFile
-	DefaultStatsdSocket         = statsdSocket
-	DefaultReceiverSocket       = receiverSocket
+	DefaultStatsdSocket         = defaultStatsdSocket
+	DefaultReceiverSocket       = defaultReceiverSocket
 )
 
 var (
@@ -82,7 +79,30 @@ var (
 	// distPath holds the path to the folder containing distribution files
 	// This is relative to the executable location, not the install root
 	distPath = filepath.Join(_here, "dist")
+	// detectedInstallPath is the install path detected from the executable location
+	detectedInstallPath = detectInstallPath(_here)
 )
+
+// detectInstallPath walks up the directory tree from start looking for a .install_root marker file.
+// If found, returns that directory. Otherwise returns the default install path.
+func detectInstallPath(start string) string {
+	if start == "" {
+		return defaultInstallPath
+	}
+	currentDir := start
+	for {
+		installRoot := filepath.Join(currentDir, ".install_root")
+		if _, err := os.Stat(installRoot); err == nil {
+			return currentDir
+		}
+		parentDir := filepath.Dir(currentDir)
+		if parentDir == currentDir {
+			break
+		}
+		currentDir = parentDir
+	}
+	return defaultInstallPath
+}
 
 // Config path getters
 
@@ -184,22 +204,22 @@ func GetJMXFlareDirectory() string {
 
 // GetStatsdSocket returns the path to the dogstatsd Unix socket
 func GetStatsdSocket() string {
-	return CommonRootOrPath(commonRoot, statsdSocket)
+	return filepath.Join(GetRunPath(), "dsd.socket")
 }
 
 // GetReceiverSocket returns the path to the APM receiver Unix socket
 func GetReceiverSocket() string {
-	return CommonRootOrPath(commonRoot, receiverSocket)
+	return filepath.Join(GetRunPath(), "apm.socket")
 }
 
 // GetPidFilePath returns the path to the agent PID file
 func GetPidFilePath() string {
-	return CommonRootOrPath(commonRoot, pidFilePath)
+	return filepath.Join(GetRunPath(), "datadog-agent.pid")
 }
 
-// GetRunPath returns the path to the run directory
+// GetRunPath returns the path to the directory used to store runtime files
 func GetRunPath() string {
-	return CommonRootOrPath(commonRoot, runPath)
+	return filepath.Join(GetInstallPath(), "run")
 }
 
 // Other path getters
@@ -218,10 +238,9 @@ func GetDistPath() string {
 	return distPath
 }
 
-// GetInstallPath returns the install root path for the agent (e.g., /opt/datadog-agent).
-// When commonRoot is set, this returns the common root path.
+// GetInstallPath returns the install root path for the agent (e.g., /opt/datadog-agent)
 func GetInstallPath() string {
-	return CommonRootOrPath(commonRoot, defaultInstallPath)
+	return CommonRootOrPath(commonRoot, detectedInstallPath)
 }
 
 // GetBinPath returns the directory containing the agent executable.
