@@ -30,6 +30,7 @@ from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import gitlab_section, timed
 from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
+from tasks.rust_compression import build as rust_compression_build
 
 
 def omnibus_run_task(ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None):
@@ -208,10 +209,14 @@ def build(
     install_directory=None,
     config_directory=None,
     target_project=None,
+    exclude_rust_compression=False,
 ):
     """
     Build the Agent packages with Omnibus Installer.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     flavor = AgentFlavor[flavor]
     fips_mode = flavor.is_fips()
@@ -416,12 +421,16 @@ def manifest(
 
 
 @task()
-def build_repackaged_agent(ctx, log_level="info"):
+def build_repackaged_agent(ctx, log_level="info", exclude_rust_compression=False):
     """
     Create an Agent package by using an existing Agent package as a base and rebuilding the Agent binaries with the local checkout.
 
     Currently only expected to work for debian packages, and requires the `dpkg` command to be available.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     # Make sure we let the user know that we're going to overwrite the existing Agent installation if present
     agent_path = "/opt/datadog-agent"
     if os.path.exists(agent_path):

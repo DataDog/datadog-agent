@@ -7,7 +7,8 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 
 BIN_NAME = "full-host-profiler"
 BIN_DIR = os.path.join(".", "bin", "full-host-profiler")
@@ -15,10 +16,13 @@ BIN_PATH = os.path.join(BIN_DIR, bin_name("full-host-profiler"))
 
 
 @task
-def build(ctx):
+def build(ctx, exclude_rust_compression=False):
     """
     Build the full host profiler
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

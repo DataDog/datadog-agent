@@ -17,7 +17,9 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_go_version,
     get_version,
+    gitlab_section,
 )
+from tasks.rust_compression import build as rust_compression_build
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
@@ -37,10 +39,15 @@ def build(
     no_strip_binary=False,
     arch_suffix=False,
     injector_only=False,
+    exclude_rust_compression=False,
 ):
     """
     Build cws-instrumentation
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     if build_tags is None:
         build_tags = []
     ldflags, gcflags, env = get_build_flags(ctx, static=static)
