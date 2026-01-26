@@ -1,5 +1,6 @@
+"""Build file for treetds to be overlaid into the freetds source tree."""
+
 load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
 load("@@//compliance/rules:purl.bzl", "purl_for_generic")
 load("@@//compliance/rules:ship_source_offer.bzl", "ship_source_offer")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
@@ -7,7 +8,7 @@ load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
 
 package(default_package_metadata = [":package_metadata", ":ship_source_offer"])
 
@@ -212,6 +213,7 @@ cc_library(
 cc_shared_library(
     name = "tdsodbc_so",
     deps = [":tdsodbc"],
+    shared_lib_name = "libtdsocbc.so",
     dynamic_deps = [
         "@unixodbc//:libodbc_so",
     ],
@@ -225,12 +227,17 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":tdsodbc_so",
-    libname = "libtdsodbc",
-    version = SO_VERSION,
-    prefix = "embedded",
+pkg_files(
+    name = "lib_file",
+    srcs = [":tdsodbc_so"],
+    prefix = "embedded/lib",
+)
+
+pkg_mklink(
+    name = "so_link",
+    attributes = pkg_attributes(mode = "755"),
+    link_name = "embedded/lib/libtdsodbc.so.%s" % SO_VERSION,
+    target = "libtdsodbc.so",
 )
 
 pkg_files(
@@ -247,7 +254,8 @@ pkg_filegroup(
         # If datadog-agent-integrations-py3-dependencies works without
         # the headers, lets' delete them.
         # ":hdr_files",
-        ":lib_files",
+        ":lib_file",
+        ":so_link",
     ],
 )
 
