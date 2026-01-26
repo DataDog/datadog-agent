@@ -86,10 +86,14 @@ int hook_vfs_rename(ctx_t *ctx) {
     // we generate a fake source key as the inode is (can be ?) reused
     syscall->rename.src_file.path_key.ino = FAKE_INODE_MSW << 32 | bpf_get_prandom_u32();
 
-    // if destination already exists invalidate the discarder
+    // if destination already exists invalidate the discarder and
+    // force an invalidate of the target path_id as the file will be replaced by the src file.
     u64 inode = get_dentry_ino(target_dentry);
     if (inode) {
         expire_inode_discarders(syscall->rename.target_file.path_key.mount_id, inode);
+
+        // force an invalidate of the target as the file will be replaced by the src file.
+        get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
     // always return after any invalidate_inode call
