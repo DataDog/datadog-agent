@@ -62,3 +62,11 @@ end
 def fips_mode?()
   return ENV['AGENT_FLAVOR'] == "fips" && (linux_target? || windows_target?)
 end
+
+def amd64_target?
+  ohai["kernel"]["machine"].match(/x86_64|amd64/)
+end
+
+def arm_target?
+  ohai["kernel"]["machine"].match(/aarch64|arm64/)
+end

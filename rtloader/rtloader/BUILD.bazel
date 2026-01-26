@@ -51,6 +51,10 @@ cc_library(
             "/MT",
         ],
         "//conditions:default": ["-O2"],
+    }) + select({
+        "@platforms//cpu:x86_64": ["-march=x86-64-v3"],
+        "@platforms//cpu:aarch64": ["-march=armv8.1-a"],
+        "//conditions:default": [],
     }),
     includes = ["."],
     local_defines = COMMON_DEFINES + select({

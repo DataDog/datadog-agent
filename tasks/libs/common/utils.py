@@ -29,7 +29,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
 from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
-from tasks.libs.types.arch import Arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if sys.platform == "darwin":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
@@ -340,6 +340,16 @@ def get_build_flags(
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
         env["CC"] = os.getenv("DD_CC_CROSS", arch.gcc_compiler())
         env["CXX"] = os.getenv("DD_CXX_CROSS", arch.gpp_compiler())
+
+    # CPU baseline optimization - x86-64-v3 / ARMv8.1-A
+    if arch == ARCH_AMD64:
+        env["GOAMD64"] = "v3"
+        env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', '') + " -march=x86-64-v3"
+        env['CGO_CXXFLAGS'] = env.get('CGO_CXXFLAGS', env.get('CGO_CFLAGS', '')) + " -march=x86-64-v3"
+    elif arch == ARCH_ARM64:
+        env["GOARM64"] = "v8.1,lse"
+        env['CGO_CFLAGS'] = env.get('CGO_CFLAGS', '') + " -march=armv8.1-a"
+        env['CGO_CXXFLAGS'] = env.get('CGO_CXXFLAGS', env.get('CGO_CFLAGS', '')) + " -march=armv8.1-a"
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
