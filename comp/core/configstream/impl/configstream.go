@@ -243,7 +243,7 @@ func (cs *configStream) createConfigSnapshot() (*pb.ConfigEvent, uint64, error) 
 
 		pbValue, err := structpb.NewValue(sanitizedValue)
 		if err != nil {
-			cs.log.Warnf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
+			cs.log.Errorf("Failed to convert setting '%s' to structpb.Value: %v", key, err)
 			continue
 		}
 
