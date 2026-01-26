@@ -146,8 +146,9 @@ message TaggerStateResponse {
 message ConfigStreamRequest {
   // The name of the client subscribing to the config stream.
   string name = 1;
-  // The session ID from RAR registration. Required for authorization.
-  string session_id = 2;
+  // If true, the remote agent will block its startup until it receives the initial config snapshot.
+  // If false (default), the remote agent can start without config streaming (fallback to local config).
+  bool wait_for_config = 2;
 }
 
 message ConfigSetting {

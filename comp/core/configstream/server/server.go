@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -46,16 +47,32 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 		return status.Error(codes.Unimplemented, "remote agent registry not enabled")
 	}
 
-	if req.SessionId == "" {
-		return status.Error(codes.Unauthenticated, "session_id required: remote agent must register with RAR before subscribing to config stream")
+	// Extract session_id from gRPC metadata (per RemoteAgentRegistry RFC)
+	md, ok := metadata.FromIncomingContext(stream.Context())
+	if !ok {
+		return status.Error(codes.Unauthenticated, "missing gRPC metadata")
+	}
+
+	sessionIDs := md.Get("session_id")
+	if len(sessionIDs) == 0 {
+		return status.Error(codes.Unauthenticated, "session_id required in metadata: remote agent must register with RAR before subscribing to config stream")
+	}
+	sessionID := sessionIDs[0]
+
+	if sessionID == "" {
+		return status.Error(codes.Unauthenticated, "session_id cannot be empty: remote agent must register with RAR before subscribing to config stream")
 	}
 
 	// Verify the session ID is valid and registered
-	if !s.registry.RefreshRemoteAgent(req.SessionId) {
-		return status.Errorf(codes.PermissionDenied, "session_id '%s' not found: remote agent must register with RAR before subscribing to config stream", req.SessionId)
+	if !s.registry.RefreshRemoteAgent(sessionID) {
+		return status.Errorf(codes.PermissionDenied, "session_id '%s' not found: remote agent must register with RAR before subscribing to config stream", sessionID)
 	}
 
-	log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s)", req.SessionId, req.Name)
+	if req.WaitForConfig {
+		log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s, wait_for_config: true - agent will block startup until config received)", sessionID, req.Name)
+	} else {
+		log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s, wait_for_config: false - agent using fallback config)", sessionID, req.Name)
+	}
 
 	// Subscribe to config events
 	eventsCh, unsubscribe := s.comp.Subscribe(req)

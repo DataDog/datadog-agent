@@ -77,12 +77,16 @@ func (m *mockRemoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregi
 	return nil
 }
 
-func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
+func setupTest(ctx context.Context, t *testing.T, sessionID string) (*Server, *mockComp, *mockStream, chan *pb.ConfigEvent) {
 	cfg := configmock.New(t)
 	cfg.Set("config_stream.sleep_interval", 10*time.Millisecond, model.SourceAgentRuntime)
 
 	comp := &mockComp{}
-	stream := &mockStream{ctx: ctx}
+
+	// Add session_id to context metadata
+	md := metadata.New(map[string]string{"session_id": sessionID})
+	ctxWithMetadata := metadata.NewIncomingContext(ctx, md)
+	stream := &mockStream{ctx: ctxWithMetadata}
 
 	// Create a mock RAR that always returns true for RefreshRemoteAgent
 	mockRAR := &mockRemoteAgentRegistry{}
@@ -95,13 +99,12 @@ func setupTest(ctx context.Context, t *testing.T) (*Server, *mockComp, *mockStre
 
 func TestStreamConfigEventsErrors(t *testing.T) {
 	testReq := &pb.ConfigStreamRequest{
-		Name:      "test-client",
-		SessionId: "test-session-id",
+		Name: "test-client",
 	}
 	testEvent := &pb.ConfigEvent{}
 
 	t.Run("returns error on terminal error from stream Send", func(t *testing.T) {
-		server, comp, stream, eventsCh := setupTest(context.Background(), t)
+		server, comp, stream, eventsCh := setupTest(context.Background(), t, "test-session-id")
 		unsubscribe := func() {}
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
 
@@ -128,7 +131,7 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		server, comp, stream, eventsCh := setupTest(ctx, t)
+		server, comp, stream, eventsCh := setupTest(ctx, t, "test-session-id")
 		var unsubscribeCalled bool
 		unsubscribe := func() { unsubscribeCalled = true }
 		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
@@ -172,4 +175,125 @@ func TestStreamConfigEventsErrors(t *testing.T) {
 		assert.True(t, unsubscribeCalled, "unsubscribe should have been called")
 	})
 
+}
+
+func TestRARAuthorization(t *testing.T) {
+	testReq := &pb.ConfigStreamRequest{
+		Name: "test-client",
+	}
+
+	t.Run("rejects request with missing metadata", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context without metadata
+		stream := &mockStream{ctx: context.Background()}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "missing gRPC metadata")
+	})
+
+	t.Run("rejects request with missing session_id in metadata", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context with metadata but no session_id
+		md := metadata.New(map[string]string{})
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "session_id required in metadata")
+	})
+
+	t.Run("rejects request with empty session_id", func(t *testing.T) {
+		cfg := configmock.New(t)
+		comp := &mockComp{}
+		mockRAR := &mockRemoteAgentRegistry{}
+		server := NewServer(cfg, comp, mockRAR)
+
+		// Context with empty session_id
+		md := metadata.New(map[string]string{"session_id": ""})
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		stream := &mockStream{ctx: ctx}
+
+		err := server.StreamConfigEvents(testReq, stream)
+		assert.Error(t, err)
+		assert.Equal(t, codes.Unauthenticated, status.Code(err))
+		assert.Contains(t, err.Error(), "session_id cannot be empty")
+	})
+}
+
+func TestWaitForConfigFlag(t *testing.T) {
+	testEvent := &pb.ConfigEvent{}
+
+	t.Run("accepts wait_for_config=true", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		testReq := &pb.ConfigStreamRequest{
+			Name:          "test-client",
+			WaitForConfig: true,
+		}
+
+		server, comp, stream, eventsCh := setupTest(ctx, t, "test-session-id")
+		unsubscribe := func() {}
+		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
+		stream.On("Send", testEvent).Return(nil).Once()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := server.StreamConfigEvents(testReq, stream)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		eventsCh <- testEvent
+		time.Sleep(50 * time.Millisecond) // Give time for the send to complete
+		cancel()
+		wg.Wait()
+
+		comp.AssertExpectations(t)
+		stream.AssertExpectations(t)
+	})
+
+	t.Run("accepts wait_for_config=false (default)", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		testReq := &pb.ConfigStreamRequest{
+			Name:          "test-client",
+			WaitForConfig: false,
+		}
+
+		server, comp, stream, eventsCh := setupTest(ctx, t, "test-session-id")
+		unsubscribe := func() {}
+		comp.On("Subscribe", testReq).Return((<-chan *pb.ConfigEvent)(eventsCh), unsubscribe).Once()
+		stream.On("Send", testEvent).Return(nil).Once()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := server.StreamConfigEvents(testReq, stream)
+			assert.ErrorIs(t, err, context.Canceled)
+		}()
+
+		eventsCh <- testEvent
+		time.Sleep(50 * time.Millisecond) // Give time for the send to complete
+		cancel()
+		wg.Wait()
+
+		comp.AssertExpectations(t)
+		stream.AssertExpectations(t)
+	})
 }
