@@ -409,7 +409,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
-	name, err := resolver.ResolveNameFromMap(pathKey)
+	name, err := resolver.ResolveNameFromMap(pathKey, true)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromMap(pathKey)
+		name, err = resolver.ResolveNameFromMap(pathKey, true)
 		if err != nil {
 			b.Fatal(err)
 		}
