@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logLevel int
@@ -108,6 +107,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	pkgconfig.BindEnvAndSetDefault("log_level", "info")
 
+	// Override config read (if any) with Default values
+	// NOTE: Must be called BEFORE LoadDatadog to ensure all config keys are registered
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
+
+	// Build the schema now so that config reads work properly
+	// This must happen after InitConfig (which registers keys) and before LoadDatadog (which reads config)
+	pkgconfig.BuildSchema()
+
 	activeLogLevel := critical
 	if len(ddCfg) != 0 {
 		// if the configuration file path was supplied via CLI flags or env vars,
@@ -122,10 +130,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
-
-		// Log configuration state for debugging nodetreemodel issues
-		log.Errorf("OTel agent config loaded: logs_enabled=%v, config_lib=%s",
-			pkgconfig.GetBool("logs_enabled"), pkgconfig.GetLibType())
 
 		var ok bool
 		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
@@ -152,16 +156,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if telemetryLogMapping < activeLogLevel {
 		activeLogLevel = telemetryLogMapping
 	}
-	log.Errorf("OTel agent setting log level to: %v", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
-
-	// Override config read (if any) with Default values
-	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
-
-	// Finish building the config, required because the finished config was
-	// reverted earlier by the method "RevertFinishedBackToBuilder"
-	pkgconfig.BuildSchema()
 
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {

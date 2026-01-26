@@ -181,9 +181,7 @@ func (c *ntmConfig) SetTestOnlyDynamicSchema(allow bool) {
 // config, instead of treating it as sealed
 // NOTE: Only used by OTel, no new uses please!
 func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
-	log.Errorf("nodetreemodel: RevertFinishedBackToBuilder called on config %p, knownKeys count=%d", c, len(c.knownKeys))
 	c.ready.Store(false)
-	log.Errorf("nodetreemodel: RevertFinishedBackToBuilder returning same config %p", c)
 	return c
 }
 
@@ -507,21 +505,8 @@ func (c *ntmConfig) BuildSchema() {
 }
 
 func (c *ntmConfig) buildSchema() {
-	log.Errorf("nodetreemodel: buildSchema() called on config %p, ready=%v, allowDynamicSchema=%v, knownKeys count=%d",
-		c, c.ready.Load(), c.allowDynamicSchema.Load(), len(c.knownKeys))
-
 	c.buildEnvVars()
-
-	// Log if logs_enabled is a known key for debugging
-	if _, ok := c.knownKeys["logs_enabled"]; ok {
-		log.Errorf("nodetreemodel: logs_enabled IS a known key on config %p", c)
-	} else {
-		log.Errorf("nodetreemodel: logs_enabled is NOT a known key on config %p - this is a problem!", c)
-	}
-
 	c.ready.Store(true)
-	log.Errorf("nodetreemodel: buildSchema() completed on config %p, setting ready=true", c)
-
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err)
 	}
@@ -550,10 +535,6 @@ func (c *ntmConfig) buildEnvVars() {
 	for configKey, listEnvVars := range c.configEnvVars {
 		for _, envVar := range listEnvVars {
 			if value, ok := os.LookupEnv(envVar); ok && value != "" {
-				// Log specifically for logs_enabled to debug nodetreemodel issues
-				if configKey == "logs_enabled" {
-					log.Errorf("nodetreemodel: found env var %s=%s for config key logs_enabled", envVar, value)
-				}
 				if err := c.insertNodeFromString(root, configKey, value); err != nil {
 					envWarnings = append(envWarnings, err)
 				} else {
@@ -1098,7 +1079,6 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 	config.SetEnvPrefix(envPrefix)
 	config.SetEnvKeyReplacer(envKeyReplacer)
 
-	log.Errorf("nodetreemodel: NewNodeTreeConfig created new config instance %p with name=%s", &config, name)
 	return &config
 }
 
