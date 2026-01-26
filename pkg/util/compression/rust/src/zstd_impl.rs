@@ -1,13 +1,22 @@
 //! Zstandard compression implementation using the zstd crate (C bindings).
 //!
 //! This implementation uses `UnsafeCell` for zero-overhead interior mutability.
-//! The FFI layer guarantees that each compressor handle is used by only one thread
-//! at a time (Go handles synchronization at the caller level).
 //!
-//! # Safety
+//! # Thread Safety
 //!
-//! This compressor is NOT thread-safe. Each instance must only be used from
-//! a single thread at a time. The FFI boundary enforces this invariant.
+//! The underlying compression contexts are NOT thread-safe - concurrent access
+//! to a single `ZstdCompressor` instance from multiple threads would cause
+//! undefined behavior.
+//!
+//! However, we implement `Send` and `Sync` because the Go FFI wrapper provides
+//! external synchronization via `sync.Mutex`. This is safe because:
+//!
+//! 1. All Go methods that access the Rust compressor acquire a mutex first
+//! 2. The mutex ensures only one goroutine accesses the compressor at a time
+//! 3. Go's mutex provides the necessary memory barriers
+//!
+//! Direct C callers MUST provide their own synchronization if sharing a
+//! compressor handle between threads.
 
 use crate::compressor::{Compressor, DdCompressionAlgorithm, StreamCompressor};
 use crate::error::{CompressionResult, DdCompressionError};
@@ -45,30 +54,32 @@ fn get_decompressed_size(src: &[u8]) -> Option<usize> {
 
 /// Zstd compressor using UnsafeCell for zero-overhead interior mutability.
 ///
-/// # Safety
+/// # Thread Safety
 ///
-/// This type is NOT Sync. It must only be accessed from a single thread at a time.
-/// The FFI layer ensures this by having Go handle synchronization.
+/// This type implements `Send` and `Sync` but requires external synchronization.
+/// The Go FFI wrapper provides this via `sync.Mutex`. Direct C callers must
+/// provide their own synchronization if sharing a handle between threads.
+///
+/// The `UnsafeCell` provides zero-overhead interior mutability, avoiding the
+/// cost of `Mutex` or `RwLock` since synchronization is handled at the FFI layer.
 pub struct ZstdCompressor {
     level: i32,
     /// Compression context - UnsafeCell for zero-overhead access.
-    /// SAFETY: Only accessed from one thread at a time (FFI guarantees this).
+    /// SAFETY: Caller must ensure single-threaded access (Go uses sync.Mutex).
     compressor: UnsafeCell<Option<zstd::bulk::Compressor<'static>>>,
     /// Decompression context - UnsafeCell for zero-overhead access.
-    /// SAFETY: Only accessed from one thread at a time (FFI guarantees this).
+    /// SAFETY: Caller must ensure single-threaded access (Go uses sync.Mutex).
     decompressor: UnsafeCell<Option<zstd::bulk::Decompressor<'static>>>,
 }
 
 // SAFETY: ZstdCompressor is Send because the underlying zstd contexts can be
-// moved between threads.
+// moved between threads safely when not in use.
 unsafe impl Send for ZstdCompressor {}
 
-// SAFETY: ZstdCompressor is Sync because the FFI layer guarantees that each
-// compressor handle is only accessed by one thread at a time. Go handles
-// synchronization at the caller level. The header documentation explicitly
-// states that compressor handles are thread-safe for Go code (because Go
-// manages the synchronization), while the internal UnsafeCell provides
-// zero-overhead interior mutability on the Rust side.
+// SAFETY: ZstdCompressor is Sync because the Go FFI wrapper provides external
+// synchronization via sync.Mutex. All Go methods that access the Rust compressor
+// acquire the mutex first, ensuring only one goroutine accesses the compressor
+// at a time. Direct C callers must provide equivalent synchronization.
 unsafe impl Sync for ZstdCompressor {}
 
 impl std::fmt::Debug for ZstdCompressor {

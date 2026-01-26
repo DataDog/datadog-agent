@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added a new Rust-based compression library as the default compression implementation.
+    The Rust implementation provides improved performance for zstd, gzip, and zlib compression,
+    using a zero-copy API to minimize memory allocations. This is enabled by default when
+    CGO is available. To use the previous Go-based implementation, build with the
+    ``no_rust_compression`` build tag.
+enhancements:
+  - |
+    The compression subsystem now uses a zero-copy ``CompressInto`` API that writes directly
+    to caller-provided buffers, reducing memory allocations and improving throughput.
+    The new implementation is thread-safe, with mutex protection ensuring safe concurrent
+    use from multiple goroutines.

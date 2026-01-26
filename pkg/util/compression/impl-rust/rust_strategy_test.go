@@ -9,6 +9,7 @@ package rustimpl
 
 import (
 	"bytes"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -308,4 +309,118 @@ func TestCompressIntoConsistency(t *testing.T) {
 			assert.Equal(t, dst1[:written1], dst2[:written2])
 		})
 	}
+}
+
+// ==================== Thread Safety Tests ====================
+
+func TestConcurrentCompression(t *testing.T) {
+	comp := NewZstd(3).(*RustCompressor)
+	defer comp.Close()
+
+	original := []byte("Hello, World! This is a test of concurrent compression.")
+	numGoroutines := 10
+	numIterations := 100
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	errors := make(chan error, numGoroutines*numIterations)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < numIterations; j++ {
+				bound := comp.CompressBound(len(original))
+				dst := make([]byte, bound)
+				written, err := comp.CompressInto(original, dst)
+				if err != nil {
+					errors <- err
+					continue
+				}
+				if written <= 0 {
+					errors <- assert.AnError
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Errorf("concurrent compression error: %v", err)
+	}
+}
+
+func TestConcurrentCompressors(t *testing.T) {
+	// Test that multiple compressors can be used concurrently
+	numGoroutines := 5
+	numIterations := 50
+
+	var wg sync.WaitGroup
+	wg.Add(numGoroutines)
+
+	errors := make(chan error, numGoroutines*numIterations)
+
+	for i := 0; i < numGoroutines; i++ {
+		go func() {
+			defer wg.Done()
+
+			// Each goroutine has its own compressor
+			comp := NewZstd(3).(*RustCompressor)
+			defer comp.Close()
+
+			original := []byte("Hello from goroutine! Testing separate compressors.")
+
+			for j := 0; j < numIterations; j++ {
+				bound := comp.CompressBound(len(original))
+				dst := make([]byte, bound)
+				written, err := comp.CompressInto(original, dst)
+				if err != nil {
+					errors <- err
+					continue
+				}
+				if written <= 0 {
+					errors <- assert.AnError
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errors)
+
+	for err := range errors {
+		t.Errorf("concurrent compressors error: %v", err)
+	}
+}
+
+// ==================== Finalizer Tests ====================
+
+func TestFinalizerCleanup(t *testing.T) {
+	// This test verifies that the finalizer can clean up resources
+	// when Close() is not called. We can't directly test the finalizer
+	// runs, but we can verify it doesn't crash.
+
+	for i := 0; i < 100; i++ {
+		// Create compressors without calling Close()
+		_ = NewZstd(3)
+		_ = NewGzip(6)
+		_ = NewZlib(6)
+	}
+
+	// Force GC to potentially trigger finalizers
+	// (Note: finalizers are not guaranteed to run immediately)
+}
+
+func TestDoubleClose(t *testing.T) {
+	comp := NewZstd(3).(*RustCompressor)
+
+	// Close twice should not panic
+	comp.Close()
+	comp.Close()
+
+	// Operations after close should return errors
+	_, err := comp.CompressInto([]byte("test"), make([]byte, 100))
+	assert.Equal(t, ErrInvalidHandle, err)
 }

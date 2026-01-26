@@ -10,8 +10,12 @@
  * - Stream handles are freed automatically by dd_stream_close()
  *
  * Thread Safety:
- * - Compressor handles are thread-safe for concurrent use
- * - Stream handles are NOT thread-safe; use one stream per thread
+ * - Compressor handles are NOT inherently thread-safe. The underlying Rust
+ *   implementation uses internal mutable state for optimal performance.
+ *   Callers must provide their own synchronization (e.g., mutex) if sharing
+ *   a compressor handle between threads.
+ * - The Go wrapper (impl-rust) provides thread safety via sync.Mutex.
+ * - Stream handles are NOT thread-safe; use one stream per thread.
  */
 
 #ifndef DATADOG_COMPRESSION_H

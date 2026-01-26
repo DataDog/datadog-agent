@@ -23,6 +23,8 @@ import "C"
 import (
 	"bytes"
 	"errors"
+	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
@@ -37,9 +39,19 @@ var (
 )
 
 // RustCompressor wraps the Rust compression library.
+//
+// Thread Safety: RustCompressor is safe for concurrent use from multiple
+// goroutines. The underlying Rust compressor context is protected by a mutex.
+// Each method acquires the lock before accessing the Rust handle.
+//
+// Resource Management: RustCompressor owns native Rust memory that must be freed.
+// Call Close() when done, or rely on the finalizer for automatic cleanup.
+// Explicitly calling Close() is preferred for deterministic resource release.
 type RustCompressor struct {
-	handle *C.dd_compressor_t
-	algo   string
+	mu       sync.Mutex
+	handle   *C.dd_compressor_t
+	algo     string
+	encoding string // cached content encoding to avoid CGO calls
 }
 
 // Requires specifies the configuration for creating a RustCompressor.
@@ -68,10 +80,30 @@ func New(req Requires) compression.Compressor {
 		handle = C.dd_compressor_new(C.DD_COMPRESSION_ALGORITHM_NOOP, 0)
 	}
 
-	return &RustCompressor{
-		handle: handle,
-		algo:   req.Algorithm,
+	// Cache the content encoding to avoid CGO overhead on repeated calls
+	var encoding string
+	if handle != nil {
+		enc := C.dd_compressor_content_encoding(handle)
+		if enc != nil {
+			encoding = C.GoString(enc)
+		} else {
+			encoding = "identity"
+		}
+	} else {
+		encoding = "identity"
 	}
+
+	comp := &RustCompressor{
+		handle:   handle,
+		algo:     req.Algorithm,
+		encoding: encoding,
+	}
+
+	// Set a finalizer to free native resources if Close() is not called.
+	// This prevents memory leaks but explicit Close() is still preferred.
+	runtime.SetFinalizer(comp, (*RustCompressor).Close)
+
+	return comp
 }
 
 // NewZstd creates a new zstd compressor with the specified level.
@@ -97,7 +129,12 @@ func NewNoop() compression.Compressor {
 // CompressInto compresses src directly into dst, returning the number of bytes written.
 // The dst buffer must be at least CompressBound(len(src)) bytes.
 // Returns ErrBufferTooSmall if dst is too small.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
 func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.handle == nil {
 		return 0, ErrInvalidHandle
 	}
@@ -134,7 +171,12 @@ func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
 }
 
 // CompressBound returns the worst-case compressed size for the given input length.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
 func (c *RustCompressor) CompressBound(sourceLen int) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.handle == nil {
 		return sourceLen
 	}
@@ -143,21 +185,22 @@ func (c *RustCompressor) CompressBound(sourceLen int) int {
 }
 
 // ContentEncoding returns the HTTP Content-Encoding header value.
+// This method returns a cached value and does not make CGO calls.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
 func (c *RustCompressor) ContentEncoding() string {
-	if c.handle == nil {
-		return "identity"
-	}
-
-	encoding := C.dd_compressor_content_encoding(c.handle)
-	if encoding == nil {
-		return "identity"
-	}
-
-	return C.GoString(encoding)
+	// No mutex needed - encoding is immutable after construction
+	return c.encoding
 }
 
 // NewStreamCompressor creates a new streaming compressor.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+// Note: The returned StreamCompressor is NOT thread-safe; use one per goroutine.
 func (c *RustCompressor) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.handle == nil {
 		return &rustStreamCompressor{
 			output: output,
@@ -181,10 +224,19 @@ func (c *RustCompressor) NewStreamCompressor(output *bytes.Buffer) compression.S
 }
 
 // Close releases the compressor resources.
+// After Close() is called, the compressor cannot be used.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+// Multiple calls to Close() are safe (idempotent).
 func (c *RustCompressor) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.handle != nil {
 		C.dd_compressor_free(c.handle)
 		c.handle = nil
+		// Clear the finalizer since we've already cleaned up
+		runtime.SetFinalizer(c, nil)
 	}
 }
 
@@ -221,7 +273,12 @@ func ZstdCompressStateless(src, dst []byte, level int) (int, error) {
 
 // ZstdCompressDirect compresses using the direct zstd path (bypasses enum dispatch).
 // This is for benchmarking to isolate enum dispatch overhead.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
 func (c *RustCompressor) ZstdCompressDirect(src, dst []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.handle == nil {
 		return 0, ErrInvalidHandle
 	}
