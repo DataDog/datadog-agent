@@ -2401,6 +2401,7 @@ core,go.mongodb.org/mongo-driver/v2/internal/handshake,Apache-2.0,"Copyright © 
 core,go.mongodb.org/mongo-driver/v2/internal/httputil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/logger,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/mongoutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/v2/internal/optionsutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/ptrutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/rand,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/randutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
