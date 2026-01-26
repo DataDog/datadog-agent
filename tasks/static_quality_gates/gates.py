@@ -736,71 +736,6 @@ class GateMetricHandler:
 
         return False
 
-    def _query_gate_metrics_for_commit(self, commit_sha: str, lookback: str = "now-7d") -> dict:
-        """
-        Query Datadog for static quality gate metrics for a specific commit.
-
-        Uses query_metrics to fetch on_disk_size and on_wire_size metrics
-        for an ancestor commit. This provides a consistent source of truth
-        for calculating relative size changes.
-
-        Args:
-            commit_sha: The git commit SHA to query metrics for
-            lookback: How far back to look (default 7 days)
-
-        Returns:
-            Dict mapping gate_name -> {'current_on_disk_size': ..., 'current_on_wire_size': ...}
-            Empty dict if no metrics found.
-        """
-        import sys
-
-        from tasks.libs.common.datadog_api import query_metrics
-
-        results = {}
-
-        metrics_to_query = {
-            'current_on_disk_size': 'datadog.agent.static_quality_gate.on_disk_size',
-            'current_on_wire_size': 'datadog.agent.static_quality_gate.on_wire_size',
-        }
-
-        for metric_key, metric_name in metrics_to_query.items():
-            # Query all gates at once using "by {gate_name}" aggregation
-            query = f"avg:{metric_name}{{ci_commit_sha:{commit_sha}}} by {{gate_name}}"
-
-            try:
-                series_list = query_metrics(query, lookback, "now")
-
-                for series in series_list:
-                    # Extract gate_name from scope (e.g., "gate_name:static_quality_gate_agent_deb_amd64")
-                    scope = series["scope"]
-                    gate_name = None
-                    for tag in scope.split(","):
-                        if tag.startswith("gate_name:"):
-                            gate_name = tag.split(":", 1)[1]
-                            break
-
-                    if not gate_name:
-                        continue
-
-                    # Get the most recent non-null value from pointlist
-                    # Points are [timestamp, value] pairs
-                    pointlist = series["pointlist"]
-                    for point in reversed(pointlist):
-                        # point[0] is a timestamp when this metric point was reported,
-                        # safe to ignore since we reverse the pointlist and get
-                        # the latest non-null value
-                        value = point[1]
-                        if value is not None:
-                            if gate_name not in results:
-                                results[gate_name] = {}
-                            results[gate_name][metric_key] = int(value)
-                            break
-
-            except Exception as e:
-                print(f"[WARN] Failed to query {metric_name} for commit {commit_sha}: {e}", file=sys.stderr)
-
-        return results
-
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
         metric_value = self.metrics[gate].get(metric_key)
         if metric_value is not None:
@@ -821,12 +756,14 @@ class GateMetricHandler:
         Args:
             ancestor: The ancestor commit SHA to compare against
         """
+        from tasks.libs.common.datadog_api import query_gate_metrics_for_commit
+
         if not ancestor:
             print(color_message("[WARN] Unable to find this commit ancestor", "orange"))
             return
 
         # Query Datadog once for all gates
-        ancestor_metrics = self._query_gate_metrics_for_commit(ancestor)
+        ancestor_metrics = query_gate_metrics_for_commit(ancestor)
 
         datadog_gates_found = 0
         for gate in self.metrics:
