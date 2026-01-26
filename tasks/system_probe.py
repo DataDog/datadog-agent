@@ -811,7 +811,12 @@ def build_sysprobe_binary(
     fips_mode=False,
     static=False,
     glibc=True,
+    exclude_rust_compression=False,
 ) -> None:
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
