@@ -211,13 +211,13 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
-type tagBasedResolver struct {
+type craneResolver struct {
 	cache               Cache
 	bucketID            string
 	datadoghqRegistries map[string]struct{}
 }
 
-func (r *tagBasedResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+func (r *craneResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
 	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
 		log.Debugf("%s is not a Datadoghq registry, not resolving", registry)
 		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
@@ -235,8 +235,8 @@ func (r *tagBasedResolver) Resolve(registry string, repository string, tag strin
 	return resolved, true
 }
 
-func newTagBasedResolver(cfg Config) Resolver {
-	return &tagBasedResolver{
+func newCraneResolver(cfg Config) Resolver {
+	return &craneResolver{
 		cache:               NewCache(1 * time.Hour), // DEV: Make this configurable
 		bucketID:            cfg.BucketID,
 		datadoghqRegistries: cfg.DDRegistries,

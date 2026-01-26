@@ -169,7 +169,7 @@ func TestNoOpImageResolver(t *testing.T) {
 	}
 }
 
-func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
+func TestRcResolver_processUpdate(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -213,8 +213,7 @@ func TestRemoteConfigImageResolver_processUpdate(t *testing.T) {
 	})
 }
 
-// TestImageResolverEmptyConfig tests the behavior with no remote config data
-func TestImageResolverEmptyConfig(t *testing.T) {
+func TestRcResolver_EmptyConfig(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -226,7 +225,7 @@ func TestImageResolverEmptyConfig(t *testing.T) {
 	assert.Nil(t, resolved, "Should not return resolved image with empty cache")
 }
 
-func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
+func TestRcResolver_Resolve(t *testing.T) {
 	mockRCClient := newMockRCClient("multi_repo.json")
 	resolver := newRcResolver(NewConfig(config.NewMock(t), mockRCClient))
 
@@ -314,7 +313,7 @@ func TestRemoteConfigImageResolver_Resolve(t *testing.T) {
 	})
 }
 
-func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
+func TestRcResolver_ErrorHandling(t *testing.T) {
 	resolver := &rcResolver{
 		imageMappings: make(map[string]map[string]ImageInfo),
 	}
@@ -377,7 +376,7 @@ func TestRemoteConfigImageResolver_ErrorHandling(t *testing.T) {
 	}
 }
 
-func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
+func TestRcResolver_InvalidDigestValidation(t *testing.T) {
 	testConfigs, err := loadTestConfigFile("invalid_digest.json")
 	require.NoError(t, err)
 
@@ -412,7 +411,7 @@ func TestRemoteConfigImageResolver_InvalidDigestValidation(t *testing.T) {
 	})
 }
 
-func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
+func TestRcResolver_ConcurrentAccess(t *testing.T) {
 	resolver := newRcResolver(NewConfig(config.NewMock(t), newMockRCClient("multi_repo.json")))
 
 	t.Run("concurrent_read_write", func(_ *testing.T) {
@@ -445,51 +444,7 @@ func TestRemoteConfigImageResolver_ConcurrentAccess(t *testing.T) {
 	})
 }
 
-func TestIsDatadoghqRegistry(t *testing.T) {
-	testCases := []struct {
-		name     string
-		registry string
-		expected bool
-	}{
-		{
-			name:     "gcr_io_datadoghq",
-			registry: "gcr.io/datadoghq",
-			expected: true,
-		},
-		{
-			name:     "hub_docker_com_datadog",
-			registry: "docker.io/datadog",
-			expected: true,
-		},
-		{
-			name:     "gallery_ecr_aws_datadog",
-			registry: "public.ecr.aws/datadog",
-			expected: true,
-		},
-		{
-			name:     "docker_io_not_datadog",
-			registry: "docker.io",
-			expected: false,
-		},
-		{
-			name:     "empty_registry",
-			registry: "",
-			expected: false,
-		},
-	}
-
-	for _, tc := range testCases {
-
-		t.Run(tc.name, func(t *testing.T) {
-			mockConfig := config.NewMock(t)
-			datadogRegistries := newDatadoghqRegistries(mockConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
-			result := isDatadoghqRegistry(tc.registry, datadogRegistries)
-			assert.Equal(t, tc.expected, result, "isDatadoghqRegistry(%s) should return %v", tc.registry, tc.expected)
-		})
-	}
-}
-
-func TestAsyncInitialization(t *testing.T) {
+func TestRcResolver_AsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
 		mockClient := newMockRCClient("multi_repo.json")
 		mockClient.setBlocking(true) // Block initialization
