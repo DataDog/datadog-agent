@@ -8,6 +8,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.utils import TestsNotSupportedError, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 
 
 @dataclass
@@ -98,13 +99,17 @@ def containerized_integration_tests(
 
 
 @task(iterable=["only"])
-def integration_tests(ctx, race=False, timeout="", only: list[str] | None = None):
+def integration_tests(ctx, race=False, timeout="", only: list[str] | None = None, exclude_rust_compression=False):
     """
     Run all the available integration tests
 
     Args:
         only: Filter tests to run.
     """
+
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     tests = {
         "Trace Agent": lambda: containerized_integration_tests(ctx, TRACE_AGENT_IT_CONF, race=race, timeout=timeout),
