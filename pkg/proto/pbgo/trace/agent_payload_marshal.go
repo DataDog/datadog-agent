@@ -277,7 +277,7 @@ func (c *stringCompactor) collectAnyValueRefs(value *idx.AnyValue, markRef func(
 // compactor and size. This allows accurate size calculations for buffer management
 // and avoids recomputing the compaction during serialization.
 type PreparedTracerPayload struct {
-	Payload   *idx.TracerPayload
+	payload   *idx.TracerPayload
 	compactor *stringCompactor
 	Size      int // compacted serialized size
 }
@@ -286,12 +286,12 @@ type PreparedTracerPayload struct {
 // compaction and size upfront. The compactor is reused during serialization.
 func PrepareTracerPayload(tp *idx.TracerPayload) *PreparedTracerPayload {
 	if tp == nil {
-		return &PreparedTracerPayload{Payload: nil, compactor: nil, Size: 0}
+		return &PreparedTracerPayload{payload: nil, compactor: nil, Size: 0}
 	}
 	c := newStringCompactor(tp)
 	size := sizeTracerPayloadCompacting(tp, c)
 	return &PreparedTracerPayload{
-		Payload:   tp,
+		payload:   tp,
 		compactor: c,
 		Size:      size,
 	}
@@ -299,14 +299,26 @@ func PrepareTracerPayload(tp *idx.TracerPayload) *PreparedTracerPayload {
 
 // PrepareTracerPayloadWithChunks creates a PreparedTracerPayload using only
 // a subset of chunks from the source payload. This is useful for splitting
-// large payloads while reusing the string table.
+// large payloads while reusing the string table. PreparedTracerPayloads must not be modified to avoid race conditions.
 func PrepareTracerPayloadWithChunks(source *idx.TracerPayload, chunks []*idx.TraceChunk) *PreparedTracerPayload {
 	if source == nil {
-		return &PreparedTracerPayload{Payload: nil, compactor: nil, Size: 0}
+		return &PreparedTracerPayload{payload: nil, compactor: nil, Size: 0}
 	}
 	// Create a new TracerPayload with the same metadata but only the specified chunks
-	tp := source.NewStringsClone()
-	tp.Chunks = chunks
+	// The resulting TP must not have any strings modified after this point.
+	tp := &idx.TracerPayload{
+		Strings:            source.Strings,
+		ContainerIDRef:     source.ContainerIDRef,
+		LanguageNameRef:    source.LanguageNameRef,
+		LanguageVersionRef: source.LanguageVersionRef,
+		TracerVersionRef:   source.TracerVersionRef,
+		RuntimeIDRef:       source.RuntimeIDRef,
+		EnvRef:             source.EnvRef,
+		HostnameRef:        source.HostnameRef,
+		AppVersionRef:      source.AppVersionRef,
+		Attributes:         source.Attributes,
+		Chunks:             chunks,
+	}
 	return PrepareTracerPayload(tp)
 }
 
@@ -456,7 +468,7 @@ func appendAgentPayloadPrepared(buf []byte, ap *AgentPayload, prepared []*Prepar
 // appendPreparedIdxTracerPayload serializes a PreparedTracerPayload using its
 // pre-computed compactor, avoiding the need to recompute the string mapping.
 func appendPreparedIdxTracerPayload(buf []byte, p *PreparedTracerPayload) []byte {
-	if p == nil || p.Payload == nil {
+	if p == nil || p.payload == nil {
 		return buf
 	}
 
@@ -475,7 +487,7 @@ func appendPreparedIdxTracerPayload(buf []byte, p *PreparedTracerPayload) []byte
 	}
 
 	// Use pre-computed compactor
-	buf = appendTracerPayloadCompacting(buf, p.Payload, p.compactor)
+	buf = appendTracerPayloadCompacting(buf, p.payload, p.compactor)
 	return buf
 }
 

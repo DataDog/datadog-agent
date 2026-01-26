@@ -58,6 +58,8 @@ def ask_reviews(_, pr_id, team_slugs):
     events = list(pr.get_issue_events())
     last_event = events[-1]
     actor = last_event.actor.name or last_event.actor.login
+    if "[bot]" in actor:
+        actor = pr.user.name or pr.user.login
     for channel, reviewers in channels.items():
         stop_updating = ""
         if (pr.user.login == "renovate[bot]" or pr.user.login == "mend[bot]") and pr.title.startswith(

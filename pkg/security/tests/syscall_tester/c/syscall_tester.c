@@ -27,6 +27,7 @@
 #include <limits.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <stdatomic.h>
 
 #define RPC_CMD 0xdeadc001
 #define REGISTER_SPAN_TLS_OP 6
@@ -646,11 +647,21 @@ int test_accept(int argc, char** argv) {
 
 int test_bind_af_inet(int argc, char** argv) {
 
-    if (argc != 3) {
+    if (argc < 3 || argc > 4) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
+        fprintf(stderr, "Arg3 (optional): port number (default: 4242)\n");
         return EXIT_FAILURE;
+    }
+
+    int port = 4242;
+    if (argc == 4) {
+        port = atoi(argv[3]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Invalid port number: %s\n", argv[3]);
+            return EXIT_FAILURE;
+        }
     }
 
     char* proto = argv[2];
@@ -683,7 +694,7 @@ int test_bind_af_inet(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin_port = htons(4242);
+    addr.sin_port = htons(port);
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("Failed to bind port");
         return EXIT_FAILURE;
@@ -700,9 +711,19 @@ int test_bind_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (argc != 2) {
+    if (argc < 2 || argc > 3) {
         fprintf(stderr, "Please specify an option in the list: any, custom_ip\n");
+        fprintf(stderr, "Arg2 (optional): port number (default: 4242)\n");
         return EXIT_FAILURE;
+    }
+
+    int port = 4242;
+    if (argc == 3) {
+        port = atoi(argv[2]);
+        if (port <= 0 || port > 65535) {
+            fprintf(stderr, "Invalid port number: %s\n", argv[2]);
+            return EXIT_FAILURE;
+        }
     }
 
     struct sockaddr_in6 addr;
@@ -719,7 +740,7 @@ int test_bind_af_inet6(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    addr.sin6_port = htons(4242);
+    addr.sin6_port = htons(port);
     if (bind(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
         perror("Failed to bind port");
         return EXIT_FAILURE;
@@ -1740,6 +1761,144 @@ int test_prctl_setname(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+// Shared state for udploop between threads
+static atomic_int udp_received = 0;
+static atomic_int udp_running = 1;
+
+struct udploop_args {
+    int port;
+};
+
+void *udp_server_thread(void *arg) {
+    struct udploop_args *args = (struct udploop_args *)arg;
+    int port = args->port;
+    int sockfd;
+    struct sockaddr_in server_addr, client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    char buffer[64];
+
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("server socket");
+        return NULL;
+    }
+
+    // Allow address reuse
+    int opt = 1;
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    // Set receive timeout to avoid blocking forever
+    struct timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 500000; // 500ms
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    server_addr.sin_port = htons(port);
+
+    if (bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("server bind");
+        close(sockfd);
+        return NULL;
+    }
+
+    while (atomic_load(&udp_running)) {
+        ssize_t n = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
+                             (struct sockaddr *)&client_addr, &client_len);
+        if (n > 0) {
+            atomic_store(&udp_received, 1);
+        }
+        // On timeout (n < 0 && errno == EAGAIN), just loop
+    }
+
+    close(sockfd);
+    return NULL;
+}
+
+void *udp_client_thread(void *arg) {
+    struct udploop_args *args = (struct udploop_args *)arg;
+    int port = args->port;
+    int sockfd;
+    struct sockaddr_in server_addr;
+    const char *msg = "ping";
+
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd < 0) {
+        perror("client socket");
+        return NULL;
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    server_addr.sin_port = htons(port);
+
+    while (atomic_load(&udp_running)) {
+        sendto(sockfd, msg, strlen(msg), 0,
+               (struct sockaddr *)&server_addr, sizeof(server_addr));
+        sleep(1);
+    }
+
+    close(sockfd);
+    return NULL;
+}
+
+int test_udploop(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: udploop <port>\n");
+        return EXIT_FAILURE;
+    }
+
+    int port = atoi(argv[1]);
+    if (port <= 1024 || port > 65535) {
+        fprintf(stderr, "Port must be between 1025 and 65535\n");
+        return EXIT_FAILURE;
+    }
+
+    struct udploop_args args;
+    args.port = port;
+
+    pthread_t server_tid, client_tid;
+
+    // Start server thread first
+    if (pthread_create(&server_tid, NULL, udp_server_thread, &args) != 0) {
+        perror("pthread_create server");
+        return EXIT_FAILURE;
+    }
+
+    // Give server time to bind
+    usleep(100000); // 100ms
+
+    // Start client thread
+    if (pthread_create(&client_tid, NULL, udp_client_thread, &args) != 0) {
+        perror("pthread_create client");
+        atomic_store(&udp_running, 0);
+        pthread_join(server_tid, NULL);
+        return EXIT_FAILURE;
+    }
+
+    // Main loop: check every second if we received packets
+    while (1) {
+        sleep(1);
+
+        if (atomic_exchange(&udp_received, 0)) {
+            printf("UDP_OK: received packet on port %d\n", port);
+        } else {
+            printf("UDP_FAIL: no packet received on port %d\n", port);
+        }
+        fflush(stdout);
+    }
+
+    // Never reached, but for completeness
+    atomic_store(&udp_running, 0);
+    pthread_join(server_tid, NULL);
+    pthread_join(client_tid, NULL);
+
+    return EXIT_SUCCESS;
+}
+
 int test_dnsloop(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Please specify a domain to resolve\n");
@@ -1884,6 +2043,8 @@ int main(int argc, char **argv) {
             exit_code = test_pause(sub_argc, sub_argv);
         } else if (strcmp(cmd, "prctl-setname") == 0) {
             exit_code = test_prctl_setname(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "udploop") == 0) {
+            exit_code = test_udploop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "dnsloop") == 0) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
         } else {

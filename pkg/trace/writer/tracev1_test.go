@@ -140,7 +140,7 @@ func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 
 	// Convert to proto to measure total payload size
 	protoPayload := payload.ToProto()
-	totalSize := protoPayload.SizeVT()
+	totalSize := proto.Size(protoPayload)
 
 	// Set threshold to 1 so any payload triggers a split
 	// This ensures our 4-chunk payload gets split into 4 separate payloads

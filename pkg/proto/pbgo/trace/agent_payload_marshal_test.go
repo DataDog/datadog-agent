@@ -1036,10 +1036,8 @@ func TestMarshalAgentPayload_CompletePayload_UnusedStringsRemoved(t *testing.T) 
 		},
 	}
 
-	// Compact strings before marshaling (required since marshaler no longer does compaction)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
+	// The custom marshaler performs string compaction during serialization,
+	// so we don't need to pre-compact the payload.
 
 	// Serialize with custom marshaler
 	data, err := MarshalAgentPayload(ap)
@@ -1317,68 +1315,17 @@ func createBenchmarkPayload(numSpans int, unusedStringRatio float64) *AgentPaylo
 }
 
 // =============================================================================
-// Encoding-only benchmarks (payload pre-compacted, measure only serialization)
+// Custom marshaler benchmarks with inline string compaction
 // =============================================================================
 
-// BenchmarkMarshalAgentPayload_Custom benchmarks the custom marshaler (encoding only)
+// BenchmarkMarshalAgentPayload_Custom benchmarks the custom marshaler
 func BenchmarkMarshalAgentPayload_Custom_SmallPayload(b *testing.B) {
-	ap := createBenchmarkPayload(10, 0.5) // 10 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
+	template := createBenchmarkPayload(10, 0.5) // 10 spans, 50% unused strings
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
+		ap := cloneAgentPayload(template)
 		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkMarshalAgentPayload_VT_SmallPayload(b *testing.B) {
-	ap := createBenchmarkPayload(10, 0.5) // 10 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkMarshalAgentPayload_Custom_MediumPayload(b *testing.B) {
-	ap := createBenchmarkPayload(100, 0.5) // 100 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkMarshalAgentPayload_VT_MediumPayload(b *testing.B) {
-	ap := createBenchmarkPayload(100, 0.5) // 100 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := ap.MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1386,113 +1333,7 @@ func BenchmarkMarshalAgentPayload_VT_MediumPayload(b *testing.B) {
 }
 
 func BenchmarkMarshalAgentPayload_Custom_LargePayload(b *testing.B) {
-	ap := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkMarshalAgentPayload_VT_LargePayload(b *testing.B) {
-	ap := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
-	// Pre-compact the payload (not included in benchmark)
-	for _, tp := range ap.IdxTracerPayloads {
-		tp.CompactStrings()
-	}
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// =============================================================================
-// CompactStrings benchmark (measures compaction overhead separately)
-// =============================================================================
-
-func BenchmarkCompactStrings_SmallPayload(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := createBenchmarkPayload(10, 0.5)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-	}
-}
-
-func BenchmarkCompactStrings_MediumPayload(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := createBenchmarkPayload(100, 0.5)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-	}
-}
-
-func BenchmarkCompactStrings_LargePayload(b *testing.B) {
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := createBenchmarkPayload(1000, 0.5)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-	}
-}
-
-// =============================================================================
-// Fair comparison benchmarks: Custom (inline compaction) vs VT (manual CompactStrings + encode)
-// These benchmarks measure the full flow including string compaction.
-// =============================================================================
-
-// BenchmarkFullFlow_Custom measures custom marshaler with inline string compaction
-// (the new implementation does compaction during serialization without modifying the payload)
-func BenchmarkFullFlow_Custom_SmallPayload(b *testing.B) {
-	// Create a fresh payload for each iteration (not pre-compacted)
-	template := createBenchmarkPayload(10, 0.5)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		// Clone the template to simulate fresh uncompacted payload
-		ap := cloneAgentPayload(template)
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// BenchmarkFullFlow_VT measures VT marshaler with manual CompactStrings() call
-func BenchmarkFullFlow_VT_SmallPayload(b *testing.B) {
-	template := createBenchmarkPayload(10, 0.5)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		// Clone and compact (simulates the full flow)
-		ap := cloneAgentPayload(template)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkFullFlow_Custom_MediumPayload(b *testing.B) {
-	template := createBenchmarkPayload(100, 0.5)
+	template := createBenchmarkPayload(1000, 0.5) // 1000 spans, 50% unused strings
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
@@ -1504,75 +1345,13 @@ func BenchmarkFullFlow_Custom_MediumPayload(b *testing.B) {
 	}
 }
 
-func BenchmarkFullFlow_VT_MediumPayload(b *testing.B) {
-	template := createBenchmarkPayload(100, 0.5)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := cloneAgentPayload(template)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkFullFlow_Custom_LargePayload(b *testing.B) {
-	template := createBenchmarkPayload(1000, 0.5)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := cloneAgentPayload(template)
-		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkFullFlow_VT_LargePayload(b *testing.B) {
-	template := createBenchmarkPayload(1000, 0.5)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := cloneAgentPayload(template)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-		_, err := ap.MarshalVT()
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-// BenchmarkFullFlow with high unused string ratio (stress test for compaction)
-func BenchmarkFullFlow_Custom_HighUnused(b *testing.B) {
+func BenchmarkMarshalAgentPayload_Custom_HighUnused(b *testing.B) {
 	template := createBenchmarkPayload(100, 2.0) // 200% unused = many unused strings
 	b.ResetTimer()
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		ap := cloneAgentPayload(template)
 		_, err := MarshalAgentPayload(ap)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkFullFlow_VT_HighUnused(b *testing.B) {
-	template := createBenchmarkPayload(100, 2.0)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		ap := cloneAgentPayload(template)
-		for _, tp := range ap.IdxTracerPayloads {
-			tp.CompactStrings()
-		}
-		_, err := ap.MarshalVT()
 		if err != nil {
 			b.Fatal(err)
 		}

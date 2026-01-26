@@ -65,7 +65,7 @@ func NewExtension(cfg *Config, ipcComp ipc.Component, telemetry component.Teleme
 		cfg:       cfg,
 		telemetry: telemetry,
 	}
-	ext.server, err = newServer(cfg.HTTPConfig.Endpoint, ext, ipcComp)
+	ext.server, err = newServer(cfg.HTTPConfig.NetAddr.Endpoint, ext, ipcComp)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (ext *DDExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 
 // Start is called when the extension is started.
 func (ext *DDExtension) Start(_ context.Context, host component.Host) error {
-	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
+	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.NetAddr.Endpoint))
 
 	go func() {
 		if err := ext.server.start(); err != nil && err != http.ErrServerClosed {
