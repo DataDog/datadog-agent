@@ -47,7 +47,7 @@ func ValidateBasicTypes(value interface{}) bool {
 	}
 
 	// Allow existing callers that are using SetWithoutSource. Fix these later
-	for _, stackSkip := range []int{2, 3} {
+	for _, stackSkip := range []int{2, 3, 4} {
 		_, absfile, _, _ := runtime.Caller(stackSkip)
 		for _, allowSource := range allowlistCaller {
 			if strings.HasSuffix(absfile, allowSource) {
