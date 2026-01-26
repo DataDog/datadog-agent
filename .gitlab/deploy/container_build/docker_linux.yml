@@ -308,8 +308,10 @@ docker_build_host_profiler_standalone_arm64:
 .docker_build_ot_agent_standalone:
   extends: .docker_build_job_definition
   before_script:
-    - cp bin/otel-agent/otel-agent $BUILD_CONTEXT/
-    - cp cmd/otel-agent/dist/otel-config.yaml $BUILD_CONTEXT/
+    - mdir /tmp/otel
+    - tar --extract --xz --file $OTEL_PACKAGE_NAME --directory /tmp/otel
+    - cp /tmp/otel/opt/datadog-agent/embedded/bin/otel-agent $BUILD_CONTEXT/otel-agent
+    - cp /tmp/otel/etc/datadog-agent/otel-config.yaml.example $BUILD_CONTEXT/otel-config.yaml
     - ls -l $BUILD_CONTEXT/
   rules:
     - !reference [.except_mergequeue]
@@ -320,20 +322,21 @@ docker_build_host_profiler_standalone_arm64:
     FLATTEN_IMAGE: false
     BUILD_ARG: --target release
     TAG_SUFFIX: -7
+    OTEL_PACKAGE_NAME: datadog-agent-ddot-7*.tar.xz
 
 docker_build_ot_agent_standalone_amd64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_amd64]
   needs:
     - job: docker_build_base_image_amd64
-    - job: build_otel_agent_binary_x64
+    - job: datadog-otel-agent-x64
 
 docker_build_ot_agent_standalone_arm64:
   extends:
     [.docker_build_ot_agent_standalone, .docker_build_arm64]
   needs:
     - job: docker_build_base_image_arm64
-    - job: build_otel_agent_binary_arm64
+    - job: datadog-otel-agent-arm64
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
