@@ -8,10 +8,11 @@ package framer
 // FrameMatcher finds frames in a buffer
 type FrameMatcher interface {
 	// Find a frame in a prefix of buf, and return the slice containing the content
-	// of that frame, together with the total number of bytes in that frame.  Return
-	// `nil, 0` when no complete frame is present in buf.
+	// of that frame, together with the total number of bytes in that frame, and whether
+	// the frame was truncated due to exceeding the content length limit.
+	// Return `nil, 0, false` when no complete frame is present in buf.
 	//
 	// The `seen` argument is the length of `buf` last time this function was called,
 	// and can be used to avoid repeating work when looking for a frame terminator.
-	FindFrame(buf []byte, seen int) ([]byte, int)
+	FindFrame(buf []byte, seen int) (content []byte, rawDataLen int, wasTruncated bool)
 }
