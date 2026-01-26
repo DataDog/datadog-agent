@@ -45,11 +45,10 @@ func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
 	}
 
 	// First, we check if this event is link to an existing ssh session from his parent
-	ppid := event.ProcessContext.Process.PPid
-	parent := p.Resolvers.ProcessResolver.Resolve(ppid, ppid, 0, false, nil)
+	parent := event.ProcessContext.Parent
 
 	// If the parent is a sshd process, we consider it's a new ssh session
-	if parent != nil && parent.Comm == "sshd" {
+	if parent != nil && parent.Comm == "sshd" && event.ProcessContext.Comm != "sshd" {
 		sshSessionID := rand.Uint64()
 		event.ProcessContext.UserSession.SSHSessionID = sshSessionID
 		event.ProcessContext.UserSession.SessionType = int(usersession.UserSessionTypeSSH)
