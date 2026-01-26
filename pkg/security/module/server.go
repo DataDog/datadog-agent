@@ -101,7 +101,7 @@ func (p *pendingMsg) isResolved() bool {
 		}
 	}
 
-	// TODO: re-enable sshSessionPatcher when retry is fixed
+	// TODO: for now skip the retry mechanism and always send the event
 	// if p.sshSessionPatcher != nil {
 	// 	if err := p.sshSessionPatcher.IsResolved(); err != nil {
 	// 		seclog.Tracef("ssh session not resolved: %v", err)
