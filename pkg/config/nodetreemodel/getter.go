@@ -6,6 +6,7 @@
 package nodetreemodel
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"time"
@@ -18,8 +19,7 @@ import (
 
 func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return missingLeaf
+		panic(fmt.Sprintf("attempt to access the config before config is constructed: %s", key))
 	}
 
 	return c.leafAtPathFromNode(key, c.root)
@@ -138,8 +138,7 @@ simplyCopy:
 
 func (c *ntmConfig) getNodeValue(key string) interface{} {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
-		return ""
+		panic(fmt.Sprintf("attempt to access the config before config is constructed: %s", key))
 	}
 
 	node := c.nodeAtPathFromNode(key, c.root)
