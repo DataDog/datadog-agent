@@ -62,8 +62,6 @@ const (
 	maxRetryForMsgWithSSHContext = 62
 	maxRetryForRegularMsgs       = 5
 	retryDelay                   = time.Second
-	// size of the queue after which we force sending events even if not resolved
-	queueLimit = 15
 )
 
 type pendingMsg struct {
@@ -261,11 +259,11 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
 
 		// apply the delay only if the queue is not full
-		if queueSize < queueLimit && msg.sendAfter.After(now) {
+		if queueSize < a.cfg.EventRetryQueueThreshold && msg.sendAfter.After(now) {
 			return false
 		}
 
-		if cb(msg, queueSize < queueLimit) {
+		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
 			queueSize--
 			return true
 		}
