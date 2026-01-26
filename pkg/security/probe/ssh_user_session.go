@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
+const maxRetryForMsgWithSSHContext = 15
+
 // getEnvVar extracts a specific environment variable from a list of environment variables.
 // Each environment variable is in the format "KEY=VALUE".
 func getEnvVar(envp []string, key string) string {
@@ -120,6 +122,11 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 	}
 
 	return nil
+}
+
+// MaxRetry implements the DelayabledEvent interface for SSH user sessions
+func (p *SSHUserSessionPatcher) MaxRetry() int {
+	return maxRetryForMsgWithSSHContext
 }
 
 // PatchEvent implements the EventSerializerPatcher interface for SSH user sessions
