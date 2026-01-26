@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -34,7 +35,7 @@ func TestMyKindSuite(t *testing.T) {
 			awskindvm.Provisioner(
 				awskindvm.WithRunOptions(
 					scenariokindvm.WithoutFakeIntake(),
-					scenariokindvm.WithAgentOptions(kubernetesagentparams.WithClusterName("kind-test")),
+					scenariokindvm.WithAgentOptions(kubernetesagentparams.WithClusterName(pulumi.String("kind-test"))),
 					scenariokindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 						return nginx.K8sAppDefinition(e, kubeProvider, "nginx", 80, "", false, nil)
 					}),
