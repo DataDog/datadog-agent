@@ -131,7 +131,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func TestNoOpImageResolver(t *testing.T) {
+func TestNoOpResolver_Resolve(t *testing.T) {
 	resolver := NewNoOpResolver()
 
 	testCases := []struct {
@@ -491,4 +491,9 @@ func TestRcResolver_AsyncInitialization(t *testing.T) {
 		assert.False(t, ok, "Should not complete image resolution after failed init")
 		assert.Nil(t, resolved, "Should return nil after failed init")
 	})
+}
+
+func TestCraneResolver_Resolve(t *testing.T) {
+
+	resolver := newCraneResolver(NewConfig(config.NewMock(t)))
 }
