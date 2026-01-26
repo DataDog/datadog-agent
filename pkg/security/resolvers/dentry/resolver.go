@@ -226,7 +226,7 @@ func newPathEntry(parent model.PathKey, name string) PathEntry {
 }
 
 // ResolveNameFromMap resolves the name of the provided inode
-func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
+func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey, cache bool) (string, error) {
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.SegmentResolutionTag,
@@ -242,7 +242,7 @@ func (dr *Resolver) ResolveNameFromMap(pathKey model.PathKey) (string, error) {
 
 	name := pathLeaf.GetName()
 
-	if !model.IsFakeInode(pathKey.Inode) {
+	if !model.IsFakeInode(pathKey.Inode) && cache {
 		cacheEntry := newPathEntry(pathLeaf.Parent, name)
 		dr.cacheInode(pathKey, cacheEntry)
 	}
@@ -257,12 +257,10 @@ func (dr *Resolver) ResolveName(pathKey model.PathKey, cache bool) string {
 		err  error
 	)
 
-	if cache {
-		name, err = dr.ResolveNameFromCache(pathKey)
-	}
+	name, err = dr.ResolveNameFromCache(pathKey)
 
 	if err != nil && dr.config.MapDentryResolutionEnabled {
-		name, _ = dr.ResolveNameFromMap(pathKey)
+		name, _ = dr.ResolveNameFromMap(pathKey, cache)
 	}
 
 	return name
