@@ -38,7 +38,7 @@ import sys
 import tempfile
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -590,7 +590,7 @@ spec:
     metadata = {
         "run_id": run_id,
         "scenario": scenario_name,
-        "started_at": datetime.now().isoformat(),
+        "started_at": datetime.now().astimezone().isoformat(),  # Local time with timezone
         "duration_minutes": duration_minutes,
         "components": components,
         "cluster": get_cluster_name(),
@@ -884,10 +884,14 @@ def cmd_export(run_id: str | None, output: str | None):
     # Export all available metrics (not just dashboard panels)
 
     # Use scenario time range with padding (not 'all' which loads days of data)
-    # Parse scenario start time (treat as UTC)
-    from datetime import datetime, timedelta, timezone
-
-    start_dt = datetime.fromisoformat(metadata["started_at"]).replace(tzinfo=timezone.utc)
+    # Parse scenario start time and convert to UTC for API
+    parsed_dt = datetime.fromisoformat(metadata["started_at"])
+    if parsed_dt.tzinfo is None:
+        # Old format: naive datetime assumed to be local time, convert to UTC
+        start_dt = parsed_dt.astimezone(timezone.utc)
+    else:
+        # New format: timezone-aware (e.g., +01:00), convert to UTC
+        start_dt = parsed_dt.astimezone(timezone.utc)
 
     # Get duration from metadata (defaults to 30 minutes for old runs)
     duration_minutes = metadata.get("duration_minutes", 30)
