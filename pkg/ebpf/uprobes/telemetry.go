@@ -25,7 +25,6 @@ var (
 type telemetryDefinitions struct {
 	once                    sync.Once
 	eventsHandled           telemetryComponent.Counter
-	exitsHandled            telemetryComponent.Counter
 	excludedPIDs            telemetryComponent.Counter
 	attachments             telemetryComponent.Counter
 	binaryInspectionNs      telemetryComponent.Histogram
@@ -104,10 +103,6 @@ type uprobeAttacherTelemetry struct {
 	processAttachmentsSuccess telemetryComponent.SimpleCounter
 	libraryAttachmentsFailure telemetryComponent.SimpleCounter
 	processAttachmentsFailure telemetryComponent.SimpleCounter
-
-	attachmentsFailedExeNotFound telemetryComponent.SimpleCounter
-	attachmentsFailedInspect     telemetryComponent.SimpleCounter
-	attachmentsFailedOther       telemetryComponent.SimpleCounter
 
 	binaryInspectionNs telemetryComponent.SimpleHistogram
 
