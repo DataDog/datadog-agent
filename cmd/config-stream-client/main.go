@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/metadata"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -70,16 +71,20 @@ func main() {
 	// Note: In a real remote agent, you would:
 	// 1. Register with RAR first: RegisterRemoteAgent()
 	// 2. Get back a session_id
-	// 3. Use that session_id here
+	// 3. Pass that session_id via gRPC metadata
 	// For this test client, we use a dummy session_id
 	fmt.Printf("Note: This test client uses a dummy session_id.\n")
 	fmt.Printf("Real remote agents must register with RAR first.\n\n")
 
+	// Add session_id to gRPC metadata
+	sessionID := "test-session-id" // In production, get this from RAR registration
+	md := metadata.New(map[string]string{"session_id": sessionID})
+	ctxWithMetadata := metadata.NewOutgoingContext(ctx, md)
+
 	// Subscribe to config stream
 	fmt.Printf("Subscribing to config stream...\n\n")
-	stream, err := client.StreamConfigEvents(ctx, &pb.ConfigStreamRequest{
-		Name:      *clientName,
-		SessionId: "test-session-id", // In production, get this from RAR registration
+	stream, err := client.StreamConfigEvents(ctxWithMetadata, &pb.ConfigStreamRequest{
+		Name: *clientName,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to subscribe to config stream: %v\n", err)
