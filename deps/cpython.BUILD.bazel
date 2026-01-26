@@ -242,6 +242,7 @@ copy_to_directory(
         "**/libpython3.*.so",
         "**/python{}/test/**/*".format(VERSION_STR),
         "**/*.exe",
+        "**/Makefile",
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],
