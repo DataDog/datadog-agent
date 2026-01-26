@@ -236,12 +236,10 @@ filegroup(
 copy_to_directory(
     name = "libs_unix_no_symlinks",
     srcs = [":libs_unix"],
-    exclude_srcs_patterns = select({
-        # We want to include libpython3.so & libpython3.13.so.1.0, but
-        # exclude libpython3.13.so
-        "@platforms//os:linux": ["**/libpython3.*.so"],
-        "//conditions:default": [],
-    }) + [
+    # We want to include libpython3.so & libpython3.13.so.1.0, but
+    # exclude libpython3.13.so
+    exclude_srcs_patterns = [
+        "**/libpython3.*.so",
         "**/python{}/test/**/*".format(VERSION_STR),
         "**/*.exe",
     ],
