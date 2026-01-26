@@ -85,8 +85,6 @@ func (f *daemonSetRolloutFactory) MetricFamilyGenerators() []generator.FamilyGen
 				isOngoing := isNewRollout || (isActivelyTracked && hasRolloutCondition)
 
 				key := ds.Namespace + "/" + ds.Name
-				log.Debugf("[DaemonSetRollout] %s: gen=%d, observedGen=%d, genMismatch=%v, tracked=%v, rolloutCond=%v => isOngoing=%v",
-					key, ds.Generation, ds.Status.ObservedGeneration, isNewRollout, isActivelyTracked, hasRolloutCondition, isOngoing)
 
 				if isOngoing {
 					f.rolloutTracker.StoreDaemonSet(ds)
