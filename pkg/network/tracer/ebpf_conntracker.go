@@ -47,7 +47,12 @@ var zero uint32
 
 var tuplePool = ddsync.NewDefaultTypedPool[netebpf.ConntrackTuple]()
 
-const ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
+const (
+	ebpfConntrackerModuleName = "network_tracer__ebpf_conntracker"
+
+	// maxActive configures the maximum number of instances of the kretprobe-probed functions handled simultaneously.
+	maxActive = 512
+)
 
 var defaultBuckets = []float64{10, 25, 50, 75, 100, 250, 500, 1000, 10000}
 
@@ -496,6 +501,7 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		opts.DefaultKprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
 	}
+	opts.DefaultKProbeMaxActive = maxActive
 
 	pid, err := kernel.RootNSPID()
 	if err != nil {
