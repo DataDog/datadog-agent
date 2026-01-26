@@ -36,7 +36,7 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
-from tasks.libs.releasing.json import _get_release_json_value
+from tasks.libs.releasing.json import load_release_json
 from tasks.libs.releasing.version import get_version
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
@@ -1164,7 +1164,7 @@ def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) ->
     except Exception as e:
         print(f"Warning: Could not query GitLab for recent pipelines: {e}")
         if 'GITLAB_TOKEN' not in os.environ:
-            print("Hint: Set GITLAB_TOKEN environment variable with a GitLab Personal Access Token (read_api scope)")
+            print("No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)")
         return None
 
 
@@ -1266,9 +1266,8 @@ def _path_to_file_url(file_path: str) -> str:
     """Convert a file path to a file:// URL."""
     # Normalize the path and convert to forward slashes
     abs_path = os.path.abspath(file_path)
-    # On Windows, file URLs need three slashes: file:///C:/path
     if os.name == 'nt':
-        return f"file:///{abs_path.replace(os.sep, '/')}"
+        return f"file://{abs_path.replace(os.sep, '/')}"
     return f"file://{abs_path}"
 
 
@@ -1314,6 +1313,10 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
     """
     env_vars = {}
 
+    valid_formats = ["bash", "powershell", "json"]
+    if fmt not in valid_formats:
+        raise Exit(f"Invalid --fmt option: {fmt}. Use one of: {', '.join(valid_formats)}", code=1)
+
     if build == "local":
         # Find local MSI build (Windows)
         msi_path = _find_local_msi_build(pkg)
@@ -1334,61 +1337,52 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
                     package_version = get_version(ctx, include_git=True, url_safe=True)
                     env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
                 except Exception as e:
-                    print(f"Warning: Could not determine current agent version: {e}", file=sys.stderr)
-
-            # Check for matching OCI package
-            if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
-                oci_filename = f"datadog-agent-{env_vars['CURRENT_AGENT_VERSION_PACKAGE']}-windows-amd64.oci.tar"
-                oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
-                if os.path.isfile(oci_path):
-                    env_vars["CURRENT_AGENT_OCI_URL"] = _path_to_file_url(oci_path)
-                    print(f"# Found local OCI: {oci_path}", file=sys.stderr)
-                else:
-                    print(f"# Warning: No OCI matching '{oci_filename}' found in omnibus/pkg/.", file=sys.stderr)
+                    raise Exit(f"Could not determine current agent version: {e}", code=1)
         else:
             if pkg:
-                print(f"# Warning: No MSI matching '{pkg}' found in omnibus/pkg/.", file=sys.stderr)
+                raise Exit(f"No MSI matching '{pkg}' found in omnibus/pkg/.", code=1)
             else:
-                print("# Warning: No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", file=sys.stderr)
+                raise Exit("No local MSI build found in omnibus/pkg/. Run 'dda inv msi.build' first.", code=1)
 
     elif build == "pipeline":
         # Find pipeline ID
         if pipeline_id:
             env_vars["E2E_PIPELINE_ID"] = pipeline_id
+            print(f"# Using pipeline: {pipeline_id}", file=sys.stderr)
         else:
             result = _find_recent_successful_pipeline(ctx, branch)
             if result:
                 env_vars["E2E_PIPELINE_ID"], _ = result
                 print(f"# Found pipeline: {env_vars['E2E_PIPELINE_ID']}", file=sys.stderr)
             else:
-                print("# Warning: Could not find a recent successful pipeline. You may need to set E2E_PIPELINE_ID manually or use --build local.", file=sys.stderr)
+                raise Exit("Could not find a recent successful pipeline.", code=1)
 
-        # Get version from git
+        # Get base version from git (e.g., "7.77.0-devel") - this is needed by the E2E tests
+        # Note: We don't set CURRENT_AGENT_VERSION_PACKAGE because the full package version
+        # (which includes git commit info) must come from the pipeline, not local git.
+        # The E2E tests will derive the package version from the pipeline artifacts.
         try:
             current_version = get_version(ctx, include_git=False, include_pre=True)
             env_vars["CURRENT_AGENT_VERSION"] = current_version
-
-            # Get the package version with pipeline ID
-            if env_vars.get("E2E_PIPELINE_ID"):
-                package_version = get_version(
-                    ctx,
-                    include_git=True,
-                    url_safe=True,
-                    include_pipeline_id=True,
-                    pipeline_id=env_vars.get("E2E_PIPELINE_ID"),
-                )
-                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
-            else:
-                package_version = get_version(ctx, include_git=True, url_safe=True)
-                env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
         except Exception as e:
-            print(f"Warning: Could not determine current agent version: {e}", file=sys.stderr)
+            raise Exit(f"Could not determine current agent version: {e}", code=1)
 
     else:
         raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
 
-    env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
-    env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
+    # Get stable version from release.json
+    try:
+        release_json = load_release_json()
+        stable_version = release_json["last_stable"]["7"]
+        env_vars["STABLE_AGENT_VERSION"] = stable_version
+        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
+        env_vars["STABLE_AGENT_MSI_URL"] = f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-{stable_version}.msi"
+    except Exception as e:
+        print(f"# Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
+        print("# Using fallback stable version", file=sys.stderr)
+        env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
+        env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
+        env_vars["STABLE_AGENT_MSI_URL"] = f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
 
     # Output in requested format
     if fmt == "json":
