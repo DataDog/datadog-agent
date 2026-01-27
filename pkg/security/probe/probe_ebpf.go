@@ -39,7 +39,6 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	bugs "github.com/DataDog/datadog-agent/pkg/ebpf/kernelbugs"
@@ -75,7 +74,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -133,7 +131,7 @@ type EBPFProbe struct {
 	ctx       context.Context
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
-	ipc       ipc.Component
+	hostname  string
 
 	// TC Classifier & raw packets
 	tcRequests                chan tcClassifierRequest
@@ -189,7 +187,7 @@ type EBPFProbe struct {
 	rawPacketActionFilters []rawpacket.Filter
 
 	// remediation tracking
-	activeRemediations     map[string]*remediationAction
+	activeRemediations     map[string]*Remediation
 	activeRemediationsLock sync.RWMutex
 
 	// PrCtl and name truncation
@@ -567,6 +565,7 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
+<<<<<<< HEAD
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.ipc, p.sendAnomalyDetection)
 		if err != nil {
@@ -577,6 +576,11 @@ func (p *EBPFProbe) Init() error {
 		if err != nil {
 			return err
 		}
+=======
+	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname)
+	if err != nil {
+		return err
+>>>>>>> main
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
@@ -873,7 +877,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 		p.putBackPoolEvent(event)
 	}
 	// send not triggered remediations
-	p.handleRemediationNotTriggered()
+	p.HandleRemediationNotTriggered()
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -1690,13 +1694,11 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			return false
 		}
 
-		// Remove all dentry entries belonging to the mountID
-		p.Resolvers.DentryResolver.DelCacheEntries(event.MountReleased.MountID)
-
 		// Delete new mount point from cache
-		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID); err != nil {
+		if err = p.Resolvers.MountResolver.Delete(event.MountReleased.MountID, event.MountReleased.MountIDUnique); err != nil {
 			seclog.Tracef("failed to delete mount point %d from cache: %s", event.MountReleased.MountID, err)
 		}
+
 		return false
 	case model.ArgsEnvsEventType:
 		if !p.regularUnmarshalEvent(&event.ArgsEnvs, eventType, offset, dataLen, data) {
@@ -2373,7 +2375,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	// MNT_DETACH. It then does an exec syscall, that will cause the fd to be closed.
 	// Our dentry resolution of the exec event causes the inode/mount_id to be put in cache,
 	// so we remove all dentry entries belonging to the mountID.
-	p.Resolvers.DentryResolver.DelCacheEntries(m.MountID)
+	p.Resolvers.DentryResolver.DelCacheEntriesForMountID(m.MountID)
 
 	if !m.Detached && ev.GetEventType() != model.FileMoveMountEventType {
 		// Resolve mount point
@@ -2565,7 +2567,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 func (p *EBPFProbe) OnNewRuleSetLoaded(rs *rules.RuleSet) {
 	p.processKiller.Reset(rs)
 
-	p.handleRemediationStatus(rs)
+	p.HandleRemediationStatus(rs)
 }
 
 // NewEvent returns a new event
@@ -2913,7 +2915,7 @@ func (p *EBPFProbe) initManagerOptions() error {
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
-func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts Opts) (*EBPFProbe, error) {
+func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {
 		return nil, err
@@ -2944,10 +2946,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 		onDemandRateLimiter:  rate.NewLimiter(onDemandRate, onDemandBurst),
 		replayEventsState:    atomic.NewBool(false),
 		dnsLayer:             new(layers.DNS),
-		ipc:                  ipc,
+		hostname:             hostname,
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
-		activeRemediations:   make(map[string]*remediationAction),
+		activeRemediations:   make(map[string]*Remediation),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {
@@ -3021,11 +3023,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, ipc ipc.Component, opts O
 	p.processKiller = processKiller
 
 	p.fileHasher = NewFileHasher(config, p.Resolvers.HashResolver)
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
 
 	if config.RuntimeSecurity.OnDemandEnabled {
 		p.onDemandManager = &OnDemandProbesManager{
@@ -3438,8 +3435,8 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
+				p.HandleKillRemediation(rule, ev)
 			}
-			p.handleKillRemediaitonAction(rule, ev)
 
 		case action.Def.CoreDump != nil:
 			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
@@ -3478,7 +3475,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 					seclog.Errorf("failed to setup raw packet action programs: %s", err)
 					reportStatus = RawPacketActionStatusError
 				} else {
-					reportStatus = RawPacketActionStatusApplied
+					reportStatus = RawPacketActionStatusPerformed
 				}
 			}
 
@@ -3493,7 +3490,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.handleNetworkRemediaitonAction(rule, ev, policy, string(reportStatus))
+			p.HandleNetworkRemediation(rule, ev, report)
 		}
 	}
 }

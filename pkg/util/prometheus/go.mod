@@ -3,14 +3,12 @@ module github.com/DataDog/datadog-agent/pkg/util/prometheus
 go 1.25.0
 
 require (
-	github.com/prometheus/common v0.67.4
-	github.com/prometheus/prometheus v0.308.1
+	github.com/prometheus/common v0.67.5
+	github.com/prometheus/prometheus v0.309.2-0.20260113170727-c7bc56cf6c8f
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.20.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.1 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.7 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7 // indirect
@@ -25,14 +23,13 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.64.0 // indirect
+	go.opentelemetry.io/otel v1.39.1-0.20260115134311-f809f7d71e2d // indirect
+	go.opentelemetry.io/otel/metric v1.39.1-0.20260115134311-f809f7d71e2d // indirect
+	go.opentelemetry.io/otel/trace v1.39.1-0.20260115134311-f809f7d71e2d // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/oauth2 v0.34.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
-	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
-	google.golang.org/grpc v1.78.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/client-go v0.35.0-alpha.0 // indirect
@@ -168,6 +165,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../../pkg/util/cache
@@ -186,6 +187,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../../pkg/util/option

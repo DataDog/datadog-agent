@@ -284,6 +284,7 @@ var agentProcessNames = []string{
 	"trace-agent",
 	"security-agent",
 	"system-probe",
+	"privateactionrunner",
 }
 
 func isAgentProcess(process *workloadmeta.Process) bool {
