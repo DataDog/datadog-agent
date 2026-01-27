@@ -29,7 +29,8 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
-	jsonOutput bool
+	json       bool
+	prettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -74,7 +75,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().BoolVarP(&cliParams.jsonOutput, "json", "j", false, "output tagger-list in JSON format")
+	cmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
 
 	return cmd
 }
@@ -85,7 +87,7 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 		return err
 	}
 
-	return api.GetTaggerList(client, color.Output, url, cliParams.jsonOutput)
+	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON)
 }
 
 func getTaggerURL(config config.Component) (string, error) {

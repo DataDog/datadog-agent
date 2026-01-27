@@ -22,7 +22,7 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonOutput bool) error {
+func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, prettyJSON bool) error {
 
 	// get the tagger-list from server
 	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
@@ -40,8 +40,8 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonOutput bool) e
 		return err
 	}
 
-	if jsonOutput {
-		return jsonutil.PrintJSON(w, &tr, true)
+	if jsonFlag || prettyJSON {
+		return jsonutil.PrintJSON(w, &tr, prettyJSON)
 	}
 
 	printTaggerEntities(w, &tr)
