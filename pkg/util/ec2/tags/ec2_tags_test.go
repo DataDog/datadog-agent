@@ -349,7 +349,7 @@ func TestFetchEc2TagsFromAPICredentialChain(t *testing.T) {
 		defer func() { getTagsWithClientFunc = getTagsWithClient }()
 
 		callCount := 0
-		getTagsWithClientFunc = func(ctx context.Context, client *ec2.Client, identity *ec2internal.EC2Identity) ([]string, error) {
+		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			callCount++
 			return []string{"Name:test"}, nil
 		}
@@ -364,7 +364,7 @@ func TestFetchEc2TagsFromAPICredentialChain(t *testing.T) {
 		defer func() { getTagsWithClientFunc = getTagsWithClient }()
 
 		callCount := 0
-		getTagsWithClientFunc = func(ctx context.Context, client *ec2.Client, identity *ec2internal.EC2Identity) ([]string, error) {
+		getTagsWithClientFunc = func(_ context.Context, _ *ec2.Client, _ *ec2internal.EC2Identity) ([]string, error) {
 			callCount++
 			if callCount == 1 {
 				return nil, errors.New("unauthorized")
