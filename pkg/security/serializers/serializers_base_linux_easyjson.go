@@ -3078,6 +3078,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			} else {
 				(out.Variables).UnmarshalEasyJSON(in)
 			}
+		case "is_sandbox":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IsSandbox = bool(in.Bool())
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -3117,6 +3123,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers22(
 			out.RawString(prefix)
 		}
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if in.IsSandbox {
+		const prefix string = ",\"is_sandbox\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.IsSandbox))
 	}
 	out.RawByte('}')
 }

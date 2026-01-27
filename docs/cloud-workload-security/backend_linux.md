@@ -311,6 +311,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variables values"
+                },
+                "is_sandbox": {
+                    "type": "boolean",
+                    "description": "Indicates if the container is a sandbox/pause container"
                 }
             },
             "additionalProperties": false,
@@ -2928,6 +2932,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variables values"
+        },
+        "is_sandbox": {
+            "type": "boolean",
+            "description": "Indicates if the container is a sandbox/pause container"
         }
     },
     "additionalProperties": false,
@@ -2942,6 +2950,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `id` | Container ID |
 | `created_at` | Creation time of the container |
 | `variables` | Variables values |
+| `is_sandbox` | Indicates if the container is a sandbox/pause container |
 
 | References |
 | ---------- |
