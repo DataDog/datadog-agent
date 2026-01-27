@@ -267,7 +267,7 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to sent event, retry %d/%d, queue size: %d", msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
