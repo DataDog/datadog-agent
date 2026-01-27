@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1080,7 +1081,6 @@ func parseJSONValueWithService(value string, tags *taglist.TagList, svc tmplvar.
 		return nil
 	}
 
-	// Use the shared template resolver to resolve variables in the JSON
 	resolved, err := tmplvar.ResolveDataWithTemplateVars([]byte(value), svc, tmplvar.JSONParser, nil)
 	if err != nil {
 		// If resolution fails, log but try to parse the original value
@@ -1088,7 +1088,6 @@ func parseJSONValueWithService(value string, tags *taglist.TagList, svc tmplvar.
 		return parseJSONValueWithService(value, tags, nil)
 	}
 
-	// Now parse the resolved JSON
 	result := map[string]interface{}{}
 	if err := json.Unmarshal(resolved, &result); err != nil {
 		return fmt.Errorf("failed to unmarshal resolved JSON: %s", err)
@@ -1101,9 +1100,9 @@ func parseJSONValueWithService(value string, tags *taglist.TagList, svc tmplvar.
 		case float64:
 			tags.AddAuto(key, fmt.Sprint(v))
 		case int64:
-			tags.AddAuto(key, fmt.Sprint(v))
+			tags.AddAuto(key, strconv.FormatInt(v, 10))
 		case bool:
-			tags.AddAuto(key, fmt.Sprint(v))
+			tags.AddAuto(key, strconv.FormatBool(v))
 		case []interface{}:
 			for _, tag := range v {
 				tags.AddAuto(key, fmt.Sprint(tag))

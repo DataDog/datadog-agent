@@ -23,14 +23,6 @@ type ContainerPort struct {
 	Name string
 }
 
-func (c ContainerPort) GetPort() int {
-	return c.Port
-}
-
-func (c ContainerPort) GetName() string {
-	return c.Name
-}
-
 // Service represents an application we can run a check against.
 // It should be matched with a check template by the ConfigResolver using the
 // ADIdentifiers field.

@@ -6,6 +6,7 @@
 package collectors
 
 import (
+	"errors"
 	"fmt"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -48,12 +49,12 @@ func (p *resolvablePodAdapter) GetHosts() (map[string]string, error) {
 
 func (p *resolvablePodAdapter) GetPorts() ([]tmplvar.ContainerPort, error) {
 	if p.container == nil {
-		return nil, fmt.Errorf("no container available for port resolution")
+		return nil, errors.New("no container available for port resolution")
 	}
 
 	// For now, we don't have port information in OrchestratorContainer
 	// This would need to be enhanced if we want to support %%port%% in pod-level tags
-	return nil, fmt.Errorf("port resolution not supported for pod-level tags")
+	return nil, errors.New("port resolution not supported for pod-level tags")
 }
 
 func (p *resolvablePodAdapter) GetPid() (int, error) {

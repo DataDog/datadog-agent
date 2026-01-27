@@ -21,25 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
-// Template variable resolution is now in pkg/util/tmplvar package
-
-// NoServiceError represents an error that indicates that there's a problem with a service
-type NoServiceError struct {
-	message string
-}
-
-// Error returns the error message
-func (n *NoServiceError) Error() string {
-	return n.message
-}
-
-// newNoServiceError returns a new NoServiceError
-func newNoServiceError(message string) *NoServiceError {
-	return &NoServiceError{
-		message: message,
-	}
-}
-
 // SubstituteTemplateEnvVars replaces %%ENV_VARIABLE%% from environment
 // variables in the config init, instances, and logs config.
 // When there is an error, it continues replacing. When there are multiple
@@ -133,16 +114,16 @@ func (s *resolvableService) GetPorts() ([]tmplvar.ContainerPort, error) {
 // If not `nil`, the `postProcessor` function is invoked on that tree so that it can alter the yaml document and benefit from the yaml parsing.
 // It can be used, for ex., to inject extra tags.
 func substituteTemplateVariables(config *integration.Config, svc listeners.Service, postProcessor func(interface{}) error) error {
-	var err error
+	var resolvableSvc tmplvar.Resolvable
+	if svc != nil {
+		resolvableSvc = &resolvableService{svc}
+	}
 
+	var err error
 	for _, toResolve := range listDataToResolve(config) {
 		var pp func(interface{}) error
 		if toResolve.dtype == dataInstance {
 			pp = postProcessor
-		}
-		var resolvableSvc tmplvar.Resolvable
-		if svc != nil {
-			resolvableSvc = &resolvableService{svc}
 		}
 		*toResolve.data, err = tmplvar.ResolveDataWithTemplateVars(*toResolve.data, resolvableSvc, toResolve.parser, pp)
 		if err != nil {

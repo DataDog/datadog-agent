@@ -50,6 +50,23 @@ type Resolvable interface {
 	GetExtraConfig(key string) (string, error)
 }
 
+// NoServiceError represents an error that indicates that there's a problem with a service
+type NoServiceError struct {
+	message string
+}
+
+// Error returns the error message
+func (n *NoServiceError) Error() string {
+	return n.message
+}
+
+// newNoServiceError returns a new NoServiceError
+func newNoServiceError(message string) *NoServiceError {
+	return &NoServiceError{
+		message: message,
+	}
+}
+
 // VariableGetter is a function that resolves a template variable
 type VariableGetter func(key string, svc Resolvable) (string, error)
 
@@ -329,7 +346,7 @@ func resolveStringWithAdHocTemplateVars(in string, svc Resolvable, templateVaria
 // GetHost resolves the %%host%% template variable
 func GetHost(tplVar string, svc Resolvable) (string, error) {
 	if svc == nil {
-		return "", errors.New("no service. %%%%host%%%% is not allowed")
+		return "", newNoServiceError("no service. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := svc.GetHosts()
