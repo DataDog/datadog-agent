@@ -19,7 +19,6 @@
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
 # Go linters and pre-commit config
 /.golangci.yml                          @DataDog/agent-devx
-/.custom-gcl.yml                        @DataDog/agent-devx
 /.pre-commit-config.yaml                @DataDog/agent-devx
 /.vscode/                               @DataDog/agent-devx
 
@@ -589,9 +588,6 @@
 /pkg/util/testutil/docker               @DataDog/universal-service-monitoring @DataDog/ebpf-platform
 /pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/container-experiences @DataDog/agent-discovery
-/pkg/linters/                           @DataDog/agent-devx
-/pkg/linters/components/                @DataDog/agent-runtimes
-/pkg/linters/components/pkgconfigusage  @DataDog/agent-configuration
 /pkg/logs/                              @DataDog/agent-log-pipelines
 /pkg/logs/launchers/container           @DataDog/agent-log-pipelines @DataDog/container-integrations
 /pkg/logs/tailers/container             @DataDog/agent-log-pipelines @DataDog/container-integrations
@@ -732,6 +728,9 @@
 /tasks/unit_tests/components_tests.py   @DataDog/agent-runtimes
 /tasks/unit_tests/omnibus_tests.py      @DataDog/agent-build
 /tasks/unit_tests/testdata/components_src/ @DataDog/agent-runtimes
+/tasks/unit_tests/experimental_gates_tests.py @DataDog/agent-build
+/tasks/unit_tests/static_quality_gates_tests.py @DataDog/agent-build
+/tasks/unit_tests/static_quality_gates_reporter_tests.py @DataDog/agent-build
 /tasks/installer.py                     @DataDog/fleet
 /tasks/full_host_profiler.py            @DataDog/opentelemetry-agent @DataDog/profiling-full-host
 /test/                                  @DataDog/agent-devx
