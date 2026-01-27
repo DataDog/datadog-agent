@@ -265,7 +265,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.17 // indirect
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
