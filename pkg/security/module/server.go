@@ -249,42 +249,48 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) bool {
-	var (
-		queueSize = len(a.queue)
-		origSize  = queueSize
-	)
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
+	a.queueLock.Lock()
+	defer a.queueLock.Unlock()
 
-	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
-		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
+	for len(a.queue) > 0 {
+		var (
+			queueSize = len(a.queue)
+			origSize  = queueSize
+		)
 
-		// apply the delay only if the queue is not full
-		if queueSize < a.cfg.EventRetryQueueThreshold && msg.sendAfter.After(now) {
+		a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
+			seclog.Tracef("dequeueing message, queue size: %d", queueSize)
+
+			// apply the delay only if the queue is not full
+			if queueSize < a.cfg.EventRetryQueueThreshold && msg.sendAfter.After(now) {
+				return false
+			}
+
+			if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
+				queueSize--
+				return true
+			}
+
+			msgMaxRetry := msg.getMaxRetry()
+			if msg.retry >= msgMaxRetry {
+				seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
+
+				queueSize--
+				return true
+			}
+			seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
+
+			msg.sendAfter = now.Add(retryDelay)
+			msg.retry++
+
 			return false
+		})
+
+		if origSize == queueSize {
+			break
 		}
-
-		if cb(msg, queueSize < a.cfg.EventRetryQueueThreshold) {
-			queueSize--
-			return true
-		}
-
-		msgMaxRetry := msg.getMaxRetry()
-		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
-
-			queueSize--
-			return true
-		}
-		seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
-
-		msg.sendAfter = now.Add(retryDelay)
-		msg.retry++
-
-		return false
-	})
-
-	// return true if the queue size has changed, meaning that the event was sent or dropped
-	return origSize != queueSize && len(a.queue) > 0
+	}
 }
 
 // slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
@@ -347,10 +353,8 @@ func (a *APIServer) start(ctx context.Context) {
 	for {
 		select {
 		case now := <-ticker.C:
-			a.queueLock.Lock()
-
 			// dequeue all possble events from the queue
-			for a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
+			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
 				if !isRetryAllowed {
 					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
@@ -402,11 +406,7 @@ func (a *APIServer) start(ctx context.Context) {
 				a.msgSender.Send(m, a.expireEvent)
 
 				return true
-			}) {
-				// nothing to do here, the queue was not modified
-			}
-
-			a.queueLock.Unlock()
+			})
 		case <-ctx.Done():
 			close(a.stopChan)
 			return
