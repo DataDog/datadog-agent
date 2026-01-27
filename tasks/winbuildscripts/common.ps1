@@ -296,20 +296,26 @@ function Invoke-BuildScript {
         }
 
         if ($BuildOutOfSource) {
+            # Expand modcache from c:\mnt to avoid needlessly xcopy'ing large tarballs
+            if ($InstallDeps) {
+                Expand-ModCache -root "c:\mnt" -modcache modcache
+            }
+            if ($InstallTestingDeps) {
+                Expand-ModCache -root "c:\mnt" -modcache modcache_tools
+            }
             Enter-BuildRoot
         } else {
             Enter-RepoRoot
+            # Expand modcache from current directory otherwise
+            if ($InstallDeps) {
+                Expand-ModCache -modcache modcache
+            }
+            if ($InstallTestingDeps) {
+                Expand-ModCache -modcache modcache_tools
+            }
         }
 
         Enable-DevEnv
-
-        # Expand modcache
-        if ($InstallDeps) {
-            Expand-ModCache -modcache modcache
-        }
-        if ($InstallTestingDeps) {
-            Expand-ModCache -modcache modcache_tools
-        }
 
         # Install deps
         if ($InstallDeps) {

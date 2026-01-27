@@ -352,7 +352,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode.Clone())
+	parentNode.InsertChildNode(childName, prevNode)
 
 	newValue := c.leafAtPathFromNode(key, c.root).Get()
 
