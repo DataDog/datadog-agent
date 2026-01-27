@@ -142,7 +142,7 @@
 /.gitlab/deploy/deploy_packages/windows.yml                    @DataDog/agent-delivery @DataDog/windows-products
 /.gitlab/distribute/winget.yml                     @DataDog/agent-delivery @DataDog/windows-products
 /.gitlab/deploy/deploy_packages/cluster_agent_cloudfoundry.yml @DataDog/agent-integrations @DataDog/agent-devx
-/.gitlab/deploy/deploy_packages/e2e.yml                        @DataDog/agent-devx @DataDog/agent-e2e-testing @DataDog/fleet
+/.gitlab/deploy/deploy_packages/e2e.yml                        @DataDog/agent-devx  @DataDog/fleet
 
 /.gitlab/.pre/deps_build/                                 @DataDog/ebpf-platform @DataDog/agent-build @DataDog/windows-products
 
@@ -151,8 +151,8 @@
 /.gitlab/.pre/common/                                     @DataDog/agent-devx
 
 /.gitlab/test/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-devx @DataDog/fleet
-/.gitlab/deploy/container_build/fakeintake.yml              @DataDog/agent-e2e-testing @DataDog/agent-devx
-/.gitlab/build/binary_build/fakeintake.yml                 @DataDog/agent-e2e-testing @DataDog/agent-devx
+/.gitlab/deploy/container_build/fakeintake.yml               @DataDog/agent-devx
+/.gitlab/build/binary_build/fakeintake.yml                  @DataDog/agent-devx
 
 /.gitlab/test/functional_test/oracle.yml                  @DataDog/agent-devx @DataDog/database-monitoring
 
@@ -169,7 +169,7 @@
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx
-/.gitlab/deploy/dev_container_deploy/e2e.yml                @DataDog/agent-devx @DataDog/agent-e2e-testing
+/.gitlab/deploy/dev_container_deploy/e2e.yml                @DataDog/agent-devx 
 /.gitlab/deploy/dev_container_deploy/docker_windows.yml     @DataDog/agent-delivery @DataDog/windows-products
 
 /.gitlab/deploy/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-delivery
@@ -696,7 +696,7 @@
 /tasks/cluster_agent_cloudfoundry.py    @DataDog/agent-integrations
 /tasks/devcontainer.py                  @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                      @DataDog/agent-devx @DataDog/container-platform
-/tasks/new_e2e_tests.py                 @DataDog/agent-e2e-testing @DataDog/agent-devx
+/tasks/new_e2e_tests.py                  @DataDog/agent-devx
 /tasks/process_agent.py                 @DataDog/container-experiences
 /tasks/privateactionrunner.py           @DataDog/action-platform
 /tasks/system_probe.py                  @DataDog/ebpf-platform
@@ -739,12 +739,12 @@
 /test/integration/                      @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
 /test/e2e-framework/testing/testcommon/check            @DataDog/agent-runtimes
-/test/fakeintake/                             @DataDog/agent-e2e-testing @DataDog/agent-devx
+/test/fakeintake/                              @DataDog/agent-devx
 /test/fakeintake/aggregator/ndmAggregator.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmAggregator_test.go @DataDog/ndm-core
 /test/fakeintake/aggregator/ndmflowAggregator.go @DataDog/ndm-integrations
 /test/fakeintake/aggregator/ndmflowAggregator_test.go @DataDog/ndm-integrations
-/test/new-e2e/                                @DataDog/agent-e2e-testing @DataDog/agent-devx
+/test/new-e2e/                                 @DataDog/agent-devx
 /test/new-e2e/test-infra-definition           @DataDog/agent-devx
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/system-probe/config/vmconfig-security-agent.json @DataDog/ebpf-platform @DataDog/agent-security
