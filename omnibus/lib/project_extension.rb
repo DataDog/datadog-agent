@@ -1,4 +1,5 @@
 require "./lib/symbols_inspectors"
+require "./lib/ostools"
 
 module Omnibus
   module ProjectExtensions
@@ -106,9 +107,27 @@ module Omnibus
     #
     # Runs a command from the root of the datadog-agent repository
     #
-    def command_on_repo_root(*args, **kwargs)
-      command *args, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
+    def command_on_repo_root(command, **kwargs)
+      command command, **kwargs, cwd: File.join(Omnibus::Config.project_root, "..")
     end
     expose :command_on_repo_root
+
+    #
+    # Runs bazel with an automatic platform selected automatically from what omnibus knows
+    #
+    def bazel(subcmd, arg_str, **kwargs)
+      # Reconstruct the bazel platform name (under //bazel/platforms)
+      os_name = os.sub("_", "")
+      arch = arm_target? ? "arm64" : "x86_64"
+      platform = "#{os_name}_#{arch}"
+      if fips_mode?
+        platform += "_fips"
+      end
+
+      bazel_cmd = ["bazelisk", subcmd, "--platforms=//bazel/platforms:#{platform}", arg_str]
+
+      command_on_repo_root(bazel_cmd.join(' '), **kwargs)
+    end
+    expose :bazel
   end
 end
