@@ -1,6 +1,6 @@
 # Foundational packages
 
-http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
