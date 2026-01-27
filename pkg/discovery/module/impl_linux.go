@@ -8,6 +8,7 @@ package module
 import (
 	"bufio"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -18,9 +19,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/unix"
 
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/discovery/apm"
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
@@ -30,6 +34,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
+	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -816,13 +823,205 @@ func isDockerProxiedConnection(conn *model.Connection, proxies map[string]*docke
 	return false
 }
 
+// connKey represents a connection tuple for conntrack lookup
+type connKey struct {
+	srcIP   string
+	srcPort uint16
+	dstIP   string
+	dstPort uint16
+	netns   uint32
+}
+
+func makeConnKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16, netns uint32) connKey {
+	return connKey{
+		srcIP:   srcIP,
+		srcPort: srcPort,
+		dstIP:   dstIP,
+		dstPort: dstPort,
+		netns:   netns,
+	}
+}
+
+// dumpConntrackTable creates a temporary conntrack snapshot and returns a lookup map
+func (s *discovery) dumpConntrackTable(ctx context.Context) (map[connKey]*network.IPTranslation, error) {
+	if !s.config.EnableConntrack {
+		return nil, nil
+	}
+
+	// Create config for the netlink consumer
+	cfg := netconfig.New()
+	cfg.ProcRoot = "/proc"
+
+	// Respect the system-wide conntrack all namespaces setting
+	// This is critical for Kubernetes environments where connections
+	// originate in pod namespaces but we need to match them with
+	// conntrack entries from the same namespace
+	sysCfg := ddconfig.SystemProbe()
+	cfg.EnableConntrackAllNamespaces = sysCfg.GetBool("system_probe_config.enable_conntrack_all_namespaces")
+	if !sysCfg.IsSet("system_probe_config.enable_conntrack_all_namespaces") {
+		// Default to true for discovery module to support Kubernetes pod connections
+		cfg.EnableConntrackAllNamespaces = true
+	}
+
+	log.Debugf("Conntrack consumer: enable_conntrack_all_namespaces=%v", cfg.EnableConntrackAllNamespaces)
+
+	// Create a consumer for dumping the conntrack table
+	consumer, err := netlink.NewConsumer(cfg, nil)
+	if err != nil {
+		if errors.Is(err, netlink.ErrNotPermitted) {
+			log.Warnf("Cannot dump conntrack table: insufficient permissions (need CAP_NET_ADMIN)")
+		} else {
+			log.Warnf("Failed to create netlink consumer: %v", err)
+		}
+		return nil, err
+	}
+	defer consumer.Stop()
+
+	// Dump IPv4 table
+	events, err := consumer.DumpTable(unix.AF_INET)
+	if err != nil {
+		log.Warnf("Failed to dump conntrack table: %v", err)
+		return nil, err
+	}
+
+	// Build lookup map
+	decoder := netlink.NewDecoder()
+	translations := make(map[connKey]*network.IPTranslation)
+
+	// Process events with timeout
+	timeoutTimer := time.NewTimer(5 * time.Second)
+	defer timeoutTimer.Stop()
+
+processLoop:
+	for {
+		select {
+		case event, ok := <-events:
+			if !ok {
+				// Channel closed, dump complete
+				break processLoop
+			}
+
+			// Decode the event
+			conns := decoder.DecodeAndReleaseEvent(event)
+			for _, conn := range conns {
+				// Skip non-NAT connections
+				if !netlink.IsNAT(conn) {
+					continue
+				}
+
+				// Build key from original tuple
+				// Origin is the original source/dest, Reply is the translated dest/source
+				key := makeConnKey(
+					conn.Origin.Src.Addr().String(),
+					conn.Origin.Src.Port(),
+					conn.Origin.Dst.Addr().String(),
+					conn.Origin.Dst.Port(),
+					conn.NetNS,
+				)
+
+				// Create IPTranslation from the Reply tuple
+				// For NAT: Origin -> Reply translation
+				// Reply.Dst is the translated source (what the source becomes)
+				// Reply.Src is the translated destination (what the destination becomes)
+				translations[key] = &network.IPTranslation{
+					ReplSrcIP:   util.Address{conn.Reply.Dst.Addr()},
+					ReplSrcPort: conn.Reply.Dst.Port(),
+					ReplDstIP:   util.Address{conn.Reply.Src.Addr()},
+					ReplDstPort: conn.Reply.Src.Port(),
+				}
+			}
+
+		case <-ctx.Done():
+			log.Warnf("Conntrack dump cancelled: %v", ctx.Err())
+			return translations, ctx.Err()
+
+		case <-timeoutTimer.C:
+			log.Warnf("Conntrack dump timed out after 5 seconds")
+			return translations, fmt.Errorf("timeout")
+		}
+	}
+
+	log.Debugf("Built conntrack translation map with %d entries", len(translations))
+
+	// Log namespace information at debug level
+	if len(translations) > 0 && log.ShouldLog(log.DebugLvl) {
+		// Count unique netns values
+		netnsSet := make(map[uint32]int)
+		for key := range translations {
+			netnsSet[key.netns]++
+		}
+		log.Debugf("Conntrack translations span %d network namespaces:", len(netnsSet))
+		for netns, count := range netnsSet {
+			log.Debugf("  netns=%d: %d entries", netns, count)
+		}
+	}
+
+	// Log the full translation map at trace level for debugging
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef("Conntrack translation map (%d entries):", len(translations))
+		for key, trans := range translations {
+			log.Tracef("  %s:%d -> %s:%d  =>  %s:%d -> %s:%d (netns=%d)",
+				key.srcIP, key.srcPort,
+				key.dstIP, key.dstPort,
+				trans.ReplSrcIP.String(), trans.ReplSrcPort,
+				trans.ReplDstIP.String(), trans.ReplDstPort,
+				key.netns)
+		}
+	}
+
+	return translations, nil
+}
+
+// translateConnectionWithMap applies NAT translation from the conntrack lookup map
+func translateConnectionWithMap(conn *model.Connection, translations map[connKey]*network.IPTranslation) {
+	if translations == nil || len(translations) == 0 {
+		return
+	}
+
+	// Build lookup key from connection
+	key := makeConnKey(
+		conn.Laddr.IP,
+		conn.Laddr.Port,
+		conn.Raddr.IP,
+		conn.Raddr.Port,
+		conn.NetNS,
+	)
+
+	// Look up translation
+	translation, found := translations[key]
+	if !found {
+		log.Tracef("No NAT translation found for connection %s:%d -> %s:%d (netns=%d)",
+			conn.Laddr.IP, conn.Laddr.Port,
+			conn.Raddr.IP, conn.Raddr.Port,
+			conn.NetNS)
+		return // no NAT translation for this connection
+	}
+
+	// Apply translation to connection
+	conn.TranslatedLaddr = &model.Address{
+		IP:   translation.ReplSrcIP.String(),
+		Port: translation.ReplSrcPort,
+	}
+	conn.TranslatedRaddr = &model.Address{
+		IP:   translation.ReplDstIP.String(),
+		Port: translation.ReplDstPort,
+	}
+
+	log.Tracef("NAT translation applied (PID=%d, netns=%d): %s:%d -> %s:%d  =>  %s:%d -> %s:%d",
+		conn.PID, conn.NetNS,
+		conn.Laddr.IP, conn.Laddr.Port,
+		conn.Raddr.IP, conn.Raddr.Port,
+		conn.TranslatedLaddr.IP, conn.TranslatedLaddr.Port,
+		conn.TranslatedRaddr.IP, conn.TranslatedRaddr.Port)
+}
+
 // getConnections collects all established TCP connections from all processes.
 func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
 
 	// Get the list of listening ports to determine direction
-	context := newParsingContext()
+	pctx := newParsingContext()
 	listeningPorts := make(map[uint16]struct{})
 
 	// We need to scan processes to find all sockets and their owners
@@ -879,18 +1078,18 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 		}
 
 		// Get network namespace info (for listening ports)
-		ns, err := netns.GetNetNsInoFromPid(context.procRoot, pid)
+		ns, err := netns.GetNetNsInoFromPid(pctx.procRoot, pid)
 		if err != nil {
 			continue
 		}
 
 		// Cache listening ports per namespace
-		if _, ok := context.netNsInfo[ns]; !ok {
+		if _, ok := pctx.netNsInfo[ns]; !ok {
 			nsInfo, err := getNsInfo(pid)
 			if err != nil {
 				continue
 			}
-			context.netNsInfo[ns] = nsInfo
+			pctx.netNsInfo[ns] = nsInfo
 			// Add listening ports to the global set
 			for _, info := range nsInfo.tcpSockets {
 				listeningPorts[info.port] = struct{}{}
@@ -910,7 +1109,7 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 			}
 
 			// Get the socket inodes owned by this process
-			openFileInfo, err := getOpenFilesInfo(int32(pid), context.readlinkBuffer)
+			openFileInfo, err := getOpenFilesInfo(int32(pid), pctx.readlinkBuffer)
 			if err != nil {
 				continue
 			}
@@ -988,6 +1187,29 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 			filtered = append(filtered, conn)
 		}
 		connections = filtered
+	}
+
+	// Apply NAT translations using conntrack
+	if s.config.EnableConntrack {
+		ctxTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		translations, err := s.dumpConntrackTable(ctxTimeout)
+		if err != nil {
+			log.Warnf("Failed to dump conntrack table, continuing without NAT resolution: %v", err)
+		} else if translations != nil {
+			translationsFound := 0
+			for i := range connections {
+				translateConnectionWithMap(&connections[i], translations)
+				if connections[i].TranslatedLaddr != nil || connections[i].TranslatedRaddr != nil {
+					translationsFound++
+				}
+			}
+
+			if translationsFound > 0 {
+				log.Debugf("Found NAT translations for %d/%d connections", translationsFound, len(connections))
+			}
+		}
 	}
 
 	return &model.ConnectionsResponse{

@@ -158,12 +158,27 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 	laddrToContainer := make(map[addrKey]string)
 
 	for _, conn := range connections {
+		// Use translated addresses if available (NAT resolution)
+		laddrIP := conn.Laddr.IP
+		laddrPort := int32(conn.Laddr.Port)
+		if conn.TranslatedLaddr != nil {
+			laddrIP = conn.TranslatedLaddr.IP
+			laddrPort = int32(conn.TranslatedLaddr.Port)
+		}
+
+		raddrIP := conn.Raddr.IP
+		raddrPort := int32(conn.Raddr.Port)
+		if conn.TranslatedRaddr != nil {
+			raddrIP = conn.TranslatedRaddr.IP
+			raddrPort = int32(conn.TranslatedRaddr.Port)
+		}
+
 		// Get container ID for this PID
 		containerID := getContainerIDForPID(conn.PID)
 		if containerID != "" {
 			containerForPID[int32(conn.PID)] = containerID
 			// Map the local address to this container ID for later raddr resolution
-			laddrToContainer[addrKey{ip: conn.Laddr.IP, port: int32(conn.Laddr.Port)}] = containerID
+			laddrToContainer[addrKey{ip: laddrIP, port: laddrPort}] = containerID
 		}
 
 		// Get process tags from tagger
@@ -202,13 +217,13 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 		npmConn := &model.Connection{
 			Pid: int32(conn.PID),
 			Laddr: &model.Addr{
-				Ip:          conn.Laddr.IP,
-				Port:        int32(conn.Laddr.Port),
+				Ip:          laddrIP,
+				Port:        laddrPort,
 				ContainerId: containerID,
 			},
 			Raddr: &model.Addr{
-				Ip:   conn.Raddr.IP,
-				Port: int32(conn.Raddr.Port),
+				Ip:   raddrIP,
+				Port: raddrPort,
 			},
 			Family:    family,
 			Type:      model.ConnectionType_tcp,
