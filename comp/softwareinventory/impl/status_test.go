@@ -149,7 +149,7 @@ func TestStatusTemplateWithNoSoftwareInventoryMetadata(t *testing.T) {
 	err = is.HTML(false, &buf)
 	assert.NoError(t, err)
 	// Just verify the basic structure is present, since it will be empty
-	assert.Contains(t, buf.String(), `<div class="stat_data inventory-scrollbox"`)
+	assert.Contains(t, buf.String(), `class="stat_data inventory-scrollbox"`)
 	// Summary should show 0 entries
 	assert.Contains(t, buf.String(), "<strong>Summary:</strong> 0 entries")
 

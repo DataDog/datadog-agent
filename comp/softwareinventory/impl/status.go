@@ -89,7 +89,7 @@ func (is *softwareInventory) populateStatus(status map[string]interface{}) {
 	stats := map[string]int{}
 	brokenCount := 0
 	for _, v := range data {
-		inventory := v.(*software.Entry)
+		inventory := v.(software.Entry)
 		stats[inventory.Source]++
 		if strings.Contains(inventory.Status, "broken") {
 			brokenCount++
