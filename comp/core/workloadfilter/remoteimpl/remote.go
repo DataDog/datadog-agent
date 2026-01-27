@@ -116,8 +116,8 @@ func newFilter(cfg config.Component, logger log.Component, telemetryComp coretel
 
 	for _, cfg := range remoteProgramConfig {
 		if remoteFilter.FilterConfig.CELProductRules[cfg.productType][cfg.filterID.TargetResource()] != nil {
-			fn := func(_ *catalog.FilterConfig, logger log.Component) program.FilterProgram {
-				return catalog.NewRemoteProgram(cfg.filterID.GetFilterName(), cfg.filterID.TargetResource(), logger, remoteFilter.TelemetryStore, remoteFilter)
+			fn := func(builder *catalog.ProgramBuilder) program.FilterProgram {
+				return catalog.NewRemoteProgram(cfg.filterID.GetFilterName(), cfg.filterID.TargetResource(), builder, remoteFilter)
 			}
 			remoteFilter.RegisterFactory(cfg.filterID, fn)
 		}
@@ -221,19 +221,19 @@ var remoteProgramConfig = []struct {
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELMetrics,
+		filterID:    workloadfilter.KubeServiceCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.ServiceCELGlobal,
+		filterID:    workloadfilter.KubeServiceCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELMetrics,
+		filterID:    workloadfilter.KubeEndpointCELMetrics,
 		productType: workloadfilter.ProductMetrics,
 	},
 	{
-		filterID:    workloadfilter.EndpointCELGlobal,
+		filterID:    workloadfilter.KubeEndpointCELGlobal,
 		productType: workloadfilter.ProductGlobal,
 	},
 	{

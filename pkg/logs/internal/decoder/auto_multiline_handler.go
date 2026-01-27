@@ -16,10 +16,10 @@ import (
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
-// AutoMultilineHandler aggregates multiline logs.
+// AutoMultilineHandler aggregates or detects multiline logs.
 type AutoMultilineHandler struct {
 	labeler               *automultilinedetection.Labeler
-	aggregator            *automultilinedetection.Aggregator
+	aggregator            automultilinedetection.Aggregator
 	jsonAggregator        *automultilinedetection.JSONAggregator
 	flushTimeout          time.Duration
 	flushTimer            *time.Timer
@@ -27,7 +27,9 @@ type AutoMultilineHandler struct {
 }
 
 // NewAutoMultilineHandler creates a new auto multiline handler.
-func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample) *AutoMultilineHandler {
+// The aggregator parameter determines whether logs are combined (combiningAggregator) or just tagged (detectingAggregator).
+// enableJSONAggregation controls whether split JSON objects should be combined before processing.
+func NewAutoMultilineHandler(aggregator automultilinedetection.Aggregator, maxContentSize int, flushTimeout time.Duration, tailerInfo *status.InfoRegistry, sourceSettings *config.SourceAutoMultiLineOptions, sourceSamples []*config.AutoMultilineSample, enableJSONAggregation bool) *AutoMultilineHandler {
 
 	// Order is important
 	heuristics := []automultilinedetection.Heuristic{}
@@ -39,11 +41,6 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 	}
 	heuristics = append(heuristics, automultilinedetection.NewTokenizer(tokenizerMaxInputBytes))
 	heuristics = append(heuristics, automultilinedetection.NewUserSamples(pkgconfigsetup.Datadog(), sourceSamples))
-
-	enableJSONAggregation := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_aggregation")
-	if sourceHasSettings && sourceSettings.EnableJSONAggregation != nil {
-		enableJSONAggregation = *sourceSettings.EnableJSONAggregation
-	}
 
 	enableJSONDetection := pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.enable_json_detection")
 	if sourceHasSettings && sourceSettings.EnableJSONDetection != nil {
@@ -79,18 +76,15 @@ func NewAutoMultilineHandler(outputFn func(m *message.Message), maxContentSize i
 		tailerInfo),
 	}
 
-	return &AutoMultilineHandler{
-		labeler: automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
-		aggregator: automultilinedetection.NewAggregator(
-			outputFn,
-			maxContentSize,
-			pkgconfigsetup.Datadog().GetBool("logs_config.tag_truncated_logs"),
-			pkgconfigsetup.Datadog().GetBool("logs_config.tag_multi_line_logs"),
-			tailerInfo),
+	handler := &AutoMultilineHandler{
+		labeler:               automultilinedetection.NewLabeler(heuristics, analyticsHeuristics),
+		aggregator:            aggregator,
 		jsonAggregator:        automultilinedetection.NewJSONAggregator(pkgconfigsetup.Datadog().GetBool("logs_config.auto_multi_line.tag_aggregated_json"), maxContentSize),
 		flushTimeout:          flushTimeout,
 		enableJSONAggregation: enableJSONAggregation,
 	}
+
+	return handler
 }
 
 func (a *AutoMultilineHandler) process(msg *message.Message) {
@@ -101,11 +95,11 @@ func (a *AutoMultilineHandler) process(msg *message.Message) {
 		msgs := a.jsonAggregator.Process(msg)
 		for _, m := range msgs {
 			label := a.labeler.Label(m.GetContent())
-			a.aggregator.Aggregate(m, label)
+			a.aggregator.Process(m, label)
 		}
 	} else {
 		label := a.labeler.Label(msg.GetContent())
-		a.aggregator.Aggregate(msg, label)
+		a.aggregator.Process(msg, label)
 	}
 }
 
@@ -125,7 +119,7 @@ func (a *AutoMultilineHandler) flush() {
 		msgs := a.jsonAggregator.Flush()
 		for _, m := range msgs {
 			label := a.labeler.Label(m.GetContent())
-			a.aggregator.Aggregate(m, label)
+			a.aggregator.Process(m, label)
 		}
 	}
 	a.aggregator.Flush()

@@ -185,6 +185,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		if err != nil {
 			return err
 		}
+		dependsOnDDAgent = utils.PulumiDependsOn(operatorComp)
 	}
 
 	if params.deployDogstatsd {
@@ -236,12 +237,6 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			if _, err := cpustress.K8sAppDefinition(&awsEnv, kubeProvider, "workload-cpustress"); err != nil {
 				return err
 			}
-			for _, appFunc := range params.depWorkloadAppFuncs {
-				_, err := appFunc(&awsEnv, kubeProvider, dependsOnDDAgent)
-				if err != nil {
-					return err
-				}
-			}
 		}
 
 		if params.deployArgoRollout {
@@ -250,6 +245,16 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			}
 		}
 	}
+
+	if dependsOnDDAgent != nil {
+		for _, appFunc := range params.depWorkloadAppFuncs {
+			_, err := appFunc(&awsEnv, kubeProvider, dependsOnDDAgent)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	for _, appFunc := range params.workloadAppFuncs {
 		_, err := appFunc(&awsEnv, kubeProvider)
 		if err != nil {

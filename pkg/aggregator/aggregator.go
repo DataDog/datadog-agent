@@ -16,6 +16,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -275,6 +276,9 @@ type BufferedAggregator struct {
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
+
+	tagfilterListChan chan filterlist.TagMatcher
+	tagFilterList     filterlist.TagMatcher
 }
 
 // FlushAndSerializeInParallel contains options for flushing metrics and serializing in parallel.
@@ -353,7 +357,8 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan: make(chan utilstrings.Matcher),
+		filterListChan:    make(chan utilstrings.Matcher),
+		tagfilterListChan: make(chan filterlist.TagMatcher),
 	}
 
 	return aggregator
@@ -454,7 +459,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
-			checkSampler.addSample(ss.metricSample)
+			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
 		}
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle senderMetricSample", ss.id)
@@ -470,7 +475,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
-		checkSampler.addBucket(checkBucket.bucket)
+		checkSampler.addBucket(checkBucket.bucket, agg.tagFilterList)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
 	}
@@ -796,6 +801,8 @@ func (agg *BufferedAggregator) run() {
 
 		case matcher := <-agg.filterListChan:
 			agg.flushFilterList = matcher
+		case matcher := <-agg.tagfilterListChan:
+			agg.tagFilterList = matcher
 		case <-agg.health.C:
 		case checkItem := <-agg.checkItems:
 			checkItem.handle(agg)

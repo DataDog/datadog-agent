@@ -61,6 +61,8 @@ func TestFilterBuilderOps(t *testing.T) {
 					InternalID:             {},
 					GPU:                    {},
 					Kubelet:                {},
+					Crd:                    {},
+					KubernetesCapabilities: {},
 				},
 				cardinality: HighCardinality,
 			},

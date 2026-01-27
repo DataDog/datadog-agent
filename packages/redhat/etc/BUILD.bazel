@@ -1,0 +1,78 @@
+"""Rules to build /etc for Debian distributions."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+# Ship a different upstart job definition from debian on RHEL to accommodate
+# the old version of upstart (0.6.5) that RHEL 6 provides.
+dd_agent_expand_template(
+    name = "upstart_redhat_conf_gen",
+    out = "etc/init/datadog-agent.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_process_conf_gen",
+    out = "etc/init/datadog-agent-process.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.process.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_sysprobe_conf_gen",
+    out = "etc/init/datadog-agent-sysprobe.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.sysprobe.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_trace_conf_gen",
+    out = "etc/init/datadog-agent-trace.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.trace.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_security_conf_gen",
+    out = "etc/init/datadog-agent-security.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.security.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_data_plane_conf_gen",
+    out = "etc/init/datadog-agent-data-plane.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.data-plane.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_redhat_action_conf_gen",
+    out = "etc/init/datadog-agent-action.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_redhat.action.conf.in",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":upstart_redhat_action_conf_gen",
+        ":upstart_redhat_conf_gen",
+        ":upstart_redhat_data_plane_conf_gen",
+        ":upstart_redhat_process_conf_gen",
+        ":upstart_redhat_security_conf_gen",
+        ":upstart_redhat_sysprobe_conf_gen",
+        ":upstart_redhat_trace_conf_gen",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

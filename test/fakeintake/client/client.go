@@ -40,6 +40,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -51,7 +52,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -109,7 +110,7 @@ func WithGetBackoffDelay(delay time.Duration) Option {
 }
 
 // WithGetBackoffRetries sets the number of retries in get
-func WithGetBackoffRetries(retries uint64) Option {
+func WithGetBackoffRetries(retries uint) Option {
 	return func(c *Client) {
 		c.getBackoffRetries = retries
 	}
@@ -123,7 +124,7 @@ type Client struct {
 	fakeintakeIDMutex       sync.RWMutex
 
 	// Get retry parameters
-	getBackoffRetries uint64
+	getBackoffRetries uint
 	getBackoffDelay   time.Duration
 
 	metricAggregator               aggregator.MetricAggregator
@@ -146,7 +147,7 @@ type Client struct {
 	ndmflowAggregator              aggregator.NDMFlowAggregator
 	netpathAggregator              aggregator.NetpathAggregator
 	ncmAggregator                  aggregator.NCMAggregator
-	hostAggregator                 aggregator.HostAggregator
+	hostAggregator                 aggregator.HostTagsAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -178,7 +179,7 @@ func NewClient(fakeIntakeURL string, opts ...Option) *Client {
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 		netpathAggregator:              aggregator.NewNetpathAggregator(),
 		ncmAggregator:                  aggregator.NewNCMAggregator(),
-		hostAggregator:                 aggregator.NewHostAggregator(),
+		hostAggregator:                 aggregator.NewHostTagsAggregator(),
 	}
 	for _, opt := range opts {
 		opt(client)
@@ -345,7 +346,7 @@ func (c *Client) getNCMEvents() error {
 	return c.ncmAggregator.UnmarshallPayloads(payloads)
 }
 
-func (c *Client) getHostInfos() error {
+func (c *Client) getHostTags() error {
 	payloads, err := c.getFakePayloads(intakeEndpoint)
 	if err != nil {
 		return err
@@ -947,11 +948,10 @@ func (c *Client) GetOrchestratorManifests() ([]*aggregator.OrchestratorManifestP
 }
 
 func (c *Client) get(route string) ([]byte, error) {
-	var body []byte
-	err := backoff.Retry(func() error {
+	body, err := backoff.Retry(context.Background(), func() ([]byte, error) {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		defer tmpResp.Body.Close()
@@ -960,7 +960,7 @@ func (c *Client) get(route string) ([]byte, error) {
 			if errBody, _ := io.ReadAll(tmpResp.Body); len(errBody) > 0 {
 				errStr = string(errBody)
 			}
-			return fmt.Errorf("expected %d got %d: %s", http.StatusOK, tmpResp.StatusCode, errStr)
+			return nil, fmt.Errorf("expected %d got %d: %s", http.StatusOK, tmpResp.StatusCode, errStr)
 		}
 		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
 		// If the fakeintake ID is not set yet we set the one we get from the first request
@@ -981,9 +981,8 @@ func (c *Client) get(route string) ([]byte, error) {
 			}
 		}
 
-		body, err = io.ReadAll(tmpResp.Body)
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(c.getBackoffDelay), c.getBackoffRetries))
+		return io.ReadAll(tmpResp.Body)
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(c.getBackoffDelay)), backoff.WithMaxTries(c.getBackoffRetries))
 	if err, ok := err.(net.Error); ok && err.Timeout() {
 		panic(fmt.Sprintf("fakeintake call timed out: %v", err))
 	}
@@ -1097,24 +1096,25 @@ func (c *Client) GetNCMPayloads() ([]*aggregator.NCMPayload, error) {
 	return ncmPayloads, nil
 }
 
-// GetLatestHostInfos returns the latest host information received by the fake intake
-func (c *Client) GetLatestHostInfos() ([]*aggregator.Host, error) {
-	err := c.getHostInfos()
+// GetHostTags returns the host tags received by the fake intake
+func (c *Client) GetHostTags(hostname string) ([]*aggregator.HostTags, error) {
+	err := c.getHostTags()
+	if err != nil {
+		return nil, err
+	}
+
+	return c.hostAggregator.GetPayloadsByName(hostname), nil
+}
+
+// GetHosts returns the list of all known hostnames that have sent some host-tags
+func (c *Client) GetHosts() ([]string, error) {
+	err := c.getHostTags()
 
 	if err != nil {
 		return nil, err
 	}
 
-	var hostInfos []*aggregator.Host
-	for _, name := range c.hostAggregator.GetNames() {
-		payloads := c.hostAggregator.GetPayloadsByName(name)
-
-		if len(payloads) > 0 {
-			hostInfos = append(hostInfos, payloads...)
-		}
-	}
-
-	return hostInfos, nil
+	return c.hostAggregator.GetNames(), nil
 }
 
 // filterPayload returns payloads matching any [MatchOpt](#MatchOpt) options

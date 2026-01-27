@@ -8,7 +8,10 @@
 package model
 
 import (
+	"slices"
+
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
+
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -171,11 +174,14 @@ func buildNodePoolSpec(n NodePoolInternal, nodeClassName string) karpenterv1.Nod
 	}
 
 	// Convert instance types into a requirement
+	// sort the instance types first for readability
+	instanceTypes := n.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
 	reqs = append(reqs, karpenterv1.NodeSelectorRequirementWithMinValues{
 		NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 			Key:      corev1.LabelInstanceTypeStable,
 			Operator: corev1.NodeSelectorOpIn,
-			Values:   n.recommendedInstanceTypes,
+			Values:   instanceTypes,
 		},
 	})
 
@@ -210,10 +216,14 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 
 	// Update NodePool with recommendation
 	instanceTypeLabelFound := false
-	for _, r := range knp.Spec.Template.Spec.Requirements {
-		if r.NodeSelectorRequirement.Key == corev1.LabelInstanceTypeStable {
+	instanceTypes := npi.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
+
+	for i := range knp.Spec.Template.Spec.Requirements {
+		r := &knp.Spec.Template.Spec.Requirements[i]
+		if r.Key == corev1.LabelInstanceTypeStable {
 			r.Operator = corev1.NodeSelectorOpIn
-			r.Values = npi.RecommendedInstanceTypes()
+			r.Values = instanceTypes
 
 			instanceTypeLabelFound = true
 			break
@@ -225,7 +235,7 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 				NodeSelectorRequirement: corev1.NodeSelectorRequirement{
 					Key:      corev1.LabelInstanceTypeStable,
 					Operator: corev1.NodeSelectorOpIn,
-					Values:   npi.RecommendedInstanceTypes(),
+					Values:   instanceTypes,
 				},
 			},
 		)
@@ -241,6 +251,11 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 	knp.Spec.Weight = &weight
 
+	knp.TypeMeta = metav1.TypeMeta{
+		Kind:       "NodePool",
+		APIVersion: "karpenter.sh/v1",
+	}
+
 	// Reset the top-level labels and annotations
 	knp.ObjectMeta = metav1.ObjectMeta{
 		Name:        npi.Name(),
@@ -249,19 +264,38 @@ func BuildReplicaNodePool(knp *karpenterv1.NodePool, npi NodePoolInternal) {
 	}
 
 	// Append to NodeClaimTemplate labels
+	if knp.Spec.Template.ObjectMeta.Labels == nil {
+		knp.Spec.Template.ObjectMeta.Labels = make(map[string]string)
+	}
 	knp.Spec.Template.ObjectMeta.Labels[kubernetes.AutoscalingLabelKey] = "true"
+
+	// Reset the status
+	knp.Status = karpenterv1.NodePoolStatus{}
 }
 
-// BuildNodePoolPatch is used to construct JSON patch
+// BuildNodePoolPatch is used to construct a JSON patch if the NodePool requirements have changed
+// returns a nil patch if the NodePool requirements have not changed
 func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[string]any {
+	isUpdated := false
 	// Build requirements patch, only updating values for the instance types
 	updatedRequirements := []map[string]any{}
 	instanceTypeLabelExists := false
+	// sort the recommended instance types for readability
+	instanceTypes := npi.RecommendedInstanceTypes()
+	slices.Sort(instanceTypes)
+
 	for _, r := range np.Spec.Template.Spec.Requirements {
 		if r.Key == corev1.LabelInstanceTypeStable {
 			instanceTypeLabelExists = true
-			r.Operator = "In"
-			r.Values = npi.recommendedInstanceTypes
+			if r.Operator != corev1.NodeSelectorOpIn {
+				isUpdated = true
+				r.Operator = corev1.NodeSelectorOpIn
+			}
+
+			if !slices.Equal(r.Values, instanceTypes) {
+				isUpdated = true
+				r.Values = instanceTypes
+			}
 		}
 
 		updatedRequirements = append(updatedRequirements, map[string]any{
@@ -272,14 +306,19 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 	}
 
 	if !instanceTypeLabelExists {
+		isUpdated = true
 		updatedRequirements = append(updatedRequirements, map[string]any{
 			"key":      corev1.LabelInstanceTypeStable,
 			"operator": "In",
-			"values":   npi.recommendedInstanceTypes,
+			"values":   instanceTypes,
 		})
 	}
 
-	return map[string]any{
+	if !isUpdated {
+		return nil
+	}
+
+	patchData := map[string]any{
 		"metadata": map[string]any{
 			"labels": map[string]any{
 				datadogModifiedLabelKey: "true",
@@ -298,4 +337,6 @@ func BuildNodePoolPatch(np *karpenterv1.NodePool, npi NodePoolInternal) map[stri
 			},
 		},
 	}
+
+	return patchData
 }

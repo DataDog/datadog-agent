@@ -18,6 +18,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"maps"
 	"strconv"
 	"strings"
 
@@ -120,9 +121,7 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 			l.Ddtags = datadog.PtrString(tagStr)
 		default:
 			m := flattenAttribute(k, v, 1)
-			for k, v := range m {
-				l.AdditionalProperties[k] = v
-			}
+			maps.Copy(l.AdditionalProperties, m)
 		}
 		return true
 	})
@@ -201,9 +200,7 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	val.Map().Range(func(k string, v pcommon.Value) bool {
 		newKey := key + "." + k
 		nestedResult := flattenAttribute(newKey, v, depth+1)
-		for nk, nv := range nestedResult {
-			result[nk] = nv
-		}
+		maps.Copy(result, nestedResult)
 		return true
 	})
 

@@ -10,13 +10,11 @@ package autoinstrumentation
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -24,42 +22,9 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-func TestMutatorCoreNewInjector(t *testing.T) {
-	mockConfig := configmock.New(t)
-	wmeta := fxutil.Test[workloadmeta.Component](t,
-		core.MockBundle(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
-	config, err := NewConfig(mockConfig)
-	require.NoError(t, err)
-	m, err := NewTargetMutator(config, wmeta, imageResolver)
-	require.NoError(t, err)
-	core := m.core
-
-	// common vars
-	startTime := time.Now()
-	pod := &corev1.Pod{}
-
-	i := core.newInjector(pod, startTime, libRequirementOptions{})
-	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:0",
-	}, i)
-
-	core.config.Instrumentation.InjectorImageTag = "banana"
-	i = core.newInjector(pod, startTime, libRequirementOptions{})
-	require.Equal(t, &injector{
-		injectTime: startTime,
-		registry:   core.config.containerRegistry,
-		image:      core.config.containerRegistry + "/apm-inject:banana",
-	}, i)
-}
 
 func TestGetOwnerNameAndKind(t *testing.T) {
 	tests := []struct {

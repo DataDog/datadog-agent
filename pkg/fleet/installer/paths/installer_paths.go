@@ -35,6 +35,12 @@ const (
 	DatadogProgramFilesDir = ""
 )
 
+// SetupInstallerDataDir ensures that permissions are set correctly on the installer data directory.
+// This is a no-op on non-Windows platforms.
+func SetupInstallerDataDir() error {
+	return nil
+}
+
 // EnsureInstallerDataDir ensures that permissions are set correctly on the installer data directory.
 // This is a no-op on non-Windows platforms.
 func EnsureInstallerDataDir() error {

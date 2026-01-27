@@ -7,6 +7,7 @@ package extensions
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"go.etcd.io/bbolt"
@@ -14,7 +15,7 @@ import (
 
 var (
 	bucketExtensions   = []byte("extensions")
-	errPackageNotFound = fmt.Errorf("package not found")
+	errPackageNotFound = errors.New("package not found")
 )
 
 type dbPackage struct {
@@ -59,7 +60,7 @@ func (p *extensionsDB) GetPackage(pkg string, isExperiment bool) (dbPackage, err
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		v := b.Get(getKey(pkg, isExperiment))
 		if len(v) == 0 {
@@ -82,7 +83,7 @@ func (p *extensionsDB) SetPackage(dbPkg dbPackage, isExperiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		rawPkg, err := json.Marshal(&dbPkg)
 		if err != nil {
@@ -101,7 +102,7 @@ func (p *extensionsDB) RemovePackage(pkg string, isExperiment bool) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		return b.Delete(getKey(pkg, isExperiment))
 	})
@@ -132,7 +133,7 @@ func (p *extensionsDB) SetPackageVersion(pkg string, version string, isExperimen
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketExtensions)
 		if b == nil {
-			return fmt.Errorf("bucket not found")
+			return errors.New("bucket not found")
 		}
 		dbPkg := dbPackage{
 			Name:    pkg,
@@ -152,7 +153,7 @@ func (p *extensionsDB) SetPackageVersion(pkg string, version string, isExperimen
 
 func getKey(pkg string, isExperiment bool) []byte {
 	if isExperiment {
-		return []byte(fmt.Sprintf("%s-exp", pkg))
+		return []byte(pkg + "-exp")
 	}
 	return []byte(pkg)
 }

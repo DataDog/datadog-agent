@@ -5,7 +5,11 @@
 
 package dbconfig
 
-import "github.com/DataDog/datadog-agent/pkg/compliance/types"
+import (
+	"encoding/xml"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
+)
 
 // DBResource holds a database configuration data and the resource type
 // associated with it.
@@ -231,11 +235,11 @@ type mongoDBConfig struct {
 }
 
 type cassandraDBConfig struct {
-	Authenticator           string `yaml:"authenticator" json:"authenticator"`
-	LogbackFilePath         string `yaml:"logback_file_path" json:"logback_file_path"`
-	LogbackFileContent      string `yaml:"logback_file_content" json:"logback_file_content"`
-	Authorizer              string `yaml:"authorizer" json:"authorizer"`
-	ListenAddress           string `yaml:"listen_address" json:"listen_address"`
+	Authenticator           string            `yaml:"authenticator" json:"authenticator"`
+	LogbackFilePath         string            `yaml:"logback_file_path" json:"logback_file_path"`
+	Logback                 *cassandraLogback `yaml:"logback_filter" json:"logback_filter"`
+	Authorizer              string            `yaml:"authorizer" json:"authorizer"`
+	ListenAddress           string            `yaml:"listen_address" json:"listen_address"`
 	ClientEncryptionOptions struct {
 		Enabled  bool `yaml:"enabled" json:"enabled"`
 		Optional bool `yaml:"optional" json:"optional"`
@@ -243,4 +247,125 @@ type cassandraDBConfig struct {
 	ServerEncryptionOptions struct {
 		InternodeEncryption string `yaml:"internode_encryption" json:"internode_encryption"`
 	} `yaml:"server_encryption_options" json:"server_encryption_options"`
+}
+
+type cassandraLogback struct {
+	XMLName   xml.Name `xml:"configuration"`
+	Appenders []struct {
+		Name  string `xml:"name,attr"`
+		Class string `xml:"class,attr"`
+	} `xml:"appender"`
+	Loggers []struct {
+		Name         string `xml:"name,attr"`
+		Level        string `xml:"level,attr"`
+		Additivity   string `xml:"additivity,attr,omitempty"`
+		AppenderRefs []struct {
+			Ref string `xml:"ref,attr"`
+		} `xml:"appender-ref"`
+	} `xml:"logger"`
+	Root struct {
+		Level        string `xml:"level,attr"`
+		AppenderRefs []struct {
+			Ref string `xml:"ref,attr"`
+		} `xml:"appender-ref"`
+	} `xml:"root"`
+}
+
+var postgresKnownConfigKeys = map[string]struct{}{
+	"archive_command":                     {},
+	"archive_mode":                        {},
+	"archive_timeout":                     {},
+	"autovacuum":                          {},
+	"autovacuum_analyze_scale_factor":     {},
+	"autovacuum_max_workers":              {},
+	"autovacuum_naptime":                  {},
+	"autovacuum_vacuum_cost_delay":        {},
+	"autovacuum_vacuum_cost_limit":        {},
+	"autovacuum_vacuum_scale_factor":      {},
+	"checkpoint_timeout":                  {},
+	"cluster_name":                        {},
+	"debug_pretty_print":                  {},
+	"debug_print_parse":                   {},
+	"debug_print_plan":                    {},
+	"debug_print_rewritten":               {},
+	"default_statistics_target":           {},
+	"dynamic_shared_memory_type":          {},
+	"effective_cache_size":                {},
+	"effective_io_concurrency":            {},
+	"fsync":                               {},
+	"hba_file":                            {},
+	"hot_standby":                         {},
+	"hot_standby_feedback":                {},
+	"ident_file":                          {},
+	"idle_in_transaction_session_timeout": {},
+	"idle_session_timeout":                {},
+	"ignore_system_indexes":               {},
+	"jit_debugging_support":               {},
+	"jit_profiling_support":               {},
+	"listen_addresses":                    {},
+	"log_autovacuum_min_duration":         {},
+	"log_checkpoints":                     {},
+	"log_connections":                     {},
+	"log_destination":                     {},
+	"log_directory":                       {},
+	"log_disconnections":                  {},
+	"log_error_verbosity":                 {},
+	"log_file_mode":                       {},
+	"log_filename":                        {},
+	"log_hostname":                        {},
+	"log_line_prefix":                     {},
+	"log_lock_waits":                      {},
+	"log_min_duration_sample":             {},
+	"log_min_error_statement":             {},
+	"log_min_messages":                    {},
+	"log_rotation_age":                    {},
+	"log_rotation_size":                   {},
+	"log_statement":                       {},
+	"log_statement_sample_rate":           {},
+	"log_timezone":                        {},
+	"log_truncate_on_rotation":            {},
+	"logging_collector":                   {},
+	"maintenance_work_mem":                {},
+	"max_connections":                     {},
+	"max_locks_per_transaction":           {},
+	"max_parallel_workers":                {},
+	"max_prepared_transactions":           {},
+	"max_replication_slots":               {},
+	"max_wal_senders":                     {},
+	"max_wal_size":                        {},
+	"max_worker_processes":                {},
+	"password_encryption":                 {},
+	"pg_stat_statements.max":              {},
+	"pg_stat_statements.track":            {},
+	"pg_stat_statements.track_utility":    {},
+	"port":                                {},
+	"post_auth_delay":                     {},
+	"random_page_cost":                    {},
+	"seq_page_cost":                       {},
+	"shared_buffers":                      {},
+	"shared_preload_libraries":            {},
+	"ssl":                                 {},
+	"ssl_ca_file":                         {},
+	"ssl_cert_file":                       {},
+	"ssl_ciphers":                         {},
+	"ssl_key_file":                        {},
+	"ssl_min_protocol_version":            {},
+	"statement_timeout":                   {},
+	"syslog_facility":                     {},
+	"syslog_ident":                        {},
+	"syslog_sequence_numbers":             {},
+	"syslog_split_messages":               {},
+	"tcp_keepalives_idle":                 {},
+	"tcp_keepalives_interval":             {},
+	"track_activities":                    {},
+	"track_activity_query_size":           {},
+	"track_commit_timestamp":              {},
+	"track_functions":                     {},
+	"track_io_timing":                     {},
+	"wal_buffers":                         {},
+	"wal_compression":                     {},
+	"wal_keep_size":                       {},
+	"wal_level":                           {},
+	"wal_log_hints":                       {},
+	"work_mem":                            {},
 }

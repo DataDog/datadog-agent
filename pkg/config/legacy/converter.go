@@ -391,9 +391,9 @@ func buildHistogramAggregates(agentConfig Config) []string {
 		return nil
 	}
 	configValue = strings.ReplaceAll(configValue, " ", "")
-	result := strings.Split(configValue, ",")
+	result := strings.SplitSeq(configValue, ",")
 
-	for _, res := range result {
+	for res := range result {
 		found := false
 		if slices.Contains(validValues, res) {
 			histogramBuild = append(histogramBuild, res)
@@ -419,8 +419,8 @@ func buildHistogramPercentiles(agentConfig Config) []string {
 
 	// percentiles are rounded down to 2 digits and (0:1)
 	configList = strings.ReplaceAll(configList, " ", "")
-	result := strings.Split(configList, ",")
-	for _, res := range result {
+	result := strings.SplitSeq(configList, ",")
+	for res := range result {
 		num, err := strconv.ParseFloat(res, 64)
 		if num < 1 && num > 0 && err == nil {
 			fixed := strconv.FormatFloat(num, 'f', 2, 64)

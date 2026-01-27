@@ -1,0 +1,124 @@
+"""Rules to build /etc for Debian distributions."""
+
+load("@rules_pkg//pkg:install.bzl", "pkg_install")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup")
+load("//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
+
+package(default_visibility = ["//packages:__subpackages__"])
+
+dd_agent_expand_template(
+    name = "upstart_debian_conf_gen",
+    out = "etc/init/datadog-agent.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_process_conf_gen",
+    out = "etc/init/datadog-agent-process.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.process.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_sysprobe_conf_gen",
+    out = "etc/init/datadog-agent-sysprobe.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.sysprobe.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_trace_conf_gen",
+    out = "etc/init/datadog-agent-trace.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.trace.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_security_conf_gen",
+    out = "etc/init/datadog-agent-security.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.security.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_data_plane_conf_gen",
+    out = "etc/init/datadog-agent-data-plane.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.data-plane.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "upstart_debian_action_conf_gen",
+    out = "etc/init/datadog-agent-action.conf",
+    attributes = pkg_attributes(mode = "0644"),
+    template = "upstart_debian.action.conf.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_gen",
+    out = "etc/init.d/datadog-agent",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_process_gen",
+    out = "etc/init.d/datadog-agent-process",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.process.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_trace_gen",
+    out = "etc/init.d/datadog-agent-trace",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.trace.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_security_gen",
+    out = "etc/init.d/datadog-agent-security",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.security.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_data_plane_gen",
+    out = "etc/init.d/datadog-agent-data-plane",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.data-plane.in",
+)
+
+dd_agent_expand_template(
+    name = "sysvinit_debian_action_gen",
+    out = "etc/init.d/datadog-agent-action",
+    attributes = pkg_attributes(mode = "0755"),
+    template = "sysvinit_debian.action.in",
+)
+
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":sysvinit_debian_action_gen",
+        ":sysvinit_debian_data_plane_gen",
+        ":sysvinit_debian_gen",
+        ":sysvinit_debian_process_gen",
+        ":sysvinit_debian_security_gen",
+        ":sysvinit_debian_trace_gen",
+        ":upstart_debian_action_conf_gen",
+        ":upstart_debian_conf_gen",
+        ":upstart_debian_data_plane_conf_gen",
+        ":upstart_debian_process_conf_gen",
+        ":upstart_debian_security_conf_gen",
+        ":upstart_debian_sysprobe_conf_gen",
+        ":upstart_debian_trace_conf_gen",
+    ],
+)
+
+pkg_install(
+    name = "install",
+    srcs = [
+        ":all_files",
+    ],
+)

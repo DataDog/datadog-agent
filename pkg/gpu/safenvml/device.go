@@ -28,6 +28,8 @@ type SafeDevice interface {
 	GetClockInfo(clockType nvml.ClockType) (uint32, error)
 	// GetComputeRunningProcesses returns the list of compute processes running on the device
 	GetComputeRunningProcesses() ([]nvml.ProcessInfo, error)
+	// GetRunningProcessDetailList returns the list of running processes on the device
+	GetRunningProcessDetailList() (nvml.ProcessDetailList, error)
 	// GetCudaComputeCapability returns the CUDA compute capability of the device
 	GetCudaComputeCapability() (int, int, error)
 	// GetCurrentClocksThrottleReasons returns the current clock throttle reasons bitmask
@@ -43,6 +45,8 @@ type SafeDevice interface {
 	// GetGpuInstanceId returns the GPU instance ID for MIG devices
 	//nolint:revive // Maintaining consistency with go-nvml API naming
 	GetGpuInstanceId() (int, error)
+	// GetGpuInstanceProfileInfo returns the profile info for the given GPU instance profile ID
+	GetGpuInstanceProfileInfo(profile int) (nvml.GpuInstanceProfileInfo, error)
 	// GetIndex returns the index of the device
 	GetIndex() (int, error)
 	// GetMaxClockInfo returns the maximum clock speed for the given clock type
@@ -91,6 +95,8 @@ type SafeDevice interface {
 	GpmQueryDeviceSupport() (nvml.GpmSupport, error)
 	// GpmSampleGet gets a sample for GPM
 	GpmSampleGet(sample nvml.GpmSample) error
+	// GpmMigSampleGet gets a sample for GPM for a MIG device
+	GpmMigSampleGet(migInstanceID int, sample nvml.GpmSample) error
 	// IsMigDeviceHandle returns true if the device is a MIG device or false for a physical device
 	IsMigDeviceHandle() (bool, error)
 	// GetVirtualizationMode returns the virtualization mode of the device
@@ -114,10 +120,11 @@ type DeviceEventData struct {
 
 // DeviceInfo holds common cached properties for a GPU device
 type DeviceInfo struct {
-	SMVersion uint32
-	UUID      string
-	Name      string
-	CoreCount int
+	SMVersion    uint32
+	UUID         string
+	Name         string
+	CoreCount    int
+	Architecture nvml.DeviceArchitecture
 
 	// Index of the device in the host. For MIG devices, this is the index of the MIG device in the parent device.
 	Index int
@@ -156,6 +163,9 @@ type MIGDevice struct {
 
 	// Parent is the physical device that this MIG device belongs to
 	Parent *PhysicalDevice
+
+	// MIGInstanceID is the instance ID of the MIG device
+	MIGInstanceID int
 }
 
 var _ Device = &MIGDevice{}
@@ -182,11 +192,9 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 		return nil, fmt.Errorf("error filling basic data from NVML: %w", err)
 	}
 
-	major, minor, err := device.SafeDevice.GetCudaComputeCapability()
-	if err != nil {
-		return nil, fmt.Errorf("error getting CUDA compute capability: %w", err)
+	if err := device.fillPhysicalDeviceData(safeDev); err != nil {
+		return nil, fmt.Errorf("error filling physical device data: %w", err)
 	}
-	device.SMVersion = uint32(major*10 + minor)
 
 	migEnabled, _, err := safeDev.GetMigMode()
 	if err == nil && migEnabled == nvml.DEVICE_MIG_ENABLE {
@@ -199,12 +207,30 @@ func NewPhysicalDevice(dev nvml.Device) (*PhysicalDevice, error) {
 			return nil, err
 		}
 
-		// If the device is MIG enabled, we need to sum the memory and core count of all its children
-		// because the corresponding APIs we use below return "UNKNOWN_ERROR"
-		for _, migChild := range device.MIGChildren {
-			device.Memory += migChild.Memory
-			device.CoreCount += migChild.CoreCount
+		// If the device is MIG enabled, we cannot know the memory and core
+		// count of the device directly. However, we can query one of the MIG
+		// profiles, and see how many of them fit into the device. An important
+		// thing to note is that this can return a lower number of cores than
+		// what the device without MIG reports, at least in A100 devices.
+		// There's no official documentation that mentions why this is, but
+		// there are references to some compute instances being "reserved" for
+		// other purposes in NVIDIA's official docs: For example,
+		// https://docs.nvidia.com/datacenter/tesla/mig-user-guide/concepts.html
+		// mentions that memory slices are "one eighth" of the total memory,
+		// while compute slices are "one seventh". In both cases, it's mentioned
+		// that it's "roughly" that partition.
+		//
+		// However, it's still a reasonable approximation, specially because
+		// using the instance profiles will give us the total capacity available
+		// to MIG instances, without reporting cores that can never be used when
+		// MIG is enabled.
+		profileInfo, err := device.SafeDevice.GetGpuInstanceProfileInfo(0)
+		if err != nil {
+			return nil, fmt.Errorf("error getting MIG device profile info: %w", err)
 		}
+
+		device.Memory = uint64(profileInfo.MemorySizeMB) * 1024 * 1024 * uint64(profileInfo.InstanceCount)
+		device.CoreCount = int(profileInfo.MultiprocessorCount) * int(profileInfo.InstanceCount) * coresPerMultiprocessor(device.Architecture)
 	} else {
 		cores, err := device.SafeDevice.GetNumGpuCores()
 		if err != nil {
@@ -249,6 +275,14 @@ func (d *PhysicalDevice) fillMigChildren() error {
 		// for MIG devices.
 		migChildDevice.SMVersion = d.SMVersion
 		migChildDevice.Parent = d
+		migChildDevice.Architecture = d.Architecture
+		migChildDevice.CoreCount *= coresPerMultiprocessor(d.Architecture)
+
+		gpuInstanceID, err := migChildDevice.GetGpuInstanceId()
+		if err != nil {
+			return fmt.Errorf("error getting MIG device GPU instance ID: %w", err)
+		}
+		migChildDevice.MIGInstanceID = gpuInstanceID
 
 		d.MIGChildren = append(d.MIGChildren, migChildDevice)
 	}
@@ -306,4 +340,31 @@ func (d *DeviceInfo) fillBasicDataFromNVML(dev SafeDevice) error {
 	}
 
 	return nil
+}
+
+// fillPhysicalDeviceData fills the device info for a physical device using NVML APIs
+func (d *DeviceInfo) fillPhysicalDeviceData(dev SafeDevice) error {
+	arch, err := dev.GetArchitecture()
+	if err != nil {
+		return fmt.Errorf("error getting physical device architecture: %w", err)
+	}
+	d.Architecture = arch
+
+	major, minor, err := dev.GetCudaComputeCapability()
+	if err != nil {
+		return fmt.Errorf("error getting CUDA compute capability: %w", err)
+	}
+	d.SMVersion = uint32(major*10 + minor)
+
+	return nil
+}
+
+// coresPerMultiprocessor returns the number of cores per multiprocessor for a given SM version. It's a fallback
+// for MIG-enabled devices where the API doesn't work. For that reason, it only returns values for SM versions
+// that support MIG
+func coresPerMultiprocessor(arch nvml.DeviceArchitecture) int {
+	if arch <= nvml.DEVICE_ARCH_AMPERE {
+		return 64
+	}
+	return 128
 }

@@ -23,6 +23,7 @@ from invoke import Context
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import ORIGIN_CATEGORY, ORIGIN_PRODUCT, ORIGIN_SERVICE
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
+from tasks.libs.common.git import is_a_release_branch
 from tasks.libs.common.utils import get_metric_origin
 from tasks.libs.package.size import InfraError, directory_size, extract_package, file_size
 
@@ -66,16 +67,6 @@ def byte_to_string(size: int, unit_power: int = None, with_unit: bool = True) ->
     if id(s) != id(0) and s == 0:
         s = 0
     return f"{sign}{s}{' ' + size_name[unit_power] if with_unit else ''}"
-
-
-def string_to_latex_color(text: str) -> str:
-    """
-    Convert a string to a latex color.
-    param: text: the text to convert
-    return: the text as a latex color
-    """
-    # Github latex colors are currently broken, we are disabling this function's color temporarily for now
-    return r"$${" + text + "}$$"
 
 
 def string_to_byte(size: str) -> int:
@@ -690,6 +681,9 @@ class GateMetricHandler:
         "datadog.agent.static_quality_gate.on_disk_size": "current_on_disk_size",
         "datadog.agent.static_quality_gate.max_allowed_on_wire_size": "max_on_wire_size",
         "datadog.agent.static_quality_gate.max_allowed_on_disk_size": "max_on_disk_size",
+        # Delta metrics (relative to ancestor)
+        "datadog.agent.static_quality_gate.relative_on_wire_size": "relative_on_wire_size",
+        "datadog.agent.static_quality_gate.relative_on_disk_size": "relative_on_disk_size",
     }
     S3_REPORT_PATH = "s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates"
 
@@ -702,28 +696,6 @@ class GateMetricHandler:
 
         if filename is not None:
             self._load_metrics_report(filename)
-
-    def get_formatted_metric(self, gate_name, metric_name, with_unit=False):
-        value = self.metrics[gate_name][metric_name]
-        string_value = byte_to_string(value, with_unit=with_unit, unit_power=2)
-        if value > 0:
-            string_value = "+" + string_value
-            return string_to_latex_color(string_value)
-        elif value < 0:
-            return string_to_latex_color(string_value)
-        else:
-            return string_to_latex_color(string_value)
-
-    def get_formatted_metric_comparison(self, gate_name, first_metric, limit_metric):
-        first_value = self.metrics[gate_name][first_metric]
-        second_value = self.metrics[gate_name][limit_metric]
-        limit_value_string = r"$${" + byte_to_string(second_value, unit_power=2, with_unit=False) + "}$$"
-        if first_value > second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} > {limit_value_string}"
-        elif first_value < second_value:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} < {limit_value_string}"
-        else:
-            return f"{string_to_latex_color(byte_to_string(first_value, unit_power=2, with_unit=False))} = {limit_value_string}"
 
     def register_metric(self, gate_name, metric_name, metric_value):
         if self.metrics.get(gate_name, None) is None:
@@ -743,11 +715,12 @@ class GateMetricHandler:
             self.metrics = json.load(f)
 
     def _add_gauge(self, timestamp, common_tags, gate, metric_name, metric_key):
-        if self.metrics[gate].get(metric_key):
+        metric_value = self.metrics[gate].get(metric_key)
+        if metric_value is not None:
             return create_gauge(
                 metric_name,
                 timestamp,
-                self.metrics[gate][metric_key],
+                metric_value,
                 tags=common_tags,
                 metric_origin=get_metric_origin(ORIGIN_PRODUCT, ORIGIN_CATEGORY, ORIGIN_SERVICE),
                 unit="byte",
@@ -773,8 +746,10 @@ class GateMetricHandler:
                         continue
                     # Compute the difference between the wire and disk size of common gates between the ancestor and the current pipeline
                     for metric_key in ["current_on_wire_size", "current_on_disk_size"]:
-                        if self.metrics[gate].get(metric_key) and ancestor_gate.get(metric_key):
-                            relative_metric_size = self.metrics[gate][metric_key] - ancestor_gate[metric_key]
+                        current_value = self.metrics[gate].get(metric_key)
+                        ancestor_value = ancestor_gate.get(metric_key)
+                        if current_value is not None and ancestor_value is not None:
+                            relative_metric_size = current_value - ancestor_value
                             self.register_metric(gate, metric_key.replace("current", "relative"), relative_metric_size)
             else:
                 print(
@@ -814,6 +789,14 @@ class GateMetricHandler:
                 gauge = self._add_gauge(timestamp, common_tags, gate, metric_name, metric_key)
                 if gauge:
                     series.append(gauge)
+                elif "relative" in metric_key:
+                    # Relative metrics may be missing if ancestor predates delta tracking - this is expected
+                    print(
+                        color_message(
+                            f"[INFO] gate {gate} doesn't have the {metric_name} metric registered (ancestor may predate delta tracking)",
+                            "blue",
+                        )
+                    )
                 else:
                     print(
                         color_message(
@@ -844,7 +827,8 @@ class GateMetricHandler:
             json.dump(self.metrics, f)
 
         CI_COMMIT_SHA = os.environ.get("CI_COMMIT_SHA")
-        if not is_nightly and branch == "main" and CI_COMMIT_SHA:
+        # Store reports for main and release branches to enable delta calculation for backport PRs
+        if not is_nightly and (branch == "main" or is_a_release_branch(ctx, branch)) and CI_COMMIT_SHA:
             ctx.run(
                 f"aws s3 cp --only-show-errors --region us-east-1 --sse AES256 {filename} {self.S3_REPORT_PATH}/{CI_COMMIT_SHA}/{filename}",
                 hide="stdout",

@@ -144,7 +144,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 	}
 
 	// Extract to a temporary directory first
-	tmpDir, err := os.MkdirTemp(paths.PackagesPath, fmt.Sprintf("%s-extension-", pkg.Name))
+	tmpDir, err := os.MkdirTemp(paths.PackagesPath, pkg.Name+"-extension-")
 	if err != nil {
 		return fmt.Errorf("could not create temp directory for %s: %w", extension, err)
 	}

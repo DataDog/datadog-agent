@@ -1,0 +1,76 @@
+---
+.static_quality_gate_package: |
+  # Measure package size and generate in-place report
+  # This runs after the main script and won't fail the job if there are issues.
+  # Only run if the job status is success.
+  # This is common for both rpm and deb packages
+  if [[ "$CI_JOB_STATUS" != "success" ]]; then
+    echo "ℹ️  Skipping package measurement (job status is not success)"
+    exit 0
+  fi
+
+  if [[ -n "$STATIC_QUALITY_GATE_NAME" ]]; then
+    echo "📊 Starting package measurement..."
+
+    # If the gate name contains "suse", use the SUSE package directory,
+    # otherwise use the default package directory
+    [[ "$STATIC_QUALITY_GATE_NAME" == *"suse"* ]] && \
+    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR_SUSE" || \
+    BASE_PACKAGE_DIR="$OMNIBUS_PACKAGE_DIR"
+
+    # Determine package type and set appropriate variables
+    # Handle FIPS packages by adjusting project name
+    PROJECT_NAME="$DD_PROJECT"
+    if [[ "$STATIC_QUALITY_GATE_NAME" == *"fips"* ]]; then
+      PROJECT_NAME="fips-${DD_PROJECT}"
+    fi
+
+    # RPM uses x86_64 and aarch64 for architecture.
+    # If STATIC_QUALITY_GATE_ARCH is set (which is the case for RPM packages), use it,
+    # otherwise use PACKAGE_ARCH (which is the architecture of the package)
+    ARCH_VAR="${STATIC_QUALITY_GATE_ARCH:-${PACKAGE_ARCH}}"
+
+    # Determine format based on package type
+    case "$STATIC_QUALITY_GATE_NAME" in
+      *deb*) SEP="_7*"; EXT="deb"; ARCH="${PACKAGE_ARCH}" ;;
+      *rpm*|*suse*) SEP="-7*"; EXT="rpm" ;;
+      *) echo "⚠️  Unknown package type for gate: $STATIC_QUALITY_GATE_NAME"; exit 1 ;;
+    esac
+
+    PACKAGE_PATTERN="${BASE_PACKAGE_DIR}/datadog-${PROJECT_NAME}${SEP}${ARCH_VAR}.${EXT}"
+
+    echo "🔍 Looking for package with pattern: $PACKAGE_PATTERN"
+
+    # Extract report prefix from gate name (e.g. static_quality_gate_agent_rpm_amd64 -> agent_rpm_amd64)
+    REPORT_PREFIX="${STATIC_QUALITY_GATE_NAME#static_quality_gate_}"
+    REPORT_FILENAME="${REPORT_PREFIX}_size_report_${CI_COMMIT_SHA:0:8}.yml"
+
+    for package_file in $PACKAGE_PATTERN; do
+      if [[ -f "$package_file" ]]; then
+        echo "📏 Measuring package: $package_file"
+
+        # Generate measurement report using STATIC_QUALITY_GATE_NAME variable
+        dda inv quality-gates.measure-package-local \
+          --package-path "$package_file" \
+          --gate-name "$STATIC_QUALITY_GATE_NAME" \
+          --build-job-name "$CI_JOB_NAME" \
+          --output-path "${REPORT_FILENAME}" \
+          --debug || { echo "⚠️  Package measurement failed for $package_file"; exit 1; }
+
+        echo "✅ Package measurement completed"
+
+        # Upload the report to S3
+        BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA}"
+        echo "Uploading report to ${BUCKET_BASE_PATH}"
+        aws s3 cp --only-show-errors --region us-east-1 --sse AES256 \
+          "${REPORT_FILENAME}" \
+          "${BUCKET_BASE_PATH}/${REPORT_FILENAME}"
+      else
+        echo "⚠️  No package found matching pattern: $PACKAGE_PATTERN"; exit 1;
+      fi
+    done
+  else
+    echo "ℹ️  Skipping package measurement (no STATIC_QUALITY_GATE_NAME defined)"
+  fi
+
+.static_quality_gate_report_path: "**/*_size_report_*.yml"

@@ -17,20 +17,21 @@ type oneByteNewLineMatcher struct {
 	contentLenLimit int
 }
 
-// FindFrame implements EndLineMatcher#FindFrame.
-func (ob *oneByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int) {
+// FindFrame implements FrameMatcher#FindFrame.
+func (ob *oneByteNewLineMatcher) FindFrame(buf []byte, seen int) ([]byte, int, bool) {
 	nl := bytes.IndexByte(buf[seen:], '\n')
 	if nl == -1 {
-		return nil, 0
+		return nil, 0, false
 	}
 
 	// limit the returned line to contentLenLimit bytes
 	eol := nl + seen
 	if eol > ob.contentLenLimit {
-		return buf[:ob.contentLenLimit], ob.contentLenLimit
+		// Newline found beyond the limit - truncate and mark as truncated
+		return buf[:ob.contentLenLimit], ob.contentLenLimit, true
 	}
 
 	// return the content without the newline, but count the newline in the raw
 	// length
-	return buf[:eol], eol + 1
+	return buf[:eol], eol + 1, false
 }

@@ -22,6 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -94,6 +95,9 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 		hostnameimpl.MockModule(),
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
+		}),
+		fx.Provide(func() option.Option[healthplatform.Component] {
+			return option.None[healthplatform.Component]()
 		}),
 		fx.Provide(func() sender.SenderManager {
 			return suite.SenderManagerMock

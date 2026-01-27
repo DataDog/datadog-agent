@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 	"github.com/mdlayher/vsock"
 	"github.com/pkg/errors"
@@ -50,7 +50,6 @@ import (
 )
 
 const (
-	noTimeout         = 0 * time.Minute
 	streamRecvTimeout = 10 * time.Minute
 	cacheExpiration   = 1 * time.Minute
 )
@@ -370,8 +369,8 @@ func (t *remoteTagger) queryContainerIDFromOriginInfo(originInfo origindetection
 	return containerID, err
 }
 
-// AccumulateTagsFor returns tags for a given entity at the desired cardinality.
-func (t *remoteTagger) AccumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
+// accumulateTagsFor returns tags for a given entity at the desired cardinality.
+func (t *remoteTagger) accumulateTagsFor(entityID types.EntityID, cardinality types.TagCardinality, tb tagset.TagsAccumulator) error {
 	tags, err := t.Tag(entityID, cardinality)
 	if err != nil {
 		return err
@@ -450,7 +449,7 @@ func (t *remoteTagger) GlobalTags(cardinality types.TagCardinality) ([]string, e
 // and they always use the local tagger.
 // This function can only add the global tags.
 func (t *remoteTagger) EnrichTags(tb tagset.TagsAccumulator, _ taggertypes.OriginInfo) {
-	if err := t.AccumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
+	if err := t.accumulateTagsFor(types.GetGlobalEntityID(), t.dogstatsdCardinality, tb); err != nil {
 		t.log.Error(err.Error())
 	}
 }
@@ -465,7 +464,6 @@ func (t *remoteTagger) run() {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
 	expBackoff.MaxInterval = 5 * time.Minute
-	expBackoff.MaxElapsedTime = noTimeout
 
 	// Use a timer to trigger the loop. Start immediately.
 	timer := time.NewTimer(0)

@@ -34,8 +34,8 @@ exporters:
         initial_cumulative_monotonic_value: auto
     only_metadata: false
     orchestrator_explorer:
-      cluster_name: ""
       enabled: false
+      endpoint: https://orchestrator.datadoghq.com/api/v2/orchmanif
     retry_on_failure:
       enabled: true
       initial_interval: 5s
@@ -46,7 +46,6 @@ exporters:
     sending_queue:
       batch:
       block_on_overflow: false
-      enabled: true
       num_consumers: 10
       queue_size: 1000
       sizer: {}
@@ -67,36 +66,53 @@ exporters:
     sampling_initial: 2
     sampling_thereafter: 1
     use_internal_logger: true
-    sending_queue:
-      batch: null
-      block_on_overflow: false
-      enabled: false
-      num_consumers: 10
-      queue_size: 1000
-      sizer: {}
-      storage: null
-      wait_for_result: false
+    sending_queue: null
     verbosity: Detailed
 extensions:
+  datadog/dd-autoconfigured:
+    api:
+      fail_on_invalid_key: true
+      key: "[REDACTED]"
+      site: datadoghq.com
+    deployment_type: unknown
+    force_attempt_http2: true
+    hostname: ""
+    http:
+      cors: null
+      endpoint: localhost:9875
+      idle_timeout: 0s
+      path: /metadata
+      read_header_timeout: 0s
+      tls: null
+      transport: tcp
+      write_timeout: 0s
+    idle_conn_timeout: 1m30s
+    max_idle_conns: 100
   ddflare/dd-autoconfigured:
     cors: null
     endpoint: localhost:7777
     idle_timeout: 0s
     read_header_timeout: 0s
     tls: null
+    transport: tcp
     write_timeout: 0s
   health_check/dd-autoconfigured:
     check_collector_pipeline:
       enabled: false
       exporter_failure_threshold: 5
       interval: 5m
+    component_health: null
     cors: null
     endpoint: localhost:13133
+    grpc: null
+    http: null
     idle_timeout: 0s
     path: /
     read_header_timeout: 0s
     response_body: null
     tls: null
+    transport: tcp
+    use_v2: false
     write_timeout: 0s
   pprof/dd-autoconfigured:
     block_profile_fraction: 0
@@ -108,10 +124,12 @@ extensions:
     endpoint: localhost:55679
     expvar:
       enabled: false
-    idle_timeout: 0s
-    read_header_timeout: 0s
+    idle_timeout: 1m0s
+    keep_alives_enabled: true
+    read_header_timeout: 1m0s
     tls: null
-    write_timeout: 0s
+    transport: tcp
+    write_timeout: 30s
 processors:
   filter/drop-prometheus-internal-metrics/dd-autoconfigured:
     error_mode: propagate
@@ -165,6 +183,7 @@ receivers:
         read_header_timeout: 0s
         tls: null
         traces_url_path: /v1/traces
+        transport: tcp
         write_timeout: 0s
   prometheus/dd-autoconfigured:
     api_server:
@@ -174,20 +193,20 @@ receivers:
         idle_timeout: 0s
         read_header_timeout: 0s
         tls: null
+        transport: tcp
         write_timeout: 0s
     config:
       global:
         evaluation_interval: 1m
+        extra_scrape_metrics: false
         metric_name_escaping_scheme: allow-utf-8
         metric_name_validation_scheme: utf8
         scrape_interval: 1m
-        scrape_protocols:
-        - OpenMetricsText1.0.0
-        - OpenMetricsText0.0.1
-        - PrometheusText1.0.0
-        - PrometheusText0.0.4
+        scrape_native_histograms: false
         scrape_timeout: 10s
       otlp:
+        label_name_preserve_multiple_underscores: true
+        label_name_underscore_sanitization: true
         translation_strategy: UnderscoreEscapingWithSuffixes
       runtime:
         gogc: 75
@@ -196,6 +215,7 @@ receivers:
         enable_compression: true
         convert_classic_histograms_to_nhcb: false
         enable_http2: true
+        extra_scrape_metrics: false
         fallback_scrape_protocol: PrometheusText0.0.4
         follow_redirects: true
         honor_timestamps: true
@@ -205,6 +225,7 @@ receivers:
         metrics_path: /metrics
         scheme: http
         scrape_interval: 1m
+        scrape_native_histograms: false
         scrape_protocols:
         - PrometheusText0.0.4
         scrape_timeout: 10s
@@ -213,16 +234,15 @@ receivers:
           - 0.0.0.0:8888
         track_timestamps_staleness: false
     report_extra_scrape_metrics: false
-    start_time_metric_regex: ""
     target_allocator: null
     trim_metric_suffixes: false
-    use_start_time_metric: false
 service:
   extensions:
   - pprof/dd-autoconfigured
   - zpages/dd-autoconfigured
   - health_check/dd-autoconfigured
   - ddflare/dd-autoconfigured
+  - datadog/dd-autoconfigured
   pipelines:
     logs:
       exporters:

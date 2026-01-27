@@ -274,7 +274,7 @@ func (s *SetDefinition) PreCheck(_ PolicyLoaderOpts) error {
 type KillDefinition struct {
 	DefaultActionDefinition   `yaml:"-" json:"-"`
 	Signal                    string `yaml:"signal" json:"signal" jsonschema:"description=A valid signal name,example=SIGKILL,example=SIGTERM"`
-	Scope                     string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container"`
+	Scope                     string `yaml:"scope,omitempty" json:"scope,omitempty" jsonschema:"enum=process,enum=container,enum=cgroup"`
 	DisableContainerDisarmer  bool   `yaml:"disable_container_disarmer,omitempty" json:"disable_container_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic container disarmer safeguard"`
 	DisableExecutableDisarmer bool   `yaml:"disable_executable_disarmer,omitempty" json:"disable_executable_disarmer,omitempty" jsonschema:"description=Set to true to disable the rule kill action automatic executable disarmer safeguard"`
 }

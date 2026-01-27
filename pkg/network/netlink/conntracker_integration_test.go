@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"net"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -144,10 +145,8 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 }
 
 func skipUnless(t *testing.T, requiredArg string) {
-	for _, arg := range os.Args[1:] {
-		if arg == requiredArg {
-			return
-		}
+	if slices.Contains(os.Args[1:], requiredArg) {
+		return
 	}
 
 	t.Skipf(

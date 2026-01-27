@@ -55,7 +55,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestState(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,
@@ -74,7 +74,7 @@ func TestState(t *testing.T) {
 }
 
 func TestConfigState(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,
@@ -93,7 +93,7 @@ func TestConfigState(t *testing.T) {
 }
 
 func TestConfigAndPackageStates(t *testing.T) {
-	installerBinary, err := os.Executable()
+	installerBinary, err := exec.GetExecutable()
 	assert.NoError(t, err)
 	env := &env.Env{
 		IsFromDaemon: true,
@@ -119,4 +119,10 @@ func TestConfigAndPackageStates(t *testing.T) {
 	}
 
 	assert.Equal(t, expected, res)
+}
+
+func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
+	cmd := setupCommand()
+	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
+		"setup command should have human-readable-errors annotation")
 }

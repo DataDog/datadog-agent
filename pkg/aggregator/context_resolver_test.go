@@ -14,10 +14,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	taggertypespkg "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -78,10 +82,12 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 
 	contextResolver := newContextResolver(nooptagger.NewComponent(), store, "test")
 
+	matcher := filterlistimpl.NewNoopTagMatcher()
+
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 0)
-	contextKey2 := contextResolver.trackContext(&mSample2, 0)
-	contextKey3 := contextResolver.trackContext(&mSample3, 0)
+	contextKey1 := contextResolver.trackContext(&mSample1, 0, matcher)
+	contextKey2 := contextResolver.trackContext(&mSample2, 0, matcher)
+	contextKey3 := contextResolver.trackContext(&mSample3, 0, matcher)
 
 	// When we look up the 2 keys, they return the correct contexts
 	context1 := contextResolver.contextsByKey[contextKey1].context
@@ -119,6 +125,7 @@ func TestTrackContext(t *testing.T) {
 }
 
 func testExpireContexts(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewNoopTagMatcher()
 	mSample1 := metrics.MetricSample{
 		Name:       "my.metric.name",
 		Value:      1,
@@ -143,9 +150,9 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 	contextResolver := newTimestampContextResolver(nooptagger.NewComponent(), store, "test", 2, 4)
 
 	// Track the 2 contexts
-	contextKey1 := contextResolver.trackContext(&mSample1, 4) // expires after 6
-	contextKey2 := contextResolver.trackContext(&mSample2, 6) // expires after 8
-	contextKey3 := contextResolver.trackContext(&mSample3, 6) // expires after 10
+	contextKey1 := contextResolver.trackContext(&mSample1, 4, matcher) // expires after 6
+	contextKey2 := contextResolver.trackContext(&mSample2, 6, matcher) // expires after 8
+	contextKey3 := contextResolver.trackContext(&mSample3, 6, matcher) // expires after 10
 
 	// With an expireTimestap of 3, both contexts are still valid
 	contextResolver.expireContexts(4)
@@ -189,17 +196,19 @@ func TestExpireContexts(t *testing.T) {
 }
 
 func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewNoopTagMatcher()
+
 	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
 	contextResolver := newCountBasedContextResolver(2, store, nooptagger.NewComponent(), "test")
 
-	contextKey1 := contextResolver.trackContext(&mSample1)
-	contextKey2 := contextResolver.trackContext(&mSample2)
+	contextKey1 := contextResolver.trackContext(&mSample1, matcher)
+	contextKey2 := contextResolver.trackContext(&mSample2, matcher)
 	require.Len(t, contextResolver.expireContexts(), 0)
 
-	contextKey3 := contextResolver.trackContext(&mSample3)
-	contextResolver.trackContext(&mSample2)
+	contextKey3 := contextResolver.trackContext(&mSample3, matcher)
+	contextResolver.trackContext(&mSample2, matcher)
 	require.Len(t, contextResolver.expireContexts(), 0)
 
 	expiredContextKeys := contextResolver.expireContexts()
@@ -217,12 +226,14 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewNoopTagMatcher()
+
 	resolver := newContextResolver(nooptagger.NewComponent(), store, "test")
 
 	ckey := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
 		Tags: []string{"bar", "bar"},
-	}, 0)
+	}, 0, matcher)
 
 	assert.Equal(t, resolver.contextsByKey[ckey].context.Tags().Len(), 1)
 	metrics.AssertCompositeTagsEqual(t, resolver.contextsByKey[ckey].context.Tags(), tagset.CompositeTagsFromSlice([]string{"bar"}))
@@ -255,12 +266,13 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ tagger.Component) 
 }
 
 func TestOriginTelemetry(t *testing.T) {
+	matcher := filterlistimpl.NewNoopTagMatcher()
 	r := newContextResolver(nooptagger.NewComponent(), tags.NewStore(true, "test"), "test")
-	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0)
-	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0)
-	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}}, 0)
-	r.trackContext(&mockSample{"bar", []string{"bar"}, []string{}}, 0)
-	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}}, 0)
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}}, 0, matcher)
+	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}}, 0, matcher)
+	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}}, 0, matcher)
+	r.trackContext(&mockSample{"bar", []string{"bar"}, []string{}}, 0, matcher)
+	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}}, 0, matcher)
 	sink := mockSink{}
 	ts := 1672835152.0
 	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
@@ -284,4 +296,254 @@ func TestOriginTelemetry(t *testing.T) {
 		MType:  metrics.APIGaugeType,
 		Points: []metrics.Point{{Ts: ts, Value: 1.0}},
 	}})
+}
+
+func setupTagger(t *testing.T) tagger.Component {
+	// Setup a fake tagger with tags for different containers
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	// Set up tags for container1 (will be stripped)
+	container1EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container1")
+	fakeTagger.SetTags(container1EntityID, "source1", []string{"env:prod", "image_name:image", "pod_name:thing1"}, nil, nil, nil)
+
+	// Set up tags for container2 (will be stripped)
+	container2EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container2")
+	fakeTagger.SetTags(container2EntityID, "source1", []string{"env:staging", "image_name:image", "pod_name:thing2"}, nil, nil, nil)
+
+	// Set up tags for container3 (different region, will NOT be stripped)
+	container3EntityID := taggertypes.NewEntityID(taggertypes.ContainerID, "container3")
+	fakeTagger.SetTags(container3EntityID, "source1", []string{"env:dev", "image_name:image", "pod_name:thing3"}, nil, nil, nil)
+
+	return fakeTagger
+}
+
+func testTrackContextStrippingOriginTags(t *testing.T, store *tags.Store) {
+
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"distribution.metric": {
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
+		},
+	})
+
+	fakeTagger := setupTagger(t)
+
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	// Two distributions with different tagger tags that will be stripped should get the same context key
+	dist1 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+	}
+	dist2 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+	}
+
+	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
+	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
+
+	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
+	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
+
+	// Check only the unstripped tags remain
+	context1, ok := contextResolver.get(contextKey1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+}
+
+func TestTrackContextStrippingOriginTags(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingOriginTags)
+}
+
+func testTrackContextStrippingOriginTagsDiffers(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"distribution.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	})
+
+	fakeTagger := setupTagger(t)
+
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	// Two distributions with different tagger tags that will be stripped should get the same context key
+	dist1 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+	}
+	dist2 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+	}
+
+	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
+	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
+
+	// Pod name should be different between contexts
+	assert.NotEqual(t, contextKey1, contextKey2)
+}
+
+func TestTrackContextStrippingOriginTagsDiffers(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingOriginTagsDiffers)
+}
+
+func testTrackContextStrippingMetricTags(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"distribution.metric": {
+			Tags:   []string{"env", "pod_name", "thing"},
+			Action: "exclude",
+		},
+	})
+
+	fakeTagger := setupTagger(t)
+
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	dist1 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+	}
+	dist2 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+	}
+
+	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
+	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
+
+	// Both distributions should have the same context key because the differing tagger tags (env, pod_name) were stripped
+	assert.Equal(t, contextKey1, contextKey2, "distributions with different stripped tagger tags should have same context key")
+
+	// Check only the unstripped tags remain
+	context1, ok := contextResolver.get(contextKey1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, context1.Tags(), tagset.CompositeTagsFromSlice([]string{"version:1.0", "image_name:image"}))
+}
+
+func TestTrackContextStrippingMetricTags(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingMetricTags)
+}
+
+func testTrackContextStrippingMetricTagsDiffers(t *testing.T, store *tags.Store) {
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"distribution.metric": {
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
+		},
+	})
+
+	fakeTagger := setupTagger(t)
+
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	dist1 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0", "thing:zing"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+	}
+	dist2 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.DistributionType,
+		Tags:  []string{"version:1.0", "thing:zang"}, // metric tag
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+	}
+
+	contextKey1 := contextResolver.trackContext(dist1, 0, matcher)
+	contextKey2 := contextResolver.trackContext(dist2, 0, matcher)
+
+	// Both distributions should have a different context key
+	assert.NotEqual(t, contextKey1, contextKey2)
+}
+
+func TestTrackContextStrippingMetricTagsDiffers(t *testing.T) {
+	testWithTagsStore(t, testTrackContextStrippingMetricTagsDiffers)
+}
+
+func testTrackContextGaugesTagsUnstripped(t *testing.T, store *tags.Store) {
+	// Tag aggregation on Gauges is currently not supported
+	matcher := filterlistimpl.NewTagMatcher(map[string]filterlistimpl.MetricTagList{
+		"distribution.metric": {
+			Tags:   []string{"env", "pod_name"},
+			Action: "exclude",
+		},
+	})
+
+	fakeTagger := setupTagger(t)
+
+	contextResolver := newContextResolver(fakeTagger, store, "test")
+
+	gauge1 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.GaugeType,
+		Tags:  []string{"version:1.0"},
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container1",
+			Cardinality:           "low",
+		},
+	}
+	gauge2 := &metrics.MetricSample{
+		Name:  "distribution.metric",
+		Mtype: metrics.GaugeType,
+		Tags:  []string{"version:1.0"},
+		OriginInfo: taggertypespkg.OriginInfo{
+			ContainerIDFromSocket: "container_id://container2",
+			Cardinality:           "low",
+		},
+	}
+
+	gaugeKey1 := contextResolver.trackContext(gauge1, 0, matcher)
+	gaugeKey2 := contextResolver.trackContext(gauge2, 0, matcher)
+
+	assert.NotEqual(t, gaugeKey1, gaugeKey2, "non-distribution metrics should not have tags stripped")
+
+	gaugeContext1, ok := contextResolver.get(gaugeKey1)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, gaugeContext1.Tags(), tagset.CompositeTagsFromSlice([]string{"env:prod", "image_name:image", "pod_name:thing1", "version:1.0"}))
+
+	gaugeContext2, ok := contextResolver.get(gaugeKey2)
+	require.True(t, ok)
+	metrics.AssertCompositeTagsEqual(t, gaugeContext2.Tags(), tagset.CompositeTagsFromSlice([]string{"env:staging", "image_name:image", "pod_name:thing2", "version:1.0"}))
+}
+
+func TestTrackContextGaugesTagsUnstripped(t *testing.T) {
+	testWithTagsStore(t, testTrackContextGaugesTagsUnstripped)
 }

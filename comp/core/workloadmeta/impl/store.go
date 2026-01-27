@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
@@ -271,6 +271,17 @@ func (w *workloadmeta) GetKubeletMetrics() (*wmdef.KubeletMetrics, error) {
 	}
 
 	return entity.(*wmdef.KubeletMetrics), nil
+}
+
+func (w *workloadmeta) GetKubeCapabilities() (*wmdef.KubeCapabilities, error) {
+	// There should only be one entity of this kind with the ID used in the
+	// Kubelet collector
+	entity, err := w.getEntityByKind(wmdef.KindKubeCapabilities, wmdef.KubeCapabilitiesID)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubeCapabilities), nil
 }
 
 // GetProcess implements Store#GetProcess.
@@ -612,26 +623,26 @@ func (w *workloadmeta) startCandidatesWithRetry(ctx context.Context) error {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = retryCollectorInitialInterval
 	expBackoff.MaxInterval = retryCollectorMaxInterval
-	expBackoff.MaxElapsedTime = 0 // Don't stop trying
 
 	if len(w.candidates) == 0 {
 		// TODO: this should actually probably just be an error?
 		return nil
 	}
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() (any, error) {
 		select {
 		case <-ctx.Done():
-			return &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
+			return nil, &backoff.PermanentError{Err: fmt.Errorf("stopped before all collectors were able to start: %v", w.candidates)}
 		default:
 		}
 
 		if w.startCandidates(ctx) {
-			return nil
+			return nil, nil
 		}
 
-		return errors.New("some collectors failed to start. Will retry")
-	}, expBackoff)
+		return nil, errors.New("some collectors failed to start. Will retry")
+	}, backoff.WithBackOff(expBackoff), backoff.WithMaxElapsedTime(0))
+	return err
 }
 
 func (w *workloadmeta) startCandidates(ctx context.Context) bool {
