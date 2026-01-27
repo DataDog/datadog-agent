@@ -281,17 +281,21 @@ pkg_mklink(
     attributes = pkg_attributes("0644")
 )
 
-pkg_mklink(
-    name = "python_bin_symlink",
-    link_name = "bin/python3",
-    target = "python{}".format(VERSION_STR)
-)
+BIN_SYMLINKS = {
+    "bin/python3": "python{}".format(VERSION_STR),
+    "bin/python": "python3",
+    "bin/pip3": "pip{}".format(VERSION_STR),
+    "bin/pip": "pip3",
+}
 
-pkg_mklink(
-    name = "pip_bin_symlink",
-    link_name = "bin/pip3",
-    target = "pip{}".format(VERSION_STR),
-)
+[
+    pkg_mklink(
+        name = "python_bin_symlink_" + target,
+        link_name = link,
+        target = target,
+    )
+    for link, target in BIN_SYMLINKS.items()
+]
 
 filegroup(
     name = "headers_unix",
@@ -323,9 +327,7 @@ pkg_files(
     name = "install_bins_unix",
     srcs = [
         ":python3_bin",
-        ":python_bin_symlink",
         ":patch_pip_interpreter",
-        ":pip_bin_symlink",
     ],
     prefix = "bin",
     attributes = pkg_attributes("0755")
@@ -342,9 +344,7 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
-            ":python_bin_symlink",
-            ":pip_bin_symlink",
-        ],
+        ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
