@@ -51,6 +51,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
@@ -80,7 +81,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect

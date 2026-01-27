@@ -473,7 +473,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.72.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.76.0-devel // indirect
@@ -1034,6 +1033,7 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.6 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
