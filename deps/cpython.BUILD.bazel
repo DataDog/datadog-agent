@@ -293,6 +293,7 @@ BIN_SYMLINKS = {
         name = "python_bin_symlink_" + target,
         link_name = link,
         target = target,
+        attributes = pkg_attributes("0755")
     )
     for link, target in BIN_SYMLINKS.items()
 ]
