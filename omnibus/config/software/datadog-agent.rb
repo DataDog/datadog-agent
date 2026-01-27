@@ -87,6 +87,11 @@ build do
     end
   end
 
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  # The rust-compression library may have been built in /go/src/... before omnibus
+  # copied the source to /omnibus/src/..., causing CMake to fail with path mismatches
+  delete "pkg/util/compression/rust/target"
+
   # we assume the go deps are already installed before running omnibus
   if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
