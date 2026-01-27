@@ -55,10 +55,19 @@ func (s *ZlibStrategy) Decompress(src []byte) ([]byte, error) {
 
 // CompressBound returns the worst case size needed for a destination buffer
 // This is allowed to return a value _larger_ than 'sourceLen'.
+//
+// compress/zlib uses DEFLATE with uncompressed blocks for incompressible
+// data. The worst case accounts for:
+//
+//   - Zlib header: 2 bytes
+//   - Zlib Adler-32 checksum: 4 bytes
+//   - DEFLATE uncompressed block overhead: up to 10 bytes, varies with input size
+//
+// Overhead: 16 bytes, confirmed by FuzzCompressBoundZlib
+//
 // Ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/zlib-compressbound-1.html
 func (s *ZlibStrategy) CompressBound(sourceLen int) int {
-	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
-	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
+	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 16
 }
 
 // ContentEncoding returns the content encoding value for zlib

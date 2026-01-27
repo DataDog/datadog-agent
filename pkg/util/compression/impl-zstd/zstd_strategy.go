@@ -8,11 +8,14 @@ package zstdimpl
 
 import (
 	"bytes"
+	"errors"
 
 	"github.com/DataDog/zstd"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
+
+var errWriteAfterClose = errors.New("write after close")
 
 // Requires contains the compression level for zstd compression
 type Requires struct {
@@ -53,5 +56,34 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriterLevel(output, s.level)
+	writer := zstd.NewWriterLevel(output, s.level)
+	return &zstdStreamWriter{writer: writer}
+}
+
+// zstdStreamWriter wraps zstd.Writer to track closed state
+type zstdStreamWriter struct {
+	writer *zstd.Writer
+	closed bool
+}
+
+func (w *zstdStreamWriter) Write(p []byte) (int, error) {
+	if w.closed {
+		return 0, errWriteAfterClose
+	}
+	return w.writer.Write(p)
+}
+
+func (w *zstdStreamWriter) Flush() error {
+	if w.closed {
+		return nil
+	}
+	return w.writer.Flush()
+}
+
+func (w *zstdStreamWriter) Close() error {
+	if w.closed {
+		return nil
+	}
+	w.closed = true
+	return w.writer.Close()
 }

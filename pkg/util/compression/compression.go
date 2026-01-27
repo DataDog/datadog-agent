@@ -32,8 +32,16 @@ const ZstdEncoding = "zstd"
 // GzipEncoding is the content-encoding value for Gzip
 const GzipEncoding = "gzip"
 
-// Compressor is the interface that a given compression algorithm
-// needs to implement
+// Compressor is the interface that a given compression algorithm needs to
+// implement.
+//
+// Thread-Safety: Compressor implementations are safe for concurrent use by
+// multiple goroutines. The Compress(), Decompress(), CompressBound(), and
+// ContentEncoding() methods can be called concurrently from different
+// goroutines.
+//
+// StreamCompressor instances returned by NewStreamCompressor() are NOT
+// thread-safe and should not be shared between goroutines.
 type Compressor interface {
 	Compress(src []byte) ([]byte, error)
 	Decompress(src []byte) ([]byte, error)
@@ -42,8 +50,20 @@ type Compressor interface {
 	NewStreamCompressor(output *bytes.Buffer) StreamCompressor
 }
 
-// StreamCompressor is the interface that the compression algorithm
-// should implement for streaming
+// StreamCompressor is the interface that the compression algorithm should
+// implement for streaming.
+//
+// Lifecycle:
+//
+//   - Write() can be called multiple times to add data to the compressed stream
+//   - Flush() can be called to ensure buffered data is written (optional)
+//   - Close() finalizes the compressed stream and must be called when done
+//   - Write() calls after Close() will return an error
+//   - Close() is idempotent and can be safely called multiple times
+//
+// Thread-Safety: StreamCompressor instances are NOT thread-safe and must not be
+// used concurrently by multiple goroutines. Each goroutine should create its
+// own StreamCompressor instance via Compressor.NewStreamCompressor().
 type StreamCompressor interface {
 	io.WriteCloser
 	Flush() error

@@ -86,16 +86,21 @@ func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
 // CompressBound returns the worst case size needed for a destination buffer
 // when using gzip
 //
-// The worst case expansion is a few bytes for the gzip file header, plus
-// 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
-// The additional 18 bytes comes from the header (10 bytes) and trailer
-// (8 bytes). There is no theoretical maximum to the header,
-// but we don't set any extra header fields so it is safe to assume
+// Go's gzip implementation uses uncompressed DEFLATE blocks for
+// small/incompressible data. The worst case accounts for:
 //
-// Source: https://www.gnu.org/software/gzip/manual/html_node/Overview.html
-// More details are in the linked RFC: https://www.ietf.org/rfc/rfc1952.txt
+// - DEFLATE's data expansion: ~0.1% overhead
+// - Gzip header: 10 bytes
+// - Gzip trailer (CRC32 + size): 8 bytes
+// - DEFLATE uncompressed block overhead: ~15 bytes
+//   - Go writes 3 blocks (data + 2 empty blocks) even for small data
+//   - Each uncompressed block: 5 bytes (1 header + 2 length + 2 complement)
+//
+// Total fixed overhead: 33 bytes, confirmed by FuzzCompressBoundGzip
+//
+// Source: https://www.ietf.org/rfc/rfc1952.txt (gzip), RFC 1951 (DEFLATE)
 func (s *GzipStrategy) CompressBound(sourceLen int) int {
-	return sourceLen + (sourceLen/32768)*5 + 18
+	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 33
 }
 
 // ContentEncoding returns the content encoding value for gzip

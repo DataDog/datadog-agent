@@ -16,7 +16,11 @@ import (
 
 func TestColumn(t *testing.T) {
 	cs := zlib.New()
-	cc := NewColumnCompressor(cs, 10, 62, 128)
+	// maxCompressedSize=70 ensures:
+	// - After 5 items (45 bytes): CompressBound(45)=61 < 70, no flush
+	// - Adding 6th item: CompressBound(54)=70 is NOT < 70, triggers flush
+	// - After flush (~39 bytes compressed): CompressBound(9)+39=64 < 70, fits
+	cc := NewColumnCompressor(cs, 10, 70, 128)
 
 	txn := cc.NewTransaction()
 

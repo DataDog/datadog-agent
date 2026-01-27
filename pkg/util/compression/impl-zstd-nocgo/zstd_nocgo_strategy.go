@@ -48,7 +48,8 @@ func New(reqs Requires) compression.Compressor {
 		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(level)),
 		zstd.WithEncoderConcurrency(conc),
 		zstd.WithLowerEncoderMem(true),
-		zstd.WithWindowSize(window))
+		zstd.WithWindowSize(window),
+		zstd.WithZeroFrames(true))
 	if err != nil {
 		_ = log.Errorf("Error creating zstd encoder: %v", err)
 		return nil
@@ -83,6 +84,8 @@ func (s *ZstdNoCgoStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdNoCgoStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	writer, _ := zstd.NewWriter(output, zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)))
+	writer, _ := zstd.NewWriter(output,
+		zstd.WithEncoderLevel(zstd.EncoderLevelFromZstd(s.level)),
+		zstd.WithZeroFrames(true))
 	return writer
 }
