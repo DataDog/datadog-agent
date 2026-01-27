@@ -185,7 +185,7 @@ func (suite *k8sSuite) TestSBOM() {
   sbom:
     containerImage:
       uncompressedLayersSupport: true
-      overlayfsDirectScan: true
+      overlayFSDirectScan: true
 `,
 		},
 	}
