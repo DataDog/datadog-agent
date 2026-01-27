@@ -105,7 +105,6 @@ use (
 	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/metrics
-	pkg/logs/processor
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
