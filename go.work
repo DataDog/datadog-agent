@@ -104,7 +104,6 @@ use (
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
-	pkg/logs/metrics
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
