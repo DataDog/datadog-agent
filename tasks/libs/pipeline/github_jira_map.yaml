@@ -33,7 +33,6 @@
 '@datadog/windows-products': WINA
 '@datadog/opentelemetry': OTAGENT
 '@datadog/opentelemetry-agent': OTAGENT
-'@datadog/agent-e2e-testing': ADXT
 '@datadog/sdlc-security': SINT
 '@datadog/single-machine-performance': SMP
 '@datadog/agent-integrations': AI

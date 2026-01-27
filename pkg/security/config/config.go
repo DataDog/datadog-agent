@@ -376,6 +376,8 @@ type RuntimeSecurityConfig struct {
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
+	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
+	SSHUserSessionsEnabled bool
 
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
@@ -631,7 +633,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementDisarmerExecutablePeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
-		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
+		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),

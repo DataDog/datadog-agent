@@ -2,6 +2,39 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.1:
+
+7.75.1
+======
+
+.. _Release Notes_7.75.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-01-28
+
+- Please refer to the `7.75.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7751>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.6``.
+
+
+.. _Release Notes_7.75.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- GPU: fix an issue where containerd image creation could be blocked sporadically when advanced eBPF metrics are enabled
+
+- Change the Log Agent default TCP port for datadoghq.eu from the incorrect value of 10516 to the correct 443.
+
+
 .. _Release Notes_7.75.0:
 
 7.75.0

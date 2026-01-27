@@ -126,7 +126,7 @@ class TestBazelUpdate(unittest.TestCase):
         """Test preparing version and SHA256 update for Bazel file."""
         from tasks.python_version import _prepare_bazel_update
 
-        original_content = '''http_archive = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_archive")
+        original_content = '''http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 PYTHON_VERSION = "3.13.7"
 

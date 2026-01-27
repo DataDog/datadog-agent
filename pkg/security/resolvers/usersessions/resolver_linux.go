@@ -94,12 +94,13 @@ type Resolver struct {
 
 	userSessionsMap *ebpf.Map
 
+	sshEnabled       bool
 	sshLogReader     *incrementalFileReader
 	SSHSessionParsed sshSessionParsed
 }
 
 // NewResolver returns a new instance of Resolver
-func NewResolver(cacheSize int) (*Resolver, error) {
+func NewResolver(cacheSize int, sshEnabled bool) (*Resolver, error) {
 	lru, err := simplelru.NewLRU[uint64, *model.K8SSessionContext](cacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create User Session resolver cache: %v", err)
@@ -107,6 +108,7 @@ func NewResolver(cacheSize int) (*Resolver, error) {
 
 	return &Resolver{
 		k8suserSessions: lru,
+		sshEnabled:      sshEnabled,
 	}, nil
 }
 
@@ -121,10 +123,12 @@ func (r *Resolver) Start(manager *manager.Manager) error {
 	}
 	r.userSessionsMap = m
 
-	// start the resolver for ssh sessions
-	err = r.StartSSHUserSessionResolver()
-	if err != nil {
-		return err
+	// start the resolver for ssh sessions only if enabled
+	if r.sshEnabled {
+		err = r.StartSSHUserSessionResolver()
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

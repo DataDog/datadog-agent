@@ -134,6 +134,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", []string{})
 
 	// CWS - UserSessions
+	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
 	// CWS -eBPF Less

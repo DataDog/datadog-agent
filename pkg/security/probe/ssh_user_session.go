@@ -37,6 +37,11 @@ func getEnvVar(envp []string, key string) string {
 
 // HandleSSHUserSession handles the ssh user session
 func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
+	// Early return if SSH user sessions are disabled
+	if !p.config.RuntimeSecurity.SSHUserSessionsEnabled {
+		return
+	}
+
 	// First, we check if this event is link to an existing ssh session from his parent
 	ppid := event.ProcessContext.Process.PPid
 	parent := p.Resolvers.ProcessResolver.Resolve(ppid, ppid, 0, false, nil)
