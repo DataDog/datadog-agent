@@ -17,7 +17,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -1375,7 +1374,7 @@ func BenchmarkGetProcsProcutilLocalFS(b *testing.B) {
 
 func benchmarkGetProcsGopsutil(b *testing.B) {
 	// disable log output from gopsutil
-	seelog.UseLogger(seelog.Disabled)
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	for i := 0; i < b.N; i++ {
 		// ignore errors for benchmarking
 		_, _ = process.AllProcesses()
