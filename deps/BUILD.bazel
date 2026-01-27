@@ -12,7 +12,6 @@ filegroup(
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
-        "@lua//:liblua",
         "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
@@ -20,6 +19,7 @@ filegroup(
     ] + select({
         "@platforms//os:linux": [
             "@gpg-error",
+            "@lua//:liblua",
             "@nghttp2",
         ],
         "//:macos_arm64": [
