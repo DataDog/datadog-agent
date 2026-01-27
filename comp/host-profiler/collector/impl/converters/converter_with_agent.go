@@ -198,7 +198,12 @@ func (c *converterWithAgent) fixReceiversPipeline(conf confMap, receiverNames []
 		return receiverNames, nil
 	}
 
-	if err := Set(conf, pathPrefixReceivers+defaultHostProfilerName+"::symbol_uploader::enabled", false); err != nil {
+	if err := Set(conf, pathPrefixReceivers+defaultHostProfilerName+"::symbol_uploader::enabled", true); err != nil {
+		return nil, err
+	}
+
+	defaultHostProfiler, _ := Get[confMap](conf, pathPrefixReceivers+defaultHostProfilerName)
+	if err := c.inferHostProfilerEndpointConfig(defaultHostProfiler); err != nil {
 		return nil, err
 	}
 
