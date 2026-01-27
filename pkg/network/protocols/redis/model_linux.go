@@ -110,6 +110,8 @@ func (c CommandType) String() string {
 		return "GET"
 	case SetCommand:
 		return "SET"
+	case PingCommand:
+		return "PING"
 	default:
 		return "UNKNOWN"
 	}

@@ -9,7 +9,7 @@ package baseimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:pkgconfigusage
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
