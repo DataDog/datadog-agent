@@ -681,6 +681,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	c.SendAllInternalStats = core.GetBool("apm_config.send_all_internal_stats") // default is false
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
 	c.ContainerTagsBuffer = core.GetBool("apm_config.enable_container_tags_buffer")
+	c.AdditionalProfileTags = core.GetStringMapString("apm_config.additional_profile_tags")
 	return nil
 }
 
