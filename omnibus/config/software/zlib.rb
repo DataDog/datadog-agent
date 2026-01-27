@@ -17,5 +17,5 @@
 name "zlib"
 
 build do
-  command_on_repo_root "bazelisk run -- @zlib//:install --destdir='#{install_dir}'"
+  bazel "run", "-- @zlib//:install --destdir='#{install_dir}'"
 end

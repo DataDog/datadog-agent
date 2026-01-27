@@ -22,8 +22,8 @@ license_file "Copyright"
 skip_transitive_dependency_licensing true
 
 build do
-  command_on_repo_root "bazelisk run -- @xmlsec//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @xmlsec//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/libxmlsec1*.so" \
     " #{install_dir}/embedded/lib/pkgconfig/xmlsec1*.pc"
 end

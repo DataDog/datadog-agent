@@ -124,7 +124,7 @@ build do
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
     command "#{python} -m ensurepip"
   else
-    command_on_repo_root "bazelisk run -- @cpython//:install --destdir=#{python_3_embedded}"
+    bazel "run", "-- @cpython//:install --destdir=#{python_3_embedded}"
   end
 end
 

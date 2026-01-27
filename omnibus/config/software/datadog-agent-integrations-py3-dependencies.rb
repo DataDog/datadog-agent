@@ -13,6 +13,6 @@ if linux_target?
 
   build do
     # gstatus binary used by the glusterfs integration
-    command_on_repo_root "bazelisk run -- //deps/gstatus:install --destdir='#{install_dir}'"
+    bazel "run", "-- //deps/gstatus:install --destdir='#{install_dir}'"
   end
 end

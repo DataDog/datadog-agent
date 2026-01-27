@@ -27,5 +27,5 @@ skip_transitive_dependency_licensing true
 dependency "zlib"
 
 build do
-  command_on_repo_root "bazelisk run -- @bzip2//:install --destdir=#{install_dir}"
+  bazel "run", "-- @bzip2//:install --destdir=#{install_dir}"
 end

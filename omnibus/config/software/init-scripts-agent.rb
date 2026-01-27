@@ -14,7 +14,7 @@ build do
     if debian_target?
       # building into / is not acceptable. We'll continue to to that for now,
       # but the replacement has to build to a build output tree.
-      command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/debian/etc:install --verbose --destdir=#{destdir}"
+      bazel "run", "--//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/debian/etc:install --verbose --destdir=#{destdir}"
 
       # sysvinit support for debian only for now
       mkdir "/etc/init.d"
@@ -26,7 +26,7 @@ build do
       project.extra_package_file '/etc/init.d/datadog-agent-data-plane'
       project.extra_package_file '/etc/init.d/datadog-agent-action'
     elsif redhat_target? || suse_target?
-      command_on_repo_root "bazelisk run --//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}"
+      bazel "run", "--//:output_config_dir='#{output_config_dir}' --//:install_dir=#{install_dir} -- //packages/redhat/etc:install --verbose --destdir=#{destdir}"
     end
     project.extra_package_file '/etc/init/datadog-agent.conf'
     project.extra_package_file '/etc/init/datadog-agent-process.conf'

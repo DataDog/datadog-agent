@@ -30,10 +30,10 @@ source url: "https://tukaani.org/xz/xz-#{version}.tar.gz"
 relative_path "xz-#{version}"
 
 build do
-  command_on_repo_root "bazelisk run -- @xz//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- @xz//:install --destdir='#{install_dir}/embedded'"
 
   sh_lib = if linux_target? then "liblzma.so" else "liblzma.dylib" end
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded' " \
     "#{install_dir}/embedded/lib/pkgconfig/liblzma.pc " \
     "#{install_dir}/embedded/lib/#{sh_lib}"
 end

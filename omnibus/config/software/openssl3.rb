@@ -42,12 +42,12 @@ build do
       # openssl binaries on macos
       real_install_dir = if mac_os_x? then "/opt/datadog-agent" else install_dir end
       lib_extension = if linux_target? then ".so" else ".dylib" end
-      command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded" \
+      bazel "run", "-- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded" \
         " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
         " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
         " #{install_dir}/embedded/lib/pkgconfig/*.pc" \
         " #{install_dir}/embedded/bin/openssl"
-      command_on_repo_root "bazelisk run -- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
+      bazel "run", "-- //deps/openssl:fix_openssl_paths --destdir #{real_install_dir}/embedded" \
         " #{install_dir}/embedded/lib/libssl#{lib_extension}" \
         " #{install_dir}/embedded/lib/libcrypto#{lib_extension}" \
     end

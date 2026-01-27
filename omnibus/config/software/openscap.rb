@@ -16,38 +16,38 @@ ship_source_offer true
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
 build do
-  command_on_repo_root "bazelisk run -- @acl//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @acl//:install --destdir='#{install_dir}'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libacl.pc" \
     " #{install_dir}/embedded/lib/libacl.so"
 
-  command_on_repo_root "bazelisk run -- @attr//:install --destdir='#{install_dir}'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @attr//:install --destdir='#{install_dir}'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libattr.pc" \
     " #{install_dir}/embedded/lib/libattr.so"
 
-  command_on_repo_root "bazelisk run -- @dbus//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @dbus//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/dbus-1.pc"
 
-  command_on_repo_root "bazelisk run -- @libselinux//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @libselinux//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libselinux.pc" \
     " #{install_dir}/embedded/lib/libselinux.so"
 
-  command_on_repo_root "bazelisk run -- @libsepol//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @libsepol//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libsepol.pc" \
     " #{install_dir}/embedded/lib/libsepol.so"
 
-  command_on_repo_root "bazelisk run -- @pcre2//:install --destdir=#{install_dir}/embedded"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix " \
+  bazel "run", "-- @pcre2//:install --destdir=#{install_dir}/embedded"
+  bazel "run", "-- //bazel/rules:replace_prefix " \
     "--prefix #{install_dir}/embedded " \
     "#{install_dir}/embedded/lib/pkgconfig/libpcre2*.pc " \
     "#{install_dir}/embedded/lib/libpcre2*.so"
 
-  command_on_repo_root "bazelisk run -- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @util-linux//:blkid_install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/blkid.pc" \
     " #{install_dir}/embedded/lib/libblkid.so"
 end

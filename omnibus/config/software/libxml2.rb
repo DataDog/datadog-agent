@@ -31,8 +31,8 @@ source url: "https://download.gnome.org/sources/libxml2/2.14/libxml2-#{version}.
 relative_path "libxml2-#{version}"
 
 build do
-  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
-  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+  bazel "run", "-- @libxml2//:install --destdir='#{install_dir}/embedded'"
+  bazel "run", "-- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libxml-2.0.pc" \
     " #{install_dir}/embedded/lib/libxml2.so"
 end
