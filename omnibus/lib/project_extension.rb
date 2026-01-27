@@ -124,7 +124,7 @@ module Omnibus
         platform += "_fips"
       end
 
-      bazel_cmd = ["bazelisk", subcmd, "--platforms=//bazel/platforms:#{platform}", arg_str]
+      bazel_cmd = ["bazel", subcmd, "--platforms=//bazel/platforms:#{platform}", arg_str]
 
       command_on_repo_root(bazel_cmd.join(' '), **kwargs)
     end
