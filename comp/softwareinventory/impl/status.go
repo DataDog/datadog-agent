@@ -8,9 +8,11 @@ package softwareinventoryimpl
 import (
 	"embed"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 )
 
 //go:embed status_templates
@@ -66,20 +68,41 @@ func formatYYYYMMDD(ts string) (string, error) {
 
 // populateStatus populates the status map with software inventory data.
 // This method processes the cached inventory data and formats it for display
-// in the status output. It handles date formatting and organizes the data
-// by software ID for easy lookup.
+// in the status output. It handles date formatting, computes statistics by
+// software type, and organizes the data by software ID for easy lookup.
+// Note: Stats are computed from deduplicated entries to ensure consistency
+// between the total count and the breakdown by type.
 func (is *softwareInventory) populateStatus(status map[string]interface{}) {
-	data := map[string]interface{}{}
-
 	is.cachedInventoryMu.RLock()
 	cachedInventory := is.cachedInventory
 	is.cachedInventoryMu.RUnlock()
 
+	// First pass: deduplicate entries by ID and format dates
+	data := map[string]interface{}{}
 	for _, inventory := range cachedInventory {
 		inventory.InstallDate, _ = formatYYYYMMDD(inventory.InstallDate)
 		data[inventory.GetID()] = inventory
 	}
+
+	// Second pass: compute stats from deduplicated entries
+	// This ensures stats sum matches the total count
+	stats := map[string]int{}
+	brokenCount := 0
+	for _, v := range data {
+		inventory := v.(*software.Entry)
+		stats[inventory.Source]++
+		if strings.Contains(inventory.Status, "broken") {
+			brokenCount++
+		}
+	}
+
 	status["software_inventory_metadata"] = data
+	status["software_inventory_stats"] = stats
+	status["software_inventory_total"] = len(data)
+	// Only include broken count if there are broken entries
+	if brokenCount > 0 {
+		status["software_inventory_broken"] = brokenCount
+	}
 }
 
 // getStatusInfo returns the status information map for the software inventory.

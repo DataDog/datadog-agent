@@ -1,31 +1,77 @@
 <div class="stat">
   <span class="stat_title">Software Inventory Metadata</span>
-  <div class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
-    {{- $swMap := index . "software_inventory_metadata" }}
-    {{- if index $swMap "error" }}
-      <div>Error refreshing software inventory: {{ index $swMap "error" }}</div>
-    {{- else }}
-      {{- range $productCode, $meta := $swMap }}
-        <details>
-          <summary>
-          {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
-          {{- if contains $meta.Status "broken" }}
-            <span class="source-bubble broken">broken</span>
-          {{- end }}
-          </summary>
-          <ul style="margin:1em 0; padding-left:2em;">
-            {{- if $meta.DisplayName }}<li><strong>Display Name:</strong> {{ $meta.DisplayName }}</li>{{- end }}
-            {{- if $meta.Version }}<li><strong>Version:</strong> {{ $meta.Version }}</li>{{- end }}
-            {{- if $meta.InstallDate }}<li><strong>Install Date:</strong> {{ $meta.InstallDate }}</li>{{- end }}
-            {{- if $meta.Publisher }}<li><strong>Publisher:</strong> {{ $meta.Publisher }}</li>{{- end }}
-            {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
-            {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
-            {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
-            {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
-            <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
-          </ul>
-        </details>
+  {{- $swMap := index . "software_inventory_metadata" }}
+  {{- $total := index . "software_inventory_total" }}
+  {{- $stats := index . "software_inventory_stats" }}
+  {{- $broken := index . "software_inventory_broken" }}
+  {{- if index $swMap "error" }}
+    <div>Error refreshing software inventory: {{ index $swMap "error" }}</div>
+  {{- else }}
+  <div style="margin-bottom: 1em; padding: 0.5em; background: #f5f5f5; border-radius: 4px;">
+    <strong>Summary:</strong> {{ $total }} entries{{- if $broken }} (<span style="color: #d00;">{{ $broken }} broken</span>){{- end }}
+    <br/>
+    <strong>By type:</strong>
+    <ul style="margin: 0.5em 0; padding-left: 2em; list-style: none;">
+      {{- range $type, $count := $stats }}
+      <li>{{ $type }}: {{ $count }}</li>
       {{- end }}
+    </ul>
+  </div>
+  <div style="margin-bottom: 1em;">
+    <label for="sw-type-filter"><strong>Filter by type:</strong></label>
+    <select id="sw-type-filter" onchange="filterSoftwareByType(this.value)" style="margin-left: 0.5em; padding: 0.25em 0.5em; border-radius: 4px; border: 1px solid #ccc;">
+      <option value="">All ({{ $total }})</option>
+      {{- range $type, $count := $stats }}
+      <option value="{{ $type }}">{{ $type }} ({{ $count }})</option>
+      {{- end }}
+    </select>
+    <span id="sw-filter-count" style="margin-left: 1em; color: #666;"></span>
+  </div>
+  <div id="sw-entries-container" class="stat_data inventory-scrollbox" style="max-height: 400px; overflow-y: auto;">
+    {{- range $productCode, $meta := $swMap }}
+      <details class="sw-entry" data-sw-type="{{ $meta.Source }}">
+        <summary>
+        {{- if $meta.DisplayName }}{{ $meta.DisplayName }}{{ if $meta.Version }} {{ $meta.Version }}{{ end }}{{- else }}{{ $meta.ProductCode }}{{- end }}
+        {{- if contains $meta.Status "broken" }}
+          <span class="source-bubble broken">broken</span>
+        {{- end }}
+        </summary>
+        <ul style="margin:1em 0; padding-left:2em;">
+          {{- if $meta.DisplayName }}<li><strong>Display Name:</strong> {{ $meta.DisplayName }}</li>{{- end }}
+          {{- if $meta.Version }}<li><strong>Version:</strong> {{ $meta.Version }}</li>{{- end }}
+          {{- if $meta.InstallDate }}<li><strong>Install Date:</strong> {{ $meta.InstallDate }}</li>{{- end }}
+          {{- if $meta.Publisher }}<li><strong>Publisher:</strong> {{ $meta.Publisher }}</li>{{- end }}
+          {{- if $meta.ProductCode }}<li><strong>Product code:</strong> {{ $meta.ProductCode }}</li>{{- end }}
+          {{- if $meta.Source }}<li><strong>Source:</strong> {{ $meta.Source }}</li>{{- end }}
+          {{- if $meta.Status }}<li><strong>Status:</strong> {{ $meta.Status }}</li>{{- end }}
+          {{- if $meta.BrokenReason }}<li><strong>Broken Reason:</strong> <span style="color: #d00;">{{ $meta.BrokenReason }}</span></li>{{- end }}
+          {{- if $meta.UserSID }}<li><strong>User SID:</strong> {{ $meta.UserSID }}</li>{{- end }}
+          {{- if $meta.InstallPath }}<li><strong>Install Path:</strong> {{ $meta.InstallPath }}</li>{{- end }}
+          {{- if $meta.InstallPaths }}<li><strong>Install Paths:</strong><ul style="margin: 0.25em 0; padding-left: 1.5em;">{{- range $meta.InstallPaths }}<li>{{ . }}</li>{{- end }}</ul></li>{{- end }}
+          <li><strong>64-bit:</strong> {{ $meta.Is64Bit }}</li>
+        </ul>
+      </details>
     {{- end }}
   </div>
+  <script>
+    function filterSoftwareByType(type) {
+      var entries = document.querySelectorAll('.sw-entry');
+      var visibleCount = 0;
+      entries.forEach(function(entry) {
+        if (type === '' || entry.getAttribute('data-sw-type') === type) {
+          entry.style.display = '';
+          visibleCount++;
+        } else {
+          entry.style.display = 'none';
+        }
+      });
+      var countSpan = document.getElementById('sw-filter-count');
+      if (type !== '') {
+        countSpan.textContent = 'Showing ' + visibleCount + ' entries';
+      } else {
+        countSpan.textContent = '';
+      }
+    }
+  </script>
+  {{- end }}
 </div>

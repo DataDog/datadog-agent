@@ -1,0 +1,502 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build darwin
+
+package software
+
+import (
+	"bytes"
+	"encoding/xml"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Software types for macOS
+const (
+	// softwareTypeApp represents applications from /Applications
+	softwareTypeApp = "app"
+	// softwareTypePkg represents software installed via PKG installer
+	softwareTypePkg = "pkg"
+	// softwareTypeMAS represents applications from the Mac App Store
+	softwareTypeMAS = "mas"
+	// softwareTypeKext represents kernel extensions
+	softwareTypeKext = "kext"
+	// softwareTypeSysExt represents system extensions (modern replacement for kexts)
+	softwareTypeSysExt = "sysext"
+	// softwareTypeHomebrew represents software installed via Homebrew package manager
+	softwareTypeHomebrew = "homebrew"
+)
+
+// Install source values for macOS applications
+// These indicate how an application was installed on the system
+const (
+	// installSourcePkg indicates the app was installed via a .pkg installer package
+	installSourcePkg = "pkg"
+	// installSourceMAS indicates the app was installed from the Mac App Store
+	installSourceMAS = "mas"
+	// installSourceManual indicates the app was installed manually (drag-and-drop, etc.)
+	installSourceManual = "manual"
+)
+
+// defaultCollectors returns the default collectors for production use on macOS
+func defaultCollectors() []Collector {
+	return []Collector{
+		&applicationsCollector{},
+		&pkgReceiptsCollector{},
+		&kernelExtensionsCollector{},
+		&systemExtensionsCollector{},
+		&homebrewCollector{},
+		&macPortsCollector{},
+		&nixCollector{},
+		&condaCollector{},
+		&pipCollector{},
+		&npmCollector{},
+		&gemCollector{},
+		&cargoCollector{},
+	}
+}
+
+// plistDict represents a plist dictionary for XML parsing
+type plistDict struct {
+	Keys   []string `xml:"key"`
+	Values []plistValue
+}
+
+// plistValue represents a value in a plist
+type plistValue struct {
+	XMLName xml.Name
+	Content string `xml:",chardata"`
+}
+
+// plist represents the root plist structure
+type plist struct {
+	XMLName xml.Name  `xml:"plist"`
+	Dict    plistDict `xml:"dict"`
+}
+
+// parsePlistToMap parses plist XML data into a map
+func parsePlistToMap(data []byte) (map[string]string, error) {
+	// Simple plist parser that extracts key-string pairs
+	result := make(map[string]string)
+
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	var currentKey string
+	var inDict bool
+
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			break
+		}
+
+		switch t := token.(type) {
+		case xml.StartElement:
+			switch t.Name.Local {
+			case "dict":
+				inDict = true
+			case "key":
+				if inDict {
+					var key string
+					if err := decoder.DecodeElement(&key, &t); err == nil {
+						currentKey = key
+					}
+				}
+			case "string":
+				if inDict && currentKey != "" {
+					var value string
+					if err := decoder.DecodeElement(&value, &t); err == nil {
+						result[currentKey] = value
+					}
+					currentKey = ""
+				}
+			case "date":
+				if inDict && currentKey != "" {
+					var value string
+					if err := decoder.DecodeElement(&value, &t); err == nil {
+						result[currentKey] = value
+					}
+					currentKey = ""
+				}
+			default:
+				// Skip other value types and reset current key
+				if inDict && currentKey != "" {
+					currentKey = ""
+				}
+			}
+		case xml.EndElement:
+			if t.Name.Local == "dict" {
+				// Only process the first dict level
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// readPlistFile reads a plist file and returns its contents as a map
+// It handles both XML and binary plist formats
+func readPlistFile(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if it's a binary plist (starts with "bplist")
+	if bytes.HasPrefix(data, []byte("bplist")) {
+		// Convert binary plist to XML using plutil
+		cmd := exec.Command("plutil", "-convert", "xml1", "-o", "-", path)
+		output, err := cmd.Output()
+		if err != nil {
+			return nil, err
+		}
+		data = output
+	}
+
+	return parsePlistToMap(data)
+}
+
+// Status constants for broken state detection
+const (
+	statusInstalled = "installed"
+	statusBroken    = "broken"
+)
+
+// checkAppBundleIntegrity verifies that an app bundle has its required executable.
+// Returns an empty string if the bundle is OK, or a reason string if it's broken.
+func checkAppBundleIntegrity(appPath string, plistData map[string]string) string {
+	// Get the executable name from Info.plist
+	executableName := plistData["CFBundleExecutable"]
+	if executableName == "" {
+		// If no executable specified, the bundle is incomplete
+		return "Info.plist missing CFBundleExecutable"
+	}
+
+	// Check if the executable exists
+	executablePath := filepath.Join(appPath, "Contents", "MacOS", executableName)
+	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
+		return fmt.Sprintf("executable not found: Contents/MacOS/%s", executableName)
+	}
+
+	return "" // Bundle is OK
+}
+
+// checkKextBundleIntegrity verifies that a kext bundle has its required executable.
+// Returns an empty string if the bundle is OK, or a reason string if it's broken.
+func checkKextBundleIntegrity(kextPath string, plistData map[string]string) string {
+	// Get the executable name from Info.plist
+	executableName := plistData["CFBundleExecutable"]
+	if executableName == "" {
+		// Some kexts may not have an executable (codeless kexts)
+		// Check if it has a MacOS directory with any executable
+		macOSDir := filepath.Join(kextPath, "Contents", "MacOS")
+		if _, err := os.Stat(macOSDir); os.IsNotExist(err) {
+			// No MacOS directory - might be a codeless kext, consider it OK
+			return ""
+		}
+	}
+
+	// Check if the executable exists
+	executablePath := filepath.Join(kextPath, "Contents", "MacOS", executableName)
+	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
+		return fmt.Sprintf("executable not found: Contents/MacOS/%s", executableName)
+	}
+
+	return "" // Bundle is OK
+}
+
+// checkPkgInstallLocation verifies that a PKG's install location exists
+func checkPkgInstallLocation(plistData map[string]string) bool {
+	// Check InstallPrefixPath - the root path where files were installed
+	installPrefix := plistData["InstallPrefixPath"]
+	if installPrefix != "" && installPrefix != "/" {
+		// Handle relative paths - PKG receipts often use relative paths like "Applications"
+		// which should be interpreted as "/Applications"
+		if !filepath.IsAbs(installPrefix) {
+			installPrefix = "/" + installPrefix
+		}
+		if _, err := os.Stat(installPrefix); os.IsNotExist(err) {
+			return false
+		}
+	}
+
+	// Check InstallLocation - alternative field for install path
+	installLocation := plistData["InstallLocation"]
+	if installLocation != "" && installLocation != "/" {
+		// Handle relative paths
+		if !filepath.IsAbs(installLocation) {
+			installLocation = "/" + installLocation
+		}
+		if _, err := os.Stat(installLocation); os.IsNotExist(err) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// companySuffixes contains common company name suffixes used to identify corporate entities
+// Note: "Company" is intentionally excluded as it's too generic and causes false matches
+// (e.g., "is a Datadog company" would match incorrectly)
+var companySuffixes = []string{
+	"Inc.", "Inc", "LLC", "L.L.C.", "Ltd", "Ltd.", "Limited",
+	"GmbH", "Corp", "Corp.", "Corporation", "Co.",
+	"S.A.", "S.A", "AG", "PLC", "Pty", "B.V.", "BV",
+	"S.r.l.", "S.R.L.", "SRL", "ApS", "A/S",
+}
+
+// looksLikeCompanyName checks if a name appears to be a company rather than an individual
+func looksLikeCompanyName(name string) bool {
+	upperName := strings.ToUpper(name)
+	for _, suffix := range companySuffixes {
+		if strings.Contains(upperName, strings.ToUpper(suffix)) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractCompanyFromCopyright attempts to extract a company name from NSHumanReadableCopyright
+// Examples:
+//   - "© 2023 CoScreen GmbH. All rights reserved." → "CoScreen GmbH"
+//   - "Copyright 2024 Datadog, Inc." → "Datadog, Inc."
+//   - "Copyright © 2025 CoScreen. CoScreen is a Datadog company." → "CoScreen"
+func extractCompanyFromCopyright(copyright string) string {
+	if copyright == "" {
+		return ""
+	}
+
+	// Remove common copyright prefixes and symbols
+	cleaned := copyright
+	cleaned = strings.ReplaceAll(cleaned, "©", "")
+	cleaned = strings.ReplaceAll(cleaned, "(C)", "")
+	cleaned = strings.ReplaceAll(cleaned, "(c)", "")
+	cleaned = strings.ReplaceAll(cleaned, "Copyright", "")
+	cleaned = strings.ReplaceAll(cleaned, "copyright", "")
+	cleaned = strings.TrimSpace(cleaned)
+
+	// Remove leading year or year range (e.g., "2023 CoScreen" or "2019-2025 Munki" → company name)
+	yearPattern := regexp.MustCompile(`^\d{4}(-\d{4})?\s+`)
+	cleaned = yearPattern.ReplaceAllString(cleaned, "")
+
+	// Try to find a company name by looking for company suffixes
+	// Pattern: look for text ending with a company suffix
+	for _, suffix := range companySuffixes {
+		// Create pattern to find "Word(s) Suffix" pattern
+		pattern := regexp.MustCompile(`(?i)([A-Za-z][A-Za-z0-9\s,\-\.&']+\s*` + regexp.QuoteMeta(suffix) + `)`)
+		matches := pattern.FindStringSubmatch(cleaned)
+		if len(matches) >= 2 {
+			result := strings.TrimSpace(matches[1])
+			if result != "" {
+				return result
+			}
+		}
+	}
+
+	// If no company suffix found, extract the first name/word before common delimiters
+	// This handles cases like "CoScreen. CoScreen is a Datadog company." → "CoScreen"
+	// Common delimiters: period followed by space, comma, "All rights", "is a", etc.
+	delimiters := []string{". ", ", a ", " is a ", " - ", " All rights", " all rights"}
+	for _, delim := range delimiters {
+		if idx := strings.Index(cleaned, delim); idx > 0 {
+			result := strings.TrimSpace(cleaned[:idx])
+			// Ensure we got something meaningful (at least 2 chars, not just a year)
+			if len(result) >= 2 && !regexp.MustCompile(`^\d+$`).MatchString(result) {
+				return result
+			}
+		}
+	}
+
+	// Last resort: take everything before "All rights reserved" or similar
+	lowerCleaned := strings.ToLower(cleaned)
+	if idx := strings.Index(lowerCleaned, "all rights"); idx > 0 {
+		result := strings.TrimSpace(cleaned[:idx])
+		// Remove trailing punctuation
+		result = strings.TrimRight(result, ".,;:")
+		if len(result) >= 2 {
+			return result
+		}
+	}
+
+	return ""
+}
+
+// getPublisherFromInfoPlist reads NSHumanReadableCopyright from an app's Info.plist
+func getPublisherFromInfoPlist(bundlePath string) string {
+	infoPlistPath := filepath.Join(bundlePath, "Contents", "Info.plist")
+	plistData, err := readPlistFile(infoPlistPath)
+	if err != nil {
+		return ""
+	}
+
+	if copyright, ok := plistData["NSHumanReadableCopyright"]; ok && copyright != "" {
+		return extractCompanyFromCopyright(copyright)
+	}
+	return ""
+}
+
+// getPublisherFromCodeSign extracts the publisher/developer name from code signing certificate
+// Returns empty string if the bundle is not signed or an error occurs
+func getPublisherFromCodeSign(bundlePath string) string {
+	cmd := exec.Command("codesign", "-d", "--verbose=2", bundlePath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// Unsigned or invalid signature
+		return ""
+	}
+
+	outputStr := string(output)
+
+	// Check for Apple-signed apps (Mac App Store apps, Apple's own apps)
+	// These use "Apple Mac OS Application Signing" instead of "Developer ID Application"
+	if strings.Contains(outputStr, "Authority=Apple Mac OS Application Signing") {
+		return "Apple Inc."
+	}
+
+	// Check for macOS system apps (Safari, Mail, etc.) signed with "Software Signing"
+	// These are Apple's built-in apps
+	if strings.Contains(outputStr, "Authority=Software Signing") {
+		return "Apple Inc."
+	}
+
+	// Parse output for Authority line
+	// Example: "Authority=Developer ID Application: AgileBits Inc. (2BUA8C4S2C)"
+	// We want to extract "AgileBits Inc."
+	authorityRegex := regexp.MustCompile(`Authority=Developer ID Application: (.+?) \([A-Z0-9]+\)`)
+	matches := authorityRegex.FindSubmatch(output)
+	if len(matches) >= 2 {
+		return string(matches[1])
+	}
+
+	// Try alternative format: "Authority=Apple Development: Name (TEAMID)"
+	altRegex := regexp.MustCompile(`Authority=Apple Development: (.+?) \([A-Z0-9]+\)`)
+	matches = altRegex.FindSubmatch(output)
+	if len(matches) >= 2 {
+		return string(matches[1])
+	}
+
+	// Try to get just the first Authority line for other certificate types
+	simpleRegex := regexp.MustCompile(`Authority=([^\n]+)`)
+	matches = simpleRegex.FindSubmatch(output)
+	if len(matches) >= 2 {
+		authority := string(matches[1])
+		// Skip other Apple system certificates (but not the ones we already handled above)
+		if strings.HasPrefix(authority, "Apple") || strings.HasPrefix(authority, "Software Signing") {
+			return ""
+		}
+		return authority
+	}
+
+	return ""
+}
+
+// getPublisher gets the publisher for a bundle, using codesign as primary source
+// and falling back to NSHumanReadableCopyright if codesign returns what looks like a human name
+func getPublisher(bundlePath string) string {
+	publisher := getPublisherFromCodeSign(bundlePath)
+
+	// If we got a publisher that looks like a company name, use it
+	if publisher != "" && looksLikeCompanyName(publisher) {
+		return publisher
+	}
+
+	// If codesign returned empty or a human name, try to get company from Info.plist
+	copyrightPublisher := getPublisherFromInfoPlist(bundlePath)
+	if copyrightPublisher != "" {
+		return copyrightPublisher
+	}
+
+	// Fall back to codesign result (even if it's a human name)
+	return publisher
+}
+
+// pkgInfo contains information about a package installation from pkgutil
+type pkgInfo struct {
+	// PkgID is the package identifier (e.g., "com.microsoft.Word")
+	PkgID string
+	// Volume is the install volume (e.g., "/")
+	Volume string
+	// InstallTime is the installation timestamp
+	InstallTime string
+}
+
+// getPkgInfo queries the macOS package receipt database to find which PKG installed
+// a specific file or directory. This uses `pkgutil --file-info` which is the official
+// way to link applications to their installer receipts.
+//
+// Parameters:
+//   - path: The path to query (e.g., "/Applications/Numbers.app")
+//
+// Returns:
+//   - *pkgInfo: Package information if the path was installed by a PKG, nil otherwise
+//
+// Note: Returns nil for apps installed via drag-and-drop (no PKG receipt) or
+// Mac App Store apps (receipt stored inside the app bundle, not in pkgutil database).
+func getPkgInfo(path string) *pkgInfo {
+	// Run pkgutil --file-info to query which package installed this path
+	cmd := exec.Command("pkgutil", "--file-info", path)
+	output, err := cmd.Output()
+	if err != nil {
+		// No package owns this path (drag-and-drop install or error)
+		return nil
+	}
+
+	// Parse the output which looks like:
+	// volume: /
+	// path: Applications/Numbers.app
+	// pkgid: com.apple.pkg.Numbers
+	// pkg-version: 14.0
+	// install-time: 1654432493
+	info := &pkgInfo{}
+	for _, line := range strings.Split(string(output), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "pkgid: ") {
+			info.PkgID = strings.TrimPrefix(line, "pkgid: ")
+		} else if strings.HasPrefix(line, "volume: ") {
+			info.Volume = strings.TrimPrefix(line, "volume: ")
+		} else if strings.HasPrefix(line, "install-time: ") {
+			// Convert Unix timestamp to ISO 8601 format for cross-platform consistency
+			timestampStr := strings.TrimPrefix(line, "install-time: ")
+			if unixTime, err := strconv.ParseInt(timestampStr, 10, 64); err == nil {
+				info.InstallTime = time.Unix(unixTime, 0).Format(time.RFC3339)
+			}
+		}
+	}
+
+	// Only return if we found a package ID
+	if info.PkgID != "" {
+		return info
+	}
+	return nil
+}
+
+// entryWithPath pairs an Entry with its bundle path for parallel processing
+type entryWithPath struct {
+	entry *Entry
+	path  string
+}
+
+// populatePublishersParallel gets publisher info for multiple entries in parallel
+// Note: Getting publisher info requires running external commands (codesign -d) for each app,
+// which could be slow for a large number of apps.
+func populatePublishersParallel(items []entryWithPath) {
+	var wg sync.WaitGroup // to track concurrent goroutines
+	for i := range items {
+		wg.Add(1)                      // increment the wait group counter
+		go func(item *entryWithPath) { // a new goroutine for each item
+			defer wg.Done() // decrement the wait group counter when the goroutine completes
+			item.entry.Publisher = getPublisher(item.path)
+		}(&items[i])
+	}
+	wg.Wait() // wait for all goroutines to complete
+}
