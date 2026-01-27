@@ -156,7 +156,7 @@ configure_make(
     } | select({
             "@platforms//os:macos": {
                 # https://github.com/bazelbuild/bazel/issues/5127
-                "AR": "ar",
+                "AR": "/usr/bin/ar",
             },
             "//conditions:default": {},
     }),
@@ -172,19 +172,19 @@ configure_make(
     out_include_dir = "include",
     visibility = ["//visibility:public"],
     deps = [
+        "@bzip2//:libbz2",
         "@libffi//:libffi",
         "@openssl//:openssl",
         "@sqlite3//:libsqlite3",
-        "@zlib//:zlib",
-        "@bzip2//:libbz2",
         "@xz//:liblzma",
+        "@zlib//:zlib",
     ],
     dynamic_deps = [
-        "@zlib//:z",
         "@bzip2//:bz2",
-        "@sqlite3//:sqlite3",
         "@libffi//:ffi",
+        "@sqlite3//:sqlite3",
         "@xz//:lzma",
+        "@zlib//:z",
     ],
     targets = [
         # Build in parallel but install without parallel execution
@@ -193,10 +193,20 @@ configure_make(
         "install"
     ],
     target_compatible_with = select({
-        "@platforms//os:osx": [],
+        "@platforms//os:macos": [],
         "@platforms//os:linux": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
+    # python's build system will output the entire build config to _sysconfigdata_xxx.py
+    # This is later used to build extensions with the same tools/compiler/flags/config as the interpreter
+    # However, in our case, that means using tools that are stored in the build sandbox, so they aren't
+    # usable when building an extension, causing all builds to fail.
+    # Ideally we would want to explicitly replace bazel paths with known alternatives, but we don't
+    # have an environment variable holding the value we want to replace so we have to resort to
+    # a regular expression replacing paths to tools.
+    # We also unset the flags listed in to_override_flags.
+    # If we start using some specific build flags that need to be propagated, we will need to include
+    # them here instead of replacing them by an empty string.
     postfix_script = " && ".join([
         "perl -i -pe 's/(:?[a-zA-Z0-9_+.\\/-]+)\\/{tool}\\b/{tool}/g' $$INSTALLDIR/lib/python{version}/_sysconfigdata__*.py".format(
             tool=tool,
