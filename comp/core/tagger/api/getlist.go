@@ -18,6 +18,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
@@ -40,22 +41,10 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonOutput bool) e
 	}
 
 	if jsonOutput {
-		return printTaggerJSON(w, &tr)
+		return jsonutil.PrintJSON(w, &tr, true)
 	}
 
 	printTaggerEntities(w, &tr)
-	return nil
-}
-
-// printTaggerJSON outputs the tagger list in JSON format
-func printTaggerJSON(w io.Writer, tr *types.TaggerListResponse) error {
-	jsonData, err := json.MarshalIndent(tr, "", "  ")
-	if err != nil {
-		body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling tagger list to JSON: %s", err)})
-		fmt.Fprintln(w, string(body))
-		return err
-	}
-	fmt.Fprintln(w, string(jsonData))
 	return nil
 }
 
