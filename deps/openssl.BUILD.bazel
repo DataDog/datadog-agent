@@ -1,4 +1,5 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -205,14 +206,14 @@ so_symlink(
     name = "libssl_with_symlink",
     src = ":libssl",
     libname = "libssl",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 so_symlink(
     name = "libcrypto_with_symlink",
     src = ":libcrypto",
     libname = "libcrypto",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 filegroup(
