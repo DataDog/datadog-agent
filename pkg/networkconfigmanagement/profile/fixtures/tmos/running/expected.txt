@@ -9,7 +9,7 @@ ltm virtual /Common/web_vip {
     profiles {
         /Common/http { }
         /Common/clientssl {
-            passphrase <secret removed>
+            passphrase <secret hidden>
         }
     }
 }
@@ -25,23 +25,23 @@ ltm pool /Common/web_pool {
 sys snmp {
     communities {
         public {
-            community <secret removed>
+            community <secret hidden>
         }
         secure {
-            community-name <secret removed>
+            community-name <secret hidden>
         }
     }
 }
 
 auth user admin {
-    password <secret removed>
-    encrypted <secret removed>
+    password <secret hidden>
+    encrypted <secret hidden>
 }
 
 radius-server /Common/radius1 {
-    secret <secret removed>
+    secret <secret hidden>
 }
 
 tacacs-server /Common/tac1 {
-    secret <secret removed>
+    secret <secret hidden>
 }
