@@ -35,7 +35,8 @@ func NewEvictionManager() *EvictionManager {
 }
 
 // Evict performs eviction on the cluster manager based on which threshold was exceeded
-func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) {
+// and returns the evicted patterns.
+func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) []*Pattern {
 	var evicted []*Pattern
 
 	numToEvict, bytesToFree, strategy := em.EvictionTargets(patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
@@ -63,4 +64,5 @@ func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimated
 			em.EvictionHighWatermark*100, em.MaxItemCount,
 			targetCount, em.EvictionLowWatermark*100)
 	}
+	return evicted
 }

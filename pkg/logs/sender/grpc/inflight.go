@@ -33,15 +33,15 @@ import (
 // - Represents the state "before" the first payload in the queue
 // - Updated when payloads are acknowledged (popped)
 type inflightTracker struct {
-	workerID       string
-	items          []*message.Payload
-	head           int            // Index of the oldest sent item (awaiting ack)
-	sentTail       int            // Index of the first buffered item that's not yet sent
-	tail           int            // Index of the next available slot for new buffered items
-	cap            int            // Maximum total capacity of the tracker
-	headBatchID    uint32         // BatchID of the oldest sent payload (at head)
-	batchIDCounter uint32         // Next batchID to be assigned when markSent is called
-	snapshot       *snapshotState // Accumulated state for new streams
+	workerID        string
+	items           []*message.Payload
+	head            int            // Index of the oldest sent item (awaiting ack)
+	sentTail        int            // Index of the first buffered item that's not yet sent
+	tail            int            // Index of the next available slot for new buffered items
+	cap             int            // Maximum total capacity of the tracker
+	headBatchID     uint32         // BatchID of the oldest sent payload (at head)
+	batchIDCounter  uint32         // Next batchID to be assigned when markSent is called
+	snapshot        *snapshotState // Accumulated state for new streams
 	lastSnapshotLog time.Time
 }
 
@@ -219,6 +219,8 @@ func (s *snapshotState) apply(extra *StatefulExtra) {
 			s.patternMap[d.PatternDefine.PatternId] = d.PatternDefine
 		case *statefulpb.Datum_PatternDelete:
 			delete(s.patternMap, d.PatternDelete.PatternId)
+			log.Debugf("Stateful snapshot delete applied: pattern_id=%d remaining_patterns=%d",
+				d.PatternDelete.PatternId, len(s.patternMap))
 		case *statefulpb.Datum_DictEntryDefine:
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
 		case *statefulpb.Datum_DictEntryDelete:

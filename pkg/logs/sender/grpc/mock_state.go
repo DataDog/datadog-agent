@@ -122,7 +122,10 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Check if pattern eviction is needed using high watermark threshold
 	countOverLimit, bytesOverLimit := mt.patternEvictionManager.ShouldEvict(patternCount, estimatedBytes)
 	if countOverLimit || bytesOverLimit {
-		mt.patternEvictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+		evicted := mt.patternEvictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+		for _, evictedPattern := range evicted {
+			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
+		}
 	}
 
 	// Check if tag dictionary eviction is needed using high watermark threshold
