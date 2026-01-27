@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -258,7 +259,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "event_management.forwarder.",
 			hostnameEndpointPrefix:        "event-management-intake.",
 			intakeTrackType:               "events",
-			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
@@ -288,7 +289,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			endpointsConfigPrefix:         "software_inventory.forwarder.",
 			hostnameEndpointPrefix:        "softinv-intake.",
 			intakeTrackType:               "softinv",
-			defaultBatchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			defaultBatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
 			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,

@@ -8,6 +8,7 @@ replace github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.70.0
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/create v0.70.0
 	github.com/DataDog/datadog-agent/pkg/config/env v0.61.0
