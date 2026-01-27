@@ -72,11 +72,14 @@ type ManagerV2 struct {
 	queueSize            *atomic.Uint64 // total events currently queued (gauge)
 	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
 	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
-	lateInsertions       *atomic.Uint64 // events inserted after profile was sent
 
-	// Track unique cgroups seen
-	seenCgroups     map[containerutils.CGroupID]struct{}
-	seenCgroupsLock sync.Mutex
+	// Track all unique cgroups ever seen (for cumulative cgroups_received metric)
+	allSeenCgroups     map[containerutils.CGroupID]struct{}
+	allSeenCgroupsLock sync.Mutex
+
+	// Track cgroups with resolved tags (for cgroups_resolved gauge)
+	resolvedCgroups     map[containerutils.CGroupID]struct{}
+	resolvedCgroupsLock sync.Mutex
 
 	// Track cgroup to selector mapping for delayed cleanup
 	cgroupToSelector     map[containerutils.CGroupID]cgroupModel.WorkloadSelector
@@ -125,7 +128,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
 		eventsDroppedMaxSize:      atomic.NewUint64(0),
-		lateInsertions:            atomic.NewUint64(0),
 		pathsReducer:              activity_tree.NewPathsReducer(),
 		profiles:                  make(map[cgroupModel.WorkloadSelector]*profile.Profile),
 		localStorage:              localStorage,
@@ -134,7 +136,8 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		hostname:                  hostname,
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
-		seenCgroups:               make(map[containerutils.CGroupID]struct{}),
+		allSeenCgroups:            make(map[containerutils.CGroupID]struct{}),
+		resolvedCgroups:           make(map[containerutils.CGroupID]struct{}),
 		cgroupToSelector:          make(map[containerutils.CGroupID]cgroupModel.WorkloadSelector),
 		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 	}, nil
@@ -201,10 +204,10 @@ func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
 
-	// Remove from seenCgroups
-	m.seenCgroupsLock.Lock()
-	delete(m.seenCgroups, cgroupID)
-	m.seenCgroupsLock.Unlock()
+	// Remove from resolvedCgroups (but keep in allSeenCgroups for cumulative count)
+	m.resolvedCgroupsLock.Lock()
+	delete(m.resolvedCgroups, cgroupID)
+	m.resolvedCgroupsLock.Unlock()
 
 	// Get the selector for this cgroup and remove the mapping
 	m.cgroupToSelectorLock.Lock()
@@ -268,8 +271,7 @@ func (m *ManagerV2) cleanupPendingProfiles() {
 				delete(m.profiles, selector)
 
 				// Emit metric
-				tags := []string{"image_name:" + selector.Image}
-				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, tags, 1.0); err != nil {
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, []string{}, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
 				}
 			}
@@ -362,6 +364,12 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalReceived, err)
 	}
 
+	// Track all unique cgroups ever seen (for cumulative cgroups_received metric)
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+	m.allSeenCgroupsLock.Lock()
+	m.allSeenCgroups[cgroupID] = struct{}{}
+	m.allSeenCgroupsLock.Unlock()
+
 	// Cleanup: purge pending entries that have been waiting too long (60s)
 	m.purgeStalePendingEvents(event.Timestamp)
 
@@ -384,8 +392,13 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 	for cgroupID, pendingEvents := range m.profilePendingEvents {
 		if currentTimestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
 			// Decrement queue size by the number of events being dropped
-			if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
+			eventsLen := pendingEvents.events.Len()
+			if eventsLen > 0 {
 				m.queueSize.Sub(uint64(eventsLen))
+				// Emit dropped events metric (source unknown for queued events)
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), []string{}, 1.0); err != nil {
+					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
+				}
 			}
 
 			delete(m.profilePendingEvents, cgroupID)
@@ -405,12 +418,10 @@ func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 func (m *ManagerV2) processEventWithResolvedTags(event *model.Event) {
 	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
 
-	// Track unique cgroups with resolved tags (cgroups we're actually profiling)
-	m.seenCgroupsLock.Lock()
-	if _, seen := m.seenCgroups[cgroupID]; !seen {
-		m.seenCgroups[cgroupID] = struct{}{}
-	}
-	m.seenCgroupsLock.Unlock()
+	// Track cgroups with resolved tags (for cgroups_resolved gauge)
+	m.resolvedCgroupsLock.Lock()
+	m.resolvedCgroups[cgroupID] = struct{}{}
+	m.resolvedCgroupsLock.Unlock()
 
 	// Dequeue and process pending events if any exist for this cgroup
 	if pendingEvents := m.profilePendingEvents[cgroupID]; pendingEvents != nil {
@@ -484,9 +495,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 		return
 	}
 
-	// Profile was updated after being sent - this is a late insertion (potential anomaly)
-	m.lateInsertions.Inc()
-
 	var workloadID containerutils.WorkloadID
 	var imageTag string
 
@@ -524,11 +532,19 @@ func (m *ManagerV2) SendStats() error {
 		return err
 	}
 
-	// Total unique cgroups seen (all time) - use gauge since it's a cumulative total
-	m.seenCgroupsLock.Lock()
-	totalCgroups := len(m.seenCgroups)
-	m.seenCgroupsLock.Unlock()
-	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsReceived, float64(totalCgroups), []string{}, 1.0); err != nil {
+	// Current cgroups with resolved tags (gauge of actively profiled cgroups)
+	m.resolvedCgroupsLock.Lock()
+	numResolved := len(m.resolvedCgroups)
+	m.resolvedCgroupsLock.Unlock()
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsResolved, float64(numResolved), []string{}, 1.0); err != nil {
+		return err
+	}
+
+	// Cumulative cgroups received (total unique cgroups ever seen)
+	m.allSeenCgroupsLock.Lock()
+	numReceived := len(m.allSeenCgroups)
+	m.allSeenCgroupsLock.Unlock()
+	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsReceived, float64(numReceived), []string{}, 1.0); err != nil {
 		return err
 	}
 
@@ -538,86 +554,8 @@ func (m *ManagerV2) SendStats() error {
 			return err
 		}
 	}
-	if value := m.lateInsertions.Swap(0); value > 0 {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2ProfileLateInsertions, int64(value), []string{}, 1.0); err != nil {
-			return err
-		}
-	}
-
-	// Debug: log difference between seenCgroups and CGroup Resolver cache
-	m.logCgroupDifference()
 
 	return nil
-}
-
-// logCgroupDifference logs the difference between V2's seenCgroups and the CGroup Resolver's cache
-// This helps debug why cgroups_received might differ from active_containers
-func (m *ManagerV2) logCgroupDifference() {
-	// Collect all cgroup IDs from the CGroup Resolver's cache
-	resolverCgroups := make(map[containerutils.CGroupID]containerutils.ContainerID)
-	m.resolvers.CGroupResolver.IterateCacheEntries(func(entry *cgroupModel.CacheEntry) bool {
-		cgroupID := entry.GetCGroupID()
-		containerID := entry.GetContainerID()
-		// Only track container cgroups (not host cgroups)
-		if containerID != "" {
-			resolverCgroups[cgroupID] = containerID
-		}
-		return false // continue iteration
-	})
-
-	// Get a snapshot of seenCgroups
-	m.seenCgroupsLock.Lock()
-	seenCgroupsCopy := make(map[containerutils.CGroupID]struct{}, len(m.seenCgroups))
-	for k, v := range m.seenCgroups {
-		seenCgroupsCopy[k] = v
-	}
-	m.seenCgroupsLock.Unlock()
-
-	// Find cgroups in resolver but NOT in V2's seenCgroups
-	var inResolverNotInV2 []string
-	for cgroupID, containerID := range resolverCgroups {
-		if _, exists := seenCgroupsCopy[cgroupID]; !exists {
-			// Try to get tags for this container
-			var tagsStr string
-			if containerID != "" {
-				var workloadID containerutils.WorkloadID = containerID
-				tags, err := m.resolvers.TagsResolver.ResolveWithErr(workloadID)
-				if err == nil && len(tags) > 0 {
-					tagsStr = fmt.Sprintf("tags=%v", tags)
-				} else {
-					tagsStr = "no tags"
-				}
-			} else {
-				tagsStr = "no container"
-			}
-			inResolverNotInV2 = append(inResolverNotInV2, fmt.Sprintf("cgroupID=%s containerID=%s %s", cgroupID, containerID, tagsStr))
-		}
-	}
-
-	// Find cgroups in V2's seenCgroups but NOT in resolver
-	var inV2NotInResolver []string
-	for cgroupID := range seenCgroupsCopy {
-		if _, exists := resolverCgroups[cgroupID]; !exists {
-			inV2NotInResolver = append(inV2NotInResolver, string(cgroupID))
-		}
-	}
-
-	// Log the differences
-	if len(inResolverNotInV2) > 0 || len(inV2NotInResolver) > 0 {
-		seclog.Debugf("V2 CGroup Difference: resolver=%d, v2_seen=%d", len(resolverCgroups), len(seenCgroupsCopy))
-		if len(inResolverNotInV2) > 0 {
-			seclog.Debugf("  In CGroup Resolver but NOT in V2 seenCgroups (%d):", len(inResolverNotInV2))
-			for _, entry := range inResolverNotInV2 {
-				seclog.Debugf("    - %s", entry)
-			}
-		}
-		if len(inV2NotInResolver) > 0 {
-			seclog.Debugf("  In V2 seenCgroups but NOT in CGroup Resolver (%d):", len(inV2NotInResolver))
-			for _, entry := range inV2NotInResolver {
-				seclog.Debugf("    - %s", entry)
-			}
-		}
-	}
 }
 
 // insertEventIntoProfile gets or creates a profile for the workload and inserts the event into its ActivityTree.
@@ -907,11 +845,7 @@ func (m *ManagerV2) evictUnusedNodes() {
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
 
 			// Emit per-profile eviction metric
-			tags := []string{
-				"image_name:" + selector.Image,
-				"image_tag:" + selector.Tag,
-			}
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(evicted), tags, 1.0); err != nil {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(evicted), []string{}, 1.0); err != nil {
 				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, err)
 			}
 		}

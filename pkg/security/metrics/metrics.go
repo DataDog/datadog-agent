@@ -496,9 +496,13 @@ var (
 	// Tags: -
 	MetricSecurityProfileV2TagResolutionCgroupsPending = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_pending")
 
-	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report current cgroups with resolved tags (actively profiled)
-	// Tags: - (Gauge)
+	// MetricSecurityProfileV2TagResolutionCgroupsReceived is the name of the metric used to report total cgroups received (cumulative total of all unique cgroups ever seen)
+	// Tags: - (Gauge, monotonically increasing)
 	MetricSecurityProfileV2TagResolutionCgroupsReceived = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_received")
+
+	// MetricSecurityProfileV2TagResolutionCgroupsResolved is the name of the metric used to report current cgroups with resolved tags (actively profiled)
+	// Tags: - (Gauge)
+	MetricSecurityProfileV2TagResolutionCgroupsResolved = newRuntimeMetric(".security_profile_v2.tag_resolution.cgroups_resolved")
 
 	// MetricSecurityProfileV2TagResolutionEventsDropped is the name of the metric used to report events dropped due to 10s stale timeout
 	// Tags: source (runtime or replay)
@@ -515,12 +519,8 @@ var (
 	// Event Processing metrics
 
 	// MetricSecurityProfileV2EventsDroppedMaxSize is the name of the metric used to report events dropped because profile reached max size
-	// Tags: image_name
+	// Tags: -
 	MetricSecurityProfileV2EventsDroppedMaxSize = newRuntimeMetric(".security_profile_v2.events.dropped_max_size")
-
-	// MetricSecurityProfileV2ProfileLateInsertions is the name of the metric used to report events inserted into a profile after it was already sent
-	// Tags: image_name, time_bucket
-	MetricSecurityProfileV2ProfileLateInsertions = newRuntimeMetric(".security_profile_v2.profile.late_insertions")
 
 	// Persistence metrics
 
@@ -539,13 +539,13 @@ var (
 	MetricSecurityProfileV2EvictionRuns = newRuntimeMetric(".security_profile_v2.eviction.runs")
 
 	// MetricSecurityProfileV2EvictionNodesEvictedPerProfile is the name of the metric used to report nodes evicted from a specific profile
-	// Tags: image_name, image_tag
+	// Tags: -
 	MetricSecurityProfileV2EvictionNodesEvictedPerProfile = newRuntimeMetric(".security_profile_v2.eviction.nodes_evicted_per_profile")
 
 	// Profile cleanup metrics
 
 	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
-	// Tags: image_name
+	// Tags: -
 	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 )
 
