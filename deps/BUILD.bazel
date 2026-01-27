@@ -24,6 +24,7 @@ filegroup(
         ],
         "//packages/agent:linux_heroku": [
             "@gpg-error",
+            "@lua//:liblua",
             "@nghttp2",
         ],
         "//:macos_arm64": [
