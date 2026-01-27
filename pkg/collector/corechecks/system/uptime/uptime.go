@@ -17,7 +17,7 @@ import (
 // CheckName is the name of the check
 const CheckName = "uptime"
 
-// Check doesn't need additional fields
+// Check reports system uptime
 type Check struct {
 	core.CheckBase
 }

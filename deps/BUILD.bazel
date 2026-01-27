@@ -12,13 +12,17 @@ filegroup(
         "@bzip2//:bz2",
         "@libffi//:ffi",
         "@libyaml",
-        "@lua//:liblua",
         "@patchelf",
         "@sqlite3",
         "@xz//:lzma",
         "@zlib//:z",
     ] + select({
-        "@platforms//os:linux": [
+        "//packages/agent:linux_default": [
+            "@gpg-error",
+            "@lua//:liblua",
+            "@nghttp2",
+        ],
+        "//packages/agent:linux_heroku": [
             "@gpg-error",
             "@nghttp2",
         ],

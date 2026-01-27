@@ -98,12 +98,12 @@ type Request struct {
 
 // NetStats contains aggregated network statistics such as latency and jitter.
 type NetStats struct {
-	PacketsSent          int                        `json:"packetsSent"`
-	PacketsReceived      int                        `json:"packetsReceived"`
-	PacketLossPercentage float32                    `json:"packetLossPercentage"`
-	Jitter               float64                    `json:"jitter"`
-	Latency              payload.E2eProbeRttLatency `json:"latency"`
-	Hops                 payload.HopCountStats      `json:"hops"`
+	PacketsSent          int                         `json:"packetsSent"`
+	PacketsReceived      int                         `json:"packetsReceived"`
+	PacketLossPercentage float32                     `json:"packetLossPercentage"`
+	Jitter               *float64                    `json:"jitter"`
+	Latency              *payload.E2eProbeRttLatency `json:"latency"`
+	Hops                 payload.HopCountStats       `json:"hops"`
 }
 
 // Result represents the outcome of a test run including assertions and stats.

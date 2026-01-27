@@ -6,13 +6,10 @@
 package ebpftest
 
 import (
-	"strings"
 	"testing"
 
-	//nolint:depguard // creating a custom logger for testing
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 )
 
 // LogLevel sets the logger level for this test only
@@ -20,29 +17,27 @@ func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
 		log.SetupLogger(log.Default(), "off")
 	})
-	logger, err := seelog.LoggerFromCustomReceiver(testLogger{t})
+	lvl, err := log.ValidateLogLevel(level)
+	if err != nil {
+		return
+	}
+	logger, err := slog.LoggerFromWriterWithMinLevelAndFormat(
+		testLogWriter{t},
+		lvl,
+		"{{ShortFilePath}}:{{.line}}: {{DateTime}} | {{LEVEL}} | {{.msg}}",
+	)
 	if err != nil {
 		return
 	}
 	log.SetupLogger(logger, level)
 }
 
-type testLogger struct {
+// testLogWriter wraps testing.TB to implement io.Writer
+type testLogWriter struct {
 	testing.TB
 }
 
-func (t testLogger) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
-	t.Logf("%s:%d: %s | %s | %s", context.FileName(), context.Line(), context.CallTime().Format("2006-01-02 15:04:05.000 MST"), strings.ToUpper(level.String()), message)
-	return nil
-}
-
-func (t testLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
-	return nil
-}
-
-func (t testLogger) Flush() {
-}
-
-func (t testLogger) Close() error {
-	return nil
+func (t testLogWriter) Write(p []byte) (n int, err error) {
+	t.Log(string(p))
+	return len(p), nil
 }

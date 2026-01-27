@@ -105,7 +105,13 @@ func TestStoreAndPurgeEntities(t *testing.T) {
 		key2ValuesMap: make(map[uint64]*dataItem),
 		keyAttrTable:  make(map[compositeKey]podList),
 		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
 	}
+	// Set targets to test filtering behavior (without targets, all entities would be accepted anyway)
+	store.SetTargets([]Target{
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
+	})
 	for _, timeDelta := range []int64{100, 85, 70} {
 		for i := 0; i < numPayloads; i++ {
 			payload := createSeriesPayload(i, timeDelta)
@@ -142,7 +148,13 @@ func TestGetMetrics(t *testing.T) {
 		key2ValuesMap: make(map[uint64]*dataItem),
 		keyAttrTable:  make(map[compositeKey]podList),
 		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
 	}
+	// Set targets to test filtering behavior (without targets, all entities would be accepted anyway)
+	store.SetTargets([]Target{
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
+	})
 	for _, timeDelta := range []int64{100, 85, 80} {
 		for i := 0; i < numPayloads; i++ {
 			payload := createSeriesPayload(i, timeDelta)
@@ -207,4 +219,166 @@ func TestGetMetricsWithNonExistingEntityDoesNotPanic(t *testing.T) {
 		queryResult := store.GetMetricsRaw("container.cpu.usage", "test-ns", "test-pod", "")
 		assert.Equal(t, 0, len(queryResult.Results))
 	})
+}
+
+// TestSetTargets verifies that SetTargets correctly registers targets
+func TestSetTargets(t *testing.T) {
+	store := EntityStore{
+		key2ValuesMap: make(map[uint64]*dataItem),
+		keyAttrTable:  make(map[compositeKey]podList),
+		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
+	}
+
+	// Initially no targets
+	assert.Equal(t, 0, len(store.targets))
+
+	// Set multiple targets
+	targets := []Target{
+		{Namespace: "ns1", Kind: "Deployment", Name: "deploy1"},
+		{Namespace: "ns2", Kind: "Deployment", Name: "deploy2"},
+		{Namespace: "ns1", Kind: "Deployment", Name: "deploy3"},
+	}
+	store.SetTargets(targets)
+	assert.Equal(t, 3, len(store.targets))
+
+	// Verify specific targets are registered
+	_, exists := store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy1"}]
+	assert.True(t, exists)
+	_, exists = store.targets[targetKey{namespace: "ns2", kind: Deployment, name: "deploy2"}]
+	assert.True(t, exists)
+	_, exists = store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy3"}]
+	assert.True(t, exists)
+
+	// Update targets (replaces existing)
+	newTargets := []Target{
+		{Namespace: "ns3", Kind: "Deployment", Name: "deploy4"},
+	}
+	store.SetTargets(newTargets)
+	assert.Equal(t, 1, len(store.targets))
+	_, exists = store.targets[targetKey{namespace: "ns3", kind: Deployment, name: "deploy4"}]
+	assert.True(t, exists)
+	// Old targets should be gone
+	_, exists = store.targets[targetKey{namespace: "ns1", kind: Deployment, name: "deploy1"}]
+	assert.False(t, exists)
+}
+
+// TestInvalidTargetsAreSkipped verifies that malformed targets (empty namespace, kind, or name) are skipped
+func TestInvalidTargetsAreSkipped(t *testing.T) {
+	store := EntityStore{
+		key2ValuesMap: make(map[uint64]*dataItem),
+		keyAttrTable:  make(map[compositeKey]podList),
+		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
+	}
+
+	// Set targets with some invalid entries
+	store.SetTargets([]Target{
+		{Namespace: "", Kind: "Deployment", Name: "deploy1"},        // Invalid: empty namespace
+		{Namespace: "ns1", Kind: "Deployment", Name: ""},            // Invalid: empty name
+		{Namespace: "ns1", Kind: "", Name: "deploy1"},               // Invalid: empty kind
+		{Namespace: "ns1", Kind: "DaemonSet", Name: "deploy1"},      // Invalid: unsupported kind
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"}, // Valid
+	})
+
+	// Only the valid target should be registered
+	assert.Equal(t, 1, len(store.targets), "Only valid targets should be registered")
+	_, exists := store.targets[targetKey{namespace: "test", kind: Deployment, name: "redis_test"}]
+	assert.True(t, exists, "Valid target should be registered")
+}
+
+// TestFilteringMixedEntities verifies filtering with mix of matching and non-matching entities
+func TestFilteringMixedEntities(t *testing.T) {
+	store := EntityStore{
+		key2ValuesMap: make(map[uint64]*dataItem),
+		keyAttrTable:  make(map[compositeKey]podList),
+		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
+	}
+
+	// Set target for only redis_test
+	store.SetTargets([]Target{
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+	})
+
+	// Create mixed entities - some matching, some not
+	for i := 0; i < 50; i++ {
+		// These match the target (namespace="test", kind=Deployment, name="redis_test")
+		payload := createSeriesPayload(i, 100)
+		entities := createEntitiesFromPayload(payload)
+		store.SetEntitiesValues(entities)
+
+		// These don't match (namespace="test", podOwnerName="nginx_test")
+		payload2 := createSeriesPayload2(i, 100)
+		entities2 := createEntitiesFromPayload(payload2)
+		store.SetEntitiesValues(entities2)
+	}
+
+	// Verify only matching entities were stored
+	storeInfo := store.GetStoreInfo()
+	assert.Equal(t, 1, len(storeInfo.StatsResults), "Only one group should be stored")
+
+	for _, statsResult := range storeInfo.StatsResults {
+		assert.Equal(t, "test", statsResult.Namespace)
+		assert.Equal(t, "redis_test", statsResult.PodOwner)
+		assert.Equal(t, 50, statsResult.Count, "Only matching entities should be stored")
+	}
+
+	// Verify nginx_test is not accessible
+	result := store.GetMetricsRaw("container.cpu.usage", "test", "nginx_test", "")
+	assert.Equal(t, 0, len(result.Results), "nginx_test should not be stored")
+
+	// Verify redis_test is accessible
+	result = store.GetMetricsRaw("container.memory.usage", "test", "redis_test", "")
+	assert.Equal(t, 50, len(result.Results), "redis_test should be stored")
+}
+
+// TestDynamicTargetUpdates verifies that target updates affect subsequent entity storage
+func TestDynamicTargetUpdates(t *testing.T) {
+	store := EntityStore{
+		key2ValuesMap: make(map[uint64]*dataItem),
+		keyAttrTable:  make(map[compositeKey]podList),
+		lock:          sync.RWMutex{},
+		targets:       make(map[targetKey]struct{}),
+	}
+
+	// Initially set target for redis_test
+	store.SetTargets([]Target{
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+	})
+
+	// Store redis entities
+	for i := 0; i < 5; i++ {
+		payload := createSeriesPayload(i, 100)
+		entities := createEntitiesFromPayload(payload)
+		store.SetEntitiesValues(entities)
+	}
+
+	// Verify redis entities stored
+	storeInfo := store.GetStoreInfo()
+	assert.Equal(t, 1, len(storeInfo.StatsResults))
+	assert.Equal(t, 5, storeInfo.StatsResults[0].Count)
+
+	// Update targets to include nginx_test as well
+	store.SetTargets([]Target{
+		{Namespace: "test", Kind: "Deployment", Name: "redis_test"},
+		{Namespace: "test", Kind: "Deployment", Name: "nginx_test"},
+	})
+
+	// Store nginx entities
+	for i := 0; i < 5; i++ {
+		payload := createSeriesPayload2(i, 100)
+		entities := createEntitiesFromPayload(payload)
+		store.SetEntitiesValues(entities)
+	}
+
+	// Verify both redis and nginx entities are stored
+	storeInfo = store.GetStoreInfo()
+	assert.Equal(t, 2, len(storeInfo.StatsResults))
+
+	totalCount := 0
+	for _, statsResult := range storeInfo.StatsResults {
+		totalCount += statsResult.Count
+	}
+	assert.Equal(t, 10, totalCount, "Both redis and nginx entities should be stored")
 }

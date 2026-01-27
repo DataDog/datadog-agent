@@ -13,6 +13,7 @@ typedef enum {
     REDIS_UNKNOWN = 0,
     REDIS_GET = 1,
     REDIS_SET = 2,
+    REDIS_PING = 3,
 
     // This is the last command in the enum, used to determine the size of the enum.
     __MAX_REDIS_COMMAND
