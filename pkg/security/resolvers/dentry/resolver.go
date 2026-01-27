@@ -70,6 +70,8 @@ type Resolver struct {
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
+
+	interner *utils.LRUStringInterner
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -448,7 +450,7 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, names []string) error {
 
 	for i, k := range keys {
 		cacheEntry := PathEntry{
-			Name: names[i],
+			Name: dr.interner.Deduplicate(names[i]),
 		}
 		if len(keys) > i+1 {
 			cacheEntry.Parent = keys[i+1]
@@ -778,5 +780,6 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		missCounters:  missCounters,
 		numCPU:        numCPU,
 		challenge:     rand.Uint32(),
+		interner:      utils.NewLRUStringInterner(16384),
 	}, nil
 }
