@@ -245,9 +245,9 @@ func (c *converterWithAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporter
 		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
 			hasOtlpHTTP = true
 
-			headers, err := Ensure[confMap](conf, pathPrefixExporters+name+"::headers")
-			if err != nil {
-				return err
+			headers, ok := Get[confMap](conf, pathPrefixExporters+name+"::headers")
+			if !ok {
+				return fmt.Errorf("exporter %s is not configured", name)
 			}
 
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
