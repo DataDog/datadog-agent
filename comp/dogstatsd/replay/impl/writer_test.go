@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/zstd"
 	"github.com/spf13/afero"
+
+	zstdcomp "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
@@ -138,7 +139,8 @@ func writerTest(t *testing.T, z bool) {
 	assert.Nil(t, err)
 
 	if z {
-		buf, err = zstd.Decompress(nil, buf)
+		zstdStrategy := zstdcomp.New(zstdcomp.Requires{})
+		buf, err = zstdStrategy.Decompress(buf)
 		assert.Nil(t, err)
 	}
 

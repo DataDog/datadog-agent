@@ -8,10 +8,10 @@ package replayimpl
 import (
 	"fmt"
 
-	"github.com/DataDog/zstd"
 	"github.com/h2non/filetype"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	zstdcomp "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -38,7 +38,8 @@ func NewTrafficCaptureReader(path string, depth int, mmap bool) (*TrafficCapture
 
 	var contents []byte
 	if decompress {
-		if contents, err = zstd.Decompress(nil, c); err != nil {
+		zstdStrategy := zstdcomp.New(zstdcomp.Requires{})
+		if contents, err = zstdStrategy.Decompress(c); err != nil {
 			return nil, err
 		}
 	} else {
