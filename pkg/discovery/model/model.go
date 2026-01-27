@@ -48,6 +48,10 @@ type Connection struct {
 	Direction string  `json:"direction"` // "incoming", "outgoing"
 	PID       uint32  `json:"pid"`
 	NetNS     uint32  `json:"netns"`
+	// TranslatedLaddr is the NAT-translated local address (nil if no NAT)
+	TranslatedLaddr *Address `json:"translated_laddr,omitempty"`
+	// TranslatedRaddr is the NAT-translated remote address (nil if no NAT)
+	TranslatedRaddr *Address `json:"translated_raddr,omitempty"`
 }
 
 // Address represents an IP:port pair.
