@@ -78,6 +78,17 @@ func (r *Recommender) process(ctx context.Context) {
 	}
 	podAutoscalers := r.store.GetFiltered(localFallbackFilter)
 
+	// Sync targets to loadstore - only store metrics for workloads we're autoscaling
+	targets := make([]loadstore.Target, 0, len(podAutoscalers))
+	for _, pa := range podAutoscalers {
+		targets = append(targets, loadstore.Target{
+			Namespace: pa.Namespace(),
+			Kind:      pa.Spec().TargetRef.Kind,
+			Name:      pa.Spec().TargetRef.Name,
+		})
+	}
+	lStore.SetTargets(targets)
+
 	for _, podAutoscaler := range podAutoscalers {
 		// Generate local recommendations
 		horizontalRecommendation, err := r.replicaCalculator.calculateHorizontalRecommendations(podAutoscaler, lStore)
