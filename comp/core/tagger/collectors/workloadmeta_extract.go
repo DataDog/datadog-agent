@@ -1023,7 +1023,7 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMapWithResolver(key string,
 		return
 	}
 
-	err := parseJSONValueWithService(jsonTags, tags, resolvable)
+	err := parseJSONValueWithResolution(jsonTags, tags, resolvable)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
 	}
@@ -1051,41 +1051,42 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 }
 
 func parseJSONValue(value string, tags *taglist.TagList) error {
-	return parseJSONValueWithService(value, tags, nil)
+	result := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(value), &result); err != nil {
+		return fmt.Errorf("failed to unmarshal JSON: %s", err)
+	}
+
+	for key, value := range result {
+		switch v := value.(type) {
+		case string:
+			tags.AddAuto(key, v)
+		case []interface{}:
+			for _, tag := range v {
+				tags.AddAuto(key, fmt.Sprint(tag))
+			}
+		default:
+			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+		}
+	}
+	return nil
 }
 
-func parseJSONValueWithService(value string, tags *taglist.TagList, svc tmplvar.Resolvable) error {
+func parseJSONValueWithResolution(value string, tags *taglist.TagList, resolvable tmplvar.Resolvable) error {
 	if value == "" {
 		return errors.New("value is empty")
 	}
 
-	// If no service provided, parse without resolution
-	if svc == nil {
-		result := map[string]interface{}{}
-		if err := json.Unmarshal([]byte(value), &result); err != nil {
-			return fmt.Errorf("failed to unmarshal JSON: %s", err)
-		}
-
-		for key, value := range result {
-			switch v := value.(type) {
-			case string:
-				tags.AddAuto(key, v)
-			case []interface{}:
-				for _, tag := range v {
-					tags.AddAuto(key, fmt.Sprint(tag))
-				}
-			default:
-				log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
-			}
-		}
-		return nil
+	// Parse without template resolution if no resolvable entity is provided.
+	if resolvable == nil {
+		log.Debug("no resolvable entity provided, parsing without template resolution")
+		return parseJSONValue(value, tags)
 	}
 
-	resolved, err := tmplvar.ResolveDataWithTemplateVars([]byte(value), svc, tmplvar.JSONParser, nil)
+	resolved, err := tmplvar.ResolveDataWithTemplateVars([]byte(value), resolvable, tmplvar.JSONParser, nil)
 	if err != nil {
 		// If resolution fails, log but try to parse the original value
 		log.Debugf("Failed to resolve template variables in tags: %v", err)
-		return parseJSONValueWithService(value, tags, nil)
+		return parseJSONValue(value, tags)
 	}
 
 	result := map[string]interface{}{}

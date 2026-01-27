@@ -68,7 +68,7 @@ func newNoServiceError(message string) *NoServiceError {
 }
 
 // VariableGetter is a function that resolves a template variable
-type VariableGetter func(key string, svc Resolvable) (string, error)
+type VariableGetter func(key string, res Resolvable) (string, error)
 
 var templateVariables = map[string]VariableGetter{
 	"host":     GetHost,
@@ -103,7 +103,7 @@ var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
 // ResolveDataWithTemplateVars resolves template variables in a data structure (YAML/JSON).
 // It walks through the tree structure and replaces %%var%% patterns in all strings.
 // If postProcessor is not nil, it's called on the tree before marshaling back.
-func ResolveDataWithTemplateVars(data []byte, svc Resolvable, parser Parser, postProcessor func(interface{}) error) ([]byte, error) {
+func ResolveDataWithTemplateVars(data []byte, res Resolvable, parser Parser, postProcessor func(interface{}) error) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -179,7 +179,7 @@ func ResolveDataWithTemplateVars(data []byte, svc Resolvable, parser Parser, pos
 			}
 
 		case string:
-			s, err := ResolveStringWithTemplateVars(elem, svc)
+			s, err := ResolveStringWithTemplateVars(elem, res)
 			if err != nil {
 				return data, err
 			}
@@ -211,14 +211,14 @@ func ResolveDataWithTemplateVars(data []byte, svc Resolvable, parser Parser, pos
 // for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
 // Indeed, IPv6 needs to be surrounded by square brackets inside URL to distinguish the colons of the IPv6 itself from the one separating the IP from the port
 // like in: http://[::1]:80/
-func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, err error) {
+func ResolveStringWithTemplateVars(in string, res Resolvable) (out interface{}, err error) {
 	isThereAnIPv6Host := false
 
 	adHocTemplateVars := make(map[string]VariableGetter)
 	for k, v := range templateVariables {
 		if k == "host" {
-			adHocTemplateVars[k] = func(tplVar string, svc Resolvable) (string, error) {
-				host, err := v(tplVar, svc)
+			adHocTemplateVars[k] = func(tplVar string, res Resolvable) (string, error) {
+				host, err := v(tplVar, res)
 				if apiutil.IsIPv6(host) {
 					isThereAnIPv6Host = true
 					if tplVar != "" {
@@ -232,7 +232,7 @@ func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, 
 			adHocTemplateVars[k] = v
 		}
 	}
-	resolvedString, err := resolveStringWithAdHocTemplateVars(in, svc, adHocTemplateVars)
+	resolvedString, err := resolveStringWithAdHocTemplateVars(in, res, adHocTemplateVars)
 	if err != nil {
 		return resolvedString, err
 	}
@@ -250,7 +250,7 @@ func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, 
 			return "127.0.0.1", nil
 		},
 	}
-	resolvedStringWithFakeIPv4, err := resolveStringWithAdHocTemplateVars(resolvedString.(string), svc, adHocTemplateVars)
+	resolvedStringWithFakeIPv4, err := resolveStringWithAdHocTemplateVars(resolvedString.(string), res, adHocTemplateVars)
 	if err != nil {
 		return resolvedString, err
 	}
@@ -261,8 +261,8 @@ func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, 
 	}
 
 	adHocTemplateVars = map[string]VariableGetter{
-		"host": func(tplVar string, svc Resolvable) (string, error) {
-			host, err := GetHost(tplVar, svc)
+		"host": func(tplVar string, res Resolvable) (string, error) {
+			host, err := GetHost(tplVar, res)
 			var sb strings.Builder
 			sb.WriteByte('[')
 			sb.WriteString(host)
@@ -270,14 +270,14 @@ func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, 
 			return sb.String(), err
 		},
 	}
-	resolvedStringWithIPv6, err := resolveStringWithAdHocTemplateVars(resolvedString.(string), svc, adHocTemplateVars)
+	resolvedStringWithIPv6, err := resolveStringWithAdHocTemplateVars(resolvedString.(string), res, adHocTemplateVars)
 	if err != nil {
 		return resolvedString, err
 	}
 
 	_, err = url.Parse(resolvedStringWithIPv6.(string))
 	if err != nil {
-		return resolveStringWithAdHocTemplateVars(in, svc, templateVariables)
+		return resolveStringWithAdHocTemplateVars(in, res, templateVariables)
 	}
 
 	return resolvedStringWithIPv6, err
@@ -286,7 +286,7 @@ func ResolveStringWithTemplateVars(in string, svc Resolvable) (out interface{}, 
 // resolveStringWithAdHocTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // The variable getters are passed as last parameter.
 // If the input string is composed of *only* a `‰var_param‰` pattern and the result of the substitution is a boolean or a number, then the function returns a boolean or a number instead of a string.
-func resolveStringWithAdHocTemplateVars(in string, svc Resolvable, templateVariables map[string]VariableGetter) (out interface{}, err error) {
+func resolveStringWithAdHocTemplateVars(in string, res Resolvable, templateVariables map[string]VariableGetter) (out interface{}, err error) {
 	varIndexes := varPattern.FindAllStringSubmatchIndex(in, -1)
 
 	if len(varIndexes) == 0 {
@@ -308,7 +308,7 @@ func resolveStringWithAdHocTemplateVars(in string, svc Resolvable, templateVaria
 		}
 
 		if f, found := templateVariables[varName]; found {
-			resolvedVar, e := f(varKey, svc)
+			resolvedVar, e := f(varKey, res)
 			if e != nil {
 				err = e
 			}
@@ -319,8 +319,8 @@ func resolveStringWithAdHocTemplateVars(in string, svc Resolvable, templateVaria
 				endTagIdx = varIndexes[i][3]
 			}
 			err := fmt.Errorf("invalid %%%%%s%%%% tag", in[varIndexes[i][2]:endTagIdx])
-			if svc != nil {
-				err = fmt.Errorf("unable to add tags for service '%v', err: %w", svc.GetServiceID(), err)
+			if res != nil {
+				err = fmt.Errorf("unable to add tags for service '%v', err: %w", res.GetServiceID(), err)
 			}
 			return out, err
 		}
@@ -344,17 +344,17 @@ func resolveStringWithAdHocTemplateVars(in string, svc Resolvable, templateVaria
 }
 
 // GetHost resolves the %%host%% template variable
-func GetHost(tplVar string, svc Resolvable) (string, error) {
-	if svc == nil {
+func GetHost(tplVar string, res Resolvable) (string, error) {
+	if res == nil {
 		return "", newNoServiceError("no service. %%%%host%%%% is not allowed")
 	}
 
-	hosts, err := svc.GetHosts()
+	hosts, err := res.GetHosts()
 	if err != nil {
-		return "", fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to extract IP address for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
 	}
 	if len(hosts) == 0 {
-		return "", fmt.Errorf("no network found for container %s, ignoring it", svc.GetServiceID())
+		return "", fmt.Errorf("no network found for container %s, ignoring it", res.GetServiceID())
 	}
 
 	// a network was specified
@@ -366,7 +366,7 @@ func GetHost(tplVar string, svc Resolvable) (string, error) {
 	// otherwise use fallback policy
 	ip, err := getFallbackHost(hosts)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to resolve IP address for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
 	}
 
 	return ip, nil
@@ -393,16 +393,16 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 }
 
 // GetPort resolves the %%port%% template variable
-func GetPort(tplVar string, svc Resolvable) (string, error) {
-	if svc == nil {
+func GetPort(tplVar string, res Resolvable) (string, error) {
+	if res == nil {
 		return "", errors.New("no service. %%%%port%%%% is not allowed")
 	}
 
-	ports, err := svc.GetPorts()
+	ports, err := res.GetPorts()
 	if err != nil {
-		return "", fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to extract port list for container %s, ignoring it. Source error: %s", res.GetServiceID(), err)
 	} else if len(ports) == 0 {
-		return "", fmt.Errorf("no port found for container %s - ignoring it", svc.GetServiceID())
+		return "", fmt.Errorf("no port found for container %s - ignoring it", res.GetServiceID())
 	}
 
 	if len(tplVar) == 0 {
@@ -417,73 +417,73 @@ func GetPort(tplVar string, svc Resolvable) (string, error) {
 				return strconv.Itoa(port.Port), nil
 			}
 		}
-		return "", fmt.Errorf("port %s not found, skipping container %s", tplVar, svc.GetServiceID())
+		return "", fmt.Errorf("port %s not found, skipping container %s", tplVar, res.GetServiceID())
 	}
 	if len(ports) <= idx {
-		return "", fmt.Errorf("index given for the port template var is too big, skipping container %s", svc.GetServiceID())
+		return "", fmt.Errorf("index given for the port template var is too big, skipping container %s", res.GetServiceID())
 	}
 	return strconv.Itoa(ports[idx].Port), nil
 }
 
 // GetPid resolves the %%pid%% template variable
-func GetPid(_ string, svc Resolvable) (string, error) {
-	if svc == nil {
+func GetPid(_ string, res Resolvable) (string, error) {
+	if res == nil {
 		return "", errors.New("no service. %%%%pid%%%% is not allowed")
 	}
 
-	pid, err := svc.GetPid()
+	pid, err := res.GetPid()
 	if err != nil {
-		return "", fmt.Errorf("failed to get pid for service %s, skipping config - %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get pid for service %s, skipping config - %s", res.GetServiceID(), err)
 	}
 	return strconv.Itoa(pid), nil
 }
 
 // GetHostname resolves the %%hostname%% template variable
-func GetHostname(_ string, svc Resolvable) (string, error) {
-	if svc == nil {
+func GetHostname(_ string, res Resolvable) (string, error) {
+	if res == nil {
 		return "", errors.New("no service. %%%%hostname%%%% is not allowed")
 	}
 
-	name, err := svc.GetHostname()
+	name, err := res.GetHostname()
 	if err != nil {
-		return "", fmt.Errorf("failed to get hostname for service %s, skipping config - %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get hostname for service %s, skipping config - %s", res.GetServiceID(), err)
 	}
 	return name, nil
 }
 
 // GetAdditionalTplVariables resolves listener-specific template variables (%%kube_*%% and %%extra_*%%)
-func GetAdditionalTplVariables(tplVar string, svc Resolvable) (string, error) {
-	if svc == nil {
+func GetAdditionalTplVariables(tplVar string, res Resolvable) (string, error) {
+	if res == nil {
 		return "", errors.New("no service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
-	value, err := svc.GetExtraConfig(tplVar)
+	value, err := res.GetExtraConfig(tplVar)
 	if err != nil {
-		return "", fmt.Errorf("failed to get extra info for service %s, skipping config - %s", svc.GetServiceID(), err)
+		return "", fmt.Errorf("failed to get extra info for service %s, skipping config - %s", res.GetServiceID(), err)
 	}
 	return value, nil
 }
 
 // GetEnvvar resolves the %%env_*%% template variable
-func GetEnvvar(envVar string, svc Resolvable) (string, error) {
+func GetEnvvar(envVar string, res Resolvable) (string, error) {
 	if len(envVar) == 0 {
-		if svc != nil {
-			return "", fmt.Errorf("envvar name is missing, skipping service %s", svc.GetServiceID())
+		if res != nil {
+			return "", fmt.Errorf("envvar name is missing, skipping service %s", res.GetServiceID())
 		}
 		return "", errors.New("envvar name is missing")
 	}
 
 	if !allowEnvVar(envVar) {
-		if svc != nil {
-			return "", fmt.Errorf("envvar %s is not allowed in check configs, skipping service %s", envVar, svc.GetServiceID())
+		if res != nil {
+			return "", fmt.Errorf("envvar %s is not allowed in check configs, skipping service %s", envVar, res.GetServiceID())
 		}
 		return "", fmt.Errorf("envvar %s is not allowed in check configs", envVar)
 	}
 
 	value, found := os.LookupEnv(envVar)
 	if !found {
-		if svc != nil {
-			return "", fmt.Errorf("failed to retrieve envvar %s, skipping service %s", envVar, svc.GetServiceID())
+		if res != nil {
+			return "", fmt.Errorf("failed to retrieve envvar %s, skipping service %s", envVar, res.GetServiceID())
 		}
 		return "", fmt.Errorf("failed to retrieve envvar %s", envVar)
 	}
