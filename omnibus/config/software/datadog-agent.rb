@@ -253,17 +253,17 @@ build do
     copy 'bin/cws-instrumentation/cws-instrumentation', "#{install_dir}/embedded/bin"
   end
 
-  # Secret Backend (secret-generic-connector)
+  # Secret Generic Connector
   # TODO: (next) fips support
   if !fips_mode? && !heroku_target?
-    command "dda inv -- -e secret-backend.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e secret-generic-connector.build", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
     if windows_target?
-      copy 'bin/secret-backend/secret-generic-connector.exe', "#{install_dir}/bin/agent"
+      copy 'bin/secret-generic-connector/secret-generic-connector.exe', "#{install_dir}/bin/agent"
     else
-      copy 'bin/secret-backend/secret-generic-connector', "#{install_dir}/embedded/bin"
+      copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
     mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-backend/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
   end
 
   if osx_target?

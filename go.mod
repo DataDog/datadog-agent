@@ -1213,7 +1213,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
-// use datadog fork of vault/api/auth/aws to reduce binary size for secret-backend
+// use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 
 // Use custom Trivy fork to reduce binary size
@@ -1223,7 +1223,7 @@ replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-2025121
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
-// Updated to v1.3.0 for secret-backend gopenpgp/v3 compatibility
+// Updated to v1.3.0 for secret-generic-connector gopenpgp/v3 compatibility
 replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.3.0
 
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
