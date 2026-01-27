@@ -1,11 +1,9 @@
-Building Configuration...
-
 version 8.10
 hostname "OXID-IZE01"
 clock timezone Europe/Berlin +02 0
 !
 vpn-dialer default-dialer
-ike authentication pre-share AAAAAAAAAABBBBBBBBBB
+ike authentication pre-share <secret removed>
 !
 !
 crypto isakmp policy 20
@@ -57,8 +55,8 @@ opmode wpa2-psk-aes
 !
 
 snmp-server enable trap
-snmp-server host 10.42.1.5 version 2c AAAAAAAAAABBBBBBBBBB udp-port 162
-snmp-server host 10.42.1.6 version 2c AAAAAAAAAABBBBBBBBBB udp-port 162
+snmp-server host 10.42.1.5 version 2c <secret removed> udp-port 162
+snmp-server host 10.42.1.6 version 2c <secret removed> udp-port 162
 !
 conductor-redundancy
 conductor-vrrp 255
@@ -66,7 +64,7 @@ peer-ip-address 10.42.0.3 ipsec <secret removed>
 !
 vrrp 254
 priority 110
-authentication AAAAAAAAAABBBBBBBBBB
+authentication <secret removed>
 ip address 10.42.0.8
 description "VRRP-Master"
 vlan 42

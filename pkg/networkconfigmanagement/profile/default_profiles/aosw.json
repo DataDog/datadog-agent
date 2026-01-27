@@ -9,7 +9,7 @@
         "validation": [
           {
             "type": "valid_output",
-            "pattern": "Building Configuration"
+            "pattern": "(?i)Building Configuration"
           }
         ],
         "redaction": [
@@ -22,7 +22,7 @@
             "replacement": "$1 <secret removed>"
           },
           {
-            "regex": "(?m)^(.*PRE-SHARE) (\\S+)\\s?$",
+            "regex": "(?mi)^(.*pre-share) (\\S+)\\s?$",
             "replacement": "$1 <secret removed>"
           },
           {
@@ -80,6 +80,20 @@
           {
             "regex": "community (.*?)\\s*$",
             "replacement": "community <secret removed>"
+          },
+          {
+            "regex": "(?m)^(snmp-server host \\S+ (?:trap )?version (?:v?[123]c?|v3)) (\\S+)(.*)",
+            "replacement": "$1 <secret removed>$3"
+          },
+          {
+            "regex": "(?m)^(vrrp \\d+.*\\n.*\\n)(authentication) (\\S+)",
+            "replacement": "$1$2 <secret removed>",
+            "multiline": true
+          },
+          {
+            "regex": "Building Configuration...\\s*",
+            "replacement": "",
+            "multiline": true
           }
         ]
       }
