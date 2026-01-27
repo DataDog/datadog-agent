@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/google/uuid"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -71,11 +73,15 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 	for _, resolver := range s.Forwarder.GetDomainResolvers() {
 		useV3 := metricsUseV3(resolver, s.config, kind)
 		validateV3 := useV3 && validateV3
+		batchID := ""
+		if validateV3 {
+			batchID = genUUID()
+		}
 
 		dest := metrics.PipelineDestination{
-			Resolver:             resolver,
-			Endpoint:             metricsEndpointFor(kind, useV3),
-			AddValidationHeaders: validateV3,
+			Resolver:          resolver,
+			Endpoint:          metricsEndpointFor(kind, useV3),
+			ValidationBatchID: batchID,
 		}
 
 		switch {
@@ -110,9 +116,9 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 					V3:     false,
 				}
 				vdest := metrics.PipelineDestination{
-					Resolver:             resolver,
-					Endpoint:             metricsEndpointFor(kind, false),
-					AddValidationHeaders: true,
+					Resolver:          resolver,
+					Endpoint:          metricsEndpointFor(kind, false),
+					ValidationBatchID: batchID,
 				}
 				pipelines.Add(vconf, vdest)
 			}
@@ -120,4 +126,12 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 	}
 
 	return pipelines
+}
+
+func genUUID() string {
+	uuid, err := uuid.NewV7()
+	if err != nil {
+		return ""
+	}
+	return uuid.String()
 }
