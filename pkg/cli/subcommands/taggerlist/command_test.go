@@ -25,5 +25,10 @@ func TestCommand(t *testing.T) {
 		commands,
 		[]string{"tagger-list"},
 		taggerList,
-		func(_ *cliParams, _ core.BundleParams) {})
+		func(cliParams *cliParams, _ core.BundleParams) {
+			// Test default (non-JSON) output
+			if cliParams.jsonOutput {
+				t.Errorf("expected jsonOutput to be false by default")
+			}
+		})
 }

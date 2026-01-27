@@ -21,7 +21,7 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string) error {
+func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonOutput bool) error {
 
 	// get the tagger-list from server
 	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
@@ -39,7 +39,23 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string) error {
 		return err
 	}
 
-	printTaggerEntities(color.Output, &tr)
+	if jsonOutput {
+		return printTaggerJSON(w, &tr)
+	}
+
+	printTaggerEntities(w, &tr)
+	return nil
+}
+
+// printTaggerJSON outputs the tagger list in JSON format
+func printTaggerJSON(w io.Writer, tr *types.TaggerListResponse) error {
+	jsonData, err := json.MarshalIndent(tr, "", "  ")
+	if err != nil {
+		body, _ := json.Marshal(map[string]string{"error": fmt.Sprintf("marshalling tagger list to JSON: %s", err)})
+		fmt.Fprintln(w, string(body))
+		return err
+	}
+	fmt.Fprintln(w, string(jsonData))
 	return nil
 }
 
