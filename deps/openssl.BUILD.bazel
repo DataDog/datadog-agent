@@ -158,7 +158,7 @@ configure_make(
         "@platforms//os:windows": [],
     }),
     copts = ["-O2"] + select({
-        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=\\\"_WSAIOW(IOC_VENDOR, 15)\\\""],
+        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
         "//conditions:default": [],
     }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
