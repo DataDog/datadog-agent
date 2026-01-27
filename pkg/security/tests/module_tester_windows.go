@@ -223,9 +223,18 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, fmt.Errorf("failed to start module: %w", err)
 	}
 
-	if ruleSetloadedErr.ErrorOrNil() != nil {
-		defer testMod.Close()
-		return nil, ruleSetloadedErr.ErrorOrNil()
+	if !opts.staticOpts.disableRuntimeSecurity {
+		// force a reload of the policies
+		err = testMod.ruleEngine.LoadPolicies()
+		if err != nil {
+			testMod.Close()
+			return nil, err
+		}
+
+		if ruleSetloadedErr.ErrorOrNil() != nil {
+			defer testMod.Close()
+			return nil, ruleSetloadedErr.ErrorOrNil()
+		}
 	}
 
 	return testMod, nil

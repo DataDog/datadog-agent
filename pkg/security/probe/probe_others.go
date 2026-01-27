@@ -48,7 +48,7 @@ func (p *Probe) AddCustomEventHandler(_ model.EventType, _ CustomEventHandler) e
 }
 
 // NewRuleSet returns a new ruleset
-func (p *Probe) NewRuleSet(_ map[eval.EventType]bool) *rules.RuleSet {
+func (p *Probe) NewRuleSet(_ map[eval.EventType]bool, _ time.Duration) *rules.RuleSet {
 	return nil
 }
 

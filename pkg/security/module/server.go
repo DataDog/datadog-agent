@@ -179,6 +179,7 @@ type APIServer struct {
 	connEstablished    *atomic.Bool
 	envAsTags          []string
 	containerFilter    *containers.Filter
+	policyReloader     ReloaderInterface
 
 	// os release data
 	kernelVersion string
@@ -621,9 +622,7 @@ func (a *APIServer) ReloadPolicies(_ context.Context, _ *api.ReloadPoliciesParam
 		return nil, errors.New("no rule engine")
 	}
 
-	if err := a.cwsConsumer.ruleEngine.ReloadPolicies(); err != nil {
-		return nil, err
-	}
+	a.policyReloader.Reload()
 
 	return &api.ReloadPoliciesResultMessage{}, nil
 }
@@ -804,7 +803,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component, policyReloader ReloaderInterface) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -827,6 +826,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 		connEstablished: atomic.NewBool(false),
 		envAsTags:       getEnvAsTags(cfg),
 		containerFilter: containerFilter,
+		policyReloader:  policyReloader,
 	}
 
 	if !cfg.SendPayloadsFromSystemProbe && cfg.EventGRPCServer == "security-agent" {

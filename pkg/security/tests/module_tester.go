@@ -41,11 +41,9 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -121,15 +119,7 @@ func (tm *testModule) RunMultiMode(t *testing.T, name string, fnc func(t *testin
 }
 
 func (tm *testModule) reloadPolicies() error {
-	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
-
-	bundledPolicyProvider := bundled.NewPolicyProvider(tm.eventMonitor.Probe.Config.RuntimeSecurity)
-	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir)
-	if err != nil {
-		return err
-	}
-
-	if err := tm.ruleEngine.LoadPolicies([]rules.PolicyProvider{bundledPolicyProvider, policyDirProvider}, true); err != nil {
+	if err := tm.ruleEngine.LoadPolicies(); err != nil {
 		return fmt.Errorf("failed to reload test module: %w", err)
 	}
 

@@ -10,4 +10,5 @@ type ReloaderInterface interface {
 	Start() error
 	Stop()
 	Chan() <-chan struct{}
+	Reload()
 }
