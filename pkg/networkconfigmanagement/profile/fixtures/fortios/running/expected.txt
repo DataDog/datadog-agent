@@ -26,7 +26,7 @@ config system admin
         set trusthost1 192.0.2.0 255.255.255.0
         set accprofile "super_admin"
         set vdom "root"
-        set password ENC <secret removed>
+        set password ENC <secret hidden>
     next
 end
 config system snmp user
@@ -34,13 +34,13 @@ config system snmp user
         set notify-hosts 192.0.2.10 192.0.2.11
         set events cpu-high mem-low log-full intf-ip vpn-tun-up vpn-tun-down ips-signature av-virus av-oversize av-pattern av-fragmented fm-if-change av-conserve av-bypass av-oversize-passed av-oversize-blocked ips-pkg-update ips-fail-open temperature-high voltage-alert faz-disconnect device-new per-cpu-high
         set security-level auth-priv
-        set auth-pwd ENC <secret removed>
-        set priv-pwd ENC <secret removed>
+        set auth-pwd ENC <secret hidden>
+        set priv-pwd ENC <secret hidden>
     next
 end
 config vpn certificate local
     edit "Fortinet_CA_SSL"
-        set password ENC <secret removed>
+        set password ENC <secret hidden>
         set comments "This is the default CA certificate the SSL Inspection will use when generating new server certificates."
         set range global
         set source factory
@@ -50,20 +50,20 @@ config user tacacs+
     edit "tacacs-server-name"
         set server "192.0.2.19"
         set secondary-server "192.0.2.20"
-        set key ENC <secret removed>
-        set secondary-key ENC <secret removed>
+        set key ENC <secret hidden>
+        set secondary-key ENC <secret hidden>
         set authorization enable
     next
 end
 config firewall ssh local-key
     edit "Fortinet_SSH_RSA2048"
-        set password ENC <secret removed>
+        set password ENC <secret hidden>
         set source built-in
     next
 end
 config firewall ssh local-ca
     edit "Fortinet_SSH_CA"
-        set password ENC <secret removed>
+        set password ENC <secret hidden>
         set source built-in
     next
 end
