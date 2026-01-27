@@ -565,22 +565,16 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-<<<<<<< HEAD
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.ipc, p.sendAnomalyDetection)
+		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname)
 		if err != nil {
 			return err
 		}
 	} else {
-		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.ipc)
+		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname)
 		if err != nil {
 			return err
 		}
-=======
-	p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager, p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname)
-	if err != nil {
-		return err
->>>>>>> main
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)

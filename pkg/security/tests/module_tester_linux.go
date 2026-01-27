@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
@@ -1567,7 +1568,7 @@ func (tm *testModule) triggerLoadControllerReducer(_ *dockerCmdWrapper, id *acti
 	if managers == nil {
 		return
 	}
-	managers.FakeDumpOverweight(id.Name)
+	managers.(*securityprofile.Manager).FakeDumpOverweight(id.Name)
 
 	// wait until the dump learning has stopped
 	for tm.isDumpRunning(id) {
@@ -1768,10 +1769,12 @@ func (tm *testModule) StopAllActivityDumps() error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if ok {
 		if managers := p.GetProfileManager(); managers != nil {
-			// First call evictTracedCgroup for all active dumps to blacklist them
-			managers.EvictAllTracedCgroups()
-			// Then clear everything
-			managers.ClearTracedCgroups()
+			if m, ok := managers.(*securityprofile.Manager); ok {
+				// First call evictTracedCgroup for all active dumps to blacklist them
+				m.EvictAllTracedCgroups()
+				// Then clear everything
+				m.ClearTracedCgroups()
+			}
 		}
 	}
 
@@ -1910,7 +1913,7 @@ func (tm *testModule) ListAllProfiles() {
 		return
 	}
 
-	m.ListAllProfileStates()
+	m.(*securityprofile.Manager).ListAllProfileStates()
 }
 
 func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
@@ -1924,7 +1927,7 @@ func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelec
 		return errors.New("no profile managers")
 	}
 
-	profile := m.GetProfile(*selector)
+	profile := m.(*securityprofile.Manager).GetProfile(*selector)
 	if profile == nil {
 		return errors.New("no profile")
 	}
@@ -1947,7 +1950,7 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 		return []string{}, errors.New("no profile managers")
 	}
 
-	profile := m.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+	profile := m.(*securityprofile.Manager).GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 	if profile == nil {
 		return []string{}, errors.New("no profile")
 	}

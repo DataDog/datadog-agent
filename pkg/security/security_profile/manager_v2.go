@@ -18,10 +18,8 @@ import (
 
 	"go.uber.org/atomic"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -89,7 +87,7 @@ type ManagerV2 struct {
 	pendingProfileRemovalsLock sync.Mutex
 }
 
-func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
+func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string) (*ManagerV2, error) {
 
 	localStorage, err := storage.NewDirectory(cfg.RuntimeSecurity.ActivityDumpLocalStorageDirectory, cfg.RuntimeSecurity.ActivityDumpLocalStorageMaxDumpsCount)
 	if err != nil {
@@ -117,11 +115,6 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		true, // force remote compression
 		"",
 	))
-
-	hostname, err := hostnameutils.GetHostname(ipc)
-	if err != nil || hostname == "" {
-		hostname = "unknown"
-	}
 
 	return &ManagerV2{
 		config:                    cfg,
@@ -1059,29 +1052,3 @@ func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMe
 func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	return nil, nil
 }
-
-// AddProfile adds a profile to the manager.
-// NO-OP in V2: Tests are not run against V2.
-func (m *ManagerV2) AddProfile(_ *profile.Profile) {}
-
-// FakeDumpOverweight fakes a dump stats to force triggering the load controller.
-// NO-OP in V2: V2 doesn't have the activity dump mechanism.
-func (m *ManagerV2) FakeDumpOverweight(_ string) {}
-
-// ListAllProfileStates lists all profiles and their versions (debug purpose only).
-// NO-OP in V2: Tests are not run against V2.
-func (m *ManagerV2) ListAllProfileStates() {}
-
-// GetProfile returns a profile by its selector.
-// NO-OP in V2: Tests are not run against V2.
-func (m *ManagerV2) GetProfile(_ cgroupModel.WorkloadSelector) *profile.Profile {
-	return nil
-}
-
-// EvictAllTracedCgroups evicts all currently traced cgroups.
-// NO-OP in V2: V2 doesn't use kernel-space traced cgroups.
-func (m *ManagerV2) EvictAllTracedCgroups() {}
-
-// ClearTracedCgroups clears all entries from the traced cgroups map.
-// NO-OP in V2: V2 doesn't use kernel-space traced cgroups.
-func (m *ManagerV2) ClearTracedCgroups() {}
