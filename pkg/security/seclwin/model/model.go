@@ -119,6 +119,11 @@ func (c *ContainerContext) ParentScope() (eval.VariableScope, bool) {
 	return nil, false
 }
 
+// Sandbox returns true if the container is a sandbox/pause container
+func (c *ContainerContext) Sandbox() bool {
+	return c.IsSandbox
+}
+
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
 	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`

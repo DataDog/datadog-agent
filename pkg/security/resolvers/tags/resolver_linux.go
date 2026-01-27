@@ -161,6 +161,11 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 	workload.Tags = newTags
 	workload.workloadType = workloadType
 
+	// Mark sandbox containers in the cgroup resolver for metrics tracking
+	if workloadType == WorkloadTypePodSandbox {
+		t.cgroupResolver.SetSandbox(workload.GCroupCacheEntry)
+	}
+
 	// For container workloads, extract image information for the selector
 	if workload.Type() == "container" {
 		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
