@@ -7,6 +7,17 @@ on:
 
   # Allow manual trigger
   workflow_dispatch:
+    inputs:
+      disable_dockerhub:
+        description: 'Disable fetching versions from Docker Hub'
+        required: false
+        default: false
+        type: boolean
+      disable_github:
+        description: 'Disable fetching RC versions from GitHub'
+        required: false
+        default: false
+        type: boolean
 
 permissions: {}
 
@@ -55,7 +66,14 @@ jobs:
       - name: Fetch latest Kubernetes version
         id: fetch-versions
         run: |
-          dda inv k8s-versions.fetch-versions
+          args=()
+          if [ "${{ inputs.disable_dockerhub }}" = "true" ]; then
+            args+=(--disable-dockerhub)
+          fi
+          if [ "${{ inputs.disable_github }}" = "true" ]; then
+            args+=(--disable-github)
+          fi
+          dda inv k8s-versions.fetch-versions "${args[@]}"
 
       - name: Build RC images
         if: steps.fetch-versions.outputs.has_new_rc_versions == 'true'
@@ -64,20 +82,20 @@ jobs:
           dda inv kind-node-image.build-rc-images --versions='${{ steps.fetch-versions.outputs.new_versions }}'
 
       - name: Configure AWS credentials
-        if: steps.build-rc-images.outputs.built_count > 0
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
         uses: aws-actions/configure-aws-credentials@61815dcd50bd041e203e49132bacad1fd04d2708 # v5.1.1
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/datadog-agent-kind-image-publisher-oidc
           aws-region: us-east-1
 
       - name: Log in to AWS ECR
-        if: steps.build-rc-images.outputs.built_count > 0
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
 
       - name: Tag and push RC images to ECR
-        if: steps.build-rc-images.outputs.built_count > 0
+        if: steps.fetch-versions.outputs.has_new_rc_versions == 'true' && steps.build-rc-images.outputs.built_count > 0
         id: push-rc-images
         env:
           ECR_REGISTRY: ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.ECR_REGION }}.amazonaws.com
@@ -102,7 +120,6 @@ jobs:
             new_versions=$(jq --arg tag "$tag" --arg digest "$digest" '.[$tag].digest = $digest' <<< "$new_versions")
           done
 
-          #
           echo "new_versions=$new_versions" >> "$GITHUB_OUTPUT"
 
       - name: Save new versions to file

@@ -114,33 +114,38 @@ def _extract_index_digest(tag_data: dict) -> str | None:
     return tag_data.get('digest')
 
 
-def _get_latest_k8s_versions() -> dict[str, dict[str, str]]:
+def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True) -> dict[str, dict[str, str]]:
     """
-    Fetch and parse the latest Kubernetes version from Docker Hub.
+    Fetch and parse the latest Kubernetes version from Docker Hub and/or GitHub.
     Returns a dictionary with only the single latest version.
+
+    Args:
+        use_dockerhub: Whether to fetch versions from Docker Hub (default: True)
+        use_github: Whether to fetch RC versions from GitHub (default: True)
     """
 
     # Filter for valid Kubernetes version tags
     version_tags = []
 
-    # Final release Kubernetes version tags
-    _get_docker_hub_tags()  # Calling this function to pass commit hooks
-    for tag in []:  # TODO: Remove this hardcode but it's intentional to trigger the rc flow
-        tag_name = tag.get('name', '')
-        version = _parse_version(tag_name)
+    # Final release Kubernetes version tags from Docker Hub
+    if use_dockerhub:
+        for tag in _get_docker_hub_tags():
+            tag_name = tag.get('name', '')
+            version = _parse_version(tag_name)
 
-        if version:
-            digest = _extract_index_digest(tag)
-            if digest:
-                version_tags.append({'version': version, 'tag': tag_name, 'digest': digest})
+            if version:
+                digest = _extract_index_digest(tag)
+                if digest:
+                    version_tags.append({'version': version, 'tag': tag_name, 'digest': digest})
 
-    # RC Kubernetes version tags
-    for tag in get_github_rc_releases():
-        tag_name = tag.get('tag_name', '')
-        version = _parse_version(tag_name)
-        if version and tag_name:
-            # Hardcode 'rc' to True because get_github_rc_releases() only returns rc releases
-            version_tags.append({'version': version, 'tag': tag_name, 'rc': True})
+    # RC Kubernetes version tags from GitHub
+    if use_github:
+        for tag in get_github_rc_releases():
+            tag_name = tag.get('tag_name', '')
+            version = _parse_version(tag_name)
+            if version and tag_name:
+                # Hardcode 'rc' to True because get_github_rc_releases() only returns rc releases
+                version_tags.append({'version': version, 'tag': tag_name, 'rc': True})
 
     # Sort by version (major, minor, patch)
     version_tags.sort(key=lambda x: x['version'], reverse=True)
@@ -356,16 +361,17 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
 
 
 @task
-def fetch_versions(_, output_file=VERSIONS_FILE):
+def fetch_versions(_, output_file=VERSIONS_FILE, disable_dockerhub=False, disable_github=False):
     """
-    Fetch the latest Kubernetes version from Docker Hub.
+    Fetch the latest Kubernetes version from Docker Hub and/or GitHub.
 
     This task fetches the latest Kubernetes version from the kindest/node
-    Docker Hub repository and adds it to a JSON file for comparison.
-    The file accumulates all versions over time.
+    Docker Hub repository and/or GitHub RC releases and adds it to a JSON
+    file for comparison. The file accumulates all versions over time.
 
     Args:
-        output_file: Path to the JSON file to store versions (default: k8s_versions.json)
+        disable_dockerhub: Disable fetching versions from Docker Hub (default: False)
+        disable_github: Disable fetching RC versions from GitHub (default: False)
 
     Outputs (GitHub Actions):
         has_new_versions: 'true' if a new version was found
@@ -373,8 +379,22 @@ def fetch_versions(_, output_file=VERSIONS_FILE):
     """
     _check_dependencies()
 
-    print("Fetching latest Kubernetes version from Docker Hub and GitHub...")
-    current_versions = _get_latest_k8s_versions()
+    # Convert CLI arguments (--disable flags) to positive booleans
+    enable_dockerhub = not disable_dockerhub
+    enable_github = not disable_github
+
+    if not enable_dockerhub and not enable_github:
+        print("Error: At least one source must be enabled")
+        raise Exit("No sources enabled", code=1)
+
+    sources = []
+    if enable_dockerhub:
+        sources.append("Docker Hub")
+    if enable_github:
+        sources.append("GitHub")
+
+    print(f"Fetching latest Kubernetes version from {' and '.join(sources)}...")
+    current_versions = _get_latest_k8s_versions(use_dockerhub=enable_dockerhub, use_github=enable_github)
 
     if not current_versions:
         print("Error: Could not find any Kubernetes versions")
