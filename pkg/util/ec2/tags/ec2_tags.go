@@ -178,7 +178,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	tags, err := getTagsWithClient(ctx, ec2Client, instanceIdentity)
+	tags, err := getTagsWithClientFunc(ctx, ec2Client, instanceIdentity)
 	if err == nil {
 		return tags, nil
 	}
@@ -196,7 +196,7 @@ func fetchEc2TagsFromAPI(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return getTagsWithClient(ctx, legacyClient, instanceIdentity)
+	return getTagsWithClientFunc(ctx, legacyClient, instanceIdentity)
 }
 
 func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity *ec2internal.EC2Identity) ([]string, error) {
@@ -230,6 +230,7 @@ func getTagsWithClient(ctx context.Context, client *ec2.Client, instanceIdentity
 
 // for testing purposes
 var fetchTags = fetchEc2Tags
+var getTagsWithClientFunc = getTagsWithClient
 
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	if !configutils.IsCloudProviderEnabled(ec2internal.CloudProviderName, pkgconfigsetup.Datadog()) {
