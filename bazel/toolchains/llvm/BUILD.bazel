@@ -1,0 +1,16 @@
+"""LLVM/Clang toolchain for eBPF compilation."""
+
+load(":llvm.bzl", "llvm_toolchain")
+
+# Define the toolchain type
+toolchain_type(
+    name = "llvm_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+# Dummy toolchain for when LLVM is not available
+llvm_toolchain(
+    name = "no_llvm",
+    version = "unavailable",
+    visibility = ["//visibility:public"],
+)

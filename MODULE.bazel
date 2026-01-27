@@ -85,6 +85,14 @@ register_toolchains(
     dev_dependency = True,
 )
 
+## LLVM/Clang toolchain for eBPF compilation
+llvm_toolchain_ext = use_extension("//bazel/toolchains/llvm:llvm_configure.bzl", "llvm_toolchain_extension")
+use_repo(llvm_toolchain_ext, "llvm_toolchain")
+
+register_toolchains(
+    "@llvm_toolchain//:llvm_toolchain",
+)
+
 ######################################
 ## Compilers and toolchains        ##
 ####################################
