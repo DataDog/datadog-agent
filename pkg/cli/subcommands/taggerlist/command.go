@@ -29,6 +29,7 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
+	args       []string
 	json       bool
 	prettyJSON bool
 }
@@ -50,13 +51,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
 	cmd := &cobra.Command{
-		Use:   "tagger-list",
+		Use:   "tagger-list [search]",
 		Short: "Print the tagger content of a running agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
+			cliParams.args = args
 
 			return fxutil.OneShot(taggerList,
 				fx.Supply(cliParams),
@@ -87,7 +89,15 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 		return err
 	}
 
-	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON)
+	// Validate search argument
+	var searchTerm string
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one search term must be specified")
+	} else if len(cliParams.args) == 1 {
+		searchTerm = cliParams.args[0]
+	}
+
+	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON, searchTerm)
 }
 
 func getTaggerURL(config config.Component) (string, error) {

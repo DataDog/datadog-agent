@@ -22,7 +22,7 @@ import (
 )
 
 // GetTaggerList display in a human readable format the Tagger entities into the io.Write w.
-func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, prettyJSON bool) error {
+func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, prettyJSON bool, search string) error {
 
 	// get the tagger-list from server
 	r, err := c.Get(url, ipchttp.WithLeaveConnectionOpen)
@@ -40,12 +40,43 @@ func GetTaggerList(c ipc.HTTPClient, w io.Writer, url string, jsonFlag bool, pre
 		return err
 	}
 
+	// Filter entities if search term provided
+	if search != "" {
+		tr.Entities = filterEntities(tr.Entities, search)
+		if len(tr.Entities) == 0 {
+			return fmt.Errorf("no entities found matching %q", search)
+		}
+	}
+
 	if jsonFlag || prettyJSON {
 		return jsonutil.PrintJSON(w, &tr, prettyJSON)
 	}
 
 	printTaggerEntities(w, &tr)
 	return nil
+}
+
+// filterEntities filters entities by searching for the term in entity IDs and source names
+func filterEntities(entities map[string]types.TaggerListEntity, search string) map[string]types.TaggerListEntity {
+	filtered := make(map[string]types.TaggerListEntity)
+
+	for entityID, tagItem := range entities {
+		// Check if search term is in entity ID
+		if strings.Contains(entityID, search) {
+			filtered[entityID] = tagItem
+			continue
+		}
+
+		// Check if search term matches any source name
+		for source := range tagItem.Tags {
+			if strings.Contains(source, search) {
+				filtered[entityID] = tagItem
+				break
+			}
+		}
+	}
+
+	return filtered
 }
 
 // printTaggerEntities use to print Tagger entities into an io.Writer
