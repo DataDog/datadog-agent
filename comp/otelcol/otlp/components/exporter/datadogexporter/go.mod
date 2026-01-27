@@ -13,7 +13,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/proto v0.76.0-devel
@@ -354,7 +353,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils

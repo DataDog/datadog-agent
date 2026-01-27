@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
 	tcpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
