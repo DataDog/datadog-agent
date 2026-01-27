@@ -2,32 +2,37 @@ http_file = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", 
 
 VERSION = "18.3.3.1-1"
 
+# Debian AMD64 build
 http_file(
     name = "msodbcsql18_deb_amd64",
-    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
-    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_18.3.3.1-1_amd64.deb",
+    sha256 = "f91004ce72fcd92e686154f90e2a80f4f86469e7cb5f42ef79cba79dc6727890",
+    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{}_amd64.deb".format(VERSION),
 )
 
+# Debian ARM64 build
 http_file(
     name = "msodbcsql18_deb_arm64",
     sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
-    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_18.3.3.1-1_arm64.deb",
+    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{}_arm64.deb".format(VERSION),
 )
 
+# RHEL x86_64 build
 http_file(
     name = "msodbcsql18_rpm_amd64",
-    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
-    url = "https://packages.microsoft.com/rhel/7/prod/Packages/m/msodbcsql18-18.3.3.1-1.x86_64.rpm",
+    sha256 = "8914b1e64c37f3740dff96f7e5db57f40f9564979617ad38acf3d38b958b7cb7",
+    url = "https://packages.microsoft.com/rhel/7/prod/Packages/m/msodbcsql18-{}.x86_64.rpm".format(VERSION),
 )
 
+# RHEL aarch64 build
 http_file(
     name = "msodbcsql18_rpm_arm64",
-    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
-    url = "https://packages.microsoft.com/rhel/8/prod/Packages/m/msodbcsql18-18.3.3.1-1.aarch64.rpm",
+    sha256 = "ffbdede1d6af1245ce02cb77d3d5d37648b9121900632d3c6de56fe60d436b12",
+    url = "https://packages.microsoft.com/rhel/8/prod/Packages/m/msodbcsql18-{}.aarch64.rpm".format(VERSION),
 )
 
+# SLES x86_64 build
 http_file(
     name = "msodbcsql18_rpm_sles",
-    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
-    url = "https://packages.microsoft.com/sles/12/prod/Packages/m/msodbcsql18-18.3.3.1-1.x86_64.rpm",
+    sha256 = "fc25b9f52aef7a8814667045185103ab967f02301d875d4236e9a6c1493b298a",
+    url = "https://packages.microsoft.com/sles/12/prod/Packages/m/msodbcsql18-{}.x86_64.rpm".format(VERSION),
 )
