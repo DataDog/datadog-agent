@@ -10,6 +10,7 @@ pkg_filegroup(
     ] + select({
         "@platforms//os:linux": [
             "//deps/compile_policy:bin_files",
+            "//pkg/discovery/module/rust:sd-agent_pkg",
         ],
         "//conditions:default": [],
     }),
