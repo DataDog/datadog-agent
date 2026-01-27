@@ -1,0 +1,33 @@
+http_file = use_repo_rule("//third_party/bazel/tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "18.3.3.1-1"
+
+http_file(
+    name = "msodbcsql18_deb_amd64",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_18.3.3.1-1_amd64.deb",
+)
+
+http_file(
+    name = "msodbcsql18_deb_arm64",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_18.3.3.1-1_arm64.deb",
+)
+
+http_file(
+    name = "msodbcsql18_rpm_amd64",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    url = "https://packages.microsoft.com/rhel/7/prod/Packages/m/msodbcsql18-18.3.3.1-1.x86_64.rpm",
+)
+
+http_file(
+    name = "msodbcsql18_rpm_arm64",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    url = "https://packages.microsoft.com/rhel/8/prod/Packages/m/msodbcsql18-18.3.3.1-1.aarch64.rpm",
+)
+
+http_file(
+    name = "msodbcsql18_rpm_sles",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    url = "https://packages.microsoft.com/sles/12/prod/Packages/m/msodbcsql18-18.3.3.1-1.x86_64.rpm",
+)

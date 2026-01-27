@@ -1,0 +1,4 @@
+# So we need to decide on the fly which deb/rpm package to use right now
+# so we can only use a single http_file at a time and not all of them.
+# Then we need to run a command to extract the files we need from the package,
+# declare a filegroup and wrap it into pkg_install target.
