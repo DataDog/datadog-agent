@@ -9,6 +9,7 @@
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e cluster-agent.build
     # keep the unstripped binary for fips compliance checks
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped

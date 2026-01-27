@@ -4,6 +4,7 @@
   needs: ["go_mod_tidy_check"]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e cws-instrumentation.build --arch-suffix
   artifacts:
     paths:
@@ -46,6 +47,7 @@ cws_instrumentation-build_arm64:
   needs: ["go_mod_tidy_check"]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e cws-instrumentation.build --arch-suffix --injector-only
   artifacts:
     paths:

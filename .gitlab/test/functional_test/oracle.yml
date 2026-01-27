@@ -26,4 +26,5 @@ oracle:
   before_script:
     - !reference [.retrieve_linux_go_deps]
   script:
+    - dda inv -- rust-compression.build --release
     - dda inv -- oracle.test

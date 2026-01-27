@@ -10,6 +10,7 @@ build_dogstatsd_static-binary_x64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e dogstatsd.build --static
     - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
 
@@ -27,6 +28,7 @@ build_dogstatsd_static-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e dogstatsd.build --static
     - $S3_CP_CMD $CI_PROJECT_DIR/$STATIC_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/static/dogstatsd.$ARCH
 
@@ -42,6 +44,7 @@ build_dogstatsd-binary_x64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e dogstatsd.build
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd
 
@@ -59,6 +62,7 @@ build_dogstatsd-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e dogstatsd.build
     - $S3_CP_CMD $CI_PROJECT_DIR/$DOGSTATSD_BINARIES_DIR/dogstatsd $S3_ARTIFACTS_URI/dogstatsd/dogstatsd.$ARCH
 
@@ -77,6 +81,7 @@ build_iot_agent-binary_x64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e agent.build --flavor iot
     - $S3_CP_CMD $CI_PROJECT_DIR/$AGENT_BINARIES_DIR/agent $S3_ARTIFACTS_URI/iot/agent
 
@@ -93,4 +98,5 @@ build_iot_agent-binary_arm64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e agent.build --flavor iot

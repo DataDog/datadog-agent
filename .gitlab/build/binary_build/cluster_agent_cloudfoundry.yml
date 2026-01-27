@@ -18,6 +18,7 @@ cluster_agent_cloudfoundry-build_amd64:
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e cluster-agent-cloudfoundry.build
     - cd $CI_PROJECT_DIR/$CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR
     - strip datadog-cluster-agent-cloudfoundry
