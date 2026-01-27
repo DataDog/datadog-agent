@@ -343,13 +343,23 @@ read), and tailing mode for each log file.
 Package integrations adds a go interface for integrations to register and
 send logs.
 
-### [comp/logs/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/kubehealth)
+### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
+
+## [comp/logs-library](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library) (Component Bundle)
+
+*Datadog Team*: agent-log-pipelines
+
+Package logslibrary provides the logs library component bundle
+
+### [comp/logs-library/kubehealth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs-library/kubehealth)
+
+Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
