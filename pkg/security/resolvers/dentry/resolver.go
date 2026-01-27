@@ -76,6 +76,8 @@ type Resolver struct {
 	erpcResolutionAvgTime   float64
 	erpcResolutionNumValues int64
 	erpcResolutionTimesLock sync.Mutex
+
+	interner *utils.LRUStringInterner
 }
 
 // ErrEntryNotFound is thrown when a path key was not found in the cache
@@ -464,7 +466,7 @@ func (dr *Resolver) cacheEntries(keys []model.PathKey, names [][]byte) error {
 
 	for i, k := range keys {
 		cacheEntry := PathEntry{
-			Name: string(names[i]),
+			Name: dr.interner.Deduplicate(string(names[i])),
 		}
 		if len(keys) > i+1 {
 			cacheEntry.Parent = keys[i+1]
@@ -763,7 +765,7 @@ func (dr *Resolver) Close() error {
 }
 
 // NewResolver returns a new dentry resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC) (*Resolver, error) {
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *erpc.ERPC, interner *utils.LRUStringInterner) (*Resolver, error) {
 	hitsCounters := make(map[counterEntry]*atomic.Int64)
 	missCounters := make(map[counterEntry]*atomic.Int64)
 	for _, resolution := range metrics.AllResolutionsTags {
@@ -802,5 +804,6 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		missCounters:  missCounters,
 		numCPU:        numCPU,
 		challenge:     rand.Uint32(),
+		interner:      interner,
 	}, nil
 }

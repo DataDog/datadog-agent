@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestDentryPathERPC(t *testing.T) {
@@ -332,7 +333,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc, utils.NewLRUStringInterner(16384, "basename"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -401,7 +402,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc, utils.NewLRUStringInterner(16384, "basename"))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -469,7 +470,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc, utils.NewLRUStringInterner(16384, "basename"))
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -47,6 +47,15 @@ func NewFileNode(fileEvent *model.FileEvent, event *model.Event, name string, im
 		resolvers.HashResolver.ComputeHashesFromEvent(event, fileEvent, 0)
 	}
 
+	if resolvers != nil {
+		if resolvers.BasenameInterner != nil {
+			name = resolvers.BasenameInterner.Deduplicate(name)
+		}
+		if resolvers.PathInterner != nil && reducedFilePath != "" {
+			reducedFilePath = resolvers.PathInterner.Deduplicate(reducedFilePath)
+		}
+	}
+
 	fan := &FileNode{
 		Name:           name,
 		GenerationType: generationType,

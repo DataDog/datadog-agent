@@ -1018,6 +1018,17 @@ func (p *EBPFProbe) SendStats() error {
 		}
 	}
 
+	if p.Resolvers.BasenameInterner != nil {
+		if err := p.Resolvers.BasenameInterner.SendStats(p.statsdClient, metrics.MetricStringInternerHits, metrics.MetricStringInternerMisses, metrics.MetricStringInternerSize); err != nil {
+			return err
+		}
+	}
+	if p.Resolvers.PathInterner != nil {
+		if err := p.Resolvers.PathInterner.SendStats(p.statsdClient, metrics.MetricStringInternerHits, metrics.MetricStringInternerMisses, metrics.MetricStringInternerSize); err != nil {
+			return err
+		}
+	}
+
 	value := p.BPFFilterTruncated.Swap(0)
 	if err := p.statsdClient.Count(metrics.MetricBPFFilterTruncated, int64(value), []string{}, 1.0); err != nil {
 		return err
@@ -3189,7 +3200,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		WorkloadMeta:             opts.WorkloadMeta,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
+	// String interners. Basenames are shared between the dentry resolver and the activity tree
+	// FileNode.Name. Full paths are stored only on activity tree FileNode leaves and have a much
+	// higher cardinality, so they get their own larger LRU to avoid evicting basenames.
+	basenameInterner := utils.NewLRUStringInterner(16384, "basename")
+	pathInterner := utils.NewLRUStringInterner(65536, "path")
+
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts, basenameInterner, pathInterner)
 	if err != nil {
 		return nil, err
 	}
