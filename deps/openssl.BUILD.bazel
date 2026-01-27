@@ -169,7 +169,9 @@ configure_make(
                 done
             done
             LIBS="$$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib"
-        """ + FIX_OPENSSL_PATHS,
+        """ + FIX_OPENSSL_PATHS + """
+        codesign -s - -f $$INSTALLDIR/lib/libcrypto.dylib $$INSTALLDIR/lib/libssl.dylib
+        """,
         "//conditions:default": """
             LIBS="$$INSTALLDIR/lib/libcrypto.so $$INSTALLDIR/lib/libssl.so"
         """ + FIX_OPENSSL_PATHS,

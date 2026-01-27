@@ -12,7 +12,6 @@
 '@datadog/agent-delivery': '#agent-delivery-ops'
 '@datadog/agent-devx': '#agent-devx-ops'
 '@datadog/agent-discovery': '#agent-discovery'
-'@datadog/agent-e2e-testing': '#agent-devx-ops'
 '@datadog/agent-integrations': '#agent-integrations'
 '@datadog/agent-log-pipelines': '#agent-log-pipelines'
 '@datadog/agent-metric-pipelines': '#agent-metric-pipelines'

@@ -13,7 +13,6 @@
 '@datadog/agent-delivery': '#agent-delivery-reviews'
 '@datadog/agent-devx': '#agent-devx-reviews'
 '@datadog/agent-discovery': '#agent-discovery'
-'@datadog/agent-e2e-testing': '#agent-devx-reviews'
 '@datadog/agent-health': '#agent-health'
 '@datadog/agent-integrations': '#agent-integrations-reviews'
 '@datadog/agent-log-pipelines': '#agent-log-pipelines'
