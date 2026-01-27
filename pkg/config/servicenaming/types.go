@@ -15,6 +15,8 @@
 //   - pod.ownerref.name
 package servicenaming
 
+import "github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
+
 // CELInput is the input structure for CEL evaluation.
 // It contains the context for service name calculation.
 type CELInput struct {
@@ -137,17 +139,95 @@ type MetadataCEL struct {
 	Annotations map[string]string `cel:"annotations"`
 }
 
-// ServiceDiscoveryResult contains the evaluated service discovery values.
-type ServiceDiscoveryResult struct {
-	// ServiceName is the computed service name
-	ServiceName string
+// ServiceDiscoveryResult is an alias to engine.ServiceDiscoveryResult for backward compatibility.
+type ServiceDiscoveryResult = engine.ServiceDiscoveryResult
 
-	// SourceName indicates where the service name came from (e.g., "cel", "java", "container")
-	SourceName string
+// ToEngineInput converts CELInput to engine.CELInput by converting structs to maps.
+func ToEngineInput(input CELInput) engine.CELInput {
+	return engine.CELInput{
+		Process:   convertProcess(input.Process),
+		Container: convertContainer(input.Container),
+		Pod:       convertPod(input.Pod),
+	}
+}
 
-	// Version is the computed service version
-	Version string
+// convertProcess converts ProcessCEL to a CEL-compatible map (or nil).
+func convertProcess(p *ProcessCEL) map[string]any {
+	if p == nil {
+		return nil
+	}
+	return map[string]any{
+		"pid":     p.Pid,
+		"cmd":     p.Cmd,
+		"cmdline": p.Cmdline,
+		"binary": map[string]any{
+			"name": p.Binary.Name,
+			"path": p.Binary.Path,
+		},
+		"user":      p.User,
+		"cwd":       p.Cwd,
+		"container": convertContainer(p.Container),
+	}
+}
 
-	// MatchedRule is the index or description of the rule that matched (for debugging)
-	MatchedRule string
+// convertContainer converts ContainerCEL to a CEL-compatible map (or nil).
+func convertContainer(c *ContainerCEL) map[string]any {
+	if c == nil {
+		return nil
+	}
+	// Normalize nil maps to empty maps to avoid runtime errors
+	labels := c.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	envs := c.Envs
+	if envs == nil {
+		envs = map[string]string{}
+	}
+	ports := c.Ports
+	if ports == nil {
+		ports = []int{}
+	}
+	return map[string]any{
+		"id":   c.ID,
+		"name": c.Name,
+		"image": map[string]any{
+			"name":      c.Image.Name,
+			"shortname": c.Image.ShortName,
+			"tag":       c.Image.Tag,
+			"registry":  c.Image.Registry,
+		},
+		"labels": labels,
+		"envs":   envs,
+		"ports":  ports,
+		"pod":    convertPod(c.Pod),
+	}
+}
+
+// convertPod converts PodCEL to a CEL-compatible map (or nil).
+func convertPod(p *PodCEL) map[string]any {
+	if p == nil {
+		return nil
+	}
+	// Normalize nil maps to empty maps to avoid runtime errors
+	labels := p.Metadata.Labels
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	annotations := p.Metadata.Annotations
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	return map[string]any{
+		"name":      p.Name,
+		"namespace": p.Namespace,
+		"ownerref": map[string]any{
+			"name": p.OwnerRef.Name,
+			"kind": p.OwnerRef.Kind,
+		},
+		"metadata": map[string]any{
+			"labels":      labels,
+			"annotations": annotations,
+		},
+	}
 }

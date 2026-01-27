@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/DataDog/datadog-agent/pkg/config/servicenaming/engine"
 	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/ext"
 	"gopkg.in/yaml.v3"
 )
@@ -196,9 +196,10 @@ func validateCELBooleanExpression(expr string) error {
 		return fmt.Errorf("compilation error: %w", issues.Err())
 	}
 
-	// Check return type
-	if ast.OutputType() != cel.BoolType {
-		return fmt.Errorf("expression must return boolean, got %v", ast.OutputType())
+	// Accept BoolType or DynType (runtime validation will ensure it's actually bool)
+	outType := ast.OutputType()
+	if outType != cel.BoolType && outType != cel.DynType {
+		return fmt.Errorf("expression must return boolean, got %v", outType)
 	}
 
 	return nil
@@ -216,10 +217,9 @@ func validateCELStringExpression(expr string) error {
 		return fmt.Errorf("compilation error: %w", issues.Err())
 	}
 
-	// For DynType, we can't check output type statically
-	// Accept dyn or string
+	// Accept StringType or DynType (runtime validation will ensure it's actually string)
 	outType := ast.OutputType()
-	if outType != cel.StringType && outType != types.DynType {
+	if outType != cel.StringType && outType != cel.DynType {
 		return fmt.Errorf("expression must return string, got %v", outType)
 	}
 
@@ -251,12 +251,33 @@ func createCELEnvironment() (*cel.Env, error) {
 		cel.Variable("container", cel.DynType),
 		cel.Variable("pod", cel.DynType),
 
-		// Enable standard CEL string extensions (split, startsWith, etc.)
-		ext.Strings(),
+		// Enable CEL extensions needed for service naming
+		ext.Strings(), // String operations: split, startsWith, endsWith, etc.
+		ext.Lists(),   // List/map operations: size, exists, map, filter, etc.
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return env, nil
+}
+
+// CompileEngine creates a CEL engine from the agent configuration.
+// Returns (nil, nil) if the configuration is not active.
+func (c *AgentServiceDiscoveryConfig) CompileEngine() (*engine.Engine, error) {
+	if !c.IsActive() {
+		return nil, nil
+	}
+
+	// Convert ServiceDefinitions to engine Rules
+	rules := make([]engine.Rule, len(c.ServiceDefinitions))
+	for i, def := range c.ServiceDefinitions {
+		rules[i] = engine.Rule{
+			Name:  "", // ServiceDefinition doesn't have Name field, use index
+			Query: def.Query,
+			Value: def.Value,
+		}
+	}
+
+	return engine.NewEngine(rules)
 }
