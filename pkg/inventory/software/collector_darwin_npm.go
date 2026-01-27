@@ -49,10 +49,10 @@ func getNpmGlobalPrefixes() ([]npmGlobalPrefix, []*Warning) {
 
 	// System-wide npm global locations
 	systemPrefixes := []string{
-		"/usr/local/lib/node_modules",      // Default global location (Intel Mac, npm installed via pkg)
-		"/opt/homebrew/lib/node_modules",   // Homebrew (Apple Silicon)
-		"/usr/local/lib/node_modules",      // Homebrew (Intel)
-		"/opt/local/lib/node_modules",      // MacPorts
+		"/usr/local/lib/node_modules",    // Default global location (Intel Mac, npm installed via pkg)
+		"/opt/homebrew/lib/node_modules", // Homebrew (Apple Silicon)
+		"/usr/local/lib/node_modules",    // Homebrew (Intel)
+		"/opt/local/lib/node_modules",    // MacPorts
 	}
 
 	for _, prefix := range systemPrefixes {
@@ -271,4 +271,3 @@ func (c *npmCollector) createEntryFromPackage(pkgPath, pkgName, username string,
 
 	return entry
 }
-

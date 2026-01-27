@@ -227,4 +227,3 @@ func (c *systemExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

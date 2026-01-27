@@ -10,6 +10,7 @@ package software
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,7 +50,7 @@ func TestGetLocalUsers(t *testing.T) {
 		}
 
 		// Verify path is under /Users
-		if !filepath.HasPrefix(userPath, "/Users/") {
+		if !strings.HasPrefix(userPath, "/Users/") {
 			t.Logf("WARNING: User path not under /Users: %s", userPath)
 			issueCount++
 		}
@@ -193,7 +194,7 @@ func TestGetHomebrewPrefixes(t *testing.T) {
 		// If username is set, validate path location
 		if prefix.username != "" {
 			expectedPrefix := "/Users/" + prefix.username
-			if !filepath.HasPrefix(prefix.path, expectedPrefix) {
+			if !strings.HasPrefix(prefix.path, expectedPrefix) {
 				t.Logf("WARNING: Per-user Homebrew path doesn't match username: %s (user: %s)",
 					prefix.path, prefix.username)
 				issueCount++
@@ -280,7 +281,7 @@ func TestApplicationsCollectorIntegration(t *testing.T) {
 		}
 
 		// Log per-user apps for debugging
-		if filepath.HasPrefix(entry.InstallPath, "/Users/") {
+		if strings.HasPrefix(entry.InstallPath, "/Users/") {
 			t.Logf("Found per-user app: %s (user: %s)", entry.DisplayName, entry.UserSID)
 		}
 	}

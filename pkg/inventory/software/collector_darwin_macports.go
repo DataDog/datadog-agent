@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	// SQLite driver for MacPorts registry database
@@ -62,7 +63,7 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 		if prefix != "/opt/local" {
 			// Extract username from path like /Users/username/macports
 			for _, userHome := range localUsers {
-				if filepath.HasPrefix(prefix, userHome) {
+				if strings.HasPrefix(prefix, userHome) {
 					username = filepath.Base(userHome)
 					break
 				}
@@ -153,4 +154,3 @@ func (c *macPortsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

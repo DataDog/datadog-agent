@@ -101,16 +101,16 @@ func getCondaEnvironments() ([]condaEnv, []*Warning) {
 	// Includes both lowercase and capitalized variants, as well as hidden directories
 	userCondaDirs := []string{
 		"anaconda3",
-		"Anaconda3",    // Capital A variant (Windows-style installer)
+		"Anaconda3", // Capital A variant (Windows-style installer)
 		"miniconda3",
-		"Miniconda3",   // Capital M variant
+		"Miniconda3", // Capital M variant
 		"miniforge3",
 		"Miniforge3",
 		"mambaforge",
 		"Mambaforge",
-		"conda",        // Generic custom install
-		".conda",       // Conda's default environment storage
-		".anaconda3",   // Hidden variants
+		"conda",      // Generic custom install
+		".conda",     // Conda's default environment storage
+		".anaconda3", // Hidden variants
 		".miniconda3",
 		".miniforge3",
 		".mambaforge",
@@ -272,4 +272,3 @@ func (c *condaCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

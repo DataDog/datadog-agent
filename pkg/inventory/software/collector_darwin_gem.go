@@ -47,10 +47,10 @@ func getGemInstallations() ([]gemInstallation, []*Warning) {
 
 	// System-wide Ruby gem locations
 	systemGemPaths := []string{
-		"/Library/Ruby/Gems",                          // System Ruby gems
-		"/usr/local/lib/ruby/gems",                    // Homebrew (Intel)
-		"/opt/homebrew/lib/ruby/gems",                 // Homebrew (Apple Silicon)
-		"/opt/local/lib/ruby/gems",                    // MacPorts
+		"/Library/Ruby/Gems",          // System Ruby gems
+		"/usr/local/lib/ruby/gems",    // Homebrew (Intel)
+		"/opt/homebrew/lib/ruby/gems", // Homebrew (Apple Silicon)
+		"/opt/local/lib/ruby/gems",    // MacPorts
 	}
 
 	// Find specifications directories in system installations
@@ -84,10 +84,10 @@ func getGemInstallations() ([]gemInstallation, []*Warning) {
 
 		// Common per-user gem locations
 		userGemPaths := []string{
-			filepath.Join(userHome, ".gem", "ruby"),  // Default user gem location
-			filepath.Join(userHome, ".rbenv", "versions"),  // rbenv
-			filepath.Join(userHome, ".rvm", "gems"),  // RVM
-			filepath.Join(userHome, ".asdf", "installs", "ruby"),  // asdf
+			filepath.Join(userHome, ".gem", "ruby"),              // Default user gem location
+			filepath.Join(userHome, ".rbenv", "versions"),        // rbenv
+			filepath.Join(userHome, ".rvm", "gems"),              // RVM
+			filepath.Join(userHome, ".asdf", "installs", "ruby"), // asdf
 		}
 
 		for _, basePath := range userGemPaths {
@@ -313,4 +313,3 @@ func (c *gemCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

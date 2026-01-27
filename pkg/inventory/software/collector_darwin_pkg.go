@@ -8,7 +8,6 @@
 package software
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -402,13 +401,13 @@ func (c *pkgReceiptsCollector) Collect() ([]*Entry, []*Warning, error) {
 		if installPath != "" && installPath != "N/A" {
 			if _, err := os.Stat(installPath); os.IsNotExist(err) {
 				status = statusBroken
-				brokenReason = fmt.Sprintf("install path not found: %s", installPath)
+				brokenReason = "install path not found: " + installPath
 			}
 		} else if len(installPaths) > 0 {
 			for _, p := range installPaths {
 				if _, err := os.Stat(p); os.IsNotExist(err) {
 					status = statusBroken
-					brokenReason = fmt.Sprintf("install path not found: %s", p)
+					brokenReason = "install path not found: " + p
 					break
 				}
 			}

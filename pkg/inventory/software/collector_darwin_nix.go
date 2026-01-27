@@ -204,14 +204,7 @@ func (c *nixCollector) Collect() ([]*Entry, []*Warning, error) {
 			}
 		}
 
-		// Also check manifest.nix or manifest.json for declaratively installed packages
-		manifestPath := filepath.Join(profileTarget, "manifest.nix")
-		if _, err := os.Stat(manifestPath); err == nil {
-			// manifest.nix exists - could parse it for additional info
-			// For now, we rely on symlink traversal above
-		}
 	}
 
 	return entries, warnings, nil
 }
-

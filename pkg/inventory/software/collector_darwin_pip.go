@@ -38,10 +38,10 @@ func getPipSitePackages() ([]pipSitePackages, []*Warning) {
 
 	// System-wide Python installations
 	systemPythonPaths := []string{
-		"/Library/Frameworks/Python.framework/Versions",     // Python.org installer
-		"/usr/local/lib",                                    // Homebrew (Intel)
-		"/opt/homebrew/lib",                                 // Homebrew (Apple Silicon)
-		"/System/Library/Frameworks/Python.framework",       // System Python (deprecated)
+		"/Library/Frameworks/Python.framework/Versions", // Python.org installer
+		"/usr/local/lib",    // Homebrew (Intel)
+		"/opt/homebrew/lib", // Homebrew (Apple Silicon)
+		"/System/Library/Frameworks/Python.framework",                                       // System Python (deprecated)
 		"/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions", // Xcode Python
 	}
 
@@ -85,14 +85,14 @@ func getPipSitePackages() ([]pipSitePackages, []*Warning) {
 
 		// User's pip packages (--user installation)
 		userSitePackages := []string{
-			filepath.Join(userHome, "Library", "Python"),       // macOS user site-packages
-			filepath.Join(userHome, ".local", "lib"),           // Linux-style (some users use this)
-			filepath.Join(userHome, ".pyenv", "versions"),      // pyenv
-			filepath.Join(userHome, ".virtualenvs"),            // virtualenvwrapper
-			filepath.Join(userHome, "venv"),                    // Common venv location
-			filepath.Join(userHome, ".venv"),                   // Common hidden venv
-			filepath.Join(userHome, "anaconda3", "lib"),        // Anaconda (overlaps with conda collector)
-			filepath.Join(userHome, "miniconda3", "lib"),       // Miniconda
+			filepath.Join(userHome, "Library", "Python"),  // macOS user site-packages
+			filepath.Join(userHome, ".local", "lib"),      // Linux-style (some users use this)
+			filepath.Join(userHome, ".pyenv", "versions"), // pyenv
+			filepath.Join(userHome, ".virtualenvs"),       // virtualenvwrapper
+			filepath.Join(userHome, "venv"),               // Common venv location
+			filepath.Join(userHome, ".venv"),              // Common hidden venv
+			filepath.Join(userHome, "anaconda3", "lib"),   // Anaconda (overlaps with conda collector)
+			filepath.Join(userHome, "miniconda3", "lib"),  // Miniconda
 		}
 
 		for _, basePath := range userSitePackages {
@@ -119,9 +119,8 @@ func getPipSitePackages() ([]pipSitePackages, []*Warning) {
 
 				return nil
 			})
-			if err != nil {
-				// Ignore walk errors
-			}
+			// Ignore walk errors - they're expected for inaccessible paths
+			_ = err
 		}
 	}
 
@@ -285,4 +284,3 @@ func (c *pipCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

@@ -114,4 +114,3 @@ func (c *kernelExtensionsCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

@@ -10,7 +10,6 @@ package software
 import (
 	"bytes"
 	"encoding/xml"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -64,24 +63,6 @@ func defaultCollectors() []Collector {
 		&gemCollector{},
 		&cargoCollector{},
 	}
-}
-
-// plistDict represents a plist dictionary for XML parsing
-type plistDict struct {
-	Keys   []string `xml:"key"`
-	Values []plistValue
-}
-
-// plistValue represents a value in a plist
-type plistValue struct {
-	XMLName xml.Name
-	Content string `xml:",chardata"`
-}
-
-// plist represents the root plist structure
-type plist struct {
-	XMLName xml.Name  `xml:"plist"`
-	Dict    plistDict `xml:"dict"`
 }
 
 // parsePlistToMap parses plist XML data into a map
@@ -185,7 +166,7 @@ func checkAppBundleIntegrity(appPath string, plistData map[string]string) string
 	// Check if the executable exists
 	executablePath := filepath.Join(appPath, "Contents", "MacOS", executableName)
 	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
-		return fmt.Sprintf("executable not found: Contents/MacOS/%s", executableName)
+		return "executable not found: Contents/MacOS/" + executableName
 	}
 
 	return "" // Bundle is OK
@@ -209,40 +190,10 @@ func checkKextBundleIntegrity(kextPath string, plistData map[string]string) stri
 	// Check if the executable exists
 	executablePath := filepath.Join(kextPath, "Contents", "MacOS", executableName)
 	if _, err := os.Stat(executablePath); os.IsNotExist(err) {
-		return fmt.Sprintf("executable not found: Contents/MacOS/%s", executableName)
+		return "executable not found: Contents/MacOS/" + executableName
 	}
 
 	return "" // Bundle is OK
-}
-
-// checkPkgInstallLocation verifies that a PKG's install location exists
-func checkPkgInstallLocation(plistData map[string]string) bool {
-	// Check InstallPrefixPath - the root path where files were installed
-	installPrefix := plistData["InstallPrefixPath"]
-	if installPrefix != "" && installPrefix != "/" {
-		// Handle relative paths - PKG receipts often use relative paths like "Applications"
-		// which should be interpreted as "/Applications"
-		if !filepath.IsAbs(installPrefix) {
-			installPrefix = "/" + installPrefix
-		}
-		if _, err := os.Stat(installPrefix); os.IsNotExist(err) {
-			return false
-		}
-	}
-
-	// Check InstallLocation - alternative field for install path
-	installLocation := plistData["InstallLocation"]
-	if installLocation != "" && installLocation != "/" {
-		// Handle relative paths
-		if !filepath.IsAbs(installLocation) {
-			installLocation = "/" + installLocation
-		}
-		if _, err := os.Stat(installLocation); os.IsNotExist(err) {
-			return false
-		}
-	}
-
-	return true
 }
 
 // companySuffixes contains common company name suffixes used to identify corporate entities

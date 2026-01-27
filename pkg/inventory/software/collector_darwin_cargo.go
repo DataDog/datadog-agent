@@ -38,14 +38,14 @@ type crates2JSON struct {
 
 // crate2Install represents a single crate installation in .crates2.json
 type crate2Install struct {
-	Version         string   `json:"version_req"`
-	Bins            []string `json:"bins"`
-	Features        []string `json:"features"`
-	AllFeatures     bool     `json:"all_features"`
-	NoDefaultFeatures bool   `json:"no_default_features"`
-	Profile         string   `json:"profile"`
-	Target          string   `json:"target"`
-	Rustc           string   `json:"rustc"`
+	Version           string   `json:"version_req"`
+	Bins              []string `json:"bins"`
+	Features          []string `json:"features"`
+	AllFeatures       bool     `json:"all_features"`
+	NoDefaultFeatures bool     `json:"no_default_features"`
+	Profile           string   `json:"profile"`
+	Target            string   `json:"target"`
+	Rustc             string   `json:"rustc"`
 }
 
 // getCargoInstallations finds all Cargo installation directories
@@ -251,4 +251,3 @@ func (c *cargoCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-

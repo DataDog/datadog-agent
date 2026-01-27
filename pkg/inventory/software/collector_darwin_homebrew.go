@@ -297,4 +297,3 @@ func (c *homebrewCollector) Collect() ([]*Entry, []*Warning, error) {
 
 	return entries, warnings, nil
 }
-
