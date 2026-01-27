@@ -18,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -272,12 +274,106 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 func TestCreateEC2Client(t *testing.T) {
 	ctx := context.Background()
 
-	client, err := createEC2Client(ctx, "us-east-1", nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
+	tests := []struct {
+		name        string
+		region      string
+		withCreds   bool
+		expectError bool
+	}{
+		{
+			name:        "default credential chain (IRSA-compatible)",
+			region:      "us-east-1",
+			withCreds:   false,
+			expectError: false,
+		},
+		{
+			name:        "explicit credentials (fallback path)",
+			region:      "us-west-2",
+			withCreds:   true,
+			expectError: false,
+		},
+		{
+			name:        "different region with default chain",
+			region:      "eu-west-1",
+			withCreds:   false,
+			expectError: false,
+		},
+	}
 
-	creds := credentials.NewStaticCredentialsProvider("key", "secret", "token")
-	client, err = createEC2Client(ctx, "us-west-2", creds)
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var creds aws.CredentialsProvider
+			if tt.withCreds {
+				creds = credentials.NewStaticCredentialsProvider("key", "secret", "token")
+			}
+			client, err := createEC2Client(ctx, tt.region, creds)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, client)
+			}
+		})
+	}
+}
+
+func setupTestIMDS(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.RequestURI {
+		case "/latest/api/token":
+			io.WriteString(w, "test-token")
+		case "/latest/dynamic/instance-identity/document":
+			io.WriteString(w, `{"instanceId": "i-test", "region": "us-east-1"}`)
+		case "/iam/security-credentials/":
+			io.WriteString(w, "test-role")
+		case "/iam/security-credentials/test-role":
+			content, _ := os.ReadFile("payloads/security_cred.json")
+			w.Write(content)
+		}
+	}))
+
+	ec2internal.InstanceIdentityURL = ts.URL + "/latest/dynamic/instance-identity/document"
+	ec2internal.TokenURL = ts.URL + "/latest/api/token"
+	ec2internal.MetadataURL = ts.URL
+
+	t.Cleanup(func() { ts.Close() })
+}
+
+func TestFetchEc2TagsFromAPICredentialChain(t *testing.T) {
+	ctx := context.Background()
+	conf := configmock.New(t)
+	conf.SetWithoutSource("ec2_metadata_timeout", 1000)
+
+	t.Run("tries default credentials first (IRSA), no fallback needed", func(t *testing.T) {
+		setupTestIMDS(t)
+		defer func() { getTagsWithClientFunc = getTagsWithClient }()
+
+		callCount := 0
+		getTagsWithClientFunc = func(ctx context.Context, client *ec2.Client, identity *ec2internal.EC2Identity) ([]string, error) {
+			callCount++
+			return []string{"Name:test"}, nil
+		}
+
+		_, err := fetchEc2TagsFromAPI(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, callCount, "should only call once when default credentials work")
+	})
+
+	t.Run("falls back to instance credentials when default fails", func(t *testing.T) {
+		setupTestIMDS(t)
+		defer func() { getTagsWithClientFunc = getTagsWithClient }()
+
+		callCount := 0
+		getTagsWithClientFunc = func(ctx context.Context, client *ec2.Client, identity *ec2internal.EC2Identity) ([]string, error) {
+			callCount++
+			if callCount == 1 {
+				return nil, errors.New("unauthorized")
+			}
+			return []string{"Name:test"}, nil
+		}
+
+		_, err := fetchEc2TagsFromAPI(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 2, callCount, "should call twice: default credentials fail, then fallback succeeds")
+	})
 }
