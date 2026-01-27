@@ -84,6 +84,14 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			fixture:                   loadFixture("fortios", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
+		{
+			name:    "DellOS10",
+			profile: DefaultProfile("dellos10"),
+			fixture: loadFixture("dellos10", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{
+				Timestamp: 1491873902,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
