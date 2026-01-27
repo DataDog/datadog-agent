@@ -98,7 +98,7 @@ func (suite *k8sSuite) TearDownSuite() {
 func (suite *k8sSuite) Test00UpAndRunning() {
 	timeout := 10 * time.Minute
 	// Windows FIPS images are bigger and take longer to pull and start
-	if suite.Env().Agent.FIPSEnabled {
+	if suite.Env().Agent.FIPSEnabled || suite.runtime == "cri-o" {
 		timeout = 20 * time.Minute
 	}
 	suite.testUpAndRunning(timeout)
@@ -1118,12 +1118,12 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 		return
 	}
 
+	// Test with UDS
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDP)
-	// Test with UDS
-	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDS + CSI Driver
 	suite.testDogstatsd(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDSWithCSI)
 }
