@@ -23,9 +23,7 @@ type openShiftVMSuite struct {
 func TestOpenShiftVMSuite(t *testing.T) {
 	e2e.Run(t, &openShiftVMSuite{}, e2e.WithProvisioner(gcpopenshiftvm.OpenshiftVMProvisioner(
 		gcpopenshiftvm.WithFakeIntakeOptions(
-			gcpfakeintake.WithMemory(2048),
 			gcpfakeintake.WithLoadBalancer(),
-			gcpfakeintake.WithoutDDDevForwarding(),
 			gcpfakeintake.WithRetentionPeriod("1h"),
 		),
 		gcpopenshiftvm.WithAgentOptions(

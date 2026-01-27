@@ -130,7 +130,7 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	osDesc := os.DescriptorFromString("redhat:9", os.RedHat9)
 	vm, err := compute.NewVM(gcpEnv, "openshift",
 		compute.WithOS(osDesc),
-		compute.WithInstancetype("n2-standard-8"),
+		compute.WithInstancetype("n2-standard-16"),
 		compute.WithNestedVirt(true),
 	)
 	if err != nil {
@@ -163,7 +163,13 @@ func OpenShiftVMRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, param
 	// Deploy a fakeintake
 	var fakeIntake *fakeintakeComp.Fakeintake
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err = fakeintake.NewVMInstance(gcpEnv, params.fakeintakeOptions...)
+		fakeIntakeOptions := []fakeintake.Option{
+			fakeintake.WithMemory(6144),
+		}
+		if gcpEnv.InfraShouldDeployFakeintakeWithLB() {
+			fakeIntakeOptions = append(fakeIntakeOptions, fakeintake.WithLoadBalancer())
+		}
+		fakeIntake, err = fakeintake.NewVMInstance(gcpEnv, fakeIntakeOptions...)
 		if err != nil {
 			return err
 		}
