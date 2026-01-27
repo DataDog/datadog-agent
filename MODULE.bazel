@@ -237,6 +237,9 @@ include("//deps/gstatus:gstatus.MODULE.bazel")
 include("//deps/libxml2:libxml2.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone

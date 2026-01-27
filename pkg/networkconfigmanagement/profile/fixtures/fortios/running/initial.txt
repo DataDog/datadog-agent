@@ -1,0 +1,75 @@
+#config-version=FGT91G-7.4.7-FW-build2731-250120:opmode=1:vdom=0:user=TACACS-USER
+#conf_file_ver=<stripped>
+#buildno=2731
+#global_vdom=1
+config system global
+    set admin-restrict-local enable
+    set alias "FortiGate-91G"
+    set hostname "TEST-FW1234"
+    set lldp-reception enable
+    set lldp-transmission enable
+    set switch-controller enable
+    set timezone "Europe/Berlin"
+    set virtual-switch-vlan enable
+end
+config system interface
+    edit "wan1"
+        set vdom "root"
+        set ip 192.0.2.2 255.255.255.240
+        set allowaccess ping https ssh snmp http fgfm ftm
+        set type physical
+        set alias "outside"
+        set monitor-bandwidth enable
+        set role wan
+        set snmp-index 1
+        set speed 10000auto
+    next
+end
+config system admin
+    edit "oxidized"
+        set trusthost1 192.0.2.0 255.255.255.0
+        set accprofile "super_admin"
+        set vdom "root"
+        set password ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+    next
+end
+config system snmp user
+    edit "snmpuser"
+        set notify-hosts 192.0.2.10 192.0.2.11
+        set events cpu-high mem-low log-full intf-ip vpn-tun-up vpn-tun-down ips-signature av-virus av-oversize av-pattern av-fragmented fm-if-change av-conserve av-bypass av-oversize-passed av-oversize-blocked ips-pkg-update ips-fail-open temperature-high voltage-alert faz-disconnect device-new per-cpu-high
+        set security-level auth-priv
+        set auth-pwd ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set priv-pwd ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+    next
+end
+config vpn certificate local
+    edit "Fortinet_CA_SSL"
+        set password ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set comments "This is the default CA certificate the SSL Inspection will use when generating new server certificates."
+        set range global
+        set source factory
+    next
+  end
+config user tacacs+
+    edit "tacacs-server-name"
+        set server "192.0.2.19"
+        set secondary-server "192.0.2.20"
+        set key ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set secondary-key ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set authorization enable
+    next
+end
+config firewall ssh local-key
+    edit "Fortinet_SSH_RSA2048"
+        set password ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set source built-in
+    next
+end
+config firewall ssh local-ca
+    edit "Fortinet_SSH_CA"
+        set password ENC AAAAAAAAAABBBBBBBBBBCCCCCCCCCC
+        set source built-in
+    next
+end
+config router multicast
+end
