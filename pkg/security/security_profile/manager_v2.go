@@ -360,8 +360,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	sourceTags := []string{"source:" + source}
 
 	// Emit metric for events that pass initial filters
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, 1, sourceTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalReceived, err)
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsReceived, 1, sourceTags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsReceived, err)
 	}
 
 	// Track all unique cgroups ever seen (for cumulative cgroups_received metric)
@@ -378,8 +378,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	tagsResolved := len(event.ProcessContext.Process.ContainerContext.Tags) != 0
 
 	if tagsResolved {
-		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalImmediate, 1, sourceTags, 1.0); err != nil {
-			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalImmediate, err)
+		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsImmediate, 1, sourceTags, 1.0); err != nil {
+			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsImmediate, err)
 		}
 		m.processEventWithResolvedTags(event)
 	} else {
@@ -483,9 +483,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []
 	cpy := event.DeepCopy()
 	pendingEvents.events.PushBack(cpy)
 	m.queueSize.Inc()
-	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalQueued, 1, sourceTags, 1.0); err != nil {
-		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalQueued, err)
-	}
 }
 
 // onEventTagsResolved is called when an event has its tags resolved and is ready to be inserted into a profile
@@ -521,8 +518,6 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 }
 
 func (m *ManagerV2) SendStats() error {
-	// Note: events.total_received, events.total_immediate, events.total_queued, and
-	// tag_resolution.events_dropped are emitted directly in ProcessEvent with source tags
 
 	// Tag resolution gauges
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionEventsQueued, float64(m.queueSize.Load()), []string{}, 1.0); err != nil {

@@ -474,17 +474,13 @@ var (
 
 	// Event Processing metrics
 
-	// MetricSecurityProfileV2EventsTotalReceived is the name of the metric used to report total events received by ProcessEvent (after filters)
+	// MetricSecurityProfileV2EventsReceived is the name of the metric used to report events received by ProcessEvent (after filters)
 	// Tags: source (runtime or replay)
-	MetricSecurityProfileV2EventsTotalReceived = newRuntimeMetric(".security_profile_v2.events.total_received")
+	MetricSecurityProfileV2EventsReceived = newRuntimeMetric(".security_profile_v2.events.received")
 
-	// MetricSecurityProfileV2EventsTotalImmediate is the name of the metric used to report total events processed immediately (tags already resolved)
+	// MetricSecurityProfileV2EventsImmediate is the name of the metric used to report events processed immediately (tags already resolved)
 	// Tags: source (runtime or replay)
-	MetricSecurityProfileV2EventsTotalImmediate = newRuntimeMetric(".security_profile_v2.events.total_immediate")
-
-	// MetricSecurityProfileV2EventsTotalQueued is the name of the metric used to report total events queued (count, not gauge)
-	// Tags: source (runtime or replay)
-	MetricSecurityProfileV2EventsTotalQueued = newRuntimeMetric(".security_profile_v2.events.total_queued")
+	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
 	// Tag Resolution metrics
 
