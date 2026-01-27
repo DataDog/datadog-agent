@@ -74,7 +74,10 @@ type CloudRun struct {
 
 // GetTags returns a map of gcp-related tags.
 func (c *CloudRun) GetTags() map[string]string {
+	log.Debugf("GetTags: spanNamespace='%s', cloudRunService='%s', cloudRunFunction='%s'", c.spanNamespace, cloudRunService, cloudRunFunction)
 	isCloudRun := c.spanNamespace == cloudRunService
+	log.Debugf("GetTags: isCloudRun=%v (spanNamespace == cloudRunService)", isCloudRun)
+
 	tags := metadataHelperFunc(GetDefaultConfig(), isCloudRun)
 	tags["origin"] = CloudRunOrigin
 	tags["_dd.origin"] = CloudRunOrigin
@@ -82,12 +85,17 @@ func (c *CloudRun) GetTags() map[string]string {
 	revisionNameVal := os.Getenv(revisionNameEnvVar)
 	serviceNameVal := os.Getenv(ServiceNameEnvVar)
 	configNameVal := os.Getenv(configurationNameEnvVar)
+
+	log.Debugf("GetTags: revisionNameVal='%s', serviceNameVal='%s', configNameVal='%s'", revisionNameVal, serviceNameVal, configNameVal)
+
 	if revisionNameVal != "" {
 		tags[revisionName] = revisionNameVal
 		if isCloudRun {
 			tags[cloudRunService+revisionName] = revisionNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunService+revisionName)
 		} else {
 			tags[cloudRunFunction+revisionName] = revisionNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunFunction+revisionName)
 		}
 	}
 
@@ -95,8 +103,10 @@ func (c *CloudRun) GetTags() map[string]string {
 		tags[serviceName] = serviceNameVal
 		if isCloudRun {
 			tags[cloudRunService+serviceName] = serviceNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunService+serviceName)
 		} else {
 			tags[cloudRunFunction+serviceName] = serviceNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunFunction+serviceName)
 		}
 	}
 
@@ -104,31 +114,44 @@ func (c *CloudRun) GetTags() map[string]string {
 		tags[configName] = configNameVal
 		if isCloudRun {
 			tags[cloudRunService+configName] = configNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunService+configName)
 		} else {
 			tags[cloudRunFunction+configName] = configNameVal
+			log.Debugf("GetTags: added tag '%s'", cloudRunFunction+configName)
 		}
 	}
 
 	if c.spanNamespace == cloudRunFunction {
+		log.Debug("GetTags: spanNamespace == cloudRunFunction, calling getFunctionTags")
 		return c.getFunctionTags(tags)
 	}
+
+	log.Debug("GetTags: spanNamespace != cloudRunFunction, adding cloudRunService resource_name tag")
 	tags[cloudRunService+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s", tags["project_id"], tags["location"], tags["service_name"])
+	log.Debugf("GetTags: returning %d tags", len(tags))
 	return tags
 }
 
 func (c *CloudRun) getFunctionTags(tags map[string]string) map[string]string {
 	functionTargetVal := os.Getenv(functionTargetEnvVar)
 	functionSignatureType := os.Getenv(functionTypeEnvVar)
+	log.Debugf("in getFunctionTags")
+
+	log.Debugf("getFunctionTags: FUNCTION_TARGET='%s', FUNCTION_SIGNATURE_TYPE='%s'", functionTargetVal, functionSignatureType)
 
 	if functionTargetVal != "" {
 		tags[cloudRunFunction+functionTarget] = functionTargetVal
+		log.Debugf("getFunctionTags: functionTargetVal not empty, added tag '%s' = '%s'", cloudRunFunction+functionTarget, functionTargetVal)
 	}
 
 	if functionSignatureType != "" {
 		tags[cloudRunFunction+functionSignature] = functionSignatureType
+		log.Debugf("getFunctionTags: functionSignatureType not empty, added tag '%s' = '%s'", cloudRunFunction+functionSignature, functionSignatureType)
 	}
 
-	tags[cloudRunFunction+resourceName] = fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
+	resourceNameValue := fmt.Sprintf("projects/%s/locations/%s/services/%s/functions/%s", tags["project_id"], tags["location"], tags["service_name"], functionTargetVal)
+	tags[cloudRunFunction+resourceName] = resourceNameValue
+	log.Debugf("getFunctionTags: added tag '%s' = '%s'", cloudRunFunction+resourceName, resourceNameValue)
 	return tags
 }
 
