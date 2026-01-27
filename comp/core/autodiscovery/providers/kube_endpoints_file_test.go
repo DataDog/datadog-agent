@@ -3,26 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build clusterchecks && kubeapiserver
+//go:build clusterchecks && kubeapiserver && cel
 
 package providers
 
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
 var tplCel = integration.Config{
 	Name: "check-cel",
 	CELSelector: workloadfilter.Rules{
-		KubeEndpoints: []string{`v`},
+		KubeEndpoints: []string{`kube_endpoint.namespace == "default"`},
 	},
 }
 
@@ -114,7 +114,24 @@ func TestBuildConfigStore(t *testing.T) {
 			p := &KubeEndpointsFileConfigProvider{}
 			p.buildConfigStore(tt.templates)
 
-			assert.EqualValues(t, tt.want, p.store.epConfigs)
+			// For CEL templates, verify that a matching program was set on the template
+			if tt.name == "with cel template" {
+				assert.Contains(t, p.store.epConfigs, celEndpointID)
+				assert.Len(t, p.store.epConfigs[celEndpointID].templates, 1, "Should have 1 template")
+				// Verify the template has a matching program set (by checking if IsMatched works)
+				tpl := p.store.epConfigs[celEndpointID].templates[0]
+				// Test that IsMatched returns false for non-matching endpoint (the template requires namespace=="default")
+				nonMatchingEp := workloadfilter.CreateKubeEndpoint("test", "production", nil)
+				assert.False(t, tpl.IsMatched(nonMatchingEp), "Template should not match non-default namespace")
+				// Test that IsMatched returns true for matching endpoint
+				matchingEp := workloadfilter.CreateKubeEndpoint("test", "default", nil)
+				assert.True(t, tpl.IsMatched(matchingEp), "Template should match default namespace")
+
+				assert.Equal(t, tt.want[celEndpointID].resolveMode, p.store.epConfigs[celEndpointID].resolveMode)
+				assert.Equal(t, tt.want[celEndpointID].shouldCollect, p.store.epConfigs[celEndpointID].shouldCollect)
+			} else {
+				assert.EqualValues(t, tt.want, p.store.epConfigs)
+			}
 		})
 	}
 }
@@ -151,11 +168,21 @@ func TestStoreInsertEp(t *testing.T) {
 			wantEpConfigs: map[string]*epConfig{"ns1/ep1": {templates: []integration.Config{tpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true}},
 		},
 		{
-			name:          "found cel",
-			epConfigs:     map[string]*epConfig{celEndpointID: {templates: []integration.Config{tplCel}, eps: nil, shouldCollect: false}},
-			ep:            ep1,
-			want:          true,
-			wantEpConfigs: map[string]*epConfig{celEndpointID: {templates: []integration.Config{tplCel}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true}},
+			name: "found cel without matching program",
+			epConfigs: map[string]*epConfig{celEndpointID: {
+				templates: []integration.Config{
+					// Template without a matching program set (shouldn't happen in practice, but test the safeguard)
+					{Name: "check-cel"},
+				},
+				eps: nil,
+			}},
+			ep:   ep1,
+			want: false, // Should not insert if template has no matching program
+			wantEpConfigs: map[string]*epConfig{celEndpointID: {
+				templates:     []integration.Config{{Name: "check-cel"}},
+				eps:           nil,
+				shouldCollect: false,
+			}},
 		},
 	}
 	for _, tt := range tests {
@@ -168,6 +195,104 @@ func TestStoreInsertEp(t *testing.T) {
 			assert.EqualValues(t, tt.wantEpConfigs, s.epConfigs)
 		})
 	}
+}
+func TestCELSelector(t *testing.T) {
+	// Template 1: Only production namespace
+	tpl1 := integration.Config{
+		Name: "prod-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "production"`},
+		},
+	}
+
+	// Template 2: Only redis endpoints
+	tpl2 := integration.Config{
+		Name: "redis-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.name == "redis"`},
+		},
+	}
+
+	p := &KubeEndpointsFileConfigProvider{}
+	p.buildConfigStore([]integration.Config{tpl1, tpl2})
+
+	// Verify both templates were stored with their matching programs
+	assert.Contains(t, p.store.epConfigs, celEndpointID)
+	assert.Len(t, p.store.epConfigs[celEndpointID].templates, 2, "Should have 2 templates")
+
+	// Verify each template has a matching program by testing IsMatched
+	templates := p.store.epConfigs[celEndpointID].templates
+
+	prodEp := workloadfilter.CreateKubeEndpoint("test", "production", nil)
+	devEp := workloadfilter.CreateKubeEndpoint("test", "development", nil)
+	assert.True(t, templates[0].IsMatched(prodEp))
+	assert.False(t, templates[0].IsMatched(devEp))
+
+	redisEp := workloadfilter.CreateKubeEndpoint("redis", "default", nil)
+	mongoEp := workloadfilter.CreateKubeEndpoint("mongo", "default", nil)
+	assert.True(t, templates[1].IsMatched(redisEp))
+	assert.False(t, templates[1].IsMatched(mongoEp))
+
+	// Create the dummy endpoints for each service
+	prodRedis := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redis",
+			Namespace: "production",
+		},
+	}
+
+	devRedis := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "redis",
+			Namespace: "development",
+		},
+	}
+
+	prodMongo := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mongo",
+			Namespace: "production",
+		},
+	}
+
+	devMongo := &v1.Endpoints{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mongo",
+			Namespace: "development",
+		},
+	}
+
+	// Test insertEp - should cache endpoints passing any matching program
+	s := p.store
+
+	// prodRedis matches BOTH templates (production namespace AND redis name)
+	updated := s.insertEp(prodRedis)
+	assert.True(t, updated, "prodRedis should match")
+	assert.Contains(t, s.epConfigs[celEndpointID].eps, prodRedis)
+
+	// devRedis matches only template 2 (redis name)
+	updated = s.insertEp(devRedis)
+	assert.True(t, updated, "devRedis should match (name=redis)")
+	assert.Contains(t, s.epConfigs[celEndpointID].eps, devRedis)
+
+	// prodMongo matches only template 1 (production namespace)
+	updated = s.insertEp(prodMongo)
+	assert.True(t, updated, "prodMongo should match (namespace=production)")
+	assert.Contains(t, s.epConfigs[celEndpointID].eps, prodMongo)
+
+	// devMongo matches NEITHER template
+	updated = s.insertEp(devMongo)
+	assert.False(t, updated, "devMongo should NOT match")
+	assert.NotContains(t, s.epConfigs[celEndpointID].eps, devMongo)
+
+	// Verify all 3 matching endpoints are cached
+	assert.Len(t, s.epConfigs[celEndpointID].eps, 3, "Should have 3 cached endpoints")
+
+	// Test shouldHandle
+	assert.True(t, s.shouldHandle(prodRedis), "prodRedis should be handled")
+	assert.True(t, s.shouldHandle(devRedis), "devRedis should be handled")
+	assert.True(t, s.shouldHandle(prodMongo), "prodMongo should be handled")
+	assert.False(t, s.shouldHandle(devMongo), "devMongo should NOT be handled")
 }
 
 func TestStoreGenerateConfigs(t *testing.T) {
@@ -268,7 +393,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 					Name:                  "check-cel",
 					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.1",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.1", "kubernetes_pod://pod-1"},
-					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace == "default"`}},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node1",
 					Provider:              "kubernetes-endpoints-file",
@@ -278,7 +403,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 					Name:                  "check-cel",
 					ServiceID:             "kube_endpoint_uid://ns1/ep1/10.0.0.2",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns1/ep1/10.0.0.2", "kubernetes_pod://pod-2"},
-					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace == "default"`}},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node2",
 					Provider:              "kubernetes-endpoints-file",
@@ -288,7 +413,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 					Name:                  "check-cel",
 					ServiceID:             "kube_endpoint_uid://ns2/ep2/10.0.1.1",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns2/ep2/10.0.1.1", "kubernetes_pod://pod-3"},
-					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace == "default"`}},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node1",
 					Provider:              "kubernetes-endpoints-file",
@@ -298,7 +423,7 @@ func TestStoreGenerateConfigs(t *testing.T) {
 					Name:                  "check-cel",
 					ServiceID:             "kube_endpoint_uid://ns2/ep2/10.0.1.2",
 					ADIdentifiers:         []string{"kube_endpoint_uid://ns2/ep2/10.0.1.2", "kubernetes_pod://pod-4"},
-					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`v`}},
+					CELSelector:           workloadfilter.Rules{KubeEndpoints: []string{`kube_endpoint.namespace == "default"`}},
 					AdvancedADIdentifiers: nil,
 					NodeName:              "node2",
 					Provider:              "kubernetes-endpoints-file",

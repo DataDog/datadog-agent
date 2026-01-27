@@ -458,7 +458,7 @@ func (ac *AutoConfig) GetTelemetryStore() *acTelemetry.Store {
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
-	prg, celADID, compileErr, recErr := createMatchingProgram(config.CELSelector)
+	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
 	if compileErr != nil {
 		return compileErr
 	}
