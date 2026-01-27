@@ -78,6 +78,12 @@ func Test_DefaultProfiles_Running(t *testing.T) {
 			fixture:                   loadFixture("eos", Running),
 			expectedExtractedMetadata: &ExtractedMetadata{},
 		},
+		{
+			name:                      "fortios",
+			profile:                   DefaultProfile("fortios"),
+			fixture:                   loadFixture("fortios", Running),
+			expectedExtractedMetadata: &ExtractedMetadata{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

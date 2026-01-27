@@ -234,6 +234,9 @@ include("//deps/freetds:freetds.MODULE.bazel")
 include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
+include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
+
+# buildifier: leave-alone
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
