@@ -27,13 +27,17 @@ const (
 	WorkloadSelectorDeleted
 )
 
-// WorkloadType represents the type of workload
+// WorkloadType represents the type of workload resolved by the tags resolver
 type WorkloadType int
 
 const (
+	// WorkloadTypeUnknown indicates the workload type could not be determined
 	WorkloadTypeUnknown WorkloadType = iota
+	// WorkloadTypePodSandbox indicates a Kubernetes sandbox/pause container
 	WorkloadTypePodSandbox
+	// WorkloadTypeContainer indicates a regular container
 	WorkloadTypeContainer
+	// WorkloadTypeCGroup indicates a systemd service cgroup
 	WorkloadTypeCGroup
 )
 
@@ -92,34 +96,37 @@ func (t *DefaultResolver) resolveWorkloadTags(id containerutils.WorkloadID) (Wor
 	}
 }
 
-// GetTagsOfContainer returns the tags for the given container id
-// exported to share the code with other non-resolver users of tagger
+// GetTagsOfContainer returns the tags for the given container ID.
+// If no tags are found for the container ID, it falls back to checking if this is a
+// sandbox/pause container by querying the KubernetesPodSandbox entity type.
+// This is exported to share the code with other non-resolver users of the tagger.
 func GetTagsOfContainer(tagger Tagger, containerID containerutils.ContainerID) (WorkloadType, []string, error) {
 	if tagger == nil {
 		return WorkloadTypeUnknown, nil, nil
 	}
 
+	// First, try to get tags using the container ID
 	entityID := types.NewEntityID(types.ContainerID, string(containerID))
 	tags, err := tagger.Tag(entityID, types.OrchestratorCardinality)
 	if err != nil {
 		return WorkloadTypeUnknown, nil, err
 	}
-
 	if len(tags) != 0 {
 		return WorkloadTypeContainer, tags, nil
 	}
 
 	// If no tags found for the container ID, it might be a sandbox/pause container.
-	// In this case, try to resolve tags using the same ID as a pod UID.
-	podEntityID := types.NewEntityID(types.KubernetesPodUID, string(containerID))
-	podTags, err := tagger.Tag(podEntityID, types.OrchestratorCardinality)
+	// Sandbox containers are indexed separately under the KubernetesPodSandbox entity type
+	// because they are filtered out from regular container collection in WorkloadMeta.
+	sandboxEntityID := types.NewEntityID(types.KubernetesPodSandbox, string(containerID))
+	sandboxTags, err := tagger.Tag(sandboxEntityID, types.OrchestratorCardinality)
 	if err != nil {
 		return WorkloadTypeUnknown, nil, err
 	}
-	if len(podTags) == 0 {
+	if len(sandboxTags) == 0 {
 		return WorkloadTypeUnknown, nil, nil
 	}
-	return WorkloadTypePodSandbox, podTags, nil
+	return WorkloadTypePodSandbox, sandboxTags, nil
 }
 
 // GetValue return the tag value for the given id and tag name

@@ -400,6 +400,7 @@ func (m *Manager) onWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 
 	containerName, imageName, podNamespace := utils.GetContainerFilterTags(workload.Tags)
 	if m.containerFilters != nil && m.containerFilters.IsExcluded(nil, containerName, imageName, podNamespace) {
+		seclog.Debugf("Workload excluded by container filter: container_name=%s, image_name=%s, pod_namespace=%s", containerName, imageName, podNamespace)
 		return
 	}
 

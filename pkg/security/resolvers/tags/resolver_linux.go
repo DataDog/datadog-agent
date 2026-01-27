@@ -150,7 +150,7 @@ func (t *LinuxResolver) checkTags(pendingWorkload *Workload) {
 	}
 }
 
-// fetchTags fetches tags for the provided workload
+// fetchTags fetches tags for the provided workload and populates its selector
 func (t *LinuxResolver) fetchTags(workload *Workload) error {
 	workloadID := workload.GetWorkloadID()
 	workloadType, newTags, err := t.ResolveWithErr(workloadID)
@@ -161,7 +161,7 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 	workload.Tags = newTags
 	workload.workloadType = workloadType
 
-	// For container workloads, try to extract image information
+	// For container workloads, extract image information for the selector
 	if workload.Type() == "container" {
 		workload.Selector.Image = utils.GetTagValue("image_name", newTags)
 		workload.Selector.Tag = utils.GetTagValue("image_tag", newTags)
@@ -169,7 +169,7 @@ func (t *LinuxResolver) fetchTags(workload *Workload) error {
 			workload.Selector.Tag = "latest"
 		}
 	} else if workload.Type() == "cgroup" {
-		// For cgroup workloads, set service information as the selector
+		// For cgroup workloads, use service information as the selector
 		serviceName := utils.GetTagValue("service", newTags)
 		if len(serviceName) != 0 {
 			workload.Selector.Image = serviceName
