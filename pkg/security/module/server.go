@@ -249,11 +249,11 @@ func (a *APIServer) enqueue(msg *pendingMsg) {
 	a.queueLock.Unlock()
 }
 
-func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) {
-	a.queueLock.Lock()
-	defer a.queueLock.Unlock()
-
-	queueSize := len(a.queue)
+func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) bool) bool {
+	var (
+		queueSize = len(a.queue)
+		origSize  = queueSize
+	)
 
 	a.queue = slicesDeleteUntilFalse(a.queue, func(msg *pendingMsg) bool {
 		seclog.Tracef("dequeueing message, queue size: %d", queueSize)
@@ -275,13 +275,16 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to sent event, retry %d/%d, queue size: %d", msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
 
 		return false
 	})
+
+	// return true if the queue size has changed, meaning that the event was sent or dropped
+	return origSize != queueSize && len(a.queue) > 0
 }
 
 // slicesDeleteUntilFalse deletes elements from the slice until the function f returns false.
@@ -338,13 +341,16 @@ func (a *APIServer) updateCustomEventTags(msg *api.SecurityEventMessage) {
 }
 
 func (a *APIServer) start(ctx context.Context) {
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case now := <-ticker.C:
-			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
+			a.queueLock.Lock()
+
+			// dequeue all possble events from the queue
+			for a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
 				if !isRetryAllowed {
 					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
@@ -396,7 +402,11 @@ func (a *APIServer) start(ctx context.Context) {
 				a.msgSender.Send(m, a.expireEvent)
 
 				return true
-			})
+			}) {
+				// nothing to do here, the queue was not modified
+			}
+
+			a.queueLock.Unlock()
 		case <-ctx.Done():
 			close(a.stopChan)
 			return
