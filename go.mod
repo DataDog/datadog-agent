@@ -229,7 +229,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/glaslos/ssdeep v0.4.0
-	github.com/go-delve/delve v1.25.0
+	github.com/go-delve/delve v1.26.0
 	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
