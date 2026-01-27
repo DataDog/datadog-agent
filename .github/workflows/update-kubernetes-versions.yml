@@ -10,11 +10,6 @@ on:
 
 permissions: {}
 
-env:
-  AWS_ACCOUNT_ID: "669783387624"
-  ECR_REPOSITORY: dockerhub/kindest/node
-  ECR_REGION: us-east-1
-
 jobs:
   update-k8s-versions:
     timeout-minutes: 30
