@@ -2,21 +2,23 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
-package tcp
+
+package http
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
+	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
+	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 )
 
-func TestTCPDestinationFactory(t *testing.T) {
+func TestHttpDestinationFactory(t *testing.T) {
 	tests := []struct {
 		name               string
 		endpoints          []config.Endpoint
@@ -28,15 +30,15 @@ func TestTCPDestinationFactory(t *testing.T) {
 			name: "standard configuration with multiple endpoints",
 			endpoints: []config.Endpoint{
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10516",
+					"host":        "localhost:8080",
 					"is_reliable": true,
 				}),
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10517",
+					"host":        "localhost:8081",
 					"is_reliable": true,
 				}),
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10518",
+					"host":        "localhost:8082",
 					"is_reliable": false,
 				}),
 			},
@@ -48,7 +50,7 @@ func TestTCPDestinationFactory(t *testing.T) {
 			name: "single endpoint configuration",
 			endpoints: []config.Endpoint{
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10516",
+					"host":        "localhost:8080",
 					"is_reliable": true,
 				}),
 			},
@@ -67,11 +69,11 @@ func TestTCPDestinationFactory(t *testing.T) {
 			name: "serverless configuration",
 			endpoints: []config.Endpoint{
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10516",
+					"host":        "localhost:8080",
 					"is_reliable": true,
 				}),
 				config.NewMockEndpointWithOptions(map[string]interface{}{
-					"host":        "localhost:10517",
+					"host":        "localhost:8081",
 					"is_reliable": false,
 				}),
 			},
@@ -86,13 +88,20 @@ func TestTCPDestinationFactory(t *testing.T) {
 			// Setup
 			endpoints := config.NewMockEndpoints(tc.endpoints)
 			destinationsCtx := client.NewDestinationsContext()
-			status := statusinterface.NewStatusProviderMock()
+			pipelineMonitor := metrics.NewNoopPipelineMonitor("test")
+			mockConfig := configmock.New(t)
 
-			factory := tcpDestinationFactory(
+			factory := httpDestinationFactory(
 				endpoints,
 				destinationsCtx,
+				pipelineMonitor,
 				sender.NewMockServerlessMeta(tc.serverless),
-				status,
+				mockConfig,
+				"test-component",
+				"application/json",
+				"",
+				1,
+				10,
 			)
 
 			// Test 1: Verify first call creates destinations
@@ -110,14 +119,24 @@ func TestTCPDestinationFactory(t *testing.T) {
 				"Expected %d unreliable destinations, got %d",
 				tc.expectedUnreliable, len(unreliable))
 
-			// Verify all destinations are of type *Destination
+			// Verify all destinations are of correct type based on serverless flag
 			for _, dest := range reliable {
-				assert.IsType(t, &tcp.Destination{}, dest,
-					"Expected reliable destination to be of type *tcp.Destination")
+				if tc.serverless {
+					assert.IsType(t, &http.SyncDestination{}, dest,
+						"Expected reliable destination to be of type *http.SyncDestination in serverless mode")
+				} else {
+					assert.IsType(t, &http.Destination{}, dest,
+						"Expected reliable destination to be of type *http.Destination in normal mode")
+				}
 			}
 			for _, dest := range unreliable {
-				assert.IsType(t, &tcp.Destination{}, dest,
-					"Expected unreliable destination to be of type *tcp.Destination")
+				if tc.serverless {
+					assert.IsType(t, &http.SyncDestination{}, dest,
+						"Expected unreliable destination to be of type *http.SyncDestination in serverless mode")
+				} else {
+					assert.IsType(t, &http.Destination{}, dest,
+						"Expected unreliable destination to be of type *http.Destination in normal mode")
+				}
 			}
 
 			// Test 2: Verify second call creates new destination instances
