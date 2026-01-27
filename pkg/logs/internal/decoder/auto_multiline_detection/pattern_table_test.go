@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 )
 
 func makeContext(str string, label Label) *messageContext {

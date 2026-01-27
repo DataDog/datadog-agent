@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"

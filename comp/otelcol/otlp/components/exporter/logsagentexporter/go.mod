@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter
 
-go 1.24.0
+go 1.25.3
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.179
@@ -9,7 +9,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.61.0
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c
@@ -42,6 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
@@ -55,7 +56,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.61.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/rum v0.72.0-devel.0.20250907091827-dbb380833b5f // indirect
@@ -73,7 +73,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/quantile v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.61.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel // indirect
@@ -294,8 +294,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../../../pkg/logs/sources
-	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../../../pkg/logs/status/statusinterface
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils => ../../../../../../pkg/logs/util/testutils
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../../../pkg/metrics

@@ -40,6 +40,7 @@ import (
 
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
+	logsStatus "github.com/DataDog/datadog-agent/comp/logs-library/status"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
@@ -52,7 +53,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"

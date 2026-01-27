@@ -10,7 +10,7 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
+	logsStatus "github.com/DataDog/datadog-agent/comp/logs-library/status"
 )
 
 //go:embed status_templates

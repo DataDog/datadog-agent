@@ -109,8 +109,6 @@ use (
 	pkg/logs/processor
 	pkg/logs/sender
 	pkg/logs/sources
-	pkg/logs/status/statusinterface
-	pkg/logs/status/utils
 	pkg/logs/types
 	pkg/logs/util/testutils
 	pkg/metrics

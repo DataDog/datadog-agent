@@ -21,6 +21,8 @@ import (
 	"sync"
 	"unicode/utf8"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
@@ -30,14 +32,13 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetafilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/discovery"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	privilegedlogsclient "github.com/DataDog/datadog-agent/pkg/privileged-logs/client"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 type serviceLogRef struct {

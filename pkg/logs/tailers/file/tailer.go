@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	logstypes "github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
