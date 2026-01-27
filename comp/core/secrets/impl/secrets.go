@@ -926,7 +926,7 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["refreshIntervalEnabled"] = r.refreshInterval > 0
 	if r.refreshInterval > 0 {
 		stats["refreshInterval"] = r.refreshInterval.String()
-		stats["scatterDuration"] = r.scatterDuration.String()
+		stats["scatterDuration"] = fmt.Sprintf("%.2fs", r.scatterDuration.Seconds())
 	}
 
 	stats["unresolvedSecrets"] = r.unresolvedSecrets

@@ -9,6 +9,6 @@ package framer
 type noFramingMatcher struct{}
 
 // FindFrame considers the given bytes buffer as one full frame.
-func (m *noFramingMatcher) FindFrame(buf []byte, _ int) ([]byte, int) {
-	return buf, len(buf)
+func (m *noFramingMatcher) FindFrame(buf []byte, _ int) ([]byte, int, bool) {
+	return buf, len(buf), false
 }
