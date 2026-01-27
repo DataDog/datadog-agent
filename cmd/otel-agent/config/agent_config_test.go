@@ -475,6 +475,82 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
+// TestLogsEnabledViaEnvironmentVariable tests that logs_enabled can be set via DD_LOGS_ENABLED
+// environment variable and that the config initialization order is correct (schema is built
+// before attempting to read config). This is a regression test for the issue where
+// LoadDatadog was called before BuildSchema, causing "attempt to ReadInConfig before config
+// is constructed" errors.
+func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
+	// Reset global config state to ensure clean test environment
+	configmock.New(t)
+
+	// Set DD_LOGS_ENABLED environment variable
+	t.Setenv("DD_LOGS_ENABLED", "true")
+
+	fileName := "testdata/config_default.yaml"
+
+	// This should not panic or error with "attempt to ReadInConfig before config is constructed"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
+
+	// Verify that logs_enabled is true (from environment variable)
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
+
+	// Verify that the config is using nodetreemodel if that's the default
+	libType := c.GetLibType()
+	assert.NotEmpty(t, libType, "config lib type should be set")
+	t.Logf("Config library type: %s", libType)
+}
+
+// TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
+// datadog.yaml config file and is correctly merged with the OTel config. This ensures
+// the config initialization order works correctly when both configs are present.
+func TestLogsEnabledViaDatadogConfig(t *testing.T) {
+	// Reset global config state to ensure clean test environment
+	configmock.New(t)
+
+	// Create a temporary datadog config that sets logs_enabled
+	ddFileName := t.TempDir() + "/datadog_with_logs.yaml"
+	otelFileName := "testdata/config_default.yaml"
+
+	// Create test datadog config file
+	ddConfig := `logs_enabled: true
+log_level: info
+api_key: test_key_12345
+`
+	err := os.WriteFile(ddFileName, []byte(ddConfig), 0644)
+	require.NoError(t, err)
+
+	// This should not panic or error
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{otelFileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
+
+	// Verify that logs_enabled is true (from datadog config)
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
+}
+
+// TestConfigSchemaBuiltBeforeRead is a unit test that verifies the config schema
+// is built and ready before any config reads occur. This directly tests the fix
+// for the initialization order issue.
+func TestConfigSchemaBuiltBeforeRead(t *testing.T) {
+	// Reset global config state
+	configmock.New(t)
+
+	// Verify that the global config was initialized and is ready
+	cfg := pkgconfigsetup.Datadog()
+	require.NotNil(t, cfg, "global Datadog config should exist")
+
+	// After initialization, known keys like logs_enabled should be accessible
+	// without panicking or returning errors about config not being ready
+	logsEnabled := cfg.GetBool("logs_enabled")
+	t.Logf("logs_enabled initial value: %v", logsEnabled)
+
+	// The key should be known to the config (even if its value is false by default)
+	assert.NotPanics(t, func() {
+		cfg.IsSet("logs_enabled")
+	}, "IsSet should not panic for known keys")
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))

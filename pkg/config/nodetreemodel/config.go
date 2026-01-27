@@ -607,7 +607,8 @@ func (c *ntmConfig) IsSet(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return false
 	}
 
@@ -647,7 +648,8 @@ func (c *ntmConfig) IsConfigured(key string) bool {
 	defer c.RUnlock()
 
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return false
 	}
 
@@ -752,7 +754,8 @@ func (c *ntmConfig) nodeAtPathFromNode(key string, curr *nodeImpl) *nodeImpl {
 // GetNode returns a *nodeImpl for the given key
 func (c *ntmConfig) GetNode(key string) (Node, error) {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		return nil, log.Errorf("attempt to read key before config is constructed: %s", key)
+		return nil, log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 	}
 	pathParts := splitKey(key)
 	curr := c.root

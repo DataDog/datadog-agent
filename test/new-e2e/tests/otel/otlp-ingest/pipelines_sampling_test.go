@@ -37,6 +37,8 @@ agents:
   containers:
     agent:
       env:
+        - name: DD_LOGS_ENABLED
+          value: 'true'
         - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
           value: 'true'
         - name: DD_OTLP_CONFIG_TRACES_PROBABILISTIC_SAMPLER_SAMPLING_PERCENTAGE

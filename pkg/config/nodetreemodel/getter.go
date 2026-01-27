@@ -18,7 +18,8 @@ import (
 
 func (c *ntmConfig) leafAtPath(key string) *nodeImpl {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return missingLeaf
 	}
 
@@ -138,7 +139,8 @@ simplyCopy:
 
 func (c *ntmConfig) getNodeValue(key string) interface{} {
 	if !c.isReady() && !c.allowDynamicSchema.Load() {
-		log.Errorf("attempt to read key before config is constructed: %s", key)
+		log.Errorf("attempt to read key before config is constructed: %s (ready=%v, allowDynamicSchema=%v)",
+			key, c.ready.Load(), c.allowDynamicSchema.Load())
 		return ""
 	}
 

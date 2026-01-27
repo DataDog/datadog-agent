@@ -33,6 +33,8 @@ agents:
   containers:
     otelAgent:
       env:
+        - name: DD_LOGS_ENABLED
+          value: 'true'
         - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
           value: 'false'
 `

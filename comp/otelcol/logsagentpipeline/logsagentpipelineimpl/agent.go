@@ -95,7 +95,6 @@ func NewLogsAgent(deps Dependencies) logsagentpipeline.LogsAgent {
 		return logsAgent
 	}
 
-	deps.Log.Debug("logs-agent disabled")
 	return nil
 }
 

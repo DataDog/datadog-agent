@@ -38,6 +38,8 @@ agents:
   containers:
     otelAgent:
       env:
+        - name: DD_LOGS_ENABLED
+          value: 'true'
         - name: DD_OTELCOLLECTOR_CONVERTER_ENABLED
           value: 'false'
         - name: DD_APM_FEATURES
