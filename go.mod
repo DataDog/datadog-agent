@@ -171,7 +171,7 @@ require (
 	github.com/DataDog/dd-otel-host-profiler v0.4.1-0.20251120091008-29f645374bec
 	github.com/DataDog/ebpf-manager v0.7.15
 	github.com/DataDog/go-sqllexer v0.1.12
-	github.com/DataDog/gopsutil v1.2.2
+	github.com/DataDog/gopsutil v1.2.3
 	github.com/DataDog/nikos v1.12.12
 	github.com/DataDog/sketches-go v1.4.7
 	github.com/DataDog/viper v1.15.0
@@ -229,7 +229,7 @@ require (
 	github.com/freddierice/go-losetup v0.0.0-20220711213114-2a14873012db
 	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/glaslos/ssdeep v0.4.0
-	github.com/go-delve/delve v1.25.0
+	github.com/go-delve/delve v1.26.0
 	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
@@ -265,7 +265,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.17 // indirect
-	github.com/jackc/pgx/v5 v5.7.6
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -332,9 +332,9 @@ require (
 	github.com/twmb/franz-go/pkg/kadm v1.17.1
 	github.com/twmb/franz-go/pkg/kmsg v1.12.0
 	github.com/twmb/murmur3 v1.1.8
-	github.com/uptrace/bun v1.2.15
-	github.com/uptrace/bun/dialect/pgdialect v1.2.15
-	github.com/uptrace/bun/driver/pgdriver v1.2.15
+	github.com/uptrace/bun v1.2.16
+	github.com/uptrace/bun/dialect/pgdialect v1.2.16
+	github.com/uptrace/bun/driver/pgdriver v1.2.16
 	github.com/urfave/negroni v1.0.0
 	github.com/valyala/fastjson v1.6.7
 	github.com/vibrantbyte/go-antpath v1.1.1
@@ -1213,7 +1213,7 @@ replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211
 
 replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1
 
-// use datadog fork of vault/api/auth/aws to reduce binary size for secret-backend
+// use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 
 // Use custom Trivy fork to reduce binary size
@@ -1223,7 +1223,7 @@ replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-2025121
 
 // Prevent dependencies to be bumped by Trivy
 // github.com/DataDog/aptly@v1.5.3 depends on gopenpgp/v2, so we use latest version of go-crypto before the move to gopenpgp/v3
-// Updated to v1.3.0 for secret-backend gopenpgp/v3 compatibility
+// Updated to v1.3.0 for secret-generic-connector gopenpgp/v3 compatibility
 replace github.com/ProtonMail/go-crypto => github.com/ProtonMail/go-crypto v1.3.0
 
 // Prevent a false-positive detection by the Google and Ikarus security vendors on VirusTotal
@@ -1333,7 +1333,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ./pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ./pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/linters/components/pkgconfigusage => ./pkg/linters/components/pkgconfigusage
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
