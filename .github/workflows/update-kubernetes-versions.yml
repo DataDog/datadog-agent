@@ -24,6 +24,10 @@ jobs:
       id-token: write # Required for OIDC token from GitHub
     environment:
       name: main
+    env:
+      AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+      ECR_REGION: ${{ vars.ECR_REGION }}
     steps:
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
