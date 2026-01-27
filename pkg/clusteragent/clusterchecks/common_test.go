@@ -56,8 +56,9 @@ func (m *mockedPluggableAutoConfig) RemoveScheduler(name string) {
 
 type fakeLeaderEngine struct {
 	sync.Mutex
-	ip  string
-	err error
+	ip       string
+	err      error
+	isLeader bool
 }
 
 func (e *fakeLeaderEngine) get() (string, error) {
@@ -66,9 +67,17 @@ func (e *fakeLeaderEngine) get() (string, error) {
 	return e.ip, e.err
 }
 
+func (e *fakeLeaderEngine) getIsLeader() bool {
+	e.Lock()
+	defer e.Unlock()
+	return e.isLeader
+}
+
 func (e *fakeLeaderEngine) set(ip string, err error) {
 	e.Lock()
 	defer e.Unlock()
 	e.ip = ip
 	e.err = err
+	// When ip is empty and no error, we are the leader
+	e.isLeader = (ip == "" && err == nil)
 }

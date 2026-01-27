@@ -22,3 +22,12 @@ func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 
 	return engine.GetLeaderIP, nil
 }
+
+func getIsLeaderCallback() (types.IsLeaderCallback, error) {
+	engine, err := leaderelection.GetLeaderEngine()
+	if err != nil {
+		return nil, err
+	}
+
+	return engine.IsLeader, nil
+}

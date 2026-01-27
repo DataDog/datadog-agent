@@ -55,8 +55,9 @@ func (h *Handler) assertNoLeadershipMessage(t *testing.T) {
 func TestUpdateLeaderIP(t *testing.T) {
 	le := &fakeLeaderEngine{}
 	h := &Handler{
-		leadershipChan:       make(chan state, 1),
-		leaderStatusCallback: le.get,
+		leadershipChan:   make(chan state, 1),
+		leaderIPCallback: le.get,
+		isLeaderCallback: le.getIsLeader,
 	}
 
 	// First run, become leader
@@ -104,8 +105,9 @@ func TestUpdateLeaderIP(t *testing.T) {
 	// Start fresh, test unknown -> follower
 	le = &fakeLeaderEngine{}
 	h = &Handler{
-		leadershipChan:       make(chan state, 1),
-		leaderStatusCallback: le.get,
+		leadershipChan:   make(chan state, 1),
+		leaderIPCallback: le.get,
+		isLeaderCallback: le.getIsLeader,
 	}
 	le.set("1.2.3.4", nil)
 	err = h.updateLeaderIP()
@@ -116,8 +118,9 @@ func TestUpdateLeaderIP(t *testing.T) {
 	// Start fresh, test unknown -> unknown -> leader
 	le = &fakeLeaderEngine{}
 	h = &Handler{
-		leadershipChan:       make(chan state, 1),
-		leaderStatusCallback: le.get,
+		leadershipChan:   make(chan state, 1),
+		leaderIPCallback: le.get,
+		isLeaderCallback: le.getIsLeader,
 	}
 	le.set("", errors.New("failing"))
 	for i := 0; i < 4; i++ {
@@ -156,13 +159,14 @@ func TestHandlerRun(t *testing.T) {
 	defer testServer.Close()
 
 	h := &Handler{
-		autoconfig:           ac,
-		leaderStatusFreq:     100 * time.Millisecond,
-		warmupDuration:       250 * time.Millisecond,
-		leadershipChan:       make(chan state, 1),
-		dispatcher:           newDispatcher(fakeTagger),
-		leaderStatusCallback: le.get,
-		leaderForwarder:      api.NewLeaderForwarder(testPort, 10),
+		autoconfig:       ac,
+		leaderStatusFreq: 100 * time.Millisecond,
+		warmupDuration:   250 * time.Millisecond,
+		leadershipChan:   make(chan state, 1),
+		dispatcher:       newDispatcher(fakeTagger),
+		leaderIPCallback: le.get,
+		isLeaderCallback: le.getIsLeader,
+		leaderForwarder:  api.NewLeaderForwarder(testPort, 10),
 	}
 
 	//

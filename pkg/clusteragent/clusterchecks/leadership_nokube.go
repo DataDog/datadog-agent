@@ -16,3 +16,7 @@ import (
 func getLeaderIPCallback() (types.LeaderIPCallback, error) {
 	return nil, errors.New("No leader election engine compiled in")
 }
+
+func getIsLeaderCallback() (types.IsLeaderCallback, error) {
+	return nil, errors.New("No leader election engine compiled in")
+}

@@ -102,6 +102,9 @@ type Stats struct {
 // need and allows to inject a custom one for tests
 type LeaderIPCallback func() (string, error)
 
+// IsLeaderCallback returns true if this instance is the leader
+type IsLeaderCallback func() bool
+
 // CLCRunnersStats is used to unmarshall the CLC Runners stats payload
 type CLCRunnersStats map[string]CLCRunnerStats
 

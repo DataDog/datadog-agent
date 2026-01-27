@@ -49,7 +49,8 @@ type Handler struct {
 	dispatcher           *dispatcher
 	leaderStatusFreq     time.Duration
 	warmupDuration       time.Duration
-	leaderStatusCallback types.LeaderIPCallback
+	leaderIPCallback types.LeaderIPCallback
+	isLeaderCallback     types.IsLeaderCallback
 	leadershipChan       chan state
 	leaderForwarder      *api.LeaderForwarder
 	m                    sync.RWMutex // Below fields protected by the mutex
@@ -74,11 +75,16 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 
 	if pkgconfigsetup.Datadog().GetBool("leader_election") {
 		h.leaderForwarder = api.GetGlobalLeaderForwarder()
-		callback, err := getLeaderIPCallback()
+		leaderIPCallback, err := getLeaderIPCallback()
 		if err != nil {
 			return nil, err
 		}
-		h.leaderStatusCallback = callback
+		h.leaderIPCallback = leaderIPCallback
+		isLeaderCallback, err := getIsLeaderCallback()
+		if err != nil {
+			return nil, err
+		}
+		h.isLeaderCallback = isLeaderCallback
 	}
 
 	// Cache a pointer to the handler for the agent status command
@@ -92,7 +98,7 @@ func NewHandler(ac pluggableAutoConfig, tagger tagger.Component) (*Handler, erro
 // be called in a goroutine with a cancellable context.
 func (h *Handler) Run(ctx context.Context) {
 	h.m.Lock()
-	if h.leaderStatusCallback != nil {
+	if h.leaderIPCallback != nil {
 		go h.leaderWatch(ctx)
 	} else {
 		// With no leader election enabled, we assume only one DCA is running
@@ -120,6 +126,7 @@ func (h *Handler) Run(ctx context.Context) {
 			return
 		case newState := <-h.leadershipChan:
 			if newState != leader {
+				log.Info("Leadership changed during warmup, reverting to follower")
 				continue
 			}
 		case <-time.After(h.warmupDuration):
@@ -210,11 +217,14 @@ func (h *Handler) leaderWatch(ctx context.Context) {
 }
 
 // updateLeaderIP queries the leader election engine and updates
-// the leader IP accordlingly. In case of leadership statuschange,
+// the leader IP accordingly. In case of leadership status change,
 // a state type is sent on leadershipChan.
 func (h *Handler) updateLeaderIP() error {
-	newIP, err := h.leaderStatusCallback()
-	if err != nil {
+	isLeader := h.isLeaderCallback()
+
+	newIP, err := h.leaderIPCallback()
+	if err != nil && !isLeader {
+		// Only return error if we're not the leader and can't get leader IP
 		return err
 	}
 
@@ -232,15 +242,15 @@ func (h *Handler) updateLeaderIP() error {
 
 	switch h.state {
 	case leader:
-		if newIP != "" {
+		if !isLeader {
 			newState = follower
 		}
 	case follower:
-		if newIP == "" {
+		if isLeader {
 			newState = leader
 		}
 	case unknown:
-		if newIP == "" {
+		if isLeader {
 			newState = leader
 		} else {
 			newState = follower
