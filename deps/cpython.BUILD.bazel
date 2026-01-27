@@ -6,6 +6,7 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
+load("@@//bazel/rules:replace_shebang.bzl", "replace_shebang")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -257,6 +258,19 @@ copy_to_directory(
     ],
     include_external_repositories = ["*"],
     root_paths = ["python_unix"],
+)
+
+filegroup(
+    name = "pip_exec",
+    srcs = [":python_unix"],
+    output_group = "pip{}".format(VERSION_STR),
+)
+
+replace_shebang(
+    name = "patch_pip_interpreter",
+    input = ":pip_exec",
+    program = "##PREFIX##/bin/python3",
+    nb_lines = 4
 )
 
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
