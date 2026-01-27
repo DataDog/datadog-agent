@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 const (
@@ -460,7 +461,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		}
 	}
 
-	c.extractTagsFromJSONInMap(podTagsAnnotation, pod.Annotations, tagList)
+	// Extract tags from pod-level annotation with template resolution
+	podCtx := NewPodTemplateContext(pod, nil)
+	c.extractTagsFromJSONInMapWithContext(podTagsAnnotation, pod.Annotations, tagList, podCtx)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -932,7 +935,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
-	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tagList)
+	// Create template context with both container and pod for full variable resolution
+	containerCtx := NewContainerTemplateContext(container, pod, c.store)
+	c.extractTagsFromJSONInMapWithContext(annotation, pod.Annotations, tagList, containerCtx)
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -1012,12 +1017,16 @@ func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *taglist.TagList) {
+	c.extractTagsFromJSONInMapWithContext(key, input, tags, nil)
+}
+
+func (c *WorkloadMetaCollector) extractTagsFromJSONInMapWithContext(key string, input map[string]string, tags *taglist.TagList, tmplCtx tmplvar.TemplateContext) {
 	jsonTags, found := input[key]
 	if !found {
 		return
 	}
 
-	err := parseJSONValue(jsonTags, tags)
+	err := parseJSONValueWithContext(jsonTags, tags, tmplCtx)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
 	}
@@ -1044,7 +1053,27 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
+// resolveTemplateInTagValue resolves template variables in a tag value string
+// ctx can be a tmplvar.TemplateContext or nil (no resolution)
+func resolveTemplateInTagValue(value string, tmplCtx tmplvar.TemplateContext) string {
+	if tmplCtx == nil {
+		return value
+	}
+
+	resolved, err := tmplvar.ResolveString(value, tmplCtx)
+	if err != nil {
+		// Log debug message but return the partially resolved string
+		// (ResolveString keeps unresolved variables as-is)
+		log.Debugf("Failed to fully resolve template variables in %q: %v", value, err)
+	}
+	return resolved
+}
+
 func parseJSONValue(value string, tags *taglist.TagList) error {
+	return parseJSONValueWithContext(value, tags, nil)
+}
+
+func parseJSONValueWithContext(value string, tags *taglist.TagList, tmplCtx tmplvar.TemplateContext) error {
 	if value == "" {
 		return errors.New("value is empty")
 	}
@@ -1057,10 +1086,13 @@ func parseJSONValue(value string, tags *taglist.TagList) error {
 	for key, value := range result {
 		switch v := value.(type) {
 		case string:
-			tags.AddAuto(key, v)
+			resolvedValue := resolveTemplateInTagValue(v, tmplCtx)
+			tags.AddAuto(key, resolvedValue)
 		case []interface{}:
 			for _, tag := range v {
-				tags.AddAuto(key, fmt.Sprint(tag))
+				tagStr := fmt.Sprint(tag)
+				resolvedValue := resolveTemplateInTagValue(tagStr, tmplCtx)
+				tags.AddAuto(key, resolvedValue)
 			}
 		default:
 			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
