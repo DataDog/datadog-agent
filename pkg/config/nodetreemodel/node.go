@@ -241,19 +241,6 @@ func (n *nodeImpl) dumpSettings(includeDefaults bool) map[string]interface{} {
 	return res
 }
 
-// Clone clones a LeafNode
-func (n *nodeImpl) Clone() *nodeImpl {
-	if n.IsLeafNode() {
-		return newLeafNode(n.val, n.source)
-	}
-
-	children := make(map[string]*nodeImpl)
-	for k, node := range n.children {
-		children[k] = node.Clone()
-	}
-	return newInnerNode(children)
-}
-
 // SourceGreaterThan returns true if the source of the current node is greater than the one given as a
 // parameter
 func (n *nodeImpl) SourceGreaterThan(source model.Source) bool {
