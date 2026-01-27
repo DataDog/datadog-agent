@@ -17,6 +17,12 @@ build do
       link "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent/experiment"
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
       project.extra_package_file "/opt/datadog-packages/run"
+
+      # TODO: Next PR, enable this and delete the rest.
+      # NOTE TO REVIEWER: I will delete these lines before commit. They are only for
+      command_on_repo_root "bazelisk run -- //packages/agent/linux:install --destdir='/opt/datadog-packages/pr45475'"
+      command_on_repo_root "find /opt/datadog-packages", :live_stream => Omnibus.logger.live_stream(:info)
+      command_on_repo_root "ls -lR /opt/datadog-packages", :live_stream => Omnibus.logger.live_stream(:info)
     end
   end
 end
