@@ -17,7 +17,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.64.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/logs/sender v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.64.0-rc.3
@@ -216,7 +215,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../../pkg/logs/processor
-	github.com/DataDog/datadog-agent/pkg/logs/sender => ../../../../pkg/logs/sender
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
