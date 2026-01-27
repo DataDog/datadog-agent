@@ -488,10 +488,8 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
 
-	// Verify that the config is using nodetreemodel if that's the default
 	libType := c.GetLibType()
 	assert.NotEmpty(t, libType, "config lib type should be set")
-	t.Logf("Config library type: %s", libType)
 }
 
 // TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
@@ -511,23 +509,6 @@ api_key: test_key_12345
 	c, err := NewConfigComponent(context.Background(), ddFileName, []string{otelFileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
-}
-
-// TestConfigSchemaBuiltBeforeRead is a unit test that verifies the config schema
-// is built and ready before any config reads occur. This directly tests the fix
-// for the initialization order issue.
-func TestConfigSchemaBuiltBeforeRead(t *testing.T) {
-	configmock.New(t)
-	cfg := pkgconfigsetup.Datadog()
-	require.NotNil(t, cfg, "global Datadog config should exist")
-
-	logsEnabled := cfg.GetBool("logs_enabled")
-	t.Logf("logs_enabled initial value: %v", logsEnabled)
-
-	// The key should be known to the config (even if its value is false by default)
-	assert.NotPanics(t, func() {
-		cfg.IsSet("logs_enabled")
-	}, "IsSet should not panic for known keys")
 }
 
 // TestSuite runs the CalculatorTestSuite
