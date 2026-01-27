@@ -117,9 +117,7 @@ func getBackendCommandBinary(t *testing.T) (string, func()) {
 	// compile it
 	t.Logf("compiling secret backend binary '%s'", targetBin)
 	build(t, targetBin)
-
-	// error is not checked
-	_ = filesystem.SetCorrectRight(targetBin)
+	filesystem.SetCorrectRight(targetBin)
 
 	return targetBin, cleanup
 }
