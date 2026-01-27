@@ -58,6 +58,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.ancestors.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "process.ancestors.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -143,6 +148,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "process.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "process.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -201,6 +211,11 @@
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -537,6 +552,11 @@
           "property_doc_link": "common-containercontext-id-doc"
         },
         {
+          "name": "exec.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
+        },
+        {
           "name": "exec.container.tags",
           "definition": "Tags of the container",
           "property_doc_link": "common-containercontext-tags-doc"
@@ -634,6 +654,11 @@
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.is_sandbox",
+          "definition": "indicates if this is a sandbox/pause container",
+          "property_doc_link": "common-containercontext-is_sandbox-doc"
         },
         {
           "name": "exit.container.tags",
@@ -1102,6 +1127,22 @@
       "link": "common-containercontext-id-doc",
       "type": "string",
       "definition": "ID of the container",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.is_sandbox",
+      "link": "common-containercontext-is_sandbox-doc",
+      "type": "bool",
+      "definition": "indicates if this is a sandbox/pause container",
       "prefixes": [
         "exec.container",
         "exit.container",

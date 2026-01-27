@@ -52,7 +52,7 @@ type Resolver interface {
 	Start(ctx context.Context) error
 	Stop() error
 	Resolve(id containerutils.WorkloadID) []string
-	ResolveWithErr(id containerutils.WorkloadID) ([]string, error)
+	ResolveWithErr(id containerutils.WorkloadID) (WorkloadType, []string, error)
 	GetValue(id containerutils.WorkloadID, tag string) string
 }
 
