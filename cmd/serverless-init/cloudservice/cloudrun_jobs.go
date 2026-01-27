@@ -6,9 +6,7 @@
 package cloudservice
 
 import (
-	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"os"
 	"strconv"
 	"time"
@@ -177,24 +175,14 @@ func (c *CloudRunJobs) initJobSpan() {
 		resourceName = "gcp.run.job"
 	}
 
-	// Generate IDs for the span and trace
-	spanID := rand.Uint64()
-
-	// Create trace ID (128-bit)
-	traceID := make([]byte, 16)
-	binary.BigEndian.PutUint64(traceID[:8], rand.Uint64()) // High 64 bits
-	binary.BigEndian.PutUint64(traceID[8:], rand.Uint64()) // Low 64 bits
-
 	// Use helper function to create the chunk with a single span
 	c.jobChunk = idx.NewInternalTraceChunkWithSpan(
 		serviceName,
 		"gcp.run.job.task",
 		resourceName,
 		"", // TODO add custom 'job' span type (requires UI changes)
-		spanID,
-		0, // parentID - top-level span
+		0,  // parentID - top-level span
 		c.startTime.UnixNano(),
-		traceID,
 		tags,
 		1,                  // priority
 		CloudRunJobsOrigin, // origin
