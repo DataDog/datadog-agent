@@ -865,8 +865,8 @@ github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 h1:BP4M0CvQ
 github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-chi/chi v4.1.2+incompatible h1:fGFk2Gmi/YKXk0OmGfBh0WgmN3XB8lVnEyNz34tQRec=
 github.com/go-chi/chi v4.1.2+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
-github.com/go-delve/delve v1.25.0 h1:JN2S3iVptvayUS2w+d0UEPmijgkodW1AFM4I8UViHGE=
-github.com/go-delve/delve v1.25.0/go.mod h1:kJk12wo6PqzWknTP6M+Pg3/CrNhFMZvNq1iHESKkhv8=
+github.com/go-delve/delve v1.26.0 h1:YZT1kXD76mxba4/wr+tyUa/tSmy7qzoDsmxutT42PIs=
+github.com/go-delve/delve v1.26.0/go.mod h1:8BgFFOXTi1y1M+d/4ax1LdFw0mlqezQiTZQpbpwgBxo=
 github.com/go-enry/go-license-detector/v4 v4.3.1 h1:BajEVdTffFcs8RACmblySVhfEIuT58TmXx27RgVfUdc=
 github.com/go-enry/go-license-detector/v4 v4.3.1/go.mod h1:YVJKPE01WQNjN/bdM6V0I/9KxvwEAAv0Ef9pi92K6w0=
 github.com/go-errors/errors v1.5.1 h1:ZwEMSLRCapFLflTpT7NKaAc7ukJ8ZPEjzlxt8rPN8bk=
