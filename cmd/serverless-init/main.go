@@ -201,7 +201,7 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		_, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
 
 		if functionTargetExists {
-			profileTags["functionname"] = os.Getenv("K_SERVICE")
+			profileTags["functionname"] = os.Getenv(cloudservice.ServiceNameEnvVar)
 		}
 	}
 
