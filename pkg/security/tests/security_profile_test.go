@@ -3247,7 +3247,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		time.Sleep(11 * time.Second)
 
 		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
-		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		profile := manager.(*securityprofile.Manager).GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 		if profile == nil {
 			t.Fatal("profile is nil")
 		}
