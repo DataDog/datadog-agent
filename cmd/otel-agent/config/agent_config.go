@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type logLevel int
@@ -117,8 +116,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	// This must happen after InitConfig (which registers keys) and before LoadDatadog (which reads config)
 	pkgconfig.BuildSchema()
 
-	log.Errorf("OTel config after BuildSchema: logs_enabled=%v (before LoadDatadog)", pkgconfig.GetBool("logs_enabled"))
-
 	activeLogLevel := critical
 	if len(ddCfg) != 0 {
 		// if the configuration file path was supplied via CLI flags or env vars,
@@ -133,8 +130,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		if err != nil {
 			return nil, err
 		}
-
-		log.Errorf("OTel config after LoadDatadog: logs_enabled=%v", pkgconfig.GetBool("logs_enabled"))
 
 		var ok bool
 		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
@@ -179,9 +174,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 
 	// Log configs
-	log.Errorf("OTel config before setting logs_enabled: logs_enabled=%v", pkgconfig.GetBool("logs_enabled"))
 	pkgconfig.Set("logs_enabled", true, pkgconfigmodel.SourceDefault)
-	log.Errorf("OTel config after setting logs_enabled to true with SourceDefault: logs_enabled=%v", pkgconfig.GetBool("logs_enabled"))
 	pkgconfig.Set("logs_config.force_use_http", true, pkgconfigmodel.SourceDefault)
 	pkgconfig.Set("logs_config.logs_dd_url", ddc.Logs.Endpoint, pkgconfigmodel.SourceFile)
 	pkgconfig.Set("logs_config.batch_wait", ddc.Logs.BatchWait, pkgconfigmodel.SourceFile)
