@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -41,7 +42,9 @@ func newOrchestratorForwarder(log log.Component, config config.Component, secret
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
 	if params.useOrchestratorForwarder {
-		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
+		isOrchestratorEnv := env.IsKubernetes() || env.IsECS() || env.IsECSFargate() || env.IsECSManagedInstances()
+		orchestratorExplorerEnabled := config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled"))
+		if !orchestratorExplorerEnabled || !isOrchestratorEnv {
 			forwarder := option.None[defaultforwarder.Forwarder]()
 			return &forwarder
 		}
