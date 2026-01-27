@@ -73,7 +73,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component) (*CWSConsumer, error) {
+func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -106,7 +106,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	}
 
 	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, ipc)
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname)
 	if err != nil {
 		return nil, err
 	}
