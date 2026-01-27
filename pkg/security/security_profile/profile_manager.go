@@ -12,8 +12,10 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
+	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 )
 
 // ProfileManager is the interface for profile management operations.
@@ -61,4 +63,24 @@ type ProfileManager interface {
 
 	// DumpActivity dumps the activity dump
 	DumpActivity(params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error)
+
+	// Test/Debug methods - used by functional tests
+
+	// AddProfile adds a profile to the manager (test only)
+	AddProfile(profile *profile.Profile)
+
+	// GetProfile returns a profile by its selector (test only)
+	GetProfile(selector cgroupModel.WorkloadSelector) *profile.Profile
+
+	// FakeDumpOverweight fakes a dump to be overweight (test only)
+	FakeDumpOverweight(name string)
+
+	// ListAllProfileStates lists all profile states (debug only)
+	ListAllProfileStates()
+
+	// EvictAllTracedCgroups evicts all traced cgroups (test only)
+	EvictAllTracedCgroups()
+
+	// ClearTracedCgroups clears all traced cgroups (test only)
+	ClearTracedCgroups()
 }

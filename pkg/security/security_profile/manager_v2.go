@@ -52,7 +52,6 @@ type ManagerV2 struct {
 	statsdClient  statsd.ClientInterface
 	resolvers     *resolvers.EBPFResolvers
 	kernelVersion *kernel.Version
-	ipc           ipc.Component
 
 	sendAnomalyDetection func(*model.Event)
 
@@ -71,11 +70,7 @@ type ManagerV2 struct {
 
 	profilePendingEvents map[containerutils.CGroupID]*pendingProfile
 
-	// Metrics counters
-	eventsReceived       *atomic.Uint64 // total events received (after filters)
-	eventsImmediate      *atomic.Uint64 // events processed immediately (tags resolved)
-	eventsQueued         *atomic.Uint64 // total events queued (count)
-	pendingTimeout       *atomic.Uint64 // events dropped due to 10s stale timeout
+	// Metrics counters (gauges that need to be tracked)
 	queueSize            *atomic.Uint64 // total events currently queued (gauge)
 	pendingProfiles      *atomic.Uint64 // cgroups currently waiting for tags
 	eventsDroppedMaxSize *atomic.Uint64 // events dropped because profile at max size
@@ -84,6 +79,14 @@ type ManagerV2 struct {
 	// Track unique cgroups seen
 	seenCgroups     map[containerutils.CGroupID]struct{}
 	seenCgroupsLock sync.Mutex
+
+	// Track cgroup to selector mapping for delayed cleanup
+	cgroupToSelector     map[containerutils.CGroupID]cgroupModel.WorkloadSelector
+	cgroupToSelectorLock sync.RWMutex
+
+	// Pending profile removals (selector -> time when removal was queued)
+	pendingProfileRemovals     map[cgroupModel.WorkloadSelector]time.Time
+	pendingProfileRemovalsLock sync.Mutex
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, ipc ipc.Component, sendAnomalyDetection func(*model.Event)) (*ManagerV2, error) {
@@ -125,12 +128,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		statsdClient:              statsdClient,
 		resolvers:                 resolvers,
 		kernelVersion:             kernelVersion,
-		ipc:                       ipc,
 		profilePendingEvents:      make(map[containerutils.CGroupID]*pendingProfile),
-		eventsReceived:            atomic.NewUint64(0),
-		eventsImmediate:           atomic.NewUint64(0),
-		eventsQueued:              atomic.NewUint64(0),
-		pendingTimeout:            atomic.NewUint64(0),
 		queueSize:                 atomic.NewUint64(0),
 		pendingProfiles:           atomic.NewUint64(0),
 		eventsDroppedMaxSize:      atomic.NewUint64(0),
@@ -144,12 +142,15 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, resol
 		sendAnomalyDetection:      sendAnomalyDetection,
 		eventFiltering:            make(map[eventFilteringEntry]*atomic.Uint64),
 		seenCgroups:               make(map[containerutils.CGroupID]struct{}),
+		cgroupToSelector:          make(map[containerutils.CGroupID]cgroupModel.WorkloadSelector),
+		pendingProfileRemovals:    make(map[cgroupModel.WorkloadSelector]time.Time),
 	}, nil
 }
 
 func (m *ManagerV2) Start(ctx context.Context) {
 	sendTickerChan := m.setupPersistenceTicker()
 	nodeEvictionTickerChan := m.setupNodeEvictionTicker()
+	profileCleanupTickerChan := m.setupProfileCleanupTicker()
 
 	// Register listener for cgroup deletions to track active cgroups
 	if err := m.resolvers.CGroupResolver.RegisterListener(cgroup.CGroupDeleted, m.onCGroupDeleted); err != nil {
@@ -169,6 +170,8 @@ func (m *ManagerV2) Start(ctx context.Context) {
 			m.persistAllProfiles()
 		case <-nodeEvictionTickerChan:
 			m.evictUnusedNodes()
+		case <-profileCleanupTickerChan:
+			m.cleanupPendingProfiles()
 		}
 	}
 }
@@ -191,12 +194,95 @@ func (m *ManagerV2) setupNodeEvictionTicker() <-chan time.Time {
 	return time.NewTicker(m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout).C
 }
 
+// setupProfileCleanupTicker creates the ticker channel for periodic profile cleanup
+func (m *ManagerV2) setupProfileCleanupTicker() <-chan time.Time {
+	if !m.config.RuntimeSecurity.SecurityProfileEnabled || m.config.RuntimeSecurity.SecurityProfileCleanupDelay <= 0 {
+		return make(chan time.Time)
+	}
+
+	// Check every minute for profiles that need to be cleaned up
+	return time.NewTicker(1 * time.Minute).C
+}
+
 // onCGroupDeleted is called when a cgroup is deleted from the system
 func (m *ManagerV2) onCGroupDeleted(cgce *cgroupModel.CacheEntry) {
 	cgroupID := cgce.GetCGroupID()
+
+	// Remove from seenCgroups
 	m.seenCgroupsLock.Lock()
 	delete(m.seenCgroups, cgroupID)
 	m.seenCgroupsLock.Unlock()
+
+	// Get the selector for this cgroup and remove the mapping
+	m.cgroupToSelectorLock.Lock()
+	selector, exists := m.cgroupToSelector[cgroupID]
+	if exists {
+		delete(m.cgroupToSelector, cgroupID)
+	}
+	m.cgroupToSelectorLock.Unlock()
+
+	if !exists {
+		return
+	}
+
+	// Check if any other cgroups are using this selector
+	m.cgroupToSelectorLock.RLock()
+	hasOtherCgroups := false
+	for _, s := range m.cgroupToSelector {
+		if s == selector {
+			hasOtherCgroups = true
+			break
+		}
+	}
+	m.cgroupToSelectorLock.RUnlock()
+
+	// If no other cgroups use this selector, queue for delayed removal
+	if !hasOtherCgroups {
+		m.pendingProfileRemovalsLock.Lock()
+		if _, alreadyPending := m.pendingProfileRemovals[selector]; !alreadyPending {
+			m.pendingProfileRemovals[selector] = time.Now()
+			seclog.Debugf("queued profile [%s] for delayed removal", selector.String())
+		}
+		m.pendingProfileRemovalsLock.Unlock()
+	}
+}
+
+// cleanupPendingProfiles removes profiles that have been pending removal for longer than the cleanup delay
+func (m *ManagerV2) cleanupPendingProfiles() {
+	cleanupDelay := m.config.RuntimeSecurity.SecurityProfileCleanupDelay
+	if cleanupDelay <= 0 {
+		return
+	}
+
+	now := time.Now()
+	var selectorsToRemove []cgroupModel.WorkloadSelector
+
+	m.pendingProfileRemovalsLock.Lock()
+	for selector, queuedAt := range m.pendingProfileRemovals {
+		if now.Sub(queuedAt) >= cleanupDelay {
+			selectorsToRemove = append(selectorsToRemove, selector)
+			delete(m.pendingProfileRemovals, selector)
+		}
+	}
+	m.pendingProfileRemovalsLock.Unlock()
+
+	// Remove the profiles
+	if len(selectorsToRemove) > 0 {
+		m.profilesLock.Lock()
+		for _, selector := range selectorsToRemove {
+			if profile := m.profiles[selector]; profile != nil {
+				seclog.Infof("removing profile [%s] after cleanup delay", selector.String())
+				delete(m.profiles, selector)
+
+				// Emit metric
+				tags := []string{"image_name:" + selector.Image}
+				if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2CleanupProfilesRemoved, 1, tags, 1.0); err != nil {
+					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2CleanupProfilesRemoved, err)
+				}
+			}
+		}
+		m.profilesLock.Unlock()
+	}
 }
 
 // persistAllProfiles encodes and persists all profiles to configured storage backends
@@ -278,8 +364,7 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	source := event.FieldHandlers.ResolveSource(event, &event.BaseEvent)
 	sourceTags := []string{"source:" + source}
 
-	// Count events that pass initial filters
-	m.eventsReceived.Inc()
+	// Emit metric for events that pass initial filters
 	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalReceived, 1, sourceTags, 1.0); err != nil {
 		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalReceived, err)
 	}
@@ -292,7 +377,6 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 	tagsResolved := len(event.ProcessContext.Process.ContainerContext.Tags) != 0
 
 	if tagsResolved {
-		m.eventsImmediate.Inc()
 		if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalImmediate, 1, sourceTags, 1.0); err != nil {
 			seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalImmediate, err)
 		}
@@ -306,6 +390,11 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 func (m *ManagerV2) purgeStalePendingEvents(currentTimestamp time.Time) {
 	for cgroupID, pendingEvents := range m.profilePendingEvents {
 		if currentTimestamp.Sub(pendingEvents.firstSeen) > 60*time.Second {
+			// Decrement queue size by the number of events being dropped
+			if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
+				m.queueSize.Sub(uint64(eventsLen))
+			}
+
 			delete(m.profilePendingEvents, cgroupID)
 			m.pendingProfiles.Dec()
 
@@ -373,11 +462,12 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []
 	// If so, drop this event and clear the queue - stale events won't be processed
 	event.ResolveEventTime()
 	if event.Timestamp.Sub(pendingEvents.firstSeen) > 10*time.Second {
-		if pendingEvents.events.Len() > 0 {
+		if eventsLen := pendingEvents.events.Len(); eventsLen > 0 {
+			// Decrement queue size BEFORE clearing the list
+			m.queueSize.Sub(uint64(eventsLen))
 			pendingEvents.events.Init()
-			m.pendingTimeout.Inc()
 			// Emit dropped metric with source tag
-			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(pendingEvents.events.Len()), sourceTags, 1.0); err != nil {
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2TagResolutionEventsDropped, int64(eventsLen), sourceTags, 1.0); err != nil {
 				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2TagResolutionEventsDropped, err)
 			}
 		}
@@ -389,7 +479,6 @@ func (m *ManagerV2) queueEventForTagResolution(event *model.Event, sourceTags []
 	cpy := event.DeepCopy()
 	pendingEvents.events.PushBack(cpy)
 	m.queueSize.Inc()
-	m.eventsQueued.Inc()
 	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsTotalQueued, 1, sourceTags, 1.0); err != nil {
 		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EventsTotalQueued, err)
 	}
@@ -441,8 +530,6 @@ func (m *ManagerV2) SendStats() error {
 	if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileV2TagResolutionCgroupsPending, float64(m.pendingProfiles.Load()), []string{}, 1.0); err != nil {
 		return err
 	}
-
-	// Note: cgroupsExpired is emitted directly in purgeStalePendingEvents with container_id tag
 
 	// Total unique cgroups seen (all time) - use gauge since it's a cumulative total
 	m.seenCgroupsLock.Lock()
@@ -553,6 +640,21 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		return nil, false
 	}
 
+	cgroupID := event.ProcessContext.Process.CGroup.CGroupID
+
+	// Track cgroup-to-selector mapping for delayed cleanup
+	m.cgroupToSelectorLock.Lock()
+	m.cgroupToSelector[cgroupID] = selector
+	m.cgroupToSelectorLock.Unlock()
+
+	// Cancel any pending removal for this selector (it's back!)
+	m.pendingProfileRemovalsLock.Lock()
+	if _, pending := m.pendingProfileRemovals[selector]; pending {
+		delete(m.pendingProfileRemovals, selector)
+		seclog.Debugf("cancelled pending removal for profile [%s] - selector reappeared", selector.String())
+	}
+	m.pendingProfileRemovalsLock.Unlock()
+
 	// Get or create the profile for this workload
 	secprof, err := m.getOrCreateProfile(selector, event)
 	if err != nil {
@@ -585,7 +687,8 @@ func (m *ManagerV2) buildWorkloadSelector(event *model.Event) (cgroupModel.Workl
 	return cgroupModel.NewWorkloadSelector(imageName, "*")
 }
 
-// getOrCreateProfile retrieves an existing profile or creates a new one for the given selector
+// getOrCreateProfile retrieves an existing profile or creates a new one for the given selector.
+// It first tries to load the profile from local storage, and if not found, creates a new one.
 func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, error) {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
@@ -595,13 +698,68 @@ func (m *ManagerV2) getOrCreateProfile(selector cgroupModel.WorkloadSelector, ev
 		return secprof, nil
 	}
 
-	secprof, err := m.createNewProfile(selector, event)
-	if err != nil {
-		return nil, err
+	// Try to load from local storage first
+	secprof, loaded := m.loadProfileFromStorage(selector, event)
+	if !loaded {
+		// Create a new profile if not found in storage
+		var err error
+		secprof, err = m.createNewProfile(selector, event)
+		if err != nil {
+			return nil, err
+		}
+		seclog.Debugf("created new profile for selector %s", selector.String())
+	} else {
+		seclog.Debugf("loaded profile from storage for selector %s", selector.String())
 	}
 
 	m.profiles[selector] = secprof
 	return secprof, nil
+}
+
+// loadProfileFromStorage attempts to load a profile from local storage.
+// Returns the loaded profile and true if successful, otherwise nil and false.
+func (m *ManagerV2) loadProfileFromStorage(selector cgroupModel.WorkloadSelector, event *model.Event) (*profile.Profile, bool) {
+	// Create a base profile with the required options
+	secprof := profile.New(
+		profile.WithPathsReducer(m.pathsReducer),
+		profile.WithDifferentiateArgs(m.config.RuntimeSecurity.ActivityDumpCgroupDifferentiateArgs),
+		profile.WithDNSMatchMaxDepth(m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth),
+		profile.WithEventTypes(m.config.RuntimeSecurity.ActivityDumpTracedEventTypes),
+		profile.WithWorkloadSelector(selector),
+	)
+
+	// Try to load from local storage
+	ok, err := m.localStorage.Load(&selector, secprof)
+	if err != nil {
+		seclog.Warnf("couldn't load profile from local storage: %v", err)
+		return nil, false
+	}
+	if !ok {
+		return nil, false
+	}
+
+	// Profile was loaded successfully
+	secprof.SetTreeType(secprof, "security_profile")
+
+	// Update metadata with current event context for proper matching
+	secprof.Metadata.ContainerID = event.ProcessContext.Process.ContainerContext.ContainerID
+	secprof.Metadata.CGroupContext = event.ProcessContext.Process.CGroup
+
+	// Apply eviction right away if configured
+	if m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout > 0 {
+		filepathsInProcessCache := m.GetNodesInProcessCache()
+		evicted := secprof.ActivityTree.EvictUnusedNodes(
+			time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout),
+			filepathsInProcessCache,
+			selector.Image,
+			selector.Tag,
+		)
+		if evicted > 0 {
+			seclog.Debugf("evicted %d unused nodes from loaded profile [%s]", evicted, selector.String())
+		}
+	}
+
+	return secprof, true
 }
 
 // createNewProfile initializes a new profile with all required metadata and tags
@@ -727,6 +885,11 @@ func (m *ManagerV2) evictUnusedNodes() {
 		return
 	}
 
+	// Emit eviction run metric
+	if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionRuns, 1, []string{}, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionRuns, err)
+	}
+
 	evictionTime := time.Now().Add(-m.config.RuntimeSecurity.SecurityProfileNodeEvictionTimeout)
 	totalEvicted := 0
 
@@ -749,6 +912,15 @@ func (m *ManagerV2) evictUnusedNodes() {
 		if evicted > 0 {
 			totalEvicted += evicted
 			seclog.Debugf("evicted %d unused process nodes from profile [%s] ", evicted, selector.String())
+
+			// Emit per-profile eviction metric
+			tags := []string{
+				"image_name:" + selector.Image,
+				"image_tag:" + selector.Tag,
+			}
+			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, int64(evicted), tags, 1.0); err != nil {
+				seclog.Warnf("couldn't send %s metric: %v", metrics.MetricSecurityProfileV2EvictionNodesEvictedPerProfile, err)
+			}
 		}
 		profile.Unlock()
 	}
@@ -887,3 +1059,29 @@ func (m *ManagerV2) DumpActivity(_ *api.ActivityDumpParams) (*api.ActivityDumpMe
 func (m *ManagerV2) GenerateTranscoding(_ *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	return nil, nil
 }
+
+// AddProfile adds a profile to the manager.
+// NO-OP in V2: Tests are not run against V2.
+func (m *ManagerV2) AddProfile(_ *profile.Profile) {}
+
+// FakeDumpOverweight fakes a dump stats to force triggering the load controller.
+// NO-OP in V2: V2 doesn't have the activity dump mechanism.
+func (m *ManagerV2) FakeDumpOverweight(_ string) {}
+
+// ListAllProfileStates lists all profiles and their versions (debug purpose only).
+// NO-OP in V2: Tests are not run against V2.
+func (m *ManagerV2) ListAllProfileStates() {}
+
+// GetProfile returns a profile by its selector.
+// NO-OP in V2: Tests are not run against V2.
+func (m *ManagerV2) GetProfile(_ cgroupModel.WorkloadSelector) *profile.Profile {
+	return nil
+}
+
+// EvictAllTracedCgroups evicts all currently traced cgroups.
+// NO-OP in V2: V2 doesn't use kernel-space traced cgroups.
+func (m *ManagerV2) EvictAllTracedCgroups() {}
+
+// ClearTracedCgroups clears all entries from the traced cgroups map.
+// NO-OP in V2: V2 doesn't use kernel-space traced cgroups.
+func (m *ManagerV2) ClearTracedCgroups() {}

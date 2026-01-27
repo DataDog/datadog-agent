@@ -527,6 +527,22 @@ var (
 	// MetricSecurityProfileV2PersistedProfiles is the name of the metric used to report the number of profiles that were persisted
 	// Tags: format, storage_type, compression
 	MetricSecurityProfileV2PersistedProfiles = newRuntimeMetric(".security_profile_v2.persisted_profiles")
+
+	// Eviction metrics
+
+	// MetricSecurityProfileV2EvictionRuns is the name of the metric used to report the number of eviction cycles run
+	// Tags: -
+	MetricSecurityProfileV2EvictionRuns = newRuntimeMetric(".security_profile_v2.eviction.runs")
+
+	// MetricSecurityProfileV2EvictionNodesEvictedPerProfile is the name of the metric used to report nodes evicted from a specific profile
+	// Tags: image_name, image_tag
+	MetricSecurityProfileV2EvictionNodesEvictedPerProfile = newRuntimeMetric(".security_profile_v2.eviction.nodes_evicted_per_profile")
+
+	// Profile cleanup metrics
+
+	// MetricSecurityProfileV2CleanupProfilesRemoved is the name of the metric used to report profiles removed after cleanup delay
+	// Tags: image_name
+	MetricSecurityProfileV2CleanupProfilesRemoved = newRuntimeMetric(".security_profile_v2.cleanup.profiles_removed")
 )
 
 var (
