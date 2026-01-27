@@ -196,33 +196,14 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 		}
 	}
 
-	// For GCP Cloud Run Functions, add functionname tag to profiles
-	log.Debugf("setupTraceAgent: origin=%s, checking for function name", origin)
+	// For Google Cloud Run Functions, add functionname tag to profiles so the profiling team can filter by functions
 	if origin == cloudservice.CloudRunOrigin {
-		// Check if this is a Cloud Run Function by looking for gcrfx. prefixed tags
-		// (Cloud Run Service uses gcr. prefix instead)
-		isFunction := false
-		for key := range tags {
-			if strings.HasPrefix(key, "gcrfx.") {
-				log.Debugf("setupTraceAgent: detected gcrfx. prefix in tag: %s", key)
-				isFunction = true
-				break
-			}
-		}
-
-		functionTarget, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
-		log.Debugf("setupTraceAgent: FUNCTION_TARGET='%s' (exists=%v)", functionTarget, functionTargetExists)
-		log.Debugf("setupTraceAgent: K_SERVICE='%s'", os.Getenv(cloudservice.ServiceNameEnvVar))
-		log.Debugf("setupTraceAgent: detected as Cloud Run Function: %v (checked for gcrfx. prefix in tags)", isFunction)
+		_, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
 
 		if functionTargetExists {
 			profileTags["functionname"] = os.Getenv("K_SERVICE")
-			log.Debugf("setupTraceAgent: added functionname tag to profiles: %s", os.Getenv("K_SERVICE"))
 		}
-	} else {
-		log.Debugf("setupTraceAgent: origin is not cloudrun (%s != %s), skipping functionname tag", origin, cloudservice.CloudRunOrigin)
 	}
-	log.Debugf("setupTraceAgent: final profileTags: %+v", profileTags)
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
 	functionTags := strings.Join(configuredTags, ",")
