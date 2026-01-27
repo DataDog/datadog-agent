@@ -9,24 +9,18 @@
 package appsec
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configWebhook "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
@@ -39,13 +33,12 @@ const webhookName = "appsec_proxies"
 
 // Webhook injects appsec processor sidecars
 type Webhook struct {
-	name       string
-	isEnabled  bool
-	endpoint   string
-	resources  map[string][]string
-	operations []admissionregistrationv1.OperationType
-	patterns   []appsecconfig.SidecarInjectionPattern
-
+	name          string
+	isEnabled     bool
+	endpoint      string
+	resources     map[string][]string
+	operations    []admissionregistrationv1.OperationType
+	patterns      []appsecconfig.SidecarInjectionPattern
 	configMutator mutatecommon.Mutator
 }
 
@@ -63,6 +56,7 @@ func NewWebhook(config config.Component) *Webhook {
 	)
 
 	patterns := appsec.GetSidecarPatterns()
+
 	return &Webhook{
 		name:          webhookName,
 		isEnabled:     len(patterns) > 0,
@@ -105,27 +99,30 @@ func (w *Webhook) Operations() []admissionregistrationv1.OperationType {
 }
 
 // LabelSelectors returns the label selectors that specify when the webhook should be invoked
-func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+func (w *Webhook) LabelSelectors(bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
 	return nil, nil
 }
 
-// MatchConditions returns the match conditions for the webhook. This one is generated from all the [labels.Selector]
-// of each SidecarInjectionPattern, built into a CEL expression
+// MatchConditions returns the match conditions for the webhook. This one is generated from all the pattern.MatchCondition
+// of each SidecarInjectionPattern, built into a CEL expression OR-ed
 func (w *Webhook) MatchConditions() []admissionregistrationv1.MatchCondition {
-	selectors := make([]labels.Selector, 0, len(w.patterns))
-	for _, pattern := range w.patterns {
-		selectors = append(selectors, pattern.PodSelector())
+	if len(w.patterns) == 0 {
+		return nil
 	}
 
-	expr, err := SelectorsToCEL(selectors, "object.metadata.labels")
-	if err != nil {
-		log.Errorf("failed to convert selectors to CEL: %v", err)
-		return nil
+	var finalExpression strings.Builder
+	for i, pattern := range w.patterns {
+		finalExpression.WriteRune('(')
+		finalExpression.WriteString(pattern.MatchCondition().Expression)
+		finalExpression.WriteRune(')')
+		if i != len(w.patterns)-1 {
+			finalExpression.WriteString("||")
+		}
 	}
 
 	return []admissionregistrationv1.MatchCondition{{
 		Name:       webhookName,
-		Expression: expr,
+		Expression: finalExpression.String(),
 	}}
 }
 
@@ -145,7 +142,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 				request.Namespace,
 				w.Name(),
 				func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error) {
-					mutated, err := w.injectSidecar(request.Context, pod, ns)
+					mutated, err := w.callPattern(pod, ns, cl, appsecconfig.SidecarInjectionPattern.MutatePod)
 					if err == nil && mutated {
 						// Add APM config, label and tags so the pod is treated as a first-class citizen APM service.
 						return w.configMutator.MutatePod(pod, ns, cl)
@@ -159,7 +156,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			if err := json.Unmarshal(request.OldObject, &pod); err != nil {
 				return common.MutationResponse(nil, fmt.Errorf("failed to decode raw object: %v", err))
 			}
-			if err := w.sidecarDeleted(request.Context, &pod, request.Namespace); err != nil {
+			if _, err := w.callPattern(&pod, request.Namespace, request.DynamicClient, appsecconfig.SidecarInjectionPattern.PodDeleted); err != nil {
 				return common.MutationResponse(nil, fmt.Errorf("failed to delete resources associated with sidecar: %v", err))
 			}
 			const emptyPatch = "[]"
@@ -171,145 +168,17 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	}
 }
 
-func (w *Webhook) injectSidecar(ctx context.Context, pod *corev1.Pod, ns string) (bool, error) {
+func (w *Webhook) callPattern(pod *corev1.Pod, ns string, dl dynamic.Interface, podCallback func(appsecconfig.SidecarInjectionPattern, *corev1.Pod, string, dynamic.Interface) (bool, error)) (bool, error) {
 	for _, pattern := range w.patterns {
-		if !pattern.PodSelector().Matches(labels.Set(pod.ObjectMeta.Labels)) {
+		if !pattern.IsNamespaceEligible(ns) {
 			continue
 		}
 
-		modified, err := pattern.InjectSidecar(ctx, pod, ns)
-		if err != nil {
-			return false, err
+		if !pattern.ShouldMutatePod(pod) {
+			continue
 		}
-		if modified {
-			return true, nil
-		}
+
+		return podCallback(pattern, pod, ns, dl)
 	}
 	return false, nil
-}
-
-func (w *Webhook) sidecarDeleted(ctx context.Context, pod *corev1.Pod, ns string) error {
-	for _, pattern := range w.patterns {
-		if !pattern.PodSelector().Matches(labels.Set(pod.ObjectMeta.Labels)) {
-			continue
-		}
-
-		if err := pattern.SidecarDeleted(ctx, pod, ns); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	return nil
-}
-
-func SelectorsToCEL(selectors []labels.Selector, labelsExpr string) (string, error) {
-	// labelsExpr e.g. "object.metadata.labels"
-	var parts []string
-	for _, s := range selectors {
-		if s == nil {
-			continue
-		}
-		e, err := SelectorToCEL(s, labelsExpr)
-		if err != nil {
-			return "", err
-		}
-		parts = append(parts, "("+e+")")
-	}
-	if len(parts) == 0 {
-		return "false", nil
-	}
-	return strings.Join(parts, " || "), nil
-}
-
-func SelectorToCEL(sel labels.Selector, labelsExpr string) (string, error) {
-	reqs, selectable := sel.Requirements()
-	if !selectable {
-		// "nothing" selector
-		return "false", nil
-	}
-	if len(reqs) == 0 {
-		// "everything" selector
-		return "true", nil
-	}
-
-	var ands []string
-	for _, r := range reqs {
-		k := strconv.Quote(r.Key())
-		switch r.Operator() {
-		case selection.Exists:
-			ands = append(ands, fmt.Sprintf("%s in %s", k, labelsExpr))
-		case selection.DoesNotExist:
-			ands = append(ands, fmt.Sprintf("!(%s in %s)", k, labelsExpr))
-
-		case selection.Equals, selection.DoubleEquals:
-			v := oneValue(r)
-			ands = append(ands,
-				fmt.Sprintf("(%s in %s) && %s[%s] == %s", k, labelsExpr, labelsExpr, k, strconv.Quote(v)),
-			)
-
-		case selection.NotEquals:
-			v := oneValue(r)
-			// NOTE: matches "absent OR different" per label selector semantics
-			ands = append(ands,
-				fmt.Sprintf("!(%s in %s) || %s[%s] != %s", k, labelsExpr, labelsExpr, k, strconv.Quote(v)),
-			)
-
-		case selection.In:
-			ands = append(ands,
-				fmt.Sprintf("(%s in %s) && %s[%s] in [%s]", k, labelsExpr, labelsExpr, k, quoteList(sets.New(r.Values().UnsortedList()...))),
-			)
-
-		case selection.NotIn:
-			// NOTE: matches "absent OR not in set"
-			ands = append(ands,
-				fmt.Sprintf("!(%s in %s) || !(%s[%s] in [%s])", k, labelsExpr, labelsExpr, k, quoteList(sets.New(r.Values().UnsortedList()...))),
-			)
-
-		case selection.GreaterThan:
-			n := oneValue(r)
-			ands = append(ands,
-				fmt.Sprintf("(%s in %s) && %s[%s].matches('^[0-9]+$') && int(%s[%s]) > %s",
-					k, labelsExpr, labelsExpr, k, labelsExpr, k, n),
-			)
-
-		case selection.LessThan:
-			n := oneValue(r)
-			ands = append(ands,
-				fmt.Sprintf("(%s in %s) && %s[%s].matches('^[0-9]+$') && int(%s[%s]) < %s",
-					k, labelsExpr, labelsExpr, k, labelsExpr, k, n),
-			)
-
-		default:
-			return "", fmt.Errorf("unsupported operator: %v", r.Operator())
-		}
-	}
-
-	// Requirements inside one selector are ANDed
-	return strings.Join(wrapParens(ands), " && "), nil
-}
-
-func oneValue(r labels.Requirement) string {
-	vs := r.Values()
-	for v := range vs {
-		return v
-	}
-	return ""
-}
-
-func quoteList(vs sets.Set[string]) string {
-	out := make([]string, 0, vs.Len())
-	for _, v := range vs.UnsortedList() {
-		out = append(out, strconv.Quote(v))
-	}
-	return strings.Join(out, ", ")
-}
-
-func wrapParens(xs []string) []string {
-	out := make([]string, len(xs))
-	for i, x := range xs {
-		out[i] = "(" + strings.TrimSpace(x) + ")"
-	}
-	return out
 }

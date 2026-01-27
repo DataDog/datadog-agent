@@ -195,15 +195,15 @@ func FromComponent(cfg config.Component, logger log.Component) Config {
 
 	// Populate Sidecar for SIDECAR mode
 	sidecarConfig := Sidecar{
-		Image:                cfg.GetString("cluster_agent.appsec.injector.sidecar.image"),
-		ImageTag:             cfg.GetString("cluster_agent.appsec.injector.sidecar.image_tag"),
-		Port:                 cfg.GetInt("cluster_agent.appsec.injector.sidecar.port"),
-		HealthPort:           cfg.GetInt("cluster_agent.appsec.injector.sidecar.health_port"),
-		CPURequest:           cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.requests.cpu"),
-		CPULimit:             cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.limits.cpu"),
-		MemoryRequest:        cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.requests.memory"),
-		MemoryLimit:          cfg.GetString("cluster_agent.appsec.injector.sidecar.resources.limits.memory"),
-		BodyParsingSizeLimit: cfg.GetString("cluster_agent.appsec.injector.sidecar.body_parsing_size_limit"),
+		Image:                cfg.GetString("admission_controller.appsec.sidecar.image"),
+		ImageTag:             cfg.GetString("admission_controller.appsec.sidecar.image_tag"),
+		Port:                 cfg.GetInt("admission_controller.appsec.sidecar.port"),
+		HealthPort:           cfg.GetInt("admission_controller.appsec.sidecar.health_port"),
+		CPURequest:           cfg.GetString("admission_controller.appsec.sidecar.resources.requests.cpu"),
+		CPULimit:             cfg.GetString("admission_controller.appsec.sidecar.resources.limits.cpu"),
+		MemoryRequest:        cfg.GetString("admission_controller.appsec.sidecar.resources.requests.memory"),
+		MemoryLimit:          cfg.GetString("admission_controller.appsec.sidecar.resources.limits.memory"),
+		BodyParsingSizeLimit: cfg.GetString("admission_controller.appsec.sidecar.body_parsing_size_limit"),
 	}
 
 	staticLabels := map[string]string{

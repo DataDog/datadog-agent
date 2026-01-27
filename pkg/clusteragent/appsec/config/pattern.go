@@ -10,10 +10,12 @@ package config
 import (
 	"context"
 
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	v1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 )
 
 // InjectionMode represents the deployment mode for the AppSec processor
@@ -57,16 +59,12 @@ type InjectionPattern interface {
 // Implementations provide both proxy configuration AND sidecar injection logic
 type SidecarInjectionPattern interface {
 	InjectionPattern
+	mutatecommon.MutatorWithFilter
 
-	// InjectSidecar is called by the admission webhook to inject the processor sidecar
-	// Returns (modified bool, error)
-	// The pod needs to match the [PodSelector] for this method to be called.
-	InjectSidecar(ctx context.Context, pod *corev1.Pod, namespace string) (bool, error)
+	// PodDeleted is called when a pod that has gotten through all the conditions is getting deleted
+	PodDeleted(pod *corev1.Pod, ns string, dc dynamic.Interface) (bool, error)
 
-	// SidecarDeleted is called when a pod that has matched the [PodSelected] is being deleted
-	SidecarDeleted(ctx context.Context, pod *corev1.Pod, ns string) error
-
-	// PodSelector returns the label selector for pods that should receive the sidecar
-	// This is derived from the Gateway/resource being watched
-	PodSelector() labels.Selector
+	// MatchCondition is used to filter early in the apiserver if the pod should be sent to the webhook.
+	// This expression will be OR-ed with all other patterns
+	MatchCondition() v1.MatchCondition
 }

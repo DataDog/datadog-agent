@@ -215,9 +215,10 @@ func (i *istioInjectionPattern) newFilter(namespace string) (istiov1alpha3.Envoy
 			processorAddress = i.config.Processor.Address
 		}
 		processorPort = i.config.Processor.Port
-	case appsecconfig.InjectionModeSidecar:
-		fallthrough
 	default:
+		i.logger.Warnf("No injection mode defined, defaults to sending traffic to a sidecar")
+		fallthrough
+	case appsecconfig.InjectionModeSidecar:
 		processorAddress = "127.0.0.1"
 		processorPort = i.config.Sidecar.Port
 	}

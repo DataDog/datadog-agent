@@ -19,7 +19,7 @@ type mutationFilter struct {
 	ddNamespace string
 }
 
-func (m mutationFilter) ShouldMutatePod(pod *corev1.Pod) bool {
+func (m mutationFilter) ShouldMutatePod(_ *corev1.Pod) bool {
 	return true
 }
 

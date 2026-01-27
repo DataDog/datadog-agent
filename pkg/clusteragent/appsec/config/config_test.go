@@ -74,7 +74,7 @@ func TestValidateSidecarConfig_Invalid(t *testing.T) {
 				Port:       8080,
 				HealthPort: 8081,
 			},
-			expectedErr: "sidecar.image is required",
+			expectedErr: "sidecar image is required",
 		},
 		{
 			name: "invalid port - zero",
@@ -146,7 +146,7 @@ func TestValidateSidecarConfig_Invalid(t *testing.T) {
 				Port:       0,     // Invalid port
 				HealthPort: 70000, // Invalid health port
 			},
-			expectedErr: "sidecar.image is required",
+			expectedErr: "sidecar image is required",
 		},
 	}
 
@@ -161,25 +161,25 @@ func TestValidateSidecarConfig_Invalid(t *testing.T) {
 
 func TestFromComponent_SidecarMode_ValidConfig(t *testing.T) {
 	mockConfig := common.FakeConfigWithValues(t, map[string]any{
-		"cluster_agent.appsec.injector.mode":                              "sidecar",
-		"cluster_agent.appsec.injector.sidecar.image":                     "datadog/appsec:latest",
-		"cluster_agent.appsec.injector.sidecar.port":                      8080,
-		"cluster_agent.appsec.injector.sidecar.health_port":               8081,
-		"cluster_agent.appsec.injector.sidecar.resources.requests.cpu":    "100m",
-		"cluster_agent.appsec.injector.sidecar.resources.requests.memory": "128Mi",
-		"cluster_agent.appsec.injector.sidecar.resources.limits.cpu":      "200m",
-		"cluster_agent.appsec.injector.sidecar.resources.limits.memory":   "256Mi",
-		"cluster_agent.appsec.injector.sidecar.body_parsing_size_limit":   "10000000",
-		"appsec.proxy.enabled":                                            true,
-		"appsec.proxy.proxies":                                            []string{"istio"},
-		"cluster_agent.appsec.injector.enabled":                           true,
+		"cluster_agent.appsec.injector.mode":                            "sidecar",
+		"admission_controller.appsec.sidecar.image":                     "datadog/appsec:custom",
+		"admission_controller.appsec.sidecar.port":                      8080,
+		"admission_controller.appsec.sidecar.health_port":               8081,
+		"admission_controller.appsec.sidecar.resources.requests.cpu":    "100m",
+		"admission_controller.appsec.sidecar.resources.requests.memory": "128Mi",
+		"admission_controller.appsec.sidecar.resources.limits.cpu":      "200m",
+		"admission_controller.appsec.sidecar.resources.limits.memory":   "256Mi",
+		"admission_controller.appsec.sidecar.body_parsing_size_limit":   "10000000",
+		"appsec.proxy.enabled":                                          true,
+		"appsec.proxy.proxies":                                          []string{"istio"},
+		"cluster_agent.appsec.injector.enabled":                         true,
 	})
 
 	mockLogger := logmock.New(t)
 	config := FromComponent(mockConfig, mockLogger)
 
 	assert.Equal(t, InjectionModeSidecar, config.Mode)
-	assert.Equal(t, "datadog/appsec:latest", config.Sidecar.Image)
+	assert.Equal(t, "datadog/appsec:custom", config.Sidecar.Image)
 	assert.Equal(t, 8080, config.Sidecar.Port)
 	assert.Equal(t, 8081, config.Sidecar.HealthPort)
 	assert.Equal(t, "100m", config.Sidecar.CPURequest)
@@ -197,19 +197,19 @@ func TestFromComponent_SidecarMode_InvalidConfig(t *testing.T) {
 		{
 			name: "missing image",
 			config: map[string]any{
-				"cluster_agent.appsec.injector.mode":                "sidecar",
-				"cluster_agent.appsec.injector.sidecar.port":        8080,
-				"cluster_agent.appsec.injector.sidecar.health_port": 8081,
-				"appsec.proxy.enabled":                              true,
-				"appsec.proxy.proxies":                              []string{"istio"},
-				"cluster_agent.appsec.injector.enabled":             true,
+				"cluster_agent.appsec.injector.mode":              "sidecar",
+				"admission_controller.appsec.sidecar.port":        8080,
+				"admission_controller.appsec.sidecar.health_port": 8081,
+				"appsec.proxy.enabled":                            true,
+				"appsec.proxy.proxies":                            []string{"istio"},
+				"cluster_agent.appsec.injector.enabled":           true,
 			},
 		},
 		{
 			name: "invalid port",
 			config: map[string]any{
 				"cluster_agent.appsec.injector.mode":                "sidecar",
-				"cluster_agent.appsec.injector.sidecar.image":       "datadog/appsec:latest",
+				"admission_controller.appsec.sidecar.image":         "datadog/appsec:test",
 				"cluster_agent.appsec.injector.sidecar.port":        0,
 				"cluster_agent.appsec.injector.sidecar.health_port": 8081,
 				"appsec.proxy.enabled":                              true,
@@ -221,7 +221,7 @@ func TestFromComponent_SidecarMode_InvalidConfig(t *testing.T) {
 			name: "same port and health port",
 			config: map[string]any{
 				"cluster_agent.appsec.injector.mode":                "sidecar",
-				"cluster_agent.appsec.injector.sidecar.image":       "datadog/appsec:latest",
+				"admission_controller.appsec.sidecar.image":         "datadog/appsec:test",
 				"cluster_agent.appsec.injector.sidecar.port":        8080,
 				"cluster_agent.appsec.injector.sidecar.health_port": 8080,
 				"appsec.proxy.enabled":                              true,
