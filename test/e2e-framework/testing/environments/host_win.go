@@ -11,9 +11,14 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
-
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2/windows"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 // WindowsHost is an environment based on environments.Host but that is specific to Windows.
@@ -26,11 +31,65 @@ type WindowsHost struct {
 	ActiveDirectory *components.RemoteActiveDirectory
 }
 
+// Ensure WindowsHost implements the WindowsHostOutputs interface
+var _ windows.WindowsHostOutputs = (*WindowsHost)(nil)
+
 var _ common.Initializable = &WindowsHost{}
 
 // Init initializes the environment
 func (e *WindowsHost) Init(_ common.Context) error {
 	return nil
+}
+
+// RemoteHostOutput implements windows.WindowsHostOutputs
+func (e *WindowsHost) RemoteHostOutput() *remote.HostOutput {
+	if e.RemoteHost == nil {
+		e.RemoteHost = &components.RemoteHost{}
+	}
+	return &e.RemoteHost.HostOutput
+}
+
+// FakeIntakeOutput implements windows.WindowsHostOutputs
+func (e *WindowsHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+	if e.FakeIntake == nil {
+		e.FakeIntake = &components.FakeIntake{}
+	}
+	return &e.FakeIntake.FakeintakeOutput
+}
+
+// AgentOutput implements windows.WindowsHostOutputs
+func (e *WindowsHost) AgentOutput() *agent.HostAgentOutput {
+	if e.Agent == nil {
+		e.Agent = &components.RemoteHostAgent{}
+	}
+	return &e.Agent.HostAgentOutput
+}
+
+// ActiveDirectoryOutput implements windows.WindowsHostOutputs
+func (e *WindowsHost) ActiveDirectoryOutput() *activedirectory.Output {
+	if e.ActiveDirectory == nil {
+		e.ActiveDirectory = &components.RemoteActiveDirectory{}
+	}
+	return &e.ActiveDirectory.Output
+}
+
+// DisableFakeIntake implements windows.WindowsHostOutputs
+func (e *WindowsHost) DisableFakeIntake() {
+	e.FakeIntake = nil
+}
+
+// DisableAgent implements windows.WindowsHostOutputs
+func (e *WindowsHost) DisableAgent() {
+	e.Agent = nil
+}
+
+// DisableActiveDirectory implements windows.WindowsHostOutputs
+func (e *WindowsHost) DisableActiveDirectory() {
+	e.ActiveDirectory = nil
+}
+
+func (e *WindowsHost) SetAgentClientOptions(options ...agentclientparams.Option) {
+	e.Agent.ClientOptions = options
 }
 
 // Diagnose returns a string containing the diagnosis of the environment

@@ -11,11 +11,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/activedirectory"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
 	compos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	fakeintakescenario "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
@@ -23,9 +26,21 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// RunWithEnv deploys a Windows EC2 environment using provided env and params
-func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.WindowsHost, params *RunParams) error {
-	env.Environment = &awsEnv
+// WindowsHostOutputs is the interface for WindowsHost environment outputs.
+type WindowsHostOutputs interface {
+	RemoteHostOutput() *remote.HostOutput
+	FakeIntakeOutput() *fakeintake.FakeintakeOutput
+	AgentOutput() *agent.HostAgentOutput
+	ActiveDirectoryOutput() *activedirectory.Output
+	DisableFakeIntake()
+	DisableAgent()
+	DisableActiveDirectory()
+	SetAgentClientOptions(options ...agentclientparams.Option)
+}
+
+// RunWithEnv deploys a Windows EC2 environment using provided env and params.
+// It accepts WindowsHostOutputs interface, enabling reuse between provisioners and direct Pulumi runs.
+func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env WindowsHostOutputs, params *RunParams) error {
 
 	// Force Windows OS
 	params.instanceOptions = append(params.instanceOptions, ec2.WithOS(compos.WindowsServerDefault))
@@ -34,7 +49,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 	if err != nil {
 		return err
 	}
-	if err := host.Export(ctx, &env.RemoteHost.HostOutput); err != nil {
+	if err := host.Export(ctx, env.RemoteHostOutput()); err != nil {
 		return err
 	}
 
@@ -65,7 +80,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 		if err != nil {
 			return err
 		}
-		if err := adComp.Export(ctx, &env.ActiveDirectory.Output); err != nil {
+		if err := adComp.Export(ctx, env.ActiveDirectoryOutput()); err != nil {
 			return err
 		}
 
@@ -76,17 +91,16 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 					pulumi.DependsOn(adResources)))
 		}
 	} else {
-		// Suite inits all fields by default, so we need to explicitly set it to nil
-		env.ActiveDirectory = nil
+		env.DisableActiveDirectory()
 	}
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
-		fi, err := fakeintake.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
+		fi, err := fakeintakescenario.NewECSFargateInstance(awsEnv, params.Name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
-		if err := fi.Export(ctx, &env.FakeIntake.FakeintakeOutput); err != nil {
+		if err := fi.Export(ctx, env.FakeIntakeOutput()); err != nil {
 			return err
 		}
 		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
@@ -96,7 +110,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
 	} else {
-		env.FakeIntake = nil
+		env.DisableFakeIntake()
 	}
 
 	if params.agentOptions != nil {
@@ -105,12 +119,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 		if err != nil {
 			return err
 		}
-		if err := ag.Export(ctx, &env.Agent.HostAgentOutput); err != nil {
+		if err := ag.Export(ctx, env.AgentOutput()); err != nil {
 			return err
 		}
-		env.Agent.ClientOptions = params.agentClientOptions
+		env.SetAgentClientOptions(params.agentClientOptions...)
 	} else {
-		env.Agent = nil
+		env.DisableAgent()
 	}
 
 	if params.fipsModeOptions != nil {
@@ -127,17 +141,15 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv aws.Environment, env *environments.W
 	return nil
 }
 
-// Run is a convenience wrapper that creates env and runs the scenario
+// Run is the entry point for the scenario when run via pulumi.
+// It uses outputs.WindowsHost which is lightweight and doesn't pull in test dependencies.
 func Run(ctx *pulumi.Context) error {
 	awsEnv, err := aws.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
 
-	env, _, _, err := environments.CreateEnv[environments.WindowsHost]()
-	if err != nil {
-		return err
-	}
+	env := outputs.NewWindowsHost()
 
 	params := ParamsFromEnvironment(awsEnv)
 	return RunWithEnv(ctx, awsEnv, env, params)
