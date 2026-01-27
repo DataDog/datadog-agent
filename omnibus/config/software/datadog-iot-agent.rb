@@ -38,7 +38,10 @@ build do
   end
 
   unless windows_target?
+    # Include Rust compression library path for static linking
+    rust_lib_path = "#{project_dir}/pkg/util/compression/rust/target/release"
     env['CGO_CFLAGS'] = "-I#{install_dir}/embedded/include"
+    env['CGO_LDFLAGS'] = "-L#{rust_lib_path}"
   end
 
   if linux_target?

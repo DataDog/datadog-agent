@@ -33,12 +33,14 @@ build do
     # in particular it ignores the PATH from the environment given as argument
     # so we need to call it before setting the PATH
     env = with_embedded_path()
+    # Include Rust compression library path for static linking
+    rust_lib_path = "#{project_dir}/pkg/util/compression/rust/target/release"
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
-        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -L#{rust_lib_path}"
     }
 
     unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
