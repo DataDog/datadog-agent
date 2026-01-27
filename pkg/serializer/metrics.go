@@ -75,7 +75,7 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 		validateV3 := useV3 && validateV3
 		batchID := ""
 		if validateV3 {
-			batchID = genUUID()
+			batchID = s.genUUID()
 		}
 
 		dest := metrics.PipelineDestination{
@@ -128,9 +128,10 @@ func (s *Serializer) buildPipelines(kind metricsKind) metrics.PipelineSet {
 	return pipelines
 }
 
-func genUUID() string {
+func (s *Serializer) genUUID() string {
 	uuid, err := uuid.NewV7()
 	if err != nil {
+		s.logger.Warnf("failed to generate payload batch id: %v", err)
 		return ""
 	}
 	return uuid.String()
