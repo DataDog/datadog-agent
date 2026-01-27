@@ -497,16 +497,8 @@ func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
 // the config initialization order works correctly when both configs are present.
 func TestLogsEnabledViaDatadogConfig(t *testing.T) {
 	configmock.New(t)
-	ddFileName := t.TempDir() + "/datadog_with_logs.yaml"
-	otelFileName := "testdata/config_default.yaml"
-
-	ddConfig := `logs_enabled: true
-log_level: info
-api_key: test_key_12345
-`
-	err := os.WriteFile(ddFileName, []byte(ddConfig), 0644)
-	require.NoError(t, err)
-	c, err := NewConfigComponent(context.Background(), ddFileName, []string{otelFileName})
+	ddFileName := "testdata/datadog_with_logs_enabled.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{ddFileName})
 	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
 	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
 }
