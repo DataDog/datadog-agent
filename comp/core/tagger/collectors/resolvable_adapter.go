@@ -9,31 +9,33 @@ import (
 	"fmt"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
-// podTemplateContext adapts a KubernetesPod to the TemplateContext interface
-type podTemplateContext struct {
+// resolvablePodAdapter adapts a KubernetesPod to the tmplvar.Resolvable interface
+// so it can be used with template variable resolution
+type resolvablePodAdapter struct {
 	pod       *workloadmeta.KubernetesPod
 	container *workloadmeta.OrchestratorContainer
 }
 
-// NewPodTemplateContext creates a template context for a pod and optional container
-func NewPodTemplateContext(pod *workloadmeta.KubernetesPod, container *workloadmeta.OrchestratorContainer) tmplvar.TemplateContext {
-	return &podTemplateContext{
+var _ tmplvar.Resolvable = (*resolvablePodAdapter)(nil)
+
+// newResolvablePodAdapter creates a Service adapter for a pod
+func newResolvablePodAdapter(pod *workloadmeta.KubernetesPod, container *workloadmeta.OrchestratorContainer) tmplvar.Resolvable {
+	return &resolvablePodAdapter{
 		pod:       pod,
 		container: container,
 	}
 }
 
-func (p *podTemplateContext) GetServiceID() string {
-	if p.container != nil {
-		return fmt.Sprintf("pod:%s/container:%s", p.pod.Name, p.container.Name)
-	}
-	return fmt.Sprintf("pod:%s", p.pod.Name)
+func (p *resolvablePodAdapter) GetServiceID() string {
+	return kubelet.PodUIDToEntityName(p.pod.EntityID.ID)
 }
 
-func (p *podTemplateContext) GetHosts() (map[string]string, error) {
+func (p *resolvablePodAdapter) GetHosts() (map[string]string, error) {
 	hosts := make(map[string]string)
 	if p.pod.IP != "" {
 		hosts["pod"] = p.pod.IP
@@ -44,7 +46,7 @@ func (p *podTemplateContext) GetHosts() (map[string]string, error) {
 	return hosts, nil
 }
 
-func (p *podTemplateContext) GetPorts() ([]tmplvar.ContainerPort, error) {
+func (p *resolvablePodAdapter) GetPorts() ([]tmplvar.ContainerPort, error) {
 	if p.container == nil {
 		return nil, fmt.Errorf("no container available for port resolution")
 	}
@@ -54,15 +56,15 @@ func (p *podTemplateContext) GetPorts() ([]tmplvar.ContainerPort, error) {
 	return nil, fmt.Errorf("port resolution not supported for pod-level tags")
 }
 
-func (p *podTemplateContext) GetPid() (int, error) {
+func (p *resolvablePodAdapter) GetPid() (int, error) {
 	return 0, fmt.Errorf("pid not available for pod %s", p.pod.Name)
 }
 
-func (p *podTemplateContext) GetHostname() (string, error) {
+func (p *resolvablePodAdapter) GetHostname() (string, error) {
 	return p.pod.Name, nil
 }
 
-func (p *podTemplateContext) GetExtraConfig(key string) (string, error) {
+func (p *resolvablePodAdapter) GetExtraConfig(key string) (string, error) {
 	switch key {
 	case "namespace":
 		return p.pod.Namespace, nil
@@ -75,27 +77,29 @@ func (p *podTemplateContext) GetExtraConfig(key string) (string, error) {
 	}
 }
 
-// containerTemplateContext adapts a Container to the TemplateContext interface
-type containerTemplateContext struct {
+// resolvableContainerAdapter adapts a Container to the tmplvar.Resolvable interface
+type resolvableContainerAdapter struct {
 	container *workloadmeta.Container
 	pod       *workloadmeta.KubernetesPod
 	store     workloadmeta.Component
 }
 
-// NewContainerTemplateContext creates a template context for a container
-func NewContainerTemplateContext(container *workloadmeta.Container, pod *workloadmeta.KubernetesPod, store workloadmeta.Component) tmplvar.TemplateContext {
-	return &containerTemplateContext{
+var _ tmplvar.Resolvable = (*resolvableContainerAdapter)(nil)
+
+// newResolvableContainerAdapter creates a Service adapter for a container
+func newResolvableContainerAdapter(container *workloadmeta.Container, pod *workloadmeta.KubernetesPod, store workloadmeta.Component) tmplvar.Resolvable {
+	return &resolvableContainerAdapter{
 		container: container,
 		pod:       pod,
 		store:     store,
 	}
 }
 
-func (c *containerTemplateContext) GetServiceID() string {
-	return fmt.Sprintf("container:%s", c.container.ID)
+func (c *resolvableContainerAdapter) GetServiceID() string {
+	return containers.BuildEntityName(string(c.container.Runtime), c.container.ID)
 }
 
-func (c *containerTemplateContext) GetHosts() (map[string]string, error) {
+func (c *resolvableContainerAdapter) GetHosts() (map[string]string, error) {
 	hosts := make(map[string]string)
 
 	// Add container's network IPs
@@ -115,11 +119,11 @@ func (c *containerTemplateContext) GetHosts() (map[string]string, error) {
 	return hosts, nil
 }
 
-func (c *containerTemplateContext) GetPorts() ([]tmplvar.ContainerPort, error) {
+func (c *resolvableContainerAdapter) GetPorts() ([]tmplvar.ContainerPort, error) {
 	ports := make([]tmplvar.ContainerPort, 0, len(c.container.Ports))
 	for _, port := range c.container.Ports {
 		ports = append(ports, tmplvar.ContainerPort{
-			Port: int(port.Port),
+			Port: port.Port,
 			Name: port.Name,
 		})
 	}
@@ -131,21 +135,21 @@ func (c *containerTemplateContext) GetPorts() ([]tmplvar.ContainerPort, error) {
 	return ports, nil
 }
 
-func (c *containerTemplateContext) GetPid() (int, error) {
+func (c *resolvableContainerAdapter) GetPid() (int, error) {
 	if c.container.PID == 0 {
 		return 0, fmt.Errorf("no PID available for container %s", c.container.ID)
 	}
 	return c.container.PID, nil
 }
 
-func (c *containerTemplateContext) GetHostname() (string, error) {
+func (c *resolvableContainerAdapter) GetHostname() (string, error) {
 	if c.container.Hostname != "" {
 		return c.container.Hostname, nil
 	}
 	return c.container.Name, nil
 }
 
-func (c *containerTemplateContext) GetExtraConfig(key string) (string, error) {
+func (c *resolvableContainerAdapter) GetExtraConfig(key string) (string, error) {
 	// If we have pod context, support kube_* variables
 	if c.pod != nil {
 		switch key {

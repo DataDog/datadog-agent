@@ -462,8 +462,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	// Extract tags from pod-level annotation with template resolution
-	podCtx := NewPodTemplateContext(pod, nil)
-	c.extractTagsFromJSONInMapWithContext(podTagsAnnotation, pod.Annotations, tagList, podCtx)
+	podSvc := newResolvablePodAdapter(pod, nil)
+	c.extractTagsFromJSONInMapWithResolver(podTagsAnnotation, pod.Annotations, tagList, podSvc)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -935,9 +935,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
-	// Create template context with both container and pod for full variable resolution
-	containerCtx := NewContainerTemplateContext(container, pod, c.store)
-	c.extractTagsFromJSONInMapWithContext(annotation, pod.Annotations, tagList, containerCtx)
+	// Create Service adapter with both container and pod for full variable resolution
+	containerSvc := newResolvableContainerAdapter(container, pod, c.store)
+	c.extractTagsFromJSONInMapWithResolver(annotation, pod.Annotations, tagList, containerSvc)
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -1016,17 +1016,13 @@ func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *taglist.TagList) {
-	c.extractTagsFromJSONInMapWithContext(key, input, tags, nil)
-}
-
-func (c *WorkloadMetaCollector) extractTagsFromJSONInMapWithContext(key string, input map[string]string, tags *taglist.TagList, tmplCtx tmplvar.TemplateContext) {
+func (c *WorkloadMetaCollector) extractTagsFromJSONInMapWithResolver(key string, input map[string]string, tags *taglist.TagList, resolvable tmplvar.Resolvable) {
 	jsonTags, found := input[key]
 	if !found {
 		return
 	}
 
-	err := parseJSONValueWithContext(jsonTags, tags, tmplCtx)
+	err := parseJSONValueWithService(jsonTags, tags, resolvable)
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
 	}
@@ -1053,46 +1049,64 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 	return workloadmetaCollectorName + "-" + string(entityID.Kind)
 }
 
-// resolveTemplateInTagValue resolves template variables in a tag value string
-// ctx can be a tmplvar.TemplateContext or nil (no resolution)
-func resolveTemplateInTagValue(value string, tmplCtx tmplvar.TemplateContext) string {
-	if tmplCtx == nil {
-		return value
-	}
-
-	resolved, err := tmplvar.ResolveString(value, tmplCtx)
-	if err != nil {
-		// Log debug message but return the partially resolved string
-		// (ResolveString keeps unresolved variables as-is)
-		log.Debugf("Failed to fully resolve template variables in %q: %v", value, err)
-	}
-	return resolved
-}
-
 func parseJSONValue(value string, tags *taglist.TagList) error {
-	return parseJSONValueWithContext(value, tags, nil)
+	return parseJSONValueWithService(value, tags, nil)
 }
 
-func parseJSONValueWithContext(value string, tags *taglist.TagList, tmplCtx tmplvar.TemplateContext) error {
+func parseJSONValueWithService(value string, tags *taglist.TagList, svc tmplvar.Resolvable) error {
 	if value == "" {
 		return errors.New("value is empty")
 	}
 
+	// If no service provided, parse without resolution
+	if svc == nil {
+		result := map[string]interface{}{}
+		if err := json.Unmarshal([]byte(value), &result); err != nil {
+			return fmt.Errorf("failed to unmarshal JSON: %s", err)
+		}
+
+		for key, value := range result {
+			switch v := value.(type) {
+			case string:
+				tags.AddAuto(key, v)
+			case []interface{}:
+				for _, tag := range v {
+					tags.AddAuto(key, fmt.Sprint(tag))
+				}
+			default:
+				log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+			}
+		}
+		return nil
+	}
+
+	// Use the shared template resolver to resolve variables in the JSON
+	resolved, err := tmplvar.ResolveDataWithTemplateVars([]byte(value), svc, tmplvar.JSONParser, nil)
+	if err != nil {
+		// If resolution fails, log but try to parse the original value
+		log.Debugf("Failed to resolve template variables in tags: %v", err)
+		return parseJSONValueWithService(value, tags, nil)
+	}
+
+	// Now parse the resolved JSON
 	result := map[string]interface{}{}
-	if err := json.Unmarshal([]byte(value), &result); err != nil {
-		return fmt.Errorf("failed to unmarshal JSON: %s", err)
+	if err := json.Unmarshal(resolved, &result); err != nil {
+		return fmt.Errorf("failed to unmarshal resolved JSON: %s", err)
 	}
 
 	for key, value := range result {
 		switch v := value.(type) {
 		case string:
-			resolvedValue := resolveTemplateInTagValue(v, tmplCtx)
-			tags.AddAuto(key, resolvedValue)
+			tags.AddAuto(key, v)
+		case float64:
+			tags.AddAuto(key, fmt.Sprint(v))
+		case int64:
+			tags.AddAuto(key, fmt.Sprint(v))
+		case bool:
+			tags.AddAuto(key, fmt.Sprint(v))
 		case []interface{}:
 			for _, tag := range v {
-				tagStr := fmt.Sprint(tag)
-				resolvedValue := resolveTemplateInTagValue(tagStr, tmplCtx)
-				tags.AddAuto(key, resolvedValue)
+				tags.AddAuto(key, fmt.Sprint(tag))
 			}
 		default:
 			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
