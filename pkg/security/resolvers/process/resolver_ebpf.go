@@ -495,7 +495,7 @@ type argsEnvsCacheEntry struct {
 	truncated bool
 }
 
-var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize)
+var argsEnvsInterner = utils.NewLRUStringInterner(argsEnvsValueCacheSize, "args_envs")
 
 func parseStringArray(data []byte) ([]string, bool) {
 	truncated := false

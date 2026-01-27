@@ -66,12 +66,18 @@ type EBPFResolvers struct {
 	FileMetadataResolver *file.Resolver
 	SignatureResolver    *sign.Resolver
 
+	// BasenameInterner deduplicates path components (basenames). Shared between the dentry resolver
+	// cache entries and the activity tree FileNode.Name field.
+	BasenameInterner *utils.LRUStringInterner
+	// PathInterner deduplicates full reduced file paths stored on activity tree FileNode leaves.
+	PathInterner *utils.LRUStringInterner
+
 	SnapshotUsingListmount bool
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
-func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
-	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *utils.Scrubber, eRPC *erpc.ERPC, opts Opts, basenameInterner, pathInterner *utils.LRUStringInterner) (*EBPFResolvers, error) {
+	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC, basenameInterner)
 	if err != nil {
 		return nil, err
 	}
@@ -218,6 +224,8 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		FileMetadataResolver:   fileMetadataResolver,
 		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
 		SignatureResolver:      sign.NewSignatureResolver(),
+		BasenameInterner:       basenameInterner,
+		PathInterner:           pathInterner,
 	}
 
 	return resolvers, nil

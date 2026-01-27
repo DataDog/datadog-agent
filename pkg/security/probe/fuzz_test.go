@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 	ddsync "github.com/DataDog/datadog-agent/pkg/util/sync"
 )
@@ -104,7 +105,7 @@ func newFuzzEBPFProbe(tb testing.TB) *EBPFProbe {
 		tb.Fatalf("failed to create test process resolver: %v", err)
 	}
 
-	dentryResolver, err := dentry.NewResolver(probeConfig, noopSD, nil)
+	dentryResolver, err := dentry.NewResolver(probeConfig, noopSD, nil, utils.NewLRUStringInterner(16384, "basename"))
 	if err != nil {
 		tb.Fatalf("failed to create dentry resolver: %v", err)
 	}
