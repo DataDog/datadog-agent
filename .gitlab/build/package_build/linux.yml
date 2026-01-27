@@ -12,7 +12,6 @@
   - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz /tmp/system-probe/minimized-btfs.tar.xz
   - chmod 0744 /tmp/system-probe/clang-bpf /tmp/system-probe/llc-bpf
   - rm -rf pkg/util/compression/rust/target
-  - dda inv -- -e rust-compression.build --release
   - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor "$FLAVOR" --config-directory "$CONFIG_DIR" --install-directory "$INSTALL_DIR"
   - ls -la $OMNIBUS_PACKAGE_DIR
   - !reference [.upload_sbom_artifacts]
@@ -105,7 +104,6 @@ datadog-agent-7-arm64-fips:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - rm -rf pkg/util/compression/rust/target
-    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor iot
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
@@ -142,7 +140,6 @@ iot-agent-armhf:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - rm -rf pkg/util/compression/rust/target
-    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project dogstatsd
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
@@ -176,7 +173,6 @@ dogstatsd-arm64:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     - rm -rf pkg/util/compression/rust/target
-    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e omnibus.build --base-dir $OMNIBUS_BASE_DIR --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project ddot --flavor "$FLAVOR"
     - ls -la $OMNIBUS_PACKAGE_DIR
     - !reference [.upload_sbom_artifacts]
