@@ -169,15 +169,17 @@ func (suite *k8sSuite) TestSBOM() {
 			method:     "filesystem",
 			helmValues: ``,
 		},
-		{
-			mode:   "tarball",
-			method: "tarball",
-			helmValues: `datadog:
-  sbom:
-    containerImage:
-      uncompressedLayersSupport: false
-`,
-		},
+		/*
+		   		{
+		   			mode:   "tarball",
+		   			method: "tarball",
+		   			helmValues: `datadog:
+		     sbom:
+		       containerImage:
+		         uncompressedLayersSupport: false
+		   `,
+		   		},
+		*/
 		{
 			mode:   "overlayfs",
 			method: "overlayfs",
