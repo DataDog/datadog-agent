@@ -618,7 +618,6 @@
 /pkg/logs/diagnostic                    @DataDog/agent-log-pipelines
 /pkg/logs/message                       @DataDog/agent-log-pipelines
 /pkg/logs/processor                     @DataDog/agent-log-pipelines
-/pkg/logs/sender                        @DataDog/agent-log-pipelines
 /pkg/process/                           @DataDog/container-experiences
 /pkg/process/util/address*.go           @DataDog/cloud-network-monitoring
 /pkg/process/checks/net*.go             @DataDog/cloud-network-monitoring

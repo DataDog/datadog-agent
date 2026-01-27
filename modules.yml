@@ -224,8 +224,6 @@ modules:
     used_by_otel: true
   pkg/logs/processor:
     used_by_otel: true
-  pkg/logs/sender:
-    used_by_otel: true
   pkg/logs/sources:
     used_by_otel: true
   pkg/logs/status/statusinterface:

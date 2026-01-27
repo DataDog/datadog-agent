@@ -13,6 +13,9 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
+	tcpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/tcp"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -22,9 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/sender"
-	httpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/http"
-	tcpsender "github.com/DataDog/datadog-agent/pkg/logs/sender/tcp"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
