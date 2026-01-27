@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -266,4 +267,17 @@ func TestCollectEC2InstanceInfo(t *testing.T) {
 	tags, err = GetInstanceInfo(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, []string(nil), tags)
+}
+
+func TestCreateEC2Client(t *testing.T) {
+	ctx := context.Background()
+
+	client, err := createEC2Client(ctx, "us-east-1", nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+
+	creds := credentials.NewStaticCredentialsProvider("key", "secret", "token")
+	client, err = createEC2Client(ctx, "us-west-2", creds)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
 }
