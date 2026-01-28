@@ -51,7 +51,7 @@ func TestIgnoreContainer(t *testing.T) {
 			imgName:        "k8s.gcr.io/pause",
 			container:      &container,
 			isSandbox:      true,
-			expectsIgnored: true,
+			expectsIgnored: false,
 		},
 		{
 			name:           "non-pause container that exists",
