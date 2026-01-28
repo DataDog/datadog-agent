@@ -172,7 +172,8 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 					labelValues...,
 				)
 				if err != nil {
-					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
 				}
 				ch <- metric
 			case dto.MetricType_GAUGE:
@@ -183,7 +184,8 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 					labelValues...,
 				)
 				if err != nil {
-					log.Warnf("Failed to collect telemetry metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
+					continue
 				}
 				ch <- metric
 
