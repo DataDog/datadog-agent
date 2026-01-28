@@ -6,14 +6,16 @@
 package cloudservice
 
 import (
+	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ContainerApp has helper functions for getting specific Azure Container App data
@@ -22,6 +24,8 @@ type ContainerApp struct {
 	SubscriptionId string
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ResourceGroup string
+	collector     *collector.Collector
+	collectorCtx  context.Context
 }
 
 const (
@@ -148,20 +152,44 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 	if subscriptionId, exists := os.LookupEnv(AzureSubscriptionIdEnvVar); exists {
 		c.SubscriptionId = subscriptionId
 	} else {
-		log.Fatalf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
+		log.Errorf("Must set Subscription ID as an environment variable. Please set the %v value to your Subscription ID your App Container is in.", AzureSubscriptionIdEnvVar)
+		os.Exit(1)
 	}
 
 	if resourceGroup, exists := os.LookupEnv(AzureResourceGroupEnvVar); exists {
 		c.ResourceGroup = resourceGroup
 	} else {
-		log.Fatalf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
+		log.Errorf("Must set Resource Group as an environment variable. Please set the %v value to your Resource Group your App Container is in.", AzureResourceGroupEnvVar)
+		os.Exit(1)
 	}
 
 	return nil
 }
 
+// StartCPUMetrics initializes and starts the cgroup metrics collector
+// This should be called after the metric agent is initialized
+func (c *ContainerApp) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	log.Debugf("StartEnhancedMetrics called with source: %d (%s)", c.GetSource(), c.GetSource().String())
+
+	col, err := collector.NewCollector(metricAgent, c.GetSource())
+	if err != nil {
+		log.Warnf("Failed to initialize cgroup metrics collector: %v", err)
+		return
+	}
+
+	c.collector = col
+	c.collectorCtx = context.Background()
+	c.collector.Start(c.collectorCtx)
+	log.Info("Cgroup metrics collection started for Azure Container Apps")
+}
+
 // Shutdown emits the shutdown metric for ContainerApp
 func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	// Stop cgroup metrics collector if running
+	if c.collector != nil {
+		c.collector.Stop()
+	}
+
 	metric.Add(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 
