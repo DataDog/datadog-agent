@@ -68,10 +68,8 @@ func TestRequestScan(t *testing.T) {
 		expectedDeviceScans     deviceScansByIP
 	}{
 		{
-			name: "default scan is disabled via config",
-			configContent: map[string]interface{}{
-				"network_devices.default_scan.disabled": true,
-			},
+			name:          "default scan is disabled by default",
+			configContent: map[string]interface{}{},
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
 				return mockConfigProvider
@@ -94,8 +92,10 @@ func TestRequestScan(t *testing.T) {
 			expectedDeviceScans: deviceScansByIP{},
 		},
 		{
-			name:          "default scan is enabled",
-			configContent: map[string]interface{}{},
+			name: "default scan is enabled via config",
+			configContent: map[string]interface{}{
+				"network_devices.default_scan.enabled": true,
+			},
 			buildMockConfigProvider: func() *snmpConfigProviderMock {
 				mockConfigProvider := newSnmpConfigProviderMock()
 
@@ -835,6 +835,7 @@ func TestQueueDueScans(t *testing.T) {
 			testDir := t.TempDir()
 			mockConfig := configmock.New(t)
 			mockConfig.SetWithoutSource("run_path", testDir)
+			mockConfig.SetWithoutSource("network_devices.default_scan.enabled", true)
 
 			mockLifecycle := compdef.NewTestLifecycle(t)
 			mockLogger := logmock.New(t)
