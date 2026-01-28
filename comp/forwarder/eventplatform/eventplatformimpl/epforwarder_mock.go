@@ -8,12 +8,13 @@
 package eventplatformimpl
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
