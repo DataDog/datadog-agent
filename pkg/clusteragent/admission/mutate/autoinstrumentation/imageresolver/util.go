@@ -12,6 +12,7 @@ package imageresolver
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/opencontainers/go-digest"
@@ -31,9 +32,12 @@ func isDatadoghqRegistry(registry string, datadoghqRegistries map[string]struct{
 }
 
 // isValidDigest validates that a digest string follows the OCI image specification format
+// and is a sha256 digest.
 func isValidDigest(digestStr string) bool {
-	_, err := digest.Parse(digestStr)
-	return err == nil
+	if _, err := digest.Parse(digestStr); err != nil {
+		return false
+	}
+	return strings.HasPrefix(digestStr, "sha256:")
 }
 
 func parseAndValidateConfigs(configs map[string]state.RawConfig) (map[string]RepositoryConfig, map[string]error) {
