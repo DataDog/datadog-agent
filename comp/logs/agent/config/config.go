@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 

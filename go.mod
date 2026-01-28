@@ -107,7 +107,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/fleet/installer v0.70.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.69.4
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/network/driver v0.0.0-20250930180617-1968b85a8a3b
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07
@@ -1330,7 +1329,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ./pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/types => ./pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/metrics => ./pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ./pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ./pkg/network/payload

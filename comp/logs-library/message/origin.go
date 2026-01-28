@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 )
 
 // Origin represents the Origin of a message

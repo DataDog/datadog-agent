@@ -130,7 +130,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-devel // indirect
@@ -644,7 +643,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload
