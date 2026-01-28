@@ -148,6 +148,7 @@ class TestAskReviews(unittest.TestCase):
     def test_label_with_ask_review(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "This is a feature"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "someuser"
         pr_mock.html_url = "https://github.com/foo/bar/pull/1"
@@ -193,6 +194,7 @@ class TestAskReviews(unittest.TestCase):
         """Test that any PR with no-review label is skipped (independent of event type)"""
         pr_mock = MagicMock()
         pr_mock.title = "WIP: Experimental changes"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [
             types.SimpleNamespace(name='ask-review'),
             types.SimpleNamespace(name='no-review'),
@@ -227,6 +229,7 @@ class TestAskReviews(unittest.TestCase):
         """Test that any PR with no-review label is skipped (independent of event type)"""
         pr_mock = MagicMock()
         pr_mock.title = "WIP: Experimental changes"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [
             types.SimpleNamespace(name='no-review'),
         ]
@@ -259,6 +262,7 @@ class TestAskReviews(unittest.TestCase):
     def test_backport(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Backport: fix issue 123"
+        pr_mock.base.ref = "7.7.x"
         pr_mock.get_labels.return_value = [MagicMock(name='ask-review')]
         pr_mock.get_issue_events.return_value = [
             types.SimpleNamespace(
@@ -275,7 +279,7 @@ class TestAskReviews(unittest.TestCase):
 
         # team_slugs is required; value doesn't matter because backport returns early
         ask_reviews(MockContext(), 6, team_slugs=["team1"])
-        print_mock.assert_any_call("This is a backport PR, we don't need to ask for reviews.")
+        print_mock.assert_any_call("We don't ask for reviews on non main target PRs.")
         slack_mock.assert_not_called()
 
     @patch('builtins.print')
@@ -290,6 +294,7 @@ class TestAskReviews(unittest.TestCase):
     def test_default_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Title"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "frank"
         pr_mock.html_url = "http://foo"
@@ -330,6 +335,7 @@ class TestAskReviews(unittest.TestCase):
     def test_same_slack_channel(self, slack_mock, gh_mock, print_mock):
         pr_mock = MagicMock()
         pr_mock.title = "Some PR"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "integrationbot"
         pr_mock.html_url = "http://foo"
@@ -374,6 +380,7 @@ class TestAskReviews(unittest.TestCase):
         """Test that when a specific team is requested (review_request event), only that team is notified"""
         pr_mock = MagicMock()
         pr_mock.title = "Feature PR"
+        pr_mock.base.ref = "main"
         pr_mock.get_labels.return_value = [types.SimpleNamespace(name='ask-review')]
         pr_mock.user.login = "someuser"
         pr_mock.html_url = "https://github.com/foo/bar/pull/9"
