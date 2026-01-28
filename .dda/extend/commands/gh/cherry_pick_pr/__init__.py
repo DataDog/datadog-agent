@@ -41,8 +41,7 @@ def cmd(
             app.display_warning("Expecting a pull request event or --pr-number argument.")
             return
 
-    # target_branch can be either "backport/7.75.x" or just "7.75.x"
-    base = target_branch.removeprefix("backport/")
+    base = target_branch
 
     # Merge commit SHA (the commit created on base branch)
     merge_commit_sha = original_pr.get("merge_commit_sha")

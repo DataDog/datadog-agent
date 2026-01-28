@@ -44,6 +44,13 @@ jobs:
       contents: write # This is required for pushing the backport branch
       pull-requests: write # This is required for creating the backport PR
     steps:
+      - name: Compute target branch
+        id: target
+        run: |
+          target="${{ matrix.target }}"
+          target_branch="${target/backport\//}"
+          echo "target_branch=$target_branch" >> $GITHUB_OUTPUT
+
       - uses: DataDog/dd-octo-sts-action@acaa02eee7e3bb0839e4272dacb37b8f3b58ba80 # v1.0.3
         id: octo-sts
         with:
@@ -64,7 +71,7 @@ jobs:
         env:
             GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
-        run: dda gh cherry-pick-pr --target-branch "${{ matrix.target }}"
+        run: dda gh cherry-pick-pr --target-branch "${{ steps.target.outputs.target_branch }}"
 
       - name: Reset cherry-pick
         if: steps.cherry-pick.outputs.base != ''
