@@ -863,6 +863,7 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	})
 
 	for _, event := range events {
+		p.HandleSSHUserSession(event)
 		p.DispatchEvent(event, notifyConsumers)
 		p.putBackPoolEvent(event)
 	}
@@ -1108,7 +1109,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// do not notify consumers as we are replaying the process cache entries after a ruleset reload
 		p.replayEvents(false)
 	}
-
 	var (
 		offset        = 0
 		event         = p.zeroEvent()
