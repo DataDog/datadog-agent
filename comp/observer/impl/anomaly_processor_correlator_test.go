@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -102,7 +104,7 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 		Source:      "network.retransmits:avg",
 		Title:       "High retransmits",
 		Description: "Network retransmits exceeded threshold",
-		TimeRange:   observer.TimeRange{Start: 900, End: 1000},
+		Timestamp:   1000,
 	})
 
 	// Add remaining anomalies at data time 1031 (31 seconds later, beyond window)
@@ -110,13 +112,13 @@ func TestCorrelator_OldAnomaliesEvicted(t *testing.T) {
 		Source:      "ebpf.lock_contention_ns:avg",
 		Title:       "Lock contention",
 		Description: "High lock contention detected",
-		TimeRange:   observer.TimeRange{Start: 1020, End: 1031},
+		Timestamp:   1031,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Title:       "Connection errors",
 		Description: "Connection error rate elevated",
-		TimeRange:   observer.TimeRange{Start: 1020, End: 1031},
+		Timestamp:   1031,
 	})
 
 	// First anomaly should be evicted (1000 < 1031 - 30 = 1001), so pattern should not match
@@ -241,15 +243,15 @@ func TestCorrelator_ActiveCorrelationTimestamps(t *testing.T) {
 	// Add all required signals at data time 1000
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "network.retransmits:avg",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "ebpf.lock_contention_ns:avg",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "connection.errors:count",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 
 	correlator.Flush()
@@ -267,7 +269,7 @@ func TestCorrelator_ActiveCorrelationTimestamps(t *testing.T) {
 	// Add new anomalies at data time 1010
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "network.retransmits:avg",
-		TimeRange: observer.TimeRange{Start: 990, End: 1010},
+		Timestamp: 1010,
 	})
 
 	correlator.Flush()
@@ -292,15 +294,15 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 	// Add all required signals at data time 1000
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "network.retransmits:avg",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "ebpf.lock_contention_ns:avg",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "connection.errors:count",
-		TimeRange: observer.TimeRange{Start: 900, End: 1000},
+		Timestamp: 1000,
 	})
 
 	correlator.Flush()
@@ -311,7 +313,7 @@ func TestCorrelator_ActiveCorrelationCleared(t *testing.T) {
 	// and causes all previous signals to expire (1000 < 1035 - 30 = 1005)
 	correlator.Process(observer.AnomalyOutput{
 		Source:    "some.other.signal:avg",
-		TimeRange: observer.TimeRange{Start: 1030, End: 1035},
+		Timestamp: 1035,
 	})
 	correlator.Flush()
 	activeCorrs = correlator.ActiveCorrelations()
@@ -363,21 +365,21 @@ func TestCorrelator_ActiveCorrelationContainsAnomalies(t *testing.T) {
 func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	// Add initial anomalies with TimeRange - all within 30 second window
+	// Add initial anomalies - all within 30 second window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "first retransmits anomaly",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "first lock contention anomaly",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Description: "first connection errors anomaly",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 
 	correlator.Flush()
@@ -388,11 +390,11 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 	require.NotNil(t, found)
 	require.Len(t, found.Anomalies, 3)
 
-	// Add another anomaly for one of the signals with later TimeRange (still within 30s window)
+	// Add another anomaly for one of the signals with later timestamp (still within 30s window)
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "second retransmits anomaly",
-		TimeRange:   observer.TimeRange{Start: 1015, End: 1020}, // later but within window
+		Timestamp:   1020, // later but within window
 	})
 
 	correlator.Flush()
@@ -408,34 +410,34 @@ func TestCorrelator_AnomaliesUpdatedOnFlush(t *testing.T) {
 func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	correlator := NewCorrelator(DefaultCorrelatorConfig())
 
-	// Add multiple anomalies for the same source with different TimeRanges
+	// Add multiple anomalies for the same source with different timestamps
 	// All timestamps within the 30-second window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "oldest retransmits",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
-		Description: "newest retransmits",                       // should be kept
+		Description: "newest retransmits", // should be kept
 		TimeRange:   observer.TimeRange{Start: 1010, End: 1025}, // latest End
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "network.retransmits:avg",
 		Description: "middle retransmits",
-		TimeRange:   observer.TimeRange{Start: 1005, End: 1015},
+		Timestamp:   1015,
 	})
 
 	// Add other required signals - all within window
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "ebpf.lock_contention_ns:avg",
 		Description: "lock contention",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 	correlator.Process(observer.AnomalyOutput{
 		Source:      "connection.errors:count",
 		Description: "connection errors",
-		TimeRange:   observer.TimeRange{Start: 1000, End: 1010},
+		Timestamp:   1010,
 	})
 
 	correlator.Flush()
@@ -452,8 +454,8 @@ func TestCorrelator_DedupesBySourceKeepingMostRecent(t *testing.T) {
 	// Find the network.retransmits anomaly and verify it's the newest one
 	for _, a := range anomalies {
 		if a.Source == "network.retransmits:avg" {
-			assert.Equal(t, "newest retransmits", a.Description, "should keep anomaly with latest TimeRange.End")
-			assert.Equal(t, int64(1025), a.TimeRange.End, "should have latest end time")
+			assert.Equal(t, "newest retransmits", a.Description, "should keep anomaly with latest timestamp")
+			assert.Equal(t, int64(1025), a.Timestamp, "should have latest timestamp")
 		}
 	}
 }

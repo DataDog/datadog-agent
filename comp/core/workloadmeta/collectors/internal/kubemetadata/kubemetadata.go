@@ -229,7 +229,8 @@ func (c *collector) parsePods(
 
 		// collectService if new kube_service bahavior is active
 		// or if not active, use old condition IsPodReady
-		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_new_behavior") || kubelet.IsPodReady(pod)
+
+		collectService := pkgconfigsetup.Datadog().GetBool("kubernetes_kube_service_ignore_readiness") || kubelet.IsPodReady(pod)
 
 		if collectService {
 			for _, data := range metadata {

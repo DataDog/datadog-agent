@@ -54,8 +54,13 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/observer/def v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/stats v0.71.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -72,7 +77,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.178 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.179 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.76.0-devel // indirect
@@ -132,9 +137,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.76.0-devel // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.52.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.54.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.8.2 // indirect
-	github.com/DataDog/go-sqllexer v0.1.10 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
+	github.com/DataDog/go-sqllexer v0.1.12 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.7 // indirect
 	github.com/DataDog/viper v1.15.0 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
@@ -155,14 +160,13 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/knadh/koanf/maps v0.1.2 // indirect
 	github.com/knadh/koanf/providers/confmap v1.0.0 // indirect
 	github.com/knadh/koanf/v2 v2.3.0 // indirect
@@ -281,6 +285,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../comp/netflow/payload
+	github.com/DataDog/datadog-agent/comp/observer/def => ../../comp/observer/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../comp/otelcol/collector-contrib/impl
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def => ../../comp/otelcol/converter/def
@@ -365,6 +370,10 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/template => ../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../pkg/trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../pkg/trace/otel
+	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../pkg/trace/stats
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../pkg/trace/traceutil
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../pkg/util/cache
@@ -383,6 +392,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../pkg/util/jsonquery
+	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace => ../../pkg/util/kubernetes/apiserver/common/namespace
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/log/setup => ../../pkg/util/log/setup
 	github.com/DataDog/datadog-agent/pkg/util/option => ../../pkg/util/option

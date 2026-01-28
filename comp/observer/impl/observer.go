@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 // Package observerimpl implements the observer component.
 package observerimpl
 
@@ -87,7 +89,6 @@ func NewComponent(deps Requires) Provides {
 					"gid":       {},
 				},
 			},
-			&BadDetector{},
 			&ConnectionErrorExtractor{},
 		},
 		tsAnalyses: []observerdef.TimeSeriesAnalysis{
@@ -313,10 +314,6 @@ func (o *observerImpl) processLog(source string, l *logObs) {
 			}
 		}
 
-		// Forward anomalies to processors
-		for _, anomaly := range result.Anomalies {
-			o.processAnomaly(anomaly)
-		}
 	}
 
 	o.flushAndReport()
@@ -472,8 +469,8 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 	o.uniqueAnomalySources[anomaly.Source] = true
 
 	// Update current data time
-	if anomaly.TimeRange.End > o.currentDataTime {
-		o.currentDataTime = anomaly.TimeRange.End
+	if anomaly.Timestamp > o.currentDataTime {
+		o.currentDataTime = anomaly.Timestamp
 	}
 
 	// Deduplicate by Source+AnalyzerName+Timestamp (keep all unique anomalies)
@@ -482,8 +479,7 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 	for i, existing := range o.rawAnomalies {
 		existingKey := fmt.Sprintf("%s|%s|%d", existing.Source, existing.AnalyzerName, existing.TimeRange.End)
 		if existingKey == key {
-			// Update if this is newer (shouldn't happen with timestamp in key, but safe)
-			if anomaly.TimeRange.End > existing.TimeRange.End {
+			if anomaly.Timestamp > existing.Timestamp {
 				o.rawAnomalies[i] = anomaly
 			}
 			found = true
@@ -499,7 +495,7 @@ func (o *observerImpl) captureRawAnomaly(anomaly observerdef.AnomalyOutput) {
 		cutoff := o.currentDataTime - o.rawAnomalyWindow
 		newBuffer := o.rawAnomalies[:0]
 		for _, a := range o.rawAnomalies {
-			if a.TimeRange.End >= cutoff {
+			if a.Timestamp >= cutoff {
 				newBuffer = append(newBuffer, a)
 			}
 		}

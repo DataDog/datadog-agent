@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -43,7 +45,6 @@ func (c *ConnectionErrorExtractor) Process(log observer.LogView) observer.LogPro
 					Value: 1.0,
 					Tags:  log.GetTags(),
 				}},
-				// No Anomalies - let TS analysis detect frequency changes via count aggregation
 			}
 		}
 	}

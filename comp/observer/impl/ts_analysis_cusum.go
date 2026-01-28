@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -13,8 +15,7 @@ import (
 )
 
 // CUSUMDetector uses the Cumulative Sum (CUSUM) algorithm to detect when a
-// metric shifts from its baseline. CUSUM is designed for detecting change points
-// and naturally provides anomaly start and end times.
+// metric shifts from its baseline. CUSUM is designed for detecting change points.
 //
 // Algorithm:
 //
@@ -22,10 +23,8 @@ import (
 //	S[t] = max(0, S[t-1] + (x[t] - μ - k))
 //
 // Where μ is the baseline mean and k is the slack parameter (allowance for noise).
-// An anomaly is detected when S[t] exceeds threshold h.
-//
-// Start time: When S first became positive (deviation started accumulating).
-// End time: When S returned to 0 (deviation "paid back"), or end of series if ongoing.
+// An anomaly is emitted when S[t] first exceeds threshold h, representing the
+// point of change detection.
 type CUSUMDetector struct {
 	// MinPoints is the minimum number of points required for analysis.
 	// Default: 5
@@ -136,7 +135,7 @@ func (c *CUSUMDetector) Emit(series observer.Series) []observer.Signal {
 }
 
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
-// The anomaly's TimeRange indicates when the shift started and the end of analyzed data.
+// The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
@@ -190,6 +189,23 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	k := slackFactor * baselineStddev     // slack: ignore small deviations
 	h := thresholdFactor * baselineStddev // threshold: trigger level
 
+	// Build debug info
+	debugInfo := &observer.AnomalyDebugInfo{
+		BaselineStart:  series.Points[0].Timestamp,
+		BaselineEnd:    series.Points[baselineEnd-1].Timestamp,
+		BaselineMean:   baselineMean,
+		BaselineStddev: baselineStddev,
+		Threshold:      h,
+		SlackParam:     k,
+	}
+
+	// Run CUSUM and detect threshold crossing
+	anomaly := runCUSUM(series, baselineMean, baselineStddev, k, h, debugInfo)
+	if anomaly == nil {
+		return observer.TimeSeriesAnalysisResult{}
+	}
+
+	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}}
 	// Run CUSUM and collect anomaly regions
 	// An anomaly region starts when S first goes positive and ends when S returns to 0
 	anomalies := runCUSUM(series, baselineMean, baselineStddev, k, h)
@@ -204,90 +220,71 @@ type anomalyRegion struct {
 	crossedThreshold bool // true if S exceeded h at some point
 }
 
-// runCUSUM executes the CUSUM algorithm and returns detected anomalies.
-// Uses CUSUM for start detection (when deviation began accumulating) and
-// signal-level recovery detection for end (when values return to normal range).
-func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64) []observer.AnomalyOutput {
-	var S float64
-	var regions []anomalyRegion
-	var currentRegion *anomalyRegion
-
-	// Recovery threshold: signal is "normal" if within 2σ of baseline
-	recoveryThreshold := baselineMean + 2*baselineStddev
+// runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.
+// It tracks both upward shifts (S_high) and downward shifts (S_low).
+// Returns nil if no threshold crossing is detected.
+func runCUSUM(series observer.Series, baselineMean, baselineStddev, k, h float64, debugInfo *observer.AnomalyDebugInfo) *observer.AnomalyOutput {
+	var sHigh, sLow float64
+	cusumValues := make([]float64, 0, len(series.Points))
 
 	for i, p := range series.Points {
-		prevS := S
-		S = math.Max(0, S+(p.Value-baselineMean-k))
+		// Upper CUSUM: detect increases
+		sHigh = math.Max(0, sHigh+(p.Value-baselineMean-k))
+		// Lower CUSUM: detect decreases
+		sLow = math.Max(0, sLow+(baselineMean-p.Value-k))
 
-		// Detect transitions
-		if prevS == 0 && S > 0 {
-			// Starting a new region
-			currentRegion = &anomalyRegion{startIdx: i, endIdx: -1}
+		// Track the dominant CUSUM value (whichever is larger)
+		if sHigh >= sLow {
+			cusumValues = append(cusumValues, sHigh)
+		} else {
+			cusumValues = append(cusumValues, -sLow) // negative for downward
 		}
 
-		if currentRegion != nil {
-			// Check if we crossed the threshold (confirmed anomaly)
-			if S > h {
-				currentRegion.crossedThreshold = true
+		// Check for upward shift
+		if sHigh > h {
+			deviation := (p.Value - baselineMean) / baselineStddev
+			debugInfo.CurrentValue = p.Value
+			debugInfo.DeviationSigma = deviation
+			// Keep last 50 CUSUM values for visualization
+			if len(cusumValues) > 50 {
+				debugInfo.CUSUMValues = cusumValues[len(cusumValues)-50:]
+			} else {
+				debugInfo.CUSUMValues = cusumValues
 			}
+			return &observer.AnomalyOutput{
+				Source: series.Name,
+				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
+				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ above baseline of %.2f)",
+					series.Name, p.Value, deviation, baselineMean),
+				Tags:      series.Tags,
+				Timestamp: series.Points[i].Timestamp,
+				DebugInfo: debugInfo,
+			}
+		}
 
-			// Check if region ended - two conditions:
-			// 1. CUSUM returned to 0 (deviation fully "paid back")
-			// 2. Signal returned to normal range AND we've crossed threshold
-			recovered := S == 0 || (currentRegion.crossedThreshold && p.Value <= recoveryThreshold)
-
-			if recovered && currentRegion.crossedThreshold {
-				// Find the actual end: last point where value was elevated
-				endIdx := i
-				if p.Value <= recoveryThreshold {
-					// Walk back to find last elevated point
-					for j := i - 1; j >= currentRegion.startIdx; j-- {
-						if series.Points[j].Value > recoveryThreshold {
-							endIdx = j
-							break
-						}
-					}
-				}
-				currentRegion.endIdx = endIdx
-				regions = append(regions, *currentRegion)
-				currentRegion = nil
-				S = 0 // reset CUSUM for next potential region
+		// Check for downward shift
+		if sLow > h {
+			deviation := (baselineMean - p.Value) / baselineStddev
+			debugInfo.CurrentValue = p.Value
+			debugInfo.DeviationSigma = -deviation // negative for below baseline
+			if len(cusumValues) > 50 {
+				debugInfo.CUSUMValues = cusumValues[len(cusumValues)-50:]
+			} else {
+				debugInfo.CUSUMValues = cusumValues
+			}
+			return &observer.AnomalyOutput{
+				Source: series.Name,
+				Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
+				Description: fmt.Sprintf("%s shifted to %.2f (%.1fσ below baseline of %.2f)",
+					series.Name, p.Value, deviation, baselineMean),
+				Tags:      series.Tags,
+				Timestamp: series.Points[i].Timestamp,
+				DebugInfo: debugInfo,
 			}
 		}
 	}
 
-	// Handle ongoing region at end of series
-	if currentRegion != nil && currentRegion.crossedThreshold {
-		currentRegion.endIdx = len(series.Points) - 1
-		regions = append(regions, *currentRegion)
-	}
-
-	// Convert regions to anomaly outputs
-	// For now, report only the most recent anomaly (could report all)
-	if len(regions) == 0 {
-		return nil
-	}
-
-	// Take the last (most recent) region
-	region := regions[len(regions)-1]
-	startTs := series.Points[region.startIdx].Timestamp
-	endTs := series.Points[region.endIdx].Timestamp
-
-	// Calculate magnitude using points in the anomaly region
-	anomalyMean := mean(series.Points[region.startIdx : region.endIdx+1])
-	deviation := (anomalyMean - baselineMean) / baselineStddev
-
-	return []observer.AnomalyOutput{{
-		Source: series.Name,
-		Title:  fmt.Sprintf("CUSUM shift detected: %s", series.Name),
-		Description: fmt.Sprintf("%s shifted: %.2f → %.2f (%.1fσ above baseline)",
-			series.Name, baselineMean, anomalyMean, deviation),
-		Tags: series.Tags,
-		TimeRange: observer.TimeRange{
-			Start: startTs,
-			End:   endTs,
-		},
-	}}
+	return nil
 }
 
 // mean calculates the arithmetic mean of points.

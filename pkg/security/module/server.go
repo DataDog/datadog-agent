@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/mailru/easyjson"
 	"go.uber.org/atomic"
+	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -291,8 +291,8 @@ func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	// look for the service tag if we don't have one yet
 	if len(msg.Service) == 0 {
 		for _, tag := range msg.Tags {
-			if strings.HasPrefix(tag, "service:") {
-				msg.Service = strings.TrimPrefix(tag, "service:")
+			if after, ok := strings.CutPrefix(tag, "service:"); ok {
+				msg.Service = after
 				break
 			}
 		}

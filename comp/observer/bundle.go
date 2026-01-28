@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package observer provides a component for observing data flowing through the agent.
+//go:build observer
+
+// Package observer bundles the observer component.
 package observer
 
 import (

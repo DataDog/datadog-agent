@@ -69,8 +69,6 @@ type LogProcessor interface {
 type LogProcessorResult struct {
 	// Metrics are timeseries values derived from the log.
 	Metrics []MetricOutput
-	// Anomalies are detected anomaly events.
-	Anomalies []AnomalyOutput
 }
 
 // MetricOutput is a timeseries value derived from log analysis.
@@ -82,13 +80,8 @@ type MetricOutput struct {
 	Tags  []string
 }
 
-// TimeRange represents a time period covered by an analysis.
-type TimeRange struct {
-	Start int64 // earliest timestamp in analyzed data (unix seconds)
-	End   int64 // latest timestamp in analyzed data (unix seconds)
-}
-
 // AnomalyOutput is a detected anomaly event.
+// Anomalies represent a point in time where something anomalous was detected.
 type AnomalyOutput struct {
 	// Source identifies which metric/signal the anomaly is about (e.g., "network.retransmits").
 	Source string
@@ -97,7 +90,29 @@ type AnomalyOutput struct {
 	Title        string
 	Description  string
 	Tags         []string
-	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
+	Timestamp    int64 // when the anomaly was detected (unix seconds)
+	// DebugInfo contains analyzer-specific debug information explaining the detection.
+	DebugInfo *AnomalyDebugInfo
+}
+
+// AnomalyDebugInfo provides detailed information about why an anomaly was detected.
+type AnomalyDebugInfo struct {
+	// Baseline statistics
+	BaselineStart   int64   // timestamp of baseline period start
+	BaselineEnd     int64   // timestamp of baseline period end
+	BaselineMean    float64 // mean of baseline (for CUSUM)
+	BaselineMedian  float64 // median of baseline (for robust z-score)
+	BaselineStddev  float64 // stddev of baseline (for CUSUM)
+	BaselineMAD     float64 // MAD of baseline (for robust z-score)
+
+	// Detection parameters
+	Threshold     float64 // threshold that was crossed
+	SlackParam    float64 // k parameter (CUSUM only)
+	CurrentValue  float64 // value at detection time
+	DeviationSigma float64 // how many sigmas from baseline
+
+	// For CUSUM: the cumulative sum values leading up to detection
+	CUSUMValues []float64 // S[t] values (may be truncated to last N points)
 }
 
 // ReportOutput is a processed summary from anomaly processors.

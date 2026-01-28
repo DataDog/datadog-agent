@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -27,9 +29,9 @@ func DefaultCorrelatorConfig() CorrelatorConfig {
 	}
 }
 
-// timestampedAnomaly pairs an anomaly with its data timestamp (from TimeRange.End).
+// timestampedAnomaly pairs an anomaly with its data timestamp.
 type timestampedAnomaly struct {
-	dataTime int64 // timestamp from the anomaly's data (TimeRange.End)
+	dataTime int64 // timestamp from the anomaly's data (Timestamp field)
 	anomaly  observer.AnomalyOutput
 }
 
@@ -107,7 +109,7 @@ func (c *CrossSignalCorrelator) Name() string {
 // Process implements AnomalyProcessor (old interface). It adds an anomaly to the buffer
 // using its data timestamp (TimeRange.End) and evicts old entries.
 func (c *CrossSignalCorrelator) Process(anomaly observer.AnomalyOutput) {
-	dataTime := anomaly.TimeRange.End
+	dataTime := anomaly.Timestamp
 
 	// Update current data time (monotonically advancing)
 	if dataTime > c.currentDataTime {
@@ -234,7 +236,7 @@ func (c *CrossSignalCorrelator) patternMatches(pattern correlationPattern, sourc
 }
 
 // collectMatchingAnomalies returns anomalies from the buffer that match the pattern's required sources,
-// deduped by source - keeping only the most recent anomaly per source (it has the most complete data).
+// deduped by source - keeping only the most recent anomaly per source.
 func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPattern) []observer.AnomalyOutput {
 	// Map from source to most recent anomaly for that source
 	bySource := make(map[string]observer.AnomalyOutput)
@@ -243,8 +245,8 @@ func (c *CrossSignalCorrelator) collectMatchingAnomalies(pattern correlationPatt
 		for _, src := range pattern.requiredSources {
 			if entry.anomaly.Source == src {
 				existing, exists := bySource[src]
-				// Keep the one with the later End time (more recent/complete data)
-				if !exists || entry.anomaly.TimeRange.End > existing.TimeRange.End {
+				// Keep the one with the later timestamp (more recent)
+				if !exists || entry.anomaly.Timestamp > existing.Timestamp {
 					bySource[src] = entry.anomaly
 				}
 				break

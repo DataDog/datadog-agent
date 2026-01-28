@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build observer
+
 package observerimpl
 
 import (
@@ -151,14 +153,28 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 }
 
 // GetSeries returns the series using the specified aggregation.
+// If tags is nil, finds the first series matching namespace and name (ignoring tags).
 func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg Aggregate) *observer.Series {
-	key := seriesKey(namespace, name, tags)
-	stats := s.series[key]
-	if stats == nil {
-		return nil
+	if tags != nil {
+		// Exact match with tags
+		key := seriesKey(namespace, name, tags)
+		stats := s.series[key]
+		if stats == nil {
+			return nil
+		}
+		series := stats.toSeries(agg)
+		return &series
 	}
-	series := stats.toSeries(agg)
-	return &series
+
+	// tags is nil: find first matching series by namespace and name
+	prefix := namespace + "|" + name + "|"
+	for key, stats := range s.series {
+		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+			series := stats.toSeries(agg)
+			return &series
+		}
+	}
+	return nil
 }
 
 // GetSeriesSince returns points with timestamp > since (for delta updates).

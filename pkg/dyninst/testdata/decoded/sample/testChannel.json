@@ -18,12 +18,12 @@
           {
             "function": "main.testChannel",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go",
-            "lineNumber": 18
+            "lineNumber": 30
           },
           {
             "function": "main.executeOther",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go",
-            "lineNumber": 41
+            "lineNumber": 53
           },
           {
             "function": "main.main",
