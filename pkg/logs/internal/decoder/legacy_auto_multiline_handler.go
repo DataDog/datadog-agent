@@ -14,7 +14,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"

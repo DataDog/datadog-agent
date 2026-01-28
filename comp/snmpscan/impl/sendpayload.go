@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 )
 

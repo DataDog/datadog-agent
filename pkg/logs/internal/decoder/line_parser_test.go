@@ -14,8 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 const header = "HEADER"

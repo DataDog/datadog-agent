@@ -20,11 +20,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
 

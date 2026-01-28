@@ -12,9 +12,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // New returns a new parser which will parse raw JSON lines as found in docker log files.
