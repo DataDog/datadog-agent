@@ -42,8 +42,8 @@ const (
 	defaultTegraStatsPath = "/usr/bin/tegrastats"
 )
 
-// shellMetacharRegex matches whitespace and shell metacharacters that should be rejected
-var shellMetacharRegex = regexp.MustCompile(`[\s\x00~!#$&*?;|(){}[\]<>\x60'"\n\r\\]`)
+// allowedCharsInPathRegex matches the only characters allowed for `tegrastats_path`, given by the user through the config
+var allowedCharsInPathRegex = regexp.MustCompile(`^[A-Za-z0-9._/-]+$`)
 
 // The configuration for the jetson check
 type checkCfg struct {
@@ -113,9 +113,9 @@ func getSizeMultiplier(unit string) float64 {
 
 // validateTegraStatsPath verifies that the path is absolute and doesn't contain invalid characters
 func validateTegraStatsPath(path string) error {
-	// Reject values containing whitespace, shell metacharacters, or non-path characters
-	if invalidChars := shellMetacharRegex.FindAllString(path, -1); len(invalidChars) > 0 {
-		return fmt.Errorf("tegrastats_path contains invalid characters %q: %q", invalidChars, path)
+	// check if any character of the path is not in the allowed list
+	if !allowedCharsInPathRegex.MatchString(path) {
+		return fmt.Errorf("tegrastats_path contains invalid characters: %q", path)
 	}
 
 	// Reject non-absolute path

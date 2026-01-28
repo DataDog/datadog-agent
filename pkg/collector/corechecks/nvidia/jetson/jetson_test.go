@@ -545,56 +545,58 @@ func TestConfigureWithCustomTegraStatsPath(t *testing.T) {
 	mock := mocksender.NewMockSender(tegraCheck.ID())
 
 	tests := []struct {
-		name         string
-		path         string
-		valid        bool
-		invalidChars []string
+		name            string
+		path            string
+		isAbsolute      bool
+		hasInvalidChars bool
 	}{
 		// valid paths
-		{name: "default path", path: "/usr/bin/tegrastats", valid: true},
-		{name: "path with underscores", path: "/usr/bin/tegra_stats", valid: true},
-		{name: "path with hyphens", path: "/usr/bin/tegra-stats", valid: true},
-		{name: "path with dots", path: "/usr/bin/tegrastats.bin", valid: true},
-		{name: "deep neste path", path: "/opt/nvidia/jetson/bin/tegrastats", valid: true},
+		{name: "default path", path: "/usr/bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with underscores", path: "/usr/bin/tegra_stats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with numbers", path: "/usr/bin/tegrastats123", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with hyphens", path: "/usr/bin/tegra-stats", isAbsolute: true, hasInvalidChars: false},
+		{name: "path with dots", path: "/usr/bin/tegrastats.bin", isAbsolute: true, hasInvalidChars: false},
+		{name: "deep neste path", path: "/opt/nvidia/jetson/bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
+		{name: "not fully resolved path", path: "/usr/bin/../bin/tegrastats", isAbsolute: true, hasInvalidChars: false},
 
-		// relative paths (no invalid chars, just not absolute)
-		{name: "relative path", path: "./usr/bin/tegrastats", valid: false},
-		{name: "relative without dot", path: "usr/bin/tegrastats", valid: false},
+		// relative paths (no invalidChar chars, just not absolute)
+		{name: "relative path", path: "./usr/bin/tegrastats", isAbsolute: false, hasInvalidChars: false},
+		{name: "relative without dot", path: "usr/bin/tegrastats", isAbsolute: false, hasInvalidChars: false},
 
 		// whitespace
-		{name: "space in path", path: "/usr/bin/tegra stats", valid: false, invalidChars: []string{" "}},
-		{name: "tab in path", path: "/usr/bin/tegra\tstats", valid: false, invalidChars: []string{"\t"}},
-		{name: "newline character", path: "/usr/bin/tegra\nstats", valid: false, invalidChars: []string{"\n"}},
-		{name: "carriage return", path: "/usr/bin/tegra\rstats", valid: false, invalidChars: []string{"\r"}},
+		{name: "space in path", path: "/usr/bin/tegra stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "tab in path", path: "/usr/bin/tegra\tstats", isAbsolute: true, hasInvalidChars: true},
+		{name: "newline character", path: "/usr/bin/tegra\nstats", isAbsolute: true, hasInvalidChars: true},
+		{name: "carriage return", path: "/usr/bin/tegra\rstats", isAbsolute: true, hasInvalidChars: true},
 
 		// command injection
-		{name: "semicolon", path: "/usr/bin/tegrastats;echo pwned", valid: false, invalidChars: []string{";", " "}},
-		{name: "pipe", path: "/usr/bin/tegrastats|cat", valid: false, invalidChars: []string{"|"}},
-		{name: "ampersand", path: "/usr/bin/tegra&stats", valid: false, invalidChars: []string{"&"}},
-		{name: "backtick", path: "/usr/bin/`tegrastats`", valid: false, invalidChars: []string{"`", "`"}},
-		{name: "dollar sign", path: "/usr/bin/$tegrastats", valid: false, invalidChars: []string{"$"}},
-		{name: "output redirection", path: "/usr/bin/tegrastats>/tmp/out", valid: false, invalidChars: []string{">"}},
-		{name: "input redirection", path: "/usr/bin/tegrastats</etc/passwd", valid: false, invalidChars: []string{"<"}},
+		{name: "semicolon", path: "/usr/bin/tegrastats;echo pwned", isAbsolute: true, hasInvalidChars: true},
+		{name: "pipe", path: "/usr/bin/tegrastats|cat", isAbsolute: true, hasInvalidChars: true},
+		{name: "ampersand", path: "/usr/bin/tegra&stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "backtick", path: "/usr/bin/`tegrastats`", isAbsolute: true, hasInvalidChars: true},
+		{name: "dollar sign", path: "/usr/bin/$tegrastats", isAbsolute: true, hasInvalidChars: true},
+		{name: "output redirection", path: "/usr/bin/tegrastats>/tmp/out", isAbsolute: true, hasInvalidChars: true},
+		{name: "input redirection", path: "/usr/bin/tegrastats</etc/passwd", isAbsolute: true, hasInvalidChars: true},
 
 		// quotes
-		{name: "single quote", path: "/usr/bin/tegra'stats", valid: false, invalidChars: []string{"'"}},
-		{name: "double quote", path: "/usr/bin/tegra\"stats", valid: false, invalidChars: []string{"\""}},
+		{name: "single quote", path: "/usr/bin/tegra'stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "double quote", path: "/usr/bin/tegra\"stats", isAbsolute: true, hasInvalidChars: true},
 
 		// brackets and braces
-		{name: "parentheses", path: "/usr/bin/(tegrastats)", valid: false, invalidChars: []string{"(", ")"}},
-		{name: "curly braces", path: "/usr/bin/{tegrastats}", valid: false, invalidChars: []string{"{", "}"}},
-		{name: "square brackets", path: "/usr/bin/tegra[stats]", valid: false, invalidChars: []string{"[", "]"}},
+		{name: "parentheses", path: "/usr/bin/(tegrastats)", isAbsolute: true, hasInvalidChars: true},
+		{name: "curly braces", path: "/usr/bin/{tegrastats}", isAbsolute: true, hasInvalidChars: true},
+		{name: "square brackets", path: "/usr/bin/tegra[stats]", isAbsolute: true, hasInvalidChars: true},
 
 		// glob patterns
-		{name: "wildcard asterisk", path: "/usr/bin/tegra*", valid: false, invalidChars: []string{"*"}},
-		{name: "wildcard question mark", path: "/usr/bin/tegra?stats", valid: false, invalidChars: []string{"?"}},
+		{name: "wildcard asterisk", path: "/usr/bin/tegra*", isAbsolute: true, hasInvalidChars: true},
+		{name: "wildcard question mark", path: "/usr/bin/tegra?stats", isAbsolute: true, hasInvalidChars: true},
 
 		// others
-		{name: "backslash", path: "/usr/bin/tegra\\stats", valid: false, invalidChars: []string{"\\"}},
-		{name: "exclamation", path: "/usr/bin/tegra!stats", valid: false, invalidChars: []string{"!"}},
-		{name: "hash comment", path: "/usr/bin/tegra#stats", valid: false, invalidChars: []string{"#"}},
-		{name: "tilde", path: "~/bin/tegrastats", valid: false, invalidChars: []string{"~"}},
-		{name: "null byte", path: "/usr/bin/tegra\x00stats", valid: false, invalidChars: []string{"\x00"}},
+		{name: "backslash", path: "/usr/bin/tegra\\stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "exclamation", path: "/usr/bin/tegra!stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "hash comment", path: "/usr/bin/tegra#stats", isAbsolute: true, hasInvalidChars: true},
+		{name: "tilde", path: "~/bin/tegrastats", isAbsolute: false, hasInvalidChars: true},
+		{name: "null byte", path: "/usr/bin/tegra\x00stats", isAbsolute: true, hasInvalidChars: true},
 	}
 
 	for _, tt := range tests {
@@ -605,17 +607,12 @@ use_sudo: true
 `, tt.path)
 
 			err := tegraCheck.Configure(mock.GetSenderManager(), integration.FakeConfigHash, integration.Data(instanceConfig), nil, "test")
-			if tt.valid {
-				assert.NoError(t, err)
+			if tt.hasInvalidChars {
+				assert.ErrorContains(t, err, "tegrastats_path contains invalid characters")
+			} else if !tt.isAbsolute {
+				assert.ErrorContains(t, err, "tegrastats_path should be absolute")
 			} else {
-				if tt.invalidChars == nil {
-					// verify the error message refers to absolute path
-					assert.ErrorContains(t, err, "tegrastats_path should be absolute")
-				} else {
-					// verify the error message contains the expected invalid characters
-					expectedMessage := fmt.Sprintf("tegrastats_path contains invalid characters %q", tt.invalidChars)
-					assert.ErrorContains(t, err, expectedMessage)
-				}
+				assert.NoError(t, err)
 			}
 		})
 	}
