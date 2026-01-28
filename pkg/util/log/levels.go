@@ -6,8 +6,6 @@
 package log
 
 import (
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
@@ -40,6 +38,21 @@ const (
 
 // logLevelFromString returns a LogLevel from a string
 func logLevelFromString(levelStr string) (LogLevel, bool) {
-	level, ok := seelog.LogLevelFromString(levelStr)
-	return LogLevel(level), ok
+	switch levelStr {
+	case TraceStr:
+		return TraceLvl, true
+	case DebugStr:
+		return DebugLvl, true
+	case InfoStr:
+		return InfoLvl, true
+	case WarnStr:
+		return WarnLvl, true
+	case ErrorStr:
+		return ErrorLvl, true
+	case CriticalStr:
+		return CriticalLvl, true
+	case OffStr:
+		return Off, true
+	}
+	return TraceLvl, false
 }

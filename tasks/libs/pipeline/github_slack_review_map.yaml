@@ -21,7 +21,7 @@
 '@datadog/agent-onboarding': '#agent-onboarding-ops'
 '@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
 '@datadog/agent-processing-and-routing': '#agent-processing-and-routing'
-'@datadog/agent-runtimes': '#agent-runtimes'
+'@datadog/agent-runtimes': '#agent-runtimes-reviews'
 '@datadog/agent-security': '#security-and-compliance-agent'
 '@datadog/apm-ecosystems-performance': '#apm-benchmarking-platform'
 '@datadog/apm-onboarding': '#apm-onboarding'

@@ -7,7 +7,6 @@ replace github.com/cihub/seelog => github.com/cihub/seelog v0.0.0-20151216151435
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.64.1
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.64.1
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.27.1
