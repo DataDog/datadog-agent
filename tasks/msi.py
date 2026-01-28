@@ -713,7 +713,6 @@ def package_oci(
     ctx,
     msi_path=None,
     output_dir=None,
-    package_name="datadog-agent",
     source_type="msi",
 ):
     """
@@ -722,8 +721,11 @@ def package_oci(
     Args:
         msi_path: Path to the MSI file (default: auto-detect in omnibus/pkg)
         output_dir: Output directory for the OCI tar (default: omnibus/pkg)
-        package_name: Package name (default: datadog-agent)
         source_type: Source type - 'msi' or 'zip' (default: msi)
+    
+    Requires:
+        datadog-package: Install from https://github.com/DataDog/datadog-package
+            go install github.com/DataDog/datadog-package@latest
     """
     import tempfile
     from pathlib import Path

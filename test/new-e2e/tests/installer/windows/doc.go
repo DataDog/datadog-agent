@@ -74,6 +74,28 @@
 // shortened to 7.66.0-devel for convenience.
 // With local testing the _VERSION_PACKAGE variables can be omitted, though they are required in the CI.
 //
+// # Building Local Artifacts
+//
+// To build the MSI installer locally:
+//
+//	dda inv msi.build
+//
+// This creates an MSI in omnibus/pkg/ (e.g., datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-x86_64.msi).
+//
+// To build an OCI package from the MSI (required for Fleet/Remote Upgrade tests):
+//
+//	dda inv msi.package-oci
+//
+// This creates an OCI tar file in omnibus/pkg/ (e.g., datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-windows-amd64.oci.tar).
+//
+// Note: The OCI packaging requires the `datadog-package` tool. Install it with:
+//
+//	go install github.com/DataDog/datadog-package@latest
+//
+// You can also specify a specific MSI to package:
+//
+//	dda inv msi.package-oci --msi-path=omnibus/pkg/datadog-agent-7.77.0-devel.git.32.ce3a7fe-1-x86_64.msi
+//
 // # Running Tests with Local Artifacts
 //
 // To run the tests using local artifacts, set one or more the following environment variables:
