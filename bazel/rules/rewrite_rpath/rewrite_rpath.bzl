@@ -15,14 +15,14 @@ def _replace_prefix_impl(ctx):
             inputs = [input],
             outputs = [processed_file],
             arguments = ["--set-rpath", prefix, input.path, "--output", processed_file.path],
-            executable = ctx.executable._patchelf,
+            executable = ctx.executable.tool,
         )
     else:
-        ctx.actions.run_shell(
+        ctx.actions.run(
             inputs = [input],
             outputs = [processed_file],
-            tools = [":macos.sh"],
-            command = "$(location :macos.sh) {} {}".format(prefix, input),
+            executable = ctx.file._macos,
+            arguments = [prefix, input.path, processed_file.path],
         )
 
     return DefaultInfo(files = depset([processed_file]))
@@ -41,14 +41,14 @@ _replace_prefix = rule(
         "prefix": attr.label(
             doc = "The new prefix. Defaults to <@@//:install_dir>/embedded",
         ),
+        "tool": attr.label(
+            doc = "The tool used to patch rpath",
+            executable = True,
+            cfg = "exec",
+        ),
         "_install_dir": attr.label(
             doc = "Private label used for the default prefix",
             default = "@@//:install_dir",
-        ),
-        "_patchelf": attr.label(
-            cfg = "exec",
-            executable = True,
-            default = Label("@patchelf"),
         ),
     },
 )
@@ -58,6 +58,10 @@ def rewrite_rpath(name, input, prefix=None):
         name = name,
         input = input,
         prefix = prefix,
+        tool = select({
+            "@platforms//os:linux": "@patchelf",
+            "@platforms//os:macos": ":macos.sh",
+        }),
         os = select({
             "@platforms//os:linux": "linux",
             "@platforms//os:macos": "macos",
