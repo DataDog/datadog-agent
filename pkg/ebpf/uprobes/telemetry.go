@@ -25,6 +25,7 @@ var (
 type telemetryDefinitions struct {
 	once                    sync.Once
 	eventsHandled           telemetryComponent.Counter
+	exitsHandled            telemetryComponent.Counter
 	excludedPIDs            telemetryComponent.Counter
 	attachments             telemetryComponent.Counter
 	binaryInspectionNs      telemetryComponent.Histogram
