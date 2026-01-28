@@ -9,17 +9,13 @@ package imageresolver
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 	"time"
 )
 
 const (
-	tcpTimeout        = 5 * time.Second
-	headerTimeout     = 10 * time.Second
-	requestTimeout    = 15 * time.Second
-	keepAliveInterval = 30 * time.Second
+	requestTimeout = 15 * time.Second
 )
 
 // httpDigestFetcher fetches image digests from container registries.
@@ -107,13 +103,6 @@ func (h *httpDigestFetcher) digest(ref string) (string, error) {
 
 func newHTTPDigestFetcher() *httpDigestFetcher {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-
-	transport.DialContext = (&net.Dialer{
-		Timeout:   tcpTimeout,
-		KeepAlive: keepAliveInterval,
-	}).DialContext
-	transport.ResponseHeaderTimeout = headerTimeout
-
 	return &httpDigestFetcher{
 		client: &http.Client{
 			Timeout:   requestTimeout,
