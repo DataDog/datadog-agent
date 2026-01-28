@@ -309,7 +309,7 @@ docker_build_host_profiler_standalone_arm64:
   extends: .docker_build_job_definition
   before_script:
     - mkdir /tmp/otel
-    - tar --extract --xz --file $OTEL_PACKAGE_NAME --directory /tmp/otel
+    - find . -name "$OTEL_PACKAGE_NAME" | xargs tar --extract --xz --directory /tmp/otel --file
     - cp /tmp/otel/opt/datadog-agent/embedded/bin/otel-agent $BUILD_CONTEXT/otel-agent
     - cp /tmp/otel/etc/datadog-agent/otel-config.yaml.example $BUILD_CONTEXT/otel-config.yaml
     - ls -l $BUILD_CONTEXT/
