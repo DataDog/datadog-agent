@@ -33,8 +33,8 @@
     # Copy datadog-agent-ddot files to the extensions output dir
     - |
       if [ $(ls $OMNIBUS_PACKAGE_DIR/datadog-agent-ddot* 2> /dev/null | wc -l) -ge 1 ]; then
-        echo "Copying datadog-agent-ddot files to extensions dir"
-        cp $OMNIBUS_PACKAGE_DIR/datadog-agent-ddot* ${OUTPUT_DIR_EXTENSIONS}
+        echo "Moving datadog-agent-ddot files to extensions dir"
+        mv $OMNIBUS_PACKAGE_DIR/datadog-agent-ddot* ${OUTPUT_DIR_EXTENSIONS}
       fi
     - ls $OUTPUT_DIR_EXTENSIONS
     - |
