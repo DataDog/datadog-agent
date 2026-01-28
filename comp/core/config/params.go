@@ -6,7 +6,7 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config/setup" // nolint:pkgconfigusage
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Params defines the parameters for the config component.

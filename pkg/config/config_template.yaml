@@ -1725,6 +1725,23 @@ api_key:
 #   # Increase this value if you experience timeouts with large profile uploads.
 #
 #   profiling_receiver_timeout: 5
+#
+#   # @param additional_profile_tags - map of strings - optional
+#   # @env DD_APM_ADDITIONAL_PROFILE_TAGS - JSON string - optional
+#   # Additional tags to add to all profiles. These tags are added on the agent side
+#   # before forwarding profiles to Datadog. This is useful for environment-identifying
+#   # tags that should be applied to all profiles (e.g., origin).
+#   #
+#   # Note: For Azure App Service in Windows, this configuration is set in the AAS Site Extension.
+#   # Overriding the default tags in AAS Windows should be done with reference to https://datadoghq.atlassian.net/wiki/spaces/SLS/pages/6007685143/Profiling.
+#   #
+#   # additional_profile_tags:
+#   #   _dd.origin: appservice
+#   #   <TAG_KEY>: <TAG_VALUE>
+#
+#   ## DD_APM_ADDITIONAL_PROFILE_TAGS='{"_dd.origin":"appservice","secondtag":"custom"}'
+#
+#   # additional_profile_tags: {}
 {{ if .InternalProfiling }}
 #   # @param profiling - custom object - optional
 #   # Enter specific configurations for internal profiling.
@@ -2254,6 +2271,13 @@ api_key:
 #   # Set to true to enable the Network Module of the System Probe
 #
 #   enabled: false
+
+#   # @param dns_monitoring_ports - list of integers - optional - default: [53]
+#   # @env DD_SYSTEM_PROBE_CONFIG_DNS_MONITORING_PORTS - space separated list of integers - optional - default: [53]
+#   # A list of ports that should be monitored for DNS traffic.
+#
+#   dns_monitoring_ports:
+#     - 53
 {{ end -}}
 {{ if .UniversalServiceMonitoringModule }}
 #############################################################
@@ -4060,6 +4084,19 @@ api_key:
 #   # This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
 #
 #   namespace: default
+
+#   # @param default_scan - custom object - optional
+#   # Configuration for automatic SNMP device scanning.
+#   # When enabled, discovered SNMP devices are automatically scanned.
+#
+#   # default_scan:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # Enable automatic scanning of discovered SNMP devices.
+#     # When enabled, devices discovered via autodiscovery or configured
+#     # directly will be scanned to collect OID data.
+#
+#     # enabled: false
 
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.

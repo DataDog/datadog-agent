@@ -100,7 +100,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/linters/components/pkgconfigusage
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
@@ -162,6 +161,7 @@ use (
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
+	pkg/util/kubernetes/apiserver/common/namespace
 	pkg/util/log
 	pkg/util/log/setup
 	pkg/util/option
