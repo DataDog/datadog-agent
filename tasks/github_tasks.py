@@ -155,6 +155,12 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
 
 
 def _get_teams(changed_files, owners_file='.github/CODEOWNERS', best_teams_only=True) -> list[str]:
+    """Returns a list of teams that are responsible for changed files
+
+    :param changed_files: list of changed files
+    :param owners_file: path to the CODEOWNERS file
+    :param best_teams_only: if True, returns only the teams with the most changed files
+    """
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()

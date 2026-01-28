@@ -4,7 +4,7 @@ name: Add labels to community PRs
 on:
   # run in the context of the base branch, so that it still works in PR from forks
   pull_request_target:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
 
 permissions: {}
 
@@ -23,7 +23,7 @@ jobs:
           sparse-checkout: |
             .gitlab-ci.yml
             .github/CODEOWNERS
-            .github/actions/install-dda
+            .github/actions
             .ddqa/config.toml
             tasks
           persist-credentials: false
@@ -38,13 +38,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
       - name: Assign team label
-        run: dda inv -- -e github.assign-team-label --pr-id="${{ github.event.pull_request.number }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Save PR number for workflow_run
-        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
-      - name: Upload PR number artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: ./.github/actions/assign-team-label
         with:
-          name: pr_number
-          path: pr_number.txt
+          pr-number: ${{ github.event.pull_request.number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
