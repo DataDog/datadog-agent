@@ -3,8 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Following directive won't be needed with Go 1.25+
-//go:build goexperiment.synctest
+//go:build go1.25
 
 // Package containertagsbuffer contains the logic to buffer payloads for container tags
 // enrichment
@@ -12,7 +11,6 @@ package containertagsbuffer
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -235,7 +233,11 @@ func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
+	// Memory is released via defer after the callback returns, so use Eventually
+	// to avoid a race between receiving the callback result and the defer executing
+	require.Eventually(t, func() bool {
+		return ctb.memoryUsage.Load() == 0
+	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
@@ -251,7 +253,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	}
 
 	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
-	ctb.hardTimeLimit = 1 * time.Nanosecond
+	ctb.hardTimeLimit = 100 * time.Millisecond
 	ctb.Start()
 
 	resultChan := make(chan []string, 1)
@@ -269,16 +271,18 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for expiration flush")
 	}
-	assert.Equal(t, ctb.memoryUsage.Load(), int64(0))
+	// Memory is released via defer after the callback returns, so use Eventually
+	// to avoid a race between receiving the callback result and the defer executing
+	require.Eventually(t, func() bool {
+		return ctb.memoryUsage.Load() == 0
+	}, 1*time.Second, 10*time.Millisecond, "memory should be released after callback")
 
 	// container is now denied
 	assert.True(t, ctb.deniedContainers.shouldDeny(time.Now(), "container-expire"))
 }
 
 func TestAsyncEnrichment_Concurrent_MixedScenarios(t *testing.T) {
-	synctest.Run(func() {
-		syncTestAsyncEnrichmentConcurrentMixedScenarios(t)
-	})
+	synctest.Test(t, syncTestAsyncEnrichmentConcurrentMixedScenarios)
 }
 
 func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
@@ -295,7 +299,7 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 			}
 
 			if shouldResolveContainers.Load() {
-				return []string{fmt.Sprintf("kube_image:%s", cid)}, nil
+				return []string{"kube_image:" + cid}, nil
 			}
 			return []string{"tag:incomplete_tags"}, nil
 		},

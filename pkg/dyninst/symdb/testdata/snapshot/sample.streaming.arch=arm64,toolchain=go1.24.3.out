@@ -1,6 +1,5 @@
 Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
 Package: main
-	Function: InlinedFunc (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [15:16] injectible: [16-16]
 	Function: doNothing (main.doNothing) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [12:12] injectible: [12-12]
 		Arg: x: []int (declared at line 12, available: [12-12])
 	Function: executeArrayFuncs (main.executeArrayFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [102:129] injectible: [102-117], [119-122], [124-124], [128-129]
@@ -68,8 +67,8 @@ Package: main
 		Scope: 210-214
 			Var: i: int (declared at line 210, available: [210-210], [211-212], [214-214])
 	Function: executeMultiParamFuncs (main.executeMultiParamFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go [86:118] injectible: [86-87], [100-114], [118-118]
-	Function: executeOther (main.executeOther) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [39:44] injectible: [39-41], [43-44]
-		Var: x: chan bool (declared at line 40, available: [41-43])
+	Function: executeOther (main.executeOther) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [51:56] injectible: [51-56]
+		Var: x: chan bool (declared at line 52, available: [53-54])
 	Function: executePointerFuncs (main.executePointerFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go [112:178] injectible: [112-113], [115-115], [117-117], [120-121], [123-126], [130-132], [134-135], [137-141], [143-143], [145-145], [147-151], [155-155], [157-157], [159-160], [162-163], [165-165], [167-168], [170-170], [172-173], [175-178]
 		Var: self: *main.node (declared at line 172, available: [173-177])
 		Var: z: main.spws (declared at line 118, available: )
@@ -180,10 +179,10 @@ Package: main
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
-	Function: returnGoroutineId (main.returnGoroutineId) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [28:34] injectible: [28-34]
-		Arg: ~r0: uint64 (declared at line 28, available: )
-		Var: n: uint64 (declared at line 33, available: [32-34])
-		Var: b: []uint8 (declared at line 29, available: [32-33])
+	Function: returnGoroutineId (main.returnGoroutineId) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [40:46] injectible: [40-46]
+		Arg: ~r0: uint64 (declared at line 40, available: )
+		Var: n: uint64 (declared at line 45, available: [44-46])
+		Var: b: []uint8 (declared at line 41, available: [44-45])
 	Function: sprintSlice (main.sprintSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [16:17] injectible: [16-17]
 		Arg: x: []int (declared at line 16, available: [16-17])
 		Arg: ~r0: string (declared at line 16, available: )
@@ -214,14 +213,17 @@ Package: main
 		Arg: a: [2]main.nestedStruct (declared at line 82, available: [83-83])
 	Function: testArrayPointer (main.testArrayPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/pointers.go [59:59] injectible: [59-59]
 		Arg: x: *[2]uint (declared at line 59, available: [59-59])
+	Function: testAtomicAdd (main.testAtomicAdd) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [23:23] injectible: [23-23]
+		Arg: x: uint64 (declared at line 19, available: [23-23])
+		Arg: ~r0: uint64 (declared at line 19, available: )
 	Function: testBigStruct (main.testBigStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [82:82] injectible: [82-82]
 		Arg: b: main.bigStruct (declared at line 82, available: [82-82])
 	Function: testBoolArray (main.testBoolArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [26:26] injectible: [26-26]
 		Arg: x: [2]bool (declared at line 26, available: [26-26])
 	Function: testByteArray (main.testByteArray) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [14:14] injectible: [14-14]
 		Arg: x: [2]uint8 (declared at line 14, available: [14-14])
-	Function: testChannel (main.testChannel) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [18:18] injectible: [18-18]
-		Arg: c: chan bool (declared at line 18, available: [18-18])
+	Function: testChannel (main.testChannel) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [30:30] injectible: [30-30]
+		Arg: c: chan bool (declared at line 30, available: [30-30])
 	Function: testCircularType (main.testCircularType) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [90:90] injectible: [90-90]
 		Arg: x: main.circularReferenceType (declared at line 90, available: [90-90])
 	Function: testCombinedBool (main.testCombinedBool) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go [34:34] injectible: [34-34]
@@ -786,8 +788,8 @@ Package: main
 		Arg: a: main.threeStringStruct (declared at line 30, available: [30-30])
 	Function: testThreeStringsInStructPointer (main.testThreeStringsInStructPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [34:34] injectible: [34-34]
 		Arg: a: *main.threeStringStruct (declared at line 34, available: [34-34])
-	Function: testTriggerVerifierError (main.testTriggerVerifierError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [22:22] injectible: [22-22]
-		Arg: t: main.triggerVerifierErrorForTesting (declared at line 22, available: [22-22])
+	Function: testTriggerVerifierError (main.testTriggerVerifierError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [34:34] injectible: [34-34]
+		Arg: t: main.triggerVerifierErrorForTesting (declared at line 34, available: [34-34])
 	Function: testTypeAlias (main.testTypeAlias) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go [73:73] injectible: [73-73]
 		Arg: x: main.typeAlias (declared at line 73, available: [73-73])
 	Function: testUint16Array (main.testUint16Array) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [58:58] injectible: [58-58]
@@ -1045,7 +1047,8 @@ Package: main
 		Field: j: int
 		Field: k: int
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
-	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:13] injectible: [12-13]
+	Function: Foo (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Foo) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [12:14] injectible: [12-14]
+	Function: InlinedFunc (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [16:17] injectible: [17-17]
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2
 	Function: FooV2 (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib%2ev2.FooV2) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2/lib.go [17:18] injectible: [17-18]
 	Type: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type

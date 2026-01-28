@@ -9,7 +9,7 @@ package baseimpl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:pkgconfigusage
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // filterSelection stores pre-computed filter lists to avoid recalculating them on every call
@@ -236,7 +236,7 @@ func (pf *filterSelection) computeKubeEndpointAutodiscoveryFilters(_ config.Comp
 // computeContainerComplianceFilters computes container compliance filters
 func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
 	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyCompliance}
-	if cfg.GetBool("compliance_config.exclude_pause_containers") {
+	if cfg.GetBool("compliance_config.exclude_pause_container") {
 		flist = append(flist, workloadfilter.ContainerPaused)
 	}
 	return [][]workloadfilter.ContainerFilter{flist}
@@ -245,7 +245,7 @@ func (pf *filterSelection) computeContainerComplianceFilters(cfg config.Componen
 // computeContainerRuntimeSecurityFilters computes container runtime security filters
 func (pf *filterSelection) computeContainerRuntimeSecurityFilters(cfg config.Component) [][]workloadfilter.ContainerFilter {
 	flist := []workloadfilter.ContainerFilter{workloadfilter.ContainerLegacyRuntimeSecurity}
-	if cfg.GetBool("runtime_security_config.exclude_pause_containers") {
+	if cfg.GetBool("runtime_security_config.exclude_pause_container") {
 		flist = append(flist, workloadfilter.ContainerPaused)
 	}
 	return [][]workloadfilter.ContainerFilter{flist}

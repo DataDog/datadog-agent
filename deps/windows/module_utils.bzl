@@ -14,15 +14,8 @@ Usage:
   )
 """
 
-load(
-    "@@//third_party/bazel/tools/build_defs/repo:cache.bzl",
-    "DEFAULT_CANONICAL_ID_ENV",
-    "get_default_canonical_id",
-)
-load(
-    "@@//third_party/bazel/tools/build_defs/repo:utils.bzl",
-    "get_auth",
-)
+load("@bazel_tools//tools/build_defs/repo:cache.bzl", "DEFAULT_CANONICAL_ID_ENV", "get_default_canonical_id")
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "get_auth")
 
 get_file_using_release_constants_attrs = {
     "executable": attr.bool(

@@ -11,12 +11,13 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func TestZapBasicLogging(t *testing.T) {
@@ -31,31 +32,31 @@ func TestZapBasicLogging(t *testing.T) {
 			desc:    "Debug (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Debug("Simple message") },
 			level:   "debug",
-			message: "[DEBUG] | zapcore_test.go | Simple message",
+			message: "[DEBUG] | pkg/util/log/zap/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Info (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Info("Simple message") },
 			level:   "debug",
-			message: "[INFO] | zapcore_test.go | Simple message",
+			message: "[INFO] | pkg/util/log/zap/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Warn (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Warn("Simple message") },
 			level:   "debug",
-			message: "[WARN] | zapcore_test.go | Simple message",
+			message: "[WARN] | pkg/util/log/zap/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "Error (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.Error("Simple message") },
 			level:   "debug",
-			message: "[ERROR] | zapcore_test.go | Simple message",
+			message: "[ERROR] | pkg/util/log/zap/zapcore_test.go | Simple message",
 		},
 		{
 			desc:    "DPanic (no fields, debug level)",
 			log:     func(l *zap.Logger) { l.DPanic("Development panic") },
 			level:   "debug",
-			message: "[CRITICAL] | zapcore_test.go | Development panic",
+			message: "[CRITICAL] | pkg/util/log/zap/zapcore_test.go | Development panic",
 		},
 		{
 			desc: "Error level",
@@ -71,13 +72,13 @@ func TestZapBasicLogging(t *testing.T) {
 			desc:    "Info (fields)",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Int("int", 1), zap.String("key", "val")) },
 			level:   "debug",
-			message: "[INFO] | zapcore_test.go | int:1,key:val | Fields",
+			message: "[INFO] | pkg/util/log/zap/zapcore_test.go | int:1,key:val | Fields",
 		},
 		{
 			desc:    "Error (fields)",
 			log:     func(l *zap.Logger) { l.Error("Fields", zap.Error(errors.New("an error"))) },
 			level:   "debug",
-			message: "[ERROR] | zapcore_test.go | error:an error | Fields",
+			message: "[ERROR] | pkg/util/log/zap/zapcore_test.go | error:an error | Fields",
 		},
 		{
 			desc: "With (using original)",
@@ -86,7 +87,7 @@ func TestZapBasicLogging(t *testing.T) {
 				l.Info("Fields", zap.Bool("bool", true))
 			},
 			level:   "debug",
-			message: "[INFO] | zapcore_test.go | bool:true | Fields",
+			message: "[INFO] | pkg/util/log/zap/zapcore_test.go | bool:true | Fields",
 		},
 		{
 			desc: "With (using new)",
@@ -95,13 +96,13 @@ func TestZapBasicLogging(t *testing.T) {
 				extra.Info("Fields", zap.Bool("bool", true))
 			},
 			level:   "debug",
-			message: "[INFO] | zapcore_test.go | int:1,bool:true | Fields",
+			message: "[INFO] | pkg/util/log/zap/zapcore_test.go | int:1,bool:true | Fields",
 		},
 		{
 			desc:    "Namespace",
 			log:     func(l *zap.Logger) { l.Info("Fields", zap.Namespace("ns"), zap.Int("int", 1)) },
 			level:   "debug",
-			message: "[INFO] | zapcore_test.go | ns/int:1 | Fields",
+			message: "[INFO] | pkg/util/log/zap/zapcore_test.go | ns/int:1 | Fields",
 		},
 	}
 
@@ -109,7 +110,7 @@ func TestZapBasicLogging(t *testing.T) {
 		t.Run(testInstance.desc, func(t *testing.T) {
 			var b bytes.Buffer
 			w := bufio.NewWriter(&b)
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.DebugLvl, "[%LEVEL] | %File | %ExtraTextContext%Msg")
+			l, err := slog.LoggerFromWriterWithMinLevelAndFormat(w, types.DebugLvl, "[{{LEVEL}}] | {{ShortFilePath}} | {{ExtraTextContext}}{{.msg}}")
 			require.NoError(t, err)
 			log.SetupLogger(l, testInstance.level)
 			require.NotNil(t, logger)

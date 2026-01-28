@@ -21,6 +21,13 @@ COPYRIGHT_REGEX = [
     r'^// This product includes software developed at Datadog \(https://www\.[Dd]atadoghq\.com/\)\.$',
     r'^// Copyright 20[1-3][0-9]-([Pp]resent|20[1-3][0-9]) Datadog, (Inc|Inmetrics)\.$',
 ]
+# secret-generic-connector started off as an external BSD repository and has to maintain BSD license
+BSD_COPYRIGHT_REGEX = [
+    r'^// Unless explicitly stated otherwise all files in this repository are licensed$',
+    r'^// under the BSD 3-Clause License\.$',
+    r'^// This product includes software developed at Datadog \(https://www\.[Dd]atadoghq\.com/\)\.$',
+    r'^// Copyright 20[1-3][0-9]-([Pp]resent|20[1-3][0-9]) Datadog, (Inc|Inmetrics)\.$',
+]
 
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
@@ -77,6 +84,7 @@ HEADER_EXCLUSION_REGEX = [
 
 
 COMPILED_COPYRIGHT_REGEX = [re.compile(regex, re.UNICODE) for regex in COPYRIGHT_REGEX]
+COMPILED_BSD_COPYRIGHT_REGEX = [re.compile(regex, re.UNICODE) for regex in BSD_COPYRIGHT_REGEX]
 COMPILED_PATH_EXCLUSION_REGEX = [re.compile(regex, re.UNICODE) for regex in PATH_EXCLUSION_REGEX]
 COMPILED_HEADER_EXCLUSION_REGEX = [re.compile(regex, re.UNICODE) for regex in HEADER_EXCLUSION_REGEX]
 
@@ -157,10 +165,14 @@ class CopyrightLinter:
             print("[WARN] Mismatch found! File too small for header stanza!")
             return False
 
-        for line_idx, matcher in enumerate(COMPILED_COPYRIGHT_REGEX):
+        is_secret_generic_connector = '/cmd/secret-generic-connector/' in str(filepath)
+        copyright_patterns = COMPILED_BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COMPILED_COPYRIGHT_REGEX
+        copyright_regex_src = BSD_COPYRIGHT_REGEX if is_secret_generic_connector else COPYRIGHT_REGEX
+
+        for line_idx, matcher in enumerate(copyright_patterns):
             if not re.match(matcher, header[line_idx]):
                 print(
-                    f"[WARN] Mismatch found! Expected '{COPYRIGHT_REGEX[line_idx]}' pattern but got '{header[line_idx]}'"
+                    f"[WARN] Mismatch found! Expected '{copyright_regex_src[line_idx]}' pattern but got '{header[line_idx]}'"
                 )
                 return False
 

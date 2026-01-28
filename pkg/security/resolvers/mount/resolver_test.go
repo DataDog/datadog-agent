@@ -10,10 +10,8 @@ package mount
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -200,38 +198,6 @@ func TestMountResolver(t *testing.T) {
 			},
 		},
 		{
-			"remove_root",
-			args{
-				[]event{
-					{
-						umount: &model.UmountEvent{
-							MountID: 27,
-						},
-					},
-				},
-				[]testCase{
-					{
-						27,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 27},
-					},
-					{
-						22,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 22},
-					},
-					{
-						31,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 31},
-					},
-				},
-			},
-		},
-		{
 			"container_creation",
 			args{
 				[]event{
@@ -298,43 +264,6 @@ func TestMountResolver(t *testing.T) {
 						0,
 						"/proc",
 						nil,
-					},
-				},
-			},
-		},
-		{
-			"remove_container",
-			args{
-				[]event{
-					{
-						umount: &model.UmountEvent{
-							MountID: 176,
-						},
-					},
-					{
-						umount: &model.UmountEvent{
-							MountID: 638,
-						},
-					},
-				},
-				[]testCase{
-					{
-						176,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 176},
-					},
-					{
-						638,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 638},
-					},
-					{
-						639,
-						0,
-						"",
-						&ErrMountNotFound{MountID: 639},
 					},
 				},
 			},
@@ -408,7 +337,7 @@ func TestMountResolver(t *testing.T) {
 		pid uint32 = 1
 	)
 
-	cr, _ := cgroup.NewResolver(nil, nil)
+	cr, _ := cgroup.NewResolver(nil, nil, nil)
 
 	// Create mount resolver
 	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
@@ -416,7 +345,7 @@ func TestMountResolver(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, evt := range tt.args.events {
 				if evt.mount != nil {
-					mr.insert(&evt.mount.Mount, false)
+					mr.insert(&evt.mount.Mount)
 				}
 				if evt.umount != nil {
 					mount, _, _, err := mr.ResolveMount(evt.umount.MountID, pid)
@@ -424,9 +353,6 @@ func TestMountResolver(t *testing.T) {
 						t.Fatal(err)
 					}
 					mr.delete(mount)
-
-					// wait end of remption
-					time.Sleep(redemptionTime)
 				}
 			}
 
@@ -476,7 +402,7 @@ func TestMountGetParentPath(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil)
+	cr, _ := cgroup.NewResolver(nil, nil, nil)
 	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
@@ -517,7 +443,7 @@ func TestMountLoop(t *testing.T) {
 	}
 
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil)
+	cr, _ := cgroup.NewResolver(nil, nil, nil)
 	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 	for _, m := range mounts {
 		mr.mounts.Add(m.MountID, m)
@@ -530,7 +456,7 @@ func TestMountLoop(t *testing.T) {
 
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
-	cr, _ := cgroup.NewResolver(nil, nil)
+	cr, _ := cgroup.NewResolver(nil, nil, nil)
 	mr, _ := NewResolver(nil, cr, nil, ResolverOpts{})
 
 	mr.mounts.Add(1, &model.Mount{

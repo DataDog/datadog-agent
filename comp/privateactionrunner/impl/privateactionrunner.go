@@ -29,8 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
-// IsEnabled checks if the private action runner is enabled in the configuration
-func IsEnabled(cfg config.Component) bool {
+// isEnabled checks if the private action runner is enabled in the configuration
+func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool("privateactionrunner.enabled")
 }
 
@@ -48,16 +48,16 @@ type Provides struct {
 }
 
 type privateactionrunnerImpl struct {
-	WorkflowRunner *runners.WorkflowRunner
+	workflowRunner *runners.WorkflowRunner
+	commonRunner   *runners.CommonRunner
+	drain          func()
 }
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
-	if !IsEnabled(reqs.Config) {
-		// Return a no-op component when disabled
-		return Provides{
-			Comp: &privateactionrunnerImpl{},
-		}, nil
+	if !isEnabled(reqs.Config) {
+		reqs.Log.Info("private-action-runner is not enabled. Set privateactionrunner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATEACTIONRUNNER_ENABLED=true.")
+		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
 	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(reqs.Config)
 	if err != nil {
@@ -100,7 +100,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 	runner := &privateactionrunnerImpl{
-		WorkflowRunner: r,
+		workflowRunner: r,
+		commonRunner:   runners.NewCommonRunner(cfg),
 	}
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: runner.Start,
@@ -113,12 +114,21 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 func (p *privateactionrunnerImpl) Start(_ context.Context) error {
 	// Use background context to avoid inheriting any deadlines from component lifecycle which stop the PAR loop
-	p.WorkflowRunner.Start(context.Background())
-	return nil
+	ctx, cancel := context.WithCancel(context.Background())
+	p.drain = cancel
+	err := p.commonRunner.Start(ctx)
+	if err != nil {
+		return err
+	}
+	return p.workflowRunner.Start(ctx)
 }
 
 func (p *privateactionrunnerImpl) Stop(ctx context.Context) error {
-	p.WorkflowRunner.Close(ctx)
+	err := p.workflowRunner.Stop(ctx)
+	if err != nil {
+		return err
+	}
+	p.drain()
 	return nil
 }
 
