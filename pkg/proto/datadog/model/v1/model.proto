@@ -146,9 +146,7 @@ message TaggerStateResponse {
 message ConfigStreamRequest {
   // The name of the client subscribing to the config stream.
   string name = 1;
-  // If true, the remote agent will block its startup until it receives the initial config snapshot.
-  // If false (default), the remote agent can start without config streaming (fallback to local config).
-  bool wait_for_config = 2;
+  // NOTE: session_id is passed via gRPC metadata (key: "session_id"), not in the message body.
 }
 
 message ConfigSetting {

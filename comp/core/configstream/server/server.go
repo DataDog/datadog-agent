@@ -68,11 +68,7 @@ func (s *Server) StreamConfigEvents(req *pb.ConfigStreamRequest, stream pb.Agent
 		return status.Errorf(codes.PermissionDenied, "session_id '%s' not found: remote agent must register with RAR before subscribing to config stream", sessionID)
 	}
 
-	if req.WaitForConfig {
-		log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s, wait_for_config: true - agent will block startup until config received)", sessionID, req.Name)
-	} else {
-		log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s, wait_for_config: false - agent using fallback config)", sessionID, req.Name)
-	}
+	log.Infof("Config stream authorized for remote agent with session_id: %s (name: %s)", sessionID, req.Name)
 
 	// Subscribe to config events
 	eventsCh, unsubscribe := s.comp.Subscribe(req)
