@@ -20,6 +20,7 @@ filegroup(
         "//deps:all_deps",
     ] + select({
         "@platforms//os:linux": [
+            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
         ],
         "//conditions:default": [],
