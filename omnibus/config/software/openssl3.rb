@@ -61,7 +61,7 @@ build do
       # Do not enable SSE2 generally because the hand optimized assembly will
       # overwrite registers that mingw expects to get preserved.
       env["CFLAGS"] = "-I#{install_dir}/embedded/include"
-      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR, 15\\)"
+      env["CPPFLAGS"] = env["CFLAGS"]
       env["CXXFLAGS"] = env["CFLAGS"]
     end
 
@@ -70,7 +70,7 @@ build do
       configure_cmd = "./Configure"
       configure_args << "darwin64-#{arm_target? ? "arm64" : "x86_64"}-cc"
     elsif windows?
-      configure_cmd = "perl.exe ./Configure"
+      configure_cmd = "perl.exe ./Configure -DSIO_UDP_NETRESET=_WSAIOW\(IOC_VENDOR, 15\)"
       configure_args << (windows_arch_i386? ? "mingw" : "mingw64")
     else
       configure_cmd = "./config"
