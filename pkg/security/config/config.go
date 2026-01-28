@@ -189,6 +189,8 @@ type RuntimeSecurityConfig struct {
 	EventServerRate int
 	// EventServerRetention defines an event retention period so that some fields can be resolved
 	EventServerRetention time.Duration
+	// EventRetryQueueThreshold defines the maximum size of the event queue after which we force sending events even if not resolved
+	EventRetryQueueThreshold int
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -374,6 +376,8 @@ type RuntimeSecurityConfig struct {
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
+	// SSHUserSessionsEnabled defines if SSH user session features should be enabled
+	SSHUserSessionsEnabled bool
 
 	// EBPFLessEnabled enables the ebpfless probe
 	EBPFLessEnabled bool
@@ -509,11 +513,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
-		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
-		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
-		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
-		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		SocketPath:               pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:            pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
+		EventServerBurst:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		EventRetryQueueThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_retry_queue_threshold"),
 
 		SelfTestEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.send_report"),
@@ -628,7 +633,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EnforcementDisarmerExecutablePeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.enforcement.disarmer.executable.period"),
 
 		// User Sessions
-		UserSessionsCacheSize: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
+		SSHUserSessionsEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.user_sessions.ssh.enabled"),
+		UserSessionsCacheSize:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.user_sessions.cache_size"),
 
 		// ebpf less
 		EBPFLessEnabled: IsEBPFLessModeEnabled(),
