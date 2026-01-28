@@ -84,6 +84,8 @@ type RuleSet struct {
 	listeners        []RuleSetListener
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
+	parsingContext   *ast.ParsingContext
+
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
 	logger log.Logger
@@ -289,6 +291,10 @@ func (rs *RuleSet) GetVariables() map[string]eval.SECLVariable {
 
 // AddMacros parses the macros AST and adds them to the list of macros of the ruleset
 func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*PolicyMacro) *multierror.Error {
+	if parsingContext == nil {
+		parsingContext = rs.parsingContext
+	}
+
 	var result *multierror.Error
 
 	// Build the list of macros for the ruleset
@@ -304,6 +310,10 @@ func (rs *RuleSet) AddMacros(parsingContext *ast.ParsingContext, macros []*Polic
 // AddMacro parses the macro AST and adds it to the list of macros of the ruleset
 func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMacro) (*eval.Macro, error) {
 	var err error
+
+	if parsingContext == nil {
+		parsingContext = rs.parsingContext
+	}
 
 	if rs.evalOpts.MacroStore.Contains(pMacro.Def.ID) {
 		return nil, nil
@@ -336,6 +346,10 @@ func (rs *RuleSet) AddMacro(parsingContext *ast.ParsingContext, pMacro *PolicyMa
 // AddRules adds rules to the ruleset and generate their partials
 func (rs *RuleSet) AddRules(parsingContext *ast.ParsingContext, pRules []*PolicyRule) *multierror.Error {
 	var result *multierror.Error
+
+	if parsingContext == nil {
+		parsingContext = rs.parsingContext
+	}
 
 	for _, pRule := range pRules {
 		if _, err := rs.AddRule(parsingContext, pRule); err != nil {
@@ -626,6 +640,9 @@ func (rs *RuleSet) WithExcludedRuleFromDiscarders(excludedRuleFromDiscarders map
 func (rs *RuleSet) AddRule(parsingContext *ast.ParsingContext, pRule *PolicyRule) (model.EventCategory, error) {
 	if pRule.Def.Disabled {
 		return model.UnknownCategory, nil
+	}
+	if parsingContext == nil {
+		parsingContext = rs.parsingContext
 	}
 
 	if slices.Contains(rs.opts.ReservedRuleIDs, pRule.Def.ID) {
@@ -1215,8 +1232,6 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		rulesIndex    = make(map[string]*PolicyRule)
 	)
 
-	parsingContext := ast.NewParsingContext(false)
-
 	policies, err := loader.LoadPolicies(opts)
 	if err != nil {
 		errs = multierror.Append(errs, err)
@@ -1266,7 +1281,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		}
 	}
 
-	if err := rs.AddMacros(parsingContext, allMacros); err.ErrorOrNil() != nil {
+	if err := rs.AddMacros(rs.parsingContext, allMacros); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -1274,7 +1289,7 @@ func (rs *RuleSet) LoadPolicies(loader *PolicyLoader, opts PolicyLoaderOpts) ([]
 		errs = multierror.Append(errs, err)
 	}
 
-	if err := rs.AddRules(parsingContext, allRules); err.ErrorOrNil() != nil {
+	if err := rs.AddRules(rs.parsingContext, allRules); err.ErrorOrNil() != nil {
 		errs = multierror.Append(errs, err)
 	}
 
@@ -1341,6 +1356,7 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		fieldEvaluators:  make(map[string]eval.Evaluator),
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
+		parsingContext:   ast.NewParsingContext(opts.RuleCacheEnabled),
 	}
 }
 
