@@ -276,6 +276,11 @@ type sshSessionPatcher = *probe.SSHUserSessionPatcher
 
 // createSSHSessionPatcher creates an SSH session patcher for Linux
 func createSSHSessionPatcher(ev *model.Event, p *probe.Probe) sshSessionPatcher {
+	// Early return if SSH user sessions are disabled
+	if !p.Config.RuntimeSecurity.SSHUserSessionsEnabled {
+		return nil
+	}
+
 	// Check if SSH session exists
 	if ev.ProcessContext.UserSession.SSHSessionID != 0 {
 		// Access the EBPFProbe to get the UserSessionsResolver

@@ -1,0 +1,37 @@
+exporters:
+    otlphttp:
+        headers:
+            dd-api-key: test-key
+processors:
+    batch:
+        timeout: 10s
+    resourcedetection/default:
+        detectors:
+            - system
+        system:
+            resource_attributes:
+                host.arch:
+                    enabled: true
+                host.name:
+                    enabled: false
+                os.type:
+                    enabled: false
+receivers:
+    hostprofiler:
+        symbol_uploader:
+            enabled: false
+service:
+    pipelines:
+        metrics:
+            exporters:
+                - otlphttp
+            processors:
+                - batch
+        profiles:
+            exporters:
+                - otlphttp
+            processors:
+                - batch
+                - resourcedetection/default
+            receivers:
+                - hostprofiler
