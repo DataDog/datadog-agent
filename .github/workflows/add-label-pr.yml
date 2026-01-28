@@ -23,7 +23,7 @@ jobs:
           sparse-checkout: |
             .gitlab-ci.yml
             .github/CODEOWNERS
-            .github/actions/install-dda
+            .github/actions
             .ddqa/config.toml
             tasks
           persist-credentials: false
@@ -31,10 +31,6 @@ jobs:
         uses: ./.github/actions/install-dda
         with:
           features: legacy-tasks
-      - name: Auto assign team label
-        run: dda inv -- -e github.assign-team-label --pr-id="${{ github.event.pull_request.number }}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Add the internal label
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
         with:
@@ -46,10 +42,8 @@ jobs:
               issue_number: ${{ github.event.pull_request.number }},
               labels: ['internal']
             });
-      - name: Save PR number for workflow_run
-        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
-      - name: Upload PR number artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Assign team label
+        uses: ./.github/actions/assign-team-label
         with:
-          name: pr_number
-          path: pr_number.txt
+          pr-number: ${{ github.event.pull_request.number }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}

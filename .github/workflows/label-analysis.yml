@@ -8,6 +8,8 @@ on:
       - main
       - "[0-9]+.[0-9]+.x"
   workflow_run:
+    # We need to run the label analysis as workflow_run because the label addition will not trigger it.
+    # See documentation https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
     workflows: ["Add labels to PR", "Add labels to community PRs"]
     types: [completed]
 
@@ -27,32 +29,13 @@ jobs:
       HEAD_REF: ${{ steps.context.outputs.head_ref }}
       IS_FORK: ${{ steps.context.outputs.is_fork }}
     steps:
-      - name: Get PR number from artifact (workflow_run)
+      - name: Download PR number artifact
         if: github.event_name == 'workflow_run'
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
-          script: |
-            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              run_id: ${{ github.event.workflow_run.id }},
-            });
-            const matchArtifact = artifacts.data.artifacts.find(artifact => artifact.name === 'pr_number');
-            if (!matchArtifact) {
-              core.setFailed('No pr_number artifact found');
-              return;
-            }
-            const download = await github.rest.actions.downloadArtifact({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              artifact_id: matchArtifact.id,
-              archive_format: 'zip',
-            });
-            const fs = require('fs');
-            fs.writeFileSync('${{ github.workspace }}/pr_number.zip', Buffer.from(download.data));
-      - name: Extract PR number artifact
-        if: github.event_name == 'workflow_run'
-        run: unzip pr_number.zip
+          name: pr_number
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
       - name: Get PR context
         id: context
         env:
