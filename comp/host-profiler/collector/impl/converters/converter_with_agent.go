@@ -54,7 +54,7 @@ func extractSite(s string) string {
 
 func newConfigManager(config config.Component) configManager {
 	profilingDDURL := config.GetString("apm_config.profiling_dd_url")
-	ddSite := config.GetString("dd_site")
+	ddSite := config.GetString("site")
 	ddURL := config.GetString("dd_url")
 	apiKey := config.GetString(fieldAPIKey)
 

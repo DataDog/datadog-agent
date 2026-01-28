@@ -31,7 +31,7 @@ type mockConfig struct {
 func newMockConfig() *mockConfig {
 	return &mockConfig{
 		values: map[string]interface{}{
-			"dd_site": "datadoghq.com",
+			"site": "datadoghq.com",
 			"api_key": "test_api_key_123",
 		},
 	}
