@@ -10,11 +10,12 @@ import (
 	_ "embed"
 	"path"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	osVM "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -23,19 +24,18 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
-//go:embed files/conf.yaml
-var exampleCheckConfig string
+//go:embed files/empty_conf.yaml
+var emptyConfig string
 
 type sharedLibrarySuite struct {
 	e2e.BaseSuite[environments.Host]
 	descriptor  osVM.Descriptor
-	libraryName string
 	checksdPath string
 }
 
 func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	agentConfig := `shared_library_check:
-  enabled: "true"
+  enabled: true
   library_folder_path: ` + v.checksdPath
 
 	var suiteOptions []e2e.SuiteOption
@@ -44,7 +44,8 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 			awshost.WithRunOptions(
 				ec2.WithAgentOptions(
 					agentparams.WithAgentConfig(agentConfig),
-					agentparams.WithIntegration("example.d", exampleCheckConfig),
+					agentparams.WithIntegration("example.d", emptyConfig),
+					agentparams.WithIntegration("no-run-symbol.d", emptyConfig),
 				),
 				ec2.WithEC2InstanceOptions(ec2.WithOS(v.descriptor)),
 			),
@@ -54,19 +55,19 @@ func (v *sharedLibrarySuite) getSuiteOptions() []e2e.SuiteOption {
 	return suiteOptions
 }
 
-func (v *sharedLibrarySuite) init() {
+func (v *sharedLibrarySuite) copySharedLibraryToRemote(filename string) {
 	// copy the lib with the right permissions
-	sourceLibPath := path.Join(".", "files", v.libraryName)
-	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	sourceLibPath := path.Join(".", "files", filename)
+	v.Env().RemoteHost.CopyFile(sourceLibPath, v.Env().RemoteHost.JoinPath(v.checksdPath, filename))
 
 	// verify that the library has been successfully copied
-	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, v.libraryName))
+	res, err := v.Env().RemoteHost.FileExists(v.Env().RemoteHost.JoinPath(v.checksdPath, filename))
 	require.NoError(v.T(), err)
 	require.True(v.T(), res)
 }
 
 // Test the shared library code and check it returns the right metrics
-func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
+func (v *sharedLibrarySuite) testExampleCheckExecutionAndMetrics() {
 	v.T().Log("Running Shared Library Check Example test")
 
 	// execute the check and retrieve the metrics
@@ -100,7 +101,8 @@ func (v *sharedLibrarySuite) testCheckExecutionAndVerifyMetrics() {
 	assert.Equal(v.T(), "info", event.AlertType)
 }
 
-func (v *sharedLibrarySuite) testCheckExample() {
-	v.init()
-	v.testCheckExecutionAndVerifyMetrics()
+func (v *sharedLibrarySuite) testNoRunSymbolCheckExecutionError() {
+	// TODO: check that the error message is related to the `Run` symbol
+	_, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"no-run-symbol", "--json"}))
+	assert.Error(v.T(), err)
 }

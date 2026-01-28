@@ -18,12 +18,11 @@ type windowsSharedLibrarySuite struct {
 	sharedLibrarySuite
 }
 
-func TestWindowsCheckImplementationSuite(t *testing.T) {
+func TestWindowsSharedLibraryCheckImplementationSuite(t *testing.T) {
 	t.Parallel()
 	suite := &windowsSharedLibrarySuite{
 		sharedLibrarySuite{
 			descriptor:  e2eos.WindowsServerDefault,
-			libraryName: "libdatadog-agent-example.dll",
 			checksdPath: "C:\\Temp\\Datadog\\checks.d",
 		},
 	}
@@ -31,6 +30,12 @@ func TestWindowsCheckImplementationSuite(t *testing.T) {
 	e2e.Run(t, suite, suite.getSuiteOptions()...)
 }
 
-func (v *windowsSharedLibrarySuite) TestWindowsCheckExample() {
-	v.testCheckExample()
+func (v *windowsSharedLibrarySuite) TestWindowsSharedLibraryCheckExample() {
+	v.copySharedLibraryToRemote("libdatadog-agent-example.dll")
+	v.testExampleCheckExecutionAndMetrics()
+}
+
+func (v *windowsSharedLibrarySuite) TestWindowsSharedLibraryCheckNoRunSymbolError() {
+	v.copySharedLibraryToRemote("libdatadog-agent-no-run-symbol.dll")
+	v.testNoRunSymbolCheckExecutionError()
 }
