@@ -2712,6 +2712,49 @@ api_key:
 #   - name: k8s
 #     interval: 60
 {{ end -}}
+
+##########################
+## Observer Component   ##
+##########################
+
+## @param observer.capture_metrics - boolean - optional - default: false
+## @env DD_OBSERVER_CAPTURE_METRICS - boolean - optional - default: false
+## Enable capturing all metrics flowing through the agent (check metrics, DogStatsD, timestamped).
+## When enabled, metrics are mirrored to the observer component for local analysis and anomaly detection.
+## This adds a small overhead for metric observation but enables powerful local analysis capabilities.
+#
+# observer:
+#   capture_metrics: false
+
+## @param observer.capture_metrics.sample_rate - number - optional - default: 1.0
+## @env DD_OBSERVER_CAPTURE_METRICS_SAMPLE_RATE - number - optional - default: 1.0
+## Global sampling rate for captured metrics (0.0 to 1.0).
+## Set to 1.0 for 100% capture, or lower values to reduce overhead in high-volume environments.
+#
+#   capture_metrics.sample_rate: 1.0
+
+## @param observer.high_frequency_interval - duration - optional - default: 0
+## @env DD_OBSERVER_HIGH_FREQUENCY_INTERVAL - duration - optional - default: 0
+## High-frequency collection interval for ALL checks (applies globally).
+## When set, ALL checks run at this interval for observer analysis while backend flush
+## remains at original check interval (transparent to backend).
+## Set to 0 to disable (default). Example values: 1s, 500ms
+#
+#   high_frequency_interval: 0
+
+## @param observer.parquet_output_path - string - optional - default: ""
+## @env DD_OBSERVER_PARQUET_OUTPUT_PATH - string - optional - default: ""
+## Path to parquet file for long-term storage of observer metrics.
+## Set to empty string to disable (default). Example: "/tmp/observer-metrics.parquet"
+#
+#   parquet_output_path: ""
+
+## @param observer.parquet_flush_interval - duration - optional - default: 60s
+## @env DD_OBSERVER_PARQUET_FLUSH_INTERVAL - duration - optional - default: 60s
+## How often to flush metrics to the parquet file.
+#
+#   parquet_flush_interval: 60s
+
 {{ if .JMX }}
 #######################
 ## JMX Configuration ##
