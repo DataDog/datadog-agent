@@ -165,6 +165,14 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 
 	metric.Add(cloudService.GetStartMetricName(), 1.0, cloudService.GetSource(), *metricAgent)
 
+	// Start CPU metrics collection for Azure Container Apps and Google Cloud Run
+	switch cs := cloudService.(type) {
+	case *cloudservice.ContainerApp:
+		cs.StartEnhancedMetrics(metricAgent) // use aggregation and tags from metric agent
+	case *cloudservice.CloudRun:
+		cs.StartEnhancedMetrics(metricAgent)
+	}
+
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
@@ -223,7 +231,9 @@ func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tag
 }
 
 func setupMetricAgent(tags map[string]string, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) *metrics.ServerlessMetricAgent {
-	pkgconfigsetup.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	// Enable v2 API for series to support origin metadata (metric source attribution)
+	// v1 API (JSON) does not include origin/source information, but v2 API (protobuf) does
+	pkgconfigsetup.Datadog().Set("use_v2_api.series", true, model.SourceAgentRuntime)
 	pkgconfigsetup.Datadog().Set("dogstatsd_socket", "", model.SourceAgentRuntime)
 
 	metricAgent := &metrics.ServerlessMetricAgent{
