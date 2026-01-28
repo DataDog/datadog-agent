@@ -12,8 +12,8 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
-	"github.com/DataDog/zstd"
-	klauspostzstd "github.com/klauspost/compress/zstd"
+	zstdcomp "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
+	zstdnocgo "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd-nocgo"
 )
 
 // DecompressZlib decompresses data compressed with zlib - used for testing round-trips
@@ -50,13 +50,14 @@ func DecompressGzip(src []byte) ([]byte, error) {
 
 // DecompressZstd decompresses data compressed with zstd (cgo version) - used for testing round-trips
 func DecompressZstd(src []byte) ([]byte, error) {
-	return zstd.Decompress(nil, src)
+	strategy := zstdcomp.New(zstdcomp.Requires{})
+	return strategy.Decompress(src)
 }
 
 // DecompressZstdNoCgo decompresses data compressed with zstd (no-cgo version) - used for testing round-trips
 func DecompressZstdNoCgo(src []byte) ([]byte, error) {
-	decoder, _ := klauspostzstd.NewReader(nil)
-	return decoder.DecodeAll(src, nil)
+	strategy := zstdnocgo.New(zstdnocgo.Requires{})
+	return strategy.Decompress(src)
 }
 
 // Decompress decompresses data based on the compressor's content encoding - used for testing round-trips

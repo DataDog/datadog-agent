@@ -22,13 +22,12 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/zstd"
-
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	zstdcomp "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/jsonquery"
 )
@@ -2016,7 +2015,8 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	a2.start()
 	r2.(*runnerMock).run()
 	assert.True(t, len(cl2.(*clientMock).body) > 0)
-	decompressBody, err := zstd.Decompress(nil, cl1.(*clientMock).body)
+	zstdStrategy := zstdcomp.New(zstdcomp.Requires{})
+	decompressBody, err := zstdStrategy.Decompress(cl1.(*clientMock).body)
 	require.NoError(t, err)
 	require.NotZero(t, len(decompressBody))
 
