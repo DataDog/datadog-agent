@@ -1,0 +1,15 @@
+{
+  "best_score": 15.0,
+  "best_params": {
+    "lightesd_min_window": 170,
+    "lightesd_alpha": 0.0026587543983272706,
+    "lightesd_trend_frac": 0.09545624180177516,
+    "lightesd_period_sig": 0.002327067708383781,
+    "lightesd_max_periods": 2,
+    "tc_slack": 16
+  },
+  "scenario": "network-latency",
+  "detector": "lightesd",
+  "correlator": "timecluster",
+  "total_trials": 20
+}

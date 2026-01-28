@@ -76,9 +76,9 @@ tc_result = subprocess.run(
 """
 }
 
-EVALUATION_PROMPT = """You are evaluating whether an automated diagnosis correctly identified the problem type.
+EVALUATION_PROMPT = """You are evaluating whether an automated diagnosis identified the problem.
 
-## Ground Truth Problem Type: {problem_type}
+## Ground Truth
 {ground_truth}
 
 ## Diagnosis Output
@@ -86,28 +86,28 @@ EVALUATION_PROMPT = """You are evaluating whether an automated diagnosis correct
 
 ## Evaluation Task
 
-The key question: **Did the diagnosis identify that this is a {problem_type}?**
+**The only question that matters: Did it identify the problem is {problem_type}?**
 
-**Scoring (0-100):**
-- **90-100**: Clearly and correctly identified it as a {problem_type}
-- **70-89**: Mentioned {problem_type} or closely related terms (e.g., "memory growth", "OOM" for memory leak; "latency", "delay", "slow network" for network latency)
-- **50-69**: Identified memory/network issues but was vague or mixed with other conclusions
-- **30-49**: Mentioned the right general area but drew wrong conclusions
-- **0-29**: Completely missed it, said "unclear", or diagnosed a different problem
+Score 0-100:
+- **90-100**: Clearly identified {problem_type} as the issue
+- **70-89**: Mentioned {problem_type} or very close (e.g., "network delay", "Redis connectivity", "latency" for network latency)
+- **50-69**: Identified the affected component (e.g., Redis) and suspected connectivity/performance issues
+- **30-49**: Identified something is wrong with the right component but wrong diagnosis
+- **10-29**: Said "unclear" or couldn't determine the issue
+- **0-9**: Completely wrong diagnosis (identified wrong component/problem)
 
 **Respond with exactly this format:**
 
-1. **Identified Problem**: [yes/partial/no] - Did it identify {problem_type}?
-2. **Score**: [0-100]
-3. **Evidence**: What terms/phrases in the diagnosis support your assessment? (one line)
-4. **Summary**: One sentence assessment
+1. **Identified Issue**: [yes/partial/no]
+2. **What it said**: [one sentence summary of the diagnosis conclusion]
+3. **Score**: [0-100]
 """
 
 
 def call_openai(prompt, model, api_key):
     """Call OpenAI API using urllib (no dependencies)."""
     url = "https://api.openai.com/v1/chat/completions"
-    
+
     payload = json.dumps({
         "model": model,
         "messages": [{"role": "user", "content": prompt}]

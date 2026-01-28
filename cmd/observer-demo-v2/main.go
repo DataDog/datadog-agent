@@ -32,6 +32,28 @@ func main() {
 	// Processing mode
 	processAll := flag.Bool("all", false, "process all parquet data without time limit")
 
+	// ========== Tuning Parameters ==========
+	// CUSUM tuning
+	cusumBaselineFraction := flag.Float64("cusum-baseline-fraction", 0, "CUSUM: fraction of data for baseline (default: 0.25)")
+	cusumSlackFactor := flag.Float64("cusum-slack-factor", 0, "CUSUM: multiplier for stddev → slack (default: 0.5)")
+	cusumThresholdFactor := flag.Float64("cusum-threshold-factor", 0, "CUSUM: multiplier for stddev → threshold (default: 4.0)")
+
+	// LightESD tuning
+	lightesdMinWindow := flag.Int("lightesd-min-window-size", 0, "LightESD: min points for analysis (default: 50)")
+	lightesdAlpha := flag.Float64("lightesd-alpha", 0, "LightESD: significance level (default: 0.05)")
+	lightesdTrendFrac := flag.Float64("lightesd-trend-window-fraction", 0, "LightESD: fraction for trend smoothing (default: 0.15)")
+	lightesdPeriodSig := flag.Float64("lightesd-periodicity-significance", 0, "LightESD: p-value for seasonality (default: 0.01)")
+	lightesdMaxPeriods := flag.Int("lightesd-max-periods", 0, "LightESD: max seasonal components (default: 2)")
+
+	// GraphSketch correlator tuning
+	gsCoOccurrence := flag.Int64("graphsketch-cooccurrence-window", 0, "GraphSketch: seconds for co-occurrence (default: 10)")
+	gsDecay := flag.Float64("graphsketch-decay-factor", 0, "GraphSketch: time decay factor (default: 0.85)")
+	gsMinCorrelation := flag.Float64("graphsketch-min-correlation", 0, "GraphSketch: min edge strength (default: 2.0)")
+	gsEdgeLimit := flag.Int("graphsketch-edge-limit", 0, "GraphSketch: max edges to track (default: 200)")
+
+	// TimeCluster correlator tuning
+	tcSlackSeconds := flag.Int64("timecluster-slack-seconds", 0, "TimeCluster: seconds of slack for grouping (default: 1)")
+
 	flag.Parse()
 
 	// If no emitters specified, default to CUSUM
@@ -53,5 +75,20 @@ func main() {
 		EnableGraphSketchCorrelator: *graphSketchCorrelator,
 		OutputFile:                  *outputFile,
 		ProcessAllData:              *processAll,
+
+		// Tuning parameters (0 = use default)
+		CUSUMBaselineFraction:           *cusumBaselineFraction,
+		CUSUMSlackFactor:                *cusumSlackFactor,
+		CUSUMThresholdFactor:            *cusumThresholdFactor,
+		LightESDMinWindowSize:           *lightesdMinWindow,
+		LightESDAlpha:                   *lightesdAlpha,
+		LightESDTrendWindowFraction:     *lightesdTrendFrac,
+		LightESDPeriodicitySignificance: *lightesdPeriodSig,
+		LightESDMaxPeriods:              *lightesdMaxPeriods,
+		GraphSketchCoOccurrenceWindow:   *gsCoOccurrence,
+		GraphSketchDecayFactor:          *gsDecay,
+		GraphSketchMinCorrelation:       *gsMinCorrelation,
+		GraphSketchEdgeLimit:            *gsEdgeLimit,
+		TimeClusterSlackSeconds:         *tcSlackSeconds,
 	})
 }

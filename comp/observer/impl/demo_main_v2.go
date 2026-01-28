@@ -50,6 +50,28 @@ type DemoV2Config struct {
 	// ProcessAllData if true, processes all parquet data without time limit
 	// If false, runs for a fixed duration based on TimeScale
 	ProcessAllData bool
+
+	// ========== Tuning Parameters ==========
+	// CUSUM parameters (ts_analysis_cusum.go)
+	CUSUMBaselineFraction float64 // Default: 0.25, fraction of data for baseline
+	CUSUMSlackFactor      float64 // Default: 0.5, multiplier for stddev → slack
+	CUSUMThresholdFactor  float64 // Default: 4.0, multiplier for stddev → threshold
+
+	// LightESD parameters (emitter_lightesd.go)
+	LightESDMinWindowSize           int     // Default: 50
+	LightESDAlpha                   float64 // Default: 0.05, significance level
+	LightESDTrendWindowFraction     float64 // Default: 0.15
+	LightESDPeriodicitySignificance float64 // Default: 0.01
+	LightESDMaxPeriods              int     // Default: 2
+
+	// GraphSketch correlator parameters (anomaly_processor_graphsketch.go)
+	GraphSketchCoOccurrenceWindow  int64   // Default: 10, seconds for co-occurrence
+	GraphSketchDecayFactor         float64 // Default: 0.85
+	GraphSketchMinCorrelation      float64 // Default: 2.0
+	GraphSketchEdgeLimit           int     // Default: 200
+
+	// TimeCluster correlator parameters (anomaly_processor_time_cluster.go)
+	TimeClusterSlackSeconds int64 // Default: 1
 }
 
 // RunDemoV2 runs the demo with the new signal-based architecture.
@@ -77,12 +99,31 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	var tcCorrelator *TimeClusterCorrelator // Keep a specific pointer for visualization
 
 	if config.EnableGraphSketchCorrelator {
-		gsc := NewGraphSketchCorrelator(DefaultGraphSketchCorrelatorConfig())
+		gsConfig := DefaultGraphSketchCorrelatorConfig()
+		// Apply tuning overrides
+		if config.GraphSketchCoOccurrenceWindow > 0 {
+			gsConfig.CoOccurrenceWindow = config.GraphSketchCoOccurrenceWindow
+		}
+		if config.GraphSketchDecayFactor > 0 {
+			gsConfig.DecayFactor = config.GraphSketchDecayFactor
+		}
+		if config.GraphSketchMinCorrelation > 0 {
+			gsConfig.MinCorrelationStrength = config.GraphSketchMinCorrelation
+		}
+		if config.GraphSketchEdgeLimit > 0 {
+			gsConfig.Width = config.GraphSketchEdgeLimit // edge limit uses Width
+		}
+		gsc := NewGraphSketchCorrelator(gsConfig)
 		correlator = gsc
 		correlationState = gsc
 		gsCorrelator = gsc // Store for later debug print and freeze
 	} else if config.UseTimeClusterCorrelator {
-		tc := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
+		tcConfig := DefaultTimeClusterConfig()
+		// Apply tuning overrides
+		if config.TimeClusterSlackSeconds > 0 {
+			tcConfig.SlackSeconds = config.TimeClusterSlackSeconds
+		}
+		tc := NewTimeClusterCorrelator(tcConfig)
 		correlator = tc
 		correlationState = tc
 		tcCorrelator = tc // Store for visualization
@@ -129,11 +170,39 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	var tsAnalysisNames []string
 
 	if config.EnableCUSUM {
-		tsAnalysesForRanges = append(tsAnalysesForRanges, NewCUSUMDetector())
+		cusumDetector := NewCUSUMDetector()
+		// Apply tuning overrides
+		if config.CUSUMBaselineFraction > 0 {
+			cusumDetector.BaselineFraction = config.CUSUMBaselineFraction
+		}
+		if config.CUSUMSlackFactor > 0 {
+			cusumDetector.SlackFactor = config.CUSUMSlackFactor
+		}
+		if config.CUSUMThresholdFactor > 0 {
+			cusumDetector.ThresholdFactor = config.CUSUMThresholdFactor
+		}
+		tsAnalysesForRanges = append(tsAnalysesForRanges, cusumDetector)
 		tsAnalysisNames = append(tsAnalysisNames, "CUSUM")
 	}
 	if config.EnableLightESD {
-		emitters = append(emitters, NewLightESDEmitter(DefaultLightESDConfig()))
+		lightesdConfig := DefaultLightESDConfig()
+		// Apply tuning overrides
+		if config.LightESDMinWindowSize > 0 {
+			lightesdConfig.MinWindowSize = config.LightESDMinWindowSize
+		}
+		if config.LightESDAlpha > 0 {
+			lightesdConfig.Alpha = config.LightESDAlpha
+		}
+		if config.LightESDTrendWindowFraction > 0 {
+			lightesdConfig.TrendWindowFraction = config.LightESDTrendWindowFraction
+		}
+		if config.LightESDPeriodicitySignificance > 0 {
+			lightesdConfig.PeriodicitySignificance = config.LightESDPeriodicitySignificance
+		}
+		if config.LightESDMaxPeriods > 0 {
+			lightesdConfig.MaxPeriods = config.LightESDMaxPeriods
+		}
+		emitters = append(emitters, NewLightESDEmitter(lightesdConfig))
 		emitterNames = append(emitterNames, "LightESD")
 	}
 	if config.EnableGraphSketch {

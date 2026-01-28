@@ -1,0 +1,25 @@
+scenario,detector,correlator,param_source,avg_score,scores,runs
+memory-leak,cusum,timecluster,defaults,98.0,"[98.0, 98.0]",2
+memory-leak,cusum,graphsketch,defaults,93.5,"[95.0, 92.0]",2
+memory-leak,cusum,timecluster,best_params_memory-leak_cusum_timecluster.json,98.0,"[98.0, 98.0]",2
+memory-leak,lightesd,timecluster,defaults,71.5,"[78.0, 65.0]",2
+memory-leak,cusum,timecluster,best_params_network-latency_cusum_timecluster.json,95.0,"[95.0, 95.0]",2
+memory-leak,cusum,graphsketch,best_params_memory-leak_cusum_graphsketch.json,98.0,"[98.0, 98.0]",2
+memory-leak,lightesd,timecluster,best_params_memory-leak_lightesd_timecluster.json,67.5,"[75.0, 60.0]",2
+memory-leak,lightesd,timecluster,best_params_network-latency_lightesd_timecluster.json,71.5,"[65.0, 78.0]",2
+memory-leak,cusum,graphsketch,best_params_network-latency_cusum_graphsketch.json,96.5,"[95.0, 98.0]",2
+memory-leak,lightesd,graphsketch,best_params_network-latency_lightesd_graphsketch.json,79.0,"[80.0, 78.0]",2
+memory-leak,lightesd,graphsketch,defaults,80.0,"[68.0, 92.0]",2
+network-latency,cusum,timecluster,defaults,15.0,"[15.0, 15.0]",2
+memory-leak,lightesd,graphsketch,best_params_memory-leak_lightesd_graphsketch.json,73.5,"[85.0, 62.0]",2
+network-latency,cusum,timecluster,best_params_memory-leak_cusum_timecluster.json,15.0,"[15.0, 15.0]",2
+network-latency,cusum,graphsketch,defaults,5.0,"[5.0, 5.0]",2
+network-latency,lightesd,timecluster,defaults,11.5,"[15.0, 8.0]",2
+network-latency,cusum,timecluster,best_params_network-latency_cusum_timecluster.json,10.0,"[15.0, 5.0]",2
+network-latency,cusum,graphsketch,best_params_memory-leak_cusum_graphsketch.json,10.0,"[15.0, 5.0]",2
+network-latency,lightesd,timecluster,best_params_memory-leak_lightesd_timecluster.json,15.0,"[15.0, 15.0]",2
+network-latency,cusum,graphsketch,best_params_network-latency_cusum_graphsketch.json,8.5,"[15.0, 2.0]",2
+network-latency,lightesd,timecluster,best_params_network-latency_lightesd_timecluster.json,8.5,"[12.0, 5.0]",2
+network-latency,lightesd,graphsketch,defaults,8.5,"[2.0, 15.0]",2
+network-latency,lightesd,graphsketch,best_params_memory-leak_lightesd_graphsketch.json,11.5,"[8.0, 15.0]",2
+network-latency,lightesd,graphsketch,best_params_network-latency_lightesd_graphsketch.json,12.0,"[12.0, 12.0]",2

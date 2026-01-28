@@ -88,6 +88,11 @@ type GraphSketchCorrelator struct {
 
 	// Progress tracking for correlation algorithm
 	uniqueSources map[string]bool // unique anomaly sources seen
+
+	// Caching for expensive edge ranking (fixes backpressure)
+	cachedTopEdges       []EdgeInfo
+	cacheValidUntilData  int64 // data timestamp when cache expires (uses data time, not wall clock)
+	cacheTTLDataSeconds  int64 // how long cache is valid in data-time seconds (default: 5s)
 }
 
 // EdgeInfo stores metadata about a learned edge.
@@ -148,14 +153,15 @@ func NewGraphSketchCorrelator(config GraphSketchCorrelatorConfig) *GraphSketchCo
 	}
 
 	return &GraphSketchCorrelator{
-		config:        config,
-		tensorSketch:  tensorSketch,
-		layerToBinMap: make(map[int]int64),
-		anomalyBuffer: make([]observer.AnomalyOutput, 0, 100),
-		clusters:      nil,
-		edgeFirstSeen: make(map[string]int64),
-		knownEdges:    make(map[string]int),
-		uniqueSources: make(map[string]bool),
+		config:          config,
+		tensorSketch:    tensorSketch,
+		layerToBinMap:   make(map[int]int64),
+		anomalyBuffer:   make([]observer.AnomalyOutput, 0, 100),
+		clusters:        nil,
+		edgeFirstSeen:   make(map[string]int64),
+		knownEdges:      make(map[string]int),
+		uniqueSources:   make(map[string]bool),
+		cacheTTLDataSeconds: 5, // Cache edge rankings for 5 data-time seconds to reduce backpressure
 	}
 }
 
@@ -170,6 +176,9 @@ func (g *GraphSketchCorrelator) Freeze() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.frozen = true
+	// Invalidate cache so final state is reflected immediately
+	g.cacheValidUntilData = 0
+	g.cachedTopEdges = nil
 	fmt.Println("[GraphSketch] Correlator frozen - state is now final")
 }
 
@@ -561,10 +570,34 @@ func (g *GraphSketchCorrelator) splitEdge(edgeKey string) []string {
 }
 
 // GetLearnedEdges returns all currently learned edges with their frequencies.
+// Uses caching to avoid expensive recalculation on every call (fixes backpressure).
+// Cache validity is based on data timestamps, not wall-clock time, so results
+// are consistent regardless of replay speed.
 func (g *GraphSketchCorrelator) GetLearnedEdges() []EdgeInfo {
+	// Fast path: check cache with read lock
 	g.mu.RLock()
-	defer g.mu.RUnlock()
-	return g.getLearnedEdgesLocked()
+	dataTime := g.currentDataTime
+	if dataTime < g.cacheValidUntilData && g.cachedTopEdges != nil {
+		edges := g.cachedTopEdges
+		g.mu.RUnlock()
+		return edges
+	}
+	g.mu.RUnlock()
+
+	// Slow path: recompute with write lock
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Double-check after acquiring write lock (re-read dataTime under lock)
+	dataTime = g.currentDataTime
+	if dataTime < g.cacheValidUntilData && g.cachedTopEdges != nil {
+		return g.cachedTopEdges
+	}
+
+	// Compute and cache
+	g.cachedTopEdges = g.getLearnedEdgesLocked()
+	g.cacheValidUntilData = dataTime + g.cacheTTLDataSeconds
+	return g.cachedTopEdges
 }
 
 // getLearnedEdgesLocked returns edges without acquiring lock (caller must hold lock).
