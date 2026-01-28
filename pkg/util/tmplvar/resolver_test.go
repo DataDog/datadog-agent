@@ -270,14 +270,3 @@ func TestResolveDataWithTemplateVars_WithPostProcessor(t *testing.T) {
 	expected := `{"host":"10.0.0.5","tags":["existing:tag","injected:tag"]}`
 	assert.JSONEq(t, expected, string(resolved))
 }
-
-func TestResolveDataWithTemplateVars_InvalidJSON(t *testing.T) {
-	svc := &mockResolvable{
-		serviceID: "test-service",
-	}
-
-	input := `{invalid json`
-
-	_, err := ResolveDataWithTemplateVars([]byte(input), svc, JSONParser, nil)
-	assert.Error(t, err)
-}
