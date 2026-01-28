@@ -7,6 +7,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@@//bazel/rules:rewrite_rpath/rewrite_rpath.bzl", "rewrite_rpath")
 
 package(
     default_package_metadata = [":license"],
@@ -117,9 +118,14 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
+rewrite_rpath(
+    name = "lzma_rpath",
+    input = ":lzma",
+)
+
 so_symlink(
     name = "lib_files",
-    src = ":lzma",
+    src = ":lzma_rpath",
     libname = "liblzma",
     version = VERSION,
 )
