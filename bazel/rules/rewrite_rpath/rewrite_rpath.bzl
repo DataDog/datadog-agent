@@ -9,7 +9,7 @@ def _replace_prefix_impl(ctx):
     if ctx.attr.os == "unsupported":
         return DefaultInfo(files = depset([input]))
     prefix = ctx.attr.prefix[BuildSettingInfo].value
-    processed_file = ctx.actions.declare_file("patched_" + input.basename)
+    processed_file = ctx.actions.declare_file("patched/" + input.basename)
     if ctx.attr.os == "linux":
         ctx.actions.run(
             inputs = [input],
