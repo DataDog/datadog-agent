@@ -69,8 +69,14 @@ func mockHttpDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper
 		Transport: transport,
 		Timeout:   5 * time.Second,
 	}
+	cache := registryCache{
+		"registry":      make(repositoryCache),
+		"registry1":     make(repositoryCache),
+		"registry2":     make(repositoryCache),
+		"test-registry": make(repositoryCache),
+	}
 	c := httpDigestCache{
-		cache: make(repositoryCache),
+		cache: cache,
 		ttl:   ttl,
 		mu:    sync.RWMutex{},
 		fetcher: &httpDigestFetcher{
@@ -95,13 +101,15 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 			name: "cache_hit_unexpired",
 			ttl:  100 * time.Minute,
 			setupCache: func(cc *httpDigestCache) {
-				cc.cache["dd-lib-python-init"] = tagCache{
-					"v1": {
-						resolvedImage: &ResolvedImage{
-							FullImageRef:     "test-registry/dd-lib-python-init@sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
-							CanonicalVersion: "v1",
+				cc.cache["test-registry"] = repositoryCache{
+					"dd-lib-python-init": tagCache{
+						"v1": {
+							resolvedImage: &ResolvedImage{
+								FullImageRef:     "test-registry/dd-lib-python-init@sha256:aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000aaaa0000",
+								CanonicalVersion: "v1",
+							},
+							whenCached: time.Now(),
 						},
-						whenCached: time.Now(),
 					},
 				}
 			},
@@ -115,13 +123,15 @@ func TestHttpDigestCache_Get_Success(t *testing.T) {
 			name: "cache_hit_expired",
 			ttl:  0 * time.Minute,
 			setupCache: func(cc *httpDigestCache) {
-				cc.cache["dd-lib-python-init"] = tagCache{
-					"v1": {
-						resolvedImage: &ResolvedImage{
-							FullImageRef:     "test-registry/dd-lib-python-init@sha256:0000000000000000000000000000000000000000000000000000000000000000",
-							CanonicalVersion: "v1",
+				cc.cache["test-registry"] = repositoryCache{
+					"dd-lib-python-init": tagCache{
+						"v1": {
+							resolvedImage: &ResolvedImage{
+								FullImageRef:     "test-registry/dd-lib-python-init@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+								CanonicalVersion: "v1",
+							},
+							whenCached: time.Now().Add(-1 * time.Minute),
 						},
-						whenCached: time.Now().Add(-1 * time.Minute),
 					},
 				}
 			},
