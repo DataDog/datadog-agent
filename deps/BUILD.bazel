@@ -31,9 +31,6 @@ filegroup(
             "@pcre2",
             "@zstd",
         ],
-        "//:macos_arm64": [
-            "@openssl3//:libcrypto",
-        ],
         "@platforms//os:windows": [
             "@cpython//:python_win",
         ],
