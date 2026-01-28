@@ -60,6 +60,17 @@ build do
 
   env = with_standard_compiler_flags(env)
 
+  # CPU baseline optimization
+  if amd64_target?
+    env['GOAMD64'] = 'v3'
+    env['CFLAGS'] = "#{env['CFLAGS']} -march=x86-64-v3"
+    env['CXXFLAGS'] = "#{env['CXXFLAGS']} -march=x86-64-v3"
+  elsif arm_target?
+    env['GOARM64'] = 'v8.1,lse'
+    env['CFLAGS'] = "#{env['CFLAGS']} -march=armv8.1-a"
+    env['CXXFLAGS'] = "#{env['CXXFLAGS']} -march=armv8.1-a"
+  end
+
   # Use msgo toolchain when fips mode is enabled
   if fips_mode?
     if windows_target?

@@ -23,6 +23,15 @@ if(ARCH_I386)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
 endif()
 
+# CPU baseline optimization - x86-64-v3 / ARMv8.1-A
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=x86-64-v3")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=armv8.1-a")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8.1-a")
+endif()
+
 ## Config options
 option(BUILD_DEMO "Build the demo app" ON)
 
