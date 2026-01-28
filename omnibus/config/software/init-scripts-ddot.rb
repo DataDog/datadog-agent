@@ -10,7 +10,7 @@ build do
   packager_input = ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   if linux_target?
     if debian_target?
-      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/ddot/debian:hacky_packager_install --verbose --destdir=#{packager_input}"
+      command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/ddot/debian:hacky_packager_install --verbose --destdir=#{packager_input}", :live_stream => Omnibus.logger.live_stream(:info)
 
     elsif redhat_target? || suse_target?
       command_on_repo_root "bazelisk run --//:install_dir=#{install_dir} -- //packages/ddot/redhat:install --verbose --destdir=#{destdir}"
