@@ -13,8 +13,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -495,5 +497,68 @@ func (r *Resolver) Close() {
 		r.sshLogReader.mu.Lock()
 		defer r.sshLogReader.mu.Unlock()
 		_ = r.sshLogReader.close(true)
+	}
+}
+
+// getEnvVar extracts a specific environment variable from a list of environment variables.
+// Each environment variable is in the format "KEY=VALUE".
+func getEnvVar(envp []string, key string) string {
+	prefix := key + "="
+	for _, env := range envp {
+		if after, ok := strings.CutPrefix(env, prefix); ok {
+			return after
+		}
+	}
+	return ""
+}
+func getIPfromEnv(ipStr string) net.IPNet {
+	ip := net.ParseIP(ipStr)
+	if ip != nil {
+		if ip.To4() != nil {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(32, 32),
+			}
+		} else if ip.To16() != nil {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(128, 128),
+			}
+		}
+	}
+	return net.IPNet{}
+}
+
+// HandleSSHUserSessionFromProcFS handles the ssh user session from snapshot using resolvers
+func (r *Resolver) HandleSSHUserSessionFromPCE(pce *model.ProcessCacheEntry) {
+	if r.sshEnabled {
+		HandleSSHUserSession(&pce.ProcessContext, pce.EnvsEntry.Values)
+	}
+}
+
+// HandleSSHUserSession handles the ssh user session
+// This function is triggered only if ssh is enabled
+func HandleSSHUserSession(pc *model.ProcessContext, envp []string) {
+	// First, we check if this event is link to an existing ssh session from his parent
+	parent := pc.Parent
+
+	// If the parent is a sshd process, we consider it's a new ssh session
+	// A sshd process will always be sshd, except on Ubuntu 25 where they introduced sshd-session
+	if parent != nil && strings.HasPrefix(parent.Comm, "sshd") && !strings.HasPrefix(pc.Comm, "sshd") {
+		sshSessionID := rand.Uint64()
+		pc.UserSession.SSHSessionID = sshSessionID
+		// Try to extract the SSH client IP and port
+		sshClientVar := getEnvVar(envp, "SSH_CLIENT")
+		parts := strings.Fields(sshClientVar)
+		if len(parts) >= 2 {
+			pc.UserSession.SSHClientIP = getIPfromEnv(parts[0])
+			if port, err := strconv.Atoi(parts[1]); err != nil {
+				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
+			} else {
+				pc.UserSession.SSHClientPort = port
+			}
+		} else {
+			seclog.Tracef("SSH_CLIENT is not in the expected format: %q", sshClientVar)
+		}
 	}
 }
