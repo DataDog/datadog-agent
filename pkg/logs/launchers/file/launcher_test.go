@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/testutils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -35,7 +36,6 @@ import (
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
-	"github.com/DataDog/datadog-agent/pkg/logs/util/testutils"
 )
 
 type RegularTestSetupStrategy struct{}
