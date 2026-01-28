@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"testing"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +19,7 @@ import (
 type mockResolvable struct {
 	serviceID   string
 	hosts       map[string]string
-	ports       []ContainerPort
+	ports       []workloadmeta.ContainerPort
 	pid         int
 	hostname    string
 	extraConfig map[string]string
@@ -35,7 +36,7 @@ func (m *mockResolvable) GetHosts() (map[string]string, error) {
 	return m.hosts, nil
 }
 
-func (m *mockResolvable) GetPorts() ([]ContainerPort, error) {
+func (m *mockResolvable) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	if m.ports == nil {
 		return nil, errors.New("no ports available")
 	}
@@ -142,7 +143,7 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 		{
 			name: "port resolution",
 			svc: &mockResolvable{
-				ports: []ContainerPort{
+				ports: []workloadmeta.ContainerPort{
 					{Port: 6379, Name: "redis"},
 					{Port: 9400, Name: "metrics"},
 					{Port: 8080, Name: "http"},
@@ -173,7 +174,7 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			name: "resolved types are non-string",
 			svc: &mockResolvable{
 				serviceID: "test-service",
-				ports:     []ContainerPort{{Port: 8080, Name: "http"}},
+				ports:     []workloadmeta.ContainerPort{{Port: 8080, Name: "http"}},
 				pid:       1234,
 			},
 			input:    `{"port": "%%port%%", "pid": "%%pid%%", "port_string": "port is %%port%%"}`,
@@ -198,7 +199,7 @@ func TestResolveDataWithTemplateVars_YAML(t *testing.T) {
 	svc := &mockResolvable{
 		serviceID: "test-service",
 		hosts:     map[string]string{"pod": "10.0.0.5"},
-		ports:     []ContainerPort{{Port: 8080, Name: "http"}},
+		ports:     []workloadmeta.ContainerPort{{Port: 8080, Name: "http"}},
 		hostname:  "my-pod",
 	}
 

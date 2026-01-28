@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -88,16 +89,16 @@ type resolvableService struct {
 	listeners.Service
 }
 
-func (s *resolvableService) GetPorts() ([]tmplvar.ContainerPort, error) {
+func (s *resolvableService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	containerPorts, err := s.Service.GetPorts()
 	if err != nil {
 		return nil, err
 	}
 
-	// transform listeners.ContainerPort to tmplvar.ContainerPort
-	tmplContainerPort := make([]tmplvar.ContainerPort, 0, len(containerPorts))
+	// transform listeners.ContainerPort to workloadmeta.ContainerPort
+	tmplContainerPort := make([]workloadmeta.ContainerPort, 0, len(containerPorts))
 	for _, contPort := range containerPorts {
-		tmplContainerPort = append(tmplContainerPort, tmplvar.ContainerPort{
+		tmplContainerPort = append(tmplContainerPort, workloadmeta.ContainerPort{
 			Name: contPort.Name,
 			Port: contPort.Port,
 		})
@@ -222,6 +223,3 @@ func tagsAdder(tags []string) func(interface{}) error {
 		return nil
 	}
 }
-
-// All template variable getter functions (GetHost, GetPort, GetPid, GetHostname,
-// GetEnvvar, GetAdditionalTplVariables) have been moved to pkg/util/tmplvar package

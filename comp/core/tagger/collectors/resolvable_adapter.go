@@ -66,14 +66,14 @@ func (w *workloadmetaResolvable) GetHosts() (map[string]string, error) {
 	return hosts, nil
 }
 
-func (w *workloadmetaResolvable) GetPorts() ([]tmplvar.ContainerPort, error) {
+func (w *workloadmetaResolvable) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	if w.container == nil {
 		return nil, errors.New("no container available for port resolution")
 	}
 
-	ports := make([]tmplvar.ContainerPort, 0, len(w.container.Ports))
+	ports := make([]workloadmeta.ContainerPort, 0, len(w.container.Ports))
 	for _, port := range w.container.Ports {
-		ports = append(ports, tmplvar.ContainerPort{
+		ports = append(ports, workloadmeta.ContainerPort{
 			Port: port.Port,
 			Name: port.Name,
 		})

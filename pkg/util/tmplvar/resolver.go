@@ -18,17 +18,13 @@ import (
 	"strconv"
 	"strings"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"gopkg.in/yaml.v2"
 )
-
-type ContainerPort struct {
-	Port int
-	Name string
-}
 
 type Resolvable interface {
 	// GetServiceID returns a unique identifier for this service (for error messages)
@@ -38,7 +34,7 @@ type Resolvable interface {
 	GetHosts() (map[string]string, error)
 
 	// GetPorts returns the list of exposed ports
-	GetPorts() ([]ContainerPort, error)
+	GetPorts() ([]workloadmeta.ContainerPort, error)
 
 	// GetPid returns the process ID
 	GetPid() (int, error)
@@ -60,8 +56,8 @@ func (n *NoServiceError) Error() string {
 	return n.message
 }
 
-// newNoServiceError returns a new NoServiceError
-func newNoServiceError(message string) *NoServiceError {
+// noResolverError returns a new NoServiceError
+func noResolverError(message string) *NoServiceError {
 	return &NoServiceError{
 		message: message,
 	}
@@ -346,7 +342,7 @@ func resolveStringWithAdHocTemplateVars(in string, res Resolvable, templateVaria
 // GetHost resolves the %%host%% template variable
 func GetHost(tplVar string, res Resolvable) (string, error) {
 	if res == nil {
-		return "", newNoServiceError("no service. %%%%host%%%% is not allowed")
+		return "", noResolverError("no resolver. %%%%host%%%% is not allowed")
 	}
 
 	hosts, err := res.GetHosts()
@@ -395,7 +391,7 @@ func getFallbackHost(hosts map[string]string) (string, error) {
 // GetPort resolves the %%port%% template variable
 func GetPort(tplVar string, res Resolvable) (string, error) {
 	if res == nil {
-		return "", errors.New("no service. %%%%port%%%% is not allowed")
+		return "", noResolverError("no resolver. %%%%host%%%% is not allowed")
 	}
 
 	ports, err := res.GetPorts()

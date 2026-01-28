@@ -1058,12 +1058,18 @@ func parseJSONValue(value string, tags *taglist.TagList) error {
 		switch v := value.(type) {
 		case string:
 			tags.AddAuto(key, v)
+		case float64:
+			tags.AddAuto(key, fmt.Sprint(v))
+		case int64:
+			tags.AddAuto(key, strconv.FormatInt(v, 10))
+		case bool:
+			tags.AddAuto(key, strconv.FormatBool(v))
 		case []interface{}:
 			for _, tag := range v {
 				tags.AddAuto(key, fmt.Sprint(tag))
 			}
 		default:
-			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
+			log.Debugf("Tag value %s is not valid, must be a string, int, float, bool or an array, skipping", v)
 		}
 	}
 	return nil
@@ -1087,31 +1093,7 @@ func parseJSONValueWithResolution(value string, tags *taglist.TagList, resolvabl
 		return parseJSONValue(value, tags)
 	}
 
-	result := map[string]interface{}{}
-	if err := json.Unmarshal(resolved, &result); err != nil {
-		return fmt.Errorf("failed to unmarshal resolved JSON: %s", err)
-	}
-
-	for key, val := range result {
-		switch v := val.(type) {
-		case string:
-			tags.AddAuto(key, v)
-		case float64:
-			tags.AddAuto(key, fmt.Sprint(v))
-		case int64:
-			tags.AddAuto(key, strconv.FormatInt(v, 10))
-		case bool:
-			tags.AddAuto(key, strconv.FormatBool(v))
-		case []interface{}:
-			for _, tag := range v {
-				tags.AddAuto(key, fmt.Sprint(tag))
-			}
-		default:
-			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
-		}
-	}
-
-	return nil
+	return parseJSONValue(string(resolved), tags)
 }
 
 func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {

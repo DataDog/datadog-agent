@@ -2991,14 +2991,6 @@ func TestParseJSONValue(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:  "invalid value",
-			value: `{"key1": "val1", "key2": 0}`,
-			want: []string{
-				"key1:val1",
-			},
-			wantErr: false,
-		},
-		{
 			name:  "strings and arrays",
 			value: `{"key1": "val1", "key2": ["val2"]}`,
 			want: []string{
