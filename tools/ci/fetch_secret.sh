@@ -23,9 +23,8 @@ while [[ $retry_count -lt $max_retries ]]; do
         fi
     else
         # Using SSM; the [<format>] parameter is ignored
-        if [[ "$(uname -s)" == "Darwin" ]] && [ -n "$AWS_SHARED_CREDENTIALS_FILE" ]; then
-            ci-identities-gitlab-job-client assume-role
-            result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text || [ -f "$AWS_SHARED_CREDENTIALS_FILE" ] && rm $AWS_SHARED_CREDENTIALS_FILE && aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
+        if [[ "$(uname -s)" == "Darwin" ]] && retry_count -eq 0; then
+            result="$(ci-identities-gitlab-job-client assume-role -- aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
         else
             result="$(aws ssm get-parameter --region us-east-1 --name "$parameter_name" --with-decryption --query "Parameter.Value" --output text 2> errorFile)"
         fi
