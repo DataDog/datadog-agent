@@ -1,5 +1,4 @@
-# Tests the basic happy path for a single process:
-# process added -> IR generated -> compiled -> loaded -> attached
+# Tests circuit breaker behavior with runtime stat updates.
 - !processes-updated
   updated:
     - process_id: { pid: 1001 }
@@ -11,8 +10,37 @@
             where: { methodName: main },
             captureSnapshot: true,
           }
-- !loaded { program_id: 1 }
+- !loaded
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
 - !attached { program_id: 1, process_id: 1001 }
+- !heartbeat-check
+- !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 200
+      throttled_cnt: 0
+      cpu: 1000ns
+    - hit_cnt: 1000
+      throttled_cnt: 0
+      cpu: 2000ns
+- !heartbeat-check
+# Second heartbeat check should trigger the circuit breaker.
+- !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 2000
+      throttled_cnt: 0
+      cpu: 1000s
+    - hit_cnt: 5000
+      throttled_cnt: 0
+      cpu: 500s
 - !heartbeat-check
 ---
 event: !processes-updated
@@ -35,7 +63,15 @@ state:
     numPrograms: 0 -> 1
     numWaitingForProgram: 0 -> 1
 ---
-event: !loaded {program_id: 1}
+event: !loaded
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
 effects:
   - !attach-to-process {executable: /usr/bin/test@0.0m0.0, process_id: 1001, program_id: 1}
 state:
@@ -64,6 +100,32 @@ state:
     numAttaching: 1 -> 0
 ---
 event: !heartbeat-check
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 200
+      throttled_cnt: 0
+      cpu: 1000ns
+    - hit_cnt: 1000
+      throttled_cnt: 0
+      cpu: 2000ns
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1)
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !heartbeat-check
 effects:
   - !detach-from-process {failure: "yes", process_id: 1001, program_id: 1}
 state:
@@ -76,3 +138,29 @@ state:
   stats:
     numAttached: 1 -> 0
     numFailed: 0 -> 1
+---
+event: !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 2000
+      throttled_cnt: 0
+      cpu: 1000s
+    - hit_cnt: 5000
+      throttled_cnt: 0
+      cpu: 500s
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Failed (prog 1)
+  programs:
+    1: Draining (proc 1001)
+---
+event: !heartbeat-check
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Failed (prog 1)
+  programs:
+    1: Draining (proc 1001)
