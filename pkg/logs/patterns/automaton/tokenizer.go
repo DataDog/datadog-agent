@@ -9,6 +9,7 @@ package automaton
 
 import (
 	"fmt"
+	"sync"
 	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -26,14 +27,27 @@ const (
 	StateSpecial                          // StateSpecial is operators, punctuation, symbols
 )
 
+// NOTE + TODO: These numbers could be ran with some more testing on more log samples to optimize these values. Potentially add telemetry in staging to track usage and tune these values.
 const (
-	// These numbers could be ran with some more testing on more log samples to optimize these values.
-	// tokenizerBufferCapacity is the initial capacity for the rune buffer.
+	// tokenizerBufferCapacity is the initial capacity for the byte buffer.
 	tokenizerBufferCapacity = 128
 
 	// tokenizerTokensCapacity is the initial capacity for the tokens slice.
 	tokenizerTokensCapacity = 24
+
+	// Limits prevent retaining extremely large buffers in the pool, resetting to initial capacity.
+	tokenizerMaxBufferCapacity = 4096
+	tokenizerMaxTokensCapacity = 512
 )
+
+var tokenizerPool = sync.Pool{
+	New: func() any {
+		return &Tokenizer{
+			buffer: make([]byte, 0, tokenizerBufferCapacity),
+			tokens: make([]token.Token, 0, tokenizerTokensCapacity),
+		}
+	},
+}
 
 // Tokenizer implements a finite state automaton for log tokenization
 type Tokenizer struct {
@@ -41,20 +55,15 @@ type Tokenizer struct {
 	pos    int
 	length int
 	state  TokenizerState
-	buffer []rune
+	buffer []byte
 	tokens []token.Token
 }
 
 // NewTokenizer creates a new tokenizer for the given input
 func NewTokenizer(input string) *Tokenizer {
-	return &Tokenizer{
-		input:  input,
-		pos:    0,
-		length: len(input),
-		state:  StateStart,
-		buffer: make([]rune, 0, tokenizerBufferCapacity),
-		tokens: make([]token.Token, 0, tokenizerTokensCapacity),
-	}
+	tokenizer := tokenizerPool.Get().(*Tokenizer)
+	tokenizer.reset(input)
+	return tokenizer
 }
 
 // Tokenize processes the input string and returns a TokenList
@@ -68,7 +77,9 @@ func (t *Tokenizer) Tokenize() *token.TokenList {
 	t.handleLastToken()
 	t.classifyTokens()
 
-	return token.NewTokenListWithTokens(t.tokens)
+	tokens := t.tokens
+	t.tokens = make([]token.Token, 0, tokenizerTokensCapacity)
+	return token.NewTokenListWithTokens(tokens)
 }
 
 // classifyTokens upgrades generic tokens to specific types.
@@ -246,7 +257,7 @@ func (t *Tokenizer) setState(newState TokenizerState) {
 }
 
 func (t *Tokenizer) addToBuffer(char rune) {
-	t.buffer = append(t.buffer, char)
+	t.buffer = append(t.buffer, byte(char))
 }
 
 func (t *Tokenizer) clearBuffer() {
@@ -255,6 +266,46 @@ func (t *Tokenizer) clearBuffer() {
 
 func (t *Tokenizer) bufferToString() string {
 	return string(t.buffer)
+}
+
+// reset resets the tokenizer to the initial state.
+func (t *Tokenizer) reset(input string) {
+	t.input = input
+	t.pos = 0
+	t.length = len(input)
+	t.state = StateStart
+	t.resetBuffer()
+	t.resetTokens()
+}
+
+// resetBuffer resets the buffer slice to the initial capacity.
+func (t *Tokenizer) resetBuffer() {
+	if cap(t.buffer) > tokenizerMaxBufferCapacity {
+		t.buffer = make([]byte, 0, tokenizerBufferCapacity)
+	} else {
+		t.buffer = t.buffer[:0]
+	}
+}
+
+// resetTokens resets the tokens slice to the initial capacity.
+func (t *Tokenizer) resetTokens() {
+	if cap(t.tokens) > tokenizerMaxTokensCapacity {
+		t.tokens = make([]token.Token, 0, tokenizerTokensCapacity)
+	} else {
+		t.tokens = t.tokens[:0]
+	}
+}
+
+// Release returns the tokenizer to the pool. The returned TokenList must not
+// reference t.tokens after this is called.
+func (t *Tokenizer) Release() {
+	t.input = ""
+	t.pos = 0
+	t.length = 0
+	t.state = StateStart
+	t.resetBuffer()
+	t.resetTokens()
+	tokenizerPool.Put(t)
 }
 
 func (t *Tokenizer) handleLastToken() {

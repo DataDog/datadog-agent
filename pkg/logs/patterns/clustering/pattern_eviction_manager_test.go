@@ -342,7 +342,7 @@ func TestEvictionManager_Evict_Integration(t *testing.T) {
 	require.True(t, countLimit, "count limit should be exceeded")
 
 	// Perform eviction
-	em.Evict(cm, initialCount, cm.EstimatedBytes(), countLimit, bytesLimit)
+	_ = em.Evict(cm, initialCount, cm.EstimatedBytes(), countLimit, bytesLimit)
 
 	// Verify patterns were evicted
 	finalCount := cm.PatternCount()
@@ -397,7 +397,7 @@ func TestEvictionManager_Evict_MemoryBased(t *testing.T) {
 	}
 
 	// Perform eviction
-	em.Evict(cm, cm.PatternCount(), initialBytes, false, bytesLimit)
+	_ = em.Evict(cm, cm.PatternCount(), initialBytes, false, bytesLimit)
 
 	// Verify memory was freed
 	finalBytes := cm.EstimatedBytes()
