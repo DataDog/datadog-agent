@@ -525,6 +525,48 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// startStartupDumpCollector sets up procdump and starts a background goroutine that
+// monitors the agent service for the "StartPending" state. When detected, it waits
+// 10 seconds then captures a memory dump of the service process.
+//
+// The returned collector should be cleaned up with collectStartupDumps().
+func (s *BaseSuite) startStartupDumpCollector(ctx context.Context) *windowscommon.StartupDumpCollector {
+	host := s.Env().RemoteHost
+
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowscommon.SetupProcdump(host)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Create and start collector - dumps will be written to the remote host's dump folder
+	collector := windowscommon.NewStartupDumpCollector(host, "datadogagent", s.dumpFolder)
+	collector.Start(ctx)
+
+	return collector
+}
+
+// collectStartupDumps waits for the collector to finish and downloads any captured dumps.
+// This should be called in a defer after startStartupDumpCollector().
+func (s *BaseSuite) collectStartupDumps(collector *windowscommon.StartupDumpCollector) {
+	collector.Wait()
+
+	dumpPaths, err := collector.Results()
+	if err != nil {
+		s.T().Logf("Warning: startup dump collection error: %v", err)
+	}
+
+	for _, remotePath := range dumpPaths {
+		s.T().Logf("Collected startup dump: %s", remotePath)
+		// Download dump from remote host to local output directory
+		localPath := filepath.Join(s.SessionOutputDir(), filepath.Base(remotePath))
+		if err := s.Env().RemoteHost.GetFile(remotePath, localPath); err != nil {
+			s.T().Logf("Warning: failed to download dump %s: %v", remotePath, err)
+		} else {
+			s.T().Logf("Downloaded startup dump to: %s", localPath)
+		}
+	}
+}
+
 // InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
 // This wraps the MSI installation with performance tracing and service status checking.
 //
@@ -546,6 +588,48 @@ func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 	err := s.Installer().Install(opts...)
 	s.Require().NoError(err, "MSI installation failed")
 
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
+
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
+// InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
+// - xperf tracing for system-wide performance analysis
+// - procdump collection to capture agent memory dump during startup
+//
+// The procdump collector monitors for the "StartPending" service state, waits 10 seconds,
+// then captures a full memory dump of the agent process. This helps diagnose slow startup issues.
+//
+// Usage:
+//
+//	s.InstallWithDiagnostics(
+//	    installerwindows.WithMSILogFile("install.log"),
+//	)
+//
+// Diagnostics are collected automatically - xperf on test failure, procdump always when StartPending is detected.
+func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
+	s.T().Helper()
+
+	// Start xperf tracing
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	// Start startup dump collector in background
+	s.T().Log("Starting startup dump collector")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	collector := s.startStartupDumpCollector(ctx)
+	defer s.collectStartupDumps(collector)
+
+	// Proceed with installation
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	// Wait for service to be running
 	s.T().Log("Checking agent service status after MSI installation")
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
