@@ -7,6 +7,7 @@ package config
 
 import (
 	"testing"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
@@ -39,4 +40,18 @@ func TestConfigSetSubcommandPresent(t *testing.T) {
 func TestConfigSystemProbeCommand(t *testing.T) {
 	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
 	require.NotNil(t, getCmdByUse(root, "system-probe"))
+}
+
+func TestConfigOneShotInvoked(t *testing.T) {
+	root := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	fxutil.TestOneShotSubcommand(
+		t,
+		[]*cobra.Command{root},
+		[]string{"config"},
+		showRuntimeConfiguration,
+		func(p *cliParams) {
+			// Should be invoked with a cliParams instance; no args for top-level command
+			require.Empty(t, p.args)
+		},
+	)
 }
