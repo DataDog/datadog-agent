@@ -3840,6 +3840,15 @@ api_key:
 #
 # kubernetes_collect_metadata_tags: true
 
+## @param auto_team_tag_collection - boolean - optional - default: true
+## @env DD_AUTO_TEAM_TAG_COLLECTION - boolean - optional - default: true
+## When enabled, the orchestrator check automatically collects the 'team' tag from Kubernetes resources.
+## If a resource has a label or annotation with key 'team', and no 'team' tag has been explicitly configured
+## via kubernetes_resources_labels_as_tags or kubernetes_resources_annotations_as_tags, the agent will
+## automatically add a 'team' tag with the value from the label (preferred) or annotation.
+#
+# auto_team_tag_collection: true
+
 ## @param kubernetes_metadata_tag_update_freq - integer - optional - default: 60
 ## @env DD_KUBERNETES_METADATA_TAG_UPDATE_FREQ - integer - optional - default: 60
 ## Set how often in secons the Agent refreshes the internal mapping of services to ContainerIDs.
