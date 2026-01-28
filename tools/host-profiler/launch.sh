@@ -3,6 +3,11 @@ set -e
 
 if [ "${DO_NOT_START_PROFILER}" = "1" ]; then
     echo "Skipping profiler start"
+    echo "#!/usr/bin/env sh
+    unset DO_NOT_START_PROFILER
+    ./tools/host-profiler/entrypoint.sh ./tools/host-profiler/launch.sh
+    " > start_profiler.sh
+    chmod +x start_profiler.sh
     sleep infinity
 else
     # Build full-host-profiler
