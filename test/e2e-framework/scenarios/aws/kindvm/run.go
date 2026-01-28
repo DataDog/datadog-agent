@@ -76,7 +76,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 			return err
 		}
 
-		if params.agentOptions != nil {
+		if len(params.agentOptions) > 0 {
 			newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithFakeintake(fakeIntake)}
 			params.agentOptions = append(newOpts, params.agentOptions...)
 		}
@@ -156,7 +156,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 	}
 
 	var dependsOnDDAgent pulumi.ResourceOption
-	if params.agentOptions != nil && !params.deployOperator {
+	if len(params.agentOptions) > 0 && !params.deployOperator {
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(agentHelmValues), kubernetesagentparams.WithClusterName(kindCluster.ClusterName), kubernetesagentparams.WithTags([]string{"stackid:" + ctx.Stack()})}
 		params.agentOptions = append(newOpts, params.agentOptions...)
 		agent, err := helm.NewKubernetesAgent(&awsEnv, "kind", kubeProvider, params.agentOptions...)
@@ -225,7 +225,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 
 		// These workloads can be deployed only if the agent is installed, they rely on CRDs installed by Agent helm chart
-		if params.agentOptions != nil {
+		if len(params.agentOptions) > 0 {
 			if _, err := nginx.K8sAppDefinition(&awsEnv, kubeProvider, "workload-nginx", 80, "", true, dependsOnDDAgent /* for DDM */, dependsOnVPA); err != nil {
 				return err
 			}
@@ -262,7 +262,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 		}
 	}
 
-	if params.deployOperator && params.operatorDDAOptions != nil {
+	if params.deployOperator && len(params.operatorDDAOptions) > 0 {
 		// Deploy the datadog CSI driver
 		if err := csidriver.NewDatadogCSIDriver(&awsEnv, kubeProvider, csiDriverCommitSHA); err != nil {
 			return err
@@ -278,7 +278,7 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env *environment
 
 	}
 
-	if params.agentOptions == nil || (params.operatorDDAOptions == nil) {
+	if len(params.agentOptions) == 0 && len(params.operatorDDAOptions) == 0 {
 		env.Agent = nil
 	}
 

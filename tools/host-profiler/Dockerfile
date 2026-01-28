@@ -1,4 +1,4 @@
-FROM golang:1.25.5-bookworm@sha256:5117d68695f57faa6c2b3a49a6f3187ec1f66c75d5b080e4360bfe4c1ada398c
+FROM golang:1.25.6-bookworm@sha256:fae400019c7fb0400bca0b749fde2015f993ff0e0293ca6f8dbaf919650bb419
 
 RUN apt-get update -y && apt-get dist-upgrade -y && \
     apt-get install -y sudo && \
@@ -13,6 +13,7 @@ RUN useradd -ms /bin/bash build -u ${UID} -g ${GID}
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 RUN adduser build sudo
 RUN chown -R build:build /go
+ENV GOTOOLCHAIN=auto
 
 USER build
 
