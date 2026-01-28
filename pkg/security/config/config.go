@@ -189,6 +189,8 @@ type RuntimeSecurityConfig struct {
 	EventServerRate int
 	// EventServerRetention defines an event retention period so that some fields can be resolved
 	EventServerRetention time.Duration
+	// EventRetryQueueThreshold defines the maximum size of the event queue after which we force sending events even if not resolved
+	EventRetryQueueThreshold int
 	// FIMEnabled determines whether fim rules will be loaded
 	FIMEnabled bool
 	// SelfTestEnabled defines if the self tests should be executed at startup or not
@@ -283,6 +285,8 @@ type RuntimeSecurityConfig struct {
 
 	// SecurityProfileEnabled defines if the Security Profile manager should be enabled
 	SecurityProfileEnabled bool
+	// SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
+	SecurityProfileV2Enabled bool
 	// SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	SecurityProfileMaxImageTags int
 	// SecurityProfileDir defines the directory in which Security Profiles are stored
@@ -297,6 +301,8 @@ type RuntimeSecurityConfig struct {
 	SecurityProfileDNSMatchMaxDepth int
 	// SecurityProfileNodeEvictionTimeout defines the timeout after which non-touched nodes are evicted from profiles
 	SecurityProfileNodeEvictionTimeout time.Duration
+	// SecurityProfileCleanupDelay defines the delay before removing a profile after all its cgroups are deleted
+	SecurityProfileCleanupDelay time.Duration
 
 	// SecurityProfileAutoSuppressionEnabled do not send event if part of a profile
 	SecurityProfileAutoSuppressionEnabled bool
@@ -509,11 +515,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		WindowsWriteEventRateLimiterMaxAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.windows_write_event_rate_limiter_max_allowed"),
 		WindowsWriteEventRateLimiterPeriod:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.windows_write_event_rate_limiter_period"),
 
-		SocketPath:           pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
-		CmdSocketPath:        pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
-		EventServerBurst:     pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
-		EventServerRate:      pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
-		EventServerRetention: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		SocketPath:               pkgconfigsetup.SystemProbe().GetString("runtime_security_config.socket"),
+		CmdSocketPath:            pkgconfigsetup.SystemProbe().GetString("runtime_security_config.cmd_socket"),
+		EventServerBurst:         pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.burst"),
+		EventServerRate:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_server.rate"),
+		EventServerRetention:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.event_server.retention"),
+		EventRetryQueueThreshold: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.event_retry_queue_threshold"),
 
 		SelfTestEnabled:                 pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.enabled"),
 		SelfTestSendReport:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.self_test.send_report"),
@@ -589,6 +596,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// security profiles
 		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
+		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
 		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
 		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
@@ -596,6 +604,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
+		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
 
 		// auto suppression
 		SecurityProfileAutoSuppressionEnabled:    pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.auto_suppression.enabled"),

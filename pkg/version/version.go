@@ -94,3 +94,25 @@ func (v *Version) GetNumberAndPre() string {
 	}
 	return version
 }
+
+// Compare returns an integer comparing the curernt Agent version to the one given.
+// The result will be 0 if agent == v, -1 if agent < v, and +1 if agent > v.
+func (v *Version) CompareTo(version string) (int, error) {
+	b, errB := New(version, "")
+	if errB != nil {
+		return 0, errB
+	}
+
+	for _, nums := range [][]int64{
+		{v.Major, b.Major},
+		{v.Minor, b.Minor},
+		{v.Patch, b.Patch},
+	} {
+		if nums[0] < nums[1] {
+			return -1, nil
+		} else if nums[0] > nums[1] {
+			return 1, nil
+		}
+	}
+	return 0, nil
+}

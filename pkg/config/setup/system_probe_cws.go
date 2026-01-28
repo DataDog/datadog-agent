@@ -26,6 +26,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_retry_queue_threshold", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.internal_monitoring.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
@@ -88,6 +89,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// CWS - Security Profiles
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.v2.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_image_tags", 20)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dir", GetDefaultSecurityProfilesDir())
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.watch_dir", true)
@@ -95,6 +97,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.max_count", 400)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.dns_match_max_depth", 3)
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.node_eviction_timeout", "0s") // Disabled for now - waiting for another PR to be merged
+	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.profile_cleanup_delay", "60m")
 
 	// CWS - Auto suppression
 	cfg.BindEnvAndSetDefault("runtime_security_config.security_profile.auto_suppression.enabled", true)

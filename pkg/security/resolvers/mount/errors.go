@@ -15,7 +15,9 @@ import (
 
 var (
 	// ErrMountUndefined is used when a mount identifier is undefined
-	ErrMountUndefined = errors.New("undefined mountID")
+	ErrMountUndefined = errors.New("undefined mountID (mount id is 0)")
+	// ErrParentMountUndefined is used when a mount identifier of a parent is undefined
+	ErrParentMountUndefined = errors.New("undefined parent mountID (mount id is 0)")
 	// ErrMountLoop is returned when there is a resolution loop
 	ErrMountLoop = errors.New("mount resolution loop")
 	// ErrMountPathEmpty is returned when the resolved mount path is empty

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	securityprofile "github.com/DataDog/datadog-agent/pkg/security/security_profile"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -2387,7 +2388,7 @@ func TestSecurityProfileSyscallDrift(t *testing.T) {
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
-			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
+			manager.(*securityprofile.Manager).AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2509,7 +2510,7 @@ func TestSecurityProfileSyscallDriftExecExitInProfile(t *testing.T) {
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
-			manager.AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
+			manager.(*securityprofile.Manager).AddProfile(generateSyscallTestProfile(test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver, model.SysExecve, model.SysExit, model.SysExitGroup))
 
 			time.Sleep(1 * time.Second) // ensure the profile has time to be pushed kernel space
 
@@ -2623,7 +2624,7 @@ func TestSecurityProfileSyscallDriftNoNewSyscall(t *testing.T) {
 	t.Run("activity-dump-syscall-drift", func(t *testing.T) {
 		if err = test.GetProbeEvent(func() error {
 			manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
-			manager.AddProfile(generateSyscallTestProfile(
+			manager.(*securityprofile.Manager).AddProfile(generateSyscallTestProfile(
 				test.probe.PlatformProbe.(*probe.EBPFProbe).Resolvers.TimeResolver,
 				model.SysExecve,
 				model.SysExit,
@@ -3163,7 +3164,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		profile := manager.(*securityprofile.Manager).GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 		if profile == nil {
 			t.Fatal("profile is nil")
 		}
@@ -3246,7 +3247,7 @@ func TestSecurityProfileNodeEviction(t *testing.T) {
 		time.Sleep(11 * time.Second)
 
 		manager := test.probe.PlatformProbe.(*probe.EBPFProbe).GetProfileManager()
-		profile := manager.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+		profile := manager.(*securityprofile.Manager).GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
 		if profile == nil {
 			t.Fatal("profile is nil")
 		}
