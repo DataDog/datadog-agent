@@ -6,8 +6,8 @@
 package schedulers
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Scheduler implementations manage logs-agent sources.

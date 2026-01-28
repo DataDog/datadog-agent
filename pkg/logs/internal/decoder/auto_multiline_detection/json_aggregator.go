@@ -9,8 +9,8 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 // JSONAggregator aggregates pretty printed JSON messages into single line JSON messages.

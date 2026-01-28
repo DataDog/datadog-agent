@@ -10,8 +10,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // New creates a parser that extracts the `ddtags` field from JSON logs, adds
