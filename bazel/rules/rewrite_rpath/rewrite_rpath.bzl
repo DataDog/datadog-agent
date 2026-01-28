@@ -3,12 +3,12 @@ load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 def _replace_prefix_impl(ctx):
     "Set binaries rpath the configured install directory"
 
-    if BuildSettingInfo not in ctx.attr.prefix:
-        fail("The provided prefix label doesn't provide BuildSettingInfo")
     input = ctx.file.input
     if ctx.attr.os == "unsupported":
         return DefaultInfo(files = depset([input]))
-    prefix = ctx.attr.prefix[BuildSettingInfo].value
+    prefix = ctx.attr.prefix
+    if not prefix:
+        prefix = "{}/embedded".format(ctx.attr._install_dir[BuildSettingInfo].value)
     processed_file = ctx.actions.declare_file("patched/" + input.basename)
     if ctx.attr.os == "linux":
         ctx.actions.run(
@@ -38,7 +38,13 @@ _replace_prefix = rule(
             mandatory = True,
             doc = "Private attribute to dispatch based on the target OS",
         ),
-        "prefix": attr.label(),
+        "prefix": attr.label(
+            doc = "The new prefix. Defaults to <@@//:install_dir>/embedded",
+        ),
+        "_install_dir": attr.label(
+            doc = "Private label used for the default prefix",
+            default = "@@//:install_dir",
+        ),
         "_patchelf": attr.label(
             cfg = "exec",
             executable = True,
@@ -47,7 +53,7 @@ _replace_prefix = rule(
     },
 )
 
-def rewrite_rpath(name, input, prefix):
+def rewrite_rpath(name, input, prefix=None):
     _replace_prefix(
         name = name,
         input = input,
