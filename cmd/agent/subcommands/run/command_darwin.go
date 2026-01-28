@@ -3,12 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !darwin
+//go:build darwin
 
 package run
 
-import "go.uber.org/fx"
+import (
+	"go.uber.org/fx"
+
+	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
+)
 
 func getPlatformModules() fx.Option {
-	return fx.Options()
+	return fx.Options(
+		softwareinventoryfx.Module(),
+	)
 }
+
