@@ -390,14 +390,13 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 }
 
 // ignoreContainer returns whether a containerd event should be ignored.
-// Sandbox/pause containers are collected to support CWS tag resolution.
 func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
 	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
 	if err != nil {
 		return false, err
 	}
 
-	// Sandbox containers are now collected to support CWS tag resolution
+	// Sandbox containers are collected to support CWS tag resolution
 	// They will be filtered at the tagger level if needed
 	if isSandbox {
 		return false, nil
