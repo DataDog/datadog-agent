@@ -6,6 +6,7 @@
 package tmplvar
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -29,35 +30,35 @@ func (m *mockResolvable) GetServiceID() string {
 
 func (m *mockResolvable) GetHosts() (map[string]string, error) {
 	if m.hosts == nil {
-		return nil, fmt.Errorf("no hosts available")
+		return nil, errors.New("no hosts available")
 	}
 	return m.hosts, nil
 }
 
 func (m *mockResolvable) GetPorts() ([]ContainerPort, error) {
 	if m.ports == nil {
-		return nil, fmt.Errorf("no ports available")
+		return nil, errors.New("no ports available")
 	}
 	return m.ports, nil
 }
 
 func (m *mockResolvable) GetPid() (int, error) {
 	if m.pid == 0 {
-		return 0, fmt.Errorf("no PID available")
+		return 0, errors.New("no PID available")
 	}
 	return m.pid, nil
 }
 
 func (m *mockResolvable) GetHostname() (string, error) {
 	if m.hostname == "" {
-		return "", fmt.Errorf("no hostname available")
+		return "", errors.New("no hostname available")
 	}
 	return m.hostname, nil
 }
 
 func (m *mockResolvable) GetExtraConfig(key string) (string, error) {
 	if m.extraConfig == nil {
-		return "", fmt.Errorf("no extra config available")
+		return "", errors.New("no extra config available")
 	}
 	value, ok := m.extraConfig[key]
 	if !ok {
