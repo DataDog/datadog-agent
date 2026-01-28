@@ -1382,11 +1382,10 @@ func TestAggregatorFlushing(t *testing.T) {
 		// JitterFlowScheduler schedules with random jitter [0, FlowCollectionDuration)
 		// So we need to tick up to the full FlowCollectionDuration to guarantee it's flushed
 		var actualFlushTime time.Time
-		currentTime := startTime
 		flushInterval := 10 * time.Second // FlushTickFrequency
 
 		for i := 0; i < 4; i++ { // Tick 4 times (0s, 10s, 20s, 30s)
-			currentTime = startTime.Add(time.Duration(i) * flushInterval)
+			currentTime := startTime.Add(time.Duration(i) * flushInterval)
 			setMockTimeNow(currentTime)
 
 			flushCtx := common.FlushContext{
