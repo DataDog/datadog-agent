@@ -14,11 +14,19 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/program"
+	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
 )
 
-func createCELExcludeProgram(name string, rules string, objectType workloadfilter.ResourceType, logger log.Component) program.FilterProgram {
-	excludeProgram, excludeErr := celprogram.CreateCELProgram(rules, objectType)
+// createCELProgram creates a CEL-based filter program
+func createCELProgram(
+	name string,
+	rules string,
+	resourceType workloadfilter.ResourceType,
+	_ *telemetry.Store,
+	logger log.Component,
+) program.FilterProgram {
+	excludeProgram, excludeErr := celprogram.CreateCELProgram(rules, resourceType)
 	if excludeErr != nil {
 		logger.Criticalf(`failed to compile '%s' from 'cel_workload_exclude' filters: %v`, name, excludeErr)
 		logger.Flush()

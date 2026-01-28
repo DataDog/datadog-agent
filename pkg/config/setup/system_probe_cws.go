@@ -26,6 +26,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.burst", 40)
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.retention", "6s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.event_server.rate", 10)
+	cfg.BindEnvAndSetDefault("runtime_security_config.event_retry_queue_threshold", 30)
 	cfg.BindEnvAndSetDefault("runtime_security_config.cookie_cache_size", 100)
 	cfg.BindEnvAndSetDefault("runtime_security_config.internal_monitoring.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.log_patterns", []string{})
@@ -133,6 +134,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.sysctl.snapshot.kernel_compilation_flags", []string{})
 
 	// CWS - UserSessions
+	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.ssh.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
 
 	// CWS -eBPF Less
