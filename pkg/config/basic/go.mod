@@ -1,6 +1,14 @@
-module github.com/DataDog/datadog-agent/pkg/config/model
+module github.com/DataDog/datadog-agent/pkg/config/basic
 
-go 1.24.0
+go 1.25.6
+
+require github.com/stretchr/testify v1.11.1
+
+require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
@@ -75,11 +83,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/basic => ../../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../../pkg/config/helper
 	github.com/DataDog/datadog-agent/pkg/config/mock => ../../../pkg/config/mock
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../../pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ../../../pkg/config/nodetreemodel
 	github.com/DataDog/datadog-agent/pkg/config/remote => ../../../pkg/config/remote
 	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup

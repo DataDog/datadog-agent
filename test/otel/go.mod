@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/test/otel
 
-go 1.24.0
+go 1.25.6
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
@@ -58,6 +58,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/util v0.0.0-20251120165911-0b75c97e8b50 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
@@ -316,6 +317,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/api => ../../pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/basic => ../../pkg/config/basic
 	github.com/DataDog/datadog-agent/pkg/config/create => ../../pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ../../pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ../../pkg/config/helper
