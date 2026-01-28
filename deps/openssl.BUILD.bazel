@@ -14,15 +14,12 @@ filegroup(
     srcs = glob(["**"], exclude = ["BUILD.bazel"]),
 )
 
-# XXX: Temporary config to be able to match on non-FIPS Windows to skip certain files
 config_setting(
-    name = "non_fips_windows",
+    name = "fips_windows",
     constraint_values = [
         "@platforms//os:windows",
     ],
-    flag_values = {
-        "@//:fips_mode": "false",
-    },
+    flag_values = {"@@//packages/agent:flavor": "fips"},
 )
 
 DEFAULT_CONFIG = [
@@ -137,7 +134,7 @@ configure_make(
         ] + DEFAULT_CONFIG[:-1],
         "//conditions:default": DEFAULT_CONFIG,
     }) + select({
-        "@//:fips_mode_enabled": [
+        ":fips_windows": [
             "-DOSSL_WINCTX=datadog-fips-agent",
             "--openssldir='C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
         ],
@@ -179,13 +176,10 @@ configure_make(
     out_data_dirs = [
         "lib/pkgconfig",
     ] + select({
-        "@//:fips_mode_enabled": [
+        "@//packages/agent:fips_flavor": [
             "ssl",
             "lib/ossl-modules",
             "lib/engines-3",
-        ],
-        "@platforms//os:linux": [
-            "ssl",
         ],
         "//conditions:default": [],
     }),
@@ -322,7 +316,12 @@ pkg_install(
     srcs = [
         ":openssl_bin_files",
     ] + select({
-        ":non_fips_windows": [],
+        "@//packages/agent:fips_flavor": [
+            ":openssl_files",
+            ":libssl_with_symlink",
+            ":libcrypto_with_symlink",
+        ],
+        "@platforms//os:windows": [],
         "//conditions:default": [
             ":openssl_files",
             ":libssl_with_symlink",

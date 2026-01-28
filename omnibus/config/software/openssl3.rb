@@ -32,12 +32,12 @@ version("3.5.5") { source sha256: "b28c91532a8b65a1f983b4c28b7488174e4a01008e29c
 relative_path "openssl-#{version}"
 
 build do
-  fips_flag = fips_mode? ? "--//:fips_mode" : ""
+  flavor_flag = fips_mode? ? "--//packages/agent:flavor=fips" : ""
 
   if windows?
-    command_on_repo_root "bazelisk run #{fips_flag} -- @openssl//:install --destdir=#{install_dir}/embedded3"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}/embedded3"
   else
-    command_on_repo_root "bazelisk run -- @openssl//:install --destdir=#{install_dir}/embedded"
+    command_on_repo_root "bazelisk run #{flavor_flag} -- @openssl//:install --destdir=#{install_dir}/embedded"
     # build_agent_dmg.sh sets INSTALL_DIR to some temporary folder.
     # This messes up openssl's internal paths. So we have to use another variable
     # so that replace_prefix and fix_openssl_paths set path correctly inside of the
@@ -50,7 +50,12 @@ build do
       "lib/libcrypto#{lib_extension}",
       "lib/pkgconfig/*.pc",
       "bin/openssl",
-    ].map { |path| "#{install_dir}/embedded/#{path}" }
+    ]
+    if fips_mode?
+      files_to_patch.append("lib/ossl-modules/*#{lib_extension}", "lib/engines-3/*#{lib_extension}")
+    end
+
+    files_to_patch = files_to_patch.map { |path| "#{install_dir}/embedded/#{path}" }
 
     command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix #{real_install_dir}/embedded #{files_to_patch.join(' ')}"
 
