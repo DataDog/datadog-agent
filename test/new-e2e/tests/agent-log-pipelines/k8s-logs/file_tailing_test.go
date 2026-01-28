@@ -49,8 +49,10 @@ func (v *k8sSuite) TestSingleLogAndMetadata() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "query-job-1",
-							Image:   "ubuntu",
+							Name:  "query-job-1",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
@@ -107,8 +109,10 @@ func (v *k8sSuite) TestLongLogLine() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "long-line-job",
-							Image:   "ubuntu",
+							Name:  "long-line-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + longLineLog + "' && sleep 10"},
 						},
 					},
@@ -170,8 +174,10 @@ func (v *k8sSuite) TestContainerExclude() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "exclude-job",
-							Image:   "alpine",
+							Name:  "exclude-job",
+							Image: "alpine",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
 							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
