@@ -35,15 +35,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-// delegatedAuthConfig represents a prefix and API key config key pair for delegated auth
-type delegatedAuthConfig struct {
-	prefix          string // Config prefix (empty for global)
-	apiKeyConfigKey string // The config key where the API key should be written
-}
-
-// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth
-// This avoids duplication between bindDelegatedAuthConfig calls and configureDelegatedAuth
-var registeredDelegatedAuthConfigs []delegatedAuthConfig
+// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth.
+// Maps config prefix to API key config key (e.g., "" -> "api_key", "logs_config" -> "logs_config.api_key").
+// Using a map ensures each prefix is only registered once.
+var registeredDelegatedAuthConfigs = make(map[string]string)
 
 const (
 
@@ -2564,13 +2559,13 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 	var needsInit bool
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for _, cfg := range registeredDelegatedAuthConfigs {
+	for prefix, apiKeyConfigKey := range registeredDelegatedAuthConfigs {
 		// Build the config key prefix for delegated_auth settings
 		var configPrefix string
-		if cfg.prefix == "" {
+		if prefix == "" {
 			configPrefix = "delegated_auth"
 		} else {
-			configPrefix = cfg.prefix + ".delegated_auth"
+			configPrefix = prefix + ".delegated_auth"
 		}
 
 		// Check if org_uuid is set for this prefix
@@ -2591,14 +2586,14 @@ func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp dele
 
 		// Build description for logging
 		description := "global"
-		if cfg.prefix != "" {
-			description = cfg.prefix
+		if prefix != "" {
+			description = prefix
 		}
 
 		instances = append(instances, instanceConfig{
 			orgUUID:         orgUUID,
 			refreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-			apiKeyConfigKey: cfg.apiKeyConfigKey,
+			apiKeyConfigKey: apiKeyConfigKey,
 			description:     description,
 		})
 	}
@@ -2667,10 +2662,9 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	} else {
 		apiKeyConfigKey = prefix + ".api_key"
 	}
-	registeredDelegatedAuthConfigs = append(registeredDelegatedAuthConfigs, delegatedAuthConfig{
-		prefix:          prefix,
-		apiKeyConfigKey: apiKeyConfigKey,
-	})
+
+	// Map automatically handles duplicates - repeated registrations just overwrite with same value
+	registeredDelegatedAuthConfigs[prefix] = apiKeyConfigKey
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
