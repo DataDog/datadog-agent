@@ -708,6 +708,7 @@ def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_di
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
 
+
 @task
 def package_oci(
     ctx,
@@ -717,26 +718,26 @@ def package_oci(
 ):
     """
     Create an OCI package from an MSI installer.
-    
+
     Args:
         msi_path: Path to the MSI file (default: auto-detect in omnibus/pkg)
         output_dir: Output directory for the OCI tar (default: omnibus/pkg)
         source_type: Source type - 'msi' or 'zip' (default: msi)
-    
+
     Requires:
         datadog-package: Install from https://github.com/DataDog/datadog-package
             go install github.com/DataDog/datadog-package@latest
     """
     import tempfile
     from pathlib import Path
-    
+
     # Set defaults
     if output_dir is None:
         output_dir = OUTPUT_PATH
-    
+
     # Determine package version
     package_version = None
-    
+
     if msi_path is None:
         # Auto-detect: Get version from git and find matching MSI
         package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
@@ -758,16 +759,16 @@ def package_oci(
             raise Exit(code=1)
         package_version = version_match.group(1)
         print(f"Extracted version from MSI filename: {package_version}")
-    
+
     # Verify MSI exists
     if not os.path.exists(msi_path):
         print(f"MSI file not found: {msi_path}")
         raise Exit(code=1)
-    
+
     # Create temporary directory for input
     with tempfile.TemporaryDirectory() as src_dir:
         print(f"Using temporary directory: {src_dir}")
-        
+
         # Handle different source types
         extra_flags = ""
         if source_type == "msi":
@@ -779,7 +780,7 @@ def package_oci(
             print(f"Extracting ZIP to {src_dir}")
             with zipfile.ZipFile(msi_path, "r") as zip_ref:
                 zip_ref.extractall(src_dir)
-            
+
             # Check for config directory
             config_dir = os.path.join(src_dir, "etc", "datadog-agent")
             if os.path.exists(config_dir):
@@ -787,17 +788,14 @@ def package_oci(
         else:
             print(f"Unknown source type: {source_type}")
             raise Exit(code=1)
-        
+
         # Construct output path
-        oci_output_path = os.path.join(
-            output_dir, 
-            f"datadog-agent-{package_version}-1-windows-amd64.oci.tar"
-        )
-        
+        oci_output_path = os.path.join(output_dir, f"datadog-agent-{package_version}-1-windows-amd64.oci.tar")
+
         # Ensure datadog-package is in PATH
         gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
         gobin = os.path.join(gopath, "bin")
-        
+
         # Build the command
         cmd = (
             f'"{os.path.join(gobin, "datadog-package")}" create '
@@ -808,19 +806,19 @@ def package_oci(
             f'--archive '
             f'--archive-path "{oci_output_path}" '
         )
-        
+
         if extra_flags:
             cmd += f'{extra_flags} '
-        
+
         cmd += f'"{src_dir}"'
-        
+
         print(f"Running: {cmd}")
         result = ctx.run(cmd, warn=True)
-        
+
         if not result:
             print("Failed to create OCI package")
             raise Exit(code=1)
-        
+
         if os.path.exists(oci_output_path):
             print(f"Successfully created OCI package: {oci_output_path}")
         else:

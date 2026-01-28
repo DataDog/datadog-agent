@@ -36,11 +36,11 @@ from tasks.libs.common.utils import (
     gitlab_section,
     running_in_ci,
 )
-from tasks.libs.releasing.json import load_release_json
-from tasks.libs.releasing.version import get_version
 from tasks.libs.dynamic_test.backend import S3Backend
 from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
+from tasks.libs.releasing.json import load_release_json
+from tasks.libs.releasing.version import get_version
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
@@ -1164,7 +1164,9 @@ def _find_recent_successful_pipeline(ctx: Context, branch: str | None = None) ->
     except Exception as e:
         print(f"Warning: Could not query GitLab for recent pipelines: {e}")
         if 'GITLAB_TOKEN' not in os.environ:
-            print("No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)")
+            print(
+                "No GITLAB_TOKEN environment variable found, set it with a GitLab Personal Access Token (read_api scope)"
+            )
         return None
 
 
@@ -1337,7 +1339,7 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
                     package_version = get_version(ctx, include_git=True, url_safe=True)
                     env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
                 except Exception as e:
-                    raise Exit(f"Could not determine current agent version: {e}", code=1)
+                    raise Exit(f"Could not determine current agent version: {e}", code=1) from e
 
             # Check for matching OCI package
             if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
@@ -1375,7 +1377,7 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
             current_version = get_version(ctx, include_git=False, include_pre=True)
             env_vars["CURRENT_AGENT_VERSION"] = current_version
         except Exception as e:
-            raise Exit(f"Could not determine current agent version: {e}", code=1)
+            raise Exit(f"Could not determine current agent version: {e}", code=1) from e
 
     else:
         raise Exit(f"Invalid --build option: {build}. Use 'local' or 'pipeline'.", code=1)
@@ -1386,13 +1388,15 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
         stable_version = release_json["last_stable"]["7"]
         env_vars["STABLE_AGENT_VERSION"] = stable_version
         env_vars["STABLE_AGENT_VERSION_PACKAGE"] = f"{stable_version}-1"
-        env_vars["STABLE_AGENT_MSI_URL"] = f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-{stable_version}.msi"
+        env_vars["STABLE_AGENT_MSI_URL"] = (
+            f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-{stable_version}.msi"
+        )
     except Exception as e:
         print(f"# Warning: Could not read stable version from release.json: {e}", file=sys.stderr)
         print("# Using fallback stable version", file=sys.stderr)
         env_vars["STABLE_AGENT_VERSION"] = "7.75.0"
         env_vars["STABLE_AGENT_VERSION_PACKAGE"] = "7.75.0-1"
-        env_vars["STABLE_AGENT_MSI_URL"] = f"https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
+        env_vars["STABLE_AGENT_MSI_URL"] = "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
 
     # Output in requested format
     if fmt == "json":
