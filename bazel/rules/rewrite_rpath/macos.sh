@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 PREFIX=$1
 INPUT=$2
 OUTPUT=$3
