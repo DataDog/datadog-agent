@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,6 +144,19 @@ func (h *StatKeeper) add(tx Transaction) {
 	if rawPath == nil {
 		h.telemetry.emptyPath.Add(1)
 		return
+	}
+
+	// TRACE: Log k8s API requests at statkeeper layer (all HTTP traffic)
+	// Filter for specific resource types: persistentvolumes, configmaps, namespaces
+	if log.ShouldLog(log.TraceLvl) {
+		pathStr := string(rawPath)
+		if strings.Contains(pathStr, "persistentvolumes") ||
+			strings.Contains(pathStr, "configmaps") ||
+			strings.Contains(pathStr, "namespaces") {
+			tuple := tx.ConnTuple()
+			log.Tracef("[STATKEEPER-K8S-API] path=%s method=%v tuple=%s",
+				pathStr, tx.Method(), tuple.String())
+		}
 	}
 
 	// Quantize HTTP path
