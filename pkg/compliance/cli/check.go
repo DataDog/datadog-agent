@@ -169,7 +169,7 @@ func RunCheck(log log.Component, config config.Component, _ secrets.Component, s
 		}
 	}
 	if checkArgs.Report {
-		if err := reportComplianceEvents(log, events, compression, ipc); err != nil {
+		if err := reportComplianceEvents(hname, events, compression); err != nil {
 			log.Error(err)
 			return err
 		}
@@ -192,16 +192,12 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, events []*compliance.CheckEvent, compression logscompression.Component, ipc ipc.Component) error {
-	hostnameDetected, err := hostnameutils.GetHostnameWithContextAndFallback(context.Background(), ipc)
-	if err != nil {
-		return log.Errorf("Error while getting hostname, exiting: %v", err)
-	}
+func reportComplianceEvents(hostname string, events []*compliance.CheckEvent, compression logscompression.Component) error {
 	endpoints, context, err := common.NewLogContextCompliance()
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter := compliance.NewLogReporter(hostnameDetected, "compliance-agent", "compliance", endpoints, context, compression)
+	reporter := compliance.NewLogReporter(hostname, "compliance-agent", "compliance", endpoints, context, compression)
 	defer reporter.Stop()
 	for _, event := range events {
 		reporter.ReportEvent(event)
