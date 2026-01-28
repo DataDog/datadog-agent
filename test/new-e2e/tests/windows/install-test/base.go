@@ -7,6 +7,7 @@
 package installtest
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -137,8 +138,17 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 	// Check if DD_INSTALL_ONLY is set - if so, services won't start
 	skipServiceCheck := s.hasInstallOnlyOption(installOptions...)
 
+	// Start xperf tracing
 	s.startXperf(vm)
 	defer s.collectXperf(vm)
+
+	// Start startup dump collector in background (only if service will start)
+	if !skipServiceCheck {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		collector := s.startStartupDumpCollector(ctx, vm)
+		defer s.collectStartupDumps(collector)
+	}
 
 	if !s.Run("install "+agentPackage.AgentVersion(), func() {
 		remoteMSIPath, err = s.InstallAgent(vm, installOpts...)
@@ -206,6 +216,60 @@ func (s *baseAgentMSISuite) collectXperf(vm *components.RemoteHost) {
 		outDir := s.SessionOutputDir()
 		err = vm.GetFile(outputPath, filepath.Join(outDir, "full_host_profiles.etl"))
 		s.Require().NoError(err)
+	}
+}
+
+// procdumpFolder is the directory where procdump captures are stored.
+// This is separate from the WER dump folder (s.dumpFolder) to avoid
+// procdump files being detected as crash dumps.
+const procdumpFolder = `C:\procdumps`
+
+// startStartupDumpCollector sets up procdump and starts a background goroutine that
+// monitors the agent service for the "StartPending" state. When detected, it waits
+// 10 seconds then captures a memory dump of the service process.
+//
+// The returned collector should be cleaned up with collectStartupDumps().
+func (s *baseAgentMSISuite) startStartupDumpCollector(ctx context.Context, vm *components.RemoteHost) *windowsCommon.StartupDumpCollector {
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowsCommon.SetupProcdump(vm)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Create the procdump output directory (separate from WER dumps)
+	_, err = vm.Execute(fmt.Sprintf(`New-Item -ItemType Directory -Path '%s' -Force`, procdumpFolder))
+	s.Require().NoError(err, "should create procdump output directory")
+
+	// Create and start collector - dumps will be written to a separate folder from WER dumps
+	collector := windowsCommon.NewStartupDumpCollector(vm, "datadogagent", procdumpFolder)
+	collector.Start(ctx)
+
+	return collector
+}
+
+// collectStartupDumps waits for the collector to finish and downloads any captured dumps
+// if the test failed. This should be called in a defer after startStartupDumpCollector().
+func (s *baseAgentMSISuite) collectStartupDumps(collector *windowsCommon.StartupDumpCollector) {
+	collector.Wait()
+
+	dumpPaths, err := collector.Results()
+	if err != nil {
+		s.T().Logf("Warning: startup dump collection error: %v", err)
+	}
+
+	// Only download dumps if the test failed
+	if !s.T().Failed() {
+		return
+	}
+
+	for _, remotePath := range dumpPaths {
+		s.T().Logf("Collected startup dump: %s", remotePath)
+		// Download dump from remote host to local output directory
+		localPath := filepath.Join(s.SessionOutputDir(), filepath.Base(remotePath))
+		if err := s.Env().RemoteHost.GetFile(remotePath, localPath); err != nil {
+			s.T().Logf("Warning: failed to download dump %s: %v", remotePath, err)
+		} else {
+			s.T().Logf("Downloaded startup dump to: %s", localPath)
+		}
 	}
 }
 
