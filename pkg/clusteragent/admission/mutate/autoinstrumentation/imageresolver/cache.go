@@ -10,66 +10,81 @@ package imageresolver
 import (
 	"sync"
 	"time"
-
-	"github.com/google/go-containerregistry/pkg/crane"
 )
 
-type Cache interface {
-	Get(registry string, repository string, tag string) (*ResolvedImage, bool)
+type repositoryCache map[string]tagCache // repository -> tagCache
+type tagCache map[string]cacheEntry      // tag -> cacheEntry
+type cacheEntry struct {
+	resolvedImage *ResolvedImage
+	whenCached    time.Time
 }
 
-type CacheEntry struct {
-	ResolvedImage *ResolvedImage
-	WhenCached    time.Time
-}
-
-type DigestFetcher interface {
-	Digest(ref string) (string, error)
-}
-
-type craneDigestFetcher struct{}
-
-func (c *craneDigestFetcher) Digest(ref string) (string, error) {
-	return crane.Digest(ref)
-}
-
-type craneCache struct {
-	cache   map[string]map[string]CacheEntry
+type httpDigestCache struct {
+	cache   repositoryCache
 	ttl     time.Duration
 	mu      sync.RWMutex
-	fetcher DigestFetcher
+	fetcher *httpDigestFetcher
 }
 
-func (c *craneCache) Get(registry string, repository string, tag string) (*ResolvedImage, bool) {
+func (c *httpDigestCache) get(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if resolved := c.checkCache(repository, tag); resolved != nil {
+		return resolved, true
+	}
+
+	digest, err := c.fetcher.digest(registry + "/" + repository + ":" + tag)
+	if err != nil {
+		return nil, false
+	}
+
+	return c.store(registry, repository, tag, digest), true
+}
+
+func (c *httpDigestCache) checkCache(repository, tag string) *ResolvedImage {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if tags, exists := c.cache[repository]; exists {
+		if entry, exists := tags[tag]; exists {
+			if time.Since(entry.whenCached) < c.ttl {
+				return entry.resolvedImage
+			}
+		}
+	}
+	return nil
+}
+
+func (c *httpDigestCache) store(registry, repository, tag, digest string) *ResolvedImage {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if _, exists := c.cache[repository]; !exists {
-		c.cache[repository] = make(map[string]CacheEntry)
-	}
-	if _, exists := c.cache[repository][tag]; exists {
-		if time.Since(c.cache[repository][tag].WhenCached) < c.ttl {
-			return c.cache[repository][tag].ResolvedImage, true
+	// DEV: Check if another goroutine has already cached this
+	if tags, exists := c.cache[repository]; exists {
+		if entry, exists := tags[tag]; exists {
+			if time.Since(entry.whenCached) < c.ttl {
+				return entry.resolvedImage
+			}
 		}
 	}
-	if digest, err := c.fetcher.Digest(registry + "/" + repository + ":" + tag); err == nil {
-		c.cache[repository][tag] = CacheEntry{
-			ResolvedImage: &ResolvedImage{
-				FullImageRef:     registry + "/" + repository + "@" + digest,
-				CanonicalVersion: tag, // DEV: This is the customer-provided tag, not the canonical version
-			},
-			WhenCached: time.Now(),
-		}
-		return c.cache[repository][tag].ResolvedImage, true
+
+	if c.cache[repository] == nil {
+		c.cache[repository] = make(tagCache)
 	}
-	return nil, false
+
+	resolved := &ResolvedImage{
+		FullImageRef:     registry + "/" + repository + "@" + digest,
+		CanonicalVersion: tag,
+	}
+	c.cache[repository][tag] = cacheEntry{
+		resolvedImage: resolved,
+		whenCached:    time.Now(),
+	}
+	return resolved
 }
 
-func NewCache(ttl time.Duration) Cache {
-	return &craneCache{
-		cache:   make(map[string]map[string]CacheEntry),
+func newHttpDigestCache(ttl time.Duration) *httpDigestCache {
+	return &httpDigestCache{
+		cache:   make(repositoryCache),
 		ttl:     ttl,
-		mu:      sync.RWMutex{},
-		fetcher: &craneDigestFetcher{},
+		fetcher: newHTTPDigestFetcher(),
 	}
 }
