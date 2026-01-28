@@ -169,6 +169,16 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			input:    `{"host": "%%host%%"}`,
 			expected: `{"host":"172.17.0.1"}`,
 		},
+		{
+			name: "resolved types are non-string",
+			svc: &mockResolvable{
+				serviceID: "test-service",
+				ports:     []ContainerPort{{Port: 8080, Name: "http"}},
+				pid:       1234,
+			},
+			input:    `{"port": "%%port%%", "pid": "%%pid%%", "port_string": "port is %%port%%"}`,
+			expected: `{"port":8080, "pid":1234, "port_string":"port is 8080"}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,33 +225,6 @@ tags:
 	require.True(t, ok)
 	assert.Equal(t, "static", tags[0])
 	assert.Equal(t, "pod:my-pod", tags[1])
-}
-
-func TestResolveDataWithTemplateVars_TypeCoercion(t *testing.T) {
-	svc := &mockResolvable{
-		serviceID: "test-service",
-		ports:     []ContainerPort{{Port: 8080, Name: "http"}},
-		pid:       1234,
-	}
-
-	input := `{
-		"port": %%port%%,
-		"pid": %%pid%%,
-		"port_string": "port is %%port%%"
-	}`
-
-	resolved, err := ResolveDataWithTemplateVars([]byte(input), svc, JSONParser, nil)
-	require.NoError(t, err)
-
-	// Port and PID should be integers when they're the only value
-	// But "port is 8080" should be a string
-	expected := `{
-		"port": 8080,
-		"pid": 1234,
-		"port_string": "port is 8080"
-	}`
-
-	assert.JSONEq(t, expected, string(resolved))
 }
 
 func TestGetFallbackHost(t *testing.T) {
