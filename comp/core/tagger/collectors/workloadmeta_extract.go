@@ -1094,8 +1094,8 @@ func parseJSONValueWithResolution(value string, tags *taglist.TagList, resolvabl
 		return fmt.Errorf("failed to unmarshal resolved JSON: %s", err)
 	}
 
-	for key, value := range result {
-		switch v := value.(type) {
+	for key, val := range result {
+		switch v := val.(type) {
 		case string:
 			tags.AddAuto(key, v)
 		case float64:

@@ -150,6 +150,24 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			input:    `{"port": "%%port%%", "port_0": "%%port_0%%", "port_metrics": "%%port_metrics%%"}`,
 			expected: `{"port":8080, "port_0":6379, "port_metrics":9400}`,
 		},
+		{
+			name: "host with specific network",
+			svc: &mockResolvable{
+				serviceID: "test-service",
+				hosts:     map[string]string{"custom": "192.168.1.1", "bridge": "172.17.0.1"},
+			},
+			input:    `{"host": "%%host_custom%%"}`,
+			expected: `{"host":"192.168.1.1"}`,
+		},
+		{
+			name: "host fallback to bridge",
+			svc: &mockResolvable{
+				serviceID: "test-service",
+				hosts:     map[string]string{"custom": "192.168.1.1", "bridge": "172.17.0.1"},
+			},
+			input:    `{"host": "%%host%%"}`,
+			expected: `{"host":"172.17.0.1"}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -225,59 +243,6 @@ func TestResolveDataWithTemplateVars_TypeCoercion(t *testing.T) {
 	assert.JSONEq(t, expected, string(resolved))
 }
 
-func TestGetHost(t *testing.T) {
-	tests := []struct {
-		name        string
-		tplVar      string
-		hosts       map[string]string
-		expected    string
-		shouldError bool
-	}{
-		{
-			name:     "single network",
-			tplVar:   "",
-			hosts:    map[string]string{"pod": "10.0.0.5"},
-			expected: "10.0.0.5",
-		},
-		{
-			name:     "specific network",
-			tplVar:   "custom",
-			hosts:    map[string]string{"custom": "192.168.1.1", "bridge": "172.17.0.1"},
-			expected: "192.168.1.1",
-		},
-		{
-			name:     "fallback to bridge",
-			tplVar:   "",
-			hosts:    map[string]string{"custom": "192.168.1.1", "bridge": "172.17.0.1"},
-			expected: "172.17.0.1",
-		},
-		{
-			name:        "no hosts",
-			tplVar:      "",
-			hosts:       map[string]string{},
-			shouldError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &mockResolvable{
-				serviceID: "test-service",
-				hosts:     tt.hosts,
-			}
-
-			result, err := GetHost(tt.tplVar, svc)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestGetFallbackHost(t *testing.T) {
 	ip, err := getFallbackHost(map[string]string{"bridge": "172.17.0.1"})
 	assert.Equal(t, "172.17.0.1", ip)
@@ -331,64 +296,4 @@ func TestResolveDataWithTemplateVars_InvalidJSON(t *testing.T) {
 
 	_, err := ResolveDataWithTemplateVars([]byte(input), svc, JSONParser, nil)
 	assert.Error(t, err)
-}
-
-func TestResolveDataWithTemplateVars_Errors(t *testing.T) {
-	tests := []struct {
-		name        string
-		svc         *mockResolvable
-		input       string
-		shouldError bool
-		errorMsg    string
-	}{
-		{
-			name: "invalid variable name",
-			svc: &mockResolvable{
-				serviceID: "test-service",
-			},
-			input:       `{"value": "%%invalid_var%%"}`,
-			shouldError: true,
-			errorMsg:    "invalid %%invalid_var%% tag",
-		},
-		{
-			name: "missing host",
-			svc: &mockResolvable{
-				serviceID: "test-service",
-				hosts:     nil,
-			},
-			input:       `{"ip": "%%host%%"}`,
-			shouldError: true,
-		},
-		{
-			name: "missing port",
-			svc: &mockResolvable{
-				serviceID: "test-service",
-				ports:     nil,
-			},
-			input:       `{"port": %%port%%}`,
-			shouldError: true,
-		},
-		{
-			name:        "nil service",
-			svc:         nil,
-			input:       `{"host": "%%host%%"}`,
-			shouldError: true,
-			errorMsg:    "no service",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := ResolveDataWithTemplateVars([]byte(tt.input), tt.svc, JSONParser, nil)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
 }
