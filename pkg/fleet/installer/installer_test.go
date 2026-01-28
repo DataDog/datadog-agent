@@ -167,6 +167,30 @@ func (h *testHooks) PostPromoteConfigExperiment(ctx context.Context, pkg string)
 	return nil
 }
 
+func (h *testHooks) PreInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PreRemoveExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
+func (h *testHooks) PostInstallExtension(ctx context.Context, pkg string, extension string) error {
+	if h.noop {
+		return nil
+	}
+	h.Called(ctx, pkg, extension)
+	return nil
+}
+
 func (i *testPackageManager) ConfigFS(_ fixtures.Fixture) fs.FS {
 	return os.DirFS(filepath.Join(i.userConfigsDir, "datadog-agent"))
 }
@@ -470,6 +494,7 @@ func TestNoOutsideImport(t *testing.T) {
 		"pkg/version",      // TODO: cleanup & remove
 		"pkg/util/log",     // TODO: cleanup & remove
 		"pkg/util/winutil", // Needed for Windows
+		"pkg/config/setup", // Needed for extensions
 		"pkg/template",
 	}
 

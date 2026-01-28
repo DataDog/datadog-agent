@@ -46,7 +46,7 @@
           mkdir -p ${INSTALLER_INPUT_DIR}
           echo "Extracting installer to temporary input dir $INSTALLER_INPUT_FILE -> $INSTALLER_INPUT_DIR"
           tar xJf ${INSTALLER_INPUT_FILE} -C ${INSTALLER_INPUT_DIR}
-          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer --extension ddot=${OUTPUT_DIR}"
         fi
         if [ "${OCI_PRODUCT}" = "datadog-installer" ]; then
           EXTRA_FLAGS="--installer ${INPUT_DIR}/${INSTALL_DIR}/bin/installer/installer"

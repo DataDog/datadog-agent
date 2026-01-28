@@ -251,6 +251,22 @@ func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method stri
 	return cmd.Run()
 }
 
+// InstallExtensions installs multiple extensions.
+func (i *InstallerExec) InstallExtensions(ctx context.Context, url string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{url}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension install", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RemoveExtensions removes multiple extensions.
+func (i *InstallerExec) RemoveExtensions(ctx context.Context, pkg string, extensions []string) (err error) {
+	cmdLineArgs := append([]string{pkg}, extensions...)
+	cmd := i.newInstallerCmd(ctx, "extension remove", cmdLineArgs...)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)

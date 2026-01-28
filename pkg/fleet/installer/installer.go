@@ -26,6 +26,7 @@ import (
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/oci"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages"
+	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -60,6 +61,9 @@ type Installer interface {
 	InstallConfigExperiment(ctx context.Context, pkg string, operations config.Operations, decryptedSecrets map[string]string) error
 	RemoveConfigExperiment(ctx context.Context, pkg string) error
 	PromoteConfigExperiment(ctx context.Context, pkg string) error
+
+	InstallExtensions(ctx context.Context, url string, extensions []string) error
+	RemoveExtensions(ctx context.Context, pkg string, extensions []string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -681,6 +685,10 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
+	err = extensionsPkg.DeletePackage(ctx, pkg, false)
+	if err != nil {
+		return fmt.Errorf("could not remove package from extensions db: %w", err)
+	}
 	err = i.db.DeletePackage(pkg)
 	if err != nil {
 		return fmt.Errorf("could not remove package installation in db: %w", err)
@@ -767,6 +775,61 @@ func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method stri
 		return fmt.Errorf("could not uninstrument APM: %w", err)
 	}
 	return nil
+}
+
+// InstallExtensions installs multiple extensions.
+func (i *installerImpl) InstallExtensions(ctx context.Context, url string, extensions []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensions) == 0 {
+		return nil
+	}
+
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("install_extensions")
+		span.SetTag("package_name", pkg.Name)
+		span.SetTag("package_version", pkg.Version)
+		span.SetTag("extensions", strings.Join(extensions, ","))
+		span.SetTag("url", url)
+	}
+
+	existingPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package %s from database: %w", pkg.Name, err)
+	}
+	if existingPkg.Version != pkg.Version && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("package %s is installed at version %s, requested version is %s", pkg.Name, existingPkg.Version, pkg.Version)
+	}
+
+	return extensionsPkg.Install(ctx, i.downloader, url, extensions, false, i.hooks)
+}
+
+// RemoveExtensions removes multiple extensions.
+func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extensions []string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	if len(extensions) == 0 {
+		return nil
+	}
+
+	span, ok := telemetry.SpanFromContext(ctx)
+	if ok {
+		span.SetResourceName("remove_extensions")
+		span.SetTag("package_name", pkg)
+		span.SetTag("extensions", strings.Join(extensions, ","))
+	}
+
+	return extensionsPkg.Remove(ctx, pkg, extensions, false, i.hooks)
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

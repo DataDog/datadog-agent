@@ -137,6 +137,16 @@ func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method
 	return args.Error(0)
 }
 
+func (m *testPackageManager) InstallExtensions(ctx context.Context, url string, extensions []string) error {
+	args := m.Called(ctx, url, extensions)
+	return args.Error(0)
+}
+
+func (m *testPackageManager) RemoveExtensions(ctx context.Context, pkg string, extensions []string) error {
+	args := m.Called(ctx, pkg, extensions)
+	return args.Error(0)
+}
+
 func (m *testPackageManager) Close() error {
 	args := m.Called()
 	return args.Error(0)
