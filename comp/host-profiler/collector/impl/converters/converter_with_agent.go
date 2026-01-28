@@ -55,18 +55,14 @@ func extractSite(s string) string {
 func newConfigManager(config config.Component) configManager {
 	profilingDDURL := config.GetString("apm_config.profiling_dd_url")
 	ddSite := config.GetString("site")
-	ddURL := config.GetString("dd_url")
 	apiKey := config.GetString(fieldAPIKey)
 
-	var usedURL string
-	if ddSite == "" {
-		if profilingDDURL != "" {
-			ddSite = extractSite(profilingDDURL)
-			usedURL = profilingDDURL
-		} else {
-			ddSite = extractSite(ddURL)
-			usedURL = ddURL
-		}
+	var usedURL, usedSite string
+	if profilingDDURL != "" {
+		usedSite = extractSite(profilingDDURL)
+		usedURL = profilingDDURL
+	} else if ddSite != "" {
+		usedSite = ddSite
 	}
 
 	profilingAdditionalEndpoints := config.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
@@ -83,13 +79,13 @@ func newConfigManager(config config.Component) configManager {
 			apiKeys: keys,
 		})
 	}
-	log.Infof("Global dd_site is %s", ddSite)
+	log.Infof("Main site infered from core configuration is %s", usedSite)
 
 	// Add main endpoint if we have a valid site
-	if ddSite == "" {
-		log.Warn("Could not determine dd_site from configuration, no default endpoint will be configured")
+	if usedSite == "" {
+		log.Warn("Could not determine site from core configuration, no default endpoint will be configured")
 	} else {
-		endpoints = append(endpoints, endpoint{site: ddSite, url: usedURL, apiKeys: []string{apiKey}})
+		endpoints = append(endpoints, endpoint{site: usedSite, url: usedURL, apiKeys: []string{apiKey}})
 	}
 
 	if len(endpoints) == 0 {
