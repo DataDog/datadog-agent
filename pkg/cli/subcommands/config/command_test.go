@@ -6,8 +6,8 @@
 package config
 
 import (
-	"testing"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
