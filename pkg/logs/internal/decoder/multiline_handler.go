@@ -12,8 +12,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 

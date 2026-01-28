@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 func newTestMessage(content string) *message.Message {

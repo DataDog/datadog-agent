@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
 // mockSenderFactory captures the configuration passed to NewSenderV2

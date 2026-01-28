@@ -9,6 +9,7 @@ import (
 	"regexp"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
@@ -18,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/integrations"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // NewDecoderFromSource creates a new decoder from a log source

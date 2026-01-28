@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // All valid whitespace characters

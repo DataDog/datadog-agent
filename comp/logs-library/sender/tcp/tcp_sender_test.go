@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 )
 
 func TestTCPDestinationFactory(t *testing.T) {
