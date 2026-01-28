@@ -101,8 +101,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/status/statusinterface
-	pkg/logs/status/utils
 	pkg/metrics
 	pkg/network/driver
 	pkg/network/payload

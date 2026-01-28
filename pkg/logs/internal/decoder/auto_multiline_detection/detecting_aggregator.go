@@ -8,7 +8,7 @@ package automultilinedetection
 import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 )
 
 // detectingAggregator detects multiline groups and tags the start line without aggregating.

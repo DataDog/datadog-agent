@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 )
 
 func makeHandler() (chan *message.Message, func(*message.Message)) {
