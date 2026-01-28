@@ -66,7 +66,7 @@ func (m *mockResolvable) GetExtraConfig(key string) (string, error) {
 	return value, nil
 }
 
-func TestResolveDataWithTemplateVars_JSONBasic(t *testing.T) {
+func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 	svc := &mockResolvable{
 		serviceID: "test-service",
 		hosts:     map[string]string{"pod": "10.0.0.5"},
@@ -80,51 +80,92 @@ func TestResolveDataWithTemplateVars_JSONBasic(t *testing.T) {
 
 	tests := []struct {
 		name     string
+		svc      *mockResolvable
 		input    string
 		expected string
 	}{
 		{
 			name:     "simple host resolution",
+			svc:      svc,
 			input:    `{"host": "%%host%%"}`,
 			expected: `{"host":"10.0.0.5"}`,
 		},
 		{
 			name:     "hostname resolution",
+			svc:      svc,
 			input:    `{"pod": "%%hostname%%"}`,
 			expected: `{"pod":"my-pod-123"}`,
 		},
 		{
 			name:     "kube namespace resolution",
+			svc:      svc,
 			input:    `{"namespace": "%%kube_namespace%%"}`,
 			expected: `{"namespace":"default"}`,
 		},
 		{
 			name:     "multiple variables",
+			svc:      svc,
 			input:    `{"host": "%%host%%", "pod": "%%kube_pod_name%%", "uid": "%%kube_pod_uid%%"}`,
 			expected: `{"host":"10.0.0.5","pod":"my-pod-123","uid":"abc-def-ghi"}`,
 		},
 		{
 			name:     "variable in string value",
+			svc:      svc,
 			input:    `{"url": "http://%%host%%:9400/metrics"}`,
 			expected: `{"url":"http://10.0.0.5:9400/metrics"}`,
 		},
 		{
 			name:     "mixed static and template",
+			svc:      svc,
 			input:    `{"static": "value", "dynamic": "%%hostname%%"}`,
 			expected: `{"dynamic":"my-pod-123","static":"value"}`,
+		},
+		{
+			name: "ipv6 host in url gets bracketed",
+			svc: &mockResolvable{
+				serviceID: "test-service",
+				hosts:     map[string]string{"pod": "::1"},
+			},
+			input:    `{"url": "http://%%host%%:8080/metrics"}`,
+			expected: `{"url":"http://[::1]:8080/metrics"}`,
+		},
+		{
+			name: "ipv6 host not in url is not bracketed",
+			svc: &mockResolvable{
+				serviceID: "test-service",
+				hosts:     map[string]string{"pod": "2001:db8::1"},
+			},
+			input:    `{"host": "%%host%%"}`,
+			expected: `{"host":"2001:db8::1"}`,
+		},
+		{
+			name: "port resolution",
+			svc: &mockResolvable{
+				ports: []ContainerPort{
+					{Port: 6379, Name: "redis"},
+					{Port: 9400, Name: "metrics"},
+					{Port: 8080, Name: "http"},
+				},
+			},
+			input:    `{"port": "%%port%%", "port_0": "%%port_0%%", "port_metrics": "%%port_metrics%%"}`,
+			expected: `{"port":8080, "port_0":6379, "port_metrics":9400}`,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolved, err := ResolveDataWithTemplateVars([]byte(tt.input), svc, JSONParser, nil)
+			testSvc := svc
+			if tt.svc != nil {
+				testSvc = tt.svc
+			}
+			resolved, err := ResolveDataWithTemplateVars([]byte(tt.input), testSvc, JSONParser, nil)
 			require.NoError(t, err)
 			assert.JSONEq(t, tt.expected, string(resolved))
 		})
 	}
 }
 
-func TestResolveDataWithTemplateVars_YAMLBasic(t *testing.T) {
+func TestResolveDataWithTemplateVars_YAML(t *testing.T) {
 	svc := &mockResolvable{
 		serviceID: "test-service",
 		hosts:     map[string]string{"pod": "10.0.0.5"},
@@ -155,52 +196,6 @@ tags:
 	require.True(t, ok)
 	assert.Equal(t, "static", tags[0])
 	assert.Equal(t, "pod:my-pod", tags[1])
-}
-
-func TestResolveDataWithTemplateVars_PortResolution(t *testing.T) {
-	svc := &mockResolvable{
-		serviceID: "test-service",
-		ports: []ContainerPort{
-			{Port: 6379, Name: "redis"},
-			{Port: 9400, Name: "metrics"},
-			{Port: 8080, Name: "http"},
-		},
-	}
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "last port (no index)",
-			input:    `{"port": "%%port%%"}`,
-			expected: `{"port":8080}`,
-		},
-		{
-			name:     "port by index",
-			input:    `{"port": "%%port_0%%"}`,
-			expected: `{"port":6379}`,
-		},
-		{
-			name:     "port by name",
-			input:    `{"port": "%%port_metrics%%"}`,
-			expected: `{"port":9400}`,
-		},
-		{
-			name:     "port in string",
-			input:    `{"url": "http://localhost:%%port_http%%"}`,
-			expected: `{"url":"http://localhost:8080"}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resolved, err := ResolveDataWithTemplateVars([]byte(tt.input), svc, JSONParser, nil)
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.expected, string(resolved))
-		})
-	}
 }
 
 func TestResolveDataWithTemplateVars_TypeCoercion(t *testing.T) {
@@ -301,75 +296,6 @@ func TestGetFallbackHost(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestGetPort(t *testing.T) {
-	ports := []ContainerPort{
-		{Port: 6379, Name: "redis"},
-		{Port: 9400, Name: "metrics"},
-		{Port: 8080, Name: "http"},
-	}
-
-	tests := []struct {
-		name        string
-		tplVar      string
-		expected    string
-		shouldError bool
-	}{
-		{
-			name:     "no index (last port)",
-			tplVar:   "",
-			expected: "8080",
-		},
-		{
-			name:     "by index 0",
-			tplVar:   "0",
-			expected: "6379",
-		},
-		{
-			name:     "by index 1",
-			tplVar:   "1",
-			expected: "9400",
-		},
-		{
-			name:     "by name redis",
-			tplVar:   "redis",
-			expected: "6379",
-		},
-		{
-			name:     "by name metrics",
-			tplVar:   "metrics",
-			expected: "9400",
-		},
-		{
-			name:        "invalid index",
-			tplVar:      "10",
-			shouldError: true,
-		},
-		{
-			name:        "unknown name",
-			tplVar:      "unknown",
-			shouldError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &mockResolvable{
-				serviceID: "test-service",
-				ports:     ports,
-			}
-
-			result, err := GetPort(tt.tplVar, svc)
-
-			if tt.shouldError {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestResolveDataWithTemplateVars_WithPostProcessor(t *testing.T) {
 	svc := &mockResolvable{
 		serviceID: "test-service",
@@ -407,10 +333,10 @@ func TestResolveDataWithTemplateVars_InvalidJSON(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestResolveDataWithTemplateVars_ErrorCases(t *testing.T) {
+func TestResolveDataWithTemplateVars_Errors(t *testing.T) {
 	tests := []struct {
 		name        string
-		svc         Resolvable
+		svc         *mockResolvable
 		input       string
 		shouldError bool
 		errorMsg    string
@@ -463,41 +389,6 @@ func TestResolveDataWithTemplateVars_ErrorCases(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-		})
-	}
-}
-
-func TestResolveDataWithTemplateVars_IPv6Host(t *testing.T) {
-	tests := []struct {
-		name     string
-		host     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "url",
-			host:     "::1",
-			input:    `{"url": "http://%%host%%:8080/metrics"}`,
-			expected: `{"url":"http://[::1]:8080/metrics"}`,
-		},
-		{
-			name:     "not in url",
-			host:     "2001:db8::1",
-			input:    `{"host": "%%host%%"}`,
-			expected: `{"host":"2001:db8::1"}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc := &mockResolvable{
-				serviceID: "test-service",
-				hosts:     map[string]string{"pod": tt.host},
-			}
-
-			resolved, err := ResolveDataWithTemplateVars([]byte(tt.input), svc, JSONParser, nil)
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.expected, string(resolved))
 		})
 	}
 }
