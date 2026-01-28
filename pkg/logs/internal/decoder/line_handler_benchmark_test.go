@@ -13,9 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 func benchmarkSingleLineHandler(b *testing.B, logs int) {

@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	automultilinedetection "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection"
-	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 
 // AutoMultilineHandler aggregates or detects multiline logs.
