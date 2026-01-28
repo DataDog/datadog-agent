@@ -625,6 +625,7 @@
 /pkg/network/                           @DataDog/cloud-network-monitoring
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-products
+/pkg/network/*usm*windows*.go           @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/network/config/config_test.go      @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring @DataDog/windows-products
 /pkg/network/config/usm*.go             @DataDog/universal-service-monitoring
 /pkg/network/driver_*.go                @DataDog/windows-products
@@ -639,15 +640,16 @@
 /pkg/network/ebpf/c/protocols/tls       @DataDog/cloud-network-monitoring @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-products
+/pkg/network/encoding/marshal/*usm*windows*.go  @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/network/go/                        @DataDog/universal-service-monitoring
 /pkg/network/protocols/                 @DataDog/universal-service-monitoring
-/pkg/network/protocols/http/driver_*.go         @DataDog/windows-products
-/pkg/network/protocols/http/etw*.go             @DataDog/windows-products
-/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-products
+/pkg/network/protocols/http/driver_*.go         @DataDog/windows-products @DataDog/universal-service-monitoring
+/pkg/network/protocols/http/etw*.go             @DataDog/windows-products @DataDog/universal-service-monitoring
+/pkg/network/protocols/http/*_windows*.go       @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/network/tracer/testutil/proxy/              @DataDog/universal-service-monitoring
 /pkg/network/tracer/*_windows*.go               @DataDog/windows-products
 /pkg/network/usm/                       @DataDog/universal-service-monitoring
-/pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products
+/pkg/network/usm/tests/*_windows*.go    @DataDog/windows-products @DataDog/universal-service-monitoring
 /pkg/networkconfigmanagement/           @DataDog/ndm-core @DataDog/ndm-integrations
 /pkg/ebpf/                              @DataDog/ebpf-platform
 /pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
