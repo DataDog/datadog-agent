@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 )
 
 // FingerprinterMock is a mock implementation of the Fingerprinter interface

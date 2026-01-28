@@ -7,8 +7,8 @@
 package eventplatformreceiver
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // team: agent-log-pipelines

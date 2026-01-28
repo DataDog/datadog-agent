@@ -12,7 +12,7 @@ package tailerfactory
 import (
 	"errors"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 func (tf *factory) makeAPITailer(source *sources.LogSource) (Tailer, error) {

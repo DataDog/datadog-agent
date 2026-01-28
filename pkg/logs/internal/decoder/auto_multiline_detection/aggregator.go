@@ -7,7 +7,7 @@
 package automultilinedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // Aggregator is the interface for multiline log processing.
