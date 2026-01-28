@@ -9,6 +9,7 @@ package delegatedauthimpl
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -66,12 +67,12 @@ type authInstance struct {
 // mutable fields.
 type delegatedAuthComponent struct {
 	// Mutable fields (protected by mu)
-	mu               sync.RWMutex
-	config           pkgconfigmodel.ReaderWriter
-	instances        map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
-	initialized      bool                     // Whether Initialize() has been called
-	resolvedProvider string                   // Resolved provider name (e.g., "aws")
-	resolvedAWSRegion string                  // Resolved AWS region (if provider is AWS)
+	mu                sync.RWMutex
+	config            pkgconfigmodel.ReaderWriter
+	instances         map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
+	initialized       bool                     // Whether Initialize() has been called
+	resolvedProvider  string                   // Resolved provider name (e.g., "aws")
+	resolvedAWSRegion string                   // Resolved AWS region (if provider is AWS)
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -111,7 +112,7 @@ func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) err
 
 	// Check if already initialized
 	if d.initialized {
-		return fmt.Errorf("delegated auth already initialized")
+		return errors.New("delegated auth already initialized")
 	}
 
 	// Store the config
@@ -153,7 +154,7 @@ func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) err
 	}
 
 	// No cloud provider detected
-	return fmt.Errorf("could not auto-detect cloud provider. Currently only 'aws' is supported")
+	return errors.New("could not auto-detect cloud provider. Currently only 'aws' is supported")
 }
 
 // AddInstance configures delegated auth for a specific API key.
@@ -166,12 +167,12 @@ func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams
 	d.mu.RUnlock()
 
 	if !initialized {
-		return fmt.Errorf("delegated auth not initialized, call Initialize() first")
+		return errors.New("delegated auth not initialized, call Initialize() first")
 	}
 
 	// Validate required parameters
 	if params.OrgUUID == "" {
-		return fmt.Errorf("org_uuid is required")
+		return errors.New("org_uuid is required")
 	}
 
 	// Determine the API key config key, defaulting to "api_key"
@@ -400,6 +401,7 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, 
 	d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
 	log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastFiveChars(apiKey))
 }
+
 // Status Provider implementation for delegated auth
 
 // Name returns the name for status sorting

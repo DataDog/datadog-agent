@@ -99,7 +99,7 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 			pkgconfig.SetConfigFile(ddCfg)
 		}
 
-		err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, delegatedauthnoop.NewComponent().Comp, nil)
 		if err != nil {
 			return nil, err
 		}
