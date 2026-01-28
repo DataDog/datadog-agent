@@ -117,9 +117,7 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 
-	p.resolver.SSHSessionParsed.Mu.Lock()
-	_, ok := p.resolver.SSHSessionParsed.Lru.Get(key)
-	p.resolver.SSHSessionParsed.Mu.Unlock()
+	_, ok := p.resolver.GetSSHSession(key)
 
 	if !ok {
 		return fmt.Errorf("ssh session not found in LRU for %s:%d",
@@ -148,9 +146,7 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 		IP:   p.userSessionCtx.SSHClientIP,
 		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
-	p.resolver.SSHSessionParsed.Mu.Lock()
-	value, ok := p.resolver.SSHSessionParsed.Lru.Get(key)
-	p.resolver.SSHSessionParsed.Mu.Unlock()
+	value, ok := p.resolver.GetSSHSession(key)
 
 	if ok {
 		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(value.AuthenticationMethod))
