@@ -28,8 +28,7 @@ build do
       " #{install_dir}/embedded/lib/pkgconfig/python*.pc" \
       " #{install_dir}/embedded/lib/#{sh_lib}" \
       " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
-      " #{install_dir}/embedded/bin/python3*" \
-      " #{install_dir}/embedded/bin/pip3*"
+      " #{install_dir}/embedded/bin/python3*"
   elsif fips_mode?
     ###############################
     # Setup openssl dependency... #
