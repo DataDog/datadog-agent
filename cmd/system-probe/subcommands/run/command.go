@@ -120,7 +120,7 @@ func getSharedFxOption() fx.Option {
 	return fx.Options(
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile)),
 		config.Module(),
-        delegatedauthfx.Module(),
+		delegatedauthfx.Module(),
 		sysprobeconfigimpl.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryimpl.Module(),
