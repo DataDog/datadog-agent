@@ -2509,7 +2509,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	// Configure delegated auth after secrets are resolved but before other components initialize
 	// Cloud provider detection happens automatically within the delegatedauth component
 	if err := configureDelegatedAuth(config, delegatedAuthComp); err != nil {
-		return err
+		log.Errorf("Failed to configure delegated authentication: %v. Agent will continue without delegated auth.", err)
 	}
 
 	// Verify 'DD_URL' and 'DD_DD_URL' conflicts
