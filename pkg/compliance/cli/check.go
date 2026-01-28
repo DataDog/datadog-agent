@@ -55,7 +55,7 @@ func FillCheckFlags(flagSet *pflag.FlagSet, checkArgs *CheckParams) {
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, ipc ipc.Component, hostname hostnameinterface.Component) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, _ ipc.Component, hostname hostnameinterface.Component) error {
 	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return err
