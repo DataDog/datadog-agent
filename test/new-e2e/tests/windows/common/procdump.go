@@ -51,19 +51,43 @@ func SetupProcdump(host *components.RemoteHost) error {
 
 // CaptureProcdump captures a full memory dump of a process by PID
 //
-// The dump file is written to outputDir with the format <processName>_<pid>.dmp
+// The dump file is written to outputDir with the format <processName>.<pid>.dmp
+// This format matches the WER dump naming convention so both can coexist in the
+// same directory and be parsed by parseWERDumpFilePath.
+//
+// Note: procdump returns exit code 1 when "Dump count reached", which is expected
+// behavior after successfully capturing a dump. This function parses the output
+// to determine success rather than relying on the exit code.
 func CaptureProcdump(host *components.RemoteHost, pid int, outputDir string, processName string) (string, error) {
-	dumpFileName := fmt.Sprintf("%s_%d.dmp", processName, pid)
+	dumpFileName := fmt.Sprintf("%s.%d.dmp", processName, pid)
 	dumpPath := filepath.Join(outputDir, dumpFileName)
 	// Use forward slashes for PowerShell compatibility
 	dumpPath = strings.ReplaceAll(dumpPath, "\\", "/")
 
 	cmd := fmt.Sprintf(`& "%s" -accepteula -ma %d "%s"`, ProcdumpExe, pid, dumpPath)
-	_, err := host.Execute(cmd)
-	if err != nil {
-		return "", fmt.Errorf("procdump failed for PID %d: %w", pid, err)
+	output, err := host.Execute(cmd)
+
+	// Procdump returns exit code 1 when "Dump count reached", which is success.
+	// Check both output and error message to determine if the dump was captured.
+	// When host.Execute returns an error, the command output may be embedded in
+	// the error message rather than the output string.
+	successIndicator := "Dump 1 complete"
+	if strings.Contains(output, successIndicator) {
+		// Dump was successful, ignore exit code
+		return dumpPath, nil
 	}
-	return dumpPath, nil
+	if err != nil && strings.Contains(err.Error(), successIndicator) {
+		// Dump was successful but output was in error message, ignore exit code
+		return dumpPath, nil
+	}
+
+	// If we don't see success in output or error and there was an error, report it
+	if err != nil {
+		return "", fmt.Errorf("procdump failed for PID %d: %w\nOutput: %s", pid, err, output)
+	}
+
+	// No error but also no success message - unexpected
+	return "", fmt.Errorf("procdump did not capture dump for PID %d, output: %s", pid, output)
 }
 
 // StartupDumpCollector monitors a Windows service and captures a memory dump
