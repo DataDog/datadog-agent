@@ -462,9 +462,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		}
 	}
 
-	// Extract tags from pod-level annotation with template resolution
-	podSvc := newResolvablePodAdapter(pod, nil)
-	c.extractTagsFromJSONInMapWithResolver(podTagsAnnotation, pod.Annotations, tagList, podSvc)
+	podAdapter := newResolvablePodAdapter(pod)
+	c.extractTagsFromJSONWithResolution(podTagsAnnotation, pod.Annotations, tagList, podAdapter)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -936,9 +935,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
-	// Create Service adapter with both container and pod for full variable resolution
-	containerSvc := newResolvableContainerAdapter(container, pod, c.store)
-	c.extractTagsFromJSONInMapWithResolver(annotation, pod.Annotations, tagList, containerSvc)
+	containerAdapter := newResolvableContainerAdapter(container, pod, c.store)
+	c.extractTagsFromJSONWithResolution(annotation, pod.Annotations, tagList, containerAdapter)
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -1017,7 +1015,7 @@ func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromJSONInMapWithResolver(key string, input map[string]string, tags *taglist.TagList, resolvable tmplvar.Resolvable) {
+func (c *WorkloadMetaCollector) extractTagsFromJSONWithResolution(key string, input map[string]string, tags *taglist.TagList, resolvable tmplvar.Resolvable) {
 	jsonTags, found := input[key]
 	if !found {
 		return

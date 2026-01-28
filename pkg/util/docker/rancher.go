@@ -6,6 +6,7 @@
 package docker
 
 import (
+	"maps"
 	"net"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,4 +28,25 @@ func FindRancherIPInLabels(labels map[string]string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// ContainerHosts returns a map of hostnames to IP addresses for a container.
+// It includes the container's network IP addresses, the rancher IP if
+// available, and container's hostname if no IP is available.
+func ContainerHosts(networkIPs, labels map[string]string, hostname string) map[string]string {
+	hosts := make(map[string]string)
+
+	maps.Copy(hosts, networkIPs)
+
+	if rancherIP, ok := FindRancherIPInLabels(labels); ok {
+		hosts["rancher"] = rancherIP
+	}
+
+	// Some CNI solutions (including ECS awsvpc) do not assign an
+	// IP through docker, but set a valid reachable hostname. Use
+	// it if no IP is discovered.
+	if len(hosts) == 0 && len(hostname) > 0 {
+		hosts["hostname"] = hostname
+	}
+	return hosts
 }
