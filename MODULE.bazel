@@ -203,8 +203,7 @@ crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 
 include("//deps:crates.MODULE.bazel")
 
-crate.from_specs()
-use_repo(crate, "crates")
+use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
