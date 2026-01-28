@@ -137,7 +137,9 @@ func TokenizeString(input string) *token.TokenList {
 	}
 
 	tokenizer := NewTokenizer(input)
-	return tokenizer.Tokenize()
+	tokenList := tokenizer.Tokenize()
+	tokenizer.Release()
+	return tokenList
 }
 
 // Statistics

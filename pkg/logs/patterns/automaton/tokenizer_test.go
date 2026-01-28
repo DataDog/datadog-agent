@@ -17,6 +17,7 @@ import (
 func TestTokenizer_SimpleTokenization(t *testing.T) {
 	input := "GET /api 200"
 	tokenizer := NewTokenizer(input)
+	defer tokenizer.Release()
 	tokenList := tokenizer.Tokenize()
 
 	assert.NotEqual(t, 0, tokenList.Length(), "Expected tokens, got empty list")
@@ -98,6 +99,8 @@ func TestTokenizer_StateTransitions(t *testing.T) {
 			assert.True(t, hasStart, "IPv4 test: expected to see StateStart")
 			assert.True(t, hasNumeric, "IPv4 test: expected to see StateNumeric")
 		}
+
+		tokenizer.Release()
 	}
 }
 

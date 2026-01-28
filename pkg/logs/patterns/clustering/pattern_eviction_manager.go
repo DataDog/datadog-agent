@@ -35,7 +35,8 @@ func NewEvictionManager() *EvictionManager {
 }
 
 // Evict performs eviction on the cluster manager based on which threshold was exceeded
-func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) {
+// and returns the evicted patterns.
+func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimatedBytes int64, countOverLimit, bytesOverLimit bool) []*Pattern {
 	var evicted []*Pattern
 
 	numToEvict, bytesToFree, strategy := em.EvictionTargets(patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
@@ -47,7 +48,7 @@ func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimated
 
 		highWatermarkBytes := int64(float64(em.MaxMemoryBytes) * em.EvictionHighWatermark)
 		targetBytes := int64(float64(em.MaxMemoryBytes) * em.EvictionLowWatermark)
-		log.Infof("Evicted %d patterns: memory %d bytes exceeded high watermark %d bytes (%.0f%% of %d max), now targeting %d bytes (%.0f%%)",
+		log.Debugf("Evicted %d patterns: memory %d bytes exceeded high watermark %d bytes (%.0f%% of %d max), now targeting %d bytes (%.0f%%)",
 			len(evicted), estimatedBytes, highWatermarkBytes,
 			em.EvictionHighWatermark*100, em.MaxMemoryBytes,
 			targetBytes, em.EvictionLowWatermark*100)
@@ -58,9 +59,10 @@ func (em *EvictionManager) Evict(cm *ClusterManager, patternCount int, estimated
 
 		highWatermarkCount := int(float64(em.MaxItemCount) * em.EvictionHighWatermark)
 		targetCount := int(float64(em.MaxItemCount) * em.EvictionLowWatermark)
-		log.Infof("Evicted %d patterns: count %d exceeded high watermark %d (%.0f%% of %d max), now targeting %d (%.0f%%)",
+		log.Debugf("Evicted %d patterns: count %d exceeded high watermark %d (%.0f%% of %d max), now targeting %d (%.0f%%)",
 			len(evicted), patternCount, highWatermarkCount,
 			em.EvictionHighWatermark*100, em.MaxItemCount,
 			targetCount, em.EvictionLowWatermark*100)
 	}
+	return evicted
 }
