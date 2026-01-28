@@ -145,11 +145,13 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 		log.Warnf("Failed to parse prometheus text: %v", err)
 		return
 	}
+
 	for _, mf := range metricFamilies {
 		help := ""
 		if mf.Help != nil {
 			help = *mf.Help
 		}
+
 		for _, metric := range mf.Metric {
 			if metric == nil {
 				continue
@@ -163,26 +165,23 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)
 			}
+
+			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
+
 			switch *mf.Type {
 			case dto.MetricType_COUNTER:
-				metric, err := prometheus.NewConstMetric(
-					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
-					prometheus.CounterValue,
-					*metric.Counter.Value,
-					labelValues...,
-				)
+				value := *metric.Counter.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
 				}
 				ch <- metric
 			case dto.MetricType_GAUGE:
-				metric, err := prometheus.NewConstMetric(
-					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
-					prometheus.GaugeValue,
-					*metric.Gauge.Value,
-					labelValues...,
-				)
+				value := *metric.Gauge.Value
+
+				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
@@ -191,19 +190,17 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 
 			case dto.MetricType_SUMMARY:
 				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
+				continue
 
 			case dto.MetricType_HISTOGRAM:
+				count := metric.Histogram.GetSampleCount()
+				sum := metric.Histogram.GetSampleSum()
 				buckets := make(map[float64]uint64)
 				for _, bucket := range metric.Histogram.GetBucket() {
 					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
 				}
-				metric, err := prometheus.NewConstHistogram(
-					prometheus.NewDesc(*mf.Name, help, labelNames, nil),
-					metric.Histogram.GetSampleCount(),
-					metric.Histogram.GetSampleSum(),
-					buckets,
-					labelValues...,
-				)
+
+				metric, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...)
 				if err != nil {
 					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
 					continue
