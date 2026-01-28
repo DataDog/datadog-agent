@@ -28,6 +28,9 @@ import (
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
+const kb = 1024
+const mb = 1024 * kb
+
 // setupWindowsMonitor initializes the Windows driver and creates a USM monitor for testing.
 // It skips the test if the driver cannot be initialized (requires admin privileges).
 func setupWindowsMonitor(t *testing.T, cfg *config.Config) Monitor {
@@ -136,10 +139,13 @@ func verifyHTTPStats(t *testing.T, monitor Monitor, expectedEndpoints map[http.K
 				},
 			}
 
-			// Store in result map
-			result[simpleKey] = statusCodeCount{
-				statusCode: statusCode,
-				count:      stat.Count,
+			// Accumulate counts for the same path/method/status
+			existing := result[simpleKey]
+			if existing.statusCode == 0 || existing.statusCode == statusCode {
+				result[simpleKey] = statusCodeCount{
+					statusCode: statusCode,
+					count:      existing.count + stat.Count,
+				}
 			}
 		}
 	}
@@ -307,4 +313,89 @@ func TestHTTPStatsWithIIS(t *testing.T) {
 	require.Eventuallyf(t, func() bool {
 		return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, makeIISTagValidator(expectedTags))
 	}, 5*time.Second, 100*time.Millisecond, "HTTP connection to IIS not found for %s", serverAddr)
+}
+
+// TestHTTPMonitorIntegrationWithResponseBody tests HTTP monitoring with various body sizes.
+// On Windows, HTTP monitoring uses ETW with a 512-byte HTTPMaxRequestFragment limit.
+// When requests include large bodies, the HTTP headers may fall outside this capture window,
+// causing requests to be classified as "malformed" or not captured at all.
+// This test verifies that requests without bodies are fully captured, while requests
+// with bodies may have reduced capture rates due to this known limitation.
+func TestHTTPMonitorIntegrationWithResponseBody(t *testing.T) {
+	monitor := setupWindowsMonitor(t, getHTTPCfg())
+
+	tests := []struct {
+		name            string
+		requestBodySize int
+	}{
+		{
+			name:            "no body",
+			requestBodySize: 0,
+		},
+		{
+			name:            "1kb body",
+			requestBodySize: 1 * kb,
+		},
+		{
+			name:            "10mb body",
+			requestBodySize: 10 * mb,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			serverPort := tracetestutil.FreeTCPPort(t)
+			serverAddr := fmt.Sprintf("127.0.0.1:%d", serverPort)
+
+			srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
+				EnableKeepAlive: true,
+			})
+			t.Cleanup(srvDoneFn)
+
+			// Make 100 requests with request body
+			const numRequests = 100
+			const testPath = "/200/test"
+			client := &nethttp.Client{
+				Transport: &nethttp.Transport{
+					ForceAttemptHTTP2:   false,
+					DisableKeepAlives:   true, // Use fresh connection for each request
+					MaxIdleConnsPerHost: -1,   // Disable connection pooling
+				},
+			}
+
+			for i := 0; i < numRequests; i++ {
+				var body io.Reader
+				if tt.requestBodySize > 0 {
+					body = strings.NewReader(strings.Repeat("a", tt.requestBodySize))
+				}
+
+				fullURL := "http://" + serverAddr + testPath
+
+				req, err := nethttp.NewRequest(nethttp.MethodPost, fullURL, body)
+				require.NoError(t, err)
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+				_, _ = io.Copy(io.Discard, resp.Body)
+				resp.Body.Close()
+			}
+
+			srvDoneFn()
+
+			// Verify all 100 requests were captured
+			expectedEndpoints := map[http.Key]statusCodeCount{
+				{
+					Path:   http.Path{Content: http.Interner.GetString(testPath)},
+					Method: http.MethodPost,
+				}: {
+					statusCode: 200,
+					count:      numRequests,
+				},
+			}
+
+			require.Eventuallyf(t, func() bool {
+				return verifyHTTPStats(t, monitor, expectedEndpoints, serverPort, nil)
+			}, 5*time.Second, 100*time.Millisecond, "expected %d requests to %s but not all were captured", numRequests, testPath)
+		})
+	}
 }
