@@ -749,14 +749,6 @@ func (c *InternalTraceChunk) SetStringAttribute(key, value string) {
 	setStringAttribute(key, value, c.Strings, c.Attributes)
 }
 
-func (c *TraceChunk) markUsedStrings(usedStrings []bool) {
-	usedStrings[c.OriginRef] = true
-	markAttributeMapStringsUsed(usedStrings, c.Attributes)
-	for _, span := range c.Spans {
-		span.markUsedStrings(usedStrings)
-	}
-}
-
 // ToProto converts an InternalTraceChunk to a proto TraceChunk
 func (c *InternalTraceChunk) ToProto() *TraceChunk {
 	spans := make([]*Span, len(c.Spans))
@@ -801,36 +793,9 @@ func (s *InternalSpan) ShallowCopy() *InternalSpan {
 	}
 }
 
-func (s *Span) markUsedStrings(usedStrings []bool) {
-	usedStrings[s.ServiceRef] = true
-	usedStrings[s.NameRef] = true
-	usedStrings[s.ResourceRef] = true
-	usedStrings[s.TypeRef] = true
-	usedStrings[s.EnvRef] = true
-	usedStrings[s.VersionRef] = true
-	usedStrings[s.ComponentRef] = true
-	markAttributeMapStringsUsed(usedStrings, s.Attributes)
-	for _, link := range s.Links {
-		markSpanLinkUsedStrings(usedStrings, link)
-	}
-	for _, event := range s.Events {
-		markSpanEventUsedStrings(usedStrings, event)
-	}
-}
-
 // ToProto converts the internal span to a protobuf span.
 func (s *InternalSpan) ToProto() *Span {
 	return s.span
-}
-
-func markSpanLinkUsedStrings(usedStrings []bool, link *SpanLink) {
-	usedStrings[link.TracestateRef] = true
-	markAttributeMapStringsUsed(usedStrings, link.Attributes)
-}
-
-func markSpanEventUsedStrings(usedStrings []bool, event *SpanEvent) {
-	usedStrings[event.NameRef] = true
-	markAttributeMapStringsUsed(usedStrings, event.Attributes)
 }
 
 // ShallowCopy returns a shallow copy of the span
@@ -1557,31 +1522,6 @@ func deleteAttribute(key string, strTable *StringTable, attributes map[uint32]*A
 	keyIdx := strTable.Lookup(key)
 	if keyIdx != 0 {
 		delete(attributes, keyIdx)
-	}
-}
-
-func markAttributeMapStringsUsed(usedStrings []bool, attributes map[uint32]*AnyValue) {
-	for keyIdx, attr := range attributes {
-		usedStrings[keyIdx] = true
-		markAttributeStringUsed(usedStrings, attr)
-	}
-}
-
-// markAttributeStringUsed marks the string referenced by the value as used
-// This is used to track which strings are used in the span and can be removed from the string table
-func markAttributeStringUsed(usedStrings []bool, value *AnyValue) {
-	switch v := value.Value.(type) {
-	case *AnyValue_StringValueRef:
-		usedStrings[v.StringValueRef] = true
-	case *AnyValue_ArrayValue:
-		for _, value := range v.ArrayValue.Values {
-			markAttributeStringUsed(usedStrings, value)
-		}
-	case *AnyValue_KeyValueList:
-		for _, kv := range v.KeyValueList.KeyValues {
-			usedStrings[kv.Key] = true
-			markAttributeStringUsed(usedStrings, kv.Value)
-		}
 	}
 }
 
