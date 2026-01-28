@@ -6,7 +6,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0-devel
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.76.0-devel
@@ -31,6 +30,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.76.0-devel // indirect

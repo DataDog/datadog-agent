@@ -74,17 +74,17 @@ const (
 	megaByte = 1024 * 1024
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5
+	DefaultBatchWait = logdefaults.DefaultBatchWait
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
+	DefaultBatchMaxSize = logdefaults.DefaultBatchMaxSize
 
 	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
+	DefaultInputChanSize = logdefaults.DefaultInputChanSize
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
+	DefaultBatchMaxContentSize = logdefaults.DefaultBatchMaxContentSize
 
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
@@ -96,7 +96,7 @@ const (
 	DefaultCompressorKind = "zstd"
 
 	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
+	DefaultLogCompressionKind = logdefaults.DefaultLogCompressionKind
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
@@ -107,16 +107,16 @@ const (
 	DefaultGzipCompressionLevel = 6
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
+	DefaultLogsSenderBackoffFactor = logdefaults.DefaultLogsSenderBackoffFactor
 
 	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
+	DefaultLogsSenderBackoffBase = logdefaults.DefaultLogsSenderBackoffBase
 
 	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
+	DefaultLogsSenderBackoffMax = logdefaults.DefaultLogsSenderBackoffMax
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
+	DefaultLogsSenderBackoffRecoveryInterval = logdefaults.DefaultLogsSenderBackoffRecoveryInterval
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
