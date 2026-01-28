@@ -18,8 +18,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 

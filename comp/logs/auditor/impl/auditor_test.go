@@ -19,8 +19,8 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 var testpath = "testpath"

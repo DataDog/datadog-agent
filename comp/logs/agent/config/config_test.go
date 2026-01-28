@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 )
 
 type ConfigTestSuite struct {

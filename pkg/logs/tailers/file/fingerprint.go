@@ -14,7 +14,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
