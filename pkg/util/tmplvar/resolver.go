@@ -46,19 +46,19 @@ type Resolvable interface {
 	GetExtraConfig(key string) (string, error)
 }
 
-// NoServiceError represents an error that indicates that there's a problem with a service
-type NoServiceError struct {
+// NoResolverError represents an error that indicates that there's a problem with a service
+type NoResolverError struct {
 	message string
 }
 
 // Error returns the error message
-func (n *NoServiceError) Error() string {
+func (n *NoResolverError) Error() string {
 	return n.message
 }
 
-// noResolverError returns a new NoServiceError
-func noResolverError(message string) *NoServiceError {
-	return &NoServiceError{
+// noResolverError returns a new NoResolverError
+func noResolverError(message string) *NoResolverError {
+	return &NoResolverError{
 		message: message,
 	}
 }
@@ -424,7 +424,7 @@ func GetPort(tplVar string, res Resolvable) (string, error) {
 // GetPid resolves the %%pid%% template variable
 func GetPid(_ string, res Resolvable) (string, error) {
 	if res == nil {
-		return "", errors.New("no service. %%%%pid%%%% is not allowed")
+		return "", noResolverError("no resolver. %%%%pid%%%% is not allowed")
 	}
 
 	pid, err := res.GetPid()
@@ -437,7 +437,7 @@ func GetPid(_ string, res Resolvable) (string, error) {
 // GetHostname resolves the %%hostname%% template variable
 func GetHostname(_ string, res Resolvable) (string, error) {
 	if res == nil {
-		return "", errors.New("no service. %%%%hostname%%%% is not allowed")
+		return "", noResolverError("no resolver. %%%%hostname%%%% is not allowed")
 	}
 
 	name, err := res.GetHostname()
@@ -450,7 +450,7 @@ func GetHostname(_ string, res Resolvable) (string, error) {
 // GetAdditionalTplVariables resolves listener-specific template variables (%%kube_*%% and %%extra_*%%)
 func GetAdditionalTplVariables(tplVar string, res Resolvable) (string, error) {
 	if res == nil {
-		return "", errors.New("no service. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
+		return "", noResolverError("no resolver. %%%%extra_*%%%% or %%%%kube_*%%%% are not allowed")
 	}
 
 	value, err := res.GetExtraConfig(tplVar)
