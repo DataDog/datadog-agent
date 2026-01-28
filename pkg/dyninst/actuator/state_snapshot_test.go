@@ -104,7 +104,11 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		before := deepCopyState(s)
 		// Handle the event
 		effects.effects = effects.effects[:0]
-		err = handleEvent(s, &effects, ev.event)
+		if runtimeStatsEvent, ok := ev.event.(eventRuntimeStatsUpdated); ok {
+			err = handleRuntimeStatsUpdatedForTest(s, runtimeStatsEvent)
+		} else {
+			err = handleEvent(s, &effects, ev.event)
+		}
 		require.NoError(t, err)
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
 		outputString := string(output[i])
@@ -149,6 +153,31 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		err = os.Rename(tmpFile.Name(), file)
 		require.NoError(t, err)
 	}
+}
+
+func handleRuntimeStatsUpdatedForTest(
+	sm *state,
+	ev eventRuntimeStatsUpdated,
+) error {
+	prog, ok := sm.programs[ev.programID]
+	if !ok {
+		return fmt.Errorf("program %v not found in programs", ev.programID)
+	}
+	if prog.loaded == nil || prog.loaded.loaded == nil {
+		return fmt.Errorf(
+			"program %v has no loaded program",
+			ev.programID,
+		)
+	}
+	updater, ok := prog.loaded.loaded.(runtimeStatsUpdater)
+	if !ok {
+		return fmt.Errorf(
+			"program %v does not support runtime stats updates",
+			ev.programID,
+		)
+	}
+	updater.setRuntimeStats(ev.runtimeStats)
+	return nil
 }
 
 func generateEventOutput(
