@@ -6,11 +6,11 @@
 package settings
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // MultiRegionFailoverRuntimeSetting wraps operations to change the Multi-Region Failover settings at runtime.
@@ -58,10 +58,10 @@ func (h *MultiRegionFailoverRuntimeSetting) Set(config config.Component, v inter
 
 	switch v.(type) {
 	case bool:
-		newValue, err = settings.GetBool(v)
+		newValue, err = getBool(v)
 	case []string, nil:
 		// nil means "value not set" - for allowlist, this means every metric is allowed.
-		newValue, err = settings.GetStringSlice(v)
+		newValue, err = getStringSlice(v)
 	default:
 		return fmt.Errorf("%v: bad parameter value provided: %v", h.value, v)
 	}
@@ -71,4 +71,48 @@ func (h *MultiRegionFailoverRuntimeSetting) Set(config config.Component, v inter
 
 	config.Set(h.value, newValue, source)
 	return nil
+}
+
+// getBool returns the bool value contained in value.
+// If value is a bool, returns its value
+// If value is a string, it converts "true" to true and "false" to false.
+// Else, returns an error.
+func getBool(v interface{}) (bool, error) {
+	// to be cautious, take care of both calls with a string (cli) or a bool (programmaticaly)
+	str, ok := v.(string)
+	if ok {
+		// string value
+		switch str {
+		case "true":
+			return true, nil
+		case "false":
+			return false, nil
+		default:
+			return false, fmt.Errorf("getBool: bad parameter value provided: %v", str)
+		}
+
+	}
+	b, ok := v.(bool)
+	if !ok {
+		return false, errors.New("getBool: bad parameter value provided")
+	}
+	return b, nil
+}
+
+// getStringSlice returns the string slice value contained in value.
+// If value is a string slice, returns its value
+// If value is a string, it creates a string slice with the string.
+// If value is nil, returns nil (value not set).
+// Else, returns an error.
+func getStringSlice(v interface{}) ([]string, error) {
+	switch v := v.(type) {
+	case []string:
+		return v, nil
+	case string:
+		return []string{v}, nil
+	case nil:
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("getStringSlice: bad parameter value provided: %v", v)
+	}
 }

@@ -56,21 +56,3 @@ func GetInt(v interface{}) (int, error) {
 		return 0, fmt.Errorf("GetInt: bad parameter value provided: %v", v)
 	}
 }
-
-// GetStringSlice returns the string slice value contained in value.
-// If value is a string slice, returns its value
-// If value is a string, it creates a string slice with the string.
-// If value is nil, returns nil (value not set).
-// Else, returns an error.
-func GetStringSlice(v interface{}) ([]string, error) {
-	switch v := v.(type) {
-	case []string:
-		return v, nil
-	case string:
-		return []string{v}, nil
-	case nil:
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("GetStringSlice: bad parameter value provided: %v", v)
-	}
-}
