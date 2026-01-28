@@ -8,7 +8,7 @@ package decoder
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // LineHandler handles raw lines to form structured lines.

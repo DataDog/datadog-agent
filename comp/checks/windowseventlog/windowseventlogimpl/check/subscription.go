@@ -17,10 +17,10 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl/check/eventdatafilter"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	evtbookmark "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"

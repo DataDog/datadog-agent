@@ -9,7 +9,7 @@
 package agent
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 // Mock implements mock-specific methods.

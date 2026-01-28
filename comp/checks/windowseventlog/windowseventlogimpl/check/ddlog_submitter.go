@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"

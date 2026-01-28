@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
 )
 
 func TestStatus(t *testing.T) {

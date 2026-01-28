@@ -9,7 +9,7 @@
 package tailers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 )
 
 // WrappedSource wraps a LogSource and adds/removes it to the logs-agent on
