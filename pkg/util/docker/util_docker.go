@@ -10,7 +10,6 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
@@ -33,25 +32,4 @@ func buildDockerFilter(args ...string) (volume.ListOptions, error) {
 // GetInspectCacheKey returns the key to a given container ID inspect in the agent cache
 func GetInspectCacheKey(ID string, withSize bool) string {
 	return fmt.Sprintf("dockerutil.containers.%s.withsize.%t", ID, withSize)
-}
-
-// ContainerHosts returns a map of hostnames to IP addresses for a container.
-// It includes the container's network IP addresses, the rancher IP if
-// available, and container's hostname if no IP is available.
-func ContainerHosts(networkIPs, labels map[string]string, hostname string) map[string]string {
-	hosts := make(map[string]string)
-
-	maps.Copy(hosts, networkIPs)
-
-	if rancherIP, ok := FindRancherIPInLabels(labels); ok {
-		hosts["rancher"] = rancherIP
-	}
-
-	// Some CNI solutions (including ECS awsvpc) do not assign an
-	// IP through docker, but set a valid reachable hostname. Use
-	// it if no IP is discovered.
-	if len(hosts) == 0 && len(hostname) > 0 {
-		hosts["hostname"] = hostname
-	}
-	return hosts
 }
