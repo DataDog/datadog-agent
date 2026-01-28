@@ -26,7 +26,7 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 func makeTestImageRef(server *httptest.Server) string {
 	// Strip "https://" prefix (8 characters)
 	registry := server.URL[8:]
-	return fmt.Sprintf("%s/datadoghq/agent:v1", registry)
+	return registry + "/datadoghq/agent:v1"
 }
 
 func TestHttpDigestFetcher_buildManifestRequest_Success(t *testing.T) {
@@ -134,7 +134,7 @@ func TestHttpDigestFetcher_buildManifestRequest_Error(t *testing.T) {
 
 func TestHttpDigestFetcher_digest_Success(t *testing.T) {
 	validDigest := "sha256:abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890"
-	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Docker-Content-Digest", validDigest)
 		w.WriteHeader(http.StatusOK)
 	})
@@ -184,7 +184,7 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			server := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			})
 			f := httpDigestFetcher{
@@ -201,7 +201,7 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 }
 
 func TestHttpDigestFetcher_digest_MissingDigestHeader(t *testing.T) {
-	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 	f := httpDigestFetcher{
@@ -249,7 +249,7 @@ func TestHttpDigestFetcher_digest_InvalidDigestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+			server := newTestServer(t, func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Docker-Content-Digest", tt.digestValue)
 				w.WriteHeader(http.StatusOK)
 			})
