@@ -325,8 +325,28 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	if obs == nil {
 		return
 	}
+
+	// Only wire if capture_metrics is enabled
+	if !pkgconfigsetup.Datadog().GetBool("observer.capture_metrics") {
+		d.log.Debug("Observer metric capture disabled by configuration")
+		return
+	}
+
+	// Wire all metric paths with a single global handle
+	metricsHandle := obs.GetHandle("all-metrics")
+
 	// Metrics: mirror raw check samples into the observer via the CheckSampler hook.
-	d.aggregator.SetObserverHandle(obs.GetHandle("check-metrics"))
+	d.aggregator.SetObserverHandle(metricsHandle)
+
+	// DogStatsD metrics: wire all time sampler workers
+	for _, worker := range d.statsd.workers {
+		worker.sampler.observerHandle = metricsHandle
+	}
+
+	// Timestamped metrics (no-aggregation pipeline)
+	if d.statsd.noAggStreamWorker != nil {
+		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
+	}
 
 	// Events: forward lifecycle events as best-effort log observations (used as event signals for correlation).
 	eventsHandle := obs.GetHandle("check-events")

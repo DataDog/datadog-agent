@@ -13,6 +13,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -45,6 +46,10 @@ type TimeSampler struct {
 	idString string
 
 	hostname string
+
+	// observerHandle is used to mirror DogStatsD metrics to the observer
+	// for local analysis before aggregation
+	observerHandle observer.Handle
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -81,6 +86,11 @@ func (s *TimeSampler) isBucketStillOpen(bucketStartTimestamp, timestamp int64) b
 }
 
 func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float64, filterList filterlist.TagMatcher) {
+	// Mirror to observer before aggregation (best-effort, non-blocking)
+	if s.observerHandle != nil {
+		s.observerHandle.ObserveMetric(metricSample)
+	}
+
 	// use the timestamp provided in the sample if any
 	if metricSample.Timestamp > 0 {
 		timestamp = metricSample.Timestamp
