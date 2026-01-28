@@ -346,6 +346,16 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// Debug: dump all observer metrics to a file periodically
 	config.BindEnvAndSetDefault("observer.debug_dump_path", "")
 	config.BindEnvAndSetDefault("observer.debug_dump_interval", 0)
+	config.BindEnvAndSetDefault("observer.debug_events_dump_path", "")
+
+	// Observer trace/profile fetching from remote trace-agents via gRPC
+	// Requires remote_agent_registry.enabled=true
+	config.BindEnvAndSetDefault("observer.traces.enabled", true)
+	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
+	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
+	config.BindEnvAndSetDefault("observer.profiles.enabled", true)
+	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)
+	config.BindEnvAndSetDefault("observer.profiles.max_fetch_batch", 50)
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
