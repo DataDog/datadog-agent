@@ -42,7 +42,7 @@ func buildClusterAgentImagePath() string {
 	tag := fmt.Sprintf("%s-%s-fips", pipelineID, commitSHA)
 	registry := "669783387624.dkr.ecr.us-east-1.amazonaws.com"
 
-	return fmt.Sprintf("%s/cluster-agent:%s", registry, tag)
+	return fmt.Sprintf("%s/cluster-agent-qa:%s", registry, tag)
 }
 
 type fipsServerClusterAgentSuite struct {

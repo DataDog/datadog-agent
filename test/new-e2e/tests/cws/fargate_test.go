@@ -295,7 +295,7 @@ func getCWSInstrumentationFullImagePath(e *configCommon.CommonEnvironment) strin
 	}
 
 	if e.PipelineID() != "" && e.CommitSHA() != "" {
-		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation:%s-%s", e.PipelineID(), e.CommitSHA())
+		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/cws-instrumentation-qa:%s-%s", e.PipelineID(), e.CommitSHA())
 	}
 
 	return cwsInstrumentationDefaultImagePath
@@ -307,7 +307,7 @@ func getAgentFullImagePath(e *configCommon.CommonEnvironment) string {
 	}
 
 	if e.PipelineID() != "" && e.CommitSHA() != "" {
-		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:%s-%s", e.PipelineID(), e.CommitSHA())
+		return fmt.Sprintf("669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-qa:%s-%s", e.PipelineID(), e.CommitSHA())
 	}
 
 	return agentDefaultImagePath

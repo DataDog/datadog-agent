@@ -1,10 +1,6 @@
-issuer: https://gitlab.ddbuild.io
-subject_pattern: "project_path:DataDog/datadog-agent:ref_type:branch:ref:.*"
+issuer: https://vault.us1.ddbuild.io/v1/identity/oidc
+subject_pattern: "bf4480b0-ee11-5050-758d-189b036f7ee8"
 claim_pattern:
-  project_path: "DataDog/datadog-agent"
-  ref_type: "branch"
-  ref: ".+"
-  ref_path: "refs/heads/.+"
-  ref_protected: "true"
+  name: "gitlab-runner-datadog-agent-datadog-agent"
 permissions:
   security_events: write

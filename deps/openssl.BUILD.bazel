@@ -1,4 +1,5 @@
 load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
@@ -156,7 +157,10 @@ configure_make(
         ],
         "@platforms//os:windows": [],
     }),
-    copts = ["-O2"],
+    copts = ["-O2"] + select({
+        "@platforms//os:windows": ["-DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"],
+        "//conditions:default": [],
+    }),
     targets = ["depend", "", "install_sw", "install_ssldirs"],
     # Fix install names, as openssl's build system might not get them right
     postfix_script = select({
@@ -202,14 +206,14 @@ so_symlink(
     name = "libssl_with_symlink",
     src = ":libssl",
     libname = "libssl",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 so_symlink(
     name = "libcrypto_with_symlink",
     src = ":libcrypto",
     libname = "libcrypto",
-    version = "3.5.4",
+    version = OPENSSL_VERSION,
 )
 
 filegroup(
