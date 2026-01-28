@@ -29,6 +29,12 @@ type Handle interface {
 
 	// ObserveLog observes a log message.
 	ObserveLog(msg LogView)
+
+	// ObserveTrace observes a trace (collection of spans with the same trace ID).
+	ObserveTrace(trace TraceView)
+
+	// ObserveProfile observes a profiling sample.
+	ObserveProfile(profile ProfileView)
 }
 
 // HandleFunc is a function that returns a handle for a named source.
@@ -56,6 +62,109 @@ type LogView interface {
 	GetStatus() string
 	GetTags() []string
 	GetHostname() string
+}
+
+// TraceView provides read-only access to a trace (collection of spans with the same trace ID).
+//
+// This interface exists to prevent data races. The underlying trace data may be
+// reused immediately after ObserveTrace returns, so implementations must not
+// store the TraceView itself. Copy any needed values synchronously.
+type TraceView interface {
+	// GetTraceID returns the trace ID as high and low 64-bit parts.
+	GetTraceID() (high, low uint64)
+	// GetSpans returns an iterator over spans in this trace.
+	GetSpans() SpanIterator
+	// GetEnv returns the environment tag for this trace.
+	GetEnv() string
+	// GetService returns the primary service name for this trace.
+	GetService() string
+	// GetHostname returns the hostname where the trace originated.
+	GetHostname() string
+	// GetContainerID returns the container ID where the trace originated.
+	GetContainerID() string
+	// GetTimestamp returns the trace start time in nanoseconds since epoch.
+	GetTimestamp() int64
+	// GetDuration returns the trace duration in nanoseconds.
+	GetDuration() int64
+	// GetPriority returns the sampling priority.
+	GetPriority() int32
+	// IsError returns true if this trace contains an error.
+	IsError() bool
+	// GetTags returns trace-level tags.
+	GetTags() map[string]string
+}
+
+// SpanIterator provides iteration over spans in a trace.
+// It follows the Go iterator pattern where Next() advances and returns
+// whether there are more spans, and Span() returns the current span.
+type SpanIterator interface {
+	// Next advances to the next span and returns true if there is one.
+	Next() bool
+	// Span returns the current span. Only valid after Next() returns true.
+	Span() SpanView
+	// Reset resets the iterator to the beginning.
+	Reset()
+}
+
+// SpanView provides read-only access to a single span within a trace.
+type SpanView interface {
+	// GetSpanID returns the unique span identifier.
+	GetSpanID() uint64
+	// GetParentID returns the parent span ID (0 for root spans).
+	GetParentID() uint64
+	// GetService returns the service name for this span.
+	GetService() string
+	// GetName returns the operation name (span name).
+	GetName() string
+	// GetResource returns the resource name (e.g., SQL query, HTTP route).
+	GetResource() string
+	// GetType returns the span type (e.g., "web", "db", "cache").
+	GetType() string
+	// GetStart returns the span start time in nanoseconds since epoch.
+	GetStart() int64
+	// GetDuration returns the span duration in nanoseconds.
+	GetDuration() int64
+	// GetError returns the error code (0 = no error, 1 = error).
+	GetError() int32
+	// GetMeta returns string tags/metadata for this span.
+	GetMeta() map[string]string
+	// GetMetrics returns numeric metrics for this span.
+	GetMetrics() map[string]float64
+}
+
+// ProfileView provides read-only access to a profiling sample.
+//
+// This interface exists to prevent data races. Implementations must not store
+// the ProfileView itself. Copy any needed values synchronously.
+// Note: Profile format is language-agnostic (pprof for Go/Python, JFR for Java, etc.).
+// The observer stores profiles as opaque binary blobs without parsing or transforming them.
+type ProfileView interface {
+	// GetProfileID returns a unique identifier for this profile.
+	GetProfileID() string
+	// GetProfileType returns the profile type (cpu, heap, mutex, etc.).
+	GetProfileType() string
+	// GetService returns the service name that produced this profile.
+	GetService() string
+	// GetEnv returns the environment tag.
+	GetEnv() string
+	// GetVersion returns the application version.
+	GetVersion() string
+	// GetHostname returns the hostname where the profile was collected.
+	GetHostname() string
+	// GetContainerID returns the container ID where the profile was collected.
+	GetContainerID() string
+	// GetTimestamp returns the profile timestamp in nanoseconds since epoch.
+	GetTimestamp() int64
+	// GetDuration returns the profile duration in nanoseconds.
+	GetDuration() int64
+	// GetTags returns profile tags.
+	GetTags() map[string]string
+	// GetContentType returns the original Content-Type header (profile format is language-specific).
+	GetContentType() string
+	// GetRawData returns the opaque binary profile data (nil if stored externally).
+	GetRawData() []byte
+	// GetExternalPath returns the path to an external binary file (empty if inline).
+	GetExternalPath() string
 }
 
 // LogProcessor transforms observed logs into metrics and anomaly events.
