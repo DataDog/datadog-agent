@@ -59,7 +59,7 @@ func newComplianceModule(_ *sysconfigtypes.Config, deps module.FactoryDependenci
 		sysProbeClient := &compliance.LocalSysProbeClient{}
 
 		// start compliance agent
-		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, deps.Ipc, sysProbeClient)
+		complianceAgent, err = compliance.StartCompliance(deps.Log, deps.CoreConfig, hostnameDetected, stopper, deps.Statsd, deps.WMeta, deps.FilterStore, deps.Compression, sysProbeClient)
 		if err != nil {
 			return nil, err
 		}
