@@ -566,23 +566,6 @@ func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err erro
 	p.TracerPayload.SetStringAttribute(tagContainersTags, strings.Join(ctags, ","))
 }
 
-// // normalizeAPMModeSpanTag validates and normalizes the '_dd.apm_mode' span tag value.
-// // Returns the normalized lowercase value if valid (currently only "edge"), or an empty string if invalid.
-// // Invalid values are logged at debug level.
-// func normalizeAPMModeSpanTag(apmMode string) string {
-// 	if apmMode == "" {
-// 		log.Debugf("empty value for '_dd.apm_mode' span tag")
-// 		return ""
-// 	}
-// 	switch strings.ToLower(apmMode) {
-// 	case "edge":
-// 		return "edge"
-// 	default:
-// 		log.Debugf("invalid value for '_dd.apm_mode' span tag: '%s'", apmMode)
-// 		return ""
-// 	}
-// }
-
 // processedTrace creates a ProcessedTrace based on the provided chunk, root, containerID, and agent config.
 func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx.InternalSpan, imageTag string, gitCommitSha string) *traceutil.ProcessedTraceV1 {
 	pt := &traceutil.ProcessedTraceV1{

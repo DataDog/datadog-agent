@@ -18,8 +18,7 @@ import (
 )
 
 // StringTable is a table of strings that is used to store the de-duplicated strings in a trace
-// Strings are not garbage collected automatically, so it is important to call RemoveUnusedStrings
-// on the tracer payload to remove any strings that are no longer referenced.
+// Strings are not garbage collected automatically, they will be compacted and unused strings will be removed when the tracer payload is serialized.
 type StringTable struct {
 	strings []string
 	lookup  map[string]uint32
@@ -163,38 +162,11 @@ func (tp *InternalTracerPayload) Msgsize() int {
 	return size
 }
 
-// RemoveUnusedStrings removes any strings from the string table that are not referenced in the tracer payload
-// This should be called before serializing or otherwise exposing the tracer payload to remove any sensitive
-// strings that are no longer referenced
-func (x *TracerPayload) RemoveUnusedStrings() {
-	//TODO: delete me
-	usedStrings := make([]bool, len(x.Strings))
-	usedStrings[x.ContainerIDRef] = true
-	usedStrings[x.LanguageNameRef] = true
-	usedStrings[x.LanguageVersionRef] = true
-	usedStrings[x.TracerVersionRef] = true
-	usedStrings[x.RuntimeIDRef] = true
-	usedStrings[x.EnvRef] = true
-	usedStrings[x.HostnameRef] = true
-	usedStrings[x.AppVersionRef] = true
-	markAttributeMapStringsUsed(usedStrings, x.Attributes)
-	for _, chunk := range x.Chunks {
-		chunk.markUsedStrings(usedStrings)
-	}
-	for i, used := range usedStrings {
-		if !used {
-			// We don't adjust the table itself to avoid changing the indices of the other strings
-			x.Strings[i] = ""
-		}
-	}
-}
-
 // notMapped is a sentinel value indicating an unassigned/unused string reference
 const notMapped uint32 = ^uint32(0)
 
 // CompactStrings compacts the string table by removing unused strings and remapping all references.
-// Unlike RemoveUnusedStrings which just zeros unused strings, this function creates a new smaller
-// string table and updates all references throughout the payload to point to the new indices.
+// This function creates a new smaller string table and updates all references throughout the payload to point to the new indices.
 // This produces a more compact serialized representation.
 func (x *TracerPayload) CompactStrings() {
 	if x == nil || len(x.Strings) == 0 {
@@ -501,8 +473,7 @@ func fromProtoSpan(strings *StringTable, span *Span) *InternalSpan {
 
 // ToProto converts an InternalTracerPayload to a proto TracerPayload
 // This returns the structure _AS IS_, so even strings that are no longer referenced
-// may be included in the resulting proto. To ensure that only used strings are included,
-// call RemoveUnusedStrings first.
+// may be included in the resulting proto.
 func (tp *InternalTracerPayload) ToProto() *TracerPayload {
 	chunks := make([]*TraceChunk, len(tp.Chunks))
 	for i, chunk := range tp.Chunks {
