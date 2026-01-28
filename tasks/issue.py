@@ -17,8 +17,8 @@ from tasks.libs.pipeline.notifications import (
 def ask_reviews(_, pr_id, team_slugs):
     gh = GithubAPI()
     pr = gh.repo.get_pull(int(pr_id))
-    if 'backport' in pr.title.casefold():
-        print("This is a backport PR, we don't need to ask for reviews.")
+    if pr.base.ref != 'main':
+        print("We don't ask for reviews on non main target PRs.")
         return
     if any(label.name == 'no-review' for label in pr.get_labels()):
         print("This PR has the no-review label, we don't need to ask for reviews.")
