@@ -87,7 +87,7 @@ auth_token
 /test/e2e/scripts/setup-instance/ignition.json
 /test/e2e/containers/fake_datadog/venv/
 /e2e-output
-/pkg/logs/pipeline/registry.json
+/comp/logs-library/pipeline/registry.json
 
 # local copy of device signing cert
 platform.pk8

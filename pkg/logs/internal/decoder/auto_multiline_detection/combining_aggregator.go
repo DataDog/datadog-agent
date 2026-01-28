@@ -8,8 +8,8 @@ package automultilinedetection
 import (
 	"bytes"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 )
 

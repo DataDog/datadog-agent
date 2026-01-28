@@ -11,6 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -20,8 +22,14 @@ func getNewHostname(name hostnameinterface.MockHostname) hostnameinterface.Mock 
 	return mock
 }
 
+func getTestConfig(t *testing.T) pkgconfigmodel.Reader {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("logs_config.message_channel_size", 100)
+	return cfg
+}
+
 func TestEnableDisable(t *testing.T) {
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	assert.True(t, b.SetEnabled(true))
 	assert.False(t, b.SetEnabled(true))
 
@@ -54,7 +62,7 @@ func TestEnableDisable(t *testing.T) {
 
 func TestFilterAll(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -74,7 +82,7 @@ func TestFilterAll(t *testing.T) {
 
 func TestFilterTypeAndSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -92,7 +100,7 @@ func TestFilterTypeAndSource(t *testing.T) {
 
 func TestFilterTypeAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -110,7 +118,7 @@ func TestFilterTypeAndService(t *testing.T) {
 
 func TestFilterSourceAndService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -128,7 +136,7 @@ func TestFilterSourceAndService(t *testing.T) {
 
 func TestFilterName(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -146,7 +154,7 @@ func TestFilterName(t *testing.T) {
 
 func TestFilterSource(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -164,7 +172,7 @@ func TestFilterSource(t *testing.T) {
 
 func TestFilterType(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -182,7 +190,7 @@ func TestFilterType(t *testing.T) {
 
 func TestFilterService(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
@@ -200,7 +208,7 @@ func TestFilterService(t *testing.T) {
 
 func TestNoFilters(t *testing.T) {
 
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	for i := 0; i < 5; i++ {
