@@ -37,6 +37,7 @@ func TestFromEnv(t *testing.T) {
 				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
+					APMInjectorMode:           APMInjectorModeDirect,
 				},
 				Tags:       []string{},
 				Hostname:   "",
@@ -122,6 +123,7 @@ func TestFromEnv(t *testing.T) {
 				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+					APMInjectorMode:           APMInjectorModeDirect,
 				},
 				Tags:               []string{"k1:v1", "k2:v2", "k3:v3", "k4:v4"},
 				Hostname:           "hostname",
@@ -155,6 +157,7 @@ func TestFromEnv(t *testing.T) {
 				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationNotSet,
+					APMInjectorMode:           APMInjectorModeDirect,
 				},
 				Tags:    []string{},
 				NoProxy: os.Getenv("NO_PROXY"), // Default value from the environment, as some test envs set it
@@ -177,6 +180,7 @@ func TestFromEnv(t *testing.T) {
 				},
 				InstallScript: InstallScriptEnv{
 					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+					APMInjectorMode:           APMInjectorModeDirect,
 				},
 				RegistryOverrideByImage:        map[string]string{},
 				RegistryAuthOverrideByImage:    map[string]string{},
@@ -362,4 +366,130 @@ func TestAgentUserVars(t *testing.T) {
 			assert.Equal(t, tt.expected.MsiParams.AgentUserName, result.MsiParams.AgentUserName)
 		})
 	}
+}
+
+func TestAPMInjectorMode_FromEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected string
+	}{
+		{
+			name:     "default mode (not set)",
+			envValue: "",
+			expected: APMInjectorModeDirect,
+		},
+		{
+			name:     "direct mode",
+			envValue: "direct",
+			expected: APMInjectorModeDirect,
+		},
+		{
+			name:     "service mode",
+			envValue: "service",
+			expected: APMInjectorModeService,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue != "" {
+				os.Setenv("DD_APM_INJECTOR_MODE", tt.envValue)
+				defer os.Unsetenv("DD_APM_INJECTOR_MODE")
+			}
+
+			env := FromEnv()
+			assert.Equal(t, tt.expected, env.InstallScript.APMInjectorMode)
+		})
+	}
+}
+
+func TestValidateAPMInjectorMode(t *testing.T) {
+	tests := []struct {
+		name        string
+		mode        string
+		expectError bool
+	}{
+		{
+			name:        "valid direct mode",
+			mode:        APMInjectorModeDirect,
+			expectError: false,
+		},
+		{
+			name:        "valid service mode",
+			mode:        APMInjectorModeService,
+			expectError: false,
+		},
+		{
+			name:        "invalid mode",
+			mode:        "invalid",
+			expectError: true,
+		},
+		{
+			name:        "empty mode",
+			mode:        "",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAPMInjectorMode(tt.mode)
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid value for DD_APM_INJECTOR_MODE")
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestInstallScriptEnv_ToEnv_WithAPMInjectorMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		expected string
+	}{
+		{
+			name:     "direct mode",
+			mode:     APMInjectorModeDirect,
+			expected: "DD_APM_INJECTOR_MODE=direct",
+		},
+		{
+			name:     "service mode",
+			mode:     APMInjectorModeService,
+			expected: "DD_APM_INJECTOR_MODE=service",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptEnv := InstallScriptEnv{
+				APMInjectorMode: tt.mode,
+			}
+
+			envVars := scriptEnv.ToEnv(nil)
+
+			found := false
+			for _, env := range envVars {
+				if env == tt.expected {
+					found = true
+					break
+				}
+			}
+			assert.True(t, found, "Expected env var %s not found in %v", tt.expected, envVars)
+		})
+	}
+}
+
+func TestAPMInjectorModeConstants(t *testing.T) {
+	// Verify constants have expected values
+	assert.Equal(t, "direct", APMInjectorModeDirect)
+	assert.Equal(t, "service", APMInjectorModeService)
+}
+
+func TestDefaultEnv_APMInjectorMode(t *testing.T) {
+	// Verify default environment has direct mode
+	assert.Equal(t, APMInjectorModeDirect, defaultEnv.InstallScript.APMInjectorMode)
 }

@@ -564,3 +564,146 @@ func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
 	}
 	s.Env().RemoteHost.Execute(fmt.Sprintf("sudo apt-get remove -y --purge %[1]s || sudo yum remove -y %[1]s", strings.Join(packageList, " ")))
 }
+
+// TestInstallServiceMode tests installation with DD_APM_INJECTOR_MODE=service
+func (s *packageApmInjectSuite) TestInstallServiceMode() {
+	s.host.InstallDocker()
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"DD_APM_INJECTOR_MODE=service",
+	)
+	defer s.Purge()
+	s.host.WaitForUnitActive(s.T(), "datadog-agent.service", "datadog-agent-trace.service")
+
+	// Verify systemd service is created
+	state := s.host.State()
+	state.AssertFileExists("/etc/systemd/system/datadog-apm-injector.service", 0644, "root", "root")
+
+	// Verify service content
+	content, err := s.host.ReadFile("/etc/systemd/system/datadog-apm-injector.service")
+	assert.NoError(s.T(), err)
+	serviceContent := string(content)
+	assert.Contains(s.T(), serviceContent, "Description=Datadog APM Injector")
+	assert.Contains(s.T(), serviceContent, "Type=oneshot")
+	assert.Contains(s.T(), serviceContent, "RemainAfterExit=yes")
+	assert.Contains(s.T(), serviceContent, "ExecStart=")
+	assert.Contains(s.T(), serviceContent, "apm-injector install")
+	assert.Contains(s.T(), serviceContent, "ExecStop=")
+	assert.Contains(s.T(), serviceContent, "apm-injector uninstall")
+
+	// Verify service is enabled
+	output := s.Env().RemoteHost.MustExecute("sudo systemctl is-enabled datadog-apm-injector.service")
+	assert.Contains(s.T(), output, "enabled")
+
+	// Verify service is active (oneshot with RemainAfterExit=yes should show as active)
+	output = s.Env().RemoteHost.MustExecute("sudo systemctl is-active datadog-apm-injector.service || true")
+	assert.Contains(s.T(), output, "active")
+
+	// Verify binary exists
+	state.AssertFileExists("/opt/datadog-packages/datadog-apm-inject/stable/bin/apm-injector", 0755, "root", "root")
+
+	// Verify instrumentation is still applied (service runs apm-injector install)
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertDockerdInstrumented(injectOCIPath)
+}
+
+// TestUninstallServiceMode tests uninstallation removes the systemd service
+func (s *packageApmInjectSuite) TestUninstallServiceMode() {
+	s.host.InstallDocker()
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"DD_APM_INJECTOR_MODE=service",
+	)
+	s.Purge()
+
+	// Verify service is removed
+	exists, err := s.host.FileExists("/etc/systemd/system/datadog-apm-injector.service")
+	assert.NoError(s.T(), err)
+	assert.False(s.T(), exists, "systemd service should be removed")
+
+	// Verify instrumentation is removed
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdNotInstrumented()
+}
+
+// TestServiceModeBinaryExecution tests that the apm-injector binary works
+func (s *packageApmInjectSuite) TestServiceModeBinaryExecution() {
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+	)
+	defer s.Purge()
+
+	// Verify binary exists and is executable
+	state := s.host.State()
+	state.AssertFileExists("/opt/datadog-packages/datadog-apm-inject/stable/bin/apm-injector", 0755, "root", "root")
+
+	// Test binary help command
+	output := s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-apm-inject/stable/bin/apm-injector --help")
+	assert.Contains(s.T(), output, "Datadog APM Injector")
+	assert.Contains(s.T(), output, "install")
+	assert.Contains(s.T(), output, "uninstall")
+
+	// Test that binary can be invoked
+	output = s.Env().RemoteHost.MustExecute("/opt/datadog-packages/datadog-apm-inject/stable/bin/apm-injector install --help")
+	assert.Contains(s.T(), output, "Install APM instrumentation")
+}
+
+// TestServiceModeWithDirectModeFallback tests that direct mode is default
+func (s *packageApmInjectSuite) TestServiceModeWithDirectModeFallback() {
+	s.host.InstallDocker()
+	// Install without DD_APM_INJECTOR_MODE (should default to direct mode)
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+	)
+	defer s.Purge()
+
+	// Verify systemd service is NOT created in direct mode
+	exists, err := s.host.FileExists("/etc/systemd/system/datadog-apm-injector.service")
+	assert.NoError(s.T(), err)
+	assert.False(s.T(), exists, "systemd service should not exist in direct mode")
+
+	// But instrumentation should still work
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertDockerdInstrumented(injectOCIPath)
+}
+
+// TestServiceModeUpgradeFromDirect tests upgrading from direct to service mode
+func (s *packageApmInjectSuite) TestServiceModeUpgradeFromDirect() {
+	s.host.InstallDocker()
+	// First install with direct mode
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"DD_APM_INJECTOR_MODE=direct",
+	)
+	defer s.Purge()
+
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertDockerdInstrumented(injectOCIPath)
+
+	// Verify no service exists
+	exists, err := s.host.FileExists("/etc/systemd/system/datadog-apm-injector.service")
+	assert.NoError(s.T(), err)
+	assert.False(s.T(), exists, "systemd service should not exist in direct mode")
+
+	// Now upgrade to service mode
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		"DD_APM_INJECTOR_MODE=service",
+	)
+
+	// Verify service now exists and is active
+	state := s.host.State()
+	state.AssertFileExists("/etc/systemd/system/datadog-apm-injector.service", 0644, "root", "root")
+	output := s.Env().RemoteHost.MustExecute("sudo systemctl is-active datadog-apm-injector.service || true")
+	assert.Contains(s.T(), output, "active")
+
+	// Instrumentation should still work
+	s.assertLDPreloadInstrumented(injectOCIPath)
+	s.assertDockerdInstrumented(injectOCIPath)
+}
