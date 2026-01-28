@@ -56,6 +56,11 @@ func TestValidateBasic(t *testing.T) {
 			expect: true,
 		},
 		{
+			name:   "map of string typed as interface",
+			val:    map[Identifier]interface{"frog": "ribbit"},
+			expect: true,
+		},
+		{
 			name:   "map of type alias",
 			val:    map[Identifier]string{Identifier("bad"): "kind"},
 			expect: true,

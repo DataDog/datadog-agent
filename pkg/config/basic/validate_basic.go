@@ -12,6 +12,8 @@ import (
 )
 
 // TODO: Callers that are using SetWithoutSource improperly, need to be fixed
+// Most of these callers are using structs that are inserted into the config
+// model, when they should be using map[string]interface{} types.
 var allowlistCaller = []string{
 	"comp/api/api/apiimpl/internal/config/endpoint_test.go",
 	"comp/autoscaling/datadogclient/impl/client_test.go",
@@ -26,7 +28,6 @@ var allowlistCaller = []string{
 	"comp/logs/agent/config/config_keys_test.go",
 	"comp/logs/agent/config/config_test.go",
 	"comp/logs/agent/config/endpoints_test.go",
-	"comp/metadata/host/hostimpl/host_test.go",
 	"comp/metadata/resources/resourcesimpl/resources_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
@@ -66,6 +67,11 @@ func validate(v reflect.Value) bool {
 	if v.Kind() == reflect.Pointer {
 		v = v.Elem()
 	}
+	if v.Kind() == reflect.Interface {
+		// Handle appearances of `interface`` in `[]interface{}`, `map[string]interface{}`, etc
+		v = v.Elem()
+	}
+
 	switch v.Kind() {
 	case reflect.Bool,
 		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
