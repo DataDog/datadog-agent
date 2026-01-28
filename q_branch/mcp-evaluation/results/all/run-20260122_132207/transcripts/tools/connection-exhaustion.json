@@ -1,0 +1,511 @@
+[
+  {
+    "subtype": "init",
+    "data": {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/matthew.deguzman/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation",
+      "session_id": "e83c998d-a803-4296-9017-ecf0f1a5bc48",
+      "tools": [
+        "Task",
+        "TaskOutput",
+        "Bash",
+        "Glob",
+        "Grep",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "WebSearch",
+        "KillShell",
+        "AskUserQuestion",
+        "Skill",
+        "EnterPlanMode",
+        "mcp__mcp-eval__check_connectivity",
+        "mcp__mcp-eval__find_process",
+        "mcp__mcp-eval__get_cpu_info",
+        "mcp__mcp-eval__get_disk_usage",
+        "mcp__mcp-eval__get_environment",
+        "mcp__mcp-eval__get_io_stats",
+        "mcp__mcp-eval__get_listening_ports",
+        "mcp__mcp-eval__get_memory_info",
+        "mcp__mcp-eval__get_network_connections",
+        "mcp__mcp-eval__get_network_interfaces",
+        "mcp__mcp-eval__get_process_info",
+        "mcp__mcp-eval__get_system_info",
+        "mcp__mcp-eval__list_processes",
+        "mcp__mcp-eval__read_file",
+        "mcp__mcp-eval__search_file",
+        "mcp__mcp-eval__tail_file"
+      ],
+      "mcp_servers": [
+        {
+          "name": "mcp-eval",
+          "status": "connected"
+        }
+      ],
+      "model": "claude-opus-4-5-20251101",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "compact",
+        "context",
+        "cost",
+        "init",
+        "pr-comments",
+        "release-notes",
+        "review",
+        "security-review"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "claude_code_version": "2.1.1",
+      "output_style": "default",
+      "agents": [
+        "Bash",
+        "general-purpose",
+        "statusline-setup",
+        "Explore",
+        "Plan"
+      ],
+      "skills": [],
+      "plugins": [],
+      "uuid": "40203f8f-946d-4a77-80d4-2af1e857b79e"
+    }
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01BSyd9ZvuBwBf75kkVds82V', name='mcp__mcp-eval__get_system_info', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01SDS7QY7RynEtDYHz3wH4iR', name='mcp__mcp-eval__get_cpu_info', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_012KK3GPWoMMMNAcrvbHD91S', name='mcp__mcp-eval__get_memory_info', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Ln6uKXK6S1roX3comU1QW3', name='mcp__mcp-eval__get_disk_usage', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_018qj7Lb6jdrwDp535Ccnnjk', name='mcp__mcp-eval__list_processes', input={'limit': 50})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_011UjEYSW4VDHbctzU7dbm9X', name='mcp__mcp-eval__get_listening_ports', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01BSyd9ZvuBwBf75kkVds82V', content='{\"architecture\":\"arm64\",\"hostname\":\"lima-mcp-eval-tools\",\"kernel_version\":\"Linux version 6.18.5-100.fc42.aarch64 (mockbuild@8d5bfe05e56243878bb39a3bde49b096) (gcc (GCC) 15.2.1 20251211 (Red Hat 15.2.1-5), GNU ld version 2.44-12.fc42) #1 SMP PREEMPT_DYNAMIC Sun Jan 11 17:16:14 UTC 2026\",\"os\":\"linux\",\"uptime_readable\":\"50s\",\"uptime_seconds\":50}', is_error=None)"
+    ],
+    "uuid": "2125f055-50c9-496f-86c4-6d3d5a7ec9dd",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01SDS7QY7RynEtDYHz3wH4iR', content='{\"cpu_count\":4,\"load_15min\":0.01,\"load_1min\":0.12,\"load_5min\":0.03,\"load_percent\":3}', is_error=None)"
+    ],
+    "uuid": "5efcd10f-d8e7-49d4-a747-9f9cfadc60fe",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_012KK3GPWoMMMNAcrvbHD91S', content='{\"available_mb\":7469,\"buffers_mb\":5,\"cached_mb\":1330,\"swap_total_mb\":7907,\"swap_used_mb\":0,\"total_mb\":7908,\"used_mb\":439,\"used_percent\":5.551340414769854}', is_error=None)"
+    ],
+    "uuid": "8a896e32-f00f-4f72-b5ce-2e893906e87c",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Ln6uKXK6S1roX3comU1QW3', content='{\"disk\":{\"available_gb\":6.736541748046875,\"path\":\"/\",\"total_gb\":8.924785614013672,\"used_gb\":2.188243865966797,\"used_percent\":24.51872751465114}}', is_error=None)"
+    ],
+    "uuid": "27d541cb-cda9-4ea4-a316-598988e94728",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_018qj7Lb6jdrwDp535Ccnnjk', content='{\"count\":50,\"processes\":[{\"name\":\"lima-guestagent\",\"pid\":688,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":10,\"vmrss_mb\":52},{\"name\":\"containerd\",\"pid\":960,\"ppid\":921,\"state\":\"S (sleeping)\",\"threads\":9,\"vmrss_mb\":41},{\"name\":\"buildkitd\",\"pid\":1203,\"ppid\":866,\"state\":\"S (sleeping)\",\"threads\":9,\"vmrss_mb\":37},{\"name\":\"containerd-star\",\"pid\":1204,\"ppid\":866,\"state\":\"S (sleeping)\",\"threads\":9,\"vmrss_mb\":37},{\"name\":\"systemd-journal\",\"pid\":533,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":27},{\"name\":\"systemd\",\"pid\":1,\"ppid\":0,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":18},{\"name\":\"NetworkManager\",\"pid\":729,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":4,\"vmrss_mb\":17},{\"name\":\"systemd-resolve\",\"pid\":654,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":13},{\"name\":\"systemd\",\"pid\":866,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":12},{\"name\":\"mcp-server\",\"pid\":737,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":9,\"vmrss_mb\":12},{\"name\":\"systemd-udevd\",\"pid\":572,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":11},{\"name\":\"systemd-logind\",\"pid\":690,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":10},{\"name\":\"rootlesskit\",\"pid\":886,\"ppid\":866,\"state\":\"S (sleeping)\",\"threads\":8,\"vmrss_mb\":9},{\"name\":\"python3\",\"pid\":1959,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":9},{\"name\":\"exe\",\"pid\":921,\"ppid\":886,\"state\":\"S (sleeping)\",\"threads\":9,\"vmrss_mb\":9},{\"name\":\"systemd-hostnam\",\"pid\":734,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":8},{\"name\":\"sshd-session\",\"pid\":1447,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":8},{\"name\":\"sshd-session\",\"pid\":1450,\"ppid\":1447,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":7},{\"name\":\"systemd-userwor\",\"pid\":650,\"ppid\":562,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":6},{\"name\":\"systemd-oomd\",\"pid\":653,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":6},{\"name\":\"systemd-homed\",\"pid\":689,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":6},{\"name\":\"systemd-userwor\",\"pid\":1691,\"ppid\":562,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":6},{\"name\":\"systemd-userwor\",\"pid\":649,\"ppid\":562,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":6},{\"name\":\"chronyd\",\"pid\":685,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":5},{\"name\":\"systemd-userdbd\",\"pid\":562,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":5},{\"name\":\"sshd\",\"pid\":861,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":5},{\"name\":\"dbus-broker-lau\",\"pid\":683,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":3},{\"name\":\"(sd-pam)\",\"pid\":870,\"ppid\":866,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":3},{\"name\":\"auditd\",\"pid\":656,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":2,\"vmrss_mb\":3},{\"name\":\"agetty\",\"pid\":865,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":2},{\"name\":\"agetty\",\"pid\":864,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":2},{\"name\":\"dbus-broker\",\"pid\":684,\"ppid\":683,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":2},{\"name\":\"slirp4netns\",\"pid\":949,\"ppid\":886,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":1},{\"name\":\"kworker/1:0-events\",\"pid\":24,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/1:1H-kblockd\",\"pid\":205,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"migration/1\",\"pid\":22,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/3:3-events\",\"pid\":220,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"ksoftirqd/1\",\"pid\":23,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"cpuhp/1\",\"pid\":21,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/0:2-virtio_vsock\",\"pid\":244,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/1:0H-events_highpri\",\"pid\":25,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"cpuhp/2\",\"pid\":26,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"migration/2\",\"pid\":27,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"ksoftirqd/2\",\"pid\":28,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/2:0-events\",\"pid\":29,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"pool_workqueue_release\",\"pid\":3,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"kworker/2:0H-events_highpri\",\"pid\":30,\"ppid\":2,\"state\":\"I (idle)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"cpuhp/3\",\"pid\":31,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"migration/3\",\"pid\":32,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0},{\"name\":\"ksoftirqd/3\",\"pid\":33,\"ppid\":2,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":0}]}', is_error=None)"
+    ],
+    "uuid": "d2085346-9a5f-4f97-8ddb-0460d6852400",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_011UjEYSW4VDHbctzU7dbm9X', content='{\"count\":17,\"ports\":[{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"tcp\"},{\"local_addr\":\"127.0.0.53\",\"local_port\":53,\"protocol\":\"tcp\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":22,\"protocol\":\"tcp\"},{\"local_addr\":\"127.0.0.54\",\"local_port\":53,\"protocol\":\"tcp\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":34769,\"protocol\":\"tcp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"tcp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":22,\"protocol\":\"tcp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5353,\"protocol\":\"udp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"udp\"},{\"local_addr\":\"127.0.0.54\",\"local_port\":53,\"protocol\":\"udp\"},{\"local_addr\":\"127.0.0.53\",\"local_port\":53,\"protocol\":\"udp\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":68,\"protocol\":\"udp\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":323,\"protocol\":\"udp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5353,\"protocol\":\"udp\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"udp\"},{\"local_addr\":\"0.0.0.1\",\"local_port\":323,\"protocol\":\"udp\"}]}', is_error=None)"
+    ],
+    "uuid": "b04cac64-42b9-4133-a691-1cd7b7c33411",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I have the initial system overview. The system was just restarted 50 seconds ago, but CPU, memory, and disk usage all look normal. Let me dig deeper into potential resource limit issues by checking for processes with unusual resource consumption and examining process-specific limits.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01K6cV1SCZXJ3Dj7pDRUpBYT', name='mcp__mcp-eval__get_process_info', input={'pid': 737})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_011p8HtuJZMC3mNKZQX94oqH', name='mcp__mcp-eval__get_process_info', input={'pid': 1959})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01TTZLqkh3hF4SCcDUH3fY3C', name='mcp__mcp-eval__get_io_stats', input={})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01XR9D1XfG19o1dcj56CdN6u', name='mcp__mcp-eval__get_network_connections', input={'limit': 100})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015B3k6QyER2diYsGjxifnxR', name='mcp__mcp-eval__find_process', input={'name': 'python'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01K6cV1SCZXJ3Dj7pDRUpBYT', content='{\"process\":{\"cmdline\":\"/mcp/bin/mcp-server -mode tools -port 8080\",\"fd_count\":9,\"gid\":1000,\"limits\":{\"max_open_files\":\"524287\",\"max_processes\":\"31615\"},\"name\":\"mcp-server\",\"pid\":737,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":9,\"uid\":502,\"vmrss_mb\":13,\"vmsize_mb\":1783}}', is_error=None)"
+    ],
+    "uuid": "c3430e4b-45f6-4671-a798-0905343dac3f",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_011p8HtuJZMC3mNKZQX94oqH', content='{\"process\":{\"cmdline\":\"python3 service.py\",\"fd_count\":238,\"gid\":1000,\"limits\":{\"max_open_files\":\"1024\",\"max_processes\":\"31615\"},\"name\":\"python3\",\"pid\":1959,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"uid\":502,\"vmrss_mb\":9,\"vmsize_mb\":14}}', is_error=None)"
+    ],
+    "uuid": "66b61996-e846-41d3-8ad5-d1de2baefe7e",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01TTZLqkh3hF4SCcDUH3fY3C', content='{\"devices\":[{\"device\":\"vda\",\"reads_mb\":582,\"reads_total\":10462,\"writes_mb\":153,\"writes_total\":7290},{\"device\":\"vdb\",\"reads_mb\":298,\"reads_total\":444,\"writes_mb\":0,\"writes_total\":0}]}', is_error=None)"
+    ],
+    "uuid": "012615a0-8fec-4fc7-949d-3f1b65d8a84c",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01XR9D1XfG19o1dcj56CdN6u', content='{\"connections\":[{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.53\",\"local_port\":53,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":22,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.54\",\"local_port\":53,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":34769,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":56258,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":8080,\"state\":\"TIME_WAIT\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":47370,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":47374,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44010,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44024,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44036,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44038,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44048,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44056,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44058,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44060,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44064,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44070,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44074,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44084,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44088,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44104,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44114,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44118,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44128,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44144,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44156,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44164,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44180,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44196,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44210,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44216,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44220,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44222,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44230,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44238,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44248,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44262,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44272,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44284,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44290,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44304,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44310,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44320,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44326,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44336,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44342,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44354,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44356,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44372,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44374,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44386,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44402,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44404,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44410,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44420,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44430,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44436,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44442,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44444,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44456,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44472,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44478,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44488,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44498,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44504,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44518,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44528,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44532,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44536,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44542,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44558,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44568,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44584,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44592,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44602,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44618,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44630,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44640,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44644,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44654,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44660,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47010,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47026,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47030,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47036,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47046,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47050,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47058,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47062,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47074,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47086,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47098,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47108,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47112,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47116,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47130,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47138,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47148,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"}],\"count\":100}', is_error=None)"
+    ],
+    "uuid": "faae62fc-e117-4937-9e91-c94d7f58594f",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015B3k6QyER2diYsGjxifnxR', content='{\"count\":1,\"processes\":[{\"name\":\"python3\",\"pid\":1959,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"vmrss_mb\":9}]}', is_error=None)"
+    ],
+    "uuid": "0bba2ff9-0816-4dd5-b309-f13dfd148d87",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"I've identified two critical issues:\\n\\n1. **Python process (PID 1959)** has **238 open file descriptors** with a limit of only **1024** - that's 23% utilization with potential to hit the limit\\n2. **Massive CLOSE_WAIT connection leak** - There are a large number of TCP connections stuck in CLOSE_WAIT state to 1.1.1.1:53 (DNS)\\n\\nLet me investigate further to understand the full scope of the problem:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Ybe3sS6yU3Yr9AZ9SmFRWh', name='mcp__mcp-eval__get_network_connections', input={'limit': 500})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01VbtXaAKauVY3D7GY6rVHpZ', name='mcp__mcp-eval__tail_file', input={'path': '/var/log/messages', 'lines': 100})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01BPEvyUVGCab4gAh3Wax5mL', name='mcp__mcp-eval__search_file', input={'path': '/var/log/messages', 'pattern': 'limit|error|fail|warn', 'limit': 100})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Ybe3sS6yU3Yr9AZ9SmFRWh', content='{\"connections\":[{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.53\",\"local_port\":53,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":22,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.54\",\"local_port\":53,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":34769,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":56258,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":8080,\"state\":\"TIME_WAIT\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":47370,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":8080,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":47374,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44010,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44024,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44036,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44038,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44048,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44056,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44058,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44060,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44064,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44070,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44074,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44084,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44088,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44104,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44114,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44118,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44128,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44144,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44156,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44164,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44180,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44196,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44210,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44216,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44220,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44222,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44230,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44238,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44248,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44262,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44272,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44284,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44290,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44304,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44310,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44320,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44326,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44336,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44342,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44354,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44356,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44372,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44374,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44386,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44402,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44404,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44410,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44420,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44430,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44436,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44442,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44444,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44456,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44472,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44478,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44488,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44498,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44504,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44518,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44528,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44532,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44536,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44542,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44558,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44568,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44584,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44592,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44602,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44618,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44630,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44640,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44644,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44654,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":44660,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47010,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47026,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47030,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47036,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47046,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47050,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47058,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47062,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47074,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47086,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47098,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47108,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47112,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47116,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47130,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47138,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47148,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47152,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47154,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47160,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47176,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47182,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47184,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47186,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47190,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47200,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47202,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47208,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47222,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47226,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47240,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47246,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47258,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47274,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47278,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47288,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47304,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47316,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47332,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47346,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47352,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47358,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47364,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47380,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47384,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47398,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47414,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47422,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47426,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47436,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47446,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47448,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47464,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47480,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47482,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47494,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47502,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47516,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47526,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47542,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47552,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47562,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47570,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47586,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47588,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47594,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47606,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47618,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47622,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47624,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47630,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47632,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47642,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47648,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47656,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":47664,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50870,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50872,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50880,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50886,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50894,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50900,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":50914,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":47370,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":8080,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"127.0.0.1\",\"local_port\":47374,\"protocol\":\"tcp\",\"remote_addr\":\"127.0.0.1\",\"remote_port\":8080,\"state\":\"ESTABLISHED\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56948,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56962,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56970,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56976,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56980,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56996,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":56998,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57012,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57026,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57036,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57050,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57054,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57058,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57062,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57078,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57094,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57098,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57104,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57106,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57122,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57134,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57142,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57148,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57154,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57158,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57172,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57182,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57196,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57210,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57222,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57228,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57240,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57252,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57262,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57266,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57268,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57280,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57292,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57296,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57298,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57302,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57310,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57314,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57324,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57334,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57342,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57354,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57362,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57376,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57384,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57394,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57398,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57410,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57418,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57420,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57432,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57440,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57450,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57458,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57468,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":57472,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58440,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58450,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58456,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58462,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58470,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58484,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58492,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58502,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58516,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58520,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58534,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58540,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58552,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58564,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58566,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58574,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58590,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58592,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58596,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58604,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58612,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58618,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58624,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58636,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58646,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58658,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58662,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58672,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58682,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58694,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58710,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58722,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58732,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58744,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58752,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58768,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58774,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58782,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58786,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58802,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58806,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58822,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58824,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58826,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58830,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58832,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58846,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58856,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58868,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58882,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58890,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58904,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58912,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58928,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58942,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58952,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58954,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58962,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58976,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":58988,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59000,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59008,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59020,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59032,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59038,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59048,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59054,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59064,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59080,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59088,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59094,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59110,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59120,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59132,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59142,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"192.168.104.5\",\"local_port\":59158,\"protocol\":\"tcp\",\"remote_addr\":\"1.1.1.1\",\"remote_port\":53,\"state\":\"CLOSE_WAIT\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":5355,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"},{\"local_addr\":\"0.0.0.0\",\"local_port\":22,\"protocol\":\"tcp\",\"remote_addr\":\"0.0.0.0\",\"remote_port\":0,\"state\":\"LISTEN\"}],\"count\":307}', is_error=None)"
+    ],
+    "uuid": "1979948c-0121-4652-ac1c-9755b8163829",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01VbtXaAKauVY3D7GY6rVHpZ', content='{\"error\":\"failed to open file: open /var/log/messages: no such file or directory\",\"line_count\":0,\"path\":\"/var/log/messages\"}', is_error=None)"
+    ],
+    "uuid": "0e8aad9f-1c84-4201-a01e-29b144bca484",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01BPEvyUVGCab4gAh3Wax5mL', content='{\"count\":0,\"error\":\"failed to open file: open /var/log/messages: no such file or directory\",\"path\":\"/var/log/messages\",\"pattern\":\"limit|error|fail|warn\"}', is_error=None)"
+    ],
+    "uuid": "bb671237-cf7d-462e-93b9-0e998d9b6a3e",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='This confirms a serious issue. Let me check for system logs in other locations and get more details on the python process causing the issue:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_019Zjh62uKcjTqHmsmLPFB96', name='mcp__mcp-eval__tail_file', input={'path': '/var/log/syslog', 'lines': 100})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015tHkdHwDTTM2rUTUwHjuET', name='mcp__mcp-eval__read_file', input={'path': '/proc/sys/fs/file-nr'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_018DPLwTVtb1gwPRKtTfBAAB', name='mcp__mcp-eval__read_file', input={'path': '/proc/sys/net/core/somaxconn'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01KoZ3SGYLfKEacuLm5DcYZw', name='mcp__mcp-eval__get_environment', input={'pid': 1959})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_019Zjh62uKcjTqHmsmLPFB96', content='{\"error\":\"failed to open file: open /var/log/syslog: no such file or directory\",\"line_count\":0,\"path\":\"/var/log/syslog\"}', is_error=None)"
+    ],
+    "uuid": "7f1dbbf7-81af-4aff-9765-c35f9fdef6e4",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015tHkdHwDTTM2rUTUwHjuET', content='{\"content\":\"1348\\\\t0\\\\t9223372036854775807\\\\n\",\"path\":\"/proc/sys/fs/file-nr\",\"size_bytes\":0}', is_error=None)"
+    ],
+    "uuid": "4b775b09-551c-4195-9668-044dc9d9aa02",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_018DPLwTVtb1gwPRKtTfBAAB', content='{\"content\":\"4096\\\\n\",\"path\":\"/proc/sys/net/core/somaxconn\",\"size_bytes\":0}', is_error=None)"
+    ],
+    "uuid": "711b4709-f015-487e-9fd0-ef912361f760",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01KoZ3SGYLfKEacuLm5DcYZw', content='{\"count\":30,\"environment\":{\"DBUS_SESSION_BUS_ADDRESS\":\"unix:path=/run/user/502/bus\",\"DEBUGINFOD_IMA_CERT_PATH\":\"/etc/keys/ima:\",\"DEBUGINFOD_URLS\":\"https://debuginfod.fedoraproject.org/ \",\"EDITOR\":\"/usr/bin/nano\",\"GPG_TTY\":\"not a tty\",\"HISTCONTROL\":\"ignoredups\",\"HISTSIZE\":\"1000\",\"HOME\":\"/home/lima.linux\",\"HOSTNAME\":\"lima-mcp-eval-tools\",\"LANG\":\"en_US.UTF-8\",\"LESSOPEN\":\"||/usr/bin/lesspipe.sh %s\",\"LOGNAME\":\"lima\",\"MAIL\":\"/var/spool/mail/lima\",\"MOTD_SHOWN\":\"pam\",\"OLDPWD\":\"/tmp\",\"PATH\":\"/home/lima.linux/.local/bin:/home/lima.linux/bin:/usr/local/bin:/usr/bin:/usr/local/go/bin:/usr/sbin:/sbin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/usr/sbin:/sbin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin:/usr/local/go/bin:/home/lima.linux/go/bin\",\"PWD\":\"/opt/data_collector\",\"SELINUX_ROLE_REQUESTED\":\"\",\"SELINUX_USE_CURRENT_RANGE\":\"1\",\"SHELL\":\"/bin/bash\",\"SHLVL\":\"0\",\"SSH_AUTH_SOCK\":\"/tmp/ssh-XXXX6SGBdR/agent.1450\",\"SSH_CLIENT\":\"UNKNOWN 65535 65535\",\"SSH_CONNECTION\":\"UNKNOWN 65535 UNKNOWN 65535\",\"USER\":\"lima\",\"XDG_RUNTIME_DIR\":\"/run/user/502\",\"XDG_SESSION_CLASS\":\"user\",\"XDG_SESSION_ID\":\"5\",\"XDG_SESSION_TYPE\":\"tty\",\"_\":\"/usr/bin/python3\"},\"pid\":1959}', is_error=None)"
+    ],
+    "uuid": "558667f7-ea22-4ff7-ac49-4211784f4852",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='The python process is running from `/opt/data_collector`. Let me examine this more closely:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01N5dKYcMRogECEMPyAoW2b5', name='mcp__mcp-eval__read_file', input={'path': '/opt/data_collector/service.py'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Ap6r4pwEGHngAqkpGk3QiZ', name='mcp__mcp-eval__tail_file', input={'path': '/var/log/journal', 'lines': 50})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01CgzvGdRFhVvGkGEUQ4sVYr', name='mcp__mcp-eval__get_process_info', input={'pid': 1959})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01N5dKYcMRogECEMPyAoW2b5', content='{\"content\":\"#!/usr/bin/env python3\\\\nimport socket\\\\nimport time\\\\nfrom datetime import datetime\\\\n\\\\n\\\\ndef log(msg):\\\\n    timestamp = datetime.now().strftime(\\\\\"%Y-%m-%d %H:%M:%S.%f\\\\\")[:-3]\\\\n    print(f\\\\\"[{timestamp}] {msg}\\\\\", flush=True)\\\\n\\\\n\\\\ndef main():\\\\n    log(\\\\\"Data collector service started\\\\\")\\\\n\\\\n    connections = []\\\\n    connection_count = 0\\\\n\\\\n    # Target a well-known service that accepts connections\\\\n    target_host = \\\\\"1.1.1.1\\\\\"  # Cloudflare DNS\\\\n    target_port = 53\\\\n\\\\n    while True:\\\\n        try:\\\\n            # Open connection but never close it\\\\n            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\\\\n            sock.settimeout(2)\\\\n            sock.connect((target_host, target_port))\\\\n            connections.append(sock)  # Keep reference to prevent GC\\\\n            connection_count += 1\\\\n\\\\n            if connection_count % 50 == 0:\\\\n                log(f\\\\\"Active connections: {connection_count}\\\\\")\\\\n\\\\n        except socket.timeout:\\\\n            pass\\\\n        except socket.error as e:\\\\n            log(f\\\\\"Connection error: {e}\\\\\")\\\\n            time.sleep(1)\\\\n        except Exception as e:\\\\n            log(f\\\\\"Error: {e}\\\\\")\\\\n            time.sleep(1)\\\\n\\\\n        time.sleep(0.1)  # 10 connections per second\\\\n\\\\n\\\\nif __name__ == \\\\\"__main__\\\\\":\\\\n    try:\\\\n        main()\\\\n    except KeyboardInterrupt:\\\\n        log(\\\\\"Data collector service stopped\\\\\")\\\\n    except Exception as e:\\\\n        log(f\\\\\"Fatal error: {e}\\\\\")\\\\n\",\"path\":\"/opt/data_collector/service.py\",\"size_bytes\":1364}', is_error=None)"
+    ],
+    "uuid": "7a6bf559-d4f1-483e-b199-c55e7abdded8",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Ap6r4pwEGHngAqkpGk3QiZ', content='{\"error\":\"error reading file: read /var/log/journal: is a directory\",\"line_count\":0,\"path\":\"/var/log/journal\"}', is_error=None)"
+    ],
+    "uuid": "c08bcb3d-f23d-40df-9daa-55e0db3151bb",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01CgzvGdRFhVvGkGEUQ4sVYr', content='{\"process\":{\"cmdline\":\"python3 service.py\",\"fd_count\":372,\"gid\":1000,\"limits\":{\"max_open_files\":\"1024\",\"max_processes\":\"31615\"},\"name\":\"python3\",\"pid\":1959,\"ppid\":1,\"state\":\"S (sleeping)\",\"threads\":1,\"uid\":502,\"vmrss_mb\":9,\"vmsize_mb\":14}}', is_error=None)"
+    ],
+    "uuid": "d9f95b60-e3be-444f-9b69-bcb54460efe0",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"I've identified the root cause. The python process has gone from **238** file descriptors to **372** file descriptors in just a few seconds (the time between my first and second checks). This is actively leaking! Let me gather final supporting data:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01YAzxy3ts1ctTGX6gREhqZW', name='mcp__mcp-eval__read_file', input={'path': '/proc/sys/net/ipv4/tcp_fin_timeout'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01GgA3b5ufsk3ya6h4MrzrdC', name='mcp__mcp-eval__read_file', input={'path': '/proc/sys/net/ipv4/tcp_tw_reuse'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Nr8qYimB9pDFDcbkRGvHGk', name='mcp__mcp-eval__check_connectivity', input={'host': '1.1.1.1', 'port': 53})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01YAzxy3ts1ctTGX6gREhqZW', content='{\"content\":\"60\\\\n\",\"path\":\"/proc/sys/net/ipv4/tcp_fin_timeout\",\"size_bytes\":0}', is_error=None)"
+    ],
+    "uuid": "579243c9-4aa1-4eb5-bb6d-dd965d6d6085",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01GgA3b5ufsk3ya6h4MrzrdC', content='{\"content\":\"2\\\\n\",\"path\":\"/proc/sys/net/ipv4/tcp_tw_reuse\",\"size_bytes\":0}', is_error=None)"
+    ],
+    "uuid": "5f74885c-233e-493f-8706-841e73d238dc",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Nr8qYimB9pDFDcbkRGvHGk', content='{\"host\":\"1.1.1.1\",\"latency_ms\":10.921,\"port\":53,\"reachable\":true,\"resolved_ip\":\"1.1.1.1\"}', is_error=None)"
+    ],
+    "uuid": "2af56ff5-35e1-40cc-be4a-440aa9561bbf",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I have all the information needed to provide a comprehensive analysis.\\n\\n---\\n\\n# \ud83d\udd34 Production Incident Investigation Report\\n\\n## Problem Summary\\n\\nThe server `lima-mcp-eval-tools` is experiencing **resource exhaustion due to a file descriptor leak** caused by a misbehaving Python service (`service.py` running as PID 1959). The service is rapidly approaching its **1,024 open file limit** and will fail once exhausted.\\n\\n## Root Cause\\n\\nThe **Data Collector Service** (`/opt/data_collector/service.py`) has a critical bug:\\n\\n1. **Connection Leak**: The service opens TCP connections to Cloudflare DNS (1.1.1.1:53) at a rate of ~10 connections/second\\n2. **No Connection Cleanup**: Connections are stored in a list but **never closed**\\n3. **File Descriptor Exhaustion**: Each socket consumes a file descriptor. The process has a limit of 1,024 but is already at **372 FDs and growing rapidly**\\n4. **CLOSE_WAIT Accumulation**: The remote server (1.1.1.1) eventually times out and closes its side of the connection, leaving local sockets stuck in `CLOSE_WAIT` state indefinitely\\n\\n**Problematic Code Pattern:**\\n```python\\n# Opens connections but NEVER closes them - keeps them in memory\\nconnections = []\\nwhile True:\\n    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\\n    sock.connect((target_host, target_port))\\n    connections.append(sock)  # Leak! Never closed\\n```\\n\\n## Evidence\\n\\n| Metric | Value | Risk Level |\\n|--------|-------|------------|\\n| **File Descriptors (PID 1959)** | 372 / 1024 (36%) | \u26a0\ufe0f HIGH - Growing |\\n| **FD Growth Rate** | ~134 FDs in ~30 seconds | \ud83d\udd34 CRITICAL |\\n| **CLOSE_WAIT Connections** | ~200+ to 1.1.1.1:53 | \ud83d\udd34 CRITICAL |\\n| **ESTABLISHED Connections** | ~90+ to 1.1.1.1:53 | \u26a0\ufe0f HIGH |\\n| **Total TCP Connections** | 307 (and growing) | \ud83d\udd34 CRITICAL |\\n| **Time to Limit** | ~1-2 minutes at current rate | \ud83d\udd34 IMMINENT |\\n\\n**System Resources (currently healthy but will degrade):**\\n- CPU: 3% load (4 cores) \u2705\\n- Memory: 5.5% used (439 MB / 7.9 GB) \u2705\\n- Disk: 24.5% used (2.2 GB / 8.9 GB) \u2705\\n- System uptime: 50 seconds (recently restarted)\\n\\n## Impact\\n\\n### Current\\n- File descriptors rapidly depleting on PID 1959\\n- Network socket table filling with stale CLOSE_WAIT connections\\n- Potential ephemeral port exhaustion\\n\\n### Imminent (within minutes)\\n- Python service will crash with \"Too many open files\" error\\n- Any service depending on data_collector will fail\\n- May impact other processes on the system if socket tables overflow\\n\\n## Mitigation Steps\\n\\n### Immediate (Stop the Bleeding)\\n```bash\\n# 1. Stop the problematic service immediately\\nkill 1959\\n\\n# Or if graceful shutdown doesn\\'t work:\\nkill -9 1959\\n\\n# 2. Verify connections are released\\nss -tn state close-wait | wc -l\\n```\\n\\n### Short-Term (Fix the Application)\\n\\nFix the code in `/opt/data_collector/service.py`:\\n\\n```python\\n# Option A: Close connections after use\\nsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\\ntry:\\n    sock.connect((target_host, target_port))\\n    # Do work...\\nfinally:\\n    sock.close()  # Always close!\\n\\n# Option B: Use context manager\\nwith socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:\\n    sock.connect((target_host, target_port))\\n    # Do work...\\n    # Socket automatically closed on exit\\n\\n# Option C: Implement connection pooling\\nfrom urllib3.util.connection import HTTPConnection\\n```\\n\\n### Long-Term (Prevent Recurrence)\\n\\n1. **Increase file descriptor limits** for the service (systemd/ulimit):\\n   ```ini\\n   # /etc/systemd/system/data_collector.service\\n   [Service]\\n   LimitNOFILE=65535\\n   ```\\n\\n2. **Add monitoring/alerting**:\\n   - Alert when FD usage > 80% of limit\\n   - Alert on CLOSE_WAIT count > threshold\\n   - Monitor `lsof -p <pid> | wc -l`\\n\\n3. **Code review** the service for proper resource cleanup\\n\\n4. **Implement circuit breaker** pattern to prevent runaway connections\\n\\n---\\n\\n**Severity**: \ud83d\udd34 **CRITICAL** - Service failure imminent within minutes if not addressed\\n\\n**Recommended Action**: Kill PID 1959 immediately, then fix the application code before restarting.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "subtype": "success",
+    "duration_ms": 57315,
+    "duration_api_ms": 67575,
+    "is_error": false,
+    "num_turns": 25,
+    "session_id": "e83c998d-a803-4296-9017-ecf0f1a5bc48",
+    "total_cost_usd": 0.35665525000000003,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 27657,
+      "cache_read_input_tokens": 206704,
+      "output_tokens": 2796,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 27657
+      }
+    },
+    "result": "I have all the information needed to provide a comprehensive analysis.\n\n---\n\n# \ud83d\udd34 Production Incident Investigation Report\n\n## Problem Summary\n\nThe server `lima-mcp-eval-tools` is experiencing **resource exhaustion due to a file descriptor leak** caused by a misbehaving Python service (`service.py` running as PID 1959). The service is rapidly approaching its **1,024 open file limit** and will fail once exhausted.\n\n## Root Cause\n\nThe **Data Collector Service** (`/opt/data_collector/service.py`) has a critical bug:\n\n1. **Connection Leak**: The service opens TCP connections to Cloudflare DNS (1.1.1.1:53) at a rate of ~10 connections/second\n2. **No Connection Cleanup**: Connections are stored in a list but **never closed**\n3. **File Descriptor Exhaustion**: Each socket consumes a file descriptor. The process has a limit of 1,024 but is already at **372 FDs and growing rapidly**\n4. **CLOSE_WAIT Accumulation**: The remote server (1.1.1.1) eventually times out and closes its side of the connection, leaving local sockets stuck in `CLOSE_WAIT` state indefinitely\n\n**Problematic Code Pattern:**\n```python\n# Opens connections but NEVER closes them - keeps them in memory\nconnections = []\nwhile True:\n    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n    sock.connect((target_host, target_port))\n    connections.append(sock)  # Leak! Never closed\n```\n\n## Evidence\n\n| Metric | Value | Risk Level |\n|--------|-------|------------|\n| **File Descriptors (PID 1959)** | 372 / 1024 (36%) | \u26a0\ufe0f HIGH - Growing |\n| **FD Growth Rate** | ~134 FDs in ~30 seconds | \ud83d\udd34 CRITICAL |\n| **CLOSE_WAIT Connections** | ~200+ to 1.1.1.1:53 | \ud83d\udd34 CRITICAL |\n| **ESTABLISHED Connections** | ~90+ to 1.1.1.1:53 | \u26a0\ufe0f HIGH |\n| **Total TCP Connections** | 307 (and growing) | \ud83d\udd34 CRITICAL |\n| **Time to Limit** | ~1-2 minutes at current rate | \ud83d\udd34 IMMINENT |\n\n**System Resources (currently healthy but will degrade):**\n- CPU: 3% load (4 cores) \u2705\n- Memory: 5.5% used (439 MB / 7.9 GB) \u2705\n- Disk: 24.5% used (2.2 GB / 8.9 GB) \u2705\n- System uptime: 50 seconds (recently restarted)\n\n## Impact\n\n### Current\n- File descriptors rapidly depleting on PID 1959\n- Network socket table filling with stale CLOSE_WAIT connections\n- Potential ephemeral port exhaustion\n\n### Imminent (within minutes)\n- Python service will crash with \"Too many open files\" error\n- Any service depending on data_collector will fail\n- May impact other processes on the system if socket tables overflow\n\n## Mitigation Steps\n\n### Immediate (Stop the Bleeding)\n```bash\n# 1. Stop the problematic service immediately\nkill 1959\n\n# Or if graceful shutdown doesn't work:\nkill -9 1959\n\n# 2. Verify connections are released\nss -tn state close-wait | wc -l\n```\n\n### Short-Term (Fix the Application)\n\nFix the code in `/opt/data_collector/service.py`:\n\n```python\n# Option A: Close connections after use\nsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\ntry:\n    sock.connect((target_host, target_port))\n    # Do work...\nfinally:\n    sock.close()  # Always close!\n\n# Option B: Use context manager\nwith socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:\n    sock.connect((target_host, target_port))\n    # Do work...\n    # Socket automatically closed on exit\n\n# Option C: Implement connection pooling\nfrom urllib3.util.connection import HTTPConnection\n```\n\n### Long-Term (Prevent Recurrence)\n\n1. **Increase file descriptor limits** for the service (systemd/ulimit):\n   ```ini\n   # /etc/systemd/system/data_collector.service\n   [Service]\n   LimitNOFILE=65535\n   ```\n\n2. **Add monitoring/alerting**:\n   - Alert when FD usage > 80% of limit\n   - Alert on CLOSE_WAIT count > threshold\n   - Monitor `lsof -p <pid> | wc -l`\n\n3. **Code review** the service for proper resource cleanup\n\n4. **Implement circuit breaker** pattern to prevent runaway connections\n\n---\n\n**Severity**: \ud83d\udd34 **CRITICAL** - Service failure imminent within minutes if not addressed\n\n**Recommended Action**: Kill PID 1959 immediately, then fix the application code before restarting.",
+    "structured_output": null
+  }
+]

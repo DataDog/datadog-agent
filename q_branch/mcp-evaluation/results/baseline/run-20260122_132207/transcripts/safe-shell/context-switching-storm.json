@@ -1,0 +1,466 @@
+[
+  {
+    "subtype": "init",
+    "data": {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/Users/matthew.deguzman/go/src/github.com/DataDog/datadog-agent/q_branch/mcp-evaluation",
+      "session_id": "bf581a48-fc2a-46d8-bddb-bed797d0be9e",
+      "tools": [
+        "Task",
+        "TaskOutput",
+        "Bash",
+        "Glob",
+        "Grep",
+        "ExitPlanMode",
+        "Read",
+        "Edit",
+        "Write",
+        "NotebookEdit",
+        "WebFetch",
+        "TodoWrite",
+        "WebSearch",
+        "KillShell",
+        "AskUserQuestion",
+        "Skill",
+        "EnterPlanMode",
+        "mcp__mcp-eval__safe_shell_execute"
+      ],
+      "mcp_servers": [
+        {
+          "name": "mcp-eval",
+          "status": "connected"
+        }
+      ],
+      "model": "claude-opus-4-5-20251101",
+      "permissionMode": "bypassPermissions",
+      "slash_commands": [
+        "compact",
+        "context",
+        "cost",
+        "init",
+        "pr-comments",
+        "release-notes",
+        "review",
+        "security-review"
+      ],
+      "apiKeySource": "ANTHROPIC_API_KEY",
+      "claude_code_version": "2.1.1",
+      "output_style": "default",
+      "agents": [
+        "Bash",
+        "general-purpose",
+        "statusline-setup",
+        "Explore",
+        "Plan"
+      ],
+      "skills": [],
+      "plugins": [],
+      "uuid": "dbd8c1a6-ca3e-4e08-a19a-ce8a4670b339"
+    }
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Y3rNc5PeRd1qhLHSEKPK4B', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'uptime'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01CP3GTHWxVQCF3URfjhNw8X', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/loadavg'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01QcpN4NAKAVTFq2h8pji4HF', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'nproc'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Y3rNc5PeRd1qhLHSEKPK4B', content='{\"command\":\"uptime\",\"exit_code\":0,\"output\":\" 14:15:15 up 0 min,  4 users,  load average: 0.50, 0.14, 0.05\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "cd6f024f-0796-49c9-a705-933c29f54897",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01CP3GTHWxVQCF3URfjhNw8X', content='{\"command\":\"cat /proc/loadavg\",\"exit_code\":0,\"output\":\"0.50 0.14 0.05 3/268 2774\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ebb1d13a-8d13-4b78-bc91-ac0c3876ef6d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01QcpN4NAKAVTFq2h8pji4HF', content='{\"command\":\"nproc\",\"exit_code\":0,\"output\":\"4\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "c27348f1-c127-489a-b998-637099f6f55a",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"Let me gather more comprehensive system information to understand the load pattern and identify what's causing the issue:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_011oebvpdPvthJifFzXVqWbZ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ps aux --sort=-%cpu | head -20'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01TuA8CnFBYmBetUR9nR7Uou', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'vmstat 1 3'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Hkn3ECuRLhSmSwRzA6o83w', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/stat | head -5'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015VoaPWFLGHy7AGimnd615e', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'iostat -x 1 2 2>/dev/null || cat /proc/diskstats'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_011oebvpdPvthJifFzXVqWbZ', content='{\"command\":\"ps aux --sort=-%cpu | head -20\",\"exit_code\":0,\"output\":\"USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\\\\nlima        2694 77.4  0.1 2459344 10112 ?       Sl   14:14   0:23 python3 service.py\\\\nroot           1  1.2  0.2  36648 18564 ?        Ss   14:14   0:00 /usr/lib/systemd/systemd --switched-root --system --deserialize=51 no_timer_check\\\\neval-us+    2751  0.8  0.1  22288 12996 ?        Ss   14:15   0:00 /usr/lib/systemd/systemd --user\\\\nroot         685  0.7  0.6 1284044 55468 ?       Ssl  14:14   0:00 /usr/local/bin/lima-guestagent daemon --vsock-port 2222 --runtime-dir=/run/lima-guestagent\\\\nroot          56  0.7  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:2-btrfs-endio]\\\\nroot          12  0.3  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:0-btrfs-endio-write]\\\\nroot         467  0.2  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:5-btrfs-endio-write]\\\\nroot         530  0.2  0.5  74320 42572 ?        Ss   14:14   0:00 /usr/lib/systemd/systemd-journald\\\\nroot         639  0.2  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:6-btrfs-endio-write]\\\\nroot         466  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:4-btrfs-delalloc]\\\\nroot          82  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:3-btrfs-endio-write]\\\\nroot         641  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:7-btrfs-compressed-write]\\\\nroot          14  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:1-btrfs-endio-write]\\\\nroot        1274  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:9-btrfs-delalloc]\\\\nroot        1004  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:8-btrfs-delayed-meta]\\\\nroot        1275  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:10-btrfs-endio-write]\\\\nroot        1691  0.1  0.0      0     0 ?        I    14:14   0:00 [kworker/u16:13-btrfs-delalloc]\\\\nlima         957  0.1  0.4 1267008 40300 ?       Sl   14:14   0:00 containerd\\\\nlima         865  0.0  0.1  22300 13000 ?        Ss   14:14   0:00 /usr/lib/systemd/systemd --user\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "a711aea3-9f71-403c-aa29-2faff04c8973",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01TuA8CnFBYmBetUR9nR7Uou', content='{\"command\":\"vmstat 1 3\",\"exit_code\":0,\"output\":\"procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------\\\\n r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu\\\\n10  0      0 6046420   5812 1766344    0    0 19510  3145 75664  407 12 19 68  0  0  0\\\\n 2  0      0 6046420   5812 1766344    0    0     0     0 125455 261943  8 31 61  0  0  0\\\\n 3  0      0 6046420   5812 1766344    0    0     0     0 133800 273996  8 30 62  0  0  0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "b4561863-13c5-473e-8967-9bb39de0d6e6",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Hkn3ECuRLhSmSwRzA6o83w', content='{\"command\":\"cat /proc/stat | head -5\",\"exit_code\":0,\"output\":\"cpu  2806 0 2556 15723 79 2017 35 0 0 0\\\\ncpu0 615 0 653 3980 16 514 25 0 0 0\\\\ncpu1 627 0 626 4031 21 501 3 0 0 0\\\\ncpu2 713 0 644 3924 22 499 3 0 0 0\\\\ncpu3 849 0 631 3786 18 501 3 0 0 0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "ee85e875-a68c-46e6-9d3b-d1bc12948af1",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015VoaPWFLGHy7AGimnd615e', content='{\"command\":\"iostat -x 1 2 2>/dev/null || cat /proc/diskstats\",\"exit_code\":0,\"output\":\" 253       0 vda 13783 4094 1668846 2940 8234 2623 368377 939 0 581 3997 0 0 0 0 130 117\\\\n 253       1 vda1 171 0 8608 6 1 0 1 0 0 4 6 0 0 0 0 0 0\\\\n 253       2 vda2 192 60 9682 10 1 0 8 3 0 10 13 0 0 0 0 0 0\\\\n 253       3 vda3 12960 4034 1630772 2905 8229 2623 368368 902 0 609 3807 0 0 0 0 0 0\\\\n 253      16 vdb 474 7 611748 122 0 0 0 0 0 41 122 0 0 0 0 0 0\\\\n 251       0 zram0 105 0 4448 0 1 0 8 0 0 0 0 0 0 0 0 0 0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "9440f270-95dc-43d2-928d-c508925a4fc2",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I see a Python process `service.py` using 77% CPU. The vmstat output shows extremely high context switches (261K-273K per second). Let me investigate this further:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Mop91jkfdVpKgUncSCDFoY', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ps -eLf | grep -E \"service.py|PID\" | head -30'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Tk5ySUdnG3kMGDJN17PHs2', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2694/status 2>/dev/null | grep -E \"^(Pid|State|Threads|Name|voluntary|nonvoluntary)\"'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01ECntsQhu7rYypC8YKb6nG3', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /proc/2694/task/ 2>/dev/null | wc -l'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_015DXuCYU7BpQ7o8t3XYJTC5', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2694/wchan 2>/dev/null; echo \"\"'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Mop91jkfdVpKgUncSCDFoY', content='{\"command\":\"ps -eLf | grep -E \\\\\"service.py|PID\\\\\" | head -30\",\"exit_code\":0,\"output\":\"UID          PID    PPID     LWP  C NLWP STIME TTY          TIME CMD\\\\nlima        2694       1    2694  0   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2696  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2697  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2698  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2699  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2700  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2701  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2702  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2703  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2704  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2705  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2706  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2707  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2708  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2709  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2710  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2711  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2712  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2713  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2714  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2715  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2716  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2717  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2718  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2719  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2720  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2721  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2722  1   51 14:14 ?        00:00:00 python3 service.py\\\\nlima        2694       1    2723  1   51 14:14 ?        00:00:00 python3 service.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "7ec66fa4-70b8-4c6a-8062-9d1469bbf16d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Tk5ySUdnG3kMGDJN17PHs2', content='{\"command\":\"cat /proc/2694/status 2>/dev/null | grep -E \\\\\"^(Pid|State|Threads|Name|voluntary|nonvoluntary)\\\\\"\",\"exit_code\":0,\"output\":\"Name:\\\\tpython3\\\\nState:\\\\tS (sleeping)\\\\nPid:\\\\t2694\\\\nThreads:\\\\t51\\\\nvoluntary_ctxt_switches:\\\\t191\\\\nnonvoluntary_ctxt_switches:\\\\t5\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "4f6de17b-f4f3-493f-a5b9-fcc743b95db8",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01ECntsQhu7rYypC8YKb6nG3', content='{\"command\":\"ls -la /proc/2694/task/ 2>/dev/null | wc -l\",\"exit_code\":0,\"output\":\"54\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "3aebb76b-a649-4a95-a0e6-4fae1e627e19",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_015DXuCYU7BpQ7o8t3XYJTC5', content='{\"command\":\"cat /proc/2694/wchan 2>/dev/null; echo \\\\\"\\\\\"\",\"exit_code\":0,\"output\":\"0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "7e2b25f2-dd18-439c-84e6-b9c3a0b84fc3",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I found 51 threads! Let me examine the thread states more closely and check what each thread is doing:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01TjQG3X73kJ3B3TKjSb5H5P', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'for tid in $(ls /proc/2694/task/ 2>/dev/null | head -20); do echo \"=== Thread $tid ===\"; cat /proc/2694/task/$tid/status 2>/dev/null | grep -E \"^(State|voluntary|nonvoluntary)\"; done'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01LMNDmCq7nsgFavMkWJSuYJ', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2694/sched 2>/dev/null | head -20'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Y7joAxibEciMJnCNNkz5Cc', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'find / -name \"service.py\" 2>/dev/null | head -5'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Nf7b1fnQ5ur76fmWw4DeRP', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/2694/cmdline 2>/dev/null | tr \\'\\\\0\\' \\' \\'; echo \"\"'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01TjQG3X73kJ3B3TKjSb5H5P', content='{\"command\":\"for tid in $(ls /proc/2694/task/ 2>/dev/null | head -20); do echo \\\\\"=== Thread $tid ===\\\\\"; cat /proc/2694/task/$tid/status 2>/dev/null | grep -E \\\\\"^(State|voluntary|nonvoluntary)\\\\\"; done\",\"exit_code\":0,\"output\":\"=== Thread 2694 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t191\\\\nnonvoluntary_ctxt_switches:\\\\t5\\\\n=== Thread 2696 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129781\\\\nnonvoluntary_ctxt_switches:\\\\t2503\\\\n=== Thread 2697 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129448\\\\nnonvoluntary_ctxt_switches:\\\\t2456\\\\n=== Thread 2698 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t130359\\\\nnonvoluntary_ctxt_switches:\\\\t2531\\\\n=== Thread 2699 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129218\\\\nnonvoluntary_ctxt_switches:\\\\t2533\\\\n=== Thread 2700 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129984\\\\nnonvoluntary_ctxt_switches:\\\\t2441\\\\n=== Thread 2701 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129425\\\\nnonvoluntary_ctxt_switches:\\\\t2556\\\\n=== Thread 2702 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t129599\\\\nnonvoluntary_ctxt_switches:\\\\t2534\\\\n=== Thread 2703 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t129822\\\\nnonvoluntary_ctxt_switches:\\\\t2553\\\\n=== Thread 2704 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t145698\\\\nnonvoluntary_ctxt_switches:\\\\t2423\\\\n=== Thread 2705 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t130672\\\\nnonvoluntary_ctxt_switches:\\\\t2581\\\\n=== Thread 2706 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t145054\\\\nnonvoluntary_ctxt_switches:\\\\t2433\\\\n=== Thread 2707 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t144250\\\\nnonvoluntary_ctxt_switches:\\\\t2505\\\\n=== Thread 2708 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t130079\\\\nnonvoluntary_ctxt_switches:\\\\t2439\\\\n=== Thread 2709 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129646\\\\nnonvoluntary_ctxt_switches:\\\\t2473\\\\n=== Thread 2710 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t145686\\\\nnonvoluntary_ctxt_switches:\\\\t2516\\\\n=== Thread 2711 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t128681\\\\nnonvoluntary_ctxt_switches:\\\\t2443\\\\n=== Thread 2712 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t129789\\\\nnonvoluntary_ctxt_switches:\\\\t2448\\\\n=== Thread 2713 ===\\\\nState:\\\\tS (sleeping)\\\\nvoluntary_ctxt_switches:\\\\t129714\\\\nnonvoluntary_ctxt_switches:\\\\t2496\\\\n=== Thread 2714 ===\\\\nState:\\\\tR (running)\\\\nvoluntary_ctxt_switches:\\\\t128834\\\\nnonvoluntary_ctxt_switches:\\\\t2511\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "5778f59c-3d15-49e2-b610-79ff990f0404",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01LMNDmCq7nsgFavMkWJSuYJ', content='{\"command\":\"cat /proc/2694/sched 2>/dev/null | head -20\",\"exit_code\":0,\"output\":\"python3 (2694, #threads: 51)\\\\n-------------------------------------------------------------------\\\\nse.exec_start                                :         27437.873388\\\\nse.vruntime                                  :            20.038983\\\\nse.sum_exec_runtime                          :             8.100965\\\\nse.nr_migrations                             :                   44\\\\nnr_switches                                  :                  196\\\\nnr_voluntary_switches                        :                  191\\\\nnr_involuntary_switches                      :                    5\\\\nse.load.weight                               :              1048576\\\\nse.avg.load_sum                              :                34781\\\\nse.avg.runnable_sum                          :             20127132\\\\nse.avg.util_sum                              :             20013154\\\\nse.avg.load_avg                              :                  748\\\\nse.avg.runnable_avg                          :                  422\\\\nse.avg.util_avg                              :                  421\\\\nse.avg.last_update_time                      :          27437903872\\\\nse.avg.util_est                              :                  449\\\\nuclamp.min                                   :                    0\\\\nuclamp.max                                   :                 1024\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "8666784c-d4b3-474e-9db0-2b97c6f72275",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Y7joAxibEciMJnCNNkz5Cc', content='{\"command\":\"find / -name \\\\\"service.py\\\\\" 2>/dev/null | head -5\",\"exit_code\":0,\"output\":\"/opt/task_coordinator/service.py\\\\n/usr/lib64/python3.13/site-packages/dbus/service.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "eac165c2-58f0-424e-84aa-4fb1d607bb65",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Nf7b1fnQ5ur76fmWw4DeRP', content='{\"command\":\"cat /proc/2694/cmdline 2>/dev/null | tr \\'\\\\\\\\0\\' \\' \\'; echo \\\\\"\\\\\"\",\"exit_code\":0,\"output\":\"python3 service.py \\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "016569e0-e004-4449-8e19-604e1bb03c6c",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text=\"This is very revealing - threads have ~130K voluntary context switches each! Let me examine the service.py code to understand what's causing this:\")"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01GiNQZCbHcraMvEuhiMnZZH', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /opt/task_coordinator/service.py'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_0159Qqpm1u5yVovMJVTBR4dt', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'ls -la /opt/task_coordinator/'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01GiNQZCbHcraMvEuhiMnZZH', content='{\"command\":\"cat /opt/task_coordinator/service.py\",\"exit_code\":0,\"output\":\"#!/usr/bin/env python3\\\\nimport threading\\\\nimport time\\\\nfrom datetime import datetime\\\\n\\\\n\\\\ndef log(msg):\\\\n    timestamp = datetime.now().strftime(\\\\\"%Y-%m-%d %H:%M:%S.%f\\\\\")[:-3]\\\\n    print(f\\\\\"[{timestamp}] {msg}\\\\\", flush=True)\\\\n\\\\n\\\\ndef worker_thread(thread_id, lock, condition):\\\\n    \\\\\"\\\\\"\\\\\"Worker thread that constantly acquires lock and signals condition\\\\\"\\\\\"\\\\\"\\\\n    while True:\\\\n        with condition:\\\\n            condition.notify_all()\\\\n            condition.wait(timeout=0.001)  # Very short timeout\\\\n\\\\n\\\\ndef main():\\\\n    log(\\\\\"Task coordinator started\\\\\")\\\\n\\\\n    # Create many threads with shared condition variable\\\\n    num_threads = 50\\\\n    lock = threading.Lock()\\\\n    condition = threading.Condition(lock)\\\\n\\\\n    threads = []\\\\n\\\\n    for i in range(num_threads):\\\\n        t = threading.Thread(target=worker_thread, args=(i, lock, condition))\\\\n        t.daemon = True\\\\n        t.start()\\\\n        threads.append(t)\\\\n\\\\n    log(f\\\\\"Started {num_threads} coordinator threads\\\\\")\\\\n\\\\n    # Keep main thread alive\\\\n    while True:\\\\n        time.sleep(60)\\\\n\\\\n\\\\nif __name__ == \\\\\"__main__\\\\\":\\\\n    try:\\\\n        main()\\\\n    except KeyboardInterrupt:\\\\n        log(\\\\\"Task coordinator stopped\\\\\")\\\\n    except Exception as e:\\\\n        log(f\\\\\"Error: {e}\\\\\")\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "fc4ecf60-f6ad-4032-be1b-94e578a2063d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_0159Qqpm1u5yVovMJVTBR4dt', content='{\"command\":\"ls -la /opt/task_coordinator/\",\"exit_code\":0,\"output\":\"total 4\\\\ndrwxr-xr-x. 1 root root   20 Jan 22 14:14 .\\\\ndrwxr-xr-x. 1 root root   32 Jan 22 14:14 ..\\\\n-rwxr-xr-x. 1 lima lima 1175 Jan 15 12:12 service.py\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "43bfae16-8231-4523-a288-7f4f65ca5c82",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I found the root cause. Let me gather some final metrics to quantify the impact:')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_012PHTBtAp2bNx4MFBGQeiaW', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'vmstat 1 5'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01ME539LEh6S19vVgGRMyBmw', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'mpstat -P ALL 1 2 2>/dev/null || cat /proc/stat | grep ^cpu'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Lg3WinVMR597SvhaqNUBVF', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'pidstat -t -p 2694 1 2 2>/dev/null || echo \"pidstat not available\"; cat /proc/2694/schedstat 2>/dev/null'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_012PHTBtAp2bNx4MFBGQeiaW', content='{\"command\":\"vmstat 1 5\",\"exit_code\":0,\"output\":\"procs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------\\\\n r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu\\\\n22  0      0 5960636   6284 1837680    0    0 14218  2276 92678  506 11 23 66  0  0  0\\\\n 1  0      0 5960636   6284 1837680    0    0     0     0 136319 278876  8 29 63  0  0  0\\\\n 1  0      0 5960964   6284 1837736    0    0     0     8 138306 282802  8 30 62  0  0  0\\\\n 4  0      0 5960964   6284 1837736    0    0     0     0 136810 279898  9 29 62  0  0  0\\\\n 0  0      0 5960792   6284 1837736    0    0     0     0 136184 278071  9 29 63  0  0  0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "e255b0fb-5e8a-4f9d-8c2f-b179b7669130",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01ME539LEh6S19vVgGRMyBmw', content='{\"command\":\"mpstat -P ALL 1 2 2>/dev/null || cat /proc/stat | grep ^cpu\",\"exit_code\":0,\"output\":\"cpu  3607 0 4020 21682 85 3534 39 0 0 0\\\\ncpu0 814 0 1009 5471 17 895 27 0 0 0\\\\ncpu1 837 0 986 5517 22 880 4 0 0 0\\\\ncpu2 907 0 1014 5417 24 878 4 0 0 0\\\\ncpu3 1048 0 1009 5275 20 879 4 0 0 0\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "94196c31-f7df-48d0-8990-96a60322b90d",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Lg3WinVMR597SvhaqNUBVF', content='{\"command\":\"pidstat -t -p 2694 1 2 2>/dev/null || echo \\\\\"pidstat not available\\\\\"; cat /proc/2694/schedstat 2>/dev/null\",\"exit_code\":0,\"output\":\"pidstat not available\\\\n8100965 284959 196\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "476860a2-76b1-45bc-85e9-59698d3a9880",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01UqWBmdcwEBvUA1sYBwQVUp', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'awk \\'{user=$2+$4; sys=$4; idle=$5; total=user+sys+idle; printf \"User: %.1f%% System: %.1f%% Idle: %.1f%%\\\\n\", user*100/total, sys*100/total, idle*100/total}\\' /proc/stat | head -1'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolUseBlock(id='toolu_01Fuf7m7Z7kR41BLB1rmhMHc', name='mcp__mcp-eval__safe_shell_execute', input={'command': 'cat /proc/softirqs | head -15'})"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01UqWBmdcwEBvUA1sYBwQVUp', content='{\"command\":\"awk \\'{user=$2+$4; sys=$4; idle=$5; total=user+sys+idle; printf \\\\\"User: %.1f%% System: %.1f%% Idle: %.1f%%\\\\\\\\n\\\\\", user*100/total, sys*100/total, idle*100/total}\\' /proc/stat | head -1\",\"exit_code\":0,\"output\":\"awk: cmd. line:1: (FILENAME=/proc/stat FNR=11) fatal: division by zero attempted\\\\nUser: 22.9% System: 12.2% Idle: 64.9%\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "cda07715-9652-4544-b21c-126c42398884",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "ToolResultBlock(tool_use_id='toolu_01Fuf7m7Z7kR41BLB1rmhMHc', content='{\"command\":\"cat /proc/softirqs | head -15\",\"exit_code\":0,\"output\":\"                    CPU0       CPU1       CPU2       CPU3       \\\\n          HI:          4          0          1          0\\\\n       TIMER:       1723       1572       1567       2396\\\\n      NET_TX:          3          0          0          1\\\\n      NET_RX:       6269         58        102        173\\\\n       BLOCK:      15165          0          0          0\\\\n    IRQ_POLL:          0          0          0          0\\\\n     TASKLET:        124          1         66          2\\\\n       SCHED:      23187      21026      19494      18263\\\\n     HRTIMER:          0          0          0          0\\\\n         RCU:       8478       8837       7878       7276\\\\n\",\"sandbox\":\"safe-shell\"}', is_error=None)"
+    ],
+    "uuid": "6df713e0-16f9-48f9-b609-63e3c184eaff",
+    "parent_tool_use_id": null
+  },
+  {
+    "content": [
+      "TextBlock(text='I now have all the evidence needed. Here is my complete analysis:\\n\\n---\\n\\n# Investigation Report: High System Load with Low Process Work\\n\\n## Problem Summary\\n\\nThe system is experiencing **excessive context switching** (~278,000 context switches per second) caused by a Python application (`service.py`) with a **lock contention / thundering herd pattern**. This is consuming significant system resources without performing productive work.\\n\\n## Root Cause\\n\\nThe root cause is a **poorly designed thread coordination pattern** in `/opt/task_coordinator/service.py`:\\n\\n```python\\ndef worker_thread(thread_id, lock, condition):\\n    while True:\\n        with condition:\\n            condition.notify_all()     # Wakes ALL 50 threads\\n            condition.wait(timeout=0.001)  # Very short 1ms timeout\\n```\\n\\n**The problem:**\\n1. **50 threads** share a single `threading.Condition` variable\\n2. Each thread calls `notify_all()`, which wakes **all 50 threads** simultaneously\\n3. The `wait(timeout=0.001)` timeout is only 1 millisecond\\n4. This creates a **thundering herd effect** where all threads constantly wake up, compete for the lock, and go back to sleep\\n5. This cycle repeats ~280,000 times per second across all threads\\n\\n## Evidence\\n\\n### Thread Statistics\\n| Metric | Value |\\n|--------|-------|\\n| Total threads | 51 (1 main + 50 workers) |\\n| Context switches per thread | ~130,000 voluntary + ~2,500 involuntary |\\n| Total context switches/sec | **~278,000** |\\n\\n### System Impact (vmstat output)\\n```\\nprocs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------\\n r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu\\n 1  0      0 5960636   6284 1837680    0    0     0     0 136319 278876  8 29 63  0  0  0\\n```\\n\\n- **cs (context switches)**: 278,876/sec - extremely high\\n- **in (interrupts)**: 136,319/sec - elevated\\n- **sy (system CPU)**: 29-31% - kernel overhead from context switches\\n- **us (user CPU)**: 8-9% - actual application work\\n- **Processes in run queue (r)**: Up to 22 processes competing for 4 CPUs\\n\\n### Per-Thread Evidence\\nEach worker thread shows ~130K+ voluntary context switches indicating rapid lock acquire/release cycles:\\n```\\nThread 2696: voluntary_ctxt_switches: 129781, nonvoluntary_ctxt_switches: 2503\\nThread 2697: voluntary_ctxt_switches: 129448, nonvoluntary_ctxt_switches: 2456\\n```\\n\\n## Impact\\n\\n| Resource | Impact |\\n|----------|--------|\\n| **CPU** | ~30% consumed by system overhead (context switching) |\\n| **System Load** | Inflated due to runnable processes (up to 22 in queue) |\\n| **Kernel** | SCHED softirqs elevated (82,000+ across CPUs) |\\n| **Latency** | Other processes may experience scheduling delays |\\n| **Throughput** | Near-zero productive work despite resource consumption |\\n\\n## Mitigation\\n\\n### Immediate Actions\\n\\n1. **Stop the problematic service:**\\n   ```bash\\n   kill 2694  # or systemctl stop task_coordinator if managed by systemd\\n   ```\\n\\n2. **Verify system recovery:**\\n   ```bash\\n   vmstat 1 5  # Context switches should drop to normal (~1000-5000/sec)\\n   ```\\n\\n### Long-term Fixes\\n\\nThe `service.py` code needs to be rewritten. The fixes include:\\n\\n1. **Replace `notify_all()` with `notify()`** - Only wake one thread at a time:\\n   ```python\\n   condition.notify()  # Instead of notify_all()\\n   ```\\n\\n2. **Increase the wait timeout** - Reduce churning:\\n   ```python\\n   condition.wait(timeout=1.0)  # 1 second instead of 1ms\\n   ```\\n\\n3. **Reduce thread count** - 50 threads for coordination is excessive:\\n   ```python\\n   num_threads = 4  # Match CPU count or workload needs\\n   ```\\n\\n4. **Use a different coordination pattern** - Consider:\\n   - `queue.Queue()` for producer/consumer patterns\\n   - `concurrent.futures.ThreadPoolExecutor` for task-based parallelism\\n   - `asyncio` if I/O-bound\\n\\n### Recommended Fixed Code Pattern\\n\\n```python\\ndef worker_thread(thread_id, work_queue):\\n    while True:\\n        try:\\n            task = work_queue.get(timeout=5.0)  # Block until work available\\n            process_task(task)\\n            work_queue.task_done()\\n        except queue.Empty:\\n            continue  # No work, check again\\n```\\n\\n---\\n\\n**Summary:** The service is a classic case of a \"busy-wait\" anti-pattern using condition variables incorrectly, causing system resources to be consumed by thread scheduling overhead rather than productive work.')"
+    ],
+    "model": "claude-opus-4-5-20251101",
+    "parent_tool_use_id": null,
+    "error": null
+  },
+  {
+    "subtype": "success",
+    "duration_ms": 64002,
+    "duration_api_ms": 66307,
+    "is_error": false,
+    "num_turns": 23,
+    "session_id": "bf581a48-fc2a-46d8-bddb-bed797d0be9e",
+    "total_cost_usd": 0.2179085,
+    "usage": {
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 9304,
+      "cache_read_input_tokens": 151543,
+      "output_tokens": 2962,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 9304
+      }
+    },
+    "result": "I now have all the evidence needed. Here is my complete analysis:\n\n---\n\n# Investigation Report: High System Load with Low Process Work\n\n## Problem Summary\n\nThe system is experiencing **excessive context switching** (~278,000 context switches per second) caused by a Python application (`service.py`) with a **lock contention / thundering herd pattern**. This is consuming significant system resources without performing productive work.\n\n## Root Cause\n\nThe root cause is a **poorly designed thread coordination pattern** in `/opt/task_coordinator/service.py`:\n\n```python\ndef worker_thread(thread_id, lock, condition):\n    while True:\n        with condition:\n            condition.notify_all()     # Wakes ALL 50 threads\n            condition.wait(timeout=0.001)  # Very short 1ms timeout\n```\n\n**The problem:**\n1. **50 threads** share a single `threading.Condition` variable\n2. Each thread calls `notify_all()`, which wakes **all 50 threads** simultaneously\n3. The `wait(timeout=0.001)` timeout is only 1 millisecond\n4. This creates a **thundering herd effect** where all threads constantly wake up, compete for the lock, and go back to sleep\n5. This cycle repeats ~280,000 times per second across all threads\n\n## Evidence\n\n### Thread Statistics\n| Metric | Value |\n|--------|-------|\n| Total threads | 51 (1 main + 50 workers) |\n| Context switches per thread | ~130,000 voluntary + ~2,500 involuntary |\n| Total context switches/sec | **~278,000** |\n\n### System Impact (vmstat output)\n```\nprocs -----------memory---------- ---swap-- -----io---- -system-- -------cpu-------\n r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st gu\n 1  0      0 5960636   6284 1837680    0    0     0     0 136319 278876  8 29 63  0  0  0\n```\n\n- **cs (context switches)**: 278,876/sec - extremely high\n- **in (interrupts)**: 136,319/sec - elevated\n- **sy (system CPU)**: 29-31% - kernel overhead from context switches\n- **us (user CPU)**: 8-9% - actual application work\n- **Processes in run queue (r)**: Up to 22 processes competing for 4 CPUs\n\n### Per-Thread Evidence\nEach worker thread shows ~130K+ voluntary context switches indicating rapid lock acquire/release cycles:\n```\nThread 2696: voluntary_ctxt_switches: 129781, nonvoluntary_ctxt_switches: 2503\nThread 2697: voluntary_ctxt_switches: 129448, nonvoluntary_ctxt_switches: 2456\n```\n\n## Impact\n\n| Resource | Impact |\n|----------|--------|\n| **CPU** | ~30% consumed by system overhead (context switching) |\n| **System Load** | Inflated due to runnable processes (up to 22 in queue) |\n| **Kernel** | SCHED softirqs elevated (82,000+ across CPUs) |\n| **Latency** | Other processes may experience scheduling delays |\n| **Throughput** | Near-zero productive work despite resource consumption |\n\n## Mitigation\n\n### Immediate Actions\n\n1. **Stop the problematic service:**\n   ```bash\n   kill 2694  # or systemctl stop task_coordinator if managed by systemd\n   ```\n\n2. **Verify system recovery:**\n   ```bash\n   vmstat 1 5  # Context switches should drop to normal (~1000-5000/sec)\n   ```\n\n### Long-term Fixes\n\nThe `service.py` code needs to be rewritten. The fixes include:\n\n1. **Replace `notify_all()` with `notify()`** - Only wake one thread at a time:\n   ```python\n   condition.notify()  # Instead of notify_all()\n   ```\n\n2. **Increase the wait timeout** - Reduce churning:\n   ```python\n   condition.wait(timeout=1.0)  # 1 second instead of 1ms\n   ```\n\n3. **Reduce thread count** - 50 threads for coordination is excessive:\n   ```python\n   num_threads = 4  # Match CPU count or workload needs\n   ```\n\n4. **Use a different coordination pattern** - Consider:\n   - `queue.Queue()` for producer/consumer patterns\n   - `concurrent.futures.ThreadPoolExecutor` for task-based parallelism\n   - `asyncio` if I/O-bound\n\n### Recommended Fixed Code Pattern\n\n```python\ndef worker_thread(thread_id, work_queue):\n    while True:\n        try:\n            task = work_queue.get(timeout=5.0)  # Block until work available\n            process_task(task)\n            work_queue.task_done()\n        except queue.Empty:\n            continue  # No work, check again\n```\n\n---\n\n**Summary:** The service is a classic case of a \"busy-wait\" anti-pattern using condition variables incorrectly, causing system resources to be consumed by thread scheduling overhead rather than productive work.",
+    "structured_output": null
+  }
+]

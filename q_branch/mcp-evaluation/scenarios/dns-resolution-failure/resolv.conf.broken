@@ -1,0 +1,2 @@
+nameserver 192.0.2.1
+options timeout:2 attempts:1

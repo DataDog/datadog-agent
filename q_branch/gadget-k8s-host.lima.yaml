@@ -58,43 +58,43 @@ provision:
       # These limits apply to all processes including Docker containers
       # (Kind nodes) and their children (kube-proxy, kubelet, etc.)
       # ============================================================
-      cat > /etc/security/limits.d/99-kind-limits.conf << 'EOF'
-# Kind/Kubernetes file descriptor limits
-# Required for kube-proxy and other k8s components
-*               soft    nofile          65536
-*               hard    nofile          65536
-root            soft    nofile          65536
-root            hard    nofile          65536
-*               soft    nproc           65536
-*               hard    nproc           65536
-EOF
+      {
+        echo "# Kind/Kubernetes file descriptor limits"
+        echo "# Required for kube-proxy and other k8s components"
+        echo "*               soft    nofile          65536"
+        echo "*               hard    nofile          65536"
+        echo "root            soft    nofile          65536"
+        echo "root            hard    nofile          65536"
+        echo "*               soft    nproc           65536"
+        echo "*               hard    nproc           65536"
+      } > /etc/security/limits.d/99-kind-limits.conf
 
       # Also set systemd defaults for services
       mkdir -p /etc/systemd/system.conf.d
-      cat > /etc/systemd/system.conf.d/limits.conf << 'EOF'
-[Manager]
-DefaultLimitNOFILE=65536
-DefaultLimitNPROC=65536
-EOF
+      {
+        echo "[Manager]"
+        echo "DefaultLimitNOFILE=65536"
+        echo "DefaultLimitNPROC=65536"
+      } > /etc/systemd/system.conf.d/limits.conf
 
       # Docker daemon needs explicit config for container limits
       mkdir -p /etc/docker
-      cat > /etc/docker/daemon.json << 'EOF'
-{
-  "default-ulimits": {
-    "nofile": {
-      "Name": "nofile",
-      "Hard": 65536,
-      "Soft": 65536
-    },
-    "nproc": {
-      "Name": "nproc",
-      "Hard": 65536,
-      "Soft": 65536
-    }
-  }
-}
-EOF
+      printf '%s\n' \
+        '{' \
+        '  "default-ulimits": {' \
+        '    "nofile": {' \
+        '      "Name": "nofile",' \
+        '      "Hard": 65536,' \
+        '      "Soft": 65536' \
+        '    },' \
+        '    "nproc": {' \
+        '      "Name": "nproc",' \
+        '      "Hard": 65536,' \
+        '      "Soft": 65536' \
+        '    }' \
+        '  }' \
+        '}' \
+        > /etc/docker/daemon.json
 
       apt-get update
       apt-get install -y \
