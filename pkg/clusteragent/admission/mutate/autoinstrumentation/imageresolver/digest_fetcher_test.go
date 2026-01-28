@@ -16,6 +16,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	server := httptest.NewTLSServer(handler)
+	t.Cleanup(server.Close)
+	return server
+}
+
 func TestHttpDigestFetcher_buildManifestRequest_Success(t *testing.T) {
 	f := newHTTPDigestFetcher()
 	tests := []struct {
@@ -121,11 +128,10 @@ func TestHttpDigestFetcher_buildManifestRequest_Error(t *testing.T) {
 
 func TestHttpDigestFetcher_digest_Success(t *testing.T) {
 	f := newHTTPDigestFetcher()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Docker-Content-Digest", "sha256:abc123def456")
 		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	})
 
 	testRef := server.URL[7:] + "/datadoghq/agent:v1"
 
@@ -170,10 +176,9 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
-			}))
-			defer server.Close()
+			})
 
 			testRef := server.URL[7:] + "/datadoghq/agent:v1"
 
@@ -187,11 +192,10 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 
 func TestHttpDigestFetcher_digest_MissingDigestHeader(t *testing.T) {
 	f := newHTTPDigestFetcher()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		// DEV: Return 200 but no Docker-Content-Digest header
 		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	})
 
 	testRef := server.URL[7:] + "/datadoghq/agent:v1"
 
@@ -204,11 +208,10 @@ func TestHttpDigestFetcher_digest_MissingDigestHeader(t *testing.T) {
 func TestHttpDigestFetcher_digest_ValidDigestFormat(t *testing.T) {
 	f := newHTTPDigestFetcher()
 	digestValue := "sha256:abc123def456789012345678901234567890123456789012345678901234"
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Docker-Content-Digest", digestValue)
 		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+	})
 
 	testRef := server.URL[7:] + "/datadoghq/agent:v1"
 	digest, err := f.digest(testRef)
@@ -247,11 +250,10 @@ func TestHttpDigestFetcher_digest_InvalidDigestFormat(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Docker-Content-Digest", tt.digestValue)
 				w.WriteHeader(http.StatusOK)
-			}))
-			defer server.Close()
+			})
 
 			testRef := server.URL[7:] + "/datadoghq/agent:v1"
 			digest, err := f.digest(testRef)
