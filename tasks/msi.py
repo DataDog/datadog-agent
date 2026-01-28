@@ -5,6 +5,7 @@ msi namespaced tasks
 import hashlib
 import mmap
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -706,3 +707,120 @@ def download_latest_artifacts_for_ref(project: Project, ref_name: str, output_di
             os.close(fd)
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
+
+@task
+def package_oci(
+    ctx,
+    msi_path=None,
+    output_dir=None,
+    package_name="datadog-agent",
+    source_type="msi",
+):
+    """
+    Create an OCI package from an MSI installer.
+    
+    Args:
+        msi_path: Path to the MSI file (default: auto-detect in omnibus/pkg)
+        output_dir: Output directory for the OCI tar (default: omnibus/pkg)
+        package_name: Package name (default: datadog-agent)
+        source_type: Source type - 'msi' or 'zip' (default: msi)
+    """
+    import tempfile
+    from pathlib import Path
+    
+    # Set defaults
+    if output_dir is None:
+        output_dir = OUTPUT_PATH
+    
+    # Determine package version
+    package_version = None
+    
+    if msi_path is None:
+        # Auto-detect: Get version from git and find matching MSI
+        package_version = get_version(ctx, include_git=True, url_safe=True, include_pipeline_id=True)
+        msi_pattern = f"datadog-agent-{package_version}-1-x86_64.msi"
+        msi_files = list(Path(OUTPUT_PATH).glob(msi_pattern))
+        if not msi_files:
+            print(f"No MSI found matching pattern: {msi_pattern}")
+            raise Exit(code=1)
+        msi_path = str(msi_files[0])
+        print(f"Found MSI: {msi_path}")
+    else:
+        # MSI path provided: Extract version from filename
+        # Expected format: datadog-agent-{VERSION}-1-x86_64.msi
+        msi_filename = os.path.basename(msi_path)
+        version_match = re.search(r'datadog-agent-(.+?)-1-x86_64\.msi$', msi_filename)
+        if not version_match:
+            print(f"Could not extract version from MSI filename: {msi_filename}")
+            print("Expected format: datadog-agent-{{VERSION}}-1-x86_64.msi")
+            raise Exit(code=1)
+        package_version = version_match.group(1)
+        print(f"Extracted version from MSI filename: {package_version}")
+    
+    # Verify MSI exists
+    if not os.path.exists(msi_path):
+        print(f"MSI file not found: {msi_path}")
+        raise Exit(code=1)
+    
+    # Create temporary directory for input
+    with tempfile.TemporaryDirectory() as src_dir:
+        print(f"Using temporary directory: {src_dir}")
+        
+        # Handle different source types
+        extra_flags = ""
+        if source_type == "msi":
+            # Copy MSI to temp directory
+            print(f"Copying MSI to {src_dir}")
+            shutil.copy2(msi_path, src_dir)
+        elif source_type == "zip":
+            # Extract ZIP to temp directory
+            print(f"Extracting ZIP to {src_dir}")
+            with zipfile.ZipFile(msi_path, "r") as zip_ref:
+                zip_ref.extractall(src_dir)
+            
+            # Check for config directory
+            config_dir = os.path.join(src_dir, "etc", "datadog-agent")
+            if os.path.exists(config_dir):
+                extra_flags = f"--configs {config_dir}"
+        else:
+            print(f"Unknown source type: {source_type}")
+            raise Exit(code=1)
+        
+        # Construct output path
+        oci_output_path = os.path.join(
+            output_dir, 
+            f"datadog-agent-{package_version}-1-windows-amd64.oci.tar"
+        )
+        
+        # Ensure datadog-package is in PATH
+        gopath = ctx.run("go env GOPATH", hide=True).stdout.strip()
+        gobin = os.path.join(gopath, "bin")
+        
+        # Build the command
+        cmd = (
+            f'"{os.path.join(gobin, "datadog-package")}" create '
+            f'--version "{package_version}" '
+            f'--package "datadog-agent" '
+            f'--os windows '
+            f'--arch amd64 '
+            f'--archive '
+            f'--archive-path "{oci_output_path}" '
+        )
+        
+        if extra_flags:
+            cmd += f'{extra_flags} '
+        
+        cmd += f'"{src_dir}"'
+        
+        print(f"Running: {cmd}")
+        result = ctx.run(cmd, warn=True)
+        
+        if not result:
+            print("Failed to create OCI package")
+            raise Exit(code=1)
+        
+        if os.path.exists(oci_output_path):
+            print(f"Successfully created OCI package: {oci_output_path}")
+        else:
+            print(f"OCI package not found at expected path: {oci_output_path}")
+            raise Exit(code=1)

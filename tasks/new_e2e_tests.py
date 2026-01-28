@@ -1338,6 +1338,16 @@ def setup_env(ctx, fmt="bash", build="pipeline", pkg=None, branch=None, pipeline
                     env_vars["CURRENT_AGENT_VERSION_PACKAGE"] = f"{package_version}-1"
                 except Exception as e:
                     raise Exit(f"Could not determine current agent version: {e}", code=1)
+
+            # Check for matching OCI package
+            if "CURRENT_AGENT_VERSION_PACKAGE" in env_vars:
+                oci_filename = f"datadog-agent-{env_vars['CURRENT_AGENT_VERSION_PACKAGE']}-windows-amd64.oci.tar"
+                oci_path = os.path.join(os.path.dirname(msi_path), oci_filename)
+                if os.path.isfile(oci_path):
+                    env_vars["CURRENT_AGENT_OCI_URL"] = _path_to_file_url(oci_path)
+                    print(f"# Found local OCI: {oci_path}", file=sys.stderr)
+                else:
+                    print(f"# Note: No OCI package found at {oci_filename}", file=sys.stderr)
         else:
             if pkg:
                 raise Exit(f"No MSI matching '{pkg}' found in omnibus/pkg/.", code=1)
