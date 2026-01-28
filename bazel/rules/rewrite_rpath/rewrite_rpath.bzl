@@ -1,6 +1,8 @@
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 
 def _replace_prefix_impl(ctx):
+    "Set binaries rpath the configured install directory"
+
     if BuildSettingInfo not in ctx.attr.prefix:
         fail("The provided prefix label doesn't provide BuildSettingInfo")
     input = ctx.file.input
@@ -28,9 +30,15 @@ def _replace_prefix_impl(ctx):
 _replace_prefix = rule(
     implementation = _replace_prefix_impl,
     attrs = {
-        "input": attr.label(allow_single_file = True),
+        "input": attr.label(
+            allow_single_file = True,
+            doc = "The binary to patch",
+        ),
+        "os": attr.string(
+            mandatory = True,
+            doc = "Private attribute to dispatch based on the target OS",
+        ),
         "prefix": attr.label(),
-        "os": attr.string(),
         "_patchelf": attr.label(
             cfg = "exec",
             executable = True,
