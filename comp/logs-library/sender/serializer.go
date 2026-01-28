@@ -8,7 +8,7 @@ package sender
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // Serializer transforms a batch of messages into a payload.

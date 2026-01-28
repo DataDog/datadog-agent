@@ -6,7 +6,7 @@
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // MessageBuffer accumulates message metadata to a buffer until the max capacity is reached.

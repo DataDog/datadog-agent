@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // JSONServerlessInitEncoder is a custom encoder used by serverless-init

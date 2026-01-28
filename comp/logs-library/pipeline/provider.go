@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
