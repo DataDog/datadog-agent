@@ -84,6 +84,7 @@ use (
 	pkg/aggregator/ckey
 	pkg/api
 	pkg/collector/check/defaults
+	pkg/config/basic
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
