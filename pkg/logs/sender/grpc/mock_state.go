@@ -111,10 +111,23 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 	// Process tokenized log through cluster manager to get/create pattern
 	pattern, changeType, patternCount, estimatedBytes := mt.clusterManager.Add(tokenList)
 
+	// CRITICAL: Extract all pattern data BEFORE eviction to prevent agent panic/data corruption.
+	patternID := pattern.PatternID
+	wildcardValues := pattern.GetWildcardValues(tokenList)
+
+	// Build PatternDefine datum before eviction (if needed)
+	var patternDatum *statefulpb.Datum
+	if changeType == clustering.PatternNew || changeType == clustering.PatternUpdated {
+		patternDatum = buildPatternDefine(pattern)
+	}
+
 	// Check if pattern eviction is needed using high watermark threshold
 	countOverLimit, bytesOverLimit := mt.patternEvictionManager.ShouldEvict(patternCount, estimatedBytes)
 	if countOverLimit || bytesOverLimit {
-		mt.patternEvictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+		evicted := mt.patternEvictionManager.Evict(mt.clusterManager, patternCount, estimatedBytes, countOverLimit, bytesOverLimit)
+		for _, evictedPattern := range evicted {
+			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
+		}
 	}
 
 	// Check if tag dictionary eviction is needed using high watermark threshold
@@ -125,12 +138,9 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit)
 	}
 
-	// Extract wildcard values from the pattern
-	wildcardValues := pattern.GetWildcardValues(tokenList)
-
-	// Send PatternDefine for new or updated patterns (receiver replaces on same pattern_id)
-	if changeType == clustering.PatternNew || changeType == clustering.PatternUpdated {
-		mt.sendPatternDefine(pattern, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
+	// Send PatternDefine for new or updated patterns
+	if patternDatum != nil {
+		mt.sendPatternDefine(patternDatum, msg, outputChan, &patternDefineSent, &patternDefineParamCount)
 	}
 
 	// Encode wildcard values with type inference (int64 → dict_index → string)
@@ -153,7 +163,7 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 
 	// Send StructuredLog with all fields
 	tsMillis := ts.UnixNano() / nanoToMillis
-	mt.sendStructuredLog(outputChan, msg, tsMillis, pattern.PatternID, dynamicValues, tagSet, jsonContext)
+	mt.sendStructuredLog(outputChan, msg, tsMillis, patternID, dynamicValues, tagSet, jsonContext)
 }
 
 // buildTagSet constructs the complete tag list for a message and encodes it as a TagSet.
@@ -218,8 +228,7 @@ func tokenizeMessage(contentStr string) *token.TokenList {
 }
 
 // sendPatternDefine creates and sends a PatternDefine datum
-func (mt *MessageTranslator) sendPatternDefine(pattern *clustering.Pattern, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
-	patternDatum := buildPatternDefine(pattern)
+func (mt *MessageTranslator) sendPatternDefine(patternDatum *statefulpb.Datum, msg *message.Message, outputChan chan *message.StatefulMessage, patternDefineSent *bool, patternDefineParamCount *uint32) {
 	if pd := patternDatum.GetPatternDefine(); pd != nil {
 		*patternDefineParamCount = pd.ParamCount
 	}
