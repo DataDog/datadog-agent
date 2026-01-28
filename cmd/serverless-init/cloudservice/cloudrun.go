@@ -6,6 +6,7 @@
 package cloudservice
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -70,6 +72,8 @@ type GCPConfig struct {
 // CloudRun has helper functions for getting Google Cloud Run data
 type CloudRun struct {
 	spanNamespace string
+	collector     *collector.Collector
+	collectorCtx  context.Context
 }
 
 // GetTags returns a map of gcp-related tags.
@@ -153,8 +157,28 @@ func (c *CloudRun) Init(_ *TracingContext) error {
 	return nil
 }
 
+// StartCPUMetrics initializes and starts the cgroup metrics collector
+// This should be called after the metric agent is initialized
+func (c *CloudRun) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	col, err := collector.NewCollector(metricAgent, c.GetSource())
+	if err != nil {
+		log.Warnf("Failed to initialize cgroup metrics collector: %v", err)
+		return
+	}
+
+	c.collector = col
+	c.collectorCtx = context.Background()
+	c.collector.Start(c.collectorCtx)
+	log.Info("Cgroup metrics collection started for Google Cloud Run")
+}
+
 // Shutdown emits the shutdown metric for CloudRun
 func (c *CloudRun) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
+	// Stop cgroup metrics collector if running
+	if c.collector != nil {
+		c.collector.Stop()
+	}
+
 	metric.Add(cloudRunPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
 }
 
