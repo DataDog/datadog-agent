@@ -33,7 +33,16 @@ func TestPhase0ExitCriteria(t *testing.T) {
 	// Setup
 	cfg := configmock.New(t)
 
-	// Set some initial config values
+	// Register keys first (required for nodetreemodel config library)
+	cfg.BindEnvAndSetDefault("test_string", "")
+	cfg.BindEnvAndSetDefault("test_int", 0)
+	cfg.BindEnvAndSetDefault("test_bool", false)
+	cfg.BindEnvAndSetDefault("typed_string", "")
+	cfg.BindEnvAndSetDefault("typed_int", 0)
+	cfg.BindEnvAndSetDefault("typed_bool", true) // Different from test value (false)
+	cfg.BindEnvAndSetDefault("typed_float", 0.0)
+
+	// Now set initial values using Set() to trigger OnUpdate callbacks
 	cfg.Set("test_string", "initial_value", model.SourceFile)
 	cfg.Set("test_int", 42, model.SourceFile)
 	cfg.Set("test_bool", true, model.SourceFile)
@@ -207,7 +216,7 @@ func TestPhase0ExitCriteria(t *testing.T) {
 func TestMultipleSubscribers(t *testing.T) {
 	cfg := configmock.New(t)
 
-	cfg.Set("multi_test", "initial", model.SourceFile)
+	cfg.BindEnvAndSetDefault("multi_test", "initial")
 
 	mockLog := logmock.New(t)
 	cs := newConfigStreamForTest(cfg, mockLog)
@@ -264,6 +273,7 @@ func TestMultipleSubscribers(t *testing.T) {
 // TestDiscontinuityResync verifies that discontinuities are detected and resynced
 func TestDiscontinuityResync(t *testing.T) {
 	cfg := configmock.New(t)
+	cfg.BindEnvAndSetDefault("rapid_update", 0)
 
 	mockLog := logmock.New(t)
 	cs := newConfigStreamForTest(cfg, mockLog)
@@ -370,7 +380,16 @@ func (ci *configInterceptor) OnUpdate(cb model.NotificationReceiver) {
 func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 	lc := compdef.NewTestLifecycle(t)
 	log := logmock.New(t)
-	config := &configInterceptor{BuildableConfig: configmock.New(t)}
+	cfg := configmock.New(t)
+
+	// Register keys used in tests (required for nodetreemodel config library)
+	cfg.BindEnvAndSetDefault("my.new.setting", "")
+	cfg.BindEnvAndSetDefault("dropped.setting", "")
+	cfg.BindEnvAndSetDefault("another.setting", 0)
+	cfg.BindEnvAndSetDefault("logs_config.auto_multi_line_detection", true)
+	cfg.BindEnvAndSetDefault("logs_config.use_compression", false)
+
+	config := &configInterceptor{BuildableConfig: cfg}
 
 	reqs := Requires{
 		Lifecycle: lc,

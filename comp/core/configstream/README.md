@@ -217,7 +217,6 @@ rpc error: code = PermissionDenied desc = session_id 'xxx' not found
 1. **Edit proto:** `pkg/proto/datadog/model/v1/model.proto`
 2. **Regenerate:**
    ```bash
-   source ~/venv/bin/activate
    dda inv protobuf.generate
    ```
 3. **Update implementation:** `comp/core/configstream/impl/configstream.go`

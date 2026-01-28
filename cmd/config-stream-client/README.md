@@ -6,10 +6,10 @@ A standalone test client for verifying config stream functionality from the core
 
 The test client connects to the core-agent's gRPC IPC server and subscribes to the config stream to verify:
 
-- ✅ **Snapshot is received first** - Complete initial config state
-- ✅ **Ordered sequence IDs** - Updates arrive in strictly increasing order
-- ✅ **Correct typed values** - Values are properly typed (string, int, bool, etc.)
-- ✅ **RAR authorization** - Only registered agents can subscribe
+- **Snapshot is received first** - Complete initial config state
+- **Ordered sequence IDs** - Updates arrive in strictly increasing order
+- **Correct typed values** - Values are properly typed (string, int, bool, etc.)
+- **RAR authorization** - Only registered agents can subscribe
 
 ## Building
 
