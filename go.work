@@ -103,7 +103,6 @@ use (
 	pkg/gohai
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
-	pkg/logs/types
 	pkg/metrics
 	pkg/network/driver
 	pkg/network/payload

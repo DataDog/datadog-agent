@@ -8,7 +8,7 @@ package noneimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 )
 
 // NullAuditor is an auditor that does nothing but empties the channel it

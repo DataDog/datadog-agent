@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2
@@ -177,7 +176,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
-	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types
 	github.com/DataDog/datadog-agent/pkg/metrics => ../../../../pkg/metrics
 	github.com/DataDog/datadog-agent/pkg/network/driver => ../../../../pkg/network/driver
 	github.com/DataDog/datadog-agent/pkg/network/payload => ../../../../pkg/network/payload

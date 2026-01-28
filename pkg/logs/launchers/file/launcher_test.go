@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs-library/testutils"
+	"github.com/DataDog/datadog-agent/comp/logs-library/types"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
@@ -34,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	filetailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
-	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/logs/util/opener"
 )
 
