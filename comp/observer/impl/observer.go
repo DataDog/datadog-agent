@@ -102,9 +102,26 @@ func NewComponent(deps Requires) Provides {
 		obsCh:     make(chan observation, 1000),
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
-	go obs.run()
 
 	cfg := pkgconfigsetup.Datadog()
+
+	// Initialize parquet writer if configured
+	if parquetPath := cfg.GetString("observer.parquet_output_path"); parquetPath != "" {
+		flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
+		if flushInterval == 0 {
+			flushInterval = 60 * time.Second
+		}
+
+		writer, err := NewParquetWriter(parquetPath, flushInterval)
+		if err != nil {
+			pkglog.Errorf("Failed to create parquet writer: %v", err)
+		} else {
+			obs.parquetWriter = writer
+			pkglog.Infof("Observer parquet writer enabled: %s (flush interval: %v)", parquetPath, flushInterval)
+		}
+	}
+
+	go obs.run()
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -241,6 +258,9 @@ type observerImpl struct {
 	rawAnomalyMu     sync.RWMutex
 	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
 	currentDataTime  int64 // latest data timestamp seen
+
+	// Parquet writer for long-term storage of metrics
+	parquetWriter *ParquetWriter
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -263,6 +283,11 @@ var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
 func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+
+	// Write to parquet if enabled
+	if o.parquetWriter != nil {
+		o.parquetWriter.WriteMetric(source, m.name, m.value, m.tags, m.timestamp)
+	}
 
 	// Run time series analyses on multiple aggregations
 	for _, agg := range analysisAggregations {
