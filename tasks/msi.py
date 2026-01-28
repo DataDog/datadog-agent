@@ -799,7 +799,7 @@ def package_oci(
         # Build the command
         cmd = (
             f'"{os.path.join(gobin, "datadog-package")}" create '
-            f'--version "{package_version}" '
+            f'--version "{package_version}-1" '
             f'--package "datadog-agent" '
             f'--os windows '
             f'--arch amd64 '
