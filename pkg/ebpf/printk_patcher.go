@@ -203,11 +203,20 @@ func (r *requisiteInstructions) newlineOffset() int16 {
 	return int16(r.stackOffset.Constant + r.lengthLoad.Constant - 2) // -1 because the last character is the null character
 }
 
+// findRequisiteInstructions finds the instructions that are necessary for a printk call. It will return a list of instruction sets,
+// each of which contains the entire sequence of instructions that we need to patch for a bpf_trace_printk call.
 func (p *printkPatcher) findRequisiteInstructions(startIdx int, lookbackLimit int, recursionLimit int, currentInstructions requisiteInstructions) ([]requisiteInstructions, error) {
 	var errs []error // list of errors that happened while patching, if any
 	var foundInstructions []requisiteInstructions
 
 	insLimit := max(startIdx-lookbackLimit, 0)
+
+	// Traverse the instructions backwards from the start. We'll search for the
+	// instructions needed by looking at the instruction type. In some cases,
+	// we'll only look at a given type of instruction once we have the
+	// prerequisites. For example, we need to find the instruction that gives us
+	// the offset in the stack where the string is stored before we can look for
+	// the instruction that stores the newline character in that stack.
 	for idx := startIdx; idx >= insLimit && !currentInstructions.isComplete(); idx-- {
 		ins := &p.program.Instructions[idx]
 		realOffset := p.indexToRealOffset[idx]
@@ -249,7 +258,7 @@ func (p *printkPatcher) findRequisiteInstructions(startIdx int, lookbackLimit in
 					log.Tracef("Found stack offset instruction %v at %d in %s", candidate, realOffset, p.program.Name)
 					break
 				} else if (candidate.OpCode.Class().IsALU() || candidate.OpCode.Class().IsLoad()) && candidate.Dst == asm.R1 {
-					return nil, log.Warnf("Found instruction %v that modifies r1, aborting stack offset search for bpf_trace_printk", candidate, realOffset, p.program.Name)
+					return nil, log.Warnf("Found instruction %v at %d that modifies r1, aborting stack offset search for bpf_trace_printk", candidate, realOffset)
 				}
 			}
 		}
@@ -307,9 +316,10 @@ func (p *printkPatcher) findRequisiteInstructions(startIdx int, lookbackLimit in
 			}
 		}
 
-		// If we haven't found all the instructions we need, check if the
-		// current instruction is a jump target. If it is, we want to follow the
-		// jump source too, unless we've already reached the recursion limit
+		// If we haven't found all the instructions we need (that is, the break
+		// above hasn't been triggered), check if the current instruction is a
+		// jump target. If it is, we want to follow the jump source too, unless
+		// we've already reached the recursion limit
 		sources, ok := p.jumpSources[idx]
 		if recursionLimit > 0 && ok {
 			newLookbackLimit := lookbackLimit - (startIdx - idx) // Ensure we account for the instructions we already looked back
