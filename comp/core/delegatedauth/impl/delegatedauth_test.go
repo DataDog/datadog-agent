@@ -6,12 +6,16 @@
 package delegatedauthimpl
 
 import (
+	"bytes"
 	"context"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth"
 )
 
 func TestContextCancellationStopsRefresh(t *testing.T) {
@@ -319,4 +323,221 @@ func TestAddJitter(t *testing.T) {
 			assert.False(t, allSame, "Jitter should produce varying values")
 		})
 	}
+}
+
+// Status Provider Tests
+
+func TestStatusProviderName(t *testing.T) {
+	comp := &delegatedAuthComponent{}
+	assert.Equal(t, "Delegated Auth", comp.Name())
+}
+
+func TestStatusProviderSection(t *testing.T) {
+	comp := &delegatedAuthComponent{}
+	assert.Equal(t, "delegatedauth", comp.Section())
+}
+
+func TestStatusJSON_NotEnabled(t *testing.T) {
+	// Test status when delegated auth is not enabled (no instances)
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+	}
+
+	stats := make(map[string]interface{})
+	err := comp.JSON(false, stats)
+
+	require.NoError(t, err)
+	assert.Equal(t, false, stats["enabled"])
+	assert.Nil(t, stats["provider"])
+	assert.Nil(t, stats["instances"])
+}
+
+func TestStatusJSON_EnabledWithInstances(t *testing.T) {
+	// Test status when delegated auth is enabled with instances
+	apiKey := "test-api-key-1234567890"
+	comp := &delegatedAuthComponent{
+		initialized:      true,
+		resolvedProvider: cloudauth.ProviderAWS,
+		resolvedAWSRegion: "us-east-1",
+		instances: map[string]*authInstance{
+			"api_key": {
+				apiKey:              &apiKey,
+				refreshInterval:     60 * time.Minute,
+				apiKeyConfigKey:     "api_key",
+				consecutiveFailures: 0,
+			},
+			"logs_config.api_key": {
+				apiKey:              nil, // Pending
+				refreshInterval:     30 * time.Minute,
+				apiKeyConfigKey:     "logs_config.api_key",
+				consecutiveFailures: 3,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	err := comp.JSON(false, stats)
+
+	require.NoError(t, err)
+	assert.Equal(t, true, stats["enabled"])
+	assert.Equal(t, cloudauth.ProviderAWS, stats["provider"])
+	assert.Equal(t, "us-east-1", stats["awsRegion"])
+
+	instances, ok := stats["instances"].(map[string]map[string]interface{})
+	require.True(t, ok, "instances should be a map")
+	require.Len(t, instances, 2)
+
+	// Check api_key instance
+	apiKeyInstance := instances["api_key"]
+	assert.Equal(t, "Active", apiKeyInstance["Status"])
+	assert.Equal(t, "1h0m0s", apiKeyInstance["RefreshInterval"])
+	assert.Nil(t, apiKeyInstance["Error"])
+
+	// Check logs_config.api_key instance (pending with failures)
+	logsInstance := instances["logs_config.api_key"]
+	assert.Equal(t, "Pending", logsInstance["Status"])
+	assert.Equal(t, "30m0s", logsInstance["RefreshInterval"])
+	assert.Equal(t, "3 consecutive failures", logsInstance["Error"])
+}
+
+func TestStatusText_NotEnabled(t *testing.T) {
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+	}
+
+	var buffer bytes.Buffer
+	err := comp.Text(false, &buffer)
+
+	require.NoError(t, err)
+	output := buffer.String()
+	assert.Contains(t, output, "Delegated Authentication is not enabled")
+}
+
+func TestStatusText_EnabledWithInstances(t *testing.T) {
+	apiKey := "test-api-key-1234567890"
+	comp := &delegatedAuthComponent{
+		initialized:      true,
+		resolvedProvider: cloudauth.ProviderAWS,
+		resolvedAWSRegion: "us-west-2",
+		instances: map[string]*authInstance{
+			"api_key": {
+				apiKey:              &apiKey,
+				refreshInterval:     45 * time.Minute,
+				apiKeyConfigKey:     "api_key",
+				consecutiveFailures: 0,
+			},
+		},
+	}
+
+	var buffer bytes.Buffer
+	err := comp.Text(false, &buffer)
+
+	require.NoError(t, err)
+	output := buffer.String()
+
+	// Verify key information is present in the text output
+	assert.Contains(t, output, "Delegated Authentication")
+	assert.Contains(t, output, cloudauth.ProviderAWS)
+	assert.Contains(t, output, "us-west-2")
+	assert.Contains(t, output, "api_key")
+	assert.Contains(t, output, "Active")
+}
+
+func TestStatusHTML_NotEnabled(t *testing.T) {
+	comp := &delegatedAuthComponent{
+		instances: make(map[string]*authInstance),
+	}
+
+	var buffer bytes.Buffer
+	err := comp.HTML(false, &buffer)
+
+	require.NoError(t, err)
+	output := buffer.String()
+
+	// Verify HTML structure and content
+	assert.Contains(t, output, "<div")
+	assert.Contains(t, output, "Delegated Authentication")
+	assert.Contains(t, output, "Not enabled")
+}
+
+func TestStatusHTML_EnabledWithInstances(t *testing.T) {
+	apiKey := "test-api-key-1234567890"
+	comp := &delegatedAuthComponent{
+		initialized:      true,
+		resolvedProvider: cloudauth.ProviderAWS,
+		resolvedAWSRegion: "eu-west-1",
+		instances: map[string]*authInstance{
+			"api_key": {
+				apiKey:              &apiKey,
+				refreshInterval:     60 * time.Minute,
+				apiKeyConfigKey:     "api_key",
+				consecutiveFailures: 0,
+			},
+		},
+	}
+
+	var buffer bytes.Buffer
+	err := comp.HTML(false, &buffer)
+
+	require.NoError(t, err)
+	output := buffer.String()
+
+	// Verify HTML structure and content
+	assert.Contains(t, output, "<div")
+	assert.Contains(t, output, "Delegated Authentication")
+	assert.Contains(t, output, cloudauth.ProviderAWS)
+	assert.Contains(t, output, "eu-west-1")
+	assert.Contains(t, output, "api_key")
+}
+
+func TestStatusPopulateInfo_MultipleInstances(t *testing.T) {
+	// Test the internal populateStatusInfo with multiple instances in various states
+	apiKey1 := "active-key-1"
+	comp := &delegatedAuthComponent{
+		initialized:       true,
+		resolvedProvider:  cloudauth.ProviderAWS,
+		resolvedAWSRegion: "ap-southeast-1",
+		instances: map[string]*authInstance{
+			"api_key": {
+				apiKey:              &apiKey1,
+				refreshInterval:     60 * time.Minute,
+				apiKeyConfigKey:     "api_key",
+				consecutiveFailures: 0,
+			},
+			"logs_config.api_key": {
+				apiKey:              nil,
+				refreshInterval:     30 * time.Minute,
+				apiKeyConfigKey:     "logs_config.api_key",
+				consecutiveFailures: 5,
+			},
+			"apm_config.api_key": {
+				apiKey:              nil,
+				refreshInterval:     15 * time.Minute,
+				apiKeyConfigKey:     "apm_config.api_key",
+				consecutiveFailures: 0,
+			},
+		},
+	}
+
+	stats := make(map[string]interface{})
+	comp.populateStatusInfo(stats)
+
+	assert.Equal(t, true, stats["enabled"])
+	assert.Equal(t, cloudauth.ProviderAWS, stats["provider"])
+	assert.Equal(t, "ap-southeast-1", stats["awsRegion"])
+
+	instances := stats["instances"].(map[string]map[string]interface{})
+	require.Len(t, instances, 3)
+
+	// Active instance
+	assert.Equal(t, "Active", instances["api_key"]["Status"])
+	assert.Nil(t, instances["api_key"]["Error"])
+
+	// Pending with failures
+	assert.Equal(t, "Pending", instances["logs_config.api_key"]["Status"])
+	assert.Equal(t, "5 consecutive failures", instances["logs_config.api_key"]["Error"])
+
+	// Pending without failures
+	assert.Equal(t, "Pending", instances["apm_config.api_key"]["Status"])
+	assert.Nil(t, instances["apm_config.api_key"]["Error"])
 }
