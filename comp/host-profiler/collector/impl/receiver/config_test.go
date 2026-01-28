@@ -10,10 +10,17 @@ package receiver
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/dd-otel-host-profiler/reporter"
 	"github.com/stretchr/testify/require"
 )
+
+func TestReporterInterval(t *testing.T) {
+	config := defaultConfig()
+	cfg := config.(Config)
+	require.Equal(t, 60*time.Second, cfg.EbpfCollectorConfig.ReporterInterval)
+}
 
 func TestTracers(t *testing.T) {
 	config := defaultConfig()
