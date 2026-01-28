@@ -20,7 +20,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.76.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.76.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.76.0-rc.2 // indirect
