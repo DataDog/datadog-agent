@@ -30,6 +30,7 @@ type translatorConfig struct {
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
+	EncodeSliceMetadataAsTags            bool
 
 	originProduct OriginProduct
 
@@ -246,6 +247,16 @@ func WithInitialCumulMonoValueMode(mode InitialCumulMonoValueMode) TranslatorOpt
 func WithInferDeltaInterval() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.InferDeltaInterval = true
+		return nil
+	}
+}
+
+// WithEncodeSliceMetadataAsTags converts slice attributes into multiple tags.
+// By default slice attributes are converted to a JSON-ish string (e.g. `{"key1": ["val1", "val2"]} → `["key1:[\"val1\",\"val2\"]"]`).
+// This option converts slice attributes into multiple tags (e.g. `{"key1": ["val1", "val2"]} → `["key1:val1","key1:val2"]`).
+func WithEncodeSliceMetadataAsTags() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.EncodeSliceMetadataAsTags = true
 		return nil
 	}
 }
