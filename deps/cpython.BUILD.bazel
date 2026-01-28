@@ -173,7 +173,7 @@ configure_make(
     visibility = ["//visibility:public"],
     deps = [
         "@bzip2//:libbz2",
-        "@libffi//:libffi",
+        "@libffi//:ffi",
         "@openssl//:openssl",
         "@sqlite3//:libsqlite3",
         "@xz//:liblzma",

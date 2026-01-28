@@ -215,7 +215,7 @@ cc_library(
 
 # ffi will be prepended by lib automatically
 cc_library(
-    name = "libffi",
+    name = "ffi",
     hdrs = [
         ":ffi_h",
         ":fficonfig_h",
