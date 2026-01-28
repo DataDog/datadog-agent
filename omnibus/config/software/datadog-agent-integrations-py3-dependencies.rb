@@ -9,10 +9,10 @@ if linux_target?
   unless heroku_target?
     dependency 'msodbcsql18' # needed for SQL Server integration
   end
-  dependency 'nfsiostat'
 
   build do
     # gstatus binary used by the glusterfs integration
     command_on_repo_root "bazelisk run -- //deps/gstatus:install --destdir='#{install_dir}'"
+    command_on_repo_root "bazelisk run -- //deps/nfsiostat:install --destdir='#{install_dir}'"
   end
 end
