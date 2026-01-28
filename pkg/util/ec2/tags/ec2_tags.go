@@ -12,15 +12,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/ec2rolecreds"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -153,16 +156,42 @@ func fetchEc2TagsFromIMDS(ctx context.Context) ([]string, error) {
 	return tags, nil
 }
 
-func createEC2Client(ctx context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
-	opts := []func(*config.LoadOptions) error{config.WithRegion(region)}
+func createEC2Client(_ context.Context, region string, creds aws.CredentialsProvider) (*ec2.Client, error) {
+	cfg := aws.Config{Region: region}
+
 	if creds != nil {
-		opts = append(opts, config.WithCredentialsProvider(creds))
+		// explicit credentials (fallback)
+		cfg.Credentials = creds
+	} else {
+		// minimal credential chain: IRSA, EC2 IMDS
+		providers := []aws.CredentialsProvider{}
+
+		// IRSA / web identity token
+		roleARN := os.Getenv("AWS_ROLE_ARN")
+		tokenFile := os.Getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
+		if roleARN != "" && tokenFile != "" {
+			stsClient := sts.NewFromConfig(aws.Config{Region: region})
+			providers = append(providers, stscreds.NewWebIdentityRoleProvider(stsClient, roleARN, stscreds.IdentityTokenFile(tokenFile)))
+		}
+
+		// EC2 IMDS as fallback
+		providers = append(providers, ec2rolecreds.New())
+
+		if len(providers) > 0 {
+			cfg.Credentials = aws.NewCredentialsCache(
+				aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					for _, provider := range providers {
+						creds, err := provider.Retrieve(ctx)
+						if err == nil {
+							return creds, nil
+						}
+					}
+					return aws.Credentials{}, errors.New("no credentials available")
+				}),
+			)
+		}
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
-	}
 	return ec2.NewFromConfig(cfg), nil
 }
 
