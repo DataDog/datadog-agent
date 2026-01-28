@@ -486,6 +486,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.SetKnown("network_devices.autodiscovery.use_deduplication")          //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.SetKnown("network_devices.autodiscovery.collect_vpn")                //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
