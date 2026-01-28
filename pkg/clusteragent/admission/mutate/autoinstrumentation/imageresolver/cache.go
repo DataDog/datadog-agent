@@ -81,7 +81,7 @@ func (c *httpDigestCache) store(registry, repository, tag, digest string) *Resol
 	return resolved
 }
 
-func newHttpDigestCache(ttl time.Duration) *httpDigestCache {
+func newHTTPDigestCache(ttl time.Duration) *httpDigestCache {
 	return &httpDigestCache{
 		cache:   make(repositoryCache),
 		ttl:     ttl,

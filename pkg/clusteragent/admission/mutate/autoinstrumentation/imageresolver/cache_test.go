@@ -61,7 +61,7 @@ func (m *mockRoundTripper) CallCount() int {
 	return m.callCount
 }
 
-func mockHttpDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
+func mockHTTPDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
 	transport := &mockRoundTripper{
 		responses: make(map[string]*http.Response),
 	}
