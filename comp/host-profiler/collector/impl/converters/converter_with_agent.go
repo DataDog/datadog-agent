@@ -79,7 +79,7 @@ func newConfigManager(config config.Component) configManager {
 			apiKeys: keys,
 		})
 	}
-	log.Infof("Main site infered from core configuration is %s", usedSite)
+	log.Infof("Main site inferred from core configuration is %s", usedSite)
 
 	// Add main endpoint if we have a valid site
 	if usedSite == "" {
