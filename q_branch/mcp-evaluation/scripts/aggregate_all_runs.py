@@ -192,7 +192,7 @@ def create_combined_comparison_chart(summary_sheet, stats_df: pd.DataFrame, outp
     pivot_std = pivot_std.sort_index()
 
     # Get modes in consistent order
-    mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash']
+    mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash', 'tools-plus']
     available_modes = [m for m in mode_order if m in pivot_mean.columns]
     pivot_mean = pivot_mean[available_modes]
     pivot_std = pivot_std[available_modes]
@@ -203,7 +203,7 @@ def create_combined_comparison_chart(summary_sheet, stats_df: pd.DataFrame, outp
     # Set up bar positions
     scenarios = pivot_mean.index.tolist()
     x = np.arange(len(scenarios))
-    width = 0.15  # Narrower bars for 5 modes
+    width = 0.12  # Narrower bars for 6 modes
 
     # Colors for each mode
     colors = {
@@ -211,7 +211,8 @@ def create_combined_comparison_chart(summary_sheet, stats_df: pd.DataFrame, outp
         'safe-shell': '#ff7f0e',        # Orange
         'tools': '#2ca02c',             # Green
         'tools-safe-shell': '#d62728',  # Red
-        'tools-bash': '#9467bd'         # Purple
+        'tools-bash': '#9467bd',        # Purple
+        'tools-plus': '#17becf'         # Cyan
     }
 
     # Create bars for each mode with error bars
@@ -266,11 +267,11 @@ def create_statistics_chart(summary_sheet, stats_df: pd.DataFrame, output_file: 
         return
 
     # Get modes
-    mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash']
+    mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash', 'tools-plus']
     available_modes = [m for m in mode_order if m in stats_df['mode'].unique()]
 
     # Create subplots - one for each mode
-    fig, axes = plt.subplots(1, len(available_modes), figsize=(18, 6), sharey=True)
+    fig, axes = plt.subplots(1, len(available_modes), figsize=(22, 6), sharey=True)
 
     if len(available_modes) == 1:
         axes = [axes]
@@ -280,7 +281,8 @@ def create_statistics_chart(summary_sheet, stats_df: pd.DataFrame, output_file: 
         'safe-shell': '#ff7f0e',        # Orange
         'tools': '#2ca02c',             # Green
         'tools-safe-shell': '#d62728',  # Red
-        'tools-bash': '#9467bd'         # Purple
+        'tools-bash': '#9467bd',        # Purple
+        'tools-plus': '#17becf'         # Cyan
     }
 
     for idx, mode in enumerate(available_modes):
@@ -397,7 +399,7 @@ def write_aggregated_excel(results: List[Dict[str, Any]], output_file: Path):
         stats_sheet = writer.book.create_sheet('Detailed Statistics')
 
         current_row = 1
-        mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash']
+        mode_order = ['bash', 'safe-shell', 'tools', 'tools-safe-shell', 'tools-bash', 'tools-plus']
         available_modes = [m for m in mode_order if m in stats_df['mode'].unique()]
 
         for mode in available_modes:
