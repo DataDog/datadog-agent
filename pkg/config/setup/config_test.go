@@ -565,6 +565,69 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 	}
 }
 
+func TestDiscoveryUseSdAgent(t *testing.T) {
+	testCases := []struct {
+		name  string
+		setup func(t *testing.T, config pkgconfigmodel.Config)
+		tests func(t *testing.T, config pkgconfigmodel.Config)
+	}{
+		{
+			name:  "disabled by default",
+			setup: func(_ *testing.T, _ pkgconfigmodel.Config) {},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.False(t, config.GetBool("discovery.use_sd_agent"))
+			},
+		},
+		{
+			name: "enabled from DD env var",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "true")
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("discovery.use_sd_agent"))
+			},
+		},
+		{
+			name: "disabled from DD env var",
+			setup: func(t *testing.T, _ pkgconfigmodel.Config) {
+				t.Setenv("DD_DISCOVERY_USE_SD_AGENT", "false")
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.False(t, config.GetBool("discovery.use_sd_agent"))
+			},
+		},
+		{
+			name: "enabled from configuration",
+			setup: func(_ *testing.T, config pkgconfigmodel.Config) {
+				config.SetWithoutSource("discovery.use_sd_agent", true)
+			},
+			tests: func(t *testing.T, config pkgconfigmodel.Config) {
+				assert.True(t, config.GetBool("discovery.use_sd_agent"))
+			},
+		},
+	}
+	for _, c := range testCases {
+		t.Run(c.name, func(t *testing.T) {
+			config := newTestConf(t)
+
+			path := t.TempDir()
+			configPath := filepath.Join(path, "empty_conf.yaml")
+			os.WriteFile(configPath, nil, 0o600)
+			config.SetConfigFile(configPath)
+
+			resolver := secretsmock.New(t)
+			if c.setup != nil {
+				c.setup(t, config)
+			}
+
+			err := LoadDatadog(config, resolver, nil)
+			require.NoError(t, err)
+
+			c.tests(t, config)
+		})
+	}
+}
+
 func TestSanitizeAPIKeyConfig(t *testing.T) {
 	config := newTestConf(t)
 
