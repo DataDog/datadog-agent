@@ -536,6 +536,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.timeout", 5)
 	config.BindEnvAndSetDefault("network_devices.autodiscovery.retries", 3)
 
+	config.BindEnvAndSetDefault("network_devices.default_scan.enabled", false)
+
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.snmp_traps.forwarder.")
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.enabled", false)
 	config.BindEnvAndSetDefault("network_devices.snmp_traps.port", 9162)
@@ -1235,6 +1237,9 @@ func InitConfig(config pkgconfigmodel.Setup) {
 
 	setupProcesses(config)
 
+	// Private Action Runner configuration
+	setupPrivateActionRunner(config)
+
 	// Installer configuration
 	config.BindEnvAndSetDefault("remote_updates", true)
 	config.BindEnvAndSetDefault("installer.mirror", "")
@@ -1343,7 +1348,6 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("log_to_console", true)
 	config.BindEnvAndSetDefault("log_format_rfc3339", false)
 	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
-	config.BindEnvAndSetDefault("log_use_slog", true)
 	config.BindEnvAndSetDefault("logging_frequency", int64(500))
 	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
@@ -2852,10 +2856,15 @@ func envVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config pkgconfigmodel.Config, key string) {
-	if !config.IsKnown(key) || !config.IsSet(key) {
+	if !config.IsKnown(key) || !config.IsConfigured(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), config.GetSource(key))
+	original := config.GetString(key)
+	trimmed := strings.TrimSpace(original)
+	if original == trimmed {
+		return
+	}
+	config.Set(key, trimmed, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
