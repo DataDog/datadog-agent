@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -85,27 +84,6 @@ func Resolve(tpl integration.Config, svc listeners.Service) (integration.Config,
 	return resolvedConfig, nil
 }
 
-type resolvableService struct {
-	listeners.Service
-}
-
-func (s *resolvableService) GetPorts() ([]workloadmeta.ContainerPort, error) {
-	containerPorts, err := s.Service.GetPorts()
-	if err != nil {
-		return nil, err
-	}
-
-	// transform listeners.ContainerPort to workloadmeta.ContainerPort
-	tmplContainerPort := make([]workloadmeta.ContainerPort, 0, len(containerPorts))
-	for _, contPort := range containerPorts {
-		tmplContainerPort = append(tmplContainerPort, workloadmeta.ContainerPort{
-			Name: contPort.Name,
-			Port: contPort.Port,
-		})
-	}
-	return tmplContainerPort, nil
-}
-
 // substituteTemplateVariables replaces %%VARIABLES%% in the config init,
 // instances, and logs config.
 // When there is an error, it stops processing.
@@ -115,18 +93,13 @@ func (s *resolvableService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 // If not `nil`, the `postProcessor` function is invoked on that tree so that it can alter the yaml document and benefit from the yaml parsing.
 // It can be used, for ex., to inject extra tags.
 func substituteTemplateVariables(config *integration.Config, svc listeners.Service, postProcessor func(interface{}) error) error {
-	var resolvableSvc tmplvar.Resolvable
-	if svc != nil {
-		resolvableSvc = &resolvableService{svc}
-	}
-
 	var err error
 	for _, toResolve := range listDataToResolve(config) {
 		var pp func(interface{}) error
 		if toResolve.dtype == dataInstance {
 			pp = postProcessor
 		}
-		*toResolve.data, err = tmplvar.ResolveDataWithTemplateVars(*toResolve.data, resolvableSvc, toResolve.parser, pp)
+		*toResolve.data, err = tmplvar.ResolveDataWithTemplateVars(*toResolve.data, svc, toResolve.parser, pp)
 		if err != nil {
 			return err
 		}

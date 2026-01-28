@@ -31,7 +31,7 @@ type WorkloadService struct {
 	tagsHash        string
 	adIdentifiers   []string
 	hosts           map[string]string
-	ports           []ContainerPort
+	ports           []workloadmeta.ContainerPort
 	pid             int
 	hostname        string
 	ready           bool
@@ -94,7 +94,7 @@ func (s *WorkloadService) GetHosts() (map[string]string, error) {
 }
 
 // GetPorts returns the ports exposed by the service's containers.
-func (s *WorkloadService) GetPorts() ([]ContainerPort, error) {
+func (s *WorkloadService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 	return s.ports, nil
 }
 
