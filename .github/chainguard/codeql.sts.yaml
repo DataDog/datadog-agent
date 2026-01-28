@@ -1,0 +1,6 @@
+issuer: https://vault.us1.ddbuild.io/v1/identity/oidc
+subject_pattern: "bf4480b0-ee11-5050-758d-189b036f7ee8"
+claim_pattern:
+  name: "gitlab-runner-datadog-agent-datadog-agent"
+permissions:
+  security_events: write
