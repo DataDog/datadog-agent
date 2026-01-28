@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/serializer/logscompression
 
-go 1.25.6
+go 1.24.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.56.0-rc.3
