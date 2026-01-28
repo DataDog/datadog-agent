@@ -63,21 +63,15 @@ type authInstance struct {
 // delegatedAuthComponent implements the delegatedauth.Component interface.
 //
 // Thread-safety: This struct uses sync.RWMutex (mu) to protect concurrent access to all
-// fields except config, which is immutable after construction.
+// mutable fields.
 type delegatedAuthComponent struct {
-	// Immutable fields (safe for concurrent access without locking)
-	config pkgconfigmodel.ReaderWriter
-
 	// Mutable fields (protected by mu)
-	// Map of APIKeyConfigKey -> authInstance
-	mu        sync.RWMutex
-	instances map[string]*authInstance
-
-	// Cloud provider resolution cache (resolved once, reused for all instances)
-	resolvedProvider  string // Resolved provider name (e.g., "aws")
-	resolvedAWSRegion string // Resolved AWS region (if provider is AWS)
-	resolveError      error  // Error from resolution, if any
-	resolved          bool   // Whether resolution has been attempted
+	mu               sync.RWMutex
+	config           pkgconfigmodel.ReaderWriter
+	instances        map[string]*authInstance // Map of APIKeyConfigKey -> authInstance
+	initialized      bool                     // Whether Initialize() has been called
+	resolvedProvider string                   // Resolved provider name (e.g., "aws")
+	resolvedAWSRegion string                  // Resolved AWS region (if provider is AWS)
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -110,17 +104,18 @@ func addJitter(duration time.Duration) time.Duration {
 	return duration + time.Duration(jitter)
 }
 
-// resolveCloudProvider detects and caches the cloud provider information.
-// This is called once on the first Configure() call and the result is reused for all subsequent calls.
-// Must be called with mu held.
-func (d *delegatedAuthComponent) resolveCloudProvider(params delegatedauth.ConfigParams) (string, string, error) {
-	// If already resolved, return cached result
-	if d.resolved {
-		return d.resolvedProvider, d.resolvedAWSRegion, d.resolveError
+// Initialize resolves the cloud provider and prepares the component for use.
+func (d *delegatedAuthComponent) Initialize(params delegatedauth.InitParams) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Check if already initialized
+	if d.initialized {
+		return fmt.Errorf("delegated auth already initialized")
 	}
 
-	// Mark as resolved even if we encounter an error, to avoid retrying on every Configure call
-	d.resolved = true
+	// Store the config
+	d.config = params.Config
 
 	provider := params.Provider
 	awsRegion := params.AWSRegion
@@ -129,7 +124,9 @@ func (d *delegatedAuthComponent) resolveCloudProvider(params delegatedauth.Confi
 	if provider != "" {
 		d.resolvedProvider = provider
 		d.resolvedAWSRegion = awsRegion
-		return provider, awsRegion, nil
+		d.initialized = true
+		log.Infof("Using explicitly configured cloud provider '%s' for delegated auth", provider)
+		return nil
 	}
 
 	// Auto-detect cloud provider
@@ -151,21 +148,30 @@ func (d *delegatedAuthComponent) resolveCloudProvider(params delegatedauth.Confi
 
 		d.resolvedProvider = provider
 		d.resolvedAWSRegion = awsRegion
-		return provider, awsRegion, nil
+		d.initialized = true
+		return nil
 	}
 
 	// No cloud provider detected
-	err := fmt.Errorf("could not auto-detect cloud provider. Currently only 'aws' is supported")
-	d.resolveError = err
-	return "", "", err
+	return fmt.Errorf("could not auto-detect cloud provider. Currently only 'aws' is supported")
 }
 
-// Configure initializes delegated auth for a specific API key configuration.
-// Can be called multiple times with different APIKeyConfigKey values.
-func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
-	// Store the config component on first call
-	if params.Config != nil && d.config == nil {
-		d.config = params.Config
+// AddInstance configures delegated auth for a specific API key.
+func (d *delegatedAuthComponent) AddInstance(params delegatedauth.InstanceParams) error {
+	// Check initialization without holding the lock (fast path)
+	d.mu.RLock()
+	initialized := d.initialized
+	provider := d.resolvedProvider
+	awsRegion := d.resolvedAWSRegion
+	d.mu.RUnlock()
+
+	if !initialized {
+		return fmt.Errorf("delegated auth not initialized, call Initialize() first")
+	}
+
+	// Validate required parameters
+	if params.OrgUUID == "" {
+		return fmt.Errorf("org_uuid is required")
 	}
 
 	// Determine the API key config key, defaulting to "api_key"
@@ -181,21 +187,6 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 		log.Warnf("Refresh interval was set to 0 for '%s', defaulting to 60 minutes", apiKeyConfigKey)
 	}
 
-	if params.OrgUUID == "" {
-		log.Errorf("org_uuid is required when delegated_auth is enabled for '%s'", apiKeyConfigKey)
-		return
-	}
-
-	// Resolve cloud provider (this happens once and is cached for reuse)
-	d.mu.Lock()
-	provider, awsRegion, err := d.resolveCloudProvider(params)
-	d.mu.Unlock()
-
-	if err != nil {
-		log.Errorf("Failed to resolve cloud provider for '%s': %v", apiKeyConfigKey, err)
-		return
-	}
-
 	// Create the appropriate provider
 	var tokenProvider common.Provider
 	switch provider {
@@ -204,8 +195,7 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 			AwsRegion: awsRegion,
 		}
 	default:
-		log.Errorf("unsupported delegated auth provider '%s' for '%s'. Currently only 'aws' is supported.", provider, apiKeyConfigKey)
-		return
+		return fmt.Errorf("unsupported delegated auth provider '%s'. Currently only 'aws' is supported", provider)
 	}
 
 	authConfig := &common.AuthConfig{
@@ -256,6 +246,8 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	// Always start the background refresh goroutine, even if initial fetch failed
 	// This ensures retries will happen with exponential backoff
 	d.startBackgroundRefresh(instance)
+
+	return nil
 }
 
 // refreshAndGetAPIKey is the internal implementation that can optionally force a refresh
@@ -453,7 +445,7 @@ func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}
 	}
 
 	// Add resolved provider information
-	if d.resolved {
+	if d.initialized {
 		stats["provider"] = d.resolvedProvider
 		if d.resolvedProvider == cloudauth.ProviderAWS && d.resolvedAWSRegion != "" {
 			stats["awsRegion"] = d.resolvedAWSRegion

@@ -14,7 +14,8 @@ import (
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	ConfigureFunc func(delegatedauth.ConfigParams)
+	InitializeFunc  func(delegatedauth.InitParams) error
+	AddInstanceFunc func(delegatedauth.InstanceParams) error
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -29,9 +30,18 @@ func New(_ testing.TB) delegatedauth.Component {
 	return &Mock{}
 }
 
-// Configure calls the mock function if set, otherwise does nothing
-func (m *Mock) Configure(params delegatedauth.ConfigParams) {
-	if m.ConfigureFunc != nil {
-		m.ConfigureFunc(params)
+// Initialize calls the mock function if set, otherwise returns nil
+func (m *Mock) Initialize(params delegatedauth.InitParams) error {
+	if m.InitializeFunc != nil {
+		return m.InitializeFunc(params)
 	}
+	return nil
+}
+
+// AddInstance calls the mock function if set, otherwise returns nil
+func (m *Mock) AddInstance(params delegatedauth.InstanceParams) error {
+	if m.AddInstanceFunc != nil {
+		return m.AddInstanceFunc(params)
+	}
+	return nil
 }

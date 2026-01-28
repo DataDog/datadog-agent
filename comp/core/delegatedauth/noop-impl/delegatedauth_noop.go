@@ -33,8 +33,15 @@ func NewComponent() Provides {
 	}
 }
 
-// Configure does nothing in the noop implementation
-func (d *delegatedAuthNoop) Configure(_ delegatedauth.ConfigParams) {}
+// Initialize does nothing in the noop implementation
+func (d *delegatedAuthNoop) Initialize(_ delegatedauth.InitParams) error {
+	return nil
+}
+
+// AddInstance does nothing in the noop implementation
+func (d *delegatedAuthNoop) AddInstance(_ delegatedauth.InstanceParams) error {
+	return nil
+}
 
 // Status Provider implementation for noop
 

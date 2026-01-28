@@ -2541,43 +2541,6 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 	return setupFipsEndpoints(config)
 }
 
-// configureDelegatedAuthForPrefix configures delegated authentication for a specific config prefix.
-// It checks if org_uuid is set for the given prefix and configures delegated auth if so.
-// Returns true if delegated auth was configured for this prefix.
-func configureDelegatedAuthForPrefix(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component, prefix string, apiKeyConfigKey string) bool {
-	// Build the config key prefix for delegated_auth settings
-	var configPrefix string
-	if prefix == "" {
-		configPrefix = "delegated_auth"
-	} else {
-		configPrefix = prefix + ".delegated_auth"
-	}
-
-	// Check if org_uuid is set for this prefix
-	orgUUID := config.GetString(configPrefix + ".org_uuid")
-	if orgUUID == "" {
-		return false
-	}
-
-	// Configure delegated auth for this prefix
-	description := "global"
-	if prefix != "" {
-		description = prefix
-	}
-	log.Infof("Configuring delegated authentication for '%s'", description)
-
-	delegatedAuthComp.Configure(delegatedauth.ConfigParams{
-		Config:          config,
-		OrgUUID:         orgUUID,
-		RefreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
-		Provider:        config.GetString(configPrefix + ".provider"),
-		AWSRegion:       config.GetString(configPrefix + ".aws_region"),
-		APIKeyConfigKey: apiKeyConfigKey,
-	})
-
-	return true
-}
-
 // configureDelegatedAuth initializes the delegated auth component with configuration parameters.
 // This allows the component to fetch API keys from cloud providers and write them to the config
 // before other components are initialized.
@@ -2585,25 +2548,87 @@ func configureDelegatedAuthForPrefix(config pkgconfigmodel.Config, delegatedAuth
 // Delegated auth is automatically enabled when org_uuid is specified for a given prefix.
 // Cloud provider detection happens automatically within the delegatedauth component.
 func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
-	configured := false
-
 	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
 	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
 	// during config initialization (see bindDelegatedAuthConfig for examples)
 
-	// Configure delegated auth for each registered prefix that has org_uuid set
+	// Collect all instances that need to be configured
+	type instanceConfig struct {
+		orgUUID         string
+		refreshInterval int
+		apiKeyConfigKey string
+		description     string
+	}
+	var instances []instanceConfig
+	var initParams delegatedauth.InitParams
+	var needsInit bool
+
+	// Scan all registered prefixes to find which ones have delegated auth enabled
 	for _, cfg := range registeredDelegatedAuthConfigs {
-		if configureDelegatedAuthForPrefix(config, delegatedAuthComp, cfg.prefix, cfg.apiKeyConfigKey) {
-			configured = true
+		// Build the config key prefix for delegated_auth settings
+		var configPrefix string
+		if cfg.prefix == "" {
+			configPrefix = "delegated_auth"
+		} else {
+			configPrefix = cfg.prefix + ".delegated_auth"
+		}
+
+		// Check if org_uuid is set for this prefix
+		orgUUID := config.GetString(configPrefix + ".org_uuid")
+		if orgUUID == "" {
+			continue
+		}
+
+		// Use the first configured instance to initialize the component
+		if !needsInit {
+			initParams = delegatedauth.InitParams{
+				Config:    config,
+				Provider:  config.GetString(configPrefix + ".provider"),
+				AWSRegion: config.GetString(configPrefix + ".aws_region"),
+			}
+			needsInit = true
+		}
+
+		// Build description for logging
+		description := "global"
+		if cfg.prefix != "" {
+			description = cfg.prefix
+		}
+
+		instances = append(instances, instanceConfig{
+			orgUUID:         orgUUID,
+			refreshInterval: config.GetInt(configPrefix + ".refresh_interval_mins"),
+			apiKeyConfigKey: cfg.apiKeyConfigKey,
+			description:     description,
+		})
+	}
+
+	if !needsInit {
+		log.Debug("Delegated authentication is not configured")
+		return nil
+	}
+
+	// Initialize the component once
+	if err := delegatedAuthComp.Initialize(initParams); err != nil {
+		log.Errorf("Failed to initialize delegated authentication: %v", err)
+		return err
+	}
+
+	// Add each instance
+	for _, inst := range instances {
+		log.Infof("Configuring delegated authentication for '%s'", inst.description)
+
+		err := delegatedAuthComp.AddInstance(delegatedauth.InstanceParams{
+			OrgUUID:         inst.orgUUID,
+			RefreshInterval: inst.refreshInterval,
+			APIKeyConfigKey: inst.apiKeyConfigKey,
+		})
+		if err != nil {
+			log.Errorf("Failed to configure delegated auth for '%s': %v", inst.description, err)
 		}
 	}
 
-	if !configured {
-		log.Debug("Delegated authentication is not configured")
-	} else {
-		log.Info("Finished configuring delegated authentication")
-	}
-
+	log.Info("Finished configuring delegated authentication")
 	return nil
 }
 
