@@ -60,8 +60,8 @@ build do
       # and the 32-bit calling convention involving XMM registers is...  vague.
       # Do not enable SSE2 generally because the hand optimized assembly will
       # overwrite registers that mingw expects to get preserved.
-      env["CFLAGS"] = "-I#{install_dir}/embedded/include -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"
-      env["CPPFLAGS"] = env["CFLAGS"]
+      env["CFLAGS"] = "-I#{install_dir}/embedded/include"
+      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR, 15\\)"
       env["CXXFLAGS"] = env["CFLAGS"]
     end
 
