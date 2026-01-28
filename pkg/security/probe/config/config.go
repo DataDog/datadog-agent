@@ -53,9 +53,6 @@ type Config struct {
 	// EnableDiscarders defines if in-kernel discarders should be activated or not
 	EnableDiscarders bool
 
-	// RuleCacheEnabled defines if the rule cache should be enabled
-	RuleCacheEnabled bool
-
 	// FlushDiscarderWindow defines the maximum time window for discarders removal.
 	// This is used during reload to avoid removing all the discarders at the same time.
 	FlushDiscarderWindow int
@@ -191,8 +188,6 @@ func NewConfig() (*Config, error) {
 		EnableAllProbes:                    getBool("enable_all_probes"),
 		EnableKernelFilters:                getBool("enable_kernel_filters"),
 		EnableApprovers:                    getBool("enable_approvers"),
-		EnableDiscarders:                   getBool("enable_discarders"),
-		RuleCacheEnabled:                   getBool("rule_cache_enabled"),
 		FlushDiscarderWindow:               getInt("flush_discarder_window"),
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
