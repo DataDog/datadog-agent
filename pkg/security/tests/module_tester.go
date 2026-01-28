@@ -62,7 +62,8 @@ const (
 	Skip
 )
 const (
-	getEventTimeout = 10 * time.Second
+	getEventTimeout         = 10 * time.Second
+	functionalTestsHostname = "functional_tests_host"
 )
 
 var (
