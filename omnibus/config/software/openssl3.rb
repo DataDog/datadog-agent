@@ -61,7 +61,7 @@ build do
       # Do not enable SSE2 generally because the hand optimized assembly will
       # overwrite registers that mingw expects to get preserved.
       env["CFLAGS"] = "-I#{install_dir}/embedded/include"
-      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\(IOC_VENDOR,15\)"
+      env["CPPFLAGS"] = "#{env["CFLAGS"]} -DSIO_UDP_NETRESET=_WSAIOW\\(IOC_VENDOR,15\\)"
       env["CXXFLAGS"] = env["CFLAGS"]
     end
 
