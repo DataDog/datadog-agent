@@ -181,7 +181,6 @@ configure_make(
     ],
     dynamic_deps = [
         "@bzip2//:bz2",
-        "@libffi//:ffi",
         "@sqlite3//:sqlite3",
         "@xz//:lzma",
         "@zlib//:z",
