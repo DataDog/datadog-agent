@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 func TestIsContainerEntry(t *testing.T) {

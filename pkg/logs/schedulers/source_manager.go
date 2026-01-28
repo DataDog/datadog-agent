@@ -6,8 +6,8 @@
 package schedulers
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // sourceManager implements the SourceManager interface.

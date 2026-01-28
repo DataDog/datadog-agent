@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // serviceEnvVar is the environment variable of the service tag (this is used only for the serverless agent)

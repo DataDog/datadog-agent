@@ -6,7 +6,7 @@
 // Package testutils provides util test setup methods for pkg/logs
 package testutils
 
-import "github.com/DataDog/datadog-agent/pkg/logs/sources"
+import "github.com/DataDog/datadog-agent/comp/logs-library/sources"
 
 // ConsumeSources ensures that another component is consuming the channel to prevent
 // the producer to get stuck.
