@@ -11,80 +11,22 @@ package probe
 import (
 	"errors"
 	"fmt"
-	"math/rand/v2"
-	"net"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
 const maxRetryForMsgWithSSHContext = 15
 
-// getEnvVar extracts a specific environment variable from a list of environment variables.
-// Each environment variable is in the format "KEY=VALUE".
-func getEnvVar(envp []string, key string) string {
-	prefix := key + "="
-	for _, env := range envp {
-		if after, ok := strings.CutPrefix(env, prefix); ok {
-			return after
-		}
+func (p *EBPFProbe) HandleSSHUserSessionFromEvent(event *model.Event) {
+	if p.config.RuntimeSecurity.SSHUserSessionsEnabled {
+		pc := event.ProcessContext
+		envp := p.fieldHandlers.ResolveProcessEnvp(nil, &pc.Process)
+		usersessions.HandleSSHUserSession(pc, envp)
 	}
-	return ""
-}
-
-// HandleSSHUserSession handles the ssh user session
-func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
-	// Early return if SSH user sessions are disabled
-	if !p.config.RuntimeSecurity.SSHUserSessionsEnabled {
-		return
-	}
-
-	// First, we check if this event is link to an existing ssh session from his parent
-	parent := event.ProcessContext.Parent
-
-	// If the parent is a sshd process, we consider it's a new ssh session
-	// A sshd process will always be sshd, except on Ubuntu 25 where they introduced sshd-session
-	if parent != nil && strings.HasPrefix(parent.Comm, "sshd") && !strings.HasPrefix(event.ProcessContext.Comm, "sshd") {
-		sshSessionID := rand.Uint64()
-		event.ProcessContext.UserSession.SSHSessionID = sshSessionID
-		// Try to extract the SSH client IP and port
-		envp := p.fieldHandlers.ResolveProcessEnvp(event, &event.ProcessContext.Process)
-		sshClientVar := getEnvVar(envp, "SSH_CLIENT")
-		parts := strings.Fields(sshClientVar)
-		if len(parts) >= 2 {
-			event.ProcessContext.UserSession.SSHClientIP = getIPfromEnv(parts[0])
-			if port, err := strconv.Atoi(parts[1]); err != nil {
-				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
-			} else {
-				event.ProcessContext.UserSession.SSHClientPort = port
-			}
-		} else {
-			seclog.Tracef("SSH_CLIENT is not in the expected format: %q", sshClientVar)
-		}
-	}
-}
-
-func getIPfromEnv(ipStr string) net.IPNet {
-	ip := net.ParseIP(ipStr)
-	if ip != nil {
-		if ip.To4() != nil {
-			return net.IPNet{
-				IP:   ip,
-				Mask: net.CIDRMask(32, 32),
-			}
-		} else if ip.To16() != nil {
-			return net.IPNet{
-				IP:   ip,
-				Mask: net.CIDRMask(128, 128),
-			}
-		}
-	}
-	return net.IPNet{}
 }
 
 // SSHUserSessionPatcher defines a patcher for SSH user sessions
