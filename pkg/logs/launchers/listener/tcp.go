@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/socket"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"

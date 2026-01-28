@@ -38,9 +38,9 @@ import (
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
+	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
-	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
