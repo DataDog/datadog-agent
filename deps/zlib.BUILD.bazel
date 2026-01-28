@@ -166,12 +166,6 @@ pkg_install(
     destdir_flag = "@@//:install_dir",
 )
 
-rewrite_rpath(
-    name = "z_fixed",
-    prefix = "@@//:install_dir",
-    input = ":z",
-)
-
 # buildifier: disable=no-effect
 """
 TODO: patch source: "zlib-windows-relocate.patch", env: env
