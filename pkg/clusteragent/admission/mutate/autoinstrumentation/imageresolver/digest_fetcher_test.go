@@ -23,6 +23,12 @@ func newTestServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	return server
 }
 
+func makeTestImageRef(server *httptest.Server) string {
+	// Strip "https://" prefix (8 characters)
+	registry := server.URL[8:]
+	return fmt.Sprintf("%s/datadoghq/agent:v1", registry)
+}
+
 func TestHttpDigestFetcher_buildManifestRequest_Success(t *testing.T) {
 	f := newHTTPDigestFetcher()
 	tests := []struct {
@@ -127,21 +133,23 @@ func TestHttpDigestFetcher_buildManifestRequest_Error(t *testing.T) {
 }
 
 func TestHttpDigestFetcher_digest_Success(t *testing.T) {
-	f := newHTTPDigestFetcher()
+	validDigest := "sha256:abc123def4567890abcdef1234567890abcdef1234567890abcdef1234567890"
 	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Docker-Content-Digest", "sha256:abc123def456")
+		w.Header().Set("Docker-Content-Digest", validDigest)
 		w.WriteHeader(http.StatusOK)
 	})
+	f := httpDigestFetcher{
+		client: server.Client(),
+	}
 
-	testRef := server.URL[7:] + "/datadoghq/agent:v1"
+	testRef := makeTestImageRef(server)
 
 	digest, err := f.digest(testRef)
 	assert.NoError(t, err)
-	assert.Equal(t, "sha256:abc123def456", digest)
+	assert.Equal(t, validDigest, digest)
 }
 
 func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
-	f := newHTTPDigestFetcher()
 	tests := []struct {
 		name       string
 		statusCode int
@@ -179,8 +187,10 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 			server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tt.statusCode)
 			})
-
-			testRef := server.URL[7:] + "/datadoghq/agent:v1"
+			f := httpDigestFetcher{
+				client: server.Client(),
+			}
+			testRef := makeTestImageRef(server)
 
 			digest, err := f.digest(testRef)
 			assert.Error(t, err)
@@ -191,13 +201,14 @@ func TestHttpDigestFetcher_digest_ErrorStatusCodes(t *testing.T) {
 }
 
 func TestHttpDigestFetcher_digest_MissingDigestHeader(t *testing.T) {
-	f := newHTTPDigestFetcher()
 	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		// DEV: Return 200 but no Docker-Content-Digest header
 		w.WriteHeader(http.StatusOK)
 	})
+	f := httpDigestFetcher{
+		client: server.Client(),
+	}
 
-	testRef := server.URL[7:] + "/datadoghq/agent:v1"
+	testRef := makeTestImageRef(server)
 
 	digest, err := f.digest(testRef)
 	assert.Error(t, err)
@@ -205,23 +216,7 @@ func TestHttpDigestFetcher_digest_MissingDigestHeader(t *testing.T) {
 	assert.Contains(t, err.Error(), "no digest header found")
 }
 
-func TestHttpDigestFetcher_digest_ValidDigestFormat(t *testing.T) {
-	f := newHTTPDigestFetcher()
-	digestValue := "sha256:abc123def456789012345678901234567890123456789012345678901234"
-	server := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Docker-Content-Digest", digestValue)
-		w.WriteHeader(http.StatusOK)
-	})
-
-	testRef := server.URL[7:] + "/datadoghq/agent:v1"
-	digest, err := f.digest(testRef)
-
-	assert.NoError(t, err)
-	assert.Equal(t, digestValue, digest)
-}
-
 func TestHttpDigestFetcher_digest_InvalidDigestFormat(t *testing.T) {
-	f := newHTTPDigestFetcher()
 	tests := []struct {
 		name        string
 		digestValue string
@@ -246,6 +241,10 @@ func TestHttpDigestFetcher_digest_InvalidDigestFormat(t *testing.T) {
 			name:        "sha512 digest",
 			digestValue: "sha512:abc123def456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890",
 		},
+		{
+			name:        "invalid sha256 digest",
+			digestValue: "sha256:abc123def456789",
+		},
 	}
 
 	for _, tt := range tests {
@@ -254,8 +253,10 @@ func TestHttpDigestFetcher_digest_InvalidDigestFormat(t *testing.T) {
 				w.Header().Set("Docker-Content-Digest", tt.digestValue)
 				w.WriteHeader(http.StatusOK)
 			})
-
-			testRef := server.URL[7:] + "/datadoghq/agent:v1"
+			f := httpDigestFetcher{
+				client: server.Client(),
+			}
+			testRef := makeTestImageRef(server)
 			digest, err := f.digest(testRef)
 
 			assert.Error(t, err)
