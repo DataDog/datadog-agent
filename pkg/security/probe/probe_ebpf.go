@@ -1639,10 +1639,10 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			p.Resolvers.ProcessResolver.UpdateProcessContexts(pce, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
 		}
 	case model.ExecEventType:
-		p.HandleSSHUserSession(event)
+		p.HandleSSHUserSessionFromEvent(event)
 
 	case model.ForkEventType:
-		p.HandleSSHUserSession(event)
+		p.HandleSSHUserSessionFromEvent(event)
 	}
 	return true
 }
