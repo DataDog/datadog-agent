@@ -99,11 +99,10 @@
 /.gitlab/.pre/maintenance_jobs/*                          @DataDog/agent-devx
 /.gitlab/.post/notify/*                                    @DataDog/agent-devx
 /.gitlab/build/pkg_metrics/*                               @DataDog/agent-devx
-/.gitlab/.post/post_rc_build/*                             @DataDog/agent-devx
+/.gitlab/.post/post_rc_build/*                             @DataDog/agent-delivery
 /.gitlab/.pre/setup/*                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                      @DataDog/agent-delivery
 /.gitlab/distribute/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
-
 /.gitlab/build/binary_build/cws_instrumentation.yml        @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                      @DataDog/agent-devx @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml     @DataDog/agent-build
@@ -169,7 +168,7 @@
 
 /.gitlab/deploy/dev_container_deploy/                       @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/dev_container_deploy/fakeintake.yml         @DataDog/agent-devx
-/.gitlab/deploy/dev_container_deploy/e2e.yml                @DataDog/agent-devx 
+/.gitlab/deploy/dev_container_deploy/e2e.yml                @DataDog/agent-devx
 /.gitlab/deploy/dev_container_deploy/docker_windows.yml     @DataDog/agent-delivery @DataDog/windows-products
 
 /.gitlab/deploy/container_scan/container_scan.yml           @DataDog/container-integrations @DataDog/agent-delivery
