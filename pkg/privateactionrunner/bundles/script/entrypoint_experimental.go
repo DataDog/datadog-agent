@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !private_runner_experimental
+//go:build private_runner_experimental
 
 package com_datadoghq_script
 
@@ -30,3 +30,4 @@ func NewScript() *Script {
 func (h *Script) GetAction(actionName string) types.Action {
 	return h.actions[actionName]
 }
+
