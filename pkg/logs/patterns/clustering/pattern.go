@@ -10,6 +10,7 @@ package clustering
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/clustering/merging"
 	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
@@ -100,19 +101,27 @@ func (p *Pattern) GetPatternString() string {
 		return ""
 	}
 
-	var parts []string
+	var builder strings.Builder
+	estimatedLen := 0
 	for _, tok := range p.Template.Tokens {
 		// Skip wildcard tokens entirely
 		if tok.Wildcard == token.IsWildcard {
 			continue
 		}
-		// Only use printable ASCII/UTF-8 characters in the template
-		cleaned := sanitizeForTemplate(tok.Value)
-		if cleaned != "" {
-			parts = append(parts, cleaned)
+		estimatedLen += len(tok.Value)
+	}
+	builder.Grow(estimatedLen)
+
+	for _, tok := range p.Template.Tokens {
+		if tok.Wildcard == token.IsWildcard {
+			continue
+		}
+		if sanitizeForTemplateInto(&builder, tok.Value) == 0 {
+			continue
 		}
 	}
-	return strings.Join(parts, "")
+
+	return builder.String()
 }
 
 // hasWildcards returns true if this pattern contains wildcard positions.
@@ -139,15 +148,16 @@ func (p *Pattern) GetWildcardCharPositions() []int {
 	currentPos := 0
 
 	for _, tok := range p.Template.Tokens {
-		cleaned := sanitizeForTemplate(tok.Value)
-
 		if tok.Wildcard == token.IsWildcard {
 			// Mark the injection point (current position in template which excludes wildcards)
 			charPositions = append(charPositions, currentPos)
 			// Wildcard tokens are NOT in the template, so don't advance currentPos
-		} else if cleaned != "" {
-			// Add the length of the cleaned token value
-			currentPos += len(cleaned)
+		} else {
+			cleanedLen := sanitizeForTemplateLen(tok.Value)
+			if cleanedLen > 0 {
+				// Add the length of the cleaned token value
+				currentPos += cleanedLen
+			}
 		}
 	}
 
@@ -181,13 +191,48 @@ func (p *Pattern) GetWildcardValues(tokenList *token.TokenList) []string {
 
 // sanitizeForTemplate removes non-printable characters from template strings
 func sanitizeForTemplate(s string) string {
-	runes := []rune(s)
-	result := make([]rune, 0, len(runes))
-	for _, r := range runes {
-		// Keep only printable characters (space and above, excluding DEL)
-		if r >= ' ' && r != 0x7F && r < 0xFFFD {
-			result = append(result, r)
-		}
+	var builder strings.Builder
+	written := sanitizeForTemplateInto(&builder, s)
+	if written == len(s) {
+		return s
 	}
-	return string(result)
+	return builder.String()
+}
+
+// sanitizeForTemplateLen returns the length of the sanitized string without allocating.
+func sanitizeForTemplateLen(s string) int {
+	return sanitizeForTemplateInto(nil, s)
+}
+
+// sanitizeForTemplateInto appends the sanitized string into builder when non-nil.
+func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		keep := r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD
+		if !keep {
+			if builder != nil {
+				builder.WriteString(s[:i])
+			}
+			written := i
+			i += size
+			for i < len(s) {
+				r, size = utf8.DecodeRuneInString(s[i:])
+				keep = r >= ' ' && r != 0x7F && r != utf8.RuneError && r < 0xFFFD
+				if keep {
+					if builder != nil {
+						builder.WriteString(s[i : i+size])
+					}
+					written += size
+				}
+				i += size
+			}
+			return written
+		}
+		i += size
+	}
+
+	if builder != nil {
+		builder.WriteString(s)
+	}
+	return len(s)
 }
