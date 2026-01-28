@@ -16,7 +16,6 @@ lint_licenses:
 lint_rust_licenses:
   extends: .lint
   script:
-    - dda inv -- -e install-rust-license-tool
     - dda inv -- -e lint-rust-licenses
 
 lint_shell:
