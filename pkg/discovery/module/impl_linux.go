@@ -829,16 +829,14 @@ type connKey struct {
 	srcPort uint16
 	dstIP   string
 	dstPort uint16
-	netns   uint32
 }
 
-func makeConnKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16, netns uint32) connKey {
+func makeConnKey(srcIP string, srcPort uint16, dstIP string, dstPort uint16) connKey {
 	return connKey{
 		srcIP:   srcIP,
 		srcPort: srcPort,
 		dstIP:   dstIP,
 		dstPort: dstPort,
-		netns:   netns,
 	}
 }
 
@@ -916,7 +914,6 @@ processLoop:
 					conn.Origin.Src.Port(),
 					conn.Origin.Dst.Addr().String(),
 					conn.Origin.Dst.Port(),
-					conn.NetNS,
 				)
 
 				// Create IPTranslation from the Reply tuple
@@ -943,29 +940,15 @@ processLoop:
 
 	log.Debugf("Built conntrack translation map with %d entries", len(translations))
 
-	// Log namespace information at debug level
-	if len(translations) > 0 && log.ShouldLog(log.DebugLvl) {
-		// Count unique netns values
-		netnsSet := make(map[uint32]int)
-		for key := range translations {
-			netnsSet[key.netns]++
-		}
-		log.Debugf("Conntrack translations span %d network namespaces:", len(netnsSet))
-		for netns, count := range netnsSet {
-			log.Debugf("  netns=%d: %d entries", netns, count)
-		}
-	}
-
 	// Log the full translation map at trace level for debugging
 	if log.ShouldLog(log.TraceLvl) {
 		log.Tracef("Conntrack translation map (%d entries):", len(translations))
 		for key, trans := range translations {
-			log.Tracef("  %s:%d -> %s:%d  =>  %s:%d -> %s:%d (netns=%d)",
+			log.Tracef("  %s:%d -> %s:%d  =>  %s:%d -> %s:%d",
 				key.srcIP, key.srcPort,
 				key.dstIP, key.dstPort,
 				trans.ReplSrcIP.String(), trans.ReplSrcPort,
-				trans.ReplDstIP.String(), trans.ReplDstPort,
-				key.netns)
+				trans.ReplDstIP.String(), trans.ReplDstPort)
 		}
 	}
 
@@ -984,7 +967,6 @@ func translateConnectionWithMap(conn *model.Connection, translations map[connKey
 		conn.Laddr.Port,
 		conn.Raddr.IP,
 		conn.Raddr.Port,
-		conn.NetNS,
 	)
 
 	// Look up translation
