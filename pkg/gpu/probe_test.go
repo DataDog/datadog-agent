@@ -160,8 +160,9 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	t := s.T()
 
 	probe := s.getProbe()
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	out := testutil.RunSample(t, testutil.CudaSample)
+	cmd := out.Command
+	require.NotNil(t, cmd)
 
 	handlers := s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
@@ -195,8 +196,9 @@ func (s *probeTestSuite) TestCanGenerateStats() {
 
 	probe := s.getProbe()
 
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	out := testutil.RunSample(t, testutil.CudaSample)
+	cmd := out.Command
+	require.NotNil(t, cmd)
 
 	_ = s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
@@ -244,8 +246,9 @@ func (s *probeTestSuite) TestMultiGPUSupport() {
 	// Visible devices 1,2 -> selects 1 in that array -> global device index = 2
 	selectedGPU := testutil.GPUUUIDs[2]
 
-	cmd, err := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
-	require.NoError(t, err)
+	out := testutil.RunSampleWithArgs(t, testutil.CudaSample, sampleArgs)
+	cmd := out.Command
+	require.NotNil(t, cmd)
 
 	_ = s.waitForExpectedCudasampleEvents(probe, cmd.Process.Pid)
 
@@ -280,7 +283,9 @@ func (s *probeTestSuite) TestDetectsContainer() {
 	probe := s.getProbe()
 
 	// note: after starting, the program will wait ~5s before making any CUDA call
-	pid, cid := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
+	out := testutil.RunSampleInDocker(t, testutil.CudaSample, testutil.MinimalDockerImage)
+	pid := out.PID
+	cid := out.ContainerID
 
 	handlers := s.waitForExpectedCudasampleEvents(probe, pid)
 
@@ -403,8 +408,9 @@ func BenchmarkProbeEventProcessing(b *testing.B) {
 		startTime := time.Now()
 
 		// Run the rate sample
-		cmd, err := testutil.RunSampleWithArgs(b, testutil.RateSample, rateArgs)
-		require.NoError(b, err)
+		out := testutil.RunSampleWithArgs(b, testutil.RateSample, rateArgs)
+		cmd := out.Command
+		require.NotNil(b, cmd)
 
 		// Ensure that we have streams for the process
 		require.Eventually(b, func() bool {
@@ -561,8 +567,9 @@ func (s *probeTestSuite) TestDebugCollectorEvents() {
 	probe.consumer.debugCollector.enable(totalExpectedEvents * 2) // some margin in case we get extra events
 
 	// Run the CUDA sample
-	cmd, err := testutil.RunSample(t, testutil.CudaSample)
-	require.NoError(t, err)
+	out := testutil.RunSample(t, testutil.CudaSample)
+	cmd := out.Command
+	require.NotNil(t, cmd)
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill()
