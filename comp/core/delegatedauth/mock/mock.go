@@ -25,7 +25,7 @@ type Provides struct {
 }
 
 // New creates a new mock delegatedauth component for testing
-func New(_ testing.TB) *Mock {
+func New(_ testing.TB) delegatedauth.Component {
 	return &Mock{}
 }
 

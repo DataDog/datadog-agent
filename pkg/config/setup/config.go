@@ -35,6 +35,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// delegatedAuthConfig represents a prefix and API key config key pair for delegated auth
+type delegatedAuthConfig struct {
+	prefix          string // Config prefix (empty for global)
+	apiKeyConfigKey string // The config key where the API key should be written
+}
+
+// registeredDelegatedAuthConfigs tracks which prefixes have been registered for delegated auth
+// This avoids duplication between bindDelegatedAuthConfig calls and configureDelegatedAuth
+var registeredDelegatedAuthConfigs []delegatedAuthConfig
+
 const (
 
 	// DefaultFingerprintingMaxBytes is the maximum number of bytes that will be used to generate a checksum fingerprint;
@@ -2575,23 +2585,12 @@ func configureDelegatedAuthForPrefix(config pkgconfigmodel.Config, delegatedAuth
 func configureDelegatedAuth(config pkgconfigmodel.Config, delegatedAuthComp delegatedauth.Component) error {
 	configured := false
 
-	// List of config prefixes and their corresponding API key config keys
-	// This allows any config that has an api_key to support delegated authentication
-	// To add delegated auth support for a new config, add an entry here and call
-	// bindDelegatedAuthConfig(config, prefix) during config initialization
-	delegatedAuthConfigs := []struct {
-		prefix          string // Config prefix (empty for global)
-		apiKeyConfigKey string // The config key where the API key should be written
-	}{
-		{"", "api_key"},                                          // Global api_key
-		{"logs_config", "logs_config.api_key"},                   // Logs-specific api_key
-		{"evp_proxy_config", "evp_proxy_config.api_key"},         // EVP proxy api_key
-		{"ol_proxy_config", "ol_proxy_config.api_key"},           // OL proxy api_key
-		{"remote_configuration", "remote_configuration.api_key"}, // Remote config api_key
-	}
+	// Use the list of registered delegated auth configs that were set up via bindDelegatedAuthConfig
+	// To add delegated auth support for a new config prefix, call bindDelegatedAuthConfig(config, prefix)
+	// during config initialization (see bindDelegatedAuthConfig for examples)
 
-	// Configure delegated auth for each prefix that has org_uuid set
-	for _, cfg := range delegatedAuthConfigs {
+	// Configure delegated auth for each registered prefix that has org_uuid set
+	for _, cfg := range registeredDelegatedAuthConfigs {
 		if configureDelegatedAuthForPrefix(config, delegatedAuthComp, cfg.prefix, cfg.apiKeyConfigKey) {
 			configured = true
 		}
@@ -2632,6 +2631,19 @@ func bindDelegatedAuthConfig(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(configPrefix+".refresh_interval_mins", 60)
 	config.BindEnvAndSetDefault(configPrefix+".provider", "")
 	config.BindEnvAndSetDefault(configPrefix+".aws_region", "")
+
+	// Register this prefix for use in configureDelegatedAuth
+	// Build the API key config key
+	var apiKeyConfigKey string
+	if prefix == "" {
+		apiKeyConfigKey = "api_key"
+	} else {
+		apiKeyConfigKey = prefix + ".api_key"
+	}
+	registeredDelegatedAuthConfigs = append(registeredDelegatedAuthConfigs, delegatedAuthConfig{
+		prefix:          prefix,
+		apiKeyConfigKey: apiKeyConfigKey,
+	})
 }
 
 // LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe

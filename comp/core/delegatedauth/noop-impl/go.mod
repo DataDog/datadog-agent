@@ -2,7 +2,26 @@ module github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl
 
 go 1.24.0
 
-require github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0
+require (
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/status v0.0.0-00010101000000-000000000000
+)
+
+require (
+	github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/fatih/color v1.18.0 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/spf13/cast v1.10.0 // indirect
+	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/fx v1.24.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.1 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
+)
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

@@ -19,7 +19,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -63,26 +62,25 @@ type AWSAuth struct {
 	AwsRegion string
 }
 
-// GetAPIKey fetches the API key based on the cloud auth exchange
-func (a *AWSAuth) GetAPIKey(cfg pkgconfigmodel.Reader, config *common.AuthConfig) (*string, error) {
+// GenerateAuthProof generates an AWS-specific authentication proof using SigV4 signing.
+// This proof includes a signed AWS STS GetCallerIdentity request that proves access to AWS credentials.
+func (a *AWSAuth) GenerateAuthProof(cfg pkgconfigmodel.Reader, config *common.AuthConfig) (string, error) {
 	// Get local AWS Credentials
 	creds := a.getCredentials(cfg)
 
 	if config == nil || config.OrgUUID == "" {
-		return nil, errors.New("missing org UUID in config")
+		return "", errors.New("missing org UUID in config")
 	}
 
 	// Use the credentials to generate the signing data
 	data, err := a.generateAwsAuthData(config.OrgUUID, creds)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	// Generate the auth string passed to the token endpoint
-	authString := data.BodyEncoded + "|" + data.HeadersEncoded + "|" + data.Method + "|" + data.URLEncoded
-
-	authResponse, err := api.GetAPIKey(cfg, config.OrgUUID, authString)
-	return authResponse, err
+	// Generate the auth string that will be passed to the Datadog API
+	authProof := data.BodyEncoded + "|" + data.HeadersEncoded + "|" + data.Method + "|" + data.URLEncoded
+	return authProof, nil
 }
 
 // getCredentials retrieves AWS credentials using the same approach as EC2 tags fetching.

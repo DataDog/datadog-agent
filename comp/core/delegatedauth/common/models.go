@@ -15,7 +15,11 @@ type AuthConfig struct {
 	OrgUUID string
 }
 
-// Provider is an interface for getting a delegated token utilizing different methods.
+// Provider is an interface for generating cloud-specific authentication proofs.
+// Each provider implements how to generate a proof from their cloud platform (e.g., AWS SigV4 signed request).
+// The proof is then exchanged for a Datadog API key using api.GetAPIKey().
 type Provider interface {
-	GetAPIKey(cfg pkgconfigmodel.Reader, config *AuthConfig) (*string, error)
+	// GenerateAuthProof generates a cloud-specific authentication proof string.
+	// This proof will be passed to Datadog's intake-key API to exchange for an API key.
+	GenerateAuthProof(cfg pkgconfigmodel.Reader, config *AuthConfig) (string, error)
 }

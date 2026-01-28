@@ -10,6 +10,10 @@
 // The component runs a background goroutine to periodically refresh the API key with exponential backoff on failures.
 package delegatedauth
 
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
 // team: agent-shared-components
 
 // ConfigParams holds parameters for delegated auth configuration.
@@ -18,9 +22,7 @@ package delegatedauth
 // Configure method during agent startup.
 type ConfigParams struct {
 	// Config is the config component used to read settings and write the API key.
-	// This must be provided as a config.Component, but is declared as interface{} to avoid import cycles.
-	// The implementation will type-assert to config.Component.
-	Config interface{}
+	Config pkgconfigmodel.ReaderWriter
 
 	// OrgUUID is the Datadog organization UUID for which to fetch credentials.
 	// This is required. If empty, delegated auth will not be configured.

@@ -8,20 +8,27 @@ package delegatedauthimpl
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/aws/creds"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+//go:embed status_templates
+var templatesFS embed.FS
 
 const (
 	// maxBackoffInterval is the maximum time to wait between retries (1 hour)
@@ -59,17 +66,24 @@ type authInstance struct {
 // fields except config, which is immutable after construction.
 type delegatedAuthComponent struct {
 	// Immutable fields (safe for concurrent access without locking)
-	config config.Component
+	config pkgconfigmodel.ReaderWriter
 
 	// Mutable fields (protected by mu)
 	// Map of APIKeyConfigKey -> authInstance
 	mu        sync.RWMutex
 	instances map[string]*authInstance
+
+	// Cloud provider resolution cache (resolved once, reused for all instances)
+	resolvedProvider  string // Resolved provider name (e.g., "aws")
+	resolvedAWSRegion string // Resolved AWS region (if provider is AWS)
+	resolveError      error  // Error from resolution, if any
+	resolved          bool   // Whether resolution has been attempted
 }
 
 // Provides list the provided interfaces from the delegatedauth Component
 type Provides struct {
-	Comp delegatedauth.Component
+	Comp           delegatedauth.Component
+	StatusProvider status.InformationProvider
 }
 
 // NewComponent creates a new delegated auth Component
@@ -79,7 +93,8 @@ func NewComponent() Provides {
 	}
 
 	return Provides{
-		Comp: comp,
+		Comp:           comp,
+		StatusProvider: status.NewInformationProvider(comp),
 	}
 }
 
@@ -95,12 +110,62 @@ func addJitter(duration time.Duration) time.Duration {
 	return duration + time.Duration(jitter)
 }
 
+// resolveCloudProvider detects and caches the cloud provider information.
+// This is called once on the first Configure() call and the result is reused for all subsequent calls.
+// Must be called with mu held.
+func (d *delegatedAuthComponent) resolveCloudProvider(params delegatedauth.ConfigParams) (string, string, error) {
+	// If already resolved, return cached result
+	if d.resolved {
+		return d.resolvedProvider, d.resolvedAWSRegion, d.resolveError
+	}
+
+	// Mark as resolved even if we encounter an error, to avoid retrying on every Configure call
+	d.resolved = true
+
+	provider := params.Provider
+	awsRegion := params.AWSRegion
+
+	// If provider is explicitly specified, use it
+	if provider != "" {
+		d.resolvedProvider = provider
+		d.resolvedAWSRegion = awsRegion
+		return provider, awsRegion, nil
+	}
+
+	// Auto-detect cloud provider
+	ctx := context.Background()
+	if creds.IsRunningOnAWS(ctx) {
+		provider = cloudauth.ProviderAWS
+		log.Info("Auto-detected AWS as cloud provider for delegated auth")
+
+		// Auto-detect AWS region if not specified
+		if awsRegion == "" {
+			region, err := creds.GetAWSRegion(ctx)
+			if err != nil {
+				log.Warnf("Failed to auto-detect AWS region: %v. Will use default region.", err)
+			} else if region != "" {
+				awsRegion = region
+				log.Infof("Auto-detected AWS region: %s", awsRegion)
+			}
+		}
+
+		d.resolvedProvider = provider
+		d.resolvedAWSRegion = awsRegion
+		return provider, awsRegion, nil
+	}
+
+	// No cloud provider detected
+	err := fmt.Errorf("could not auto-detect cloud provider. Currently only 'aws' is supported")
+	d.resolveError = err
+	return "", "", err
+}
+
 // Configure initializes delegated auth for a specific API key configuration.
 // Can be called multiple times with different APIKeyConfigKey values.
 func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 	// Store the config component on first call
 	if params.Config != nil && d.config == nil {
-		d.config = params.Config.(config.Component)
+		d.config = params.Config
 	}
 
 	// Determine the API key config key, defaulting to "api_key"
@@ -121,30 +186,14 @@ func (d *delegatedAuthComponent) Configure(params delegatedauth.ConfigParams) {
 		return
 	}
 
-	// Auto-detect cloud provider if not specified
-	provider := params.Provider
-	awsRegion := params.AWSRegion
+	// Resolve cloud provider (this happens once and is cached for reuse)
+	d.mu.Lock()
+	provider, awsRegion, err := d.resolveCloudProvider(params)
+	d.mu.Unlock()
 
-	if provider == "" {
-		ctx := context.Background()
-		if creds.IsRunningOnAWS(ctx) {
-			provider = cloudauth.ProviderAWS
-			log.Infof("Auto-detected AWS as cloud provider for '%s'", apiKeyConfigKey)
-
-			// Auto-detect AWS region if not specified
-			if awsRegion == "" {
-				region, err := creds.GetAWSRegion(ctx)
-				if err != nil {
-					log.Warnf("Failed to auto-detect AWS region for '%s': %v. Will use default region.", apiKeyConfigKey, err)
-				} else if region != "" {
-					awsRegion = region
-					log.Infof("Auto-detected AWS region '%s' for '%s'", awsRegion, apiKeyConfigKey)
-				}
-			}
-		} else {
-			log.Errorf("Could not auto-detect cloud provider for '%s'. Currently only 'aws' is supported.", apiKeyConfigKey)
-			return
-		}
+	if err != nil {
+		log.Errorf("Failed to resolve cloud provider for '%s': %v", apiKeyConfigKey, err)
+		return
 	}
 
 	// Create the appropriate provider
@@ -336,11 +385,18 @@ func (d *delegatedAuthComponent) startBackgroundRefresh(instance *authInstance) 
 	}()
 }
 
-// authenticate uses the configured provider to get creds
+// authenticate uses the configured provider to generate an auth proof, then exchanges it for an API key
 func (d *delegatedAuthComponent) authenticate(instance *authInstance) (*string, error) {
-	key, err := instance.provider.GetAPIKey(d.config, instance.authConfig)
+	// Generate the cloud-specific auth proof
+	authProof, err := instance.provider.GenerateAuthProof(d.config, instance.authConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to authenticate: %w", err)
+		return nil, fmt.Errorf("failed to generate auth proof: %w", err)
+	}
+
+	// Exchange the proof for an API key from Datadog
+	key, err := api.GetAPIKey(d.config, instance.authConfig.OrgUUID, authProof)
+	if err != nil {
+		return nil, fmt.Errorf("failed to exchange auth proof for API key: %w", err)
 	}
 	return key, nil
 }
@@ -350,5 +406,81 @@ func (d *delegatedAuthComponent) updateConfigWithAPIKey(instance *authInstance, 
 	// Update the config value using the Writer interface
 	// This will trigger OnUpdate callbacks for any components listening to this config
 	d.config.Set(instance.apiKeyConfigKey, apiKey, pkgconfigmodel.SourceAgentRuntime)
-	log.Infof("Updated config key '%s' with new delegated API key", instance.apiKeyConfigKey)
+	log.Infof("Updated config key '%s' with new delegated API key ending with: %s", instance.apiKeyConfigKey, scrubber.HideKeyExceptLastFiveChars(apiKey))
+}
+// Status Provider implementation for delegated auth
+
+// Name returns the name for status sorting
+func (d *delegatedAuthComponent) Name() string {
+	return "Delegated Auth"
+}
+
+// Section returns the section name for status grouping
+func (d *delegatedAuthComponent) Section() string {
+	return "delegatedauth"
+}
+
+// JSON populates the status stats map
+func (d *delegatedAuthComponent) JSON(_ bool, stats map[string]interface{}) error {
+	d.populateStatusInfo(stats)
+	return nil
+}
+
+// Text renders the text status output
+func (d *delegatedAuthComponent) Text(_ bool, buffer io.Writer) error {
+	stats := make(map[string]interface{})
+	d.populateStatusInfo(stats)
+	return status.RenderText(templatesFS, "delegatedauth.tmpl", buffer, stats)
+}
+
+// HTML renders the HTML status output
+func (d *delegatedAuthComponent) HTML(_ bool, buffer io.Writer) error {
+	stats := make(map[string]interface{})
+	d.populateStatusInfo(stats)
+	return status.RenderHTML(templatesFS, "delegatedauthHTML.tmpl", buffer, stats)
+}
+
+// populateStatusInfo gathers the current status information for delegated auth
+func (d *delegatedAuthComponent) populateStatusInfo(stats map[string]interface{}) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	// Check if delegated auth is enabled (has any configured instances)
+	stats["enabled"] = len(d.instances) > 0
+
+	if len(d.instances) == 0 {
+		return
+	}
+
+	// Add resolved provider information
+	if d.resolved {
+		stats["provider"] = d.resolvedProvider
+		if d.resolvedProvider == cloudauth.ProviderAWS && d.resolvedAWSRegion != "" {
+			stats["awsRegion"] = d.resolvedAWSRegion
+		}
+	}
+
+	// Add information about each configured instance
+	instances := make(map[string]map[string]interface{})
+	for key, instance := range d.instances {
+		instanceInfo := make(map[string]interface{})
+
+		// Status
+		if instance.apiKey != nil {
+			instanceInfo["Status"] = "Active"
+		} else {
+			instanceInfo["Status"] = "Pending"
+		}
+
+		// Refresh interval
+		instanceInfo["RefreshInterval"] = instance.refreshInterval.String()
+
+		// Add error info if there are consecutive failures
+		if instance.consecutiveFailures > 0 {
+			instanceInfo["Error"] = fmt.Sprintf("%d consecutive failures", instance.consecutiveFailures)
+		}
+
+		instances[key] = instanceInfo
+	}
+	stats["instances"] = instances
 }
