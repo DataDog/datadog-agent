@@ -83,19 +83,6 @@ publish_internal_container_image-fips:
     RELEASE_TAG_SUFFIX: "-fips-jmx"
     TMPL_SRC_IMAGE_SUFFIX: "-7-fips-jmx"
 
-publish_internal_container_image-full:
-  extends: .docker_trigger_base
-  needs:
-    - job: docker_build_agent7_full
-      artifacts: false
-    - job: docker_build_agent7_full_arm64
-      artifacts: false
-  variables:
-    <<: *agent_variables
-    TMPL_ADP_VERSION: 0.1.7
-    RELEASE_TAG_SUFFIX: "-full"
-    TMPL_SRC_IMAGE_SUFFIX: "-7-full"
-
 publish_internal_container_image-ot_standalone:
   extends: .docker_trigger_base
   needs:
