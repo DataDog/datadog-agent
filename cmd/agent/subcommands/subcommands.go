@@ -19,8 +19,8 @@ import (
 	cmddogstatsdcapture "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture"
 	cmddogstatsdreplay "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdreplay"
 	cmddogstatsdstats "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdstats"
+	cmdembeddings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/embeddings"
 	cmdflare "github.com/DataDog/datadog-agent/cmd/agent/subcommands/flare"
-	cmdgettextembeddings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/get_text_embeddings"
 	cmdhealth "github.com/DataDog/datadog-agent/cmd/agent/subcommands/health"
 	cmdhostname "github.com/DataDog/datadog-agent/cmd/agent/subcommands/hostname"
 	cmdimport "github.com/DataDog/datadog-agent/cmd/agent/subcommands/import"
@@ -56,7 +56,7 @@ func AgentSubcommands() []command.SubcommandFactory {
 		cmddogstatsdreplay.Commands,
 		cmddogstatsdstats.Commands,
 		cmdflare.Commands,
-		cmdgettextembeddings.Commands,
+		cmdembeddings.Commands,
 		cmdhealth.Commands,
 		cmdhostname.Commands,
 		cmdimport.Commands,
