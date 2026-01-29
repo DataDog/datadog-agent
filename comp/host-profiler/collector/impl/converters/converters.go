@@ -17,15 +17,20 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
+// CollectorParams provides access to collector configuration parameters.
+type CollectorParams interface {
+	GetGoRuntimeMetrics() bool
+}
+
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
 func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
 // NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent(c config.Component) confmap.ConverterFactory {
+func NewFactoryWithAgent(c config.Component, params CollectorParams) confmap.ConverterFactory {
 	newConverterWithAgentWrapper := func(settings confmap.ConverterSettings) confmap.Converter {
-		return newConverterWithAgent(settings, c)
+		return newConverterWithAgent(settings, c, params)
 	}
 
 	return confmap.NewConverterFactory(newConverterWithAgentWrapper)
@@ -41,6 +46,7 @@ const (
 	componentTypeOtlpHTTP          = "otlphttp"
 	componentTypeDDProfiling       = "ddprofiling"
 	componentTypeHPFlare           = "hpflare"
+	componentTypeCumulativeToDelta = "cumulativetodelta"
 )
 
 // Default component names
@@ -48,6 +54,7 @@ const (
 	defaultInfraAttributesName   = "infraattributes/default"
 	defaultResourceDetectionName = "resourcedetection/default"
 	defaultHostProfilerName      = "hostprofiler"
+	defaultCumulativeToDeltaName = "cumulativetodelta"
 )
 
 // Configuration paths used multiple times across converters

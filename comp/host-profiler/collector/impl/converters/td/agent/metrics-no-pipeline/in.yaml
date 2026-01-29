@@ -1,0 +1,25 @@
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+
+processors:
+  infraattributes/custom:
+    allow_hostname_override: false
+
+exporters:
+  otlphttp/prod:
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+    headers:
+      dd-api-key: "test_key_123"
+
+service:
+  pipelines:
+    profiles:
+      receivers:
+        - hostprofiler
+      processors:
+        - infraattributes/custom
+      exporters:
+        - otlphttp/prod

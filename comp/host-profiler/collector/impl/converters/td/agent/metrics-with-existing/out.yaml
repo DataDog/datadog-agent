@@ -1,0 +1,43 @@
+exporters:
+  otlphttp/metrics-only:
+    headers:
+      dd-api-key: metrics_key_456
+    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+  otlphttp/prod:
+    headers:
+      dd-api-key: test_key_123
+    metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
+    profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
+processors:
+  batch:
+    timeout: 10s
+  cumulativetodelta: {}
+  infraattributes/custom:
+    allow_hostname_override: true
+receivers:
+  hostprofiler:
+    symbol_uploader:
+      enabled: false
+  prometheus:
+    config:
+      scrape_configs:
+      - job_name: test
+service:
+  pipelines:
+    metrics:
+      exporters:
+      - otlphttp/metrics-only
+      - otlphttp/prod
+      processors:
+      - cumulativetodelta
+      - batch
+      - infraattributes/custom
+      receivers:
+      - prometheus
+    profiles:
+      exporters:
+      - otlphttp/prod
+      processors:
+      - infraattributes/custom
+      receivers:
+      - hostprofiler

@@ -41,6 +41,11 @@ func NewParams(uri string, goRuntimeMetrics bool) Params {
 	}
 }
 
+// GetGoRuntimeMetrics returns whether Go runtime metrics collection is enabled.
+func (p Params) GetGoRuntimeMetrics() bool {
+	return p.GoRuntimeMetrics
+}
+
 // Requires defines the dependencies for the collector component
 type Requires struct {
 	Params         Params

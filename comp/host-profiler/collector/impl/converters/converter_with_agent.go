@@ -105,16 +105,17 @@ func newConfigManager(config config.Component) configManager {
 //   - If no hostprofiler is used & configured, add minimal one with symbol_uploader: false
 type converterWithAgent struct {
 	configManager configManager
+	params        CollectorParams
 }
 
-func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component) confmap.Converter {
-	return &converterWithAgent{configManager: newConfigManager(config)}
+func newConverterWithAgent(_ confmap.ConverterSettings, config config.Component, params CollectorParams) confmap.Converter {
+	return &converterWithAgent{
+		configManager: newConfigManager(config),
+		params:        params,
+	}
 }
 
-// Convert implements the confmap.Converter interface for converterWithAgent.
-func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
-	confStringMap := conf.ToStringMap()
-
+func (c *converterWithAgent) inferProfilesPipeline(confStringMap confMap) error {
 	profilesPipeline, err := Ensure[confMap](confStringMap, "service::pipelines::profiles")
 	if err != nil {
 		return err
@@ -160,6 +161,74 @@ func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) erro
 	// pipeline
 	if err := c.ensureGlobalProcessors(confStringMap); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (c *converterWithAgent) inferMetricsPipeline(conf confMap) error {
+	metricsPipeline, err := Ensure[confMap](conf, "service::pipelines::metrics")
+	if err != nil {
+		return err
+	}
+
+	if len(metricsPipeline) > 0 {
+		log.Info("Metrics pipeline already configured, skipping inference")
+		return nil
+	}
+
+	Set(conf, "receivers::otlp", confMap{
+		"protocols": confMap{
+			"grpc": nil,
+			"http": nil,
+		},
+	})
+	metricsPipeline["receivers"] = []any{"otlp"}
+
+	Set(conf, "processors::"+defaultCumulativeToDeltaName, confMap{})
+	processorNames := []any{defaultCumulativeToDeltaName}
+	profileProcessors, _ := Get[[]any](conf, "service::pipelines::profiles::processors")
+	for _, processor := range profileProcessors {
+		if isComponentType(processor.(string), "infraattributes") {
+			processorNames = append(processorNames, processor)
+		}
+	}
+	metricsPipeline["processors"] = processorNames
+
+	exporterNames := []any{}
+	profileExporters, _ := Get[[]any](conf, "service::pipelines::profiles::exporters")
+	for _, exporter := range profileExporters {
+		exporterString := exporter.(string)
+
+		if isComponentType(exporterString, "otlphttp") {
+			otlpHTTP, _ := Get[confMap](conf, "exporters::"+exporterString)
+			// only add properly configured exporters
+			if c.OtlpHTTPExporterHasMetricsEndpoint(otlpHTTP) {
+				exporterNames = append(exporterNames, exporter)
+			}
+		}
+	}
+	metricsPipeline["exporters"] = exporterNames
+
+	return nil
+}
+
+func (c *converterWithAgent) OtlpHTTPExporterHasMetricsEndpoint(otlpHTTP confMap) bool {
+	_, ok := otlpHTTP["metrics_endpoint"]
+	return ok
+}
+
+// Convert implements the confmap.Converter interface for converterWithAgent.
+func (c *converterWithAgent) Convert(_ context.Context, conf *confmap.Conf) error {
+	confStringMap := conf.ToStringMap()
+	if err := c.inferProfilesPipeline(confStringMap); err != nil {
+		return err
+	}
+
+	if c.params.GetGoRuntimeMetrics() {
+		if err := c.inferMetricsPipeline(confStringMap); err != nil {
+			return err
+		}
 	}
 
 	*conf = *confmap.NewFromStringMap(confStringMap)

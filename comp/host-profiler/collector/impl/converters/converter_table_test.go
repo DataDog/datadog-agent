@@ -33,6 +33,21 @@ func newMockConfig() *mockConfig {
 	}
 }
 
+// mockCollectorParams is a minimal mock of CollectorParams for testing
+type mockCollectorParams struct {
+	goRuntimeMetrics bool
+}
+
+func newMockCollectorParams(enableMetrics bool) *mockCollectorParams {
+	return &mockCollectorParams{
+		goRuntimeMetrics: enableMetrics,
+	}
+}
+
+func (m *mockCollectorParams) GetGoRuntimeMetrics() bool {
+	return m.goRuntimeMetrics
+}
+
 func (m *mockConfig) GetString(key string) string {
 	if val, ok := m.values[key]; ok {
 		if s, ok := val.(string); ok {
@@ -291,7 +306,8 @@ func TestConverterWithAgent(t *testing.T) {
 	}
 
 	mockCfg := newMockConfig()
-	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	mockParams := newMockCollectorParams(false) // Metrics pipeline disabled for these tests
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg, mockParams)
 	runSuccessTests(t, conv, tests)
 }
 
@@ -310,8 +326,29 @@ func TestConverterWithAgentErrors(t *testing.T) {
 	}
 
 	mockCfg := newMockConfig()
-	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg)
+	mockParams := newMockCollectorParams(false)
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg, mockParams)
 	runErrorTests(t, conv, tests)
+}
+
+func TestConverterWithAgentMetricsPipeline(t *testing.T) {
+	tests := []testCase{
+		{
+			name:     "creates-metrics-pipeline-when-missing",
+			provided: "agent/metrics-no-pipeline/in.yaml",
+			expected: "agent/metrics-no-pipeline/out.yaml",
+		},
+		{
+			name:     "preserves-existing-metrics-components",
+			provided: "agent/metrics-with-existing/in.yaml",
+			expected: "agent/metrics-with-existing/out.yaml",
+		},
+	}
+
+	mockCfg := newMockConfig()
+	mockParams := newMockCollectorParams(true) // Metrics pipeline enabled
+	conv := newConverterWithAgent(confmap.ConverterSettings{}, mockCfg, mockParams)
+	runSuccessTests(t, conv, tests)
 }
 
 func TestConverterWithoutAgent(t *testing.T) {
