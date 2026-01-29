@@ -71,6 +71,9 @@ type safeConfig struct {
 	existingTransformers map[string]bool
 }
 
+// GetLibType return "viper"
+func (c *safeConfig) GetLibType() string { return "viper" }
+
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
 // Callbacks are only called if the value is effectively changed.
@@ -786,11 +789,20 @@ func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	return res
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *safeConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *safeConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.RLock()
 	defer c.RUnlock()
-	return c.Viper.AllSettings(), c.sequenceID
+
+	keys := c.Viper.AllKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		val, _ := c.Viper.GetE(key)
+		settings[key] = val
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -866,7 +878,7 @@ func (c *safeConfig) GetSubfields(key string) []string {
 	c.Lock()
 	defer c.Unlock()
 
-	res := []string{}
+	var res []string
 	for _, s := range model.Sources {
 		if s == model.SourceEnvVar {
 			// Viper doesn't store env vars in the actual configSource layer, instead

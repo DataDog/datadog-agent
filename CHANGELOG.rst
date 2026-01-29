@@ -2,6 +2,245 @@
 Release Notes
 =============
 
+.. _Release Notes_7.75.1:
+
+7.75.1
+======
+
+.. _Release Notes_7.75.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-01-28
+
+- Please refer to the `7.75.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7751>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Agents are now built with Go ``1.25.6``.
+
+
+.. _Release Notes_7.75.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- GPU: fix an issue where containerd image creation could be blocked sporadically when advanced eBPF metrics are enabled
+
+- Change the Log Agent default TCP port for datadoghq.eu from the incorrect value of 10516 to the correct 443.
+
+- Resolves an issue where NetFlow metrics are submitted every 10 seconds, instead of aggregating
+  for the full interval per Source/Destination pair.
+
+
+.. _Release Notes_7.75.0:
+
+7.75.0
+======
+
+.. _Release Notes_7.75.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2026-01-21
+
+- Please refer to the `7.75.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7750>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.75.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- system-probe will now attempt to read ``datadog.yaml`` from the same directory as ``system-probe.yaml``.
+  Previously, system-probe would always use the default configuration directory to read ``datadog.yaml``.
+  If you need to specify a different directory for ``datadog.yaml``, you may use the ``--datadogcfgpath`` CLI argument to system-probe.
+
+
+.. _Release Notes_7.75.0_New Features:
+
+New Features
+------------
+
+- Added support for ``infrastructure_mode: end_user_device`` configuration option.
+  When enabled, this mode automatically activates key monitoring features tailored for 
+  end-user devices including process collection, software inventory tracking, and 
+  notable events monitoring. These settings can still be individually overridden in 
+  the configuration file if needed.
+
+- Make MSI install the DDOT OCI package via command line option.
+
+- Add a new collector that will collect all CustomResourceDefinitions on the cluster.
+
+- Add new Data Streams intake for Kafka messages
+
+- [APM] Add support for DD_APM_MODE=edge. This mode configures the Agent to receive traces from edge devices.
+
+- The datadog-agent now uses datadog-secret-backend v1.5.0 which added support for Kubernetes secrets via the Secrets API, Kubernetes file-based secrets, support for Docker secrets, and support for plaintext file secrets. 
+
+- Collect feature gate and version data as part of kubernetes api server workloadmeta collector.
+
+- Added a system battery check for macOS hosts to monitor battery health.
+
+- Added a system battery check for Windows hosts to monitor battery health.
+
+
+.. _Release Notes_7.75.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add a new ``azure_metadata_api_version`` configuration option to allow customers
+  to specify the Azure Instance Metadata Service (IMDS) API version used by the Agent.
+  The default value is now ``2021-02-01``. This setting can be configured via
+  ``azure_metadata_api_version`` in ``datadog.yaml`` or the ``DD_AZURE_METADATA_API_VERSION``
+  environment variable.
+
+- The Agent's embedded Python has been upgraded from 3.13.10 to 3.13.11
+
+- Fixed a potential race condition in the Cloud Foundry CCCache locking mechanism by replacing custom lock management with ``singleflight``. This change improves handling of concurrent cache misses.
+
+- Add the canonical version annotation to the image named
+  ``internal.apm.datadoghq.com/[lang/injector]-canonical-version``.
+  This makes it easier to track the actual version of the image
+  used in the cluster, instead of just a digest or mutable tag.
+
+- Dogstatsd named pipe on Windows is now read/writeable for everyone by default. This prevents an ``Access is denied`` error when opening a named pipe for dogstatsd server on a Windows Azure App Service Web app. Security descriptor for the named pipe can be customized via ``dogstatsd_windows_pipe_security_descriptor``.
+
+- Detect connection issue when using FQDN in agent diagnose
+
+- Agents are now built with Go ``1.25.5``.
+
+- The datadog-secret-backend now allows implicit Vault authentication to be set as a config option or an env var
+  Added a configurable max_file_read_size config option to file.yaml, file.json, & file.text to prevent OOM reads
+
+- Added Microsoft Store apps to Windows Software Inventory integration.
+
+- Added a new boolean environment variable DD_OTELCOLLECTOR_GATEWAY_MODE for precise identification of the DDOT operating mode.
+  The variable automatically configured via the Helm chart, the Operator, or set manually.
+  Acceptable string values are (case insensitive): "true", "false", "1", "0" 
+
+- The Discovery module is now enabled by default if system-probe is enabled.
+  It can be disabled by setting ``discovery.enabled: false`` in
+  ``system-probe.yaml``, or by setting the ``DD_DISCOVERY_ENABLED``
+  environment variable to ``false``.
+
+- The Agent's logger has been rewritten with a more modern library to improve
+  security and performance. No visible change is expected for users.
+  In case of issues, the previous logger can still be used by setting
+  ``log_use_slog`` to ``false`` in the Agent configuration. This configuration will
+  be removed in a future release.
+
+- Enable the orchestrator_explorer.kubelet_config_check.enabled
+  by default.
+
+- Bump OpenTelemetry Collector dependencies to v0.141.0/v1.47.0
+
+- OTLP spans describing an HTTP error without an explicit error message will now fallback
+  to one with a description, eg. "500 Internal Server Error" instead of just "500".
+  Users who relied on the error message to extract the status code should use ``http.response.status_code`` instead.
+  
+  Additionally, the error message is no longer sourced from the deprecated ``http.status_text`` attribute.
+  This behavior can be overridden by explicitly setting the span's status message.
+
+- On Windows, adds process name to live processes via file properties.
+
+- Single Step Instrumentation now uses the Python tracer major version 4 by default. Customers instrumenting Python
+  applications through SSI should review the `4.0.0 <https://github.com/DataDog/dd-trace-py/releases/tag/v4.0.0>`_
+  release notes and the `compatibility guide <https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/>`_
+  to ensure their Python applications are compatible.
+
+- Add flare support for workloadfilter component.
+
+
+.. _Release Notes_7.75.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- APM: Removed unused configuration options ``apm_config.service_writer.queue_size``, and ``apm_config.service_writer.connection_limit``. These options were already ignored.
+
+
+.. _Release Notes_7.75.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Reduced log verbosity in the aggregator by changing the log level from
+  Info to Debug for the message logged when no value is returned for a
+  check metric.
+
+- Add missing files (runtime config dump, go routines) in cluster-agent flare.
+
+- Fix small bug in Cluster Autoscaling when checking Target Hash value.
+
+- Fixed ddnpm to report TLS cipher suite and chosen TLS version.
+
+- Fixes a bug on ecs fargate where the container check on the core agent was not reporting the status of the container
+
+- Fixed incorrect ``docker.cpu.shares`` metric values on cgroups v2 systems
+  running runc >= 1.3.2 or crun >= 1.23. The new container runtimes use a
+  different formula to convert CPU shares to cgroup v2 weight, which caused
+  the Agent to report wrong values (e.g., 2597 instead of 1024 for default
+  shares). The Agent now auto-detects which conversion formula the runtime
+  uses and applies the correct inverse transformation.
+
+- Fixed ECS ARN parsing to support AWS GovCloud (``aws-us-gov``) and China (``aws-cn``) regions.
+  Previously, only the standard ``aws`` partition was accepted, causing ECS metadata extraction
+  to fail for customers running the Datadog Agent in GovCloud or China regions. This resulted
+  in empty region and account ID values, breaking ECS monitoring for these customers.
+
+- Fixed live process file descriptor resolution on Windows to use the full executable path.
+
+- Fixes a bug in the SNMP integration, where some metrics defined in an instance config were not reported.
+
+- Fixed a bug in the SNMP integration, where a custom profile's ``sysObjectIDs`` could conflict with default profiles' when defining the ``name`` field in the custom profile.
+
+- Fixes remote tagger implementation to backoff when the stream
+  is initialized but receiving events through the stream fails.
+
+- Fix SNMP Autodiscovery bug where the Agent had to be restarted to take into account new devices discovered in a subnet.
+
+- Fixes a rare crash on Windows during the Wi-Fi check when the  
+  Agent cannot find a matching Wi-Fi adapter on some computers.
+
+- Fixed ownership and permissions for the ``/opt/datadog-agent/run`` directory 
+  in Agent and Cluster Agent Docker images. This resolves permission errors 
+  encountered by Remote Configuration when running as a non-root user 
+  (UID 100), such as in AWS ECS Fargate environments.
+
+- The NTP check now submits the ``ntp.offset`` metric using the timestamp
+  returned by the NTP server rather than the local system clock. This restores
+  the behavior present in Agent v5 and prevents incorrect metric alignment
+  when host clocks are skewed.
+
+- OTLP span events recording exceptions no longer have their stack trace duplicated on the parent span.
+  This previously led to duplicate errors on the Error Tracking page.
+
+- Fixed SNMP network topology metadata where LLDP remote device IP addresses could be
+  incorrectly mapped when multiple devices shared the same remote index on different ports.
+
+
+.. _Release Notes_7.75.0_Other Notes:
+
+Other Notes
+-----------
+
+- This feature is currently in development and is protected under the feature flag:
+    ``cluster_checks.crd_collection``
+
+- For up-to-date docs, check out the secret-backend `changelog <https://github.com/DataDog/datadog-secret-backend/blob/v1/CHANGELOG.md>`_, and the Datadog Secrets Management `documentation <https://docs.datadoghq.com/agent/configuration/secrets-management/>`_
+
+- Refactored Cloud Foundry CCCache and BBSCache to use dependency injection to
+  improve tests reliability and maintainability.
+
+
 .. _Release Notes_7.74.1:
 
 7.74.1

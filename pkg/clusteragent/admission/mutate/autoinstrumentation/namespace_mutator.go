@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -30,10 +31,10 @@ type mutatorCore struct {
 	config        *Config
 	wmeta         workloadmeta.Component
 	filter        mutatecommon.MutationFilter
-	imageResolver ImageResolver
+	imageResolver imageresolver.Resolver
 }
 
-func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver ImageResolver) *mutatorCore {
+func newMutatorCore(config *Config, wmeta workloadmeta.Component, filter mutatecommon.MutationFilter, imageResolver imageresolver.Resolver) *mutatorCore {
 	return &mutatorCore{
 		config:        config,
 		wmeta:         wmeta,
@@ -95,12 +96,13 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 		for i, lib := range config.libs {
 			libs[i] = libraryinjection.LibraryConfig{
 				Language:      string(lib.lang),
-				ResolvedImage: m.resolveLibraryImage(lib),
+				Package:       m.resolveLibraryImage(lib),
 				ContainerName: lib.ctrName,
 			}
 		}
 
 		return libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
+			InjectionMode:               m.config.Instrumentation.InjectionMode,
 			DefaultResourceRequirements: m.config.defaultResourceRequirements,
 			InitSecurityContext:         m.config.initSecurityContext,
 			ContainerFilter:             m.config.containerFilter,
@@ -109,7 +111,7 @@ func (m *mutatorCore) apmInjectionMutator(config extractedPodLibInfo, autoDetect
 			AutoDetected:                autoDetected,
 			InjectionType:               injectionType,
 			Injector: libraryinjection.InjectorConfig{
-				ResolvedImage: m.resolveInjectorImage(pod),
+				Package: m.resolveInjectorImage(pod),
 			},
 			Libraries: libs,
 		})
@@ -127,10 +129,10 @@ func (m *mutatorCore) isDebugEnabled(pod *corev1.Pod) bool {
 }
 
 // resolveInjectorImage determines the injector image to use based on configuration and pod annotations.
-func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.ResolvedImage {
+func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.LibraryImage {
 	// Check for the injector image being set via annotation (highest priority)
 	if injectorImage, found := annotation.Get(pod, annotation.InjectorImage); found {
-		return libraryinjection.ResolvedImage{Image: injectorImage}
+		return libraryinjection.NewLibraryImageFromFullRef(injectorImage, "")
 	}
 
 	// Check for the injector version set via annotation
@@ -143,33 +145,26 @@ func (m *mutatorCore) resolveInjectorImage(pod *corev1.Pod) libraryinjection.Res
 	if m.imageResolver != nil {
 		if resolved, ok := m.imageResolver.Resolve(m.config.containerRegistry, "apm-inject", injectorTag); ok {
 			log.Debugf("Resolved injector image for %s/apm-inject:%s: %s", m.config.containerRegistry, injectorTag, resolved.FullImageRef)
-			return libraryinjection.ResolvedImage{
-				Image:            resolved.FullImageRef,
-				CanonicalVersion: resolved.CanonicalVersion,
-			}
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
 		}
 	}
 
 	// Fall back to tag-based image
-	return libraryinjection.ResolvedImage{
-		Image: fmt.Sprintf("%s/apm-inject:%s", m.config.containerRegistry, injectorTag),
-	}
+	fullRef := fmt.Sprintf("%s/apm-inject:%s", m.config.containerRegistry, injectorTag)
+	return libraryinjection.NewLibraryImageFromFullRef(fullRef, "")
 }
 
 // resolveLibraryImage resolves the library image using the imageResolver if available.
 // Falls back to the pre-formatted image if resolution fails.
-func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.ResolvedImage {
+func (m *mutatorCore) resolveLibraryImage(lib libInfo) libraryinjection.LibraryImage {
 	if m.imageResolver != nil {
 		if resolved, ok := m.imageResolver.Resolve(lib.registry, lib.repository, lib.tag); ok {
 			log.Debugf("Resolved library image for %s/%s:%s: %s", lib.registry, lib.repository, lib.tag, resolved.FullImageRef)
-			return libraryinjection.ResolvedImage{
-				Image:            resolved.FullImageRef,
-				CanonicalVersion: resolved.CanonicalVersion,
-			}
+			return libraryinjection.NewLibraryImageFromFullRef(resolved.FullImageRef, resolved.CanonicalVersion)
 		}
 	}
 	// Fall back to pre-formatted image
-	return libraryinjection.ResolvedImage{Image: lib.image}
+	return libraryinjection.NewLibraryImageFromFullRef(lib.image, "")
 }
 
 // libConfigFromAnnotationsMutator returns a mutator that reads library configuration

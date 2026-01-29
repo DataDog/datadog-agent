@@ -23,6 +23,7 @@ updates:
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
     groups:
       franz-go:
@@ -58,6 +59,7 @@ updates:
       - dependency-name: github.com/open-telemetry/opentelemetry-collector-contrib/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/gohai
@@ -75,6 +77,7 @@ updates:
       - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/obfuscate
@@ -92,6 +95,7 @@ updates:
       - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /pkg/security/secl
@@ -107,6 +111,7 @@ updates:
       - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /internal/tools
@@ -132,7 +137,7 @@ updates:
     labels:
       - dependencies
       - dependencies-go
-      - team/network-device-monitoring
+      - team/ndm-core
       - changelog/no-changelog
     ignore:
       # Ignore internal modules
@@ -141,6 +146,7 @@ updates:
       - dependency-name: golang.org/x/*
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/new-e2e
@@ -171,6 +177,7 @@ updates:
 
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: gomod
     directory: /test/fakeintake
@@ -183,6 +190,7 @@ updates:
       - dev/testing
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
     ignore:
       # Ignore golang.org/x/... deps to avoid noise, they are updated together, pretty regularly
@@ -197,6 +205,7 @@ updates:
       - dev/testing
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: github-actions
     directory: /
@@ -209,6 +218,7 @@ updates:
       - dev/tooling
     schedule:
       interval: weekly
+      day: saturday
     open-pull-requests-limit: 100
   - package-ecosystem: maven
     directory: Dockerfiles/agent/bouncycastle-fips
@@ -218,6 +228,7 @@ updates:
       - changelog/no-changelog
     schedule:
       interval: weekly
+      day: saturday
     ignore:
       - dependency-name: org.bouncycaslte:*
         # Ignore preview versions

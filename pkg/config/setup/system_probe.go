@@ -61,16 +61,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_thp", true)
 
-	// SBOM configuration
-	cfg.BindEnvAndSetDefault("sbom.host.enabled", false)
-	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
-	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
-	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.base_backoff", "5m")
-	cfg.BindEnvAndSetDefault("sbom.scan_queue.max_backoff", "1h")
-
 	// Auto exit configuration
 	cfg.BindEnvAndSetDefault("auto_exit.validation_period", 60)
 	cfg.BindEnvAndSetDefault("auto_exit.noprocess.enabled", false)
@@ -94,7 +84,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 	cfg.BindEnvAndSetDefault("disable_file_logging", false)
 	cfg.BindEnvAndSetDefault("log_format_rfc3339", false)
-	cfg.BindEnvAndSetDefault("log_use_slog", true)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -209,6 +198,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.collect_dns_domains", true, "DD_COLLECT_DNS_DOMAINS")
 	cfg.BindEnvAndSetDefault("system_probe_config.max_dns_stats", 20000)
 	cfg.BindEnvAndSetDefault("system_probe_config.dns_timeout_in_s", 15)
+	cfg.BindEnvAndSetDefault("network_config.dns_monitoring_ports", []int{53})
 
 	cfg.BindEnvAndSetDefault("system_probe_config.enable_conntrack", true)
 	cfg.BindEnvAndSetDefault("system_probe_config.conntrack_max_state_size", 65536*2)

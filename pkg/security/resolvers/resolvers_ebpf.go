@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/envvars"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/file"
@@ -42,7 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
@@ -53,7 +51,6 @@ import (
 type EBPFResolvers struct {
 	manager              *manager.Manager
 	MountResolver        mount.ResolverInterface
-	ContainerResolver    *container.Resolver
 	TimeResolver         *ktime.Resolver
 	UserGroupResolver    *usergroup.Resolver
 	TagsResolver         *tags.LinuxResolver
@@ -102,7 +99,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		}
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil)
+	cgroupsResolver, err := cgroup.NewResolver(statsdClient, nil, dentryResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +154,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		mountResolver = &mount.NoOpResolver{}
 		pathResolver = &path.NoOpResolver{}
 	}
-	containerResolver := container.New()
 
 	processOpts := process.NewResolverOpts()
 	processOpts.WithEnvsValue(config.Probe.EnvsWithValue)
@@ -182,7 +178,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
-		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
+		scrubber, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, envVarsResolver, processOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +187,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize)
+	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize, config.RuntimeSecurity.SSHUserSessionsEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +200,6 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	resolvers := &EBPFResolvers{
 		manager:                manager,
 		MountResolver:          mountResolver,
-		ContainerResolver:      containerResolver,
 		TimeResolver:           timeResolver,
 		UserGroupResolver:      userGroupResolver,
 		TagsResolver:           tagsResolver,
@@ -256,26 +251,6 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
-}
-
-// ResolveCGroupContext resolves the cgroup context from a cgroup path key
-func (r *EBPFResolvers) ResolveCGroupContext(pathKey model.PathKey) (*model.CGroupContext, bool, error) {
-	if cgroupContext, found := r.CGroupResolver.GetCGroupContext(pathKey); found {
-		return cgroupContext, true, nil
-	}
-
-	cgroup, err := r.DentryResolver.Resolve(pathKey, false)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to resolve cgroup file %v: %w", pathKey, err)
-	}
-
-	cgroupContext := &model.CGroupContext{
-		Releasable: &model.Releasable{},
-		CGroupID:   containerutils.CGroupID(cgroup),
-		CGroupFile: pathKey,
-	}
-
-	return cgroupContext, false, nil
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.

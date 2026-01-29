@@ -254,14 +254,14 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
+  dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
     dependency "datadog-agent"
   else
     dependency "package-artifact"
   end
-  dependency "init-scripts-agent"
-  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
@@ -282,10 +282,6 @@ end
 
 # all flavors use the same package scripts
 if linux_target?
-  if do_build && !do_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
-  end
   if do_package
     if debian_target?
       package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
