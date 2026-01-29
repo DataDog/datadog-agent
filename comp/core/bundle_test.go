@@ -10,11 +10,11 @@ import (
 
 	"go.uber.org/fx"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
-	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
-	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
