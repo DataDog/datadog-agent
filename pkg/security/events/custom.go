@@ -83,6 +83,11 @@ const (
 	FailedDNSRuleID = "failed_dns"
 	// FailedDNSRuleDesc is the rule description for raw packet action events
 	FailedDNSRuleDesc = "Failed DNS"
+
+	// SlowEventProcessingRuleID is the rule ID for events that took too long to process
+	SlowEventProcessingRuleID = "slow_event_processing"
+	// SlowEventProcessingRuleDesc is the rule description for slow event processing reports
+	SlowEventProcessingRuleDesc = "Slow event processing"
 )
 
 // AgentContainerContext is like model.ContainerContext, but without event based resolvers
@@ -108,7 +113,10 @@ func (commonFields *CustomEventCommonFields) FillCustomEventCommonFields(acc *Ag
 // NewCustomRule returns a new custom rule
 func NewCustomRule(id eval.RuleID, description string) *rules.Rule {
 	return &rules.Rule{
-		Rule: &eval.Rule{ID: id},
+		Rule: &eval.Rule{
+			ID:   id,
+			Opts: &eval.Opts{},
+		},
 		PolicyRule: &rules.PolicyRule{
 			Def: &rules.RuleDefinition{ID: id, Description: description},
 		},
@@ -128,7 +136,21 @@ func AllCustomRuleIDs() []string {
 		SysCtlSnapshotRuleID,
 		FailedDNSRuleID,
 		RemediationStatusRuleID,
+		SlowEventProcessingRuleID,
 	}
+}
+
+// NewSlowEventProcessingRule returns a custom rule that will be reported to the backend with:
+// - agent.rule_id == SlowEventProcessingRuleID
+// - agent.original_rule_id == originalRuleID
+func NewSlowEventProcessingRule(originalRuleID, originalRuleVersion string) *rules.Rule {
+	r := NewCustomRule(SlowEventProcessingRuleID, SlowEventProcessingRuleDesc)
+	if r.Def != nil {
+		r.Def.ID = originalRuleID
+		r.Def.GroupID = SlowEventProcessingRuleID
+		r.Def.Version = originalRuleVersion
+	}
+	return r
 }
 
 func AllSecInfoRuleIDs() []string {
