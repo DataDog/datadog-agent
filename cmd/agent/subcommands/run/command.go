@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -72,6 +73,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamfx "github.com/DataDog/datadog-agent/comp/core/configstream/fx"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -224,6 +226,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			secretsfx.Module(),
+			delegatedauthfx.Module(),
 			fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 			logging.EnableFxLoggingOnDebug[log.Component](),
 			fxinstrumentation.Module(),
@@ -300,6 +303,7 @@ func run(log log.Component,
 	_ healthplatform.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	delegatedAuthComp delegatedauth.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 ) error {
@@ -362,6 +366,7 @@ func run(log log.Component,
 		agenttelemetryComponent,
 		hostname,
 		ipc,
+		delegatedAuthComp,
 		snmpScanManager,
 		traceroute,
 	); err != nil {
@@ -586,6 +591,7 @@ func startAgent(
 	agenttelemetryComponent agenttelemetry.Component,
 	hostname hostnameinterface.Component,
 	ipc ipc.Component,
+	_ delegatedauth.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 ) error {

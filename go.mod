@@ -200,7 +200,7 @@ require (
 	github.com/bhmj/jsonslice v1.1.3
 	github.com/blabber/go-freebsd-sysctl v0.0.0-20201130114544-503969f39d8f
 	github.com/cenkalti/backoff/v5 v5.0.3
-	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
+	github.com/cihub/seelog v2.0.0-20151216151435-d2c6e5aa9fbf+incompatible
 	github.com/cilium/ebpf v0.20.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/cloudflare/cbpfc v0.0.0-20240920015331-ff978e94500b
@@ -260,7 +260,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/hectane/go-acl v0.0.0-20230122075934-ca0b05cb1adb
+	github.com/hectane/go-acl v0.0.0-20230225031251-cdfc9e3acf94
 	github.com/iceber/iouring-go v0.0.0-20230403020409-002cfd2e2a90
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
@@ -959,6 +959,10 @@ require (
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.4.0
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def v0.0.0
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl v0.0.0
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl v0.0.0-00010101000000-000000000000
@@ -1034,9 +1038,14 @@ require (
 	github.com/Azure/go-autorest/autorest/azure/cli v0.4.6 // indirect
 	github.com/Azure/go-autorest/autorest/to v0.4.0 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/Jeffail/gabs/v2 v2.1.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
@@ -1253,6 +1262,14 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/impl => ./comp/core/agenttelemetry/impl
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config
 	github.com/DataDog/datadog-agent/comp/core/configsync => ./comp/core/configsync
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api => ./comp/core/delegatedauth/api
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth => ./comp/core/delegatedauth/api/cloudauth
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/common => ./comp/core/delegatedauth/common
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/def => ./comp/core/delegatedauth/def
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx => ./comp/core/delegatedauth/fx
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl => ./comp/core/delegatedauth/impl
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock => ./comp/core/delegatedauth/mock
+	github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl => ./comp/core/delegatedauth/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ./comp/core/hostname/hostnameinterface
@@ -1376,6 +1393,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ./pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ./pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ./pkg/trace/traceutil
+	github.com/DataDog/datadog-agent/pkg/util/aws/creds => ./pkg/util/aws/creds
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache

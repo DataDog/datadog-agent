@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
@@ -201,6 +202,7 @@ func experimentFxWrapper(f interface{}, params *cliParams) error {
 		core.Bundle(),
 		hostnameimpl.Module(),
 		secretsfx.Module(),
+		delegatedauthfx.Module(),
 		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
@@ -51,6 +52,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot("PRIV-ACTION", "info", true)}),
 				core.Bundle(),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{

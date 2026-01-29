@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,7 +42,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		t.Skip("TestStartDoesNotBlock is known to fail on the macOS Gitlab runners because of the already running Agent")
 	}
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	metricAgent := &ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 10,
 		Tagger:               nooptagger.NewComponent(),
@@ -86,7 +87,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 
 func TestRaceFlushVersusParsePacket(t *testing.T) {
 	mockConfig := configmock.New(t)
-	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), nil)
+	pkgconfigsetup.LoadDatadog(mockConfig, secretsmock.New(t), delegatedauthmock.New(t), nil)
 	mockConfig.SetDefault("dogstatsd_port", listeners.RandomPortName)
 
 	demux, err := aggregator.InitAndStartServerlessDemultiplexer(nil, time.Second*1000, nooptagger.NewComponent(), false)
