@@ -9,6 +9,8 @@ def _replace_prefix_impl(ctx):
     prefix = ctx.attr.prefix
     if not prefix:
         prefix = "{}/embedded".format(ctx.attr._install_dir[BuildSettingInfo].value)
+    if ctx.attr.os == "unsupported":
+        return DefaultInfo(files = depset([input]))
     processed_file = ctx.actions.declare_file("patched/" + input.basename)
     if ctx.attr.os == "linux":
         ctx.actions.run(
@@ -62,6 +64,7 @@ def rewrite_rpath(name, input, prefix = None):
         tool = select({
             "@platforms//os:linux": "@patchelf",
             "@platforms//os:macos": "@@//bazel/rules:rewrite_rpath/macos.sh",
+            "//conditions:default": None,
         }),
         os = select({
             "@platforms//os:linux": "linux",
