@@ -188,6 +188,7 @@ func NewConfig() (*Config, error) {
 		EnableAllProbes:                    getBool("enable_all_probes"),
 		EnableKernelFilters:                getBool("enable_kernel_filters"),
 		EnableApprovers:                    getBool("enable_approvers"),
+		EnableDiscarders:                   getBool("enable_discarders"),
 		FlushDiscarderWindow:               getInt("flush_discarder_window"),
 		PIDCacheSize:                       getInt("pid_cache_size"),
 		StatsTagsCardinality:               getString("events_stats.tags_cardinality"),
