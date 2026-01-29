@@ -7,6 +7,8 @@ from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import create_tree, get_current_branch, get_default_branch
 
+# test
+
 
 @task
 def check_protected_branch(ctx: Context) -> None:
@@ -16,22 +18,26 @@ def check_protected_branch(ctx: Context) -> None:
     if local_branch == get_default_branch():
         print(
             color_message(
-                f"You're about to commit or push to {get_default_branch()}, are you sure this is what you want?", "red"
+                f"You're about to commit or push to {get_default_branch()}, are you sure this is what you want?",
+                "red",
             )
         )
         raise Exit(code=1)
 
-    if re.fullmatch(r'^[0-9]+\.[0-9]+\.x$', local_branch):
+    if re.fullmatch(r"^[0-9]+\.[0-9]+\.x$", local_branch):
         print(
             color_message(
-                "You're about to commit or push to a release branch, are you sure this is what you want?", "red"
+                "You're about to commit or push to a release branch, are you sure this is what you want?",
+                "red",
             )
         )
         raise Exit(code=1)
 
 
 @task
-def push_signed_commits(ctx: Context, branch: str, commit_message: str, source_branch: str | None = None) -> None:
+def push_signed_commits(
+    ctx: Context, branch: str, commit_message: str, source_branch: str | None = None
+) -> None:
     """Create a tree from local stage changes, commit and push using API to get signed commits from bots.
 
     Args:
