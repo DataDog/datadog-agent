@@ -605,6 +605,9 @@ workflow:
   - <<: *if_windows_installer_changes
     when: never
 
+.if_not_skip_windows_e2e: &if_not_skip_windows_e2e
+  if: $SKIP_WINDOWS_E2E_TESTS != "true"
+
 .system_probe_change_paths: &system_probe_change_paths
   - cmd/system-probe/**/*
   - pkg/collector/corechecks/ebpf/**/*

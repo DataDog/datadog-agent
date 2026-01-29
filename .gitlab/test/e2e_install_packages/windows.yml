@@ -7,9 +7,6 @@
   extends:
     - .new_e2e_template
   before_script:
-    # Check if only we are only changing linux specific omnibus files.
-    # (jobs using .on_e2e_or_windows_installer_changes need this check)
-    - !reference [.check_linux_only_omnibus_files]
     # WINDOWS_AGENT_VERSION is used to verify the installed agent version
     # Must run before new_e2e_template changes the aws profile
     - WINDOWS_AGENT_VERSION=$(dda inv agent.version) || exit $?; export WINDOWS_AGENT_VERSION
@@ -86,6 +83,8 @@ new-e2e-windows-agent-msi-windows-server-a7-x86_64:
     - .new-e2e_windows_installer_v7_tests
   rules:
     - !reference [.on_deploy]
+    - if: $SKIP_WINDOWS_E2E_TESTS == "true"
+      when: never
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
   timeout: 1h15m
@@ -100,6 +99,8 @@ new-e2e-windows-agent-domain-tests-a7-x86_64:
     - deploy_windows_testing-a7
   rules:
     - !reference [.on_deploy]
+    - if: $SKIP_WINDOWS_E2E_TESTS == "true"
+      when: never
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
   timeout: 1h15m
@@ -124,6 +125,8 @@ new-e2e-windows-agent-a7-x86_64-fips:
       - EXTRA_PARAMS: --run "TestAgentDoesNotInstallOverFIPSAgent$"
   rules:
     - !reference [.on_deploy]
+    - if: $SKIP_WINDOWS_E2E_TESTS == "true"
+      when: never
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
   timeout: 1h15m
@@ -159,10 +162,11 @@ new-e2e-windows-ddot-package-a7-x86_64:
   before_script:
     - CURRENT_AGENT_VERSION=$(dda inv agent.version) || exit $?; export CURRENT_AGENT_VERSION
     - CURRENT_AGENT_VERSION_PACKAGE=$(dda inv agent.version --url-safe)-1 || exit $?; export CURRENT_AGENT_VERSION_PACKAGE
-    - !reference [.check_linux_only_omnibus_files]
     - !reference [.new_e2e_template, before_script]
   rules:
     - !reference [.on_deploy]
+    - if: $SKIP_WINDOWS_E2E_TESTS == "true"
+      when: never
     - !reference [.on_e2e_or_windows_installer_changes]
     - !reference [.manual]
   timeout: 45m
