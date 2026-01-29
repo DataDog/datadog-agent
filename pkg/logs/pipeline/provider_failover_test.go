@@ -52,8 +52,8 @@ func createMockSender() sender.PipelineComponent {
 	inputChan := make(chan *message.Payload, 100)
 	// Start a goroutine to consume payloads so tests don't block
 	go func() {
-		for range inputChan {
-			// Discard payloads
+		for payload := range inputChan {
+			_ = payload // Discard payloads
 		}
 	}()
 	return &mockSender{
@@ -366,7 +366,7 @@ func TestMultipleTailersWithFailover(t *testing.T) {
 
 	done := make(chan struct{})
 	for tailerID := 0; tailerID < numTailers; tailerID++ {
-		go func(id int) {
+		go func(_ int) {
 			defer func() { done <- struct{}{} }()
 
 			routerChan := p.NextPipelineChan()
