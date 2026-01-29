@@ -2088,6 +2088,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 	// If true, exclude agent processes from process log collection
 	config.BindEnvAndSetDefault("logs_config.process_exclude_agent", false)
+
+	// Failover configuration. If true, pipeline failover will be enabled
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover_enabled", false)
+	config.BindEnvAndSetDefault("logs_config.pipeline_failover_timeout_ms", 10)
 }
 
 // vector integration
