@@ -5,7 +5,7 @@
 
 //go:build cel
 
-package autodiscoveryimpl
+package integration
 
 import (
 	"testing"
@@ -44,7 +44,7 @@ func TestCreateMatchingProgram_EmptyRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
 			assert.Nil(t, program)
 			assert.Empty(t, celADID)
 			assert.NoError(t, compileErr)
@@ -104,7 +104,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
 			assert.NotNil(t, program)
 			assert.NotEmpty(t, celADID)
 			assert.NoError(t, compileErr)
@@ -165,7 +165,7 @@ func TestCreateMatchingProgram_RecommendationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
 			// The function should return a program but with a recommendation error
 			assert.NotNil(t, program)
 			assert.NotEmpty(t, celADID)
@@ -210,7 +210,7 @@ func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := createMatchingProgram(tt.rules)
+			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
 			assert.NotNil(t, program)
 			assert.NotEmpty(t, celADID)
 			assert.NoError(t, compileErr)
