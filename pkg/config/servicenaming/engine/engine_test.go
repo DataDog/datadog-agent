@@ -345,3 +345,37 @@ func TestCreateCELEnvironment(t *testing.T) {
 	require.Nil(t, issues.Err())
 	assert.NotNil(t, ast)
 }
+
+// TestEvaluate_RuntimeTypeMismatch tests that when a value expression returns a non-string
+// (e.g., a map via DynType), the rule is skipped and logged, not crashed.
+func TestEvaluate_RuntimeTypeMismatch(t *testing.T) {
+	// This compiles as DynType (container['labels'] can be anything)
+	// but at runtime returns map[string]string, not string
+	eng, err := NewEngine([]Rule{
+		{
+			Name:  "type-mismatch-rule",
+			Query: "true",                // Always matches
+			Value: "container['labels']", // Returns map, not string
+		},
+		{
+			Name:  "fallback-rule",
+			Query: "true",
+			Value: "'fallback-service'",
+		},
+	})
+	require.NoError(t, err)
+
+	input := CELInput{
+		Container: map[string]any{
+			"name":   "test",
+			"labels": map[string]string{"app": "myapp"}, // Map, not string
+		},
+	}
+
+	// First rule should fail runtime type check and be skipped
+	// Fallback should be returned
+	result := eng.Evaluate(input)
+	require.NotNil(t, result)
+	assert.Equal(t, "fallback-service", result.ServiceName)
+	assert.Equal(t, "fallback-rule", result.MatchedRule)
+}

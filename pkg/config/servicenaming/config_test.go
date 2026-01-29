@@ -331,6 +331,74 @@ func TestLoadFromReader_InvalidQuery(t *testing.T) {
 	assert.Contains(t, err.Error(), "compilation error")
 }
 
+// TestLoadFromReader_DisabledSkipsValidation tests that validation is skipped when disabled.
+// This ensures invalid rules in disabled config don't block agent startup.
+func TestLoadFromReader_DisabledSkipsValidation(t *testing.T) {
+	cfg := &mockConfigReader{
+		values: map[string]interface{}{
+			"service_discovery.enabled": false,
+			"service_discovery.service_definitions": []interface{}{
+				map[string]interface{}{
+					"query": "invalid syntax {{{", // This would fail validation if enabled
+					"value": "'test'",
+				},
+			},
+		},
+	}
+
+	// Should succeed because validation is skipped when disabled
+	config, err := loadFromReader(cfg)
+	require.NoError(t, err)
+	assert.False(t, config.Enabled)
+	assert.Len(t, config.ServiceDefinitions, 1)
+}
+
+// TestLoadFromReader_SliceOfMapsStringInterface tests handling of []map[string]interface{} input
+func TestLoadFromReader_SliceOfMapsStringInterface(t *testing.T) {
+	// Some config sources may return []map[string]interface{} instead of []interface{}
+	cfg := &mockConfigReader{
+		values: map[string]interface{}{
+			"service_discovery.enabled": true,
+			"service_discovery.service_definitions": []map[string]interface{}{
+				{
+					"name":  "rule1",
+					"query": "true",
+					"value": "'service1'",
+				},
+			},
+		},
+	}
+
+	config, err := loadFromReader(cfg)
+	require.NoError(t, err)
+	assert.True(t, config.Enabled)
+	assert.Len(t, config.ServiceDefinitions, 1)
+	assert.Equal(t, "rule1", config.ServiceDefinitions[0].Name)
+}
+
+// TestLoadFromReader_SliceOfMapsInterfaceInterface tests handling of []map[interface{}]interface{} input
+func TestLoadFromReader_SliceOfMapsInterfaceInterface(t *testing.T) {
+	// YAML parsers can produce []map[interface{}]interface{} in some cases
+	cfg := &mockConfigReader{
+		values: map[string]interface{}{
+			"service_discovery.enabled": true,
+			"service_discovery.service_definitions": []map[interface{}]interface{}{
+				{
+					"name":  "rule2",
+					"query": "true",
+					"value": "'service2'",
+				},
+			},
+		},
+	}
+
+	config, err := loadFromReader(cfg)
+	require.NoError(t, err)
+	assert.True(t, config.Enabled)
+	assert.Len(t, config.ServiceDefinitions, 1)
+	assert.Equal(t, "rule2", config.ServiceDefinitions[0].Name)
+}
+
 // Helper function to create temporary YAML file
 func createTempFile(t *testing.T, content string) string {
 	tmpdir := t.TempDir()

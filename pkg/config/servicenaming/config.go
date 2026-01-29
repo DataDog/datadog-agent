@@ -75,6 +75,12 @@ func loadFromReader(cfg configReader) (*AgentServiceDiscoveryConfig, error) {
 		config.ServiceDefinitions = defs
 	}
 
+	// Skip validation when disabled to avoid blocking agent startup
+	// with syntax errors in unused configuration
+	if !config.Enabled {
+		return config, nil
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -83,17 +89,23 @@ func loadFromReader(cfg configReader) (*AgentServiceDiscoveryConfig, error) {
 }
 
 // parseServiceDefinitions converts the raw config value to typed ServiceDefinition slice.
+// Handles various slice types that config sources may produce:
+// - []interface{} (common from YAML unmarshaling)
+// - []map[string]interface{} (common from programmatic sources)
+// - []map[interface{}]interface{} (can occur with some YAML parsers)
 func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
-	slice, ok := raw.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("expected array, got %T", raw)
+	// Normalize different slice types to []interface{}
+	slice, err := normalizeSlice(raw)
+	if err != nil {
+		return nil, err
 	}
 
 	defs := make([]ServiceDefinition, 0, len(slice))
 	for i, item := range slice {
-		m, ok := item.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("service_definitions[%d]: expected map, got %T", i, item)
+		// Convert map to uniform type (handles both map[string]interface{} and map[interface{}]interface{})
+		m, err := toStringMap(item)
+		if err != nil {
+			return nil, fmt.Errorf("service_definitions[%d]: %w", i, err)
 		}
 
 		def := ServiceDefinition{}
@@ -123,6 +135,50 @@ func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 	return defs, nil
 }
 
+// normalizeSlice converts various slice types to []interface{}.
+// Handles []interface{}, []map[string]interface{}, and []map[interface{}]interface{}.
+func normalizeSlice(raw interface{}) ([]interface{}, error) {
+	switch s := raw.(type) {
+	case []interface{}:
+		return s, nil
+	case []map[string]interface{}:
+		result := make([]interface{}, len(s))
+		for i, v := range s {
+			result[i] = v
+		}
+		return result, nil
+	case []map[interface{}]interface{}:
+		result := make([]interface{}, len(s))
+		for i, v := range s {
+			result[i] = v
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("expected array, got %T", raw)
+	}
+}
+
+// toStringMap converts a map to map[string]interface{}, handling both
+// map[string]interface{} and map[interface{}]interface{} (YAML unmarshaling returns the latter).
+func toStringMap(v interface{}) (map[string]interface{}, error) {
+	switch m := v.(type) {
+	case map[string]interface{}:
+		return m, nil
+	case map[interface{}]interface{}:
+		result := make(map[string]interface{}, len(m))
+		for k, val := range m {
+			keyStr, ok := k.(string)
+			if !ok {
+				return nil, fmt.Errorf("expected string key, got %T", k)
+			}
+			result[keyStr] = val
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("expected map, got %T", v)
+	}
+}
+
 // LoadAgentConfig loads the agent-level service discovery configuration from a YAML file.
 // Deprecated: Use LoadFromAgentConfig instead, which integrates with the agent's config system.
 // This function is kept for backward compatibility and testing.
@@ -144,6 +200,13 @@ func LoadAgentConfig(path string) (*AgentServiceDiscoveryConfig, error) {
 	}
 
 	config := &wrapper.ServiceDiscovery
+
+	// Skip validation when disabled to avoid blocking agent startup
+	// with syntax errors in unused configuration
+	if !config.Enabled {
+		return config, nil
+	}
+
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}

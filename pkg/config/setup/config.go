@@ -1078,6 +1078,8 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.host.additional_directories", []string{})
 
 	// Service discovery configuration
+	config.BindEnvAndSetDefault("service_discovery.enabled", false)
+	config.BindEnvAndSetDefault("service_discovery.service_definitions", []interface{}{})
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
 	// Orchestrator Explorer - process agent

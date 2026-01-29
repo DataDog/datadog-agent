@@ -619,6 +619,16 @@ type ContainerProbe struct {
 	InitialDelaySeconds int32
 }
 
+// CELServiceDiscovery contains service discovery information computed by CEL rules.
+// This is populated by the servicenaming subscriber when CEL-based service naming is enabled.
+type CELServiceDiscovery struct {
+	// ServiceName is the computed service name from CEL rules
+	ServiceName string
+
+	// MatchedRule is the name or index of the rule that matched (for debugging)
+	MatchedRule string
+}
+
 // Container is an Entity representing a containerized workload.
 type Container struct {
 	EntityID
@@ -657,6 +667,10 @@ type Container struct {
 	// Linux only.
 	CgroupPath   string
 	RestartCount int
+
+	// CELServiceDiscovery contains the service name computed by CEL-based service naming rules.
+	// Populated by the servicenaming subscriber when enabled. Nil if not computed.
+	CELServiceDiscovery *CELServiceDiscovery
 }
 
 // GetID implements Entity#GetID.
@@ -754,6 +768,14 @@ func (c Container) String(verbose bool) string {
 
 	if c.ECSContainer != nil {
 		_, _ = fmt.Fprint(&sb, c.ECSContainer.String(verbose))
+	}
+
+	if c.CELServiceDiscovery != nil {
+		_, _ = fmt.Fprintln(&sb, "----------- CEL Service Discovery -----------")
+		_, _ = fmt.Fprintln(&sb, "Service Name:", c.CELServiceDiscovery.ServiceName)
+		if verbose {
+			_, _ = fmt.Fprintln(&sb, "Matched Rule:", c.CELServiceDiscovery.MatchedRule)
+		}
 	}
 
 	return sb.String()
