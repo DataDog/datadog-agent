@@ -13,8 +13,6 @@ import (
 	"testing"
 
 	"go.uber.org/atomic"
-
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
 var ruleID = atomic.NewInt32(0)
@@ -37,9 +35,7 @@ func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
 		ruleID.Inc()
 	}
 
-	pc := ast.NewParsingContext(false)
-
-	if err := rs.AddRules(pc, rules); err != nil {
+	if err := rs.AddRules(rules); err != nil {
 		t.Fatal(err)
 	}
 }

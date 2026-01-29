@@ -2,14 +2,14 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-VERSION = "1.4.2"
+VERSION = "1.4.3"
 
 http_archive(
     name = "openscap",
     files = {
         "BUILD.bazel": "//deps/openscap:overlay/overlay.BUILD.bazel",
     },
-    sha256 = "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d",
+    sha256 = "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba",
     strip_prefix = "openscap-{version}".format(version = VERSION),
     url = "https://github.com/OpenSCAP/openscap/releases/download/{version}/openscap-{version}.tar.gz".format(version = VERSION),
 )

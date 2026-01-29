@@ -4,12 +4,12 @@
 # Copyright 2016-present Datadog, Inc.
 
 name 'openscap'
-default_version '1.4.2'
+default_version '1.4.3'
 
 license "LGPL-3.0-or-later"
 license_file "COPYING"
 
-version("1.4.2") { source sha256: "1d5309fadd9569190289d7296016dc534594f7f7d4fd870fe9e847e24940073d" }
+version("1.4.3") { source sha256: "96ebe697aafc83eb297a8f29596d57319278112467c46e6aaf3649b311cf8fba" }
 
 ship_source_offer true
 
@@ -74,6 +74,7 @@ build do
   patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
   patch source: "sysctl-probe-offline-skip.patch", env: env # skip sysctl probe in offline mode
   patch source: "probes-no-procfs.patch", env: env # handle systems with no procfs available
+  patch source: "dpkginfo-virtual-packages-revert.patch", env: env # revert handling of virtual packages in dpkginfo probe
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
