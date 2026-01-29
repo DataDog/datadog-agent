@@ -7,6 +7,8 @@ package com_datadoghq_networkpath
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,10 +38,48 @@ type GetNetworkPathInputs struct {
 	MaxTTL             uint8             `json:"maxTtl,omitempty"`
 	Protocol           payload.Protocol  `json:"protocol,omitempty"`
 	TCPMethod          payload.TCPMethod `json:"tcpMethod,omitempty"`
-	Timeout            time.Duration     `json:"timeout,omitempty"`
+	Timeout            JSONDuration      `json:"timeout,omitempty"`
 	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
 	E2eQueries         int               `json:"e2eQueries,omitempty"`
 	Namespace          string            `json:"namespace,omitempty"`
+}
+
+type JSONDuration time.Duration
+
+func (d *JSONDuration) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 || string(data) == "null" {
+		return nil
+	}
+	if data[0] == '"' {
+		var value string
+		if err := json.Unmarshal(data, &value); err != nil {
+			return err
+		}
+		if value == "" {
+			return nil
+		}
+		parsed, err := time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		*d = JSONDuration(parsed)
+		return nil
+	}
+
+	var number json.Number
+	if err := json.Unmarshal(data, &number); err != nil {
+		return err
+	}
+	value, err := number.Int64()
+	if err != nil {
+		floatValue, floatErr := number.Float64()
+		if floatErr != nil {
+			return err
+		}
+		value = int64(floatValue)
+	}
+	*d = JSONDuration(time.Duration(value) * time.Millisecond)
+	return nil
 }
 
 func (h *GetNetworkPathHandler) Run(
@@ -48,7 +88,7 @@ func (h *GetNetworkPathHandler) Run(
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
 	if h.traceroute == nil {
-		return nil, fmt.Errorf("traceroute component is not available")
+		return nil, errors.New("traceroute component is not available")
 	}
 
 	inputs, err := types.ExtractInputs[GetNetworkPathInputs](task)
@@ -62,7 +102,7 @@ func (h *GetNetworkPathHandler) Run(
 		DestinationService: inputs.DestinationService,
 		SourceService:      inputs.SourceService,
 		MaxTTL:             inputs.MaxTTL,
-		Timeout:            inputs.Timeout,
+		Timeout:            time.Duration(inputs.Timeout),
 		Protocol:           inputs.Protocol,
 		TCPMethod:          inputs.TCPMethod,
 		ReverseDNS:         true,
