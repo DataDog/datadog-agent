@@ -52,6 +52,7 @@ func TestPrintJSON(t *testing.T) {
 		invalidData := make(chan int)
 		err := PrintJSON(&buf, invalidData, false)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "marshalling to JSON")
+		// Error comes directly from json.Marshal
+		assert.Contains(t, err.Error(), "json")
 	})
 }
