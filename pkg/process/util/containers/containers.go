@@ -223,12 +223,19 @@ func (p *containerProvider) GetPidToCid(cacheValidity time.Duration) map[int]str
 
 		// Building PID to CID mapping for NPM and Language Detection
 		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
-		if err == nil && pids != nil {
+		if err == nil && pids != nil && len(pids) > 0 {
 			for _, pid := range pids {
 				pidToCid[pid] = container.ID
 			}
 		} else {
-			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
+			// GetPIDs returned empty or error - use container.PID from workload metadata as fallback
+			log.Debugf("GetPIDs returned empty/error for container %s (err=%v), checking container.PID fallback", container.ID, err)
+			if container.PID != 0 {
+				log.Debugf("Using fallback: container.PID=%d for container %s", container.PID, container.ID)
+				pidToCid[container.PID] = container.ID
+			} else {
+				log.Debugf("No PIDs available for container %s (GetPIDs failed and container.PID is 0)", container.ID)
+			}
 		}
 	}
 
