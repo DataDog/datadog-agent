@@ -7,9 +7,9 @@
 package automultilinedetection
 
 import (
-	"bytes"
 	"math"
 	"strings"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 )
@@ -18,41 +18,73 @@ import (
 // Note: This must not exceed d10 or c10 below.
 const maxRun = 10
 
-// specialLongTokens is a map for O(1) lookup of special tokens
-var specialLongTokens = map[string]tokens.Token{
-	"JAN": tokens.Month, "FEB": tokens.Month, "MAR": tokens.Month,
-	"APR": tokens.Month, "MAY": tokens.Month, "JUN": tokens.Month,
-	"JUL": tokens.Month, "AUG": tokens.Month, "SEP": tokens.Month,
-	"OCT": tokens.Month, "NOV": tokens.Month, "DEC": tokens.Month,
-	"MON": tokens.Day, "TUE": tokens.Day, "WED": tokens.Day,
-	"THU": tokens.Day, "FRI": tokens.Day, "SAT": tokens.Day, "SUN": tokens.Day,
-	"AM": tokens.Apm, "PM": tokens.Apm,
-	"UTC": tokens.Zone, "GMT": tokens.Zone, "EST": tokens.Zone, "EDT": tokens.Zone,
-	"CST": tokens.Zone, "CDT": tokens.Zone, "MST": tokens.Zone, "MDT": tokens.Zone,
-	"PST": tokens.Zone, "PDT": tokens.Zone, "JST": tokens.Zone, "KST": tokens.Zone,
-	"IST": tokens.Zone, "MSK": tokens.Zone, "CEST": tokens.Zone, "CET": tokens.Zone,
-	"BST": tokens.Zone, "NZST": tokens.Zone, "NZDT": tokens.Zone, "ACST": tokens.Zone,
-	"ACDT": tokens.Zone, "AEST": tokens.Zone, "AEDT": tokens.Zone, "AWST": tokens.Zone,
-	"AWDT": tokens.Zone, "AKST": tokens.Zone, "AKDT": tokens.Zone, "HST": tokens.Zone,
-	"HDT": tokens.Zone, "CHST": tokens.Zone, "CHDT": tokens.Zone, "NST": tokens.Zone,
-	"NDT": tokens.Zone,
+// tokenLookup is a 256-byte lookup table for single-byte token classification.
+// Initialized once at package load time for O(1) lookups.
+var tokenLookup [256]tokens.Token
+
+func init() {
+	// Default everything to C1 (character)
+	for i := range tokenLookup {
+		tokenLookup[i] = tokens.C1
+	}
+
+	// Digits
+	for c := byte('0'); c <= '9'; c++ {
+		tokenLookup[c] = tokens.D1
+	}
+
+	// Whitespace
+	tokenLookup[' '] = tokens.Space
+	tokenLookup['\t'] = tokens.Space
+	tokenLookup['\n'] = tokens.Space
+	tokenLookup['\r'] = tokens.Space
+
+	// Special characters
+	tokenLookup[':'] = tokens.Colon
+	tokenLookup[';'] = tokens.Semicolon
+	tokenLookup['-'] = tokens.Dash
+	tokenLookup['_'] = tokens.Underscore
+	tokenLookup['/'] = tokens.Fslash
+	tokenLookup['\\'] = tokens.Bslash
+	tokenLookup['.'] = tokens.Period
+	tokenLookup[','] = tokens.Comma
+	tokenLookup['\''] = tokens.Singlequote
+	tokenLookup['"'] = tokens.Doublequote
+	tokenLookup['`'] = tokens.Backtick
+	tokenLookup['~'] = tokens.Tilda
+	tokenLookup['*'] = tokens.Star
+	tokenLookup['+'] = tokens.Plus
+	tokenLookup['='] = tokens.Equal
+	tokenLookup['('] = tokens.Parenopen
+	tokenLookup[')'] = tokens.Parenclose
+	tokenLookup['{'] = tokens.Braceopen
+	tokenLookup['}'] = tokens.Braceclose
+	tokenLookup['['] = tokens.Bracketopen
+	tokenLookup[']'] = tokens.Bracketclose
+	tokenLookup['&'] = tokens.Ampersand
+	tokenLookup['!'] = tokens.Exclamation
+	tokenLookup['@'] = tokens.At
+	tokenLookup['#'] = tokens.Pound
+	tokenLookup['$'] = tokens.Dollar
+	tokenLookup['%'] = tokens.Percent
+	tokenLookup['^'] = tokens.Uparrow
 }
 
 // Tokenizer is a heuristic to compute tokens from a log message.
 // The tokenizer is used to convert a log message (string of bytes) into a list of tokens that
 // represents the underlying structure of the log. The string of tokens is a compact slice of bytes
 // that can be used to compare log messages structure. A tokenizer instance is not thread safe
-// as bufferes are reused to avoid allocations.
+// as buffers are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       *bytes.Buffer
+	strBuf       [maxRun]byte // Fixed-size buffer, no heap allocation
+	strLen       int          // Current length of content in strBuf
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
 func NewTokenizer(maxEvalBytes int) *Tokenizer {
 	return &Tokenizer{
 		maxEvalBytes: maxEvalBytes,
-		strBuf:       bytes.NewBuffer(make([]byte, 0, maxRun)),
 	}
 }
 
@@ -81,67 +113,103 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 	idx := 0
 	run := 0
 	firstChar := input[0]
-	lastToken := getToken(firstChar)
-	t.strBuf.Reset()
-	t.strBuf.WriteByte(toUpperASCII(firstChar))
+	lastToken := tokenLookup[firstChar]
 
-	insertToken := func() {
-		defer func() {
-			run = 0
-			t.strBuf.Reset()
-		}()
-
-		// Only test for special tokens if the last token was a charcater (Special tokens are currently only A-Z).
-		if lastToken == tokens.C1 {
-			if t.strBuf.Len() == 1 {
-				if specialToken := getSpecialShortToken(t.strBuf.Bytes()[0]); specialToken != tokens.End {
-					ts = append(ts, specialToken)
-					indicies = append(indicies, idx)
-					return
-				}
-			} else if t.strBuf.Len() > 1 { // Only test special long tokens if buffer is > 1 token
-				if specialToken := getSpecialLongToken(t.strBuf.String()); specialToken != tokens.End {
-					ts = append(ts, specialToken)
-					indicies = append(indicies, idx-run)
-					return
-				}
-			}
-		}
-
-		// Check for char or digit runs
-		if lastToken == tokens.C1 || lastToken == tokens.D1 {
-			indicies = append(indicies, idx-run)
-			// Limit max run size
-			if run >= maxRun {
-				run = maxRun - 1
-			}
-			ts = append(ts, lastToken+tokens.Token(run))
-		} else {
-			ts = append(ts, lastToken)
-			indicies = append(indicies, idx-run)
-		}
+	// Reset string buffer
+	t.strLen = 0
+	if t.strLen < maxRun {
+		t.strBuf[t.strLen] = toUpperASCII(firstChar)
+		t.strLen++
 	}
 
 	for i := 1; i < inputLen; i++ {
 		char := input[i]
-		currentToken := getToken(char)
+		currentToken := tokenLookup[char]
+
 		if currentToken != lastToken {
-			insertToken()
+			// Inline insertToken logic to avoid closure overhead
+			if lastToken == tokens.C1 {
+				if t.strLen == 1 {
+					if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != tokens.End {
+						ts = append(ts, specialToken)
+						indicies = append(indicies, idx)
+						goto nextIteration
+					}
+				} else if t.strLen > 1 {
+					// Use unsafe to avoid string allocation
+					str := unsafe.String(&t.strBuf[0], t.strLen)
+					if specialToken := getSpecialLongToken(str); specialToken != tokens.End {
+						ts = append(ts, specialToken)
+						indicies = append(indicies, idx-run)
+						goto nextIteration
+					}
+				}
+			}
+
+			// Check for char or digit runs
+			if lastToken == tokens.C1 || lastToken == tokens.D1 {
+				indicies = append(indicies, idx-run)
+				r := run
+				if r >= maxRun {
+					r = maxRun - 1
+				}
+				ts = append(ts, lastToken+tokens.Token(r))
+			} else {
+				ts = append(ts, lastToken)
+				indicies = append(indicies, idx-run)
+			}
+
+		nextIteration:
+			run = 0
+			t.strLen = 0
 		} else {
 			run++
 		}
+
+		// Buffer character for special token matching
 		if currentToken == tokens.C1 {
-			// Store upper case A-Z characters for matching special tokens
-			t.strBuf.WriteByte(toUpperASCII(char))
-		} else {
-			t.strBuf.WriteByte(char)
+			if t.strLen < maxRun {
+				t.strBuf[t.strLen] = toUpperASCII(char)
+				t.strLen++
+			}
+		} else if t.strLen < maxRun {
+			t.strBuf[t.strLen] = char
+			t.strLen++
 		}
+
 		lastToken = currentToken
 		idx++
 	}
 
-	// Flush any remaining buffered tokens
-	insertToken()
+	// Flush final token (inlined)
+	if lastToken == tokens.C1 {
+		if t.strLen == 1 {
+			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != tokens.End {
+				ts = append(ts, specialToken)
+				indicies = append(indicies, idx)
+				return ts, indicies
+			}
+		} else if t.strLen > 1 {
+			str := unsafe.String(&t.strBuf[0], t.strLen)
+			if specialToken := getSpecialLongToken(str); specialToken != tokens.End {
+				ts = append(ts, specialToken)
+				indicies = append(indicies, idx-run)
+				return ts, indicies
+			}
+		}
+	}
+
+	if lastToken == tokens.C1 || lastToken == tokens.D1 {
+		indicies = append(indicies, idx-run)
+		r := run
+		if r >= maxRun {
+			r = maxRun - 1
+		}
+		ts = append(ts, lastToken+tokens.Token(r))
+	} else {
+		ts = append(ts, lastToken)
+		indicies = append(indicies, idx-run)
+	}
 
 	return ts, indicies
 }
@@ -154,84 +222,17 @@ func toUpperASCII(char byte) byte {
 	return char
 }
 
-// getToken returns a single token from a single byte.
+// getToken returns a single token from a single byte using lookup table.
 func getToken(char byte) tokens.Token {
-	// Fast path for digits (ASCII '0'-'9')
-	if char >= '0' && char <= '9' {
-		return tokens.D1
-	}
-	// Fast path for common whitespace
-	if char == ' ' || char == '\t' || char == '\n' || char == '\r' {
-		return tokens.Space
-	}
-
-	switch char {
-	case ':':
-		return tokens.Colon
-	case ';':
-		return tokens.Semicolon
-	case '-':
-		return tokens.Dash
-	case '_':
-		return tokens.Underscore
-	case '/':
-		return tokens.Fslash
-	case '\\':
-		return tokens.Bslash
-	case '.':
-		return tokens.Period
-	case ',':
-		return tokens.Comma
-	case '\'':
-		return tokens.Singlequote
-	case '"':
-		return tokens.Doublequote
-	case '`':
-		return tokens.Backtick
-	case '~':
-		return tokens.Tilda
-	case '*':
-		return tokens.Star
-	case '+':
-		return tokens.Plus
-	case '=':
-		return tokens.Equal
-	case '(':
-		return tokens.Parenopen
-	case ')':
-		return tokens.Parenclose
-	case '{':
-		return tokens.Braceopen
-	case '}':
-		return tokens.Braceclose
-	case '[':
-		return tokens.Bracketopen
-	case ']':
-		return tokens.Bracketclose
-	case '&':
-		return tokens.Ampersand
-	case '!':
-		return tokens.Exclamation
-	case '@':
-		return tokens.At
-	case '#':
-		return tokens.Pound
-	case '$':
-		return tokens.Dollar
-	case '%':
-		return tokens.Percent
-	case '^':
-		return tokens.Uparrow
-	}
-
-	return tokens.C1
+	return tokenLookup[char]
 }
 
 func getSpecialShortToken(char byte) tokens.Token {
-	switch char {
-	case 'T':
+	// Only T and Z are special single-char tokens
+	if char == 'T' {
 		return tokens.T
-	case 'Z':
+	}
+	if char == 'Z' {
 		return tokens.Zone
 	}
 	return tokens.End
@@ -240,8 +241,32 @@ func getSpecialShortToken(char byte) tokens.Token {
 // getSpecialLongToken returns a special token that is > 1 character.
 // NOTE: This set of tokens is non-exhaustive and can be expanded.
 func getSpecialLongToken(input string) tokens.Token {
-	if tok, ok := specialLongTokens[input]; ok {
-		return tok
+	// Length-based dispatch for faster rejection
+	switch len(input) {
+	case 2:
+		if input == "AM" || input == "PM" {
+			return tokens.Apm
+		}
+	case 3:
+		switch input {
+		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
+			return tokens.Month
+		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+			return tokens.Day
+		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
+			"MST", "MDT", "PST", "PDT", "JST", "KST",
+			"IST", "MSK", "CET", "BST", "HST", "HDT",
+			"NST", "NDT":
+			return tokens.Zone
+		}
+	case 4:
+		switch input {
+		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
+			"AEST", "AEDT", "AWST", "AWDT", "AKST",
+			"AKDT", "CHST", "CHDT":
+			return tokens.Zone
+		}
 	}
 	return tokens.End
 }
