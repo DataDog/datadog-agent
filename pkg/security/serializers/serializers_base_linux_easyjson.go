@@ -3289,6 +3289,12 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 					in.AddError((out.Date).UnmarshalJSON(data))
 				}
 			}
+		case "processingtime_microsec":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ProcessingTimeMicrosec = uint32(in.Uint32())
+			}
 		case "file":
 			if in.IsNull() {
 				in.Skip()
@@ -3375,44 +3381,34 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers24(
 		}
 		(in.Date).MarshalEasyJSON(out)
 	}
-	if in.FileEventSerializer != nil {
-		const prefix string = ",\"file\":"
+	{
+		const prefix string = ",\"processingtime_microsec\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Uint32(uint32(in.ProcessingTimeMicrosec))
+	}
+	if in.FileEventSerializer != nil {
+		const prefix string = ",\"file\":"
+		out.RawString(prefix)
 		(*in.FileEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.ExitEventSerializer != nil {
 		const prefix string = ",\"exit\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.ExitEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.ProcessContextSerializer != nil {
 		const prefix string = ",\"process\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.ProcessContextSerializer).MarshalEasyJSON(out)
 	}
 	if in.ContainerContextSerializer != nil {
 		const prefix string = ",\"container\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		(*in.ContainerContextSerializer).MarshalEasyJSON(out)
 	}
 	out.RawByte('}')
