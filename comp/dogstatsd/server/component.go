@@ -28,9 +28,6 @@ type Component interface {
 
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
-
-	// SetFilterList sets the filterlist to apply when parsing metrics from the DogStatsD listener.
-	SetFilterList([]string, bool)
 }
 
 // Mock implements mock-specific methods.
