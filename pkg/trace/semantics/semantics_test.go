@@ -22,40 +22,109 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 	r := NewEmbeddedRegistry()
 
 	tests := []struct {
-		name          string
-		concept       Concept
-		expectedFirst string
-		minFallbacks  int
+		name     string
+		concept  Concept
+		expected []TagInfo
 	}{
 		{
-			name:          "db.query has fallbacks",
-			concept:       ConceptDBQuery,
-			expectedFirst: "db.query.text",
-			minFallbacks:  3,
+			name:    "db.query chain",
+			concept: ConceptDBQuery,
+			expected: []TagInfo{
+				{Name: "db.query.text", Provider: ProviderOTel, Version: "1.26.0"},
+				{Name: "db.statement", Provider: ProviderOTel, Version: "1.6.1"},
+				{Name: "sql.query", Provider: ProviderDatadog},
+				{Name: "mongodb.query", Provider: ProviderDatadog},
+			},
 		},
 		{
-			name:          "http.status_code has fallbacks",
-			concept:       ConceptHTTPStatusCode,
-			expectedFirst: "http.status_code",
-			minFallbacks:  2,
+			name:    "http.status_code chain",
+			concept: ConceptHTTPStatusCode,
+			expected: []TagInfo{
+				{Name: "http.status_code", Provider: ProviderDatadog, Storage: StorageMetrics},
+				{Name: "http.status_code", Provider: ProviderDatadog, Storage: StorageMeta},
+				{Name: "http.response.status_code", Provider: ProviderOTel, Version: "1.23.0", Storage: StorageMeta},
+			},
 		},
 		{
-			name:          "peer.hostname has many fallbacks",
-			concept:       ConceptPeerHostname,
-			expectedFirst: "peer.hostname",
-			minFallbacks:  10,
+			name:    "peer.hostname chain",
+			concept: ConceptPeerHostname,
+			expected: []TagInfo{
+				{Name: "peer.hostname", Provider: ProviderDatadog},
+				{Name: "hostname", Provider: ProviderDatadog},
+				{Name: "net.peer.name", Provider: ProviderOTel, Version: "1.6.1"},
+				{Name: "db.hostname", Provider: ProviderDatadog},
+				{Name: "network.destination.name", Provider: ProviderOTel, Version: "1.17.0"},
+				{Name: "grpc.host", Provider: ProviderDatadog},
+				{Name: "http.host", Provider: ProviderDatadog},
+				{Name: "server.address", Provider: ProviderOTel, Version: "1.17.0"},
+				{Name: "http.server_name", Provider: ProviderDatadog},
+				{Name: "out.host", Provider: ProviderDatadog},
+				{Name: "dns.hostname", Provider: ProviderDatadog},
+				{Name: "network.destination.ip", Provider: ProviderOTel, Version: "1.17.0"},
+			},
 		},
 		{
-			name:          "grpc status code has fallbacks",
-			concept:       ConceptGRPCStatusCode,
-			expectedFirst: "rpc.grpc.status_code",
-			minFallbacks:  4,
+			name:    "rpc.grpc.status_code chain",
+			concept: ConceptGRPCStatusCode,
+			expected: []TagInfo{
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Storage: StorageMetrics},
+				{Name: "grpc.code", Provider: ProviderDatadog, Storage: StorageMetrics},
+				{Name: "rpc.grpc.status.code", Provider: ProviderOTel, Storage: StorageMetrics},
+				{Name: "grpc.status.code", Provider: ProviderDatadog, Storage: StorageMetrics},
+				{Name: "rpc.grpc.status_code", Provider: ProviderOTel, Storage: StorageMeta},
+				{Name: "grpc.code", Provider: ProviderDatadog, Storage: StorageMeta},
+			},
 		},
 		{
-			name:          "http.method has fallbacks",
-			concept:       ConceptHTTPMethod,
-			expectedFirst: "http.request.method",
-			minFallbacks:  2,
+			name:    "http.method chain",
+			concept: ConceptHTTPMethod,
+			expected: []TagInfo{
+				{Name: "http.request.method", Provider: ProviderOTel, Version: "1.23.0"},
+				{Name: "http.method", Provider: ProviderOTel, Version: "1.6.1"},
+			},
+		},
+		{
+			name:    "env chain",
+			concept: ConceptEnv,
+			expected: []TagInfo{
+				{Name: "env", Provider: ProviderDatadog},
+				{Name: "deployment.environment.name", Provider: ProviderOTel, Version: "1.27.0"},
+				{Name: "deployment.environment", Provider: ProviderOTel, Version: "1.17.0"},
+			},
+		},
+		{
+			name:    "version chain",
+			concept: ConceptVersion,
+			expected: []TagInfo{
+				{Name: "version", Provider: ProviderDatadog},
+				{Name: "service.version", Provider: ProviderOTel, Version: "1.6.1"},
+			},
+		},
+		{
+			name:    "peer.db.name chain",
+			concept: ConceptPeerDBName,
+			expected: []TagInfo{
+				{Name: "db.name", Provider: ProviderOTel, Version: "1.6.1"},
+				{Name: "mongodb.db", Provider: ProviderDatadog},
+				{Name: "db.instance", Provider: ProviderOTel},
+				{Name: "cassandra.keyspace", Provider: ProviderDatadog},
+				{Name: "db.namespace", Provider: ProviderOTel, Version: "1.26.0"},
+			},
+		},
+		{
+			name:    "peer.messaging.destination chain",
+			concept: ConceptPeerMessagingDestination,
+			expected: []TagInfo{
+				{Name: "topicname", Provider: ProviderDatadog},
+				{Name: "messaging.destination", Provider: ProviderOTel, Version: "1.6.1"},
+				{Name: "messaging.destination.name", Provider: ProviderOTel, Version: "1.17.0"},
+				{Name: "messaging.rabbitmq.exchange", Provider: ProviderOTel},
+				{Name: "amqp.destination", Provider: ProviderDatadog},
+				{Name: "amqp.queue", Provider: ProviderDatadog},
+				{Name: "amqp.exchange", Provider: ProviderDatadog},
+				{Name: "msmq.queue.path", Provider: ProviderDatadog},
+				{Name: "aws.queue.name", Provider: ProviderDatadog},
+			},
 		},
 	}
 
@@ -63,8 +132,15 @@ func TestGetAttributePrecedence_KnownConcept(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tags := r.GetAttributePrecedence(tt.concept)
 			require.NotNil(t, tags, "expected tags for concept %s", tt.concept)
-			require.GreaterOrEqual(t, len(tags), tt.minFallbacks, "expected at least %d fallbacks", tt.minFallbacks)
-			assert.Equal(t, tt.expectedFirst, tags[0].Name, "first fallback should be %s", tt.expectedFirst)
+			require.Len(t, tags, len(tt.expected), "expected %d tags for concept %s", len(tt.expected), tt.concept)
+
+			for i, expected := range tt.expected {
+				actual := tags[i]
+				assert.Equal(t, expected.Name, actual.Name, "tag[%d].Name mismatch", i)
+				assert.Equal(t, expected.Provider, actual.Provider, "tag[%d].Provider mismatch for %s", i, expected.Name)
+				assert.Equal(t, expected.Version, actual.Version, "tag[%d].Version mismatch for %s", i, expected.Name)
+				assert.Equal(t, expected.Storage, actual.Storage, "tag[%d].Storage mismatch for %s", i, expected.Name)
+			}
 		})
 	}
 }
@@ -79,19 +155,59 @@ func TestGetAttributePrecedence_UnknownConcept(t *testing.T) {
 func TestGetAttributePrecedence_NoFallbacks(t *testing.T) {
 	r := NewEmbeddedRegistry()
 
-	// Concepts with no fallbacks should return the canonical name
-	tests := []Concept{
-		ConceptPeerService,
-		ConceptDDMeasured,
-		ConceptMongoDBQuery,
+	// Concepts with no fallbacks should return the canonical name with default datadog provider
+	tests := []struct {
+		concept  Concept
+		expected TagInfo
+	}{
+		{
+			concept:  ConceptPeerService,
+			expected: TagInfo{Name: "peer.service", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptDDMeasured,
+			expected: TagInfo{Name: "_dd.measured", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptMongoDBQuery,
+			expected: TagInfo{Name: "mongodb.query", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptElasticsearchBody,
+			expected: TagInfo{Name: "elasticsearch.body", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptRedisRawCommand,
+			expected: TagInfo{Name: "redis.raw_command", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptComponent,
+			expected: TagInfo{Name: "component", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptLinkName,
+			expected: TagInfo{Name: "link.name", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptDDBaseService,
+			expected: TagInfo{Name: "_dd.base_service", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
+		{
+			concept:  ConceptSamplingPriority,
+			expected: TagInfo{Name: "_sampling_priority_v1", Provider: ProviderDatadog, Version: "", Storage: ""},
+		},
 	}
 
-	for _, concept := range tests {
-		t.Run(string(concept), func(t *testing.T) {
-			tags := r.GetAttributePrecedence(concept)
-			require.NotNil(t, tags)
-			require.Len(t, tags, 1)
-			assert.Equal(t, string(concept), tags[0].Name)
+	for _, tt := range tests {
+		t.Run(string(tt.concept), func(t *testing.T) {
+			tags := r.GetAttributePrecedence(tt.concept)
+			require.NotNil(t, tags, "expected tags for concept %s", tt.concept)
+			require.Len(t, tags, 1, "expected exactly 1 tag for concept %s", tt.concept)
+
+			assert.Equal(t, tt.expected.Name, tags[0].Name)
+			assert.Equal(t, tt.expected.Provider, tags[0].Provider)
+			assert.Equal(t, tt.expected.Version, tags[0].Version)
+			assert.Equal(t, tt.expected.Storage, tags[0].Storage)
 		})
 	}
 }
@@ -127,58 +243,140 @@ func TestVersion(t *testing.T) {
 func TestGetTagNames(t *testing.T) {
 	r := NewEmbeddedRegistry()
 
-	names := r.GetTagNames(ConceptDBQuery)
-	require.NotNil(t, names)
-	require.GreaterOrEqual(t, len(names), 3)
+	tests := []struct {
+		name     string
+		concept  Concept
+		expected []string
+	}{
+		{
+			name:    "db.query names",
+			concept: ConceptDBQuery,
+			expected: []string{
+				"db.query.text",
+				"db.statement",
+				"sql.query",
+				"mongodb.query",
+			},
+		},
+		{
+			name:    "http.status_code names",
+			concept: ConceptHTTPStatusCode,
+			expected: []string{
+				"http.status_code",
+				"http.status_code",
+				"http.response.status_code",
+			},
+		},
+		{
+			name:    "env names",
+			concept: ConceptEnv,
+			expected: []string{
+				"env",
+				"deployment.environment.name",
+				"deployment.environment",
+			},
+		},
+		{
+			name:    "peer.db.system names",
+			concept: ConceptPeerDBSystem,
+			expected: []string{
+				"db.system",
+				"active_record.db.vendor",
+				"db.type",
+				"sequel.db.vendor",
+			},
+		},
+	}
 
-	// Verify the names are strings, not TagInfo
-	assert.Equal(t, "db.query.text", names[0])
-	assert.Equal(t, "db.statement", names[1])
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			names := r.GetTagNames(tt.concept)
+			require.NotNil(t, names, "expected names for concept %s", tt.concept)
+			require.Len(t, names, len(tt.expected), "expected %d names for concept %s", len(tt.expected), tt.concept)
+
+			for i, expected := range tt.expected {
+				assert.Equal(t, expected, names[i], "name[%d] mismatch", i)
+			}
+		})
+	}
 }
 
 func TestTagInfoMetadata(t *testing.T) {
 	r := NewEmbeddedRegistry()
 
-	tags := r.GetAttributePrecedence(ConceptDBQuery)
-	require.NotNil(t, tags)
+	t.Run("db.query metadata", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptDBQuery)
+		require.NotNil(t, tags)
+		require.Len(t, tags, 4)
 
-	// First tag should be OTel with version
-	assert.Equal(t, "db.query.text", tags[0].Name)
-	assert.Equal(t, ProviderOTel, tags[0].Provider)
-	assert.Equal(t, "1.26.0", tags[0].Version)
+		// Verify OTel tags have versions
+		assert.Equal(t, "db.query.text", tags[0].Name)
+		assert.Equal(t, ProviderOTel, tags[0].Provider)
+		assert.Equal(t, "1.26.0", tags[0].Version)
 
-	// Datadog tags should not have version
-	found := false
-	for _, tag := range tags {
-		if tag.Name == "sql.query" {
-			found = true
-			assert.Equal(t, ProviderDatadog, tag.Provider)
-			assert.Empty(t, tag.Version)
-		}
-	}
-	assert.True(t, found, "expected to find sql.query tag")
+		assert.Equal(t, "db.statement", tags[1].Name)
+		assert.Equal(t, ProviderOTel, tags[1].Provider)
+		assert.Equal(t, "1.6.1", tags[1].Version)
+
+		// Verify Datadog tags do not have versions
+		assert.Equal(t, "sql.query", tags[2].Name)
+		assert.Equal(t, ProviderDatadog, tags[2].Provider)
+		assert.Empty(t, tags[2].Version)
+
+		assert.Equal(t, "mongodb.query", tags[3].Name)
+		assert.Equal(t, ProviderDatadog, tags[3].Provider)
+		assert.Empty(t, tags[3].Version)
+	})
+
+	t.Run("_dd.top_level metadata", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptDDTopLevel)
+		require.NotNil(t, tags)
+		require.Len(t, tags, 2)
+
+		assert.Equal(t, "_dd.top_level", tags[0].Name)
+		assert.Equal(t, ProviderDatadog, tags[0].Provider)
+
+		assert.Equal(t, "_top_level", tags[1].Name)
+		assert.Equal(t, ProviderDatadog, tags[1].Provider)
+	})
 }
 
 func TestStorageMetadata(t *testing.T) {
 	r := NewEmbeddedRegistry()
 
-	// http.status_code has both metrics and meta storage
-	tags := r.GetAttributePrecedence(ConceptHTTPStatusCode)
-	require.NotNil(t, tags)
+	t.Run("http.status_code storage chain", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptHTTPStatusCode)
+		require.NotNil(t, tags)
+		require.Len(t, tags, 3)
 
-	hasMetrics := false
-	hasMeta := false
-	for _, tag := range tags {
-		if tag.Storage == StorageMetrics {
-			hasMetrics = true
-		}
-		if tag.Storage == StorageMeta || tag.Storage == "" {
-			hasMeta = true
-		}
-	}
+		// First: metrics storage
+		assert.Equal(t, "http.status_code", tags[0].Name)
+		assert.Equal(t, StorageMetrics, tags[0].Storage)
 
-	assert.True(t, hasMetrics, "expected http.status_code to have metrics storage")
-	assert.True(t, hasMeta, "expected http.status_code to have meta storage")
+		// Second: meta storage
+		assert.Equal(t, "http.status_code", tags[1].Name)
+		assert.Equal(t, StorageMeta, tags[1].Storage)
+
+		// Third: OTel meta storage
+		assert.Equal(t, "http.response.status_code", tags[2].Name)
+		assert.Equal(t, StorageMeta, tags[2].Storage)
+	})
+
+	t.Run("rpc.grpc.status_code storage chain", func(t *testing.T) {
+		tags := r.GetAttributePrecedence(ConceptGRPCStatusCode)
+		require.NotNil(t, tags)
+		require.Len(t, tags, 6)
+
+		// First 4 should be metrics storage
+		for i := 0; i < 4; i++ {
+			assert.Equal(t, StorageMetrics, tags[i].Storage, "tag[%d] should be metrics storage", i)
+		}
+
+		// Last 2 should be meta storage
+		for i := 4; i < 6; i++ {
+			assert.Equal(t, StorageMeta, tags[i].Storage, "tag[%d] should be meta storage", i)
+		}
+	})
 }
 
 func TestDefaultRegistry(t *testing.T) {
