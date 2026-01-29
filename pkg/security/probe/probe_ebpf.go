@@ -1225,6 +1225,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 		}
 	)
 
+	event.StartTime = time.Now()
+
 	read, err := event.UnmarshalBinary(data)
 	if err != nil {
 		seclog.Errorf("failed to decode event: %s", err)
@@ -1274,6 +1276,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) model.EventType {
 
 	// send related events
 	for _, relatedEvent := range relatedEvents {
+		relatedEvent.StartTime = time.Now()
 		p.DispatchEvent(relatedEvent, true)
 		p.putBackPoolEvent(relatedEvent)
 	}

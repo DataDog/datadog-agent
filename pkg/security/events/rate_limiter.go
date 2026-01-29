@@ -44,6 +44,7 @@ var (
 		InternalCoreDumpRuleID:          rate.Every(30 * time.Second),
 		FailedDNSRuleID:                 rate.Every(30 * time.Second),
 		RawPacketActionRuleID:           rate.Every(30 * time.Second),
+		SlowEventProcessingRuleID:       rate.Inf, // debug-only: don't rate limit slow processing reports
 	}
 )
 

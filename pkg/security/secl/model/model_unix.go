@@ -156,6 +156,8 @@ type Event struct {
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
 	TracerMemfdSeal  TracerMemfdSealEvent  `field:"-"`
+
+	StartTime time.Time `field:"-"`
 }
 
 // NewEventZeroer returns a function that can be used to zero an Event

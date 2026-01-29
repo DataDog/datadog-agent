@@ -656,6 +656,11 @@ func (e *RuleEngine) SetRulesetLoadedCallback(cb func(es *rules.RuleSet, err *mu
 
 // HandleEvent is called by the probe when an event arrives from the kernel
 func (e *RuleEngine) HandleEvent(event *model.Event) {
+	if event.StartTime.IsZero() {
+		// StartTime is set by the probe for kernel events, but keep a safe fallback to avoid bogus processing times.
+		event.StartTime = time.Now()
+	}
+
 	// don't eval event originating from myself
 	if !e.probe.Opts.DontDiscardRuntime && event.ProcessContext != nil && event.ProcessContext.Pid == e.pid {
 		return
@@ -672,13 +677,23 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	if ruleSet := e.GetRuleSet(); ruleSet != nil {
-		if !ruleSet.Evaluate(event) {
+		matched := ruleSet.Evaluate(event)
+		if !matched {
 			evtType := int(event.GetEventType())
 			if evtType >= 0 && evtType < len(e.noMatchCounters) {
 				e.noMatchCounters[evtType].Inc()
 			}
 			ruleSet.EvaluateDiscarders(event)
 		}
+	}
+
+	// Debug-only: report events that took too long to process, even if no rule matched.
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 5*time.Second {
+		event.AddToFlags(model.EventFlagsSlowProcessingReported)
+
+		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
+		slowRule := events.NewSlowEventProcessingRule(originalRuleID, "")
+		e.eventSender.SendEvent(slowRule, event, nil, "")
 	}
 }
 
