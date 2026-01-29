@@ -19,66 +19,73 @@ import (
 const maxRun = 10
 
 // tokenLookup is a 256-byte lookup table for single-byte token classification.
-// Initialized once at package load time for O(1) lookups.
-var tokenLookup [256]tokens.Token
+// Initialized via function call to ensure it happens before other package vars use it.
+var tokenLookup = makeTokenLookup()
 
 // toUpperLookup converts lowercase to uppercase via lookup, identity otherwise
-var toUpperLookup [256]byte
+var toUpperLookup = makeToUpperLookup()
 
-func init() {
-	// Initialize toUpperLookup - identity mapping with a-z -> A-Z
-	for i := range toUpperLookup {
-		toUpperLookup[i] = byte(i)
+func makeToUpperLookup() [256]byte {
+	var lookup [256]byte
+	for i := range lookup {
+		lookup[i] = byte(i)
 	}
 	for c := byte('a'); c <= 'z'; c++ {
-		toUpperLookup[c] = c - 32
+		lookup[c] = c - 32
 	}
+	return lookup
+}
+
+func makeTokenLookup() [256]tokens.Token {
+	var lookup [256]tokens.Token
 
 	// Default everything to C1 (character)
-	for i := range tokenLookup {
-		tokenLookup[i] = tokens.C1
+	for i := range lookup {
+		lookup[i] = tokens.C1
 	}
 
 	// Digits
 	for c := byte('0'); c <= '9'; c++ {
-		tokenLookup[c] = tokens.D1
+		lookup[c] = tokens.D1
 	}
 
 	// Whitespace
-	tokenLookup[' '] = tokens.Space
-	tokenLookup['\t'] = tokens.Space
-	tokenLookup['\n'] = tokens.Space
-	tokenLookup['\r'] = tokens.Space
+	lookup[' '] = tokens.Space
+	lookup['\t'] = tokens.Space
+	lookup['\n'] = tokens.Space
+	lookup['\r'] = tokens.Space
 
 	// Special characters
-	tokenLookup[':'] = tokens.Colon
-	tokenLookup[';'] = tokens.Semicolon
-	tokenLookup['-'] = tokens.Dash
-	tokenLookup['_'] = tokens.Underscore
-	tokenLookup['/'] = tokens.Fslash
-	tokenLookup['\\'] = tokens.Bslash
-	tokenLookup['.'] = tokens.Period
-	tokenLookup[','] = tokens.Comma
-	tokenLookup['\''] = tokens.Singlequote
-	tokenLookup['"'] = tokens.Doublequote
-	tokenLookup['`'] = tokens.Backtick
-	tokenLookup['~'] = tokens.Tilda
-	tokenLookup['*'] = tokens.Star
-	tokenLookup['+'] = tokens.Plus
-	tokenLookup['='] = tokens.Equal
-	tokenLookup['('] = tokens.Parenopen
-	tokenLookup[')'] = tokens.Parenclose
-	tokenLookup['{'] = tokens.Braceopen
-	tokenLookup['}'] = tokens.Braceclose
-	tokenLookup['['] = tokens.Bracketopen
-	tokenLookup[']'] = tokens.Bracketclose
-	tokenLookup['&'] = tokens.Ampersand
-	tokenLookup['!'] = tokens.Exclamation
-	tokenLookup['@'] = tokens.At
-	tokenLookup['#'] = tokens.Pound
-	tokenLookup['$'] = tokens.Dollar
-	tokenLookup['%'] = tokens.Percent
-	tokenLookup['^'] = tokens.Uparrow
+	lookup[':'] = tokens.Colon
+	lookup[';'] = tokens.Semicolon
+	lookup['-'] = tokens.Dash
+	lookup['_'] = tokens.Underscore
+	lookup['/'] = tokens.Fslash
+	lookup['\\'] = tokens.Bslash
+	lookup['.'] = tokens.Period
+	lookup[','] = tokens.Comma
+	lookup['\''] = tokens.Singlequote
+	lookup['"'] = tokens.Doublequote
+	lookup['`'] = tokens.Backtick
+	lookup['~'] = tokens.Tilda
+	lookup['*'] = tokens.Star
+	lookup['+'] = tokens.Plus
+	lookup['='] = tokens.Equal
+	lookup['('] = tokens.Parenopen
+	lookup[')'] = tokens.Parenclose
+	lookup['{'] = tokens.Braceopen
+	lookup['}'] = tokens.Braceclose
+	lookup['['] = tokens.Bracketopen
+	lookup[']'] = tokens.Bracketclose
+	lookup['&'] = tokens.Ampersand
+	lookup['!'] = tokens.Exclamation
+	lookup['@'] = tokens.At
+	lookup['#'] = tokens.Pound
+	lookup['$'] = tokens.Dollar
+	lookup['%'] = tokens.Percent
+	lookup['^'] = tokens.Uparrow
+
+	return lookup
 }
 
 // Tokenizer is a heuristic to compute tokens from a log message.
