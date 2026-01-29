@@ -462,7 +462,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		}
 	}
 
-	podAdapter := newResolvablePodAdapter(pod)
+	podAdapter := newResolvableAdapter(pod, nil)
 	c.extractTagsFromJSONWithResolution(podTagsAnnotation, pod.Annotations, tagList, podAdapter)
 
 	// OpenShift pod annotations
@@ -935,7 +935,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
-	containerAdapter := newResolvableContainerAdapter(container, pod, c.store)
+	containerAdapter := newResolvableAdapter(pod, container)
 	c.extractTagsFromJSONWithResolution(annotation, pod.Annotations, tagList, containerAdapter)
 
 	low, orch, high, standard := tagList.Compute()

@@ -21,25 +21,15 @@ import (
 type workloadmetaResolvable struct {
 	pod       *workloadmeta.KubernetesPod
 	container *workloadmeta.Container
-	store     workloadmeta.Component
 }
 
 var _ tmplvar.Resolvable = (*workloadmetaResolvable)(nil)
 
-// newResolvablePodAdapter creates a Resolvable adapter for a pod
-func newResolvablePodAdapter(pod *workloadmeta.KubernetesPod) tmplvar.Resolvable {
-	return &workloadmetaResolvable{
-		pod:       pod,
-		container: nil, // Pod adapters don't have full container objects
-	}
-}
-
-// newResolvableContainerAdapter creates a Resolvable adapter for a container (with optional pod context)
-func newResolvableContainerAdapter(container *workloadmeta.Container, pod *workloadmeta.KubernetesPod, store workloadmeta.Component) tmplvar.Resolvable {
+// newResolvableAdapter creates a Resolvable adapter for a pod
+func newResolvableAdapter(pod *workloadmeta.KubernetesPod, container *workloadmeta.Container) tmplvar.Resolvable {
 	return &workloadmetaResolvable{
 		pod:       pod,
 		container: container,
-		store:     store,
 	}
 }
 
