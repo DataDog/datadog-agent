@@ -163,10 +163,13 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	var loadedAsWheel bool
 
 	var name string
+	loadedName := ""
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
 	var loadErrors []string // store errors for each module
-	for _, name := range modules {
+
+	// IMPORTANT: use '=' so we don't shadow the outer 'name'
+	for _, name = range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
 		defer C.call_free(unsafe.Pointer(moduleName))
@@ -174,6 +177,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			if strings.HasPrefix(name, wheelNamespace+".") {
 				loadedAsWheel = true
 			}
+			loadedName = name
 			break
 		}
 
@@ -224,7 +228,11 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
 		}
 
-		go reportPy3Warnings(name, goCheckFilePath)
+		// Ensure we never emit an empty check_name tag
+		if loadedName == "" {
+			loadedName = moduleName // config.Name (the original check name)
+		}
+		go reportPy3Warnings(loadedName, goCheckFilePath)
 	}
 
 	var goHASupported bool
