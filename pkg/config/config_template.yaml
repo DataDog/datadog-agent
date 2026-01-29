@@ -2746,6 +2746,7 @@ api_key:
 ## @env DD_OBSERVER_PARQUET_OUTPUT_DIR - string - optional - default: ""
 ## Directory where timestamped parquet files will be written for long-term storage.
 ## Files are rotated at the flush interval to ensure they remain valid and readable.
+## Files are compressed with Snappy compression and use UTC timestamps in filenames.
 ## Set to empty string to disable (default). Example: "/tmp/observer-metrics"
 #
 #   parquet_output_dir: ""
@@ -2753,7 +2754,8 @@ api_key:
 ## @param observer.parquet_flush_interval - duration - optional - default: 60s
 ## @env DD_OBSERVER_PARQUET_FLUSH_INTERVAL - duration - optional - default: 60s
 ## How often to flush metrics and rotate parquet files.
-## Each rotation creates a new timestamped file (e.g., observer-metrics-20260129-133045.parquet).
+## Each rotation creates a new timestamped file (e.g., observer-metrics-20260129-133045Z.parquet).
+## The 'Z' suffix indicates UTC timezone.
 #
 #   parquet_flush_interval: 60s
 

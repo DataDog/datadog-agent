@@ -19,6 +19,7 @@ import (
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 	"github.com/apache/arrow-go/v18/parquet"
+	"github.com/apache/arrow-go/v18/parquet/compress"
 	"github.com/apache/arrow-go/v18/parquet/pqarrow"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -103,9 +104,9 @@ func (pw *ParquetWriter) rotateFile() error {
 		pw.file = nil
 	}
 
-	// Generate timestamped filename: observer-metrics-20260129-133045.parquet
-	timestamp := time.Now().Format("20060102-150405")
-	filename := fmt.Sprintf("observer-metrics-%s.parquet", timestamp)
+	// Generate timestamped filename with UTC timezone: observer-metrics-20260129-133045Z.parquet
+	timestamp := time.Now().UTC().Format("20060102-150405")
+	filename := fmt.Sprintf("observer-metrics-%sZ.parquet", timestamp)
 	pw.currentFilePath = filepath.Join(pw.outputDir, filename)
 
 	// Create new file
@@ -114,8 +115,10 @@ func (pw *ParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
 	}
 
+	// Configure parquet writer with compression (Snappy is fast and provides good compression)
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
+		parquet.WithCompression(compress.Codecs.Snappy),
 	)
 
 	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, pqarrow.DefaultWriterProps())
