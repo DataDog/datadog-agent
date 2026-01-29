@@ -121,7 +121,24 @@ $HashArguments = @{
 	Name = '%s'
 	AccountPassword = (ConvertTo-SecureString %s -AsPlainText -Force)
 	Enabled = $true
-}; New-ADUser @HashArguments
+}
+$adError = $null
+$timeout = [DateTime]::Now.AddSeconds(30)
+while ([DateTime]::Now -lt $timeout) {
+    try {
+        New-ADUser @HashArguments -ErrorAction Stop
+        return
+    } catch {
+        # ERROR_DS_NO_RIDS_ALLOCATED (8208): The directory service was unable to allocate a relative identifier.
+        if ($_.FullyQualifiedErrorId.StartsWith('ActiveDirectoryServer:8208')) {
+            $adError = $_
+            Start-Sleep -Seconds 3
+        } else {
+            throw
+        }
+    }
+}
+throw $adError
 `, user.Username, user.Password),
 				}, pulumi.DependsOn(adCtx.createdResources))
 				if err != nil {
