@@ -17,21 +17,16 @@
 name "libxslt"
 default_version "1.1.43"
 
-license "MIT"
-license_file "COPYING"
-
-dependency "libxml2"
+dependency "zlib"
 
 skip_transitive_dependency_licensing true
 
-# versions_list: url=https://download.gnome.org/sources/libxslt/1.1/ filter=*.tar.xz
-version("1.1.43") { source sha256: "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a" }
-
-source url: "https://download.gnome.org/sources/libxslt/1.1/libxslt-#{version}.tar.xz"
-
-relative_path "libxslt-#{version}"
-
 build do
+  command_on_repo_root "bazelisk run -- @libxml2//:install --destdir='#{install_dir}/embedded'"
+  command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+    " #{install_dir}/embedded/lib/pkgconfig/libxml-2.0.pc" \
+    " #{install_dir}/embedded/lib/libxml2.so"
+
   command_on_repo_root "bazelisk run -- @libxslt//:install --destdir='#{install_dir}/embedded'"
   command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
     " #{install_dir}/embedded/lib/pkgconfig/libxslt.pc" \

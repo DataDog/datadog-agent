@@ -86,8 +86,17 @@ type verticalTestArgs struct {
 func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 	f.t.Helper()
 	ns := "default"
-	gvk := schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: args.targetKind}
-	resourceName := strings.ToLower(args.targetKind) + "s"
+
+	// Determine GVK based on target kind
+	var gvk schema.GroupVersionKind
+	var resourceName string
+	if args.targetKind == kubernetes.RolloutKind {
+		gvk = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: args.targetKind}
+		resourceName = "rollouts"
+	} else {
+		gvk = schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: args.targetKind}
+		resourceName = strings.ToLower(args.targetKind) + "s"
+	}
 
 	if args.createTarget {
 		f.createTarget(ns, args.targetName, args.targetKind)
@@ -107,10 +116,10 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 					return true, nil, patchErr
 				}
 				pa := action.(k8stesting.PatchAction)
-				return true, &unstructured.Unstructured{Object: map[string]interface{}{
+				return true, &unstructured.Unstructured{Object: map[string]any{
 					"apiVersion": "apps/v1",
 					"kind":       args.targetKind,
-					"metadata":   map[string]interface{}{"name": pa.GetName(), "namespace": pa.GetNamespace()},
+					"metadata":   map[string]any{"name": pa.GetName(), "namespace": pa.GetNamespace()},
 				}}, nil
 			})
 	}
@@ -141,16 +150,20 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 	target := NamespacedPodOwner{Namespace: ns, Kind: args.targetKind, Name: args.targetName}
 
 	// Execute sync based on target kind
-	var result autoscaling.ProcessResult
 	var err error
 	switch args.targetKind {
 	case kubernetes.DeploymentKind:
-		result, err = f.controller.syncDeploymentKind(
+		_, err = f.controller.syncDeploymentKind(
+			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
+			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
+		)
+	case kubernetes.RolloutKind:
+		_, err = f.controller.syncRolloutKind(
 			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
 			args.recommendationID, args.pods, args.podsPerRecommendationID, args.podsPerDirectOwner,
 		)
 	case kubernetes.StatefulSetKind:
-		result, err = f.controller.syncStatefulSetKind(
+		_, err = f.controller.syncStatefulSetKind(
 			context.Background(), fakeAutoscaler, &autoscalerInternal, target, gvk,
 			args.recommendationID, args.pods, args.podsPerRecommendationID,
 		)
@@ -171,8 +184,6 @@ func (f *verticalControllerFixture) runSync(args verticalTestArgs) {
 	if args.expectActionCleared {
 		assert.Nil(f.t, autoscalerInternal.VerticalLastAction())
 	}
-
-	_ = result // Result is validated implicitly via expectError/expectPatch
 }
 
 func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
@@ -189,6 +200,20 @@ func (f *verticalControllerFixture) createTarget(ns, name, kind string) {
 			},
 		})
 		gvr = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
+	case kubernetes.RolloutKind:
+		// Argo Rollout - create as unstructured since we don't have the type
+		obj = &unstructured.Unstructured{Object: map[string]any{
+			"apiVersion": "argoproj.io/v1alpha1",
+			"kind":       "Rollout",
+			"metadata":   map[string]any{"name": name, "namespace": ns},
+			"spec": map[string]any{
+				"replicas": int64(3),
+				"template": map[string]any{
+					"metadata": map[string]any{"annotations": map[string]any{}},
+				},
+			},
+		}}
+		gvr = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}
 	case kubernetes.StatefulSetKind:
 		obj, _ = autoscaling.ToUnstructured(&appsv1.StatefulSet{
 			TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "StatefulSet"},
@@ -494,5 +519,25 @@ func TestStatefulSetSyncBypassRateLimited(t *testing.T) {
 		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
 		lastAction:              lastAction(now.Add(-2*time.Minute), "old"),
 		scalingValues:           scalingVal("r1", "500m"),
+	})
+}
+
+// Argo Rollout tests
+// Single test because it's re-using the same logic as the Deployment test.
+func TestRolloutSyncTriggerRollout(t *testing.T) {
+	f := newVerticalControllerFixture(t, time.Now())
+	f.runSync(verticalTestArgs{
+		targetKind:       kubernetes.RolloutKind,
+		targetName:       "rollout1",
+		recommendationID: "r1",
+		createTarget:     true,
+		pods: []*workloadmeta.KubernetesPod{
+			pod("p1", "old", kubernetes.ReplicaSetKind, "rs1"),
+			pod("p2", "old", kubernetes.ReplicaSetKind, "rs1"),
+		},
+		podsPerRecommendationID: map[string]int32{"old": 2, "r1": 0},
+		podsPerDirectOwner:      map[string]int32{"rs1": 2},
+		expectPatch:             true,
+		expectActionSet:         true,
 	})
 }

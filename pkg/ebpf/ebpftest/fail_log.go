@@ -6,61 +6,51 @@
 package ebpftest
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
-	//nolint:depguard // creating a custom logger for testing
-	"github.com/cihub/seelog"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 )
 
 // FailLogLevel sets the logger level for this test only and only outputs if the test fails
 func FailLogLevel(t testing.TB, level string) {
 	t.Helper()
-	inner := &failureTestLogger{TB: t}
+	inner := &failureLogWriter{TB: t}
 	t.Cleanup(func() {
 		t.Helper()
 		log.SetupLogger(log.Default(), "off")
 		inner.outputIfFailed()
 	})
-	logger, err := seelog.LoggerFromCustomReceiver(inner)
+	lvl, err := log.ValidateLogLevel(level)
+	if err != nil {
+		return
+	}
+	logger, err := slog.LoggerFromWriterWithMinLevelAndFormat(
+		inner,
+		lvl,
+		"{{ShortFilePath}}:{{.line}}: {{DateTime}} | {{LEVEL}} | {{.msg}}",
+	)
 	if err != nil {
 		return
 	}
 	log.SetupLogger(logger, level)
 }
 
-type failureTestLogger struct {
+// failureLogWriter buffers log output and only writes it if the test fails
+type failureLogWriter struct {
 	testing.TB
 	logData []byte
 }
 
-// ReceiveMessage implements logger.CustomReceiver
-func (l *failureTestLogger) ReceiveMessage(message string, level seelog.LogLevel, context seelog.LogContextInterface) error {
-	l.logData = append(l.logData, fmt.Sprintf("%s:%d: %s | %s | %s\n", context.FileName(), context.Line(), context.CallTime().Format("2006-01-02 15:04:05.000 MST"), strings.ToUpper(level.String()), message)...)
-	return nil
+func (l *failureLogWriter) Write(p []byte) (n int, err error) {
+	l.logData = append(l.logData, p...)
+	return len(p), nil
 }
 
-// AfterParse implements logger.CustomReceiver
-func (l *failureTestLogger) AfterParse(_ seelog.CustomReceiverInitArgs) error {
-	return nil
-}
-
-// Flush implements logger.CustomReceiver
-func (l *failureTestLogger) Flush() {
-}
-
-func (l *failureTestLogger) outputIfFailed() {
+func (l *failureLogWriter) outputIfFailed() {
 	l.Helper()
 	if l.Failed() {
 		l.TB.Logf("\n%s", l.logData)
 	}
 	l.logData = nil
-}
-
-// Close implements logger.CustomReceiver
-func (l *failureTestLogger) Close() error {
-	return nil
 }
