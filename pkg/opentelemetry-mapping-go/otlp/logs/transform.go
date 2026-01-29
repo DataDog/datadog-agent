@@ -189,7 +189,8 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 		if val.Type() == pcommon.ValueTypeStr ||
 			val.Type() == pcommon.ValueTypeInt ||
 			val.Type() == pcommon.ValueTypeBool ||
-			val.Type() == pcommon.ValueTypeDouble {
+			val.Type() == pcommon.ValueTypeDouble ||
+			val.Type() == pcommon.ValueTypeSlice {
 			result[key] = val.AsRaw()
 		} else {
 			result[key] = val.AsString()

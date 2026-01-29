@@ -625,6 +625,32 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 				},
 			},
 		},
+		{
+			name: "array attribute with strings",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.Body().SetStr("test array attribute")
+					l.SetSeverityNumber(5)
+					arr := l.Attributes().PutEmptySlice("test_array")
+					arr.AppendEmpty().SetStr("value1")
+					arr.AppendEmpty().SetStr("value2")
+					arr.AppendEmpty().SetStr("value3")
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString("test array attribute"),
+				AdditionalProperties: map[string]interface{}{
+					"status":           "debug",
+					otelSeverityNumber: "5",
+					"test_array":       []interface{}{"value1", "value2", "value3"},
+				},
+			},
+		},
 	}
 }
 func TestTranslator(t *testing.T) {
