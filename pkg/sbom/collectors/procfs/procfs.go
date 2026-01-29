@@ -56,8 +56,9 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	report, err := c.trivyCollector.ScanFilesystem(ctx, scanPath, c.opts, true)
 	return sbom.ScanResult{
-		RequestID: request.ID(),
-		Error:     err,
-		Report:    report,
+		RequestID:        request.ID(),
+		Error:            err,
+		Report:           report,
+		GenerationMethod: "filesystem",
 	}
 }
