@@ -82,6 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 					secretsnoopfx.Module(),
+					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -103,6 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 					secretsnoopfx.Module(),
+					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -124,6 +126,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 					secretsnoopfx.Module(),
+					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},
@@ -145,6 +148,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 					core.Bundle(),
 					secretsnoopfx.Module(),
+					delegatedauthnoopfx.Module(),
 					ipcfx.ModuleReadOnly(),
 				)
 			},

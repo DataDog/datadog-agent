@@ -82,6 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 				secretsnoopfx.Module(),
+				delegatedauthnoopfx.Module(),
 			)
 		},
 	})
