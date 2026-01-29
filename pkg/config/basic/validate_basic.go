@@ -13,29 +13,27 @@ import (
 )
 
 // TODO: Callers that are using SetWithoutSource improperly, need to be fixed
-// Most of these callers are using structs that are inserted into the config
-// model, when they should be using map[string]interface{} types.
 var allowlistCaller = []string{
+	// This calls `cfg.SetWithoutSource(configName, make(chan int))`
+	// and expects it to be "not marshallable"
 	"comp/api/api/apiimpl/internal/config/endpoint_test.go",
+
+	// Fixable by updating test
 	"comp/autoscaling/datadogclient/impl/client_test.go",
 	"comp/autoscaling/datadogclient/impl/status_test.go",
-	"comp/core/autodiscovery/listeners/dbm_aurora_test.go",
-	"comp/core/autodiscovery/listeners/dbm_rds_test.go",
+
+	// Fixing this test by updating its use of SetWithoutSources causes other failures
 	"comp/core/autodiscovery/listeners/snmp_test.go",
-	"comp/core/ipc/impl/ipc_test.go",
-	"comp/core/profiler/impl/profiler_test.go",
-	"comp/core/workloadfilter/catalog/filter_config_test.go",
-	"comp/core/workloadmeta/collectors/internal/kubeapiserver/kubeapiserver_test.go",
-	"comp/logs/agent/config/config_keys_test.go",
-	"comp/logs/agent/config/config_test.go",
-	"comp/logs/agent/config/endpoints_test.go",
-	"comp/metadata/resources/resourcesimpl/resources_test.go",
+
+	// Needs investigation
 	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/npcollector_testutils.go",
-	"comp/process/agent/agent_linux_test.go",
+
+	// Needs investigation
 	"comp/snmptraps/config/config_test.go",
+
+	// Needs investigation
 	"pkg/collector/corechecks/snmp/status/status_test.go",
-	"pkg/fleet/installer/packages/embedded/tmpl/main_test.go",
 }
 
 // ValidateBasicTypes returns true if the argument is made of only basic types
