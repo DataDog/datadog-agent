@@ -27,4 +27,9 @@ USER build
 
 WORKDIR /app
 
+# Add host-profiler tools to PATH for convenience
+ENV PATH="/app/tools/host-profiler:${PATH}"
+
 VOLUME /go
+
+CMD ["build_and_launch.sh"]
