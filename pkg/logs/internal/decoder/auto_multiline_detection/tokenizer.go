@@ -22,7 +22,18 @@ const maxRun = 10
 // Initialized once at package load time for O(1) lookups.
 var tokenLookup [256]tokens.Token
 
+// toUpperLookup converts lowercase to uppercase via lookup, identity otherwise
+var toUpperLookup [256]byte
+
 func init() {
+	// Initialize toUpperLookup - identity mapping with a-z -> A-Z
+	for i := range toUpperLookup {
+		toUpperLookup[i] = byte(i)
+	}
+	for c := byte('a'); c <= 'z'; c++ {
+		toUpperLookup[c] = c - 32
+	}
+
 	// Default everything to C1 (character)
 	for i := range tokenLookup {
 		tokenLookup[i] = tokens.C1
@@ -77,14 +88,23 @@ func init() {
 // as buffers are reused to avoid allocations.
 type Tokenizer struct {
 	maxEvalBytes int
-	strBuf       [maxRun]byte // Fixed-size buffer, no heap allocation
-	strLen       int          // Current length of content in strBuf
+	strBuf       [maxRun]byte   // Fixed-size buffer for special token matching
+	strLen       int            // Current length of content in strBuf
+	tsBuf        []tokens.Token // Reusable token buffer
+	idxBuf       []int          // Reusable index buffer
 }
 
 // NewTokenizer returns a new Tokenizer detection heuristic.
 func NewTokenizer(maxEvalBytes int) *Tokenizer {
+	// Pre-allocate reasonable initial capacity
+	initCap := 64
+	if maxEvalBytes > 0 && maxEvalBytes < initCap {
+		initCap = maxEvalBytes
+	}
 	return &Tokenizer{
 		maxEvalBytes: maxEvalBytes,
+		tsBuf:        make([]tokens.Token, 0, initCap),
+		idxBuf:       make([]int, 0, initCap),
 	}
 }
 
@@ -98,6 +118,37 @@ func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 	return true
 }
 
+// emitToken appends a token to the output slices, checking for special tokens first.
+// Returns the updated slices.
+func (t *Tokenizer) emitToken(ts []tokens.Token, indicies []int, lastToken tokens.Token, run, idx int) ([]tokens.Token, []int) {
+	// Check for special tokens (only for C1/letter runs, length 1-4)
+	if lastToken == tokens.C1 && t.strLen > 0 && t.strLen <= 4 {
+		if t.strLen == 1 {
+			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != tokens.End {
+				return append(ts, specialToken), append(indicies, idx)
+			}
+		} else {
+			str := unsafe.String(&t.strBuf[0], t.strLen)
+			if specialToken := getSpecialLongToken(str); specialToken != tokens.End {
+				return append(ts, specialToken), append(indicies, idx-run)
+			}
+		}
+	}
+
+	// Regular token - encode run length for C1/D1
+	indicies = append(indicies, idx-run)
+	if lastToken == tokens.C1 || lastToken == tokens.D1 {
+		r := run
+		if r >= maxRun {
+			r = maxRun - 1
+		}
+		ts = append(ts, lastToken+tokens.Token(r))
+	} else {
+		ts = append(ts, lastToken)
+	}
+	return ts, indicies
+}
+
 // tokenize converts a byte slice to a list of tokens.
 // This function return the slice of tokens, and a slice of indices where each token starts.
 func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
@@ -106,20 +157,25 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 		return nil, nil
 	}
 
-	// len(ts) will always be <= len(input)
-	ts := make([]tokens.Token, 0, inputLen)
-	indicies := make([]int, 0, inputLen)
+	// Use internal buffers for working storage, grow if needed.
+	// Most logs produce ~inputLen/4 tokens, but we start smaller.
+	estTokens := inputLen/4 + 8
+	if cap(t.tsBuf) < estTokens {
+		t.tsBuf = make([]tokens.Token, 0, estTokens)
+		t.idxBuf = make([]int, 0, estTokens)
+	}
+	ts := t.tsBuf[:0]
+	indicies := t.idxBuf[:0]
 
-	idx := 0
 	run := 0
 	firstChar := input[0]
 	lastToken := tokenLookup[firstChar]
 
-	// Reset string buffer
+	// Reset string buffer - only track for C1 tokens
 	t.strLen = 0
-	if t.strLen < maxRun {
-		t.strBuf[t.strLen] = toUpperASCII(firstChar)
-		t.strLen++
+	if lastToken == tokens.C1 {
+		t.strBuf[0] = toUpperASCII(firstChar)
+		t.strLen = 1
 	}
 
 	for i := 1; i < inputLen; i++ {
@@ -127,99 +183,41 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 		currentToken := tokenLookup[char]
 
 		if currentToken != lastToken {
-			// Inline insertToken logic to avoid closure overhead
-			if lastToken == tokens.C1 {
-				if t.strLen == 1 {
-					if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != tokens.End {
-						ts = append(ts, specialToken)
-						indicies = append(indicies, idx)
-						goto nextIteration
-					}
-				} else if t.strLen > 1 {
-					// Use unsafe to avoid string allocation
-					str := unsafe.String(&t.strBuf[0], t.strLen)
-					if specialToken := getSpecialLongToken(str); specialToken != tokens.End {
-						ts = append(ts, specialToken)
-						indicies = append(indicies, idx-run)
-						goto nextIteration
-					}
-				}
-			}
-
-			// Check for char or digit runs
-			if lastToken == tokens.C1 || lastToken == tokens.D1 {
-				indicies = append(indicies, idx-run)
-				r := run
-				if r >= maxRun {
-					r = maxRun - 1
-				}
-				ts = append(ts, lastToken+tokens.Token(r))
-			} else {
-				ts = append(ts, lastToken)
-				indicies = append(indicies, idx-run)
-			}
-
-		nextIteration:
+			ts, indicies = t.emitToken(ts, indicies, lastToken, run, i-1)
 			run = 0
 			t.strLen = 0
 		} else {
 			run++
 		}
 
-		// Buffer character for special token matching
-		if currentToken == tokens.C1 {
-			if t.strLen < maxRun {
-				t.strBuf[t.strLen] = toUpperASCII(char)
-				t.strLen++
-			}
-		} else if t.strLen < maxRun {
-			t.strBuf[t.strLen] = char
+		// Only buffer C1 (letter) tokens for special token matching
+		if currentToken == tokens.C1 && t.strLen < maxRun {
+			t.strBuf[t.strLen] = toUpperASCII(char)
 			t.strLen++
 		}
 
 		lastToken = currentToken
-		idx++
 	}
 
-	// Flush final token (inlined)
-	if lastToken == tokens.C1 {
-		if t.strLen == 1 {
-			if specialToken := getSpecialShortToken(t.strBuf[0]); specialToken != tokens.End {
-				ts = append(ts, specialToken)
-				indicies = append(indicies, idx)
-				return ts, indicies
-			}
-		} else if t.strLen > 1 {
-			str := unsafe.String(&t.strBuf[0], t.strLen)
-			if specialToken := getSpecialLongToken(str); specialToken != tokens.End {
-				ts = append(ts, specialToken)
-				indicies = append(indicies, idx-run)
-				return ts, indicies
-			}
-		}
-	}
+	// Flush final token
+	ts, indicies = t.emitToken(ts, indicies, lastToken, run, inputLen-1)
 
-	if lastToken == tokens.C1 || lastToken == tokens.D1 {
-		indicies = append(indicies, idx-run)
-		r := run
-		if r >= maxRun {
-			r = maxRun - 1
-		}
-		ts = append(ts, lastToken+tokens.Token(r))
-	} else {
-		ts = append(ts, lastToken)
-		indicies = append(indicies, idx-run)
-	}
+	// Store working buffers back for reuse
+	t.tsBuf = ts
+	t.idxBuf = indicies
 
-	return ts, indicies
+	// Allocate exact-sized result slices - smaller than inputLen
+	n := len(ts)
+	result := make([]tokens.Token, n)
+	copy(result, ts)
+	resultIdx := make([]int, n)
+	copy(resultIdx, indicies)
+	return result, resultIdx
 }
 
-// toUpperASCII converts ASCII lowercase to uppercase, returns char unchanged otherwise
+// toUpperASCII converts ASCII lowercase to uppercase via lookup table
 func toUpperASCII(char byte) byte {
-	if char >= 'a' && char <= 'z' {
-		return char - 32 // 'a' - 'A' = 32
-	}
-	return char
+	return toUpperLookup[char]
 }
 
 // getToken returns a single token from a single byte using lookup table.
