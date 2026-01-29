@@ -15,6 +15,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,6 +43,9 @@ type loader struct {
 	cfg     *sysconfigtypes.Config
 	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
+
+	statsUpdateTime  telemetry.Gauge
+	statsUpdateCount telemetry.Counter
 }
 
 func (l *loader) forEachModule(fn func(name sysconfigtypes.ModuleName, mod Module)) {
@@ -50,6 +54,11 @@ func (l *loader) forEachModule(fn func(name sysconfigtypes.ModuleName, mod Modul
 			fn(name, mod)
 		})
 	}
+}
+
+func (l *loader) configureTelemetry(tm telemetry.Component) {
+	l.statsUpdateTime = tm.NewGauge("modules", "stats_update_time_seconds", []string{"module"}, "Time taken to update the stats, in seconds")
+	l.statsUpdateCount = tm.NewCounter("modules", "stats_update_count", []string{"module"}, "Count of stats updates")
 }
 
 func withModule(name sysconfigtypes.ModuleName, fn func()) {
@@ -113,7 +122,13 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 		return errors.New("no module could be loaded")
 	}
 
-	go updateStats()
+	l.configureTelemetry(deps.Telemetry)
+
+	l.stats = make(map[string]interface{})
+	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
+		go updateModuleStats(name, mod)
+	})
+
 	return nil
 }
 
@@ -184,34 +199,46 @@ func Close() {
 	})
 }
 
-func updateStats() {
+// IsClosed returns true if the loader is closed, thread-safe
+func (l *loader) IsClosed() bool {
+	l.Lock()
+	defer l.Unlock()
+	return l.closed
+}
+
+func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 	start := time.Now()
-	then := time.Now()
+	lastUpdate := start
 	now := time.Now()
+	nameStr := string(name)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for {
-		l.Lock()
-		if l.closed {
-			l.Unlock()
+		if l.IsClosed() {
 			return
 		}
 
-		l.stats = make(map[string]interface{})
-		l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
-			l.stats[string(name)] = mod.GetStats()
-		})
-		for name, err := range l.errors {
-			l.stats[string(name)] = map[string]string{"Error": err.Error()}
+		startUpdateTs := time.Now()
+		stats := mod.GetStats()
+		updateTimeSeconds := time.Since(startUpdateTs).Seconds()
+		l.statsUpdateTime.Set(updateTimeSeconds, nameStr)
+		l.statsUpdateCount.Inc(nameStr)
+
+		now = time.Now()
+
+		l.Lock()
+		l.stats[nameStr] = stats
+		if l.errors[name] != nil {
+			l.stats[nameStr] = map[string]string{"Error": l.errors[name].Error()}
 		}
 
 		l.stats["updated_at"] = now.Unix()
-		l.stats["delta_seconds"] = now.Sub(then).Seconds()
+		l.stats["delta_seconds"] = now.Sub(lastUpdate).Seconds()
 		l.stats["uptime"] = now.Sub(start).String()
 		l.Unlock()
 
-		then = now
-		now = <-ticker.C
+		lastUpdate = now
+		_ = <-ticker.C
 	}
 }
