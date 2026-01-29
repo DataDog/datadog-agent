@@ -42,6 +42,7 @@ from tasks import (
     invoke_unit_tests,
     issue,
     k8s_versions,
+    kind_node_image,
     kmt,
     linter,
     loader,
@@ -232,6 +233,7 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(k8s_versions)
+ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
