@@ -366,15 +366,15 @@ def fetch_versions(_, output_file=VERSIONS_FILE, disable_dockerhub=False, disabl
     Fetch the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
 
     This task fetches the latest Kubernetes version from the kindest/node
-    Docker Hub repository and/or GitHub RC releases and adds it to a JSON
-    file for comparison. The file accumulates all versions over time.
+    Docker Hub repository and/or GitHub RC releases.
 
     Args:
         disable_dockerhub: Disable fetching versions from Docker Hub (default: False)
         disable_github: Disable fetching RC versions from GitHub (default: False)
 
     Outputs (GitHub Actions):
-        has_new_versions: 'true' if a new version was found
+        has_new_versions: 'true' if a new stable version was found
+        has_new_rc_versions: 'true' if a new RC version was found
         new_versions: JSON string with the new version data
     """
     _check_dependencies()
