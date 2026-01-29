@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/gopacket"
 
@@ -256,6 +257,7 @@ type RuleContext struct {
 type BaseEventSerializer struct {
 	EventContextSerializer `json:"evt,omitempty"`
 	Date                   utils.EasyjsonTime `json:"date,omitempty"`
+	ProcessingTimeMicrosec uint32             `json:"processingtime_microsec"`
 
 	*FileEventSerializer        `json:"file,omitempty"`
 	*ExitEventSerializer        `json:"exit,omitempty"`
@@ -475,6 +477,8 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 
 	eventType := model.EventType(event.Type)
 
+	processingTimeMicrosec := uint32(time.Since(event.StartTime).Microseconds())
+
 	s := &BaseEventSerializer{
 		EventContextSerializer: EventContextSerializer{
 			Name:        eventType.String(),
@@ -484,6 +488,7 @@ func NewBaseEventSerializer(event *model.Event, rule *rules.Rule, scrubber *util
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event, rule),
 		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
+		ProcessingTimeMicrosec:   processingTimeMicrosec,
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
