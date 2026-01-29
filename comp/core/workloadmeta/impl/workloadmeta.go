@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -118,15 +119,27 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 }
 
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
+
+	verbose := params.Get("verbose") == "true"
+	structured := params.Get("format") == "json"
+	search := params.Get("search")
+
+	var response interface{}
+	if structured {
+		response = w.DumpStructured(verbose)
+		// Apply search filter if provided
+		if search != "" {
+			response = filterStructuredResponse(response.(wmdef.WorkloadDumpStructuredResponse), search)
+		}
+	} else {
+		response = w.Dump(verbose)
+		// Apply search filter if provided
+		if search != "" {
+			response = filterTextResponse(response.(wmdef.WorkloadDumpResponse), search)
 		}
 	}
 
-	response := w.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
@@ -134,4 +147,62 @@ func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request
 	}
 
 	writer.Write(jsonDump)
+}
+
+// filterStructuredResponse filters entities by kind or entity ID
+func filterStructuredResponse(response wmdef.WorkloadDumpStructuredResponse, search string) wmdef.WorkloadDumpStructuredResponse {
+	filtered := wmdef.WorkloadDumpStructuredResponse{
+		Entities: make(map[string][]wmdef.Entity),
+	}
+
+	for kind, entities := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = entities
+			continue
+		}
+
+		// Filter by entity ID
+		var matchingEntities []wmdef.Entity
+		for _, entity := range entities {
+			if strings.Contains(entity.GetID().ID, search) {
+				matchingEntities = append(matchingEntities, entity)
+			}
+		}
+
+		if len(matchingEntities) > 0 {
+			filtered.Entities[kind] = matchingEntities
+		}
+	}
+
+	return filtered
+}
+
+// filterTextResponse filters text-formatted entities by kind or entity ID
+func filterTextResponse(response wmdef.WorkloadDumpResponse, search string) wmdef.WorkloadDumpResponse {
+	filtered := wmdef.WorkloadDumpResponse{
+		Entities: make(map[string]wmdef.WorkloadEntity),
+	}
+
+	for kind, workloadEntity := range response.Entities {
+		if strings.Contains(kind, search) {
+			// Kind matches - include all entities
+			filtered.Entities[kind] = workloadEntity
+			continue
+		}
+
+		// Filter by entity ID
+		filteredInfos := make(map[string]string)
+		for entityID, info := range workloadEntity.Infos {
+			if strings.Contains(entityID, search) {
+				filteredInfos[entityID] = info
+			}
+		}
+
+		if len(filteredInfos) > 0 {
+			filtered.Entities[kind] = wmdef.WorkloadEntity{Infos: filteredInfos}
+		}
+	}
+
+	return filtered
 }

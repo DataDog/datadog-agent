@@ -9,6 +9,7 @@ package workloadlist
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"go.uber.org/fx"
 
@@ -23,6 +24,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	jsonutil "github.com/DataDog/datadog-agent/pkg/util/json"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -32,7 +34,10 @@ import (
 type cliParams struct {
 	GlobalParams
 
+	args        []string
 	verboseList bool
+	json        bool
+	prettyJSON  bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -52,13 +57,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
 	workloadListCommand := &cobra.Command{
-		Use:   "workload-list",
+		Use:   "workload-list [search]",
 		Short: "Print the workload content of a running agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
+			cliParams.args = args
 
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
@@ -78,12 +84,24 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 
 	workloadListCommand.Flags().BoolVarP(&cliParams.verboseList, "verbose", "v", false, "print out a full dump of the workload store")
+	workloadListCommand.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	workloadListCommand.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
 
 	return workloadListCommand
 }
 
 func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
-	url, err := workloadURL(cliParams.verboseList)
+	// Validate search argument
+	var searchTerm string
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one search term must be specified")
+	} else if len(cliParams.args) == 1 {
+		searchTerm = cliParams.args[0]
+	}
+
+	// Determine if we need structured JSON format
+	needsStructuredFormat := cliParams.json || cliParams.prettyJSON
+	url, err := workloadURL(cliParams.verboseList, needsStructuredFormat, searchTerm)
 	if err != nil {
 		return err
 	}
@@ -97,10 +115,37 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 		}
 	}
 
-	workload := workloadmeta.WorkloadDumpResponse{}
+	// Handle structured vs text format
+	if needsStructuredFormat {
+		// Server already filtered, just pretty print the JSON
+		var rawJSON any
+		err = json.Unmarshal(r, &rawJSON)
+		if err != nil {
+			return err
+		}
+
+		// Check if response is empty when search was provided
+		if searchTerm != "" {
+			if data, ok := rawJSON.(map[string]any); ok {
+				if entities, ok := data["entities"].(map[string]any); ok && len(entities) == 0 {
+					return fmt.Errorf("no entities found matching %q", searchTerm)
+				}
+			}
+		}
+
+		return jsonutil.PrintJSON(color.Output, rawJSON, cliParams.prettyJSON)
+	}
+
+	// Text format (legacy) - server already filtered
+	var workload workloadmeta.WorkloadDumpResponse
 	err = json.Unmarshal(r, &workload)
 	if err != nil {
 		return err
+	}
+
+	// Check if response is empty when search was provided
+	if searchTerm != "" && len(workload.Entities) == 0 {
+		return fmt.Errorf("no entities found matching %q", searchTerm)
 	}
 
 	workload.Write(color.Output)
@@ -108,7 +153,7 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 	return nil
 }
 
-func workloadURL(verbose bool) (string, error) {
+func workloadURL(verbose bool, structuredFormat bool, search string) (string, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
@@ -121,8 +166,20 @@ func workloadURL(verbose bool) (string, error) {
 		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
 	}
 
+	// Build query parameters
+	params := []string{}
 	if verbose {
-		return prefix + "?verbose=true", nil
+		params = append(params, "verbose=true")
+	}
+	if structuredFormat {
+		params = append(params, "format=json")
+	}
+	if search != "" {
+		params = append(params, fmt.Sprintf("search=%s", search))
+	}
+
+	if len(params) > 0 {
+		return prefix + "?" + strings.Join(params, "&"), nil
 	}
 
 	return prefix, nil

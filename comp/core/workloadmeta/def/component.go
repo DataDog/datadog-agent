@@ -134,6 +134,9 @@ type Component interface {
 	// Dump lists the content of the store, for debugging purposes.
 	Dump(verbose bool) WorkloadDumpResponse
 
+	// DumpStructured lists the content of the store as structured entities.
+	DumpStructured(verbose bool) WorkloadDumpStructuredResponse
+
 	// ResetProcesses resets the state of the store so that newProcesses are the
 	// only entites stored.
 	ResetProcesses(newProcesses []Entity, source Source)
