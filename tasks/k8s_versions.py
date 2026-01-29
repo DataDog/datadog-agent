@@ -116,7 +116,7 @@ def _extract_index_digest(tag_data: dict) -> str | None:
 
 def _get_latest_k8s_versions(use_dockerhub: bool = True, use_github: bool = True) -> dict[str, dict[str, str]]:
     """
-    Fetch and parse the latest Kubernetes version from Docker Hub and/or GitHub.
+    Fetch and parse the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
     Returns a dictionary with only the single latest version.
 
     Args:
@@ -363,7 +363,7 @@ def _update_e2e_yaml_file(new_versions: dict[str, dict[str, str]]) -> tuple[bool
 @task
 def fetch_versions(_, output_file=VERSIONS_FILE, disable_dockerhub=False, disable_github=False):
     """
-    Fetch the latest Kubernetes version from Docker Hub and/or GitHub.
+    Fetch the latest Kubernetes version from Docker Hub (stable) and/or GitHub (RC).
 
     This task fetches the latest Kubernetes version from the kindest/node
     Docker Hub repository and/or GitHub RC releases and adds it to a JSON
