@@ -203,8 +203,7 @@ crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 
 include("//deps:crates.MODULE.bazel")
 
-crate.from_specs()
-use_repo(crate, "crates")
+use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
@@ -238,9 +237,6 @@ include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/openscap:openscap.MODULE.bazel")
-
-# buildifier: leave-alone
-include("//deps/openssl3:openssl3.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")

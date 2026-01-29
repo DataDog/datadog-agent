@@ -16,9 +16,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func mockSyslogAddrs(t *testing.T, paths ...string) {
@@ -45,7 +46,7 @@ func TestHeaderFormatter_OldSchool(t *testing.T) {
 	formatter := HeaderFormatter(16, false)
 	require.NotNil(t, formatter)
 
-	resultStr := formatter(seelog.WarnLvl)
+	resultStr := formatter(types.WarnLvl)
 
 	// Priority = facility * 8 + severity = 16 * 8 + 4 = 132
 	appName := filepath.Base(os.Args[0])
@@ -59,7 +60,7 @@ func TestHeaderFormatter_RFC5424(t *testing.T) {
 	formatter := HeaderFormatter(16, true)
 	require.NotNil(t, formatter)
 
-	resultStr := formatter(seelog.ErrorLvl)
+	resultStr := formatter(types.ErrorLvl)
 
 	// Priority = facility * 8 + severity = 16 * 8 + 3 = 131
 	appName := filepath.Base(os.Args[0])
@@ -72,16 +73,16 @@ func TestHeaderFormatter_AllLogLevels(t *testing.T) {
 	formatter := HeaderFormatter(10, true)
 
 	testCases := []struct {
-		level            seelog.LogLevel
+		level            types.LogLevel
 		expectedSeverity int
 	}{
-		{seelog.TraceLvl, 7},
-		{seelog.DebugLvl, 7},
-		{seelog.InfoLvl, 6},
-		{seelog.WarnLvl, 4},
-		{seelog.ErrorLvl, 3},
-		{seelog.CriticalLvl, 2},
-		{seelog.Off, 7},
+		{types.TraceLvl, 7},
+		{types.DebugLvl, 7},
+		{types.InfoLvl, 6},
+		{types.WarnLvl, 4},
+		{types.ErrorLvl, 3},
+		{types.CriticalLvl, 2},
+		{types.Off, 7},
 	}
 
 	for _, tc := range testCases {
@@ -403,10 +404,10 @@ func TestHeaderFormatter_EdgeCaseFacilities(t *testing.T) {
 	testCases := []struct {
 		name     string
 		facility int
-		level    seelog.LogLevel
+		level    types.LogLevel
 	}{
-		{"Facility 0", 0, seelog.InfoLvl},
-		{"Facility 23", 23, seelog.InfoLvl},
+		{"Facility 0", 0, types.InfoLvl},
+		{"Facility 23", 23, types.InfoLvl},
 	}
 
 	for _, tc := range testCases {
