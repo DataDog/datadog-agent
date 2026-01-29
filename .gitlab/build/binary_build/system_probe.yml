@@ -7,6 +7,7 @@
     - !reference [.retrieve_linux_go_deps]
   script:
     - dda inv -- check-go-version
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e system-probe.build-object-files --strip-object-files
     - dda inv -- -e system-probe.save-build-outputs $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
   variables:

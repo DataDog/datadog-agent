@@ -11,7 +11,8 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 from tasks.system_probe import copy_ebpf_and_related_files
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
@@ -29,10 +30,14 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    exclude_rust_compression=False,
 ):
     """
     Build the process agent
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     flavor = AgentFlavor[flavor]
 

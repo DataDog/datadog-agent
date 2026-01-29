@@ -39,6 +39,7 @@ from tasks.libs.releasing.version import create_version_json
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -148,6 +149,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
+    exclude_rust_compression=False,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -164,6 +166,10 @@ def build(
         with gitlab_section("Install embedded rtloader", collapsed=True):
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
+
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,

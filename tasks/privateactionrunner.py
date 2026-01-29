@@ -7,7 +7,8 @@ from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.constants import REPO_PATH
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import bin_name, get_build_flags
+from tasks.libs.common.utils import bin_name, get_build_flags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 
 BIN_DIR = os.path.join(".", "bin", "privateactionrunner")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("privateactionrunner"))
@@ -21,7 +22,12 @@ def build(
     flavor=AgentFlavor.base.name,
     rebuild=False,
     go_mod="readonly",
+    exclude_rust_compression=False,
 ):
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path)
     build_tags = get_default_build_tags(build="privateactionrunner", flavor=AgentFlavor[flavor])
     go_build(

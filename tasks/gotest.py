@@ -39,6 +39,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.releasing.json import _get_release_json_value
 from tasks.libs.testing.result_json import ActionType, ResultJson
 from tasks.modules import GoModule, get_module_by_path
+from tasks.rust_compression import build as rust_compression_build
 from tasks.test_core import DEFAULT_TEST_OUTPUT_JSON, TestResult, process_input_args, process_result
 from tasks.testwasher import TestWasher
 from tasks.update_go import PATTERN_MAJOR_MINOR, update_file
@@ -264,6 +265,7 @@ def test(
     test_washer=False,
     extra_args=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
+    exclude_rust_compression=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -280,6 +282,10 @@ def test(
         dda inv test --module=. --race
     """
     sanitize_env_vars()
+
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     modules, flavor = process_input_args(ctx, module, targets, flavor)
 

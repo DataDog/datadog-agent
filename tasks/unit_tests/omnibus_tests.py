@@ -79,6 +79,9 @@ class TestOmnibusCache(unittest.TestCase):
             (r'grep .*', Result()),
             (r'aws(\.exe)? ssm .*', Result()),
             (r'vault kv get .*', Result()),
+            # Rust compression build commands
+            (r'cargo --version', Result('cargo 1.75.0')),
+            (r'cargo build .*', Result()),
         ]
         for pattern, result in patterns:
             self.mock_ctx.set_result_for('run', re.compile(pattern), result)
@@ -386,6 +389,9 @@ Description: Datadog Monitoring Agent
             (r'git .*', Result()),
             (r'aws s3 .*', Result()),
             (r'dpkg --print-architecture', Result('amd64')),
+            # Rust compression build commands
+            (r'cargo --version', Result('cargo 1.75.0')),
+            (r'cargo build .*', Result()),
         ]
         for pattern, result in patterns:
             mock_ctx.set_result_for('run', re.compile(pattern), result)

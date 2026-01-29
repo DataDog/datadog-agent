@@ -9,7 +9,8 @@ from invoke.exceptions import Exit
 from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_version_ldflags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_NAME = "otel-agent"
@@ -37,10 +38,13 @@ def byoc_release(ctx, version: str):
 
 
 @task
-def build(ctx, byoc=False, flavor=AgentFlavor.base.name):
+def build(ctx, byoc=False, flavor=AgentFlavor.base.name, exclude_rust_compression=False):
     """
     Build the otel agent
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)

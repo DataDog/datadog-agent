@@ -1,0 +1,420 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build cgo && !no_rust_compression
+
+// Package rustimpl provides compression using the Rust compression library via CGO.
+package rustimpl
+
+/*
+#cgo CFLAGS: -I${SRCDIR}/../rust/include
+#cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../rust/target/release -ldatadog_compression -framework Security -lm
+#cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../rust/target/release -ldatadog_compression -framework Security -lm
+#cgo linux LDFLAGS: -L${SRCDIR}/../rust/target/release -ldatadog_compression -lm -ldl -lpthread
+#cgo windows LDFLAGS: -L${SRCDIR}/../rust/target/release -ldatadog_compression -lws2_32 -lbcrypt -luserenv -lntdll
+
+#include <stdlib.h>
+#include "datadog_compression.h"
+*/
+import "C"
+
+import (
+	"bytes"
+	"errors"
+	"runtime"
+	"sync"
+	"unsafe"
+
+	"github.com/DataDog/datadog-agent/pkg/util/compression"
+)
+
+// Errors returned by the Rust compression library
+var (
+	ErrInvalidHandle     = errors.New("invalid compressor handle")
+	ErrCompressionFailed = errors.New("compression failed")
+	ErrStreamClosed      = errors.New("stream already closed")
+	ErrBufferTooSmall    = errors.New("output buffer too small")
+)
+
+// RustCompressor wraps the Rust compression library.
+//
+// Thread Safety: RustCompressor is safe for concurrent use from multiple
+// goroutines. The underlying Rust compressor context is protected by a mutex.
+// CompressBound() is lock-free (computed in Go). Other methods acquire the mutex.
+//
+// Resource Management: RustCompressor owns native Rust memory that must be freed.
+// Call Close() when done, or rely on the finalizer for automatic cleanup.
+// Explicitly calling Close() is preferred for deterministic resource release.
+type RustCompressor struct {
+	mu       sync.Mutex
+	handle   *C.dd_compressor_t
+	algo     string
+	encoding string // cached content encoding to avoid CGO calls
+}
+
+// Requires specifies the configuration for creating a RustCompressor.
+type Requires struct {
+	Algorithm string // "zstd", "gzip", "zlib", or "none"
+	Level     int
+}
+
+// New creates a new RustCompressor with the specified configuration.
+func New(req Requires) compression.Compressor {
+	var algo C.dd_compression_algorithm_t
+	switch req.Algorithm {
+	case compression.ZstdKind:
+		algo = C.DD_COMPRESSION_ALGORITHM_ZSTD
+	case compression.GzipKind:
+		algo = C.DD_COMPRESSION_ALGORITHM_GZIP
+	case compression.ZlibKind, "deflate":
+		algo = C.DD_COMPRESSION_ALGORITHM_ZLIB
+	default:
+		algo = C.DD_COMPRESSION_ALGORITHM_NOOP
+	}
+
+	handle := C.dd_compressor_new(algo, C.int(req.Level))
+	if handle == nil {
+		// Fallback to noop if creation fails
+		handle = C.dd_compressor_new(C.DD_COMPRESSION_ALGORITHM_NOOP, 0)
+	}
+
+	// Cache the content encoding to avoid CGO overhead on repeated calls
+	var encoding string
+	if handle != nil {
+		enc := C.dd_compressor_content_encoding(handle)
+		if enc != nil {
+			encoding = C.GoString(enc)
+		} else {
+			encoding = "identity"
+		}
+	} else {
+		encoding = "identity"
+	}
+
+	comp := &RustCompressor{
+		handle:   handle,
+		algo:     req.Algorithm,
+		encoding: encoding,
+	}
+
+	// Set a finalizer to free native resources if Close() is not called.
+	// This prevents memory leaks but explicit Close() is still preferred.
+	runtime.SetFinalizer(comp, (*RustCompressor).Close)
+
+	return comp
+}
+
+// NewZstd creates a new zstd compressor with the specified level.
+func NewZstd(level int) compression.Compressor {
+	return New(Requires{Algorithm: "zstd", Level: level})
+}
+
+// NewGzip creates a new gzip compressor with the specified level.
+func NewGzip(level int) compression.Compressor {
+	return New(Requires{Algorithm: "gzip", Level: level})
+}
+
+// NewZlib creates a new zlib compressor with the specified level.
+func NewZlib(level int) compression.Compressor {
+	return New(Requires{Algorithm: "zlib", Level: level})
+}
+
+// NewNoop creates a new no-op compressor.
+func NewNoop() compression.Compressor {
+	return New(Requires{Algorithm: "none", Level: 0})
+}
+
+// CompressInto compresses src directly into dst, returning the number of bytes written.
+// The dst buffer must be at least CompressBound(len(src)) bytes.
+// Returns ErrBufferTooSmall if dst is too small.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+func (c *RustCompressor) CompressInto(src, dst []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handle == nil {
+		return 0, ErrInvalidHandle
+	}
+
+	if len(src) == 0 {
+		return 0, nil
+	}
+
+	if len(dst) == 0 {
+		return 0, ErrBufferTooSmall
+	}
+
+	// Use the fast function that returns the result directly (no output parameter)
+	// to eliminate CGO allocation overhead.
+	result := C.dd_compressor_compress_into_fast(
+		c.handle,
+		(*C.uint8_t)(unsafe.Pointer(&src[0])),
+		C.size_t(len(src)),
+		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
+		C.size_t(len(dst)),
+	)
+
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	// Negative result is negated error code
+	switch -result {
+	case C.DD_COMPRESSION_ERROR_BUFFER_TOO_SMALL:
+		return 0, ErrBufferTooSmall
+	default:
+		return 0, ErrCompressionFailed
+	}
+}
+
+// CompressBound returns the worst-case compressed size for the given input length.
+//
+// Lock-free: This method computes the bound in Go based on the algorithm,
+// avoiding CGO overhead and synchronization.
+//
+// IMPORTANT: These formulas MUST exactly match the Rust implementations.
+// If you modify the Rust compress_bound functions, update these formulas too.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+func (c *RustCompressor) CompressBound(sourceLen int) int {
+	switch c.algo {
+	case compression.ZstdKind:
+		// Reference: pkg/util/compression/rust/src/zstd_impl.rs:231-234
+		// Uses zstd::zstd_safe::compress_bound() which follows ZSTD_compressBound formula
+		return sourceLen + (sourceLen >> 8) + 32
+	case compression.GzipKind:
+		// Reference: pkg/util/compression/rust/src/gzip_impl.rs:208-219
+		// Formula: source_len + (5 * num_blocks) + 18
+		// where num_blocks = (source_len / 16383) + 1
+		numBlocks := (sourceLen / 16383) + 1
+		return sourceLen + (5 * numBlocks) + 18
+	case compression.ZlibKind, "deflate":
+		// Reference: pkg/util/compression/rust/src/zlib_impl.rs:193-202
+		// Formula: base + (5 * num_blocks)
+		// where base = source_len + (source_len >> 12) + (source_len >> 14) + (source_len >> 25) + 13
+		// and num_blocks = (source_len / 16383) + 1
+		base := sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
+		numBlocks := (sourceLen / 16383) + 1
+		return base + (5 * numBlocks)
+	default:
+		// Reference: pkg/util/compression/rust/src/noop_impl.rs:64-66
+		// Noop returns source_len unchanged
+		return sourceLen
+	}
+}
+
+// ContentEncoding returns the HTTP Content-Encoding header value.
+// This method returns a cached value and does not make CGO calls.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+func (c *RustCompressor) ContentEncoding() string {
+	// No mutex needed - encoding is immutable after construction
+	return c.encoding
+}
+
+// NewStreamCompressor creates a new streaming compressor.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+// Note: The returned StreamCompressor is NOT thread-safe; use one per goroutine.
+func (c *RustCompressor) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handle == nil {
+		return &rustStreamCompressor{
+			output: output,
+			closed: true,
+		}
+	}
+
+	stream := C.dd_stream_new(c.handle)
+	if stream == nil {
+		return &rustStreamCompressor{
+			output: output,
+			closed: true,
+		}
+	}
+
+	return &rustStreamCompressor{
+		stream: stream,
+		output: output,
+		closed: false,
+	}
+}
+
+// Close releases the compressor resources.
+// After Close() is called, the compressor cannot be used.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+// Multiple calls to Close() are safe (idempotent).
+func (c *RustCompressor) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handle != nil {
+		C.dd_compressor_free(c.handle)
+		c.handle = nil
+		// Clear the finalizer since we've already cleaned up
+		runtime.SetFinalizer(c, nil)
+	}
+}
+
+// ZstdCompressBound returns the worst-case compressed size for zstd.
+func ZstdCompressBound(sourceLen int) int {
+	// zstd compress bound formula
+	return sourceLen + (sourceLen >> 8) + 32
+}
+
+// ZstdCompressStateless compresses using the stateless zstd API (no context reuse).
+// This is for benchmarking to measure the minimum FFI overhead.
+func ZstdCompressStateless(src, dst []byte, level int) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
+	}
+	if len(dst) == 0 {
+		return 0, ErrBufferTooSmall
+	}
+
+	result := C.dd_zstd_compress_stateless(
+		(*C.uint8_t)(unsafe.Pointer(&src[0])),
+		C.size_t(len(src)),
+		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
+		C.size_t(len(dst)),
+		C.int(level),
+	)
+
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	return 0, ErrCompressionFailed
+}
+
+// ZstdCompressDirect compresses using the direct zstd path (bypasses enum dispatch).
+// This is for benchmarking to isolate enum dispatch overhead.
+//
+// Thread-safe: this method can be called concurrently from multiple goroutines.
+func (c *RustCompressor) ZstdCompressDirect(src, dst []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.handle == nil {
+		return 0, ErrInvalidHandle
+	}
+	if len(src) == 0 {
+		return 0, nil
+	}
+	if len(dst) == 0 {
+		return 0, ErrBufferTooSmall
+	}
+
+	result := C.dd_zstd_compress_direct(
+		c.handle,
+		(*C.uint8_t)(unsafe.Pointer(&src[0])),
+		C.size_t(len(src)),
+		(*C.uint8_t)(unsafe.Pointer(&dst[0])),
+		C.size_t(len(dst)),
+	)
+
+	if result >= 0 {
+		return int(result), nil
+	}
+
+	return 0, ErrCompressionFailed
+}
+
+// rustStreamCompressor wraps the Rust stream compressor.
+type rustStreamCompressor struct {
+	stream               *C.dd_stream_t
+	output               *bytes.Buffer
+	closed               bool
+	bytesWrittenToOutput int // tracks bytes already written to output buffer during flush
+}
+
+// Write writes data to the compression stream.
+func (s *rustStreamCompressor) Write(p []byte) (n int, err error) {
+	if s.closed || s.stream == nil {
+		return 0, ErrStreamClosed
+	}
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	written := C.dd_stream_write(
+		s.stream,
+		(*C.uint8_t)(unsafe.Pointer(&p[0])),
+		C.size_t(len(p)),
+	)
+
+	return int(written), nil
+}
+
+// Flush flushes any buffered data to the output buffer.
+func (s *rustStreamCompressor) Flush() error {
+	if s.closed || s.stream == nil {
+		return ErrStreamClosed
+	}
+
+	result := C.dd_stream_flush(s.stream)
+	if result != C.DD_COMPRESSION_ERROR_OK {
+		return ErrCompressionFailed
+	}
+
+	// Get current compressed output size
+	currentLen := int(C.dd_stream_output_len(s.stream))
+
+	// Write any new bytes to the output buffer
+	if currentLen > s.bytesWrittenToOutput {
+		var outBuffer C.dd_buffer_t
+		result = C.dd_stream_get_output(s.stream, &outBuffer)
+		if result != C.DD_COMPRESSION_ERROR_OK {
+			return ErrCompressionFailed
+		}
+
+		if outBuffer.data != nil && outBuffer.len > 0 {
+			// Only write the new bytes (from bytesWrittenToOutput to currentLen)
+			compressed := C.GoBytes(unsafe.Pointer(outBuffer.data), C.int(outBuffer.len))
+			s.output.Write(compressed[s.bytesWrittenToOutput:])
+			s.bytesWrittenToOutput = currentLen
+			C.dd_buffer_free(outBuffer)
+		}
+	}
+
+	return nil
+}
+
+// Close finalizes the stream and writes any remaining compressed data to the output buffer.
+func (s *rustStreamCompressor) Close() error {
+	if s.closed {
+		return nil
+	}
+
+	s.closed = true
+
+	if s.stream == nil {
+		return nil
+	}
+
+	var outBuffer C.dd_buffer_t
+	result := C.dd_stream_close(s.stream, &outBuffer)
+	s.stream = nil
+
+	if result != C.DD_COMPRESSION_ERROR_OK {
+		return ErrCompressionFailed
+	}
+
+	if outBuffer.data != nil && outBuffer.len > 0 {
+		// Copy only the remaining compressed data that wasn't written during flush
+		compressed := C.GoBytes(unsafe.Pointer(outBuffer.data), C.int(outBuffer.len))
+		if s.bytesWrittenToOutput < len(compressed) {
+			s.output.Write(compressed[s.bytesWrittenToOutput:])
+		}
+		C.dd_buffer_free(outBuffer)
+	}
+
+	return nil
+}

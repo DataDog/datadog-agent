@@ -9,7 +9,8 @@ from tasks.build_tags import (
 from tasks.flavor import AgentFlavor
 from tasks.gointegrationtest import TRACE_AGENT_IT_CONF, containerized_integration_tests
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_PATH = os.path.join(".", "bin", "trace-agent")
@@ -25,10 +26,14 @@ def build(
     flavor=AgentFlavor.base.name,
     install_path=None,
     go_mod="readonly",
+    exclude_rust_compression=False,
 ):
     """
     Build the trace agent.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     flavor = AgentFlavor[flavor]
 

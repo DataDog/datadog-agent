@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package gzipimpl provides a set of functions for compressing with zlib / zstd / gzip
+// Package gzipimpl provides gzip compression
 package gzipimpl
 
 import (
 	"bytes"
 	"compress/gzip"
-	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,59 +40,36 @@ func New(req Requires) compression.Compressor {
 	}
 }
 
-// Compress will compress the data with gzip
-func (s *GzipStrategy) Compress(src []byte) (result []byte, err error) {
-	var compressedPayload bytes.Buffer
-	gzipWriter, err := gzip.NewWriterLevel(&compressedPayload, s.level)
-
-	if err != nil {
-		return nil, err
-	}
-	_, err = gzipWriter.Write(src)
-	if err != nil {
-		return nil, err
-	}
-	err = gzipWriter.Flush()
-	if err != nil {
-		return nil, err
-	}
-	err = gzipWriter.Close()
-	if err != nil {
-		return nil, err
+// CompressInto compresses src directly into dst, returning the number of bytes written.
+func (s *GzipStrategy) CompressInto(src, dst []byte) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
 	}
 
-	return compressedPayload.Bytes(), nil
+	var buf bytes.Buffer
+	gzipWriter, err := gzip.NewWriterLevel(&buf, s.level)
+	if err != nil {
+		return 0, err
+	}
+
+	if _, err = gzipWriter.Write(src); err != nil {
+		return 0, err
+	}
+	if err = gzipWriter.Close(); err != nil {
+		return 0, err
+	}
+
+	compressed := buf.Bytes()
+	if len(compressed) > len(dst) {
+		return 0, compression.ErrBufferTooSmall
+	}
+
+	copy(dst, compressed)
+	return len(compressed), nil
 }
 
-// Decompress will decompress the data with gzip
-func (s *GzipStrategy) Decompress(src []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(src))
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	// Read all decompressed data
-	var result bytes.Buffer
-	_, err = io.Copy(&result, reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return result.Bytes(), nil
-}
-
-// CompressBound returns the worst case size needed for a destination buffer
-// when using gzip
-//
-// The worst case expansion is a few bytes for the gzip file header, plus
-// 5 bytes per 32 KiB block, or an expansion ratio of 0.015% for large files.
-// The additional 18 bytes comes from the header (10 bytes) and trailer
-// (8 bytes). There is no theoretical maximum to the header,
-// but we don't set any extra header fields so it is safe to assume
-//
-// Source: https://www.gnu.org/software/gzip/manual/html_node/Overview.html
-// More details are in the linked RFC: https://www.ietf.org/rfc/rfc1952.txt
+// CompressBound returns the worst case size needed for a destination buffer.
+// Gzip worst case is ~0.015% expansion plus 18 bytes header/trailer.
 func (s *GzipStrategy) CompressBound(sourceLen int) int {
 	return sourceLen + (sourceLen/32768)*5 + 18
 }
@@ -105,7 +81,6 @@ func (s *GzipStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new gzip Writer
 func (s *GzipStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	// Ensure level is within a range that doesn't cause NewWriterLevel to error.
 	level := s.level
 	if level < gzip.HuffmanOnly {
 		log.Warnf("Gzip streaming log level set to %d, minimum is %d. Setting to minimum.", level, gzip.HuffmanOnly)

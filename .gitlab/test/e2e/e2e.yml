@@ -173,6 +173,7 @@ go_e2e_test_binaries:
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
   script:
+    - dda inv -- -e rust-compression.build --release
     - pushd test/new-e2e
     - go install github.com/DataDog/orchestrion
     - popd

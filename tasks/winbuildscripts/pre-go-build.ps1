@@ -13,6 +13,15 @@ Default: 3
 
 $ErrorActionPreference = "Stop"
 
+# Build Rust compression library
+Write-Host "Building Rust compression library..."
+& dda inv -- -e rust-compression.build --release
+$err = $LASTEXITCODE
+if($err -ne 0){
+    Write-Host -ForegroundColor Red "rust-compression build failed $err"
+    [Environment]::Exit($err)
+}
+
 # Run clean to avoid issues with CMakeCache.txt due to moving build roots
 & dda inv -- -e rtloader.clean
 

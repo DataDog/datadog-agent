@@ -1,0 +1,5 @@
+# Clippy configuration for datadog-compression
+# Following datadog/lading conventions
+
+# Allow common valid identifiers in documentation
+doc-valid-idents = ["FFI", "CGO", "zstd", "gzip", "zlib", "Datadog", ".."]

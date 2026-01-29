@@ -14,7 +14,8 @@ from tasks.build_tags import (
 )
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
+from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 DIR_BIN = path.join(".", "bin", "installer")
@@ -36,10 +37,14 @@ def build(
     no_strip_binary=True,
     no_cgo=False,
     fips_mode=False,
+    exclude_rust_compression=False,
 ):
     """
     Build the installer.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
 

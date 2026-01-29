@@ -19,15 +19,26 @@ build do
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
+  # Include Rust compression library path for static linking
+  rust_lib_path = "#{project_dir}/pkg/util/compression/rust/target/release"
   env = {
     'GOPATH' => gopath.to_path,
     'PATH' => ["#{gopath.to_path}/bin", ENV['PATH']].join(File::PATH_SEPARATOR),
   }
 
+  unless windows_target?
+    env['CGO_LDFLAGS'] = "-L#{rust_lib_path}"
+  end
+
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
     env["GOMODCACHE"] = gomodcache.to_path
   end
+
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  # The rust-compression library may have been built in /go/src/... before omnibus
+  # copied the source to /omnibus/src/..., causing CMake to fail with path mismatches
+  delete "pkg/util/compression/rust/target"
 
   # we assume the go deps are already installed before running omnibus
   command "invoke dogstatsd.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)

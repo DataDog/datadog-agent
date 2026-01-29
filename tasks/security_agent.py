@@ -30,9 +30,11 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_go_version,
     get_version,
+    gitlab_section,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
+from tasks.rust_compression import build as rust_compression_build
 from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -63,10 +65,14 @@ def build(
     skip_assets=False,
     static=False,
     fips_mode=False,
+    exclude_rust_compression=False,
 ):
     """
     Build the security agent
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
 

@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package zlibimpl provides a set of functions for compressing with zlib
+// Package zlibimpl provides zlib compression
 package zlibimpl
 
 import (
 	"bytes"
 	"compress/zlib"
-	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
@@ -22,42 +21,32 @@ func New() compression.Compressor {
 	return &ZlibStrategy{}
 }
 
-// Compress will compress the data with zlib
-func (s *ZlibStrategy) Compress(src []byte) ([]byte, error) {
-	var b bytes.Buffer
-	w := zlib.NewWriter(&b)
-	_, err := w.Write(src)
-	if err != nil {
-		return nil, err
+// CompressInto compresses src directly into dst, returning the number of bytes written.
+func (s *ZlibStrategy) CompressInto(src, dst []byte) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
 	}
-	err = w.Close()
-	if err != nil {
-		return nil, err
+
+	var buf bytes.Buffer
+	w := zlib.NewWriter(&buf)
+	if _, err := w.Write(src); err != nil {
+		return 0, err
 	}
-	dst := b.Bytes()
-	return dst, nil
+	if err := w.Close(); err != nil {
+		return 0, err
+	}
+
+	compressed := buf.Bytes()
+	if len(compressed) > len(dst) {
+		return 0, compression.ErrBufferTooSmall
+	}
+
+	copy(dst, compressed)
+	return len(compressed), nil
 }
 
-// Decompress will decompress the data with zlib
-func (s *ZlibStrategy) Decompress(src []byte) ([]byte, error) {
-	r, err := zlib.NewReader(bytes.NewReader(src))
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	dst, err := io.ReadAll(r)
-	if err != nil {
-		return nil, err
-	}
-	return dst, nil
-}
-
-// CompressBound returns the worst case size needed for a destination buffer
-// This is allowed to return a value _larger_ than 'sourceLen'.
-// Ref: https://refspecs.linuxbase.org/LSB_3.0.0/LSB-Core-generic/LSB-Core-generic/zlib-compressbound-1.html
+// CompressBound returns the worst case size needed for a destination buffer.
 func (s *ZlibStrategy) CompressBound(sourceLen int) int {
-	// From https://code.woboq.org/gcc/zlib/compress.c.html#compressBound
 	return sourceLen + (sourceLen >> 12) + (sourceLen >> 14) + (sourceLen >> 25) + 13
 }
 

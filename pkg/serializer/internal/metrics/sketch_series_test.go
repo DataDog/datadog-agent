@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 			firstPayload := payloads[0]
 			assert.Equal(t, 0, firstPayload.GetPointCount())
 
-			decompressed, _ := compressor.Decompress(firstPayload.GetContent())
+			decompressed, _ := testutil.Decompress(firstPayload.GetContent(), compressor.ContentEncoding())
 			// 0b00010 010 - field 2 (metadata) type 2 (bytes), 0 length
 			assert.Equal(t, []byte{0x12, 0x00}, decompressed)
 		})
@@ -113,7 +114,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 			firstPayload := payloads[0]
 			require.Equal(t, 0, firstPayload.GetPointCount())
 
-			decompressed, _ := compressor.Decompress(firstPayload.GetContent())
+			decompressed, _ := testutil.Decompress(firstPayload.GetContent(), compressor.ContentEncoding())
 
 			pl := new(gogen.SketchPayload)
 			if err := pl.Unmarshal(decompressed); err != nil {
@@ -156,7 +157,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 			firstPayload := payloads[0]
 			assert.Equal(t, 11, firstPayload.GetPointCount())
 
-			decompressed, _ := compressor.Decompress(firstPayload.GetContent())
+			decompressed, _ := testutil.Decompress(firstPayload.GetContent(), compressor.ContentEncoding())
 
 			pl := new(gogen.SketchPayload)
 			err = pl.Unmarshal(decompressed)
@@ -219,7 +220,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 			recoveredCount := 0
 			pointCount := 0
 			for _, pld := range payloads {
-				decompressed, _ := compressor.Decompress(pld.GetContent())
+				decompressed, _ := testutil.Decompress(pld.GetContent(), compressor.ContentEncoding())
 
 				pl := new(gogen.SketchPayload)
 				if err := pl.Unmarshal(decompressed); err != nil {

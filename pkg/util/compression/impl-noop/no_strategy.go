@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package noopimpl provides a set of functions for compressing with zlib / zstd
+// Package noopimpl provides a no-op compressor
 package noopimpl
 
 import (
@@ -12,45 +12,47 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 )
 
-// NoopStrategy is the strategy for when serializer_compressor_kind is neither zlib nor zstd
+// NoopStrategy is the strategy for when compression is disabled
 type NoopStrategy struct{}
 
-// New returns a new NoopStrategy for when kind is neither zlib nor zstd
+// New returns a new NoopStrategy
 func New() compression.Compressor {
 	return &NoopStrategy{}
 }
 
-// Compress implements the Compress method for NoopStrategy to satisfy the Compressor interface
-func (s *NoopStrategy) Compress(src []byte) ([]byte, error) {
-	return src, nil
+// CompressInto copies src directly into dst (no compression).
+func (s *NoopStrategy) CompressInto(src, dst []byte) (int, error) {
+	if len(src) == 0 {
+		return 0, nil
+	}
+	if len(dst) < len(src) {
+		return 0, compression.ErrBufferTooSmall
+	}
+	copy(dst, src)
+	return len(src), nil
 }
 
-// Decompress implements the Decompress method for NoopStrategy to satisfy the Compressor interface
-func (s *NoopStrategy) Decompress(src []byte) ([]byte, error) {
-	return src, nil
-}
-
-// CompressBound implements the CompressBound method for NoopStrategy to satisfy the Compressor interface
+// CompressBound returns the input length (no compression overhead).
 func (s *NoopStrategy) CompressBound(sourceLen int) int {
 	return sourceLen
 }
 
-// ContentEncoding implements the ContentEncoding method for NoopStrategy to satisfy the Compressor interface
+// ContentEncoding returns "identity" (no encoding).
 func (s *NoopStrategy) ContentEncoding() string {
 	return "identity"
 }
 
-// NewStreamCompressor implements the NewStreamCompressor method for NoopStrategy to satisfy the Compressor interface
+// NewStreamCompressor returns a no-op stream compressor.
 func (s *NoopStrategy) NewStreamCompressor(buf *bytes.Buffer) compression.StreamCompressor {
 	return &noopStreamCompressor{buf}
 }
 
-// NoopStreamCompressor is a no-op implementation of StreamCompressor
+// noopStreamCompressor is a no-op implementation of StreamCompressor
 type noopStreamCompressor struct {
 	*bytes.Buffer
 }
 
-// Close closes the underlying writer
+// Close is a no-op
 func (n *noopStreamCompressor) Close() error {
 	return nil
 }

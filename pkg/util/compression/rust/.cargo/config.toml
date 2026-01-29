@@ -1,0 +1,21 @@
+# Cargo configuration for datadog-compression
+#
+# CPU targeting strategy:
+# - x86_64: Use x86-64-v3 baseline (Haswell 2013+, includes AVX2)
+# - aarch64: Use default baseline (covers all arm64 servers)
+#
+# This provides good performance while maintaining broad compatibility.
+# If your deployment targets only have newer CPUs, you can override with:
+#   RUSTFLAGS="-C target-cpu=native" cargo build --release
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+# aarch64 targets use default baseline (already includes NEON, crypto)
+# No special flags needed - the default is broadly compatible

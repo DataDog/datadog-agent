@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/testutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -135,11 +136,12 @@ func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
 //nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	payloads := transaction.BytesPayloads{}
-	payload, err := p.compressor.Compress(protobufString)
+	dst := make([]byte, p.compressor.CompressBound(len(protobufString)))
+	n, err := p.compressor.CompressInto(protobufString, dst)
 	if err != nil {
 		return nil, err
 	}
-	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(payload))
+	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(dst[:n]))
 	return payloads, nil
 }
 
@@ -196,12 +198,13 @@ func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
 
 func mkPayloads(payload []byte, compress bool, s *Serializer) (transaction.BytesPayloads, error) {
 	payloads := transaction.BytesPayloads{}
-	var err error
 	if compress {
-		payload, err = s.Strategy.Compress(payload)
+		dst := make([]byte, s.Strategy.CompressBound(len(payload)))
+		n, err := s.Strategy.CompressInto(payload, dst)
 		if err != nil {
 			return nil, err
 		}
+		payload = dst[:n]
 	}
 	payloads = append(payloads, transaction.NewBytesPayloadWithoutMetaData(payload))
 	return payloads, nil
@@ -215,7 +218,7 @@ func createJSONPayloadMatcher(prefix string, s *Serializer) interface{} {
 
 func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string, s *Serializer) bool {
 	for _, compressedPayload := range payloads {
-		if payload, err := s.Strategy.Decompress(compressedPayload.GetContent()); err != nil {
+		if payload, err := testutil.Decompress(compressedPayload.GetContent(), s.Strategy.ContentEncoding()); err != nil {
 			return false
 		} else { //nolint:revive // TODO(AML) Fix revive linter
 			if strings.HasPrefix(string(payload), prefix) {
@@ -229,7 +232,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string, s *Seria
 
 func createProtoscopeMatcher(t *testing.T, protoscopeDef string, s *Serializer) interface{} {
 	return mock.MatchedBy(func(txn *transaction.HTTPTransaction) bool {
-		payload, err := s.Strategy.Decompress(txn.Payload.GetContent())
+		payload, err := testutil.Decompress(txn.Payload.GetContent(), s.Strategy.ContentEncoding())
 		if err != nil {
 			return false
 		}

@@ -358,10 +358,12 @@ func (s *Serializer) SendProcessesMetadata(data interface{}) error {
 	if err != nil {
 		return fmt.Errorf("could not serialize processes metadata payload: %s", err)
 	}
-	compressedPayload, err := s.Strategy.Compress(payload)
+	compressedPayload := make([]byte, s.Strategy.CompressBound(len(payload)))
+	n, err := s.Strategy.CompressInto(payload, compressedPayload)
 	if err != nil {
 		return fmt.Errorf("could not compress processes metadata payload: %s", err)
 	}
+	compressedPayload = compressedPayload[:n]
 	if err := s.Forwarder.SubmitV1Intake(transaction.NewBytesPayloadsWithoutMetaData([]*[]byte{&compressedPayload}),
 		transaction.Events, s.jsonExtraHeadersWithCompression); err != nil {
 		return err

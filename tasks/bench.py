@@ -8,17 +8,22 @@ from invoke import task
 
 from tasks.build_tags import get_default_build_tags
 from tasks.libs.common.go import go_build
-from tasks.libs.common.utils import REPO_PATH, bin_name
+from tasks.libs.common.utils import REPO_PATH, bin_name, gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 
 # constants
 BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")
 
 
 @task
-def build_kubernetes_state(ctx):
+def build_kubernetes_state(ctx, exclude_rust_compression=False):
     """
     Build Kubernetes_State benchmarks.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     build_tags = get_default_build_tags(build="test")  # pass all the build flags
 
     go_build(

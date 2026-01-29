@@ -39,6 +39,11 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  # The rust-compression library may have been built in /go/src/... before omnibus
+  # copied the source to /omnibus/src/..., causing CMake to fail with path mismatches
+  delete "pkg/util/compression/rust/target"
+
   if linux_target?
     command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"

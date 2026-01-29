@@ -1,0 +1,71 @@
+[package]
+name = "datadog-compression"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Compression library for Datadog Agent with C FFI"
+license = "Apache-2.0"
+
+[lib]
+name = "datadog_compression"
+# Only build static library - no shared library to avoid runtime linking issues
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# Use zstd with bundled C library for maximum runtime performance.
+# NOTE: Do NOT use "thin" feature - it sets ZSTD_NO_INLINE=1 which kills performance.
+# The "zstdmt" feature enables multithreaded compression support.
+zstd = { version = "0.13", default-features = false, features = ["zstdmt"] }
+# Use flate2 with zlib-ng backend for better compression performance
+flate2 = { version = "1.0", default-features = false, features = ["zlib-ng"] }
+libc = "0.2"
+
+[dev-dependencies]
+proptest = "1.4"
+
+[profile.release]
+lto = "fat"
+opt-level = 3
+strip = "symbols"
+panic = "abort"
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1
+
+[features]
+default = ["zstd", "gzip", "zlib"]
+zstd = []
+gzip = []
+zlib = []
+
+# Lints following datadog/lading conventions
+[lints.clippy]
+all = "deny"
+pedantic = "deny"
+perf = "deny"
+suspicious = "deny"
+complexity = "deny"
+unwrap_used = "deny"
+mod_module_files = "deny"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+redundant_allocation = "deny"
+rc_buffer = "deny"
+large_futures = "deny"
+large_stack_arrays = "deny"
+float_cmp = "deny"
+manual_memcpy = "deny"
+unnecessary_to_owned = "deny"
+
+[lints.rust]
+unused_extern_crates = "deny"
+unused_allocation = "deny"
+unused_assignments = "deny"
+unused_comparisons = "deny"
+unreachable_pub = "deny"
+missing_copy_implementations = "deny"
+missing_debug_implementations = "deny"
+missing_docs = "deny"
+warnings = "deny"

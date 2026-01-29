@@ -24,6 +24,7 @@ RUN apt-get update && \
     ca-certificates \
     software-properties-common \
     build-essential \
+    cmake \
     git \
     rpm \
     && apt-get clean \
@@ -72,6 +73,10 @@ RUN ARCH=$(dpkg --print-architecture) && \
     chmod +x /usr/local/bin/dda && \
     dda self dep sync -f legacy-tasks
 
+
+# Install Rust toolchain for compression library
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.82
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Copy the manifest file
 COPY manifest.yaml /workspace/datadog-agent/comp/otelcol/collector-contrib/impl/manifest.yaml

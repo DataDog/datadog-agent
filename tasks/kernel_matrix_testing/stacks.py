@@ -27,6 +27,8 @@ from tasks.kernel_matrix_testing.libvirt import (
 )
 from tasks.kernel_matrix_testing.tool import Exit, error, info, warn
 from tasks.kernel_matrix_testing.vars import AWS_ACCOUNT, VMCONFIG
+from tasks.libs.common.utils import gitlab_section
+from tasks.rust_compression import build as rust_compression_build
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import PathOrStr
@@ -274,6 +276,9 @@ def destroy_stack_pulumi(ctx: Context, stack: str, ssh_key: str | None):
 
 
 def build_start_microvms_binary(ctx):
+    # Build Rust compression library before Go build
+    with gitlab_section("Build Rust compression library", collapsed=True):
+        rust_compression_build(ctx, release=True)
     # building the binary improves start up time for local usage where we invoke this multiple times.
     ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
 

@@ -54,6 +54,7 @@ ALL_TAGS = {
     "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
+    "no_rust_compression",  # use Go compression implementations instead of Rust FFI
     "npm",
     "nvml",  # used for the nvidia go-nvml library
     "oracle",

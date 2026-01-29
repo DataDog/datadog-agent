@@ -33,12 +33,14 @@ build do
     # in particular it ignores the PATH from the environment given as argument
     # so we need to call it before setting the PATH
     env = with_embedded_path()
+    # Include Rust compression library path for static linking
+    rust_lib_path = "#{project_dir}/pkg/util/compression/rust/target/release"
     env = {
         'GOPATH' => gopath.to_path,
         'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
         "LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib",
         "CGO_CFLAGS" => "-I. -I#{install_dir}/embedded/include",
-        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+        "CGO_LDFLAGS" => "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -L#{rust_lib_path}"
     }
 
     unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -75,6 +77,11 @@ build do
 
     mkdir conf_dir
     mkdir embedded_bin_dir
+
+    # Clean Rust target directory to avoid CMake cache path conflicts
+    # The rust-compression library may have been built in /go/src/... before omnibus
+    # copied the source to /omnibus/src/..., causing CMake to fail with path mismatches
+    delete "pkg/util/compression/rust/target"
 
     command "dda inv -- -e otel-agent.build --flavor #{flavor_arg}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
 

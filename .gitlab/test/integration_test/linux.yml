@@ -1,3 +1,15 @@
+.install_rust_and_deps_if_missing:
+  - |
+    if ! command -v cmake &> /dev/null; then
+      echo "cmake not found, installing build dependencies..."
+      apt-get update && apt-get install -y cmake build-essential
+    fi
+    if ! command -v cargo &> /dev/null; then
+      echo "Rust not found, installing..."
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+      source "$HOME/.cargo/env"
+    fi
+
 .integration_tests_deb:
   stage: integration_test
   needs: ["go_deps", "go_tools_deps"]
@@ -15,6 +27,8 @@ docker_integration_tests:
   # This job is not stable yet because of rate limit issues and micro vms beta status.
   allow_failure: true
   script:
+    - !reference [.install_rust_and_deps_if_missing]
+    - dda inv rust-compression.build --release
     - dda inv -- -e docker.test
 
 trace_agent_integration_tests:
@@ -23,4 +37,6 @@ trace_agent_integration_tests:
   timeout: 50m
   retry: 2
   script:
+    - !reference [.install_rust_and_deps_if_missing]
+    - dda inv rust-compression.build --release
     - dda inv -- -e integration-tests --race --only="Trace Agent"

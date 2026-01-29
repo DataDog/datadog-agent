@@ -64,6 +64,7 @@ tests_ebpf_arm64:
     - dda inv -- -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e kmt.prepare --ci --component="system-probe"
 
 prepare_sysprobe_ebpf_functional_tests_arm64:
@@ -102,6 +103,7 @@ prepare_sysprobe_ebpf_functional_tests_x64:
     - dda inv -- -e install-tools
     - !reference [.retrieve_sysprobe_deps]
   script:
+    - dda inv -- -e rust-compression.build --release
     - dda inv -- -e kmt.prepare --ci --component="security-agent"
 
 prepare_secagent_ebpf_functional_tests_arm64:

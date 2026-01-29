@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	zlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
+	"github.com/DataDog/datadog-agent/pkg/util/compression/testutil"
 )
 
 func TestColumn(t *testing.T) {
@@ -85,7 +86,7 @@ func TestColumn(t *testing.T) {
 	var combined []byte
 	for i := 0; i < len(cc.columns); i++ {
 		if cc.UncompressedLen(i) > 0 {
-			col, err := cs.Decompress(cc.CompressedBytes(i))
+			col, err := testutil.Decompress(cc.CompressedBytes(i), cs.ContentEncoding())
 			assert.NoError(t, err)
 			combined = append(combined, col...)
 		}

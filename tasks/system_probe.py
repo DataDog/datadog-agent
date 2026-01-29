@@ -34,10 +34,12 @@ from tasks.libs.common.utils import (
     get_common_test_args,
     get_embedded_path,
     get_gobin,
+    gitlab_section,
     parse_kernel_version,
 )
 from tasks.libs.releasing.version import get_version_numeric_only
 from tasks.libs.types.arch import ALL_ARCHS, ARCH_ARM64, Arch
+from tasks.rust_compression import build as rust_compression_build
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -752,10 +754,15 @@ def build(
     static=False,
     fips_mode=False,
     glibc=True,
+    exclude_rust_compression=False,
 ):
     """
     Build the system-probe
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     if not is_macos:
         build_object_files(
             ctx,
@@ -804,7 +811,12 @@ def build_sysprobe_binary(
     fips_mode=False,
     static=False,
     glibc=True,
+    exclude_rust_compression=False,
 ) -> None:
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(

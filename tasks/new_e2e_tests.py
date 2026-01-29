@@ -39,6 +39,7 @@ from tasks.libs.dynamic_test.executor import DynTestExecutor
 from tasks.libs.dynamic_test.index import IndexKind
 from tasks.libs.testing.e2e import create_test_selection_gotest_regex, filter_only_leaf_tests
 from tasks.libs.testing.result_json import ActionType, ResultJson
+from tasks.rust_compression import build as rust_compression_build
 from tasks.test_core import DEFAULT_E2E_TEST_OUTPUT_JSON
 from tasks.testwasher import TestWasher
 from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stack_local
@@ -101,11 +102,16 @@ def build_binaries(
     manifest_file_path="manifest.json",
     tags=[],  # noqa: B006
     parallel=0,
+    exclude_rust_compression=False,
 ):
     """
     Build E2E test binaries for all test packages to be reused across test jobs.
     This pre-builds all test binaries to optimize CI pipeline performance.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     if "test" not in tags:
         tags = tags + ["test"]
 
@@ -265,10 +271,15 @@ def run(
     max_retries=0,
     osdescriptors="",
     module_name="test/new-e2e",
+    exclude_rust_compression=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
     """
+    if not exclude_rust_compression:
+        with gitlab_section("Build Rust compression library", collapsed=True):
+            rust_compression_build(ctx, release=True)
+
     if "test" not in tags:
         tags = tags + ["test"]
 
