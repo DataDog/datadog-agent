@@ -30,11 +30,10 @@ import (
 	discomodel "github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -56,6 +55,7 @@ type Check struct {
 	config               *Config
 	tagger               tagger.Component
 	connectionsForwarder connectionsforwarder.Component // may be nil
+	containerProvider    proccontainers.ContainerProvider
 	sysProbeClient       *sysprobeclient.CheckClient
 	hostname             string
 }
@@ -99,6 +99,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.hostname = "unknown"
 	}
 
+	// Get shared container provider for PID -> container ID mapping
+	containerProvider, err := proccontainers.GetSharedContainerProvider()
+	if err != nil {
+		log.Warnf("Failed to get shared container provider: %v", err)
+	}
+	c.containerProvider = containerProvider
+
 	return c.config.Parse(config)
 }
 
@@ -128,17 +135,6 @@ func (c *Check) Run() error {
 	return c.sendPayload(payload)
 }
 
-// getContainerIDForPID extracts the container ID for a given PID from /proc/[pid]/cgroup.
-func getContainerIDForPID(pid uint32) string {
-	pidStr := strconv.Itoa(int(pid))
-	containerID, err := cgroups.IdentiferFromCgroupReferences(kernel.HostProc(), pidStr, "", cgroups.ContainerFilter)
-	if err != nil {
-		log.Debugf("Error getting container ID for PID %d: %v", pid, err)
-		return ""
-	}
-	return containerID
-}
-
 // addrKey is used for looking up container IDs by address
 type addrKey struct {
 	ip   string
@@ -150,8 +146,23 @@ type addrKey struct {
 // for both local and remote addresses when connections are on the same host.
 func (c *Check) buildPayload(connections []discomodel.Connection) *model.CollectorConnections {
 	npmConns := make([]*model.Connection, 0, len(connections))
-	containerForPID := make(map[int32]string)
 	tagsEncoder := model.NewV3TagEncoder()
+
+	// Get PID -> container ID mapping from workload metadata via container provider
+	var pidToCid map[int]string
+	if c.containerProvider != nil {
+		pidToCid = c.containerProvider.GetPidToCid(0) // 0 = no cache, always get fresh data
+		log.Debugf("Got PID-to-CID mapping with %d entries", len(pidToCid))
+	} else {
+		log.Warn("Container provider not available, connections will not have container IDs")
+		pidToCid = make(map[int]string)
+	}
+
+	// Build containerForPID map for the payload (int32 keys as required by protobuf)
+	containerForPID := make(map[int32]string)
+	for pid, cid := range pidToCid {
+		containerForPID[int32(pid)] = cid
+	}
 
 	// Pass 1: Build connections and create a map of local addresses -> container ID
 	// This allows us to resolve remote container IDs for intra-host connections
@@ -173,10 +184,9 @@ func (c *Check) buildPayload(connections []discomodel.Connection) *model.Collect
 			raddrPort = int32(conn.TranslatedRaddr.Port)
 		}
 
-		// Get container ID for this PID
-		containerID := getContainerIDForPID(conn.PID)
+		// Get container ID for this PID from the mapping
+		containerID := pidToCid[int(conn.PID)]
 		if containerID != "" {
-			containerForPID[int32(conn.PID)] = containerID
 			// Map the local address to this container ID for later raddr resolution
 			laddrToContainer[addrKey{ip: laddrIP, port: laddrPort}] = containerID
 		}
