@@ -19,7 +19,7 @@
   </div>
   <div style="margin-bottom: 1em;">
     <label for="sw-type-filter"><strong>Filter by type:</strong></label>
-    <select id="sw-type-filter" onchange="filterSoftwareByType(this.value)" style="margin-left: 0.5em; padding: 0.25em 0.5em; border-radius: 4px; border: 1px solid #ccc;">
+    <select id="sw-type-filter" style="margin-left: 0.5em; padding: 0.25em 0.5em; border-radius: 4px; border: 1px solid #ccc;">
       <option value="">All ({{ $total }})</option>
       {{- range $type, $count := $stats }}
       <option value="{{ $type }}">{{ $type }} ({{ $count }})</option>
@@ -53,25 +53,5 @@
       </details>
     {{- end }}
   </div>
-  <script>
-    function filterSoftwareByType(type) {
-      var entries = document.querySelectorAll('.sw-entry');
-      var visibleCount = 0;
-      entries.forEach(function(entry) {
-        if (type === '' || entry.getAttribute('data-sw-type') === type) {
-          entry.style.display = '';
-          visibleCount++;
-        } else {
-          entry.style.display = 'none';
-        }
-      });
-      var countSpan = document.getElementById('sw-filter-count');
-      if (type !== '') {
-        countSpan.textContent = 'Showing ' + visibleCount + ' entries';
-      } else {
-        countSpan.textContent = '';
-      }
-    }
-  </script>
   {{- end }}
 </div>
