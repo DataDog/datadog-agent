@@ -1,12 +1,12 @@
 [package]
-name = "get_text_embeddings"
+name = "deepinference"
 version = "0.1.0"
 edition = "2024"
 license = "Apache-2.0"
 rust-version = "1.91"
 
 [lib]
-name = "get_text_embeddings"
+name = "deepinference"
 crate-type = ["cdylib"]
 
 [dependencies]

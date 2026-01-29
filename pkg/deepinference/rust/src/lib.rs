@@ -30,7 +30,7 @@ static CONTEXT: OnceLock<Context> = OnceLock::new();
 
 // --- Init ---
 #[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_init(err: *mut *mut c_char) {
+pub extern "C" fn dd_deepinference_init(err: *mut *mut c_char) {
     let ctx = match init_context() {
         Ok(ctx) => ctx,
         Err(e) => {
@@ -102,13 +102,13 @@ fn init_tokenizer(api_repo: &mut ApiRepo) -> anyhow::Result<Tokenizer> {
 // --- Inference ---
 // Get the size of the embeddings buffer in floats (not bytes)
 #[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_get_embeddings_size() -> usize {
+pub extern "C" fn dd_deepinference_get_embeddings_size() -> usize {
     return EMBEDDING_SIZE;
 }
 
 // The buffer contains `EMBEDDING_SIZE` floats
 #[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_get_embeddings(text: *const c_char, buffer: *mut f32, err: *mut *mut c_char) {
+pub extern "C" fn dd_deepinference_get_embeddings(text: *const c_char, buffer: *mut f32, err: *mut *mut c_char) {
     let text = unsafe { CStr::from_ptr(text) }.to_str().unwrap();
     let ctx = match CONTEXT.get() {
         Some(ctx) => ctx,

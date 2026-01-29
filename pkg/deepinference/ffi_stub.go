@@ -5,18 +5,18 @@
 
 //go:build !cgo || !(linux || darwin)
 
-package get_text_embeddings
+package deepinference
 
 import "fmt"
 
 func Init() error {
-	return fmt.Errorf("get-text-embeddings requires cgo on linux or darwin")
+	return fmt.Errorf("deepinference requires cgo on linux or darwin")
 }
 
 func GetEmbeddingsSize() (int, error) {
-	return 0, fmt.Errorf("get-text-embeddings requires cgo on linux or darwin")
+	return 0, fmt.Errorf("deepinference requires cgo on linux or darwin")
 }
 
 func GetEmbeddings(text string) ([]float32, error) {
-	return nil, fmt.Errorf("get-text-embeddings requires cgo on linux or darwin")
+	return nil, fmt.Errorf("deepinference requires cgo on linux or darwin")
 }

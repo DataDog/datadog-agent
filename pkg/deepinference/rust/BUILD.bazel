@@ -1,9 +1,9 @@
 load("@rules_rust//rust:defs.bzl", "rust_shared_library")
 
 rust_shared_library(
-    name = "libget_text_embeddings",
+    name = "libdeepinference",
     srcs = ["src/lib.rs"],
-    crate_name = "get_text_embeddings",
+    crate_name = "deepinference",
     crate_root = "src/lib.rs",
     edition = "2024",
     visibility = ["//visibility:public"],

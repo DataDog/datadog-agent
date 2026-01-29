@@ -218,8 +218,8 @@ def build(
     # TODO: Windows support
     target_os = os.getenv("GOOS") or sys.platform
     if target_os not in ("windows", "win32"):
-        with gitlab_section("Build get-text-embeddings rust library", collapsed=True):
-            with ctx.cd("pkg/get_text_embeddings/rust"):
+        with gitlab_section("Build deepinference rust library", collapsed=True):
+            with ctx.cd("pkg/deepinference/rust"):
                 ctx.run(
                     "cargo build --release",
                 )

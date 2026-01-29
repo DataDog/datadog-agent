@@ -7,7 +7,7 @@ crate.from_cargo(
 )
 crate.from_cargo(
     name = "deepinference_crates",
-    cargo_lockfile = "//pkg/get_text_embeddings/rust:Cargo.lock",
-    lockfile = "//pkg/get_text_embeddings/rust:Cargo.Bazel.lock",
-    manifests = ["//pkg/get_text_embeddings/rust:Cargo.toml"],
+    cargo_lockfile = "//pkg/deepinference/rust:Cargo.lock",
+    lockfile = "//pkg/deepinference/rust:Cargo.Bazel.lock",
+    manifests = ["//pkg/deepinference/rust:Cargo.toml"],
 )

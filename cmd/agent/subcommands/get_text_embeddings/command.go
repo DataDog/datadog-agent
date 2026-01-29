@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/pkg/deepinference"
 )
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -21,11 +22,11 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 		Short: "Print the provided text using the Rust implementation",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			if err := Init(); err != nil {
+			if err := deepinference.Init(); err != nil {
 				return err
 			}
 
-			embeddings, err := GetEmbeddings(args[0])
+			embeddings, err := deepinference.GetEmbeddings(args[0])
 			if err != nil {
 				return err
 			}

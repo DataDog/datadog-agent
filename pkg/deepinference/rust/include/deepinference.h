@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-#ifndef DD_GET_TEXT_EMBEDDINGS_H
-#define DD_GET_TEXT_EMBEDDINGS_H
+#ifndef DD_DEEPINFERENCE_H
+#define DD_DEEPINFERENCE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,15 +12,15 @@ extern "C" {
 
 #include <stddef.h>
 
-void dd_get_text_embeddings_init(char **err);
+void dd_deepinference_init(char **err);
 
-size_t dd_get_text_embeddings_get_embeddings_size(void);
+size_t dd_deepinference_get_embeddings_size(void);
 
-void dd_get_text_embeddings_get_embeddings(const char *text, float *buffer, char **err);
+void dd_deepinference_get_embeddings(const char *text, float *buffer, char **err);
 
 #ifdef __cplusplus
 } // extern "C"
 #endif
 
-#endif // DD_GET_TEXT_EMBEDDINGS_H
+#endif // DD_DEEPINFERENCE_H
 
