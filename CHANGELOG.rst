@@ -34,6 +34,9 @@ Bug Fixes
 
 - Change the Log Agent default TCP port for datadoghq.eu from the incorrect value of 10516 to the correct 443.
 
+- Resolves an issue where NetFlow metrics are submitted every 10 seconds, instead of aggregating
+  for the full interval per Source/Destination pair.
+
 
 .. _Release Notes_7.75.0:
 

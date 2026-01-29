@@ -55,8 +55,9 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 
 	report, err := c.DirectScan(ctx, path)
 	return sbom.ScanResult{
-		Error:  err,
-		Report: report,
+		Error:            err,
+		Report:           report,
+		GenerationMethod: "filesystem",
 	}
 }
 

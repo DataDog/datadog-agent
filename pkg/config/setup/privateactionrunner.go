@@ -14,6 +14,9 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	// Enable/disable private action runner
 	config.BindEnvAndSetDefault("privateactionrunner.enabled", false)
 
+	// Log file
+	config.BindEnvAndSetDefault("privateactionrunner.log_file", DefaultPrivateActionRunnerLogFile)
+
 	// Self-enrollment configuration
 	config.BindEnvAndSetDefault("privateactionrunner.self_enroll", false)
 	config.BindEnvAndSetDefault("privateactionrunner.identity_file_path", "")

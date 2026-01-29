@@ -84,7 +84,10 @@ pkg_filegroup(
 
 pkg_install(
     name = "install",
-    srcs = [
-        ":datadog_agent_installer_symlinks",
-    ],
+    srcs = select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
 )

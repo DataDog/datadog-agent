@@ -10,8 +10,7 @@
 '@datadog/container-autoscaling': CASCL
 '@datadog/agent-security': CWS
 '@datadog/agent-apm': APMSP
-'@datadog/network-device-monitoring': NDMII
-'@datadog/ndm-core': NDMII
+'@datadog/ndm-core': NDMC
 '@datadog/ndm-integrations': NDINT
 '@datadog/container-experiences': CXP
 '@datadog/agent-metrics-logs': AMLII

@@ -33,7 +33,7 @@ func (c *Collector) fixupCacheKeyForImgMeta(ctx context.Context, artifact artifa
 	return nil
 }
 
-func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (*Report, error) {
 	cache, err := c.GetCache()
 	if err != nil {
 		return nil, err

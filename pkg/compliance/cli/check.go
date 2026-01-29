@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -28,9 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/security/utils/hostnameutils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 )
 
 // CheckParams needs to be exported because the compliance subcommand is tightly coupled to this subcommand and tests need to be able to access this type.
@@ -56,14 +55,8 @@ func FillCheckFlags(flagSet *pflag.FlagSet, checkArgs *CheckParams) {
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, ipc ipc.Component) error {
-	var hname string
-	var err error
-	if flavor.GetFlavor() == flavor.ClusterAgent {
-		hname, err = hostname.Get(context.TODO())
-	} else {
-		hname, err = hostnameutils.GetHostnameWithContextAndFallback(context.Background(), ipc)
-	}
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsdComp statsd.Component, checkArgs *CheckParams, compression logscompression.Component, _ ipc.Component, hostname hostnameinterface.Component) error {
+	hname, err := hostname.Get(context.Background())
 	if err != nil {
 		return err
 	}
