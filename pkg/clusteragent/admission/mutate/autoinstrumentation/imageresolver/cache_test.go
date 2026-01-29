@@ -63,8 +63,6 @@ func (m *mockRoundTripper) CallCount() int {
 
 func mockHTTPDigestCache(ttl time.Duration) (*httpDigestCache, *mockRoundTripper) {
 	cache := newHTTPDigestCache(ttl)
-
-	// DEV: Inject mock transport for testing
 	transport := &mockRoundTripper{
 		responses: make(map[string]*http.Response),
 	}
