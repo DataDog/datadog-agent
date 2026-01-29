@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -174,4 +175,49 @@ func (iiscfg *DynamicIISConfig) GetSiteNameFromID(id uint32) string {
 		return ""
 	}
 	return val
+}
+
+// GetApplicationPath returns the IIS application path that handles the given URL path
+func (iiscfg *DynamicIISConfig) GetApplicationPath(siteID uint32, urlpath string) string {
+	if iiscfg == nil {
+		return ""
+	}
+	iiscfg.mux.Lock()
+	defer iiscfg.mux.Unlock()
+
+	if iiscfg.xmlcfg == nil {
+		return ""
+	}
+
+	// Convert siteID to string once for comparison
+	siteIDStr := strconv.FormatUint(uint64(siteID), 10)
+
+	// Convert urlpath to lowercase for case-insensitive comparison (Windows paths are case-insensitive)
+	urlpathLower := strings.ToLower(urlpath)
+
+	// Find the matching site and iterate applications to find longest match
+	for _, site := range iiscfg.xmlcfg.ApplicationHost.Sites {
+		if site.SiteID != siteIDStr {
+			continue
+		}
+
+		// Find the longest matching application path
+		longestMatch := "/"
+		for _, app := range site.Applications {
+			appPathLower := strings.ToLower(app.Path)
+			if urlpathLower == appPathLower {
+				return app.Path
+			}
+			// Check if urlpath starts with app.Path and has proper boundary
+			// (either app.Path is "/" or next char is "/")
+			if strings.HasPrefix(urlpathLower, appPathLower) &&
+				(appPathLower == "/" || (len(urlpathLower) > len(appPathLower) && urlpathLower[len(appPathLower)] == '/')) {
+				if len(app.Path) > len(longestMatch) {
+					longestMatch = app.Path
+				}
+			}
+		}
+		return longestMatch
+	}
+	return ""
 }

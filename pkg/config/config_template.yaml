@@ -4085,6 +4085,19 @@ api_key:
 #
 #   namespace: default
 
+#   # @param default_scan - custom object - optional
+#   # Configuration for automatic SNMP device scanning.
+#   # When enabled, discovered SNMP devices are automatically scanned.
+#
+#   # default_scan:
+#
+#     # @param enabled - boolean - optional - default: false
+#     # Enable automatic scanning of discovered SNMP devices.
+#     # When enabled, devices discovered via autodiscovery or configured
+#     # directly will be scanned to collect OID data.
+#
+#     # enabled: false
+
 #   # @param autodiscovery - custom object - optional
 #   # Creates and schedules a listener to automatically discover your SNMP devices.
 #   # Discovered devices can then be monitored with the SNMP integration by using
