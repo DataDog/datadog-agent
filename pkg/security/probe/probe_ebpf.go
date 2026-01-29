@@ -1158,8 +1158,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	// save netns handle if applicable
-	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NetNSPath {
-		return utils.NetNSPathFromPid(event.PIDContext.Pid)
+	_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandleLazy(event.PIDContext.NetNS, func() *utils.NSPath {
+		return utils.NewNSPathFromPid(event.PIDContext.Pid, utils.NetNsType)
 	})
 
 	// handle exec and fork before process context resolution as they modify the process context resolution
@@ -1219,8 +1219,8 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
-				mountNetNSPath := utils.NetNSPathFromPath(mountPath)
-				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, mountNetNSPath)
+				netNSPath := utils.NewNSPathFromPath(mountPath, utils.NetNsType)
+				_, _ = p.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsid, netNSPath)
 			}
 		}
 
