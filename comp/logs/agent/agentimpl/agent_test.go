@@ -37,6 +37,7 @@ import (
 	auditorfx "github.com/DataDog/datadog-agent/comp/logs/auditor/fx"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
@@ -142,6 +143,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*logAgent,
 		inventoryagentimpl.MockModule(),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Supply(option.None[observer.Component]()),
 	))
 
 	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
@@ -516,6 +518,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		fx.Provide(func() option.Option[healthplatform.Component] {
 			return option.New[healthplatform.Component](healthplatformmock.Mock(suite.T()))
 		}),
+		fx.Supply(option.None[observer.Component]()),
 	))
 }
 
