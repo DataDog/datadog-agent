@@ -24,6 +24,8 @@ const (
 	ProcdumpZipPath = "C:/procdump.zip"
 	// ProcdumpDownloadURL is the URL to download procdump from Sysinternals
 	ProcdumpDownloadURL = "https://download.sysinternals.com/files/Procdump.zip"
+	// ProcdumpsPath is the directory where procdump captures are stored.
+	ProcdumpsPath = "C:/procdumps"
 )
 
 // SetupProcdump downloads and extracts procdump to the remote host if not already present.
@@ -46,6 +48,13 @@ func SetupProcdump(host *components.RemoteHost) error {
 	if err != nil {
 		return fmt.Errorf("failed to setup procdump: %w", err)
 	}
+
+	// Create the procdump output directory (separate from WER dumps)
+	_, err = host.Execute(fmt.Sprintf(`New-Item -ItemType Directory -Path '%s' -Force`, ProcdumpsPath))
+	if err != nil {
+		return fmt.Errorf("failed to create procdump output directory: %w", err)
+	}
+
 	return nil
 }
 

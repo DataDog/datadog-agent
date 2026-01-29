@@ -159,6 +159,7 @@ func (s *baseAgentMSISuite) installAgentPackage(vm *components.RemoteHost, agent
 			err = s.waitForServiceRunning(vm, "datadogagent", 300)
 			s.Require().NoError(err, "service should be running after install")
 		}
+		s.T().Fail()
 	}) {
 		s.T().FailNow()
 	}
