@@ -1,16 +1,4 @@
 ---
-check_omnibus_changes:
-  stage: .pre
-  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
-  tags: ["arch:amd64", "specific:true"]
-  script:
-    - $CI_PROJECT_DIR/.gitlab/scripts/check_for_linux_only_changes.sh > omnibus_check.env || echo "SKIP_WINDOWS_E2E_TESTS=false" > omnibus_check.env
-  artifacts:
-    reports:
-      dotenv: omnibus_check.env
-  allow_failure: true
-  needs: []
-
 setup_agent_version:
   stage: setup
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
@@ -58,3 +46,15 @@ github_rate_limit_info:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - dda inv -- github.send-rate-limit-info-datadog --pipeline-id $CI_PIPELINE_ID --app-instance 2
   allow_failure: true
+
+check_omnibus_changes:
+  stage: .pre
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:amd64", "specific:true"]
+  script:
+    - $CI_PROJECT_DIR/.gitlab/scripts/check_for_linux_only_changes.sh > omnibus_check.env || echo "SKIP_WINDOWS_E2E_TESTS=false" > omnibus_check.env
+  artifacts:
+    reports:
+      dotenv: omnibus_check.env
+  allow_failure: true
+  needs: []
