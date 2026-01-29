@@ -115,10 +115,10 @@ func (pw *ParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
 	}
 
-	// Configure parquet writer with compression (Snappy is fast and provides good compression)
+	// Configure parquet writer with compression (Zstd provides excellent compression ratio)
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
-		parquet.WithCompression(compress.Codecs.Snappy),
+		parquet.WithCompression(compress.Codecs.Zstd),
 	)
 
 	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, pqarrow.DefaultWriterProps())
