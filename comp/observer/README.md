@@ -169,3 +169,4 @@ arrow.NewSchema([]arrow.Field{
 - Time is in **milliseconds** (divide by 1000 for seconds)
 - Tags format: `["host:server1", "env:prod"]`
 - All timestamps are UTC
+- **Bloom filters enabled** on Tags and MetricName for fast queries

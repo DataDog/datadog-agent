@@ -115,10 +115,17 @@ func (pw *ParquetWriter) rotateFile() error {
 		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
 	}
 
-	// Configure parquet writer with compression (Zstd provides excellent compression ratio)
+	// Configure parquet writer with compression and bloom filters
+	// Bloom filters enable fast tag queries without reading all data
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 		parquet.WithCompression(compress.Codecs.Zstd),
+		// Enable bloom filter on Tags column for fast tag queries
+		parquet.WithBloomFilterEnabledFor("Tags", true),
+		parquet.WithBloomFilterFPPFor("Tags", 0.01), // 1% false positive rate
+		// Also enable on MetricName for fast metric filtering
+		parquet.WithBloomFilterEnabledFor("MetricName", true),
+		parquet.WithBloomFilterFPPFor("MetricName", 0.01),
 	)
 
 	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, pqarrow.DefaultWriterProps())

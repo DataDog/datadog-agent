@@ -166,53 +166,50 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 		return nil, nil
 	}
 
-	// Find column indices
-	runIDIdx := findColumnIndex(schema, "run_id")
+	// Find column indices (case-insensitive)
+	runIDIdx := findColumnIndex(schema, "runid")
 	timeIdx := findColumnIndex(schema, "time")
-	metricNameIdx := findColumnIndex(schema, "metric_name")
-	valueIntIdx := findColumnIndex(schema, "value_int")
-	valueFloatIdx := findColumnIndex(schema, "value_float")
-
-	// Find label columns (all columns starting with "l_")
-	labelIndices := make(map[string]int)
-	for i := 0; i < len(schema.Fields()); i++ {
-		name := schema.Field(i).Name
-		if strings.HasPrefix(name, "l_") {
-			labelIndices[name] = i
-		}
-	}
+	metricNameIdx := findColumnIndex(schema, "metricname")
+	valueFloatIdx := findColumnIndex(schema, "valuefloat")
+	tagsIdx := findColumnIndex(schema, "tags")
 
 	// Extract column data
 	runIDs := getStringColumn(table, runIDIdx)
-	times := getTimestampColumn(table, timeIdx)
+	times := getInt64Column(table, timeIdx)
 	metricNames := getStringColumn(table, metricNameIdx)
-	valueInts := getUInt64Column(table, valueIntIdx)
 	valueFloats := getFloat64Column(table, valueFloatIdx)
-
-	// Extract label columns
-	labels := make(map[string][]string)
-	for name, idx := range labelIndices {
-		labels[name] = getStringColumn(table, idx)
-	}
+	tagsList := getStringListColumn(table, tagsIdx)
 
 	// Build metrics
 	metrics := make([]FGMMetric, numRows)
 	for i := 0; i < numRows; i++ {
 		tags := make(map[string]string)
-		for name, values := range labels {
-			if i < len(values) && values[i] != "" {
-				// Remove "l_" prefix from tag name
-				tagName := strings.TrimPrefix(name, "l_")
-				tags[tagName] = values[i]
+
+		// Parse tags from list column
+		if i < len(tagsList) {
+			for _, tag := range tagsList[i] {
+				// Parse "key:value" format
+				parts := strings.SplitN(tag, ":", 2)
+				if len(parts) == 2 {
+					tags[parts[0]] = parts[1]
+				} else if len(parts) == 1 && parts[0] != "" {
+					tags[parts[0]] = ""
+				}
 			}
+		}
+
+		var valueFloat *float64
+		if i < len(valueFloats) && valueFloats[i] != 0 {
+			v := valueFloats[i]
+			valueFloat = &v
 		}
 
 		metrics[i] = FGMMetric{
 			RunID:      getAt(runIDs, i),
 			Time:       times[i],
 			MetricName: getAt(metricNames, i),
-			ValueInt:   getUInt64PtrAt(valueInts, i),
-			ValueFloat: getFloat64PtrAt(valueFloats, i),
+			ValueInt:   nil, // Not used in new schema
+			ValueFloat: valueFloat,
 			Tags:       tags,
 		}
 	}
@@ -220,10 +217,11 @@ func extractMetricsFromTable(table arrow.Table) ([]FGMMetric, error) {
 	return metrics, nil
 }
 
-// findColumnIndex finds the index of a column by name, returns -1 if not found.
+// findColumnIndex finds the index of a column by name (case-insensitive), returns -1 if not found.
 func findColumnIndex(schema *arrow.Schema, name string) int {
+	nameLower := strings.ToLower(name)
 	for i, field := range schema.Fields() {
-		if field.Name == name {
+		if strings.ToLower(field.Name) == nameLower {
 			return i
 		}
 	}
@@ -271,8 +269,8 @@ func getStringColumn(table arrow.Table, colIdx int) []string {
 	return result
 }
 
-// getTimestampColumn extracts a timestamp column (as milliseconds) from an Arrow table.
-func getTimestampColumn(table arrow.Table, colIdx int) []int64 {
+// getInt64Column extracts an int64 column from an Arrow table.
+func getInt64Column(table arrow.Table, colIdx int) []int64 {
 	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
 		return nil
 	}
@@ -284,59 +282,29 @@ func getTimestampColumn(table arrow.Table, colIdx int) []int64 {
 	// Iterate through all chunks
 	offset := 0
 	for _, chunk := range col.Data().Chunks() {
-		tsArr, ok := chunk.(*array.Timestamp)
+		i64Arr, ok := chunk.(*array.Int64)
 		if !ok {
-			offset += chunk.Len()
-			continue
-		}
-
-		for i := 0; i < tsArr.Len(); i++ {
-			if !tsArr.IsNull(i) {
-				result[offset+i] = int64(tsArr.Value(i))
-			}
-		}
-		offset += tsArr.Len()
-	}
-
-	return result
-}
-
-// getUInt64Column extracts a uint64 column from an Arrow table.
-func getUInt64Column(table arrow.Table, colIdx int) []uint64 {
-	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
-		return nil
-	}
-
-	col := table.Column(colIdx)
-	numRows := int(col.Len())
-	result := make([]uint64, numRows)
-
-	// Iterate through all chunks
-	offset := 0
-	for _, chunk := range col.Data().Chunks() {
-		u64Arr, ok := chunk.(*array.Uint64)
-		if !ok {
-			// Try as Int64 and convert
-			i64Arr, ok := chunk.(*array.Int64)
+			// Try as Timestamp and convert to milliseconds
+			tsArr, ok := chunk.(*array.Timestamp)
 			if ok {
-				for i := 0; i < i64Arr.Len(); i++ {
-					if !i64Arr.IsNull(i) {
-						result[offset+i] = uint64(i64Arr.Value(i))
+				for i := 0; i < tsArr.Len(); i++ {
+					if !tsArr.IsNull(i) {
+						result[offset+i] = int64(tsArr.Value(i))
 					}
 				}
-				offset += i64Arr.Len()
+				offset += tsArr.Len()
 				continue
 			}
 			offset += chunk.Len()
 			continue
 		}
 
-		for i := 0; i < u64Arr.Len(); i++ {
-			if !u64Arr.IsNull(i) {
-				result[offset+i] = u64Arr.Value(i)
+		for i := 0; i < i64Arr.Len(); i++ {
+			if !i64Arr.IsNull(i) {
+				result[offset+i] = i64Arr.Value(i)
 			}
 		}
-		offset += u64Arr.Len()
+		offset += i64Arr.Len()
 	}
 
 	return result
@@ -372,26 +340,57 @@ func getFloat64Column(table arrow.Table, colIdx int) []float64 {
 	return result
 }
 
+// getStringListColumn extracts a list<string> column from an Arrow table.
+func getStringListColumn(table arrow.Table, colIdx int) [][]string {
+	if colIdx < 0 || int64(colIdx) >= table.NumCols() {
+		return nil
+	}
+
+	col := table.Column(colIdx)
+	numRows := int(col.Len())
+	result := make([][]string, numRows)
+
+	// Iterate through all chunks
+	offset := 0
+	for _, chunk := range col.Data().Chunks() {
+		listArr, ok := chunk.(*array.List)
+		if !ok {
+			offset += chunk.Len()
+			continue
+		}
+
+		// Get the values array (contains all strings)
+		valuesArr := listArr.ListValues().(*array.String)
+
+		for i := 0; i < listArr.Len(); i++ {
+			if listArr.IsNull(i) {
+				result[offset+i] = []string{}
+				continue
+			}
+
+			// Get start and end offsets for this list
+			start := int(listArr.Offsets()[i])
+			end := int(listArr.Offsets()[i+1])
+
+			// Extract strings for this list
+			tags := make([]string, 0, end-start)
+			for j := start; j < end; j++ {
+				if !valuesArr.IsNull(j) {
+					tags = append(tags, valuesArr.Value(j))
+				}
+			}
+			result[offset+i] = tags
+		}
+		offset += listArr.Len()
+	}
+
+	return result
+}
+
 // Helper functions to safely get values from slices
 func getAt(slice []string, idx int) string {
 	if idx < len(slice) {
 		return slice[idx]
 	}
 	return ""
-}
-
-func getUInt64PtrAt(slice []uint64, idx int) *uint64 {
-	if idx < len(slice) && slice[idx] != 0 {
-		v := slice[idx]
-		return &v
-	}
-	return nil
-}
-
-func getFloat64PtrAt(slice []float64, idx int) *float64 {
-	if idx < len(slice) && slice[idx] != 0 {
-		v := slice[idx]
-		return &v
-	}
-	return nil
 }
