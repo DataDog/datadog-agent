@@ -209,10 +209,10 @@ func (l *loader) IsClosed() bool {
 func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 	start := time.Now()
 	lastUpdate := start
-	now := time.Now()
 	nameStr := string(name)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
+	var now time.Time
 
 	for {
 		if l.IsClosed() {
@@ -239,6 +239,6 @@ func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 		l.Unlock()
 
 		lastUpdate = now
-		_ = <-ticker.C
+		<-ticker.C
 	}
 }
