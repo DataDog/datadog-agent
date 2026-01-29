@@ -182,6 +182,14 @@ configure_make(
             "lib/engines-3",
         ],
         "//conditions:default": [],
+    }) + select({
+        # `dll.a` files are "import libraries" on windows, used for linking against them,
+        # but they fall neither in the "static libs" nor "dynamic libs" category.
+        "@platforms//os:windows": [
+            "lib/libssl.dll.a",
+            "lib/libcrypto.dll.a",
+        ],
+        "//conditions:default": [],
     }),
     # For whatever reason rules_foreign_cc does not respect
     # out_dll_dir parameter and tries to find Windows DLLs in
@@ -296,9 +304,12 @@ pkg_files(
     excludes = [
         # Binaries require custom attributes
         ":openssl_binary",
-        # Libraries require separate symlink post-processing
+        # Dynamic require separate symlink post-processing
         ":libssl_shared_file",
         ":libcrypto_shared_file",
+        # We don't need static libraries in the package
+        ":libssl_static",
+        ":libcrypto_static",
     ],
 )
 
