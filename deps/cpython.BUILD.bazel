@@ -5,6 +5,7 @@ load("@rules_pkg//pkg:mappings.bzl", "REMOVE_BASE_DIRECTORY", "pkg_files", "pkg_
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
+load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -36,7 +37,7 @@ copy_to_directory(
     name = "openssl-bin_win_dir",
     srcs = ["@openssl"],
     # TODO(team:agent-build): Single source of truth for dependency versions
-    out = "openssl-bin-3.5.4/amd64",
+    out = "openssl-bin-{}/amd64".format(OPENSSL_VERSION),
     include_external_repositories = ["*openssl*"],
     # This reproduces the expected layout (libs at root, includes under `include`)
     root_paths = [

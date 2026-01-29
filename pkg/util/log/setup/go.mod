@@ -9,7 +9,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
-	github.com/cihub/seelog v2.0.0-20151216151435-d2c6e5aa9fbf+incompatible
 	github.com/stretchr/testify v1.11.1
 )
 
