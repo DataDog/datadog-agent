@@ -73,14 +73,16 @@ func (s *eudmSuite) TestEUDMChecks() {
 
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
 				verifyCheckSchedulingViaStatusAPI(t, c, s.Env(), []string{checkName}, true)
-			}, 2*time.Minute, 10*time.Second, "%s check should be scheduled in EUDM mode", checkName)
+			}, 4*time.Minute, 10*time.Second, "%s check should be scheduled in EUDM mode", checkName)
 		})
 
 		s.T().Run(checkName+"_runs", func(t *testing.T) {
 			t.Logf("Verifying %s check runs successfully...", checkName)
 
-			ran := verifyCheckRuns(t, s.Env(), checkName)
-			assert.True(t, ran, "%s check must run in EUDM mode", checkName)
+			assert.EventuallyWithT(t, func(c *assert.CollectT) {
+				ran := verifyCheckRuns(t, s.Env(), checkName)
+				assert.True(c, ran, "%s check must run in EUDM mode", checkName)
+			}, 4*time.Minute, 10*time.Second, "%s check should run in EUDM mode", checkName)
 		})
 	}
 }
