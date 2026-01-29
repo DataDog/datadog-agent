@@ -17,10 +17,10 @@ license(
 )
 
 pkg_filegroup(
-    name = "all",
+    name = "all_files",
     srcs = [
-        "//rtloader/common:all",
-        "//rtloader/include:all",
+        "//rtloader/common:all_files",
+        "//rtloader/include:all_files",
         "//rtloader/rtloader:lib_files",
         "//rtloader/three:lib_files",
     ],
@@ -28,5 +28,5 @@ pkg_filegroup(
 
 pkg_install(
     name = "install",
-    srcs = ["all"],
+    srcs = ["all_files"],
 )
