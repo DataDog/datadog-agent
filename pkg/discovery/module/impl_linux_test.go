@@ -452,3 +452,134 @@ func TestRustBinary(t *testing.T) {
 	require.Contains(t, string(output), "Discovery is disabled")
 	require.Equal(t, 0, cmd.ProcessState.ExitCode(), "Binary should exit with code 0", string(output))
 }
+
+func TestParseHexIP(t *testing.T) {
+	tests := []struct {
+		name           string
+		hexIP          string
+		inputFamily    string
+		expectedIP     string
+		expectedFamily string
+		expectError    bool
+	}{
+		{
+			name:           "IPv6-mapped IPv4 address (10.244.1.11)",
+			hexIP:          "0000000000000000FFFF00000B01F40A",
+			inputFamily:    "v6",
+			expectedIP:     "10.244.1.11",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "IPv6-mapped IPv4 address (10.244.1.12)",
+			hexIP:          "0000000000000000FFFF00000C01F40A",
+			inputFamily:    "v6",
+			expectedIP:     "10.244.1.12",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "Regular IPv6 address (2001:db8::1)",
+			hexIP:          "B80D0120000000000000000001000000",
+			inputFamily:    "v6",
+			expectedIP:     "2001:db8:0:0:0:0:0:1",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "Regular IPv6 address (fe80::1)",
+			hexIP:          "000080FE000000000000000001000000",
+			inputFamily:    "v6",
+			expectedIP:     "fe80:0:0:0:0:0:0:1",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "Plain IPv4 address (10.244.1.11)",
+			hexIP:          "0B01F40A",
+			inputFamily:    "v4",
+			expectedIP:     "10.244.1.11",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "Plain IPv4 address (192.168.1.1)",
+			hexIP:          "0101A8C0",
+			inputFamily:    "v4",
+			expectedIP:     "192.168.1.1",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:           "IPv6 zero address (::)",
+			hexIP:          "00000000000000000000000000000000",
+			inputFamily:    "v6",
+			expectedIP:     "0:0:0:0:0:0:0:0",
+			expectedFamily: "v6",
+			expectError:    false,
+		},
+		{
+			name:           "IPv4 zero address (0.0.0.0)",
+			hexIP:          "00000000",
+			inputFamily:    "v4",
+			expectedIP:     "0.0.0.0",
+			expectedFamily: "v4",
+			expectError:    false,
+		},
+		{
+			name:        "Invalid IPv6 length",
+			hexIP:       "0000000000000000FFFF00000B01F4",
+			inputFamily: "v6",
+			expectError: true,
+		},
+		{
+			name:        "Invalid IPv4 length",
+			hexIP:       "0B01F4",
+			inputFamily: "v4",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip, family, err := parseHexIP(tt.hexIP, tt.inputFamily)
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedIP, ip, "IP address mismatch")
+			require.Equal(t, tt.expectedFamily, family, "Family mismatch")
+		})
+	}
+}
+
+func TestParseEstablishedConnLineIPv6Mapped(t *testing.T) {
+	// Test that parseEstablishedConnLine correctly normalizes IPv6-mapped IPv4 addresses
+	// This simulates a line from /proc/net/tcp6 with IPv6-mapped IPv4 addresses
+	// Example: cluster-agent listening on 10.244.1.11:5005, agent connecting from 10.244.1.12:46538
+	fields := []string{
+		"0:",                                    // sl
+		"0000000000000000FFFF00000B01F40A:138D", // local_address (10.244.1.11:5005)
+		"0000000000000000FFFF00000C01F40A:B5CA", // rem_address (10.244.1.12:46538)
+		"01",                                    // st (ESTABLISHED)
+		"00000000:00000000",                     // tx_queue:rx_queue
+		"00:00000000",                           // tr:tm->when
+		"00000000",                              // retrnsmt
+		"1000",                                  // uid
+		"0",                                     // timeout
+		"12345",                                 // inode
+	}
+
+	connInfo, inode, err := parseEstablishedConnLine(fields, "v6")
+	require.NoError(t, err)
+	require.NotNil(t, connInfo)
+
+	// Verify that IPv6-mapped addresses are normalized to plain IPv4
+	require.Equal(t, "10.244.1.11", connInfo.localIP, "Local IP should be normalized to plain IPv4")
+	require.Equal(t, uint16(5005), connInfo.localPort)
+	require.Equal(t, "10.244.1.12", connInfo.remoteIP, "Remote IP should be normalized to plain IPv4")
+	require.Equal(t, uint16(46538), connInfo.remotePort)
+	require.Equal(t, "v4", connInfo.family, "Family should be v4 for IPv6-mapped IPv4 addresses")
+	require.Equal(t, uint64(12345), inode)
+}

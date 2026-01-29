@@ -645,7 +645,7 @@ func parseEstablishedConnLine(fields []string, family string) (*establishedConnI
 	if len(localParts) != 2 {
 		return nil, 0, errInvalidLocalIP
 	}
-	localIP, err := parseHexIP(localParts[0], family)
+	localIP, localFamily, err := parseHexIP(localParts[0], family)
 	if err != nil {
 		return nil, 0, errInvalidLocalIP
 	}
@@ -659,7 +659,7 @@ func parseEstablishedConnLine(fields []string, family string) (*establishedConnI
 	if len(remoteParts) != 2 {
 		return nil, 0, errors.New("invalid remote ip format")
 	}
-	remoteIP, err := parseHexIP(remoteParts[0], family)
+	remoteIP, remoteFamily, err := parseHexIP(remoteParts[0], family)
 	if err != nil {
 		return nil, 0, errors.New("invalid remote ip format")
 	}
@@ -673,21 +673,32 @@ func parseEstablishedConnLine(fields []string, family string) (*establishedConnI
 		return nil, 0, errInvalidInode
 	}
 
+	// Use the local address family (it determines the socket type)
+	// Both should be the same after normalization, but use local as canonical
+	actualFamily := localFamily
+
+	// Sanity check: if families differ after normalization, log a warning
+	if localFamily != remoteFamily {
+		// This shouldn't happen for established connections, but log if it does
+		log.Debugf("Family mismatch in connection: local=%s, remote=%s", localFamily, remoteFamily)
+	}
+
 	return &establishedConnInfo{
 		localIP:    localIP,
 		localPort:  uint16(localPort),
 		remoteIP:   remoteIP,
 		remotePort: uint16(remotePort),
-		family:     family,
+		family:     actualFamily,
 	}, inode, nil
 }
 
 // parseHexIP converts a hexadecimal IP address from /proc/net/tcp{,6} to a human-readable string.
-func parseHexIP(hexIP string, family string) (string, error) {
+// Returns the IP string, the actual family (which may differ from input for IPv6-mapped IPv4), and an error.
+func parseHexIP(hexIP string, family string) (string, string, error) {
 	if family == "v6" {
 		// IPv6 is 32 hex chars (128 bits), stored in network byte order per 32-bit word
 		if len(hexIP) != 32 {
-			return "", errors.New("invalid IPv6 length")
+			return "", "", errors.New("invalid IPv6 length")
 		}
 		// IPv6 in /proc/net/tcp6 is stored as 4 little-endian 32-bit words
 		var parts [8]uint16
@@ -701,20 +712,37 @@ func parseHexIP(hexIP string, family string) (string, error) {
 			parts[i*2] = uint16(b0<<8 | b1)
 			parts[i*2+1] = uint16(b2<<8 | b3)
 		}
-		return fmt.Sprintf("%x:%x:%x:%x:%x:%x:%x:%x",
+
+		// Check if this is an IPv6-mapped IPv4 address (::ffff:x.x.x.x)
+		// IPv6-mapped format: 0:0:0:0:0:ffff:xxxx:xxxx
+		if parts[0] == 0 && parts[1] == 0 && parts[2] == 0 &&
+			parts[3] == 0 && parts[4] == 0 && parts[5] == 0xFFFF {
+			// Extract IPv4 address from last two parts (parts[6] and parts[7])
+			// parts[6] contains first two octets, parts[7] contains last two octets
+			ipv4 := fmt.Sprintf("%d.%d.%d.%d",
+				(parts[6]>>8)&0xFF, // First octet
+				parts[6]&0xFF,      // Second octet
+				(parts[7]>>8)&0xFF, // Third octet
+				parts[7]&0xFF)      // Fourth octet
+			return ipv4, "v4", nil // Return as v4 family
+		}
+
+		// Not mapped - return as regular IPv6
+		ipv6Str := fmt.Sprintf("%x:%x:%x:%x:%x:%x:%x:%x",
 			parts[0], parts[1], parts[2], parts[3],
-			parts[4], parts[5], parts[6], parts[7]), nil
+			parts[4], parts[5], parts[6], parts[7])
+		return ipv6Str, "v6", nil
 	}
 
 	// IPv4 is 8 hex chars (32 bits), stored in little-endian
 	if len(hexIP) != 8 {
-		return "", errors.New("invalid IPv4 length")
+		return "", "", errors.New("invalid IPv4 length")
 	}
 	b0, _ := strconv.ParseUint(hexIP[6:8], 16, 8)
 	b1, _ := strconv.ParseUint(hexIP[4:6], 16, 8)
 	b2, _ := strconv.ParseUint(hexIP[2:4], 16, 8)
 	b3, _ := strconv.ParseUint(hexIP[0:2], 16, 8)
-	return fmt.Sprintf("%d.%d.%d.%d", b0, b1, b2, b3), nil
+	return fmt.Sprintf("%d.%d.%d.%d", b0, b1, b2, b3), "v4", nil
 }
 
 // getEstablishedConnections reads established TCP connections from /proc/net/tcp{,6}.
