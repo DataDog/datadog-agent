@@ -68,7 +68,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		if conf.HasFeature("enable_otlp_container_tags_v2") {
 			cid = transform.GetOTelContainerID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		} else {
-			cid = transform.GetOTelContainerOrPodId(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
+			cid = transform.GetOTelContainerOrPodID(otelspan, otelres, conf.OTLPReceiver.IgnoreMissingDatadogFields)
 		}
 		var ctags []string
 		if cid != "" {
