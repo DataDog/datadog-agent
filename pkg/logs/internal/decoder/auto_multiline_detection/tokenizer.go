@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"math"
 	"strings"
-	"unicode"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder/auto_multiline_detection/tokens"
 )
@@ -18,6 +17,26 @@ import (
 // maxRun is the maximum run of a char or digit before it is capped.
 // Note: This must not exceed d10 or c10 below.
 const maxRun = 10
+
+// specialLongTokens is a map for O(1) lookup of special tokens
+var specialLongTokens = map[string]tokens.Token{
+	"JAN": tokens.Month, "FEB": tokens.Month, "MAR": tokens.Month,
+	"APR": tokens.Month, "MAY": tokens.Month, "JUN": tokens.Month,
+	"JUL": tokens.Month, "AUG": tokens.Month, "SEP": tokens.Month,
+	"OCT": tokens.Month, "NOV": tokens.Month, "DEC": tokens.Month,
+	"MON": tokens.Day, "TUE": tokens.Day, "WED": tokens.Day,
+	"THU": tokens.Day, "FRI": tokens.Day, "SAT": tokens.Day, "SUN": tokens.Day,
+	"AM": tokens.Apm, "PM": tokens.Apm,
+	"UTC": tokens.Zone, "GMT": tokens.Zone, "EST": tokens.Zone, "EDT": tokens.Zone,
+	"CST": tokens.Zone, "CDT": tokens.Zone, "MST": tokens.Zone, "MDT": tokens.Zone,
+	"PST": tokens.Zone, "PDT": tokens.Zone, "JST": tokens.Zone, "KST": tokens.Zone,
+	"IST": tokens.Zone, "MSK": tokens.Zone, "CEST": tokens.Zone, "CET": tokens.Zone,
+	"BST": tokens.Zone, "NZST": tokens.Zone, "NZDT": tokens.Zone, "ACST": tokens.Zone,
+	"ACDT": tokens.Zone, "AEST": tokens.Zone, "AEDT": tokens.Zone, "AWST": tokens.Zone,
+	"AWDT": tokens.Zone, "AKST": tokens.Zone, "AKDT": tokens.Zone, "HST": tokens.Zone,
+	"HDT": tokens.Zone, "CHST": tokens.Zone, "CHDT": tokens.Zone, "NST": tokens.Zone,
+	"NDT": tokens.Zone,
+}
 
 // Tokenizer is a heuristic to compute tokens from a log message.
 // The tokenizer is used to convert a log message (string of bytes) into a list of tokens that
@@ -50,18 +69,21 @@ func (t *Tokenizer) ProcessAndContinue(context *messageContext) bool {
 // tokenize converts a byte slice to a list of tokens.
 // This function return the slice of tokens, and a slice of indices where each token starts.
 func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
-	// len(ts) will always be <= len(input)
-	ts := make([]tokens.Token, 0, len(input))
-	indicies := make([]int, 0, len(input))
-	if len(input) == 0 {
-		return ts, indicies
+	inputLen := len(input)
+	if inputLen == 0 {
+		return nil, nil
 	}
+
+	// len(ts) will always be <= len(input)
+	ts := make([]tokens.Token, 0, inputLen)
+	indicies := make([]int, 0, inputLen)
 
 	idx := 0
 	run := 0
-	lastToken := getToken(input[0])
+	firstChar := input[0]
+	lastToken := getToken(firstChar)
 	t.strBuf.Reset()
-	t.strBuf.WriteRune(unicode.ToUpper(rune(input[0])))
+	t.strBuf.WriteByte(toUpperASCII(firstChar))
 
 	insertToken := func() {
 		defer func() {
@@ -100,7 +122,8 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 		}
 	}
 
-	for _, char := range input[1:] {
+	for i := 1; i < inputLen; i++ {
+		char := input[i]
 		currentToken := getToken(char)
 		if currentToken != lastToken {
 			insertToken()
@@ -109,7 +132,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 		}
 		if currentToken == tokens.C1 {
 			// Store upper case A-Z characters for matching special tokens
-			t.strBuf.WriteRune(unicode.ToUpper(rune(char)))
+			t.strBuf.WriteByte(toUpperASCII(char))
 		} else {
 			t.strBuf.WriteByte(char)
 		}
@@ -123,11 +146,22 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 	return ts, indicies
 }
 
+// toUpperASCII converts ASCII lowercase to uppercase, returns char unchanged otherwise
+func toUpperASCII(char byte) byte {
+	if char >= 'a' && char <= 'z' {
+		return char - 32 // 'a' - 'A' = 32
+	}
+	return char
+}
+
 // getToken returns a single token from a single byte.
 func getToken(char byte) tokens.Token {
-	if unicode.IsDigit(rune(char)) {
+	// Fast path for digits (ASCII '0'-'9')
+	if char >= '0' && char <= '9' {
 		return tokens.D1
-	} else if unicode.IsSpace(rune(char)) {
+	}
+	// Fast path for common whitespace
+	if char == ' ' || char == '\t' || char == '\n' || char == '\r' {
 		return tokens.Space
 	}
 
@@ -206,23 +240,9 @@ func getSpecialShortToken(char byte) tokens.Token {
 // getSpecialLongToken returns a special token that is > 1 character.
 // NOTE: This set of tokens is non-exhaustive and can be expanded.
 func getSpecialLongToken(input string) tokens.Token {
-	switch input {
-	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL",
-		"AUG", "SEP", "OCT", "NOV", "DEC":
-		return tokens.Month
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return tokens.Day
-	case "AM", "PM":
-		return tokens.Apm
-	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-		"MST", "MDT", "PST", "PDT", "JST", "KST",
-		"IST", "MSK", "CEST", "CET", "BST", "NZST",
-		"NZDT", "ACST", "ACDT", "AEST", "AEDT",
-		"AWST", "AWDT", "AKST", "AKDT", "HST",
-		"HDT", "CHST", "CHDT", "NST", "NDT":
-		return tokens.Zone
+	if tok, ok := specialLongTokens[input]; ok {
+		return tok
 	}
-
 	return tokens.End
 }
 
