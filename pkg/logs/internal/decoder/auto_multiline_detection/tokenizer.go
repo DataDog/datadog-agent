@@ -174,7 +174,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 	// Reset string buffer - only track for C1 tokens
 	t.strLen = 0
 	if lastToken == tokens.C1 {
-		t.strBuf[0] = toUpperASCII(firstChar)
+		t.strBuf[0] = toUpperLookup[firstChar]
 		t.strLen = 1
 	}
 
@@ -192,7 +192,7 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 
 		// Only buffer C1 (letter) tokens for special token matching
 		if currentToken == tokens.C1 && t.strLen < maxRun {
-			t.strBuf[t.strLen] = toUpperASCII(char)
+			t.strBuf[t.strLen] = toUpperLookup[char]
 			t.strLen++
 		}
 
@@ -213,16 +213,6 @@ func (t *Tokenizer) tokenize(input []byte) ([]tokens.Token, []int) {
 	resultIdx := make([]int, n)
 	copy(resultIdx, indicies)
 	return result, resultIdx
-}
-
-// toUpperASCII converts ASCII lowercase to uppercase via lookup table
-func toUpperASCII(char byte) byte {
-	return toUpperLookup[char]
-}
-
-// getToken returns a single token from a single byte using lookup table.
-func getToken(char byte) tokens.Token {
-	return tokenLookup[char]
 }
 
 func getSpecialShortToken(char byte) tokens.Token {
