@@ -23,6 +23,11 @@ if [ -z "$PREFIX" ]; then
     exit 1
 fi
 
+patch_text_file() {
+    f="$1"
+    sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+}
+
 for f in "$@"; do
     if [ ! -f "$f" ]; then
         echo "$f: file not found"
@@ -36,7 +41,7 @@ for f in "$@"; do
 
     case $f in
         *.pc)
-            sed -ibak -e "s|^prefix=.*|prefix=$PREFIX|" -e "s|##PREFIX##|$PREFIX|" -e "s|\${EXT_BUILD_DEPS}|$PREFIX|" "$f" && rm -f "${f}bak"
+            patch_text_file "$f"
             ;;
         *)
             if file "$f" | grep -q ELF; then
@@ -60,6 +65,8 @@ for f in "$@"; do
                         install_name_tool -add_rpath "$PREFIX/lib" "$dep" 2>/dev/null || true
                     fi
                 done
+            elif file "$f" | grep -q "ASCII text executable"; then
+                patch_text_file "$f"
             else
                 >&2 echo "Ignoring $f"
             fi

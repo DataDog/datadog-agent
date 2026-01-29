@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -153,7 +152,7 @@ func craftKillRule(t *testing.T, id, scope string) (*rules.Rule, *rules.RuleSet)
 
 	opts := rules.NewRuleOpts(map[eval.EventType]bool{"*": true})
 	ruleSet := rules.NewRuleSet(&model.Model{}, nil, opts, &eval.Opts{})
-	_, err := ruleSet.AddRule(ast.NewParsingContext(false), rule.PolicyRule)
+	_, err := ruleSet.AddRule(rule.PolicyRule)
 	assert.NoError(t, err)
 
 	return rule, ruleSet
