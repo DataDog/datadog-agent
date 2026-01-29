@@ -160,7 +160,8 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 	}()
 
 	containerIDByConnection := make(map[connKey]*intern.Value, len(conns.Conns))
-	for _, conn := range conns.Conns {
+	for i := range conns.Conns {
+		conn := &conns.Conns[i]
 		cid := conn.ContainerID.Source
 		if cid == nil {
 			if v, ok := r.pidToContainerID[conn.Pid]; ok {
@@ -172,8 +173,9 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 		}
 		conn.ContainerID.Source = cid
 		if !conn.IntraHost {
-			conn.IntraHost = true
+			continue
 		}
+
 		laddr, raddr, err := translatedAddrs(conn)
 		if err != nil {
 			log.Error(err)
@@ -201,7 +203,8 @@ func (r *containerResolver) resolveDestinationContainerIDs(conns *network.Connec
 	log.Tracef("containerIDByConnection = %v", containerIDByConnection)
 
 	// go over connections again using hashtable computed earlier to containerResolver raddr
-	for _, conn := range conns.Conns {
+	for i := range conns.Conns {
+		conn := &conns.Conns[i]
 		if conn.ContainerID.Dest != nil {
 			continue
 		}
@@ -267,7 +270,7 @@ func translatedLaddr(ip netip.Addr, port uint16, trans *network.IPTranslation) (
 	return netip.AddrPortFrom(ip, port), nil
 }
 
-func translatedAddrs(conn network.ConnectionStats) (laddr, raddr netip.AddrPort, err error) {
+func translatedAddrs(conn *network.ConnectionStats) (laddr, raddr netip.AddrPort, err error) {
 	laddr, err = translatedLaddr(conn.Source.Addr, conn.SPort, conn.IPTranslation)
 	if err != nil {
 		return laddr, raddr, err
