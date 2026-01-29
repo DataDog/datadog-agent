@@ -123,7 +123,6 @@ func (t *GPUMonitoringModule) Register(httpMux *module.Router) error {
 
 // GetStats returns the debug stats for the GPU monitoring module
 func (t *GPUMonitoringModule) GetStats() map[string]interface{} {
-	time.Sleep(300 * time.Second)
 	return t.Probe.GetDebugStats()
 }
 
