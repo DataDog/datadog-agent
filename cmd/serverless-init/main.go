@@ -9,7 +9,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -102,18 +101,18 @@ func main() {
 
 // removing these unused dependencies will cause silent crash due to fx framework
 func run(secretComp secrets.Component, _ autodiscovery.Component, _ healthprobeDef.Component, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) error {
-	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
+	cloudService, logConfig, tracingCtx, metricAgent, logsAgent := setup(secretComp, modeConf, tagger, compression, hostname)
 
 	err := modeConf.Runner(logConfig)
 
 	// Defers are LIFO. We want to run the cloud service shutdown logic before last flush.
-	defer lastFlush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
-	defer cloudService.Shutdown(*metricAgent, traceAgent, err)
+	defer lastFlush(logConfig.FlushTimeout, metricAgent, tracingCtx.TraceAgent, logsAgent)
+	defer cloudService.Shutdown(*metricAgent, err)
 
 	return err
 }
 
-func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, compression logscompression.Component, hostname hostnameinterface.Component) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
 	// load proxy settings
@@ -151,10 +150,15 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
-	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
+	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger, origin)
+
+	tracingCtx := &cloudservice.TracingContext{
+		TraceAgent: traceAgent,
+		SpanTags:   traceTags,
+	}
 
 	// TODO check for errors and exit
-	_ = cloudService.Init(traceAgent)
+	_ = cloudService.Init(tracingCtx)
 
 	metricTags := serverlessInitTag.MakeMetricAgentTags(tags)
 	metricAgent := setupMetricAgent(metricTags, tagger, cloudService.ShouldForceFlushAllOnForceFlushToSerializer())
@@ -164,10 +168,11 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	setupOtlpAgent(metricAgent, tagger)
 
 	go flushMetricsAgent(metricAgent)
-	return cloudService, agentLogConfig, traceAgent, metricAgent, logsAgent
+	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent
 }
 
-var azureServerlessTags = []string{
+var serverlessProfileTags = []string{
+	// Azure tags
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -179,24 +184,34 @@ var azureServerlessTags = []string{
 	"aas.subscription.id",
 	"aas.resource.group",
 	"aas.resource.id",
+	// Cloud-agnostic origin tag
 	"_dd.origin",
 }
 
-func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
-	var azureTags strings.Builder
-	for _, azureServerlessTag := range azureServerlessTags {
-		if value, ok := tags[azureServerlessTag]; ok {
-			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
+	profileTags := make(map[string]string)
+	for _, serverlessProfileTag := range serverlessProfileTags {
+		if value, ok := tags[serverlessProfileTag]; ok {
+			profileTags[serverlessProfileTag] = value
+		}
+	}
+
+	// For Google Cloud Run Functions, add functionname tag to profiles so the profiling team can filter by functions
+	if origin == cloudservice.CloudRunOrigin {
+		_, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
+
+		if functionTargetExists {
+			profileTags["functionname"] = os.Getenv(cloudservice.ServiceNameEnvVar)
 		}
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		AzureServerlessTags: azureTags.String(),
-		FunctionTags:        functionTags,
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		AdditionalProfileTags: profileTags,
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {

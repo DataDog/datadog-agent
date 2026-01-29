@@ -73,7 +73,7 @@ type LibraryLoader interface {
 	Close(lib *Library) error
 	Run(lib *Library, checkID string, initConfig string, instanceConfig string) error
 	Version(lib *Library) (string, error)
-	ComputeSharedLibraryPath(name string) string
+	ComputeLibraryPath(name string) string
 }
 
 // SharedLibraryLoader loads and uses shared libraries
@@ -164,7 +164,7 @@ func (l *SharedLibraryLoader) Version(lib *Library) (string, error) {
 }
 
 // ComputeLibraryPath returns the full expected path of the library
-func (l *SharedLibraryLoader) ComputeSharedLibraryPath(name string) string {
+func (l *SharedLibraryLoader) ComputeLibraryPath(name string) string {
 	// the prefix "libdatadog-agent-" is required to avoid possible name conflicts with other shared libraries in the include path
 	return path.Join(l.folderPath, "libdatadog-agent-"+name+"."+getLibExtension())
 }

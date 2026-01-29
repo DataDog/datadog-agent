@@ -15,6 +15,7 @@ func NewKubernetesCore() *KubernetesCore {
 	return &KubernetesCore{
 		actions: map[string]types.Action{
 			// Manual actions
+			"testConnection": NewTestConnectionHandler(),
 			// Auto-generated actions
 			"createConfigMap":                      NewCreateConfigMapHandler(),
 			"updateConfigMap":                      NewUpdateConfigMapHandler(),

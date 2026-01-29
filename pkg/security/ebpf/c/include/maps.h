@@ -66,7 +66,6 @@ BPF_LRU_MAP(cgroup_wait_list, u64, u64, 1) // max entries will be overridden at 
 BPF_LRU_MAP(traced_cgroups_discarded, u64, u8, 512)
 BPF_LRU_MAP(activity_dump_rate_limiters, u64, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
 BPF_LRU_MAP(pid_rate_limiters, u32, struct rate_limiter_ctx, 1) // max entries will be overridden at runtime
-BPF_LRU_MAP(mount_ref, u32, struct mount_ref_t, 64000)
 BPF_LRU_MAP(bpf_maps, u32, struct bpf_map_t, 4096)
 BPF_LRU_MAP(bpf_progs, u32, struct bpf_prog_t, 4096)
 BPF_LRU_MAP(tgid_fd_map_id, struct bpf_tgid_fd_t, u32, 4096)

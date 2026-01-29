@@ -52,7 +52,7 @@ func (*NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
 }
 
 // ComputeLibraryPath returns the full expected path of the library
-func (l *NoopSharedLibraryLoader) ComputeSharedLibraryPath(_ string) string {
+func (l *NoopSharedLibraryLoader) ComputeLibraryPath(_ string) string {
 	return ""
 }
 

@@ -1071,6 +1071,54 @@ class TestQualityGatesPrMessage(unittest.TestCase):
         wire_section_start = body.find('On-wire sizes (compressed)')
         self.assertIn('gateA', body[wire_section_start:])
 
+    @patch("tasks.quality_gates.pr_commenter")
+    def test_error_on_wire_displays_uncollapsed_on_error_section(self, pr_commenter_mock):
+        """Test that when only the on-wire size is violating a specific gate
+        (and not the on-disk size for that same gate),
+        The uncollapsed error actually shows the data for the on-wire size violation (only)."""
+        c = MockContext()
+        gate_metric_handler = GateMetricHandler("main", "dev")
+
+        # current-on-disk < max-on-disk and current-on-wire > max-on-wire
+        gate_metric_handler.metrics["gateA"] = {
+            "current_on_disk_size": 95 * 1024 * 1024,
+            "max_on_disk_size": 100 * 1024 * 1024,
+            "relative_on_disk_size": 5 * 1024 * 1024,
+            "current_on_wire_size": 50 * 1024 * 1024,
+            "max_on_wire_size": 49 * 1024 * 1024,
+            "relative_on_wire_size": 2 * 1024 * 1024,
+        }
+
+        mock_pr = MagicMock()
+        mock_pr.number = 12345
+        display_pr_comment(
+            c,
+            False,
+            [
+                {'name': 'gateA', 'error_type': 'AssertionError', 'message': 'some_msg_A'},
+            ],
+            gate_metric_handler,
+            "value",
+            mock_pr,
+        )
+        pr_commenter_mock.assert_called_once()
+        call_args = pr_commenter_mock.call_args
+        body = call_args[1]['body']
+        expected = "\n".join(
+            [
+                "||Quality gate|Change|Size (prev → **curr** → max)|",
+                "|--|--|--|--|",
+                "|❌|gateA (on wire)|+2.0 MiB (4.17% increase)|48.000 → **50.000** → 49.000|",
+                "<details>",
+                "<summary>Gate failure full details</summary>",
+                "",
+                "|Quality gate|Error type|Error message|",
+                "|----|---|--------|",
+                "|gateA|AssertionError|some_msg_A|",
+            ]
+        )
+        self.assertIn(expected.strip(), body)
+
 
 class TestOnDiskImageSizeCalculation(unittest.TestCase):
     def tearDown(self):
@@ -1420,8 +1468,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertEqual("**150.000** MiB", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_below_threshold_neutral(self):
         """Should show neutral when delta is below 2 KiB threshold."""
@@ -1435,10 +1483,8 @@ class TestGetChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        # Neutral shows only current size (bolded), no arrows
-        self.assertIn("**", limit_bounds)
-        self.assertIn("MiB", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**150.000** MiB → 200.000", limit_bounds)
 
     def test_small_delta_kib_above_threshold(self):
         """Should show delta in KiB for changes above threshold."""
@@ -1531,8 +1577,8 @@ class TestGetWireChangeMetrics(unittest.TestCase):
 
         self.assertEqual("neutral", change_str)
         self.assertTrue(is_neutral)
-        self.assertIn("**", limit_bounds)
-        self.assertNotIn("→", limit_bounds)
+        # Neutral shows current size and upper bound
+        self.assertEqual("**100.000** MiB → 150.000", limit_bounds)
 
     def test_missing_gate(self):
         """Should return N/A when gate is not found."""
@@ -2154,6 +2200,92 @@ class TestGenerateMetricReports(unittest.TestCase):
 
         # Verify S3 upload was NOT called
         self.assertEqual(len(ctx.run.call_args_list), 0)
+
+
+class TestShouldSkipSendMetrics(unittest.TestCase):
+    """Test the _should_skip_send_metrics method for pipeline source filtering."""
+
+    def setUp(self):
+        """Create a GateMetricHandler instance for testing."""
+        self.handler = GateMetricHandler("main", "dev")
+
+    # Should SKIP metrics (return True) - main branch + non-push pipelines
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_skip_main_branch_web_trigger(self):
+        """Should skip metrics on main branch with manual web trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_skip_main_branch_trigger(self):
+        """Should skip metrics on main branch with downstream trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'pipeline'})
+    def test_skip_main_branch_pipeline(self):
+        """Should skip metrics on main branch with multi-project downstream pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'schedule'})
+    def test_skip_main_branch_schedule(self):
+        """Should skip metrics on main branch with scheduled pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'api'})
+    def test_skip_main_branch_api(self):
+        """Should skip metrics on main branch with API-triggered pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - main branch + push pipeline
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_main_branch_push(self):
+        """Should NOT skip metrics on main branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - non-main branches
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_feature_branch_push(self):
+        """Should NOT skip metrics on feature branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_feature_branch_web(self):
+        """Should NOT skip metrics on feature branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_no_skip_feature_branch_trigger(self):
+        """Should NOT skip metrics on feature branch with trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_release_branch_push(self):
+        """Should NOT skip metrics on release branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_release_branch_web(self):
+        """Should NOT skip metrics on release branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Edge cases - missing/empty environment variables
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_no_skip_empty_env_vars(self):
+        """Should NOT skip metrics when both env vars are empty."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_skip_main_empty_source(self):
+        """Should skip metrics on main branch when pipeline source is empty (not 'push')."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'push'}, clear=True)
+    def test_no_skip_empty_branch(self):
+        """Should NOT skip metrics when branch is empty (not 'main')."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
 
 
 if __name__ == '__main__':

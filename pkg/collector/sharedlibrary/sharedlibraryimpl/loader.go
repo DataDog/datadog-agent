@@ -47,12 +47,12 @@ func (*CheckLoader) String() string {
 func (sl *CheckLoader) Load(senderManager sender.SenderManager, config integration.Config, instance integration.Data, _ int) (check.Check, error) {
 	// we need to dynamically compute the shared libraries path because their extensions are platform dependent
 	// we could also have collisions with existing shared libraries
-	libPath := sl.loader.ComputeSharedLibraryPath(config.Name)
+	libPath := sl.loader.ComputeLibraryPath(config.Name)
 
 	// open the library and get pointers to its symbols through the library loader
 	lib, err := sl.loader.Open(libPath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to load shared library at %s: %s", libPath, err)
+		return nil, fmt.Errorf("Failed to load shared library at %s: %w", libPath, err)
 	}
 
 	// Create the check

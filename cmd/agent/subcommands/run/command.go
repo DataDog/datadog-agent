@@ -112,6 +112,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -445,6 +446,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		grpcAgentfx.Module(),
 		commonendpoints.Module(),
+		filterlist.Module(),
 		demultiplexerimpl.Module(demultiplexerimpl.NewDefaultParams(demultiplexerimpl.WithDogstatsdNoAggregationPipelineConfig())),
 		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(dogstatsdServer.Params{Serverless: false}),
@@ -536,6 +538,7 @@ func getSharedFxOption() fx.Option {
 					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
 					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
 					"multi_region_failover.failover_apm":     internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_apm", "Enable/disable redirection of APM to failover region."),
+					"multi_region_failover.metric_allowlist": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.metric_allowlist", "Allowlist of metrics to be redirected to failover region."),
 					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
 				},
 				Config: config,
