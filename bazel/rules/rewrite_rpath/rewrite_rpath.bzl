@@ -44,6 +44,7 @@ _replace_prefix = rule(
         "tool": attr.label(
             doc = "The tool used to patch rpath",
             executable = True,
+            allow_single_file = True,
             cfg = "exec",
         ),
         "_install_dir": attr.label(
@@ -60,7 +61,7 @@ def rewrite_rpath(name, input, prefix = None):
         prefix = prefix,
         tool = select({
             "@platforms//os:linux": "@patchelf",
-            "@platforms//os:macos": ":macos.sh",
+            "@platforms//os:macos": "@@//bazel/rules:rewrite_rpath/macos.sh",
         }),
         os = select({
             "@platforms//os:linux": "linux",
