@@ -2746,7 +2746,7 @@ api_key:
 ## @env DD_OBSERVER_PARQUET_OUTPUT_DIR - string - optional - default: ""
 ## Directory where timestamped parquet files will be written for long-term storage.
 ## Files are rotated at the flush interval to ensure they remain valid and readable.
-## Files are compressed with Snappy compression and use UTC timestamps in filenames.
+## Files are compressed with Zstd compression and use UTC timestamps in filenames.
 ## Set to empty string to disable (default). Example: "/tmp/observer-metrics"
 #
 #   parquet_output_dir: ""
