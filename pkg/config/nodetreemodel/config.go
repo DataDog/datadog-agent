@@ -352,7 +352,7 @@ func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	}
 
 	// Replace the child with the node from the previous layer
-	parentNode.InsertChildNode(childName, prevNode.Clone())
+	parentNode.InsertChildNode(childName, prevNode)
 
 	newValue := c.leafAtPathFromNode(key, c.root).Get()
 
@@ -700,12 +700,9 @@ func (c *ntmConfig) HasSection(key string) bool {
 	return false
 }
 
-// AllKeysLowercased returns all keys, including unknown keys and those without default values
-// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
-func (c *ntmConfig) AllKeysLowercased() []string {
-	c.RLock()
-	defer c.RUnlock()
-
+// collectFlattenedKeys returns all flattened keys without acquiring a lock.
+// Must be called while holding at least a read lock.
+func (c *ntmConfig) collectFlattenedKeys() []string {
 	// collect keys from known set
 	allKeys := map[string]struct{}{}
 	for k, isLeaf := range c.knownKeys {
@@ -718,7 +715,16 @@ func (c *ntmConfig) AllKeysLowercased() []string {
 		allKeys[k] = struct{}{}
 	}
 
-	keylist := slices.Collect(maps.Keys(allKeys))
+	return slices.Collect(maps.Keys(allKeys))
+}
+
+// AllKeysLowercased returns all keys, including unknown keys and those without default values
+// Unlike AllSettings, this returns keys defined by SetKnown or BindEnv
+func (c *ntmConfig) AllKeysLowercased() []string {
+	c.RLock()
+	defer c.RUnlock()
+
+	keylist := c.collectFlattenedKeys()
 	sort.Strings(keylist)
 	return keylist
 }
@@ -923,13 +929,21 @@ func (c *ntmConfig) AllSettingsBySource() map[model.Source]interface{} {
 	}
 }
 
-// AllSettingsWithSequenceID returns the settings and the sequence ID.
-func (c *ntmConfig) AllSettingsWithSequenceID() (map[string]interface{}, uint64) {
+// AllFlattenedSettingsWithSequenceID returns all settings as a flattened map along with the sequence ID.
+// Keys are flattened (e.g., "logs_config.enabled" instead of nested {"logs_config": {"enabled": ...}}).
+// This provides atomic access to flattened keys, values, and sequence ID under a single lock.
+func (c *ntmConfig) AllFlattenedSettingsWithSequenceID() (map[string]interface{}, uint64) {
 	c.maybeRebuild()
 
 	c.RLock()
 	defer c.RUnlock()
-	return c.root.dumpSettings(true), c.sequenceID
+
+	keys := c.collectFlattenedKeys()
+	settings := make(map[string]interface{}, len(keys))
+	for _, key := range keys {
+		settings[key] = c.getNodeValue(key)
+	}
+	return settings, c.sequenceID
 }
 
 // AddConfigPath adds another config for the given path

@@ -72,6 +72,42 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	if len(uris) == 0 {
 		return nil, errors.New("no URIs provided for configs")
 	}
+
+	//
+	// Config setup
+	//
+	// TODO: should be migrated to a dedicated comp or flavor of the config comp
+	//
+	pkgconfigsetup.InitConfigObjects(ddCfg, "")
+
+	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	pkgconfig.BindEnvAndSetDefault("log_level", "info")
+
+	pkgconfigsetup.InitConfig(pkgconfig)
+	pkgconfig.BuildSchema()
+
+	if len(ddCfg) != 0 {
+		// if the configuration file path was supplied via CLI flags or env vars,
+		// add that first so it's first in line
+		pkgconfig.AddConfigPath(ddCfg)
+		// If they set a config file directly, let's try to honor that
+		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
+			pkgconfig.SetConfigFile(ddCfg)
+		}
+
+		err := pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//
+	// config setup done
+	//
+
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -98,36 +134,15 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 		return nil, err
 	}
 
-	// Get the global agent config, build on top of it some more
-	// NOTE: This pattern should not be used by other callsites, it is needed here
-	// specifically because of the unique requirements of OTel's configuration.
-	pkgconfig := pkgconfigsetup.Datadog().RevertFinishedBackToBuilder() //nolint:forbidigo // legitimate use for OTel configuration
-	pkgconfig.SetConfigName("OTel")
-	pkgconfig.SetEnvPrefix("DD")
-	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	pkgconfig.BindEnvAndSetDefault("log_level", "info")
-
 	activeLogLevel := critical
-	if len(ddCfg) != 0 {
-		// if the configuration file path was supplied via CLI flags or env vars,
-		// add that first so it's first in line
-		pkgconfig.AddConfigPath(ddCfg)
-		// If they set a config file directly, let's try to honor that
-		if strings.HasSuffix(ddCfg, ".yaml") || strings.HasSuffix(ddCfg, ".yml") {
-			pkgconfig.SetConfigFile(ddCfg)
-		}
-
-		err = pkgconfigsetup.LoadDatadog(pkgconfig, secretsnoop.NewComponent().Comp, nil)
-		if err != nil {
-			return nil, err
-		}
+	if pkgconfig.IsConfigured("log_level") {
 		var ok bool
-		activeLogLevel, ok = logLevelMap[strings.ToLower(pkgconfig.GetString("log_level"))]
+		logLevel := strings.ToLower(pkgconfig.GetString("log_level"))
+		activeLogLevel, ok = logLevelMap[logLevel]
 		if !ok {
 			return nil, fmt.Errorf("invalid log level (%v) set in the Datadog Agent configuration", pkgconfig.GetString("log_level"))
 		}
 	}
-
 	// Set the right log level. The most verbose setting takes precedence.
 	telemetryLogLevel := "info"
 	if stCfgMap, ok := sc.Telemetry.(map[string]any); ok {
@@ -148,14 +163,6 @@ func NewConfigComponent(ctx context.Context, ddCfg string, uris []string) (confi
 	}
 	fmt.Printf("setting log level to: %v\n", logLevelReverseMap[activeLogLevel])
 	pkgconfig.Set("log_level", logLevelReverseMap[activeLogLevel], pkgconfigmodel.SourceFile)
-
-	// Override config read (if any) with Default values
-	pkgconfigsetup.InitConfig(pkgconfig)
-	pkgconfigmodel.ApplyOverrideFuncs(pkgconfig)
-
-	// Finish building the config, required because the finished config was
-	// reverted earlier by the method "RevertFinishedBackToBuilder"
-	pkgconfig.BuildSchema()
 
 	ddc, err := getDDExporterConfig(cfg)
 	if err == ErrNoDDExporter {
