@@ -9,7 +9,7 @@
 
 .retrieve_linux_go_tools_deps:
   - mkdir -p /tmp/cached_tools && tar xJf modcache_tools.tar.xz -C /tmp/cached_tools
-  - mkdir -p $GOPATH/install_tools && mv /tmp/cached_tools/bin $GOPATH/install_tools/
+  - mkdir -p $GOPATH/install_tools/bin && cp -r /tmp/cached_tools/bin/* $GOPATH/install_tools/bin/
   - mkdir -p $GOPATH/pkg/mod/cache && cp -r /tmp/cached_tools/pkg/mod/cache/* $GOPATH/pkg/mod/cache/
   - rm -rf /tmp/cached_tools modcache_tools.tar.xz
   - export PATH=$PATH:$GOPATH/install_tools/bin
