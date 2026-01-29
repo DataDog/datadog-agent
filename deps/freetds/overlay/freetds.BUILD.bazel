@@ -92,7 +92,7 @@ _PUBLIC_HEADERS = [
 ]
 
 cc_library(
-    name = "tdsodbc",
+    name = "tdsodbc_static",
     srcs = [
         ":gen_sysdep_h",
         ":gen_version_h",
@@ -206,21 +206,24 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "@unixodbc//:odbc",
-        "@openssl//:openssl",
+        "@openssl//:crypto",
+        "@openssl//:ssl",
+        "@openssl//:imported_ssl_headers",
     ],
 )
 
 cc_shared_library(
     name = "tdsodbc_so",
-    deps = [":tdsodbc"],
-    shared_lib_name = "libtdsocbc.so",
+    deps = [":tdsodbc_static"],
+    shared_lib_name = "libtdsodbc.so",
     dynamic_deps = [
         "@unixodbc//:libodbc_so",
+        "@openssl//:crypto_shared",
+        "@openssl//:ssl_shared",
     ],
     user_link_flags = select({
         "@platforms//os:linux": [
-            "-Wl,--gc-sections",
-            "-Wl,--strip-all",
+            "-Wl,-rpath=/opt/datadog-agent/embedded/lib",
         ],
         "//conditions:default": [],
     }),
