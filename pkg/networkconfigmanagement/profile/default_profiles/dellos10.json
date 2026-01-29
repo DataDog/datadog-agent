@@ -36,6 +36,26 @@
           }
         ]
       }
+    },
+    {
+      "type": "startup",
+      "values": [
+        "show startup-configuration"
+      ],
+      "processing_rules": {
+        "validation": [
+          {
+            "type": "valid_output",
+            "pattern": "(?m)^hostname\\s+\\S+"
+          }
+        ],
+        "redaction": [
+          {
+            "regex": "(password )(\\S+)",
+            "replacement": "${1}<secret hidden>"
+          }
+        ]
+      }
     }
   ]
 }
