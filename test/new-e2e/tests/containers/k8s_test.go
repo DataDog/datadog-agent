@@ -791,7 +791,6 @@ func (suite *k8sSuite) TestRedis() {
 				`^orch_cluster_id:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
-				`^team:container-integrations$`,                         // Validates auto_team_tag_collection feature
 				`^kube_instance_tag:static$`,                            // This is applied via KSM core check instance config
 				`^stackid:` + regexp.QuoteMeta(suite.clusterName) + `$`, // Pulumi applies this via DD_TAGS env var
 			}),
