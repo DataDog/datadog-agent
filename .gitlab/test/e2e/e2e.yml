@@ -87,7 +87,7 @@
     PRE_BUILT_BINARIES_FLAG: "--use-prebuilt-binaries"
     MAX_RETRIES_FLAG: "" # Empty by default, can be set to `--max-retries=3` for example to retry failed tests
     REMOTE_STACK_CLEANING: "true"
-    E2E_AGENT_IMAGE_CONFIG: "" # Extra config for agent image selection, e.g., "-c ddagent:linuxOnly=true"
+    WINDOWS_AGENT_FLAG: "" # Set to "--windows-agent" for jobs that need Windows-compatible images
   script:
     - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS
@@ -95,7 +95,7 @@
       if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
-    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) ${E2E_AGENT_IMAGE_CONFIG} --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
+    - dda inv -- -e new-e2e-tests.run $DYNAMIC_TESTS_FLAG $PRE_BUILT_BINARIES_FLAG $MAX_RETRIES_FLAG --local-package $CI_PROJECT_DIR/$OMNIBUS_BASE_DIR --result-json $E2E_RESULT_JSON --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) ${WINDOWS_AGENT_FLAG} --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --logs-folder=$E2E_OUTPUT_DIR/logs --logs-post-processing --logs-post-processing-test-depth=$E2E_LOGS_PROCESSING_TEST_DEPTH
   after_script:
     - CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $CODECOV token) || exit $?; export CODECOV_TOKEN
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "junit-${CI_JOB_ID}.tgz" "$E2E_RESULT_JSON"
@@ -226,7 +226,7 @@ go_e2e_test_binaries:
     - qa_dca
     - qa_dogstatsd
   variables:
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
 
 new-e2e-containers-ecs:
   extends: .new_e2e_template_needs_container_deploy
@@ -380,7 +380,7 @@ new-e2e-fips-compliance-test:
   needs:
     - !reference [.needs_new_e2e_template]
     - agent_deb-x64-a7-fips
-    - qa_agent_fips
+    - qa_agent_fips_linux
   rules:
     - !reference [.on_arun_or_e2e_changes]
     - !reference [.dynamic_tests] # The job will always be created on any Go code modification, tests are skipped dynamically in the job
@@ -407,6 +407,7 @@ new-e2e-windows-fips-compliance-test:
   variables:
     TARGETS: ./tests/fips-compliance
     TEAM: windows-products
+    WINDOWS_AGENT_FLAG: "--windows-agent"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run "TestWindowsVM$"
@@ -567,7 +568,7 @@ new-e2e-amp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
     ON_NIGHTLY_FIPS: "true"
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
 
 new-e2e-alp:
   extends: .new_e2e_template
@@ -586,7 +587,7 @@ new-e2e-alp:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
   # Temporary for #incident-44744
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
@@ -608,7 +609,7 @@ new-e2e-cws:
     TEAM: csm-threats-agent
     # Temporarily disable the test on FIPS pipeline, as remote-configuration is not available with FIPS Agent yet
     # ON_NIGHTLY_FIPS: "true"
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuiteEC2
@@ -666,7 +667,7 @@ new-e2e-process-ecs:
     TARGETS: ./tests/process
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
 
 new-e2e-process:
   extends: .new_e2e_template
@@ -685,7 +686,7 @@ new-e2e-process:
     TARGETS: ./tests/process
     TEAM: container-experiences
     ON_NIGHTLY_FIPS: "true"
-    E2E_AGENT_IMAGE_CONFIG: "-c ddagent:linuxOnly=false"
+    WINDOWS_AGENT_FLAG: "--windows-agent"
 
 new-e2e-orchestrator-ecs:
   extends: .new_e2e_template_needs_container_deploy_linux
@@ -969,7 +970,6 @@ new-e2e-otel-eks:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent_linux
     - qa_agent_full
     - qa_ot_agent_standalone
     - new-e2e-otel-eks-init
@@ -989,7 +989,6 @@ new-e2e-otel:
   needs:
     - !reference [.needs_new_e2e_template]
     - qa_dca
-    - qa_agent_linux
     - qa_agent_full
     - qa_ot_agent_standalone
   variables:
@@ -1132,6 +1131,8 @@ generate-flakes-finder-pipeline:
     - qa_agent
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - qa_agent_full
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
@@ -1191,6 +1192,8 @@ generate-fips-e2e-pipeline:
     - qa_agent_full
     - qa_agent_fips
     - qa_agent_fips_jmx
+    - qa_agent_fips_linux
+    - qa_agent_fips_linux_jmx
     - tests_windows_sysprobe_x64
   tags: ["arch:amd64", "specific:true"]
   script:
