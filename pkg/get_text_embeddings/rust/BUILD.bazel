@@ -7,5 +7,13 @@ rust_shared_library(
     crate_root = "src/lib.rs",
     edition = "2024",
     visibility = ["//visibility:public"],
+    deps = [
+        "@deepinference_crates//:anyhow",
+        "@deepinference_crates//:candle-core",
+        "@deepinference_crates//:candle-nn",
+        "@deepinference_crates//:candle-transformers",
+        "@deepinference_crates//:hf-hub",
+        "@deepinference_crates//:serde_json",
+        "@deepinference_crates//:tokenizers",
+    ],
 )
-

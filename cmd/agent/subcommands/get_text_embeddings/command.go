@@ -25,8 +25,6 @@ func Commands(_ *command.GlobalParams) []*cobra.Command {
 				return err
 			}
 
-			Init()
-
 			embeddings, err := GetEmbeddings(args[0])
 			if err != nil {
 				return err

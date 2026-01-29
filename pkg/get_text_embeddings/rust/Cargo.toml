@@ -9,3 +9,11 @@ rust-version = "1.91"
 name = "get_text_embeddings"
 crate-type = ["cdylib"]
 
+[dependencies]
+anyhow = "1.0.100"
+candle-core = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+candle-nn = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+candle-transformers = { git = "https://github.com/huggingface/candle.git", version = "0.9.2" }
+hf-hub = "0.4.3"
+serde_json = "1.0.149"
+tokenizers = "0.22.2"
