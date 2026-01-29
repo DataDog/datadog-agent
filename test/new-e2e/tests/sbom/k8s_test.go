@@ -150,6 +150,7 @@ func (mc *myCollectT) Errorf(format string, args ...interface{}) {
 
 type scanMethod struct {
 	mode       string
+	method     string
 	helmValues string
 }
 
@@ -165,23 +166,28 @@ func (suite *k8sSuite) TestSBOM() {
 	scanMethods := []scanMethod{
 		{
 			mode:       "default",
+			method:     "filesystem",
 			helmValues: ``,
 		},
+		/*
+		   		{
+		   			mode:   "tarball",
+		   			method: "tarball",
+		   			helmValues: `datadog:
+		     sbom:
+		       containerImage:
+		         uncompressedLayersSupport: false
+		   `,
+		   		},
+		*/
 		{
-			mode: "mount",
+			mode:   "overlayfs",
+			method: "overlayfs",
 			helmValues: `datadog:
   sbom:
     containerImage:
       uncompressedLayersSupport: true
-`,
-		},
-		{
-			mode: "overlayfs",
-			helmValues: `datadog:
-  sbom:
-    containerImage:
-      uncompressedLayersSupport: true
-      overlayfsDirectScan: true
+      overlayFSDirectScan: true
 `,
 		},
 	}
@@ -211,6 +217,7 @@ func (suite *k8sSuite) TestSBOM() {
 
 	for n, mode := range scanMethods {
 		m := mode.mode
+		method := mode.method
 		helmValues := mode.helmValues
 
 		for _, img := range images {
@@ -336,6 +343,7 @@ func (suite *k8sSuite) TestSBOM() {
 							regexp.MustCompile(`^image_tag:` + regexp.QuoteMeta(appVersion) + `$`),
 							regexp.MustCompile(`^os_name:linux$`),
 							regexp.MustCompile(fmt.Sprintf(`^short_image:%s$`, appShortImage)),
+							regexp.MustCompile(`^scan_method:` + method + `$`),
 						}
 
 						if len(img.expectedTags) != 0 {

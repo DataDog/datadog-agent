@@ -252,3 +252,10 @@ jira_issue_type = "Task"
 jira_statuses = ["To do", "In Development", "Done"]
 github_team = "data-streams-monitoring"
 github_labels = ["team/data-streams-monitoring"]
+
+[teams."Profiling Full Host"]
+jira_project = "PROF"
+jira_issue_type = "Task"
+jira_statuses = ["To Do", "In Progress", "Done"]
+github_team = "profiling-full-host"
+github_labels = ["team/profiling-full-host"]
