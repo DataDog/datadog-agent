@@ -582,9 +582,9 @@ workflow:
 
 # Rule to detect Windows installer changes
 # NOTE: This rule will trigger if ANY of the listed paths change.
-# Jobs using this rule should call .check_linux_only_omnibus_files
-# in their before_script to skip execution if only linux-only files changed.
-# See: .gitlab/scripts/check_windows_installer_changes.sh for exclusion logic
+# Jobs using this rule should also check .if_not_skip_windows_e2e to skip
+# execution if only linux-only files in omnibus/config/software/ changed.
+# See: .gitlab/scripts/check_for_linux_only_changes.sh for exclusion logic
 .if_windows_installer_changes: &if_windows_installer_changes
   changes:
     paths:
@@ -1246,16 +1246,6 @@ workflow:
 .always_on_coverage_pipeline:
   - <<: *if_coverage_pipeline
     when: always
-
-# Check if PR only includes omnibus files that are linux specific.
-# This script should be called in before_script of jobs that use .if_windows_installer_changes
-# It will exit the job early (success) if only linux specific files in omnibus/config/software/ changed
-.check_linux_only_omnibus_files:
-  - |
-    if ! $CI_PROJECT_DIR/.gitlab/scripts/check_for_linux_only_changes.sh; then
-      echo "Skipping job: only linux specific omnibus/config/software files changed"
-      exit 0
-    fi
 
 # This is used to setup utils to report custom datadog-ci spans
 .setup-datadog-ci-sections:
