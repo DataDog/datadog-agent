@@ -17,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
@@ -30,7 +31,16 @@ var tplCel = integration.Config{
 
 // Initialize the shared dummy CEL template with a matching program
 func init() {
-	matchingProgram, _, _, _ := integration.CreateMatchingProgram(tplCel.CELSelector)
+	matchingProgram, celADID, compileErr, recErr := integration.CreateMatchingProgram(tplCel.CELSelector)
+	if compileErr != nil {
+		panic("failed to compile CEL matching program: " + compileErr.Error())
+	}
+	if recErr != nil {
+		panic("failed to create CEL matching program: " + recErr.Error())
+	}
+	if celADID != adtypes.CelEndpointIdentifier {
+		panic("expected CEL identifier to be " + string(adtypes.CelEndpointIdentifier) + " but got " + string(celADID))
+	}
 	tplCel.SetMatchingProgram(matchingProgram)
 }
 
@@ -121,7 +131,8 @@ func TestBuildConfigStore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &KubeEndpointsFileConfigProvider{}
 			p.buildConfigStore(tt.templates)
-			// Ignore recompiled matching program in the integration.Config
+			// Ignore unexported matchingProgram in the integration.Config
+			// because it gets recompiled in buildConfigStore with a different signature
 			if diff := cmp.Diff(tt.want, p.store.epConfigs,
 				cmp.AllowUnexported(epConfig{}),
 				cmpopts.IgnoreUnexported(integration.Config{})); diff != "" {
