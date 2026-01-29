@@ -319,10 +319,16 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		var builder *strings.Builder
 		if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-			// Reassign otelres to avoid duplicating container tags as span attributes in OtelSpanToDDSpan
-			var containerTagsMap map[string]string
-			containerTagsMap, otelres = attributes.RemoveContainerTagsFromResource(otelres)
-			builder = flatten(containerTagsMap)
+			// RemoveContainerTagsFromAttributes will remove some resource attributes
+			// to avoid duplicating them as both span attributes and container tags.
+			// Since the input data is immutable when this function is used as part of the Datadog exporter,
+			// we make a copy of the resource before modifying it.
+			newRes := pcommon.NewResource()
+			otelres.CopyTo(newRes)
+			otelres = newRes
+			resourceAttributes = otelres.Attributes()
+
+			builder = flatten(attributes.RemoveContainerTagsFromAttributes(otelres.Attributes()))
 
 		} else {
 			builder = flatten(attributes.ContainerTagsFromResourceAttributes(resourceAttributes))

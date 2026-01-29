@@ -41,6 +41,9 @@ func (o otlpConsumer) Capabilities() consumer.Capabilities {
 }
 
 func (o otlpConsumer) ConsumeTraces(ctx context.Context, td ptrace.Traces) error {
+	// When ReceiveResourceSpans is used as part of the Datadog exporter, the input will be read-only.
+	td.MarkReadOnly()
+
 	for _, rs := range td.ResourceSpans().All() {
 		_, err := o.rcv.ReceiveResourceSpans(ctx, rs, http.Header{}, nil)
 		if err != nil {
