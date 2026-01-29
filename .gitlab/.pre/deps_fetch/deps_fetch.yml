@@ -8,9 +8,11 @@
   - rm -f modcache.tar.xz
 
 .retrieve_linux_go_tools_deps:
-  - mkdir -p $GOPATH && tar xJf modcache_tools.tar.xz -C $GOPATH
-  - rm -f modcache_tools.tar.xz
-  - export PATH=$PATH:$GOPATH/bin
+  - mkdir -p /tmp/cached_tools && tar xJf modcache_tools.tar.xz -C /tmp/cached_tools
+  - mkdir -p $GOPATH/install_tools && mv /tmp/cached_tools/bin $GOPATH/install_tools/
+  - mkdir -p $GOPATH/pkg/mod && mv /tmp/cached_tools/pkg/mod/cache $GOPATH/pkg/mod/
+  - rm -rf /tmp/cached_tools modcache_tools.tar.xz
+  - export PATH=$PATH:$GOPATH/install_tools/bin
 
 .retrieve_linux_go_e2e_deps:
   - mkdir -p $GOPATH/pkg/mod/cache && tar xJf modcache_e2e.tar.xz -C $GOPATH/pkg/mod/cache
