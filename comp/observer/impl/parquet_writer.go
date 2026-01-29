@@ -38,6 +38,7 @@ type ParquetWriter struct {
 	flushInterval     time.Duration
 	retentionDuration time.Duration // 0 means no cleanup
 	stopCh            chan struct{}
+	closed            bool
 	mu                sync.Mutex
 }
 
@@ -90,19 +91,15 @@ func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Du
 
 // rotateFile closes the current file and opens a new timestamped one
 func (pw *ParquetWriter) rotateFile() error {
-	// Close existing file if any
+	// Close existing writer (this also closes the underlying file)
 	if pw.writer != nil {
 		if err := pw.writer.Close(); err != nil {
 			pkglog.Warnf("Error closing parquet writer during rotation: %v", err)
 		}
 		pw.writer = nil
 	}
-	if pw.file != nil {
-		if err := pw.file.Close(); err != nil {
-			pkglog.Warnf("Error closing parquet file during rotation: %v", err)
-		}
-		pw.file = nil
-	}
+	// File is already closed by writer.Close(), just nil it out
+	pw.file = nil
 
 	// Generate timestamped filename with UTC timezone: observer-metrics-20260129-133045Z.parquet
 	timestamp := time.Now().UTC().Format("20060102-150405")
@@ -128,7 +125,11 @@ func (pw *ParquetWriter) rotateFile() error {
 		parquet.WithBloomFilterFPPFor("MetricName", 0.01),
 	)
 
-	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, pqarrow.DefaultWriterProps())
+	// WithStoreSchema embeds the Arrow schema into Parquet metadata,
+	// enabling proper reconstruction of nested types like list<string>
+	arrowProps := pqarrow.NewArrowWriterProperties(pqarrow.WithStoreSchema())
+
+	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, arrowProps)
 	if err != nil {
 		file.Close()
 		return fmt.Errorf("creating parquet writer: %w", err)
@@ -170,6 +171,11 @@ func (pw *ParquetWriter) flushLoop() {
 func (pw *ParquetWriter) flushAndRotate() {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
+
+	// Don't rotate if we're closing - Close() will handle final flush
+	if pw.closed {
+		return
+	}
 
 	// Write accumulated metrics to current file
 	record := pw.builder.build()
@@ -242,10 +248,17 @@ func (pw *ParquetWriter) cleanup() {
 
 // Close flushes remaining data and closes the writer
 func (pw *ParquetWriter) Close() error {
-	close(pw.stopCh)
-
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
+
+	// Check if already closed
+	if pw.closed {
+		return nil
+	}
+	pw.closed = true
+
+	// Signal background goroutines to stop
+	close(pw.stopCh)
 
 	// Final flush
 	record := pw.builder.build()
@@ -256,27 +269,23 @@ func (pw *ParquetWriter) Close() error {
 		record.Release()
 	}
 
-	// Close writer and file
+	// Close writer (this also closes the underlying file)
 	if pw.writer != nil {
 		if err := pw.writer.Close(); err != nil {
 			return fmt.Errorf("closing parquet writer: %w", err)
 		}
+		pw.writer = nil
 	}
-
-	if pw.file != nil {
-		if err := pw.file.Close(); err != nil {
-			return fmt.Errorf("closing parquet file: %w", err)
-		}
-	}
+	// File is already closed by writer.Close()
+	pw.file = nil
 
 	pkglog.Infof("Parquet writer closed: %s", pw.currentFilePath)
 	return nil
 }
 
-// metricBatchBuilder accumulates metrics into Arrow record batches
+// metricBatchBuilder accumulates metrics into Arrow record batches using RecordBuilder
 type metricBatchBuilder struct {
 	schema *arrow.Schema
-	pool   memory.Allocator
 
 	runIDs      []string
 	times       []int64
@@ -288,7 +297,6 @@ type metricBatchBuilder struct {
 func newMetricBatchBuilder(schema *arrow.Schema) *metricBatchBuilder {
 	return &metricBatchBuilder{
 		schema:      schema,
-		pool:        memory.NewGoAllocator(),
 		runIDs:      []string{},
 		times:       []int64{},
 		metricNames: []string{},
@@ -314,55 +322,37 @@ func (b *metricBatchBuilder) build() arrow.Record {
 		return nil
 	}
 
-	// Build Arrow arrays from accumulated data
-	runIDBuilder := array.NewStringBuilder(b.pool)
-	defer runIDBuilder.Release()
+	// Use RecordBuilder for proper nested type handling (list<string> Tags)
+	recordBuilder := array.NewRecordBuilder(memory.DefaultAllocator, b.schema)
+
+	runIDBuilder := recordBuilder.Field(0).(*array.StringBuilder)
+	timeBuilder := recordBuilder.Field(1).(*array.Int64Builder)
+	nameBuilder := recordBuilder.Field(2).(*array.StringBuilder)
+	valueBuilder := recordBuilder.Field(3).(*array.Float64Builder)
+	tagsBuilder := recordBuilder.Field(4).(*array.ListBuilder)
+	tagsValueBuilder := tagsBuilder.ValueBuilder().(*array.StringBuilder)
+
+	// Append all accumulated data
 	for _, id := range b.runIDs {
 		runIDBuilder.Append(id)
 	}
-	runIDArray := runIDBuilder.NewArray()
-	defer runIDArray.Release()
-
-	timeBuilder := array.NewInt64Builder(b.pool)
-	defer timeBuilder.Release()
 	timeBuilder.AppendValues(b.times, nil)
-	timeArray := timeBuilder.NewArray()
-	defer timeArray.Release()
-
-	nameBuilder := array.NewStringBuilder(b.pool)
-	defer nameBuilder.Release()
 	for _, name := range b.metricNames {
 		nameBuilder.Append(name)
 	}
-	nameArray := nameBuilder.NewArray()
-	defer nameArray.Release()
-
-	valueBuilder := array.NewFloat64Builder(b.pool)
-	defer valueBuilder.Release()
 	valueBuilder.AppendValues(b.valueFloats, nil)
-	valueArray := valueBuilder.NewArray()
-	defer valueArray.Release()
 
-	// Build tags list column
-	tagsListBuilder := array.NewListBuilder(b.pool, arrow.BinaryTypes.String)
-	defer tagsListBuilder.Release()
-	tagsValueBuilder := tagsListBuilder.ValueBuilder().(*array.StringBuilder)
-
+	// Append tags for each metric
 	for _, tagList := range b.tags {
-		tagsListBuilder.Append(true)
+		tagsBuilder.Append(true)
 		for _, tag := range tagList {
 			tagsValueBuilder.Append(tag)
 		}
 	}
-	tagsArray := tagsListBuilder.NewArray()
-	defer tagsArray.Release()
 
 	// Create record
-	record := array.NewRecord(
-		b.schema,
-		[]arrow.Array{runIDArray, timeArray, nameArray, valueArray, tagsArray},
-		int64(len(b.metricNames)),
-	)
+	record := recordBuilder.NewRecord()
+	recordBuilder.Release()
 
 	// Reset builder for next batch
 	b.runIDs = []string{}
