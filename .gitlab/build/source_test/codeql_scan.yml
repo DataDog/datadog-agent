@@ -44,6 +44,5 @@ run_codeql_scan:
     - CODEQL_SARIF="/tmp/javascript.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/python.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
     - CODEQL_SARIF="/tmp/cpp.sarif" codescanning $UPLOAD_CONFIGS -scan_started_time="$CI_JOB_STARTED_AT"
- after_script:
-    - if [ -n "$GITHUB_TOKEN" ]; then dd-octo-sts revoke -t "$GITHUB_TOKEN" || true; fi    
-
+  after_script:
+    - if [ -n "$GITHUB_TOKEN" ]; then dd-octo-sts revoke -t "$GITHUB_TOKEN" || true; fi
