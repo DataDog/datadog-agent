@@ -8,7 +8,6 @@ unless windows?
   dependency "bzip2"
   dependency "libsqlite3"
   dependency "liblzma"
-  dependency "libyaml"
 end
 dependency "openssl3"
 
@@ -23,11 +22,17 @@ build do
 
   if !windows_target?
     env = with_standard_compiler_flags(with_embedded_path)
-    python_configure_options = [
-      "--without-readline",  # Disables readline support
-      "--with-ensurepip=yes", # We upgrade pip later, in the pip3 software definition
-      "--without-static-libpython" # We only care about the shared library
-    ]
+    command_on_repo_root "bazelisk run -- @cpython//:install --destdir='#{install_dir}/embedded'"
+    sh_lib = if linux_target? then "libpython3.so" else "libpython3.13.dylib" end
+    command_on_repo_root "bazelisk run -- //bazel/rules:replace_prefix --prefix '#{install_dir}/embedded'" \
+      " #{install_dir}/embedded/lib/pkgconfig/python*.pc" \
+      " #{install_dir}/embedded/lib/#{sh_lib}" \
+      " #{install_dir}/embedded/lib/python3.13/lib-dynload/*.so" \
+      " #{install_dir}/embedded/bin/python3*"
+  elsif fips_mode?
+    ###############################
+    # Setup openssl dependency... #
+    ###############################
 
     if mac_os_x?
       python_configure_options.push("--enable-ipv6",
