@@ -1,32 +1,174 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+extern crate candle_core;
+extern crate candle_transformers;
+extern crate candle_nn;
+extern crate hf_hub;
 
-use std::ffi::CStr;
-use std::os::raw::c_char;
+use std::{ffi::{CStr, CString, c_char}, sync::OnceLock};
 
-#[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_init(_err: *mut *mut c_char) {
-    println!("Init get_text_embeddings");
+use candle_core::{Device, Tensor, IndexOp};
+use candle_nn::VarBuilder;
+use candle_transformers::models::bert::{BertModel, Config, DTYPE};
+use tokenizers::{PaddingParams, Tokenizer};
+use hf_hub::{api::sync::Api, Repo, RepoType, api::sync::ApiRepo};
+
+const EMBEDDING_SIZE: usize = 384;
+const MODEL_NAME: &str = "sentence-transformers/all-MiniLM-L6-v2";
+// TODO: Don't use main
+const REVISION: &str = "main";
+const DEVICE: &Device = &Device::Cpu;
+// TODO
+// Will use a mmap'd memory for the model which is faster but uses unsafe code
+// const USE_MMAPED_SAFE_TENSORS: bool = true;
+
+// Internal context for the whole library
+struct Context {
+    model: BertModel,
+    tokenizer: Tokenizer,
 }
 
+static CONTEXT: OnceLock<Context> = OnceLock::new();
+
+// --- Init ---
+#[unsafe(no_mangle)]
+pub extern "C" fn dd_get_text_embeddings_init(err: *mut *mut c_char) {
+    let ctx = match init_context() {
+        Ok(ctx) => ctx,
+        Err(e) => {
+            unsafe {
+                *err = std::ffi::CString::new(format!("Failed to initialize context: {}", e)).unwrap().into_raw();
+            }
+            return;
+        }
+    };
+
+    match CONTEXT.set(ctx) {
+        Ok(_) => (),
+        Err(_) => {
+            unsafe {
+                *err = std::ffi::CString::new("Context already initialized").unwrap().into_raw();
+            }
+            return;
+        }
+    }
+}
+
+fn init_context() -> anyhow::Result<Context> {
+    let mut api_repo = init_api()?;
+    let model = init_model(&mut api_repo)?;
+    let tokenizer = init_tokenizer(&mut api_repo)?;
+
+    Ok(Context { model: model, tokenizer: tokenizer })
+}
+
+// May return an error
+fn init_api() -> anyhow::Result<ApiRepo> {
+    let repo = Repo::with_revision(MODEL_NAME.to_string(), RepoType::Model, REVISION.to_string());
+    let api = Api::new()?;
+    let api_repo = api.repo(repo);
+
+    Ok(api_repo)
+}
+
+// TODO: Load from file and not using the API
+fn init_model(api_repo: &mut ApiRepo) -> anyhow::Result<BertModel> {
+    let config = api_repo.get("config.json")?;
+    let config = std::fs::read_to_string(config)?;
+    let config: Config = serde_json::from_str(&config)?;
+
+    let weights = api_repo.get("model.safetensors")?;
+    // We use the mmaped safe tensor memory for that
+    let vb = unsafe { VarBuilder::from_mmaped_safetensors(&[weights], DTYPE, &DEVICE)? };
+
+    let model = BertModel::load(vb, &config)?;
+
+    Ok(model)
+}
+
+fn init_tokenizer(api_repo: &mut ApiRepo) -> anyhow::Result<Tokenizer> {
+    let tokenizer = api_repo.get("tokenizer.json")?;
+    let mut tokenizer = Tokenizer::from_file(tokenizer)
+        .map_err(|e| anyhow::anyhow!("Tokenizer::from_file error: {}", e))?;
+    tokenizer.with_truncation(None)
+        .map_err(|e| anyhow::anyhow!("tokenizer.with_truncation error: {}", e))?;
+    let pp = PaddingParams {
+        strategy: tokenizers::PaddingStrategy::BatchLongest,
+        ..Default::default()
+    };
+    tokenizer.with_padding(Some(pp));
+
+    Ok(tokenizer)
+}
+
+// --- Inference ---
+// Get the size of the embeddings buffer in floats (not bytes)
 #[unsafe(no_mangle)]
 pub extern "C" fn dd_get_text_embeddings_get_embeddings_size() -> usize {
-    // TODO
-    384
+    return EMBEDDING_SIZE;
 }
 
+// The buffer contains `EMBEDDING_SIZE` floats
 #[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_get_embeddings(text: *const c_char, _buffer: *mut f32, err: *mut *mut c_char) {
-    if text.is_null() {
-        unsafe {
-            *err = std::ffi::CString::new("Failed to get embeddings: text is null").unwrap().into_raw();
+pub extern "C" fn dd_get_text_embeddings_get_embeddings(text: *const c_char, buffer: *mut f32, err: *mut *mut c_char) {
+    let text = unsafe { CStr::from_ptr(text) }.to_str().unwrap();
+    let ctx = match CONTEXT.get() {
+        Some(ctx) => ctx,
+        None => {
+            unsafe {
+                *err = CString::new("Context not initialized").unwrap().into_raw();
+            }
+            return;
         }
-        return;
+    };
+
+    // We can interpret buffer as a slice of EMBEDDING_SIZE f32s
+    let out_buf: &mut [f32] = unsafe {
+        std::slice::from_raw_parts_mut(buffer, EMBEDDING_SIZE)
+    };
+
+    match get_embeddings_internal(&ctx, text, out_buf) {
+        Ok(_) => (),
+        Err(e) => {
+            unsafe {
+                *err = CString::new(format!("Cannot get embeddings: {}", e)).unwrap().into_raw();
+            }
+            return;
+        }
+    };
+}
+
+// Will write out_buf with the embeddings
+// out_buf is of size EMBEDDING_SIZE
+fn get_embeddings_internal(ctx: &Context, text: &str, out_buf: &mut [f32]) -> anyhow::Result<()> {
+    // Tokenize
+    let tokens = ctx.tokenizer
+        .encode(text, true)
+        .map_err(|e| anyhow::anyhow!("tokenizer.encode error: {}", e))?
+        .get_ids()
+        .to_vec();
+    let token_ids = Tensor::new(&tokens[..], DEVICE)?.unsqueeze(0)?;
+    let token_type_ids = token_ids.zeros_like()?;
+
+    // Inference
+    let ys = ctx.model.forward(&token_ids, &token_type_ids, None)?;
+
+    // Pooling (mean) + normalize
+    let ys = ys.mean(1)?;
+    let ys = normalize_l2(&ys)?;
+
+    let dims = ys.shape().dims();
+    if dims.len() != 2 || dims[0] != 1 || dims[1] != EMBEDDING_SIZE {
+        return Err(anyhow::anyhow!("Invalid embeddings shape: {:?} (should be [1, {}])", ys.shape(), EMBEDDING_SIZE));
     }
 
-    let text = unsafe { CStr::from_ptr(text) }.to_string_lossy();
-    println!("{text}");
+    // Output the result
+    for i in 0..EMBEDDING_SIZE {
+        out_buf[i] = ys.i((0, i))?.to_scalar::<f32>()?;
+    }
+
+    Ok(())
 }
 
+// Performs v / sqrt(sum(v^2))
+fn normalize_l2(v: &Tensor) -> anyhow::Result<Tensor> {
+    Ok(v.broadcast_div(&v.sqr()?.sum_keepdim(1)?.sqrt()?)?)
+}
