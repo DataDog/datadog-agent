@@ -688,7 +688,7 @@ func (e *RuleEngine) HandleEvent(event *model.Event) {
 	}
 
 	// Debug-only: report events that took too long to process, even if no rule matched.
-	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 1*time.Second {
+	if event.Flags&model.EventFlagsSlowProcessingReported == 0 && time.Since(event.StartTime) > 5*time.Second {
 		event.AddToFlags(model.EventFlagsSlowProcessingReported)
 
 		originalRuleID := fmt.Sprintf("event_%s", event.GetEventType())
