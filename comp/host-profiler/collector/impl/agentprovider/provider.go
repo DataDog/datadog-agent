@@ -20,17 +20,26 @@ const (
 	schemeName = "dd"
 )
 
+// CollectorParams provides access to collector configuration parameters.
+type CollectorParams interface {
+	GetGoRuntimeMetrics() bool
+}
+
 type agentProvider struct {
 	config configManager
+	params CollectorParams
 }
 
-func NewFactory(agentConfig config.Component) confmap.ProviderFactory {
-	return confmap.NewProviderFactory(newProvider(agentConfig))
+func NewFactory(agentConfig config.Component, params CollectorParams) confmap.ProviderFactory {
+	return confmap.NewProviderFactory(newProvider(agentConfig, params))
 }
 
-func newProvider(agentConfig config.Component) confmap.CreateProviderFunc {
+func newProvider(agentConfig config.Component, params CollectorParams) confmap.CreateProviderFunc {
 	return func(_ confmap.ProviderSettings) confmap.Provider {
-		return &agentProvider{newConfigManager(agentConfig)}
+		return &agentProvider{
+			config: newConfigManager(agentConfig),
+			params: params,
+		}
 	}
 }
 
@@ -46,7 +55,7 @@ func (ap *agentProvider) Retrieve(_ context.Context, uri string, _ confmap.Watch
 		return nil, errors.New("no valid endpoints configured: ensure Datadog agent configuration has 'api_key' and either 'apm_config.profiling_dd_url' or 'site' set")
 	}
 
-	stringMap := buildConfig(ap.config)
+	stringMap := buildConfig(ap.config, ap.params)
 
 	return confmap.NewRetrieved(stringMap)
 }
