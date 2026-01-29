@@ -65,6 +65,7 @@ func TestMaxConns(t *testing.T) {
 func TestIsRetriable(t *testing.T) {
 	for code, want := range map[int]bool{
 		400: false,
+		403: true,
 		404: false,
 		408: true,
 		409: false,
@@ -187,7 +188,7 @@ func TestSender(t *testing.T) {
 		s := newSender(testSenderConfig(server.URL), statsd)
 		s.Push(expectResponses(503, 503, 200))
 		for i := 0; i < 20; i++ {
-			s.Push(expectResponses(403))
+			s.Push(expectResponses(404))
 		}
 
 		s.Stop()
@@ -231,7 +232,7 @@ func TestSender(t *testing.T) {
 		s.Push(expectResponses(200))
 		s.Push(expectResponses(200))
 		for i := 0; i < 4; i++ {
-			s.Push(expectResponses(403))
+			s.Push(expectResponses(404))
 		}
 		s.Stop()
 
@@ -247,7 +248,7 @@ func TestSender(t *testing.T) {
 		sent := recorder.data(eventTypeSent)
 		assert.Equal(3, len(sent))
 		for i := 0; i < 3; i++ {
-			assert.True(sent[i].bytes > len("|403"))
+			assert.True(sent[i].bytes > len("|404"))
 			assert.NoError(sent[i].err)
 			assert.Equal(1, sent[i].count)
 			assert.True(time.Since(start)-sent[i].duration < time.Second)
@@ -256,8 +257,8 @@ func TestSender(t *testing.T) {
 		failed := recorder.data(eventTypeRejected)
 		assert.Equal(4, len(failed))
 		for i := 0; i < 4; i++ {
-			assert.True(failed[i].bytes > len("|403"))
-			assert.Equal("403 Forbidden", failed[i].err.Error())
+			assert.True(failed[i].bytes > len("|404"))
+			assert.Equal("404 Not Found", failed[i].err.Error())
 			assert.Equal(1, failed[i].count)
 			assert.True(time.Since(start)-failed[i].duration < time.Second)
 		}
@@ -313,6 +314,62 @@ func TestSender(t *testing.T) {
 		assert.Equal(0, servers[2].Accepted(), "accepted")
 		assert.Equal(0, servers[2].Retried(), "retry")
 		assert.Equal(20, servers[2].Failed(), "failed")
+	})
+
+	t.Run("403_secrets_refresh_fn", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+
+		callbackInvoked := false
+		cfg := testSenderConfig(server.URL)
+		cfg.secretsRefreshFn = func() bool {
+			callbackInvoked = true
+			return true
+		}
+
+		s := newSender(cfg, statsd)
+		s.Push(expectResponses(403))
+		s.Stop()
+
+		assert.True(callbackInvoked, "secrets refresh callback should have been invoked on 403")
+	})
+	t.Run("403_secrets_refresh_fn_nil", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+
+		cfg := testSenderConfig(server.URL)
+		cfg.secretsRefreshFn = nil
+
+		s := newSender(cfg, statsd)
+		assert.NotPanics(func() {
+			s.Push(expectResponses(403))
+			s.Stop()
+		})
+	})
+
+	t.Run("403_retries_with_backoff", func(t *testing.T) {
+		assert := assert.New(t)
+		server := newTestServer()
+		defer server.Close()
+		defer useBackoffDuration(time.Nanosecond)()
+
+		callbackInvoked := false
+		cfg := testSenderConfig(server.URL)
+		cfg.secretsRefreshFn = func() bool {
+			callbackInvoked = true
+			return true
+		}
+
+		s := newSender(cfg, statsd)
+		s.Push(expectResponses(403, 403, 200))
+		s.Stop()
+
+		assert.Equal(3, server.Total(), "should have made 3 requests")
+		assert.Equal(2, server.Retried(), "should have retried twice")
+		assert.Equal(1, server.Accepted(), "should have succeeded once")
+		assert.True(callbackInvoked, "secrets refresh callback should have been invoked on 403")
 	})
 }
 

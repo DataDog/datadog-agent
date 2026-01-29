@@ -46,16 +46,17 @@ func newSenders(cfg *config.AgentConfig, r eventRecorder, path string, climit, q
 			os.Exit(1)
 		}
 		senders[i] = newSender(&senderConfig{
-			client:         cfg.NewHTTPClient(),
-			maxConns:       int(maxConns),
-			maxQueued:      qsize,
-			maxRetries:     cfg.MaxSenderRetries,
-			url:            url,
-			apiKey:         endpoint.APIKey,
-			recorder:       r,
-			userAgent:      fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
-			isMRF:          endpoint.IsMRF,
-			MRFFailoverAPM: cfg.MRFFailoverAPM,
+			client:           cfg.NewHTTPClient(),
+			maxConns:         int(maxConns),
+			maxQueued:        qsize,
+			maxRetries:       cfg.MaxSenderRetries,
+			url:              url,
+			apiKey:           endpoint.APIKey,
+			recorder:         r,
+			userAgent:        fmt.Sprintf("Datadog Trace Agent/%s/%s", cfg.AgentVersion, cfg.GitCommit),
+			isMRF:            endpoint.IsMRF,
+			MRFFailoverAPM:   cfg.MRFFailoverAPM,
+			secretsRefreshFn: cfg.SecretsRefreshFn,
 		}, statsd)
 	}
 	return senders
@@ -160,6 +161,10 @@ type senderConfig struct {
 	isMRF bool
 	// MRFFailoverAPM determines whether APM data should be failed over to the secondary (MRF) DC.
 	MRFFailoverAPM func() bool
+	// secretsRefreshFn is called when a 403 response is received to trigger
+	// API key refresh from the secrets backend. It returns true if the refresh
+	// was triggered, false if throttled or unavailable.
+	secretsRefreshFn func() bool
 }
 
 // sender is responsible for sending payloads to a given URL. It uses a size-limited
@@ -404,6 +409,13 @@ func (s *sender) do(req *http.Request) error {
 	}
 	resp.Body.Close()
 
+	if resp.StatusCode == http.StatusForbidden {
+		log.Debugf("API Key invalid (403), triggering secret refresh")
+		if s.cfg.secretsRefreshFn != nil {
+			s.cfg.secretsRefreshFn()
+		}
+	}
+
 	if isRetriable(resp.StatusCode) {
 		return &retriableError{
 			fmt.Errorf("server responded with %q", resp.Status),
@@ -419,7 +431,8 @@ func (s *sender) do(req *http.Request) error {
 
 // isRetriable reports whether the give HTTP status code should be retried.
 func isRetriable(code int) bool {
-	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests {
+	// TODO: Double check what response codes are expected from the backend when API Key is invalid
+	if code == http.StatusRequestTimeout || code == http.StatusTooManyRequests || code == http.StatusForbidden {
 		return true
 	}
 	// 5xx errors can be retried
