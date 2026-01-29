@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -204,6 +205,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", defaultpaths.LogFile),
 			}),
 			secretsfx.Module(),
+			delegatedauthfx.Module(),
 			getSharedFxOption(),
 			getPlatformModules(),
 		)
