@@ -297,8 +297,8 @@ pkg_files(
         # Binaries require custom attributes
         ":openssl_binary",
         # Libraries require separate symlink post-processing
-        ":libssl",
-        ":libcrypto",
+        ":libssl_shared_file",
+        ":libcrypto_shared_file",
     ],
 )
 
