@@ -444,6 +444,50 @@ func TestRcResolver_ConcurrentAccess(t *testing.T) {
 	})
 }
 
+func TestIsDatadoghqRegistry(t *testing.T) {
+	testCases := []struct {
+		name     string
+		registry string
+		expected bool
+	}{
+		{
+			name:     "gcr_io_datadoghq",
+			registry: "gcr.io/datadoghq",
+			expected: true,
+		},
+		{
+			name:     "hub_docker_com_datadog",
+			registry: "docker.io/datadog",
+			expected: true,
+		},
+		{
+			name:     "gallery_ecr_aws_datadog",
+			registry: "public.ecr.aws/datadog",
+			expected: true,
+		},
+		{
+			name:     "docker_io_not_datadog",
+			registry: "docker.io",
+			expected: false,
+		},
+		{
+			name:     "empty_registry",
+			registry: "",
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := config.NewMock(t)
+			datadogRegistries := newDatadoghqRegistries(mockConfig.GetStringSlice("admission_controller.auto_instrumentation.default_dd_registries"))
+			result := isDatadoghqRegistry(tc.registry, datadogRegistries)
+			assert.Equal(t, tc.expected, result, "isDatadoghqRegistry(%s) should return %v", tc.registry, tc.expected)
+		})
+	}
+}
+
 func TestRcResolver_AsyncInitialization(t *testing.T) {
 	t.Run("noop_during_initialization", func(t *testing.T) {
 		mockClient := newMockRCClient("multi_repo.json")
