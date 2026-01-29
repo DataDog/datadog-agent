@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/logs/message
 go 1.25.0
 
 require (
+	github.com/DataDog/agent-payload/v5 v5.0.196
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1
@@ -72,6 +73,9 @@ require (
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d // indirect
+	google.golang.org/grpc v1.81.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
@@ -175,6 +179,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../../pkg/gohai
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils

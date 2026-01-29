@@ -104,6 +104,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../../pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ../../../../pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../../../pkg/logs/types

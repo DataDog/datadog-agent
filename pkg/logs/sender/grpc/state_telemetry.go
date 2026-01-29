@@ -5,17 +5,17 @@
 
 package grpc
 
-import "github.com/DataDog/datadog-agent/pkg/telemetry"
+import telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 
 // Per-worker metrics
 // TODO: right now pipeline name isn't associated with workers, but pipelines are always sent via a single worker. We can adderss this when
 // we add per-pipeline metrics.
 var (
-	tlmWorkerStreamsOpened = telemetry.NewCounter("logs_sender_grpc_worker", "streams_opened", []string{"worker"}, "# Streams opened")
-	tlmWorkerStreamErrors  = telemetry.NewCounter("logs_sender_grpc_worker", "stream_errors", []string{"worker", "reason"}, "Stream errors by reason")
+	tlmWorkerStreamsOpened = telemetryimpl.GetCompatComponent().NewCounter("logs_sender_grpc_worker", "streams_opened", []string{"worker"}, "# Streams opened")
+	tlmWorkerStreamErrors  = telemetryimpl.GetCompatComponent().NewCounter("logs_sender_grpc_worker", "stream_errors", []string{"worker", "reason"}, "Stream errors by reason")
 
-	tlmWorkerBytesSent    = telemetry.NewCounter("logs_sender_grpc_worker", "bytes_sent", []string{"worker"}, "Bytes sent (compressed)")
-	tlmWorkerBytesDropped = telemetry.NewCounter("logs_sender_grpc_worker", "bytes_dropped", []string{"worker"}, "Bytes dropped (compressed)")
+	tlmWorkerBytesSent    = telemetryimpl.GetCompatComponent().NewCounter("logs_sender_grpc_worker", "bytes_sent", []string{"worker"}, "Bytes sent (compressed)")
+	tlmWorkerBytesDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_sender_grpc_worker", "bytes_dropped", []string{"worker"}, "Bytes dropped (compressed)")
 
-	tlmWorkerInflightSize = telemetry.NewGauge("logs_sender_grpc_worker", "inflight_bytes", []string{"worker"}, "Gauge of current serialized inflight bytes for the pipeline")
+	tlmWorkerInflightSize = telemetryimpl.GetCompatComponent().NewGauge("logs_sender_grpc_worker", "inflight_bytes", []string{"worker"}, "Gauge of current serialized inflight bytes for the pipeline")
 )

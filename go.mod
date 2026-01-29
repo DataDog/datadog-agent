@@ -1026,6 +1026,7 @@ require (
 	github.com/Azure/go-autorest/autorest/to v0.4.1 // indirect
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/aws v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.79.0-devel.0.20260427132548-60ea7187423d // indirect
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/logs v0.74.0-devel.0.20251125141836-2ae7a968751c // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.77.0 // indirect
@@ -1278,6 +1279,8 @@ replace github.com/iceber/iouring-go => github.com/lebauce/iouring-go v0.0.0-202
 // Fork to remove some text/template usage, https://github.com/DataDog/opa/tree/lightweight-1.7.1
 replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816
 
+replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.196
+
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
@@ -1380,6 +1383,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/client => ./pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ./pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ./pkg/logs/message
+	github.com/DataDog/datadog-agent/pkg/logs/sender/grpc => ./pkg/logs/sender/grpc
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ./pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ./pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ./pkg/logs/status/utils
@@ -1459,5 +1463,3 @@ replace (
 	github.com/DataDog/datadog-agent/test/new-e2e => ./test/new-e2e
 	github.com/DataDog/datadog-agent/test/otel => ./test/otel
 )
-
-replace github.com/DataDog/agent-payload/v5 => github.com/DataDog/agent-payload/v5 v5.0.196

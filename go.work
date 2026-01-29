@@ -113,6 +113,7 @@ use (
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
+	pkg/logs/sender/grpc
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils

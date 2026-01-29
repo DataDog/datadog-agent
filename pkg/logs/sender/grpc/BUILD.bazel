@@ -1,0 +1,79 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
+
+go_library(
+    name = "grpc",
+    srcs = [
+        "batch_strategy.go",
+        "inflight.go",
+        "mock_encoder.go",
+        "mock_state.go",
+        "sender.go",
+        "state_telemetry.go",
+        "stream_worker.go",
+        "streamstate_string.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/sender/grpc",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry/impl",
+        "//comp/logs-library/metrics",
+        "//comp/logs-library/processor",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/def",
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/util/backoff",
+        "//pkg/util/compression",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_agent_payload_v5//statefulpb",
+        "@com_github_datadog_datadog_agent_comp_logs_library//sender",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//connectivity",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//keepalive",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "grpc_test",
+    srcs = [
+        "batch_strategy_test.go",
+        "inflight_test.go",
+        "stream_worker_test.go",
+    ],
+    embed = [":grpc"],
+    gotags = ["test"],
+    deps = [
+        "//comp/logs-library/metrics",
+        "//comp/logs/agent/config",
+        "//comp/serializer/logscompression/fx-mock",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/util/compression",
+        "//pkg/util/compression/impl-noop",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_agent_payload_v5//statefulpb",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:grpc",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_stringer(
+    name = "streamstate_string",
+    src = "stream_worker.go",
+    output = "streamstate_string.go",
+    types = ["streamState"],
+)
