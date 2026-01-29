@@ -37,7 +37,6 @@ func newKafkaEncoder(kafkaPayloads map[kafka.Key]*kafka.RequestStats) *kafkaEnco
 }
 
 func (e *kafkaEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
-	buf.Reset()
 	staticTags = e.encodeData(c, buf)
 	conn.DataStreamsAggregations = buf.Bytes()
 	return
