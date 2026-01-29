@@ -154,16 +154,10 @@ configure_make(
     }),
     lib_source = ":all_srcs",
     out_include_dir = "include",
-    out_static_libs = select({
-        "@platforms//os:windows": [
-            "libssl.dll.a",
-            "libcrypto.dll.a",
-        ],
-        "//conditions:default": [
-            "libssl.a",
-            "libcrypto.a",
-        ],
-    }),
+    out_static_libs = [
+        "libssl.a",
+        "libcrypto.a",
+    ],
     out_shared_libs = select({
         "@platforms//os:linux": [
             LINUX_LIBSSL,
@@ -182,6 +176,14 @@ configure_make(
             "ssl",
             "lib/ossl-modules",
             "lib/engines-3",
+        ],
+        "//conditions:default": [],
+    }) + select({
+        # `dll.a` files are "import libraries" on windows, used for linking against them,
+        # but they fall neither in the "static libs" nor "dynamic libs" category.
+        "@platforms//os:windows": [
+            "lib/libssl.dll.a",
+            "lib/libcrypto.dll.a",
         ],
         "//conditions:default": [],
     }),
@@ -256,10 +258,7 @@ cc_library(
 filegroup(
     name = "libssl_static",
     srcs = [":openssl"],
-    output_group = select({
-        "@platforms//os:windows": "libssl.dll.a",
-        "//conditions:default": "libssl.a",
-    }),
+    output_group = "libssl.a",
 )
 
 # The dynmamic library built with configure/make. Even though the name
@@ -306,10 +305,7 @@ cc_shared_library(
 filegroup(
     name = "libcrypto_static",
     srcs = [":openssl"],
-    output_group = select({
-        "@platforms//os:windows": "libcrypto.dll.a",
-        "//conditions:default": "libcrypto.a",
-    }),
+    output_group = "libcrypto.a",
 )
 
 filegroup(
@@ -380,9 +376,12 @@ pkg_files(
     excludes = [
         # Binaries require custom attributes
         ":openssl_binary",
-        # Libraries require separate symlink post-processing
+        # Dynamic require separate symlink post-processing
         ":libssl_shared_file",
         ":libcrypto_shared_file",
+        # We don't need static libraries in the package
+        ":libssl_static",
+        ":libcrypto_static",
     ],
 )
 
