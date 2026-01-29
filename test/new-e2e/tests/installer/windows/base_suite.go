@@ -525,11 +525,6 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
-// procdumpFolder is the directory where procdump captures are stored.
-// This is separate from the WER dump folder (s.dumpFolder) to avoid
-// procdump files being detected as crash dumps.
-const procdumpFolder = `C:\procdumps`
-
 // startStartupDumpCollector sets up procdump and starts a background goroutine that
 // monitors the agent service for the "StartPending" state. When detected, it waits
 // 10 seconds then captures a memory dump of the service process.
@@ -543,12 +538,8 @@ func (s *BaseSuite) startStartupDumpCollector(ctx context.Context) *windowscommo
 	err := windowscommon.SetupProcdump(host)
 	s.Require().NoError(err, "should setup procdump")
 
-	// Create the procdump output directory (separate from WER dumps)
-	_, err = host.Execute(fmt.Sprintf(`New-Item -ItemType Directory -Path '%s' -Force`, procdumpFolder))
-	s.Require().NoError(err, "should create procdump output directory")
-
-	// Create and start collector - dumps will be written to a separate folder from WER dumps
-	collector := windowscommon.NewStartupDumpCollector(host, "datadogagent", procdumpFolder)
+	// Create and start collector
+	collector := windowscommon.NewStartupDumpCollector(host, "datadogagent", windowscommon.ProcdumpsPath)
 	collector.Start(ctx)
 
 	return collector
@@ -647,8 +638,6 @@ func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
 	s.T().Log("Checking agent service status after MSI installation")
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
-
-	s.T().Fail()
 	s.T().Log("MSI installation and service startup completed successfully")
 }
 
