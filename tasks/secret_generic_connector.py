@@ -14,6 +14,8 @@ BINARY_NAME = "secret-generic-connector"
 BIN_DIR = os.path.join(".", "bin", "secret-generic-connector")
 BIN_PATH = os.path.join(BIN_DIR, bin_name(BINARY_NAME))
 
+FIPS_TAGS = ["goexperiment.systemcrypto", "requirefips"]
+
 
 @task
 def build(
@@ -23,6 +25,7 @@ def build(
     go_mod="readonly",
     output_bin=None,
     no_strip_binary=False,
+    fips_mode=False,
 ):
     """
     Build the secret-generic-connector binary.
@@ -30,20 +33,27 @@ def build(
 
     version = get_version(ctx, include_git=True)
 
-    # ldflags: -s -w to reduce binary size
+    # ldflags: -s -w to reduce binary size, -s not compatible with FIPS
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     ldflags = f"-X main.appVersion={version}"
     if not no_strip_binary:
-        ldflags += " -s -w"
+        if fips_mode:
+            ldflags += " -w"
+        else:
+            ldflags += " -s -w"
 
     # gcflags: -l disables inlining to reduce binary size
     # https://github.com/DataDog/datadog-secret-backend/blob/v1/.github/workflows/release.yaml
     gcflags = "all=-l"
 
+    # FIPS mode requires CGO for OpenSSL bindings
+    # Non-FIPS builds use CGO_ENABLED=0 for static binary
     env = {
         "GO111MODULE": "on",
-        "CGO_ENABLED": "0",  # static binary, no CGO needed
+        "CGO_ENABLED": "1" if fips_mode else "0",
     }
+
+    build_tags = FIPS_TAGS if fips_mode else None
 
     bin_path = BIN_PATH
     if output_bin:
@@ -62,6 +72,7 @@ def build(
             rebuild=rebuild,
             gcflags=gcflags,
             ldflags=ldflags,
+            build_tags=build_tags,
             bin_path=os.path.join("..", "..", bin_path),
             env=env,
         )
