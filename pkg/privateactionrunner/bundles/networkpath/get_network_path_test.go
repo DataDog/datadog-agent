@@ -63,7 +63,7 @@ func TestGetNetworkPathHandlerRun(t *testing.T) {
 			"maxTtl":             uint8(30),
 			"protocol":           payload.ProtocolTCP,
 			"tcpMethod":          payload.TCPConfigSYN,
-			"timeout":            "2s",
+			"timeoutMs":          int64(2000),
 			"tracerouteQueries":  3,
 			"e2eQueries":         10,
 			"namespace":          "default",
