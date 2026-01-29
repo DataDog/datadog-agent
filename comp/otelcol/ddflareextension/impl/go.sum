@@ -594,8 +594,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.144.0
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.144.0/go.mod h1:n3GCJA5MzyCwEcILkGJJvKvTvuth0sBf8pTvahiw7s4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.144.0 h1:y+9S2elWCkNMK4QRDW7afbBIlccVPSdJDslhBLCi8fc=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.144.0/go.mod h1:83ke/V67Mp8D4siZd72W4FKMbWby8raV4G//rjalkwk=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.144.0 h1:/gAMDyjZL9yQ5JqcGlwDttcQ9K+GZyBQamTRZXe2wew=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.144.0/go.mod h1:F8ASQLmExrE2TGLLWGKsmqEHFsVTqUhL2tH1bjsBi1w=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.144.0 h1:tOrPoxwhYnKjWeJsxeILRCu8rB66MnSgniMqVA43yxs=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/status v0.144.0/go.mod h1:COZ5iSDBfI8fUyHZqAfQtJEBrfRI3BoPPiNIuW7GPH0=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.144.0 h1:JNfwWViktPWtjvm2oIqUyTAw2K17efWoLfmH9Dcre30=
@@ -604,8 +602,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometh
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheusremotewrite v0.144.0/go.mod h1:xou6z2LuTLysSclrnBSqJETD0XKg8UKo5kGWMnqMTJM=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.144.0 h1:PWWFydlxRp89VYND3A6bhKNjkMUiIfHo0vraQhjbA7s=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor v0.144.0/go.mod h1:K/yfQiY/mJhFVO2lE+TymwKNylIzbxSF/2LS0FGA8DE=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.144.0 h1:lddh3Dg/abSA+YtEAUgF+aMxaRGRW68B94ttzfHIObA=
-github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor v0.144.0/go.mod h1:Ud6F626uuq3ogpaum8wxHKQhSSXbgtEox1T85vdepRw=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.144.0 h1:Yk/YzelVm2HkHmlFfNMnZkNbSM/ddfVNh3B8vdOqc2U=
 github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor v0.144.0/go.mod h1:uNvoThBUdo1ATixEph20Mz/na1hrHEzp4bMscXdFFTI=
 github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.144.0 h1:XKQCsHDTo1RQgftC3dSNyBQH0D4OPNRziV9R48tZ1gY=
