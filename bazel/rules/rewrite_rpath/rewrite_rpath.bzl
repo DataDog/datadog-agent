@@ -21,7 +21,7 @@ def _replace_prefix_impl(ctx):
         ctx.actions.run(
             inputs = [input],
             outputs = [processed_file],
-            executable = ctx.file._macos,
+            executable = ctx.executable.tool,
             arguments = [prefix, input.path, processed_file.path],
         )
 
