@@ -91,7 +91,12 @@ build do
     end
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 
-    # Check that the build tags had an actual effect
+    # Check that the build tags had an actual effect:
+    # the build tags added by fips mode (https://github.com/DataDog/datadog-agent/blob/7.75.1/tasks/build_tags.py#L140)
+    # only have the desired effect with the microsoft go compiler
+    # and are silently ignored by other compilers.
+    # As a consequence the build succeeding isn't enough of a guarantee, we need to check the symbols
+    # for a proof that openSSL is used
     if fips_mode?
       if linux_target?
         block do
