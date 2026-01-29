@@ -227,9 +227,11 @@ func setupCommonHostTags(s *common.Setup) {
 	setClearIfExists(s, "DB_IS_JOB_CLUSTER", "databricks_is_job_cluster", nil)
 	setClearIfExists(s, "DATABRICKS_RUNTIME_VERSION", "databricks_runtime", nil)
 	setClearIfExists(s, "SPARK_SCALA_VERSION", "scala_version", nil)
-	setIfExists(s, "DD_JOB_NAME", "job_name", func(v string) string {
-		return jobNameRegex.ReplaceAllString(v, "_")
-	})
+	var sanitizedJobName string
+	if jobName, ok := os.LookupEnv("DD_JOB_NAME"); ok {
+		sanitizedJobName = jobNameRegex.ReplaceAllString(jobName, "_")
+		setHostTag(s, "job_name", sanitizedJobName)
+	}
 
 	// duplicated for backward compatibility
 	setIfExists(s, "DB_CLUSTER_NAME", "databricks_cluster_name", func(v string) string {
@@ -255,14 +257,22 @@ func setupCommonHostTags(s *common.Setup) {
 	if ok {
 		setHostTag(s, "jobid", jobID)
 		setHostTag(s, "runid", runID)
-		setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, jobID))
+		if sanitizedJobName != "" {
+			setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, sanitizedJobName))
+		} else {
+			setHostTag(s, "dd.internal.resource:databricks_job", prefixWithWorkspace(normalizedWorkspace, jobID))
+		}
 	}
 	setHostTag(s, "data_workload_monitoring_trial", "true")
 
 	// Set databricks_cluster resource tag based on whether we're on a job cluster
 	isJobCluster, _ := os.LookupEnv("DB_IS_JOB_CLUSTER")
 	if isJobCluster == "TRUE" && ok {
-		setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
+		if sanitizedJobName != "" {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, sanitizedJobName))
+		} else {
+			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, jobID))
+		}
 	} else {
 		if clusterID, ok := os.LookupEnv("DB_CLUSTER_ID"); ok {
 			setHostTag(s, "dd.internal.resource:databricks_cluster", prefixWithWorkspace(normalizedWorkspace, clusterID))

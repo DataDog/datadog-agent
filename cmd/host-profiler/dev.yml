@@ -1,0 +1,6 @@
+services:
+  host-profiler:
+    environment:
+      DO_NOT_START_PROFILER: 1
+    volumes:
+      - ${DATADOG_ROOT}:/dd:rw

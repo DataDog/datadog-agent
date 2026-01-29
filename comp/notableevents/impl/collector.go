@@ -17,7 +17,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sys/windows"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	evtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
@@ -38,6 +37,9 @@ type eventDefinition struct {
 	// Query definition - inner content of <Query> block
 	Channel   string
 	QueryBody string
+
+	// Optional formatter for dynamic payload content
+	FormatPayload PayloadFormatter
 }
 
 // eventKey uniquely identifies an event by provider and event ID
@@ -71,6 +73,60 @@ func getEventDefinitions() []eventDefinition {
 			EventType: "Unexpected reboot",
 			Title:     "Unexpected reboot",
 			Message:   "The system has rebooted without cleanly shutting down first",
+		},
+		{
+			Provider:      "Application Error",
+			EventID:       1000,
+			Channel:       "Application",
+			QueryBody:     `    <Select Path="Application">*[System[Provider[@Name='Application Error'] and EventID=1000]]</Select>`,
+			EventType:     "Application crash",
+			Title:         "Application crash",
+			Message:       "An application crashed unexpectedly",
+			FormatPayload: formatAppCrashPayload,
+		},
+		{
+			Provider:      "Application Hang",
+			EventID:       1002,
+			Channel:       "Application",
+			QueryBody:     `    <Select Path="Application">*[System[Provider[@Name='Application Hang'] and EventID=1002]]</Select>`,
+			EventType:     "Application hang",
+			Title:         "Application hang",
+			Message:       "An application stopped responding and was terminated",
+			FormatPayload: formatAppHangPayload,
+		},
+		{
+			Provider:      "Microsoft-Windows-WindowsUpdateClient",
+			EventID:       20,
+			Channel:       "System",
+			QueryBody:     `    <Select Path="System">*[System[Provider[@Name='Microsoft-Windows-WindowsUpdateClient'] and EventID=20]]</Select>`,
+			EventType:     "Failed Windows update",
+			Title:         "Failed Windows update",
+			Message:       "A Windows Update installation failed",
+			FormatPayload: formatWindowsUpdateFailedPayload,
+		},
+		{
+			Provider: "MsiInstaller",
+			EventID:  1033,
+			Channel:  "Application",
+			QueryBody: `
+	<Select Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1033]]</Select>
+    <Suppress Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1033] and EventData/Data[4]='0']</Suppress>`,
+			EventType:     "Failed application installation",
+			Title:         "Failed application installation",
+			Message:       "An application installation (MSI) failed",
+			FormatPayload: formatMsiInstaller1033Payload,
+		},
+		{
+			Provider: "MsiInstaller",
+			EventID:  1034,
+			Channel:  "Application",
+			QueryBody: `
+	<Select Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1034]]</Select>
+    <Suppress Path="Application">*[System[Provider[@Name='MsiInstaller'] and EventID=1034] and EventData/Data[4]='0']</Suppress>`,
+			EventType:     "Failed application removal",
+			Title:         "Failed application removal",
+			Message:       "An application removal (MSI) failed",
+			FormatPayload: formatMsiInstaller1034Payload,
 		},
 	}
 	return e
@@ -266,12 +322,8 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 	}
 	xmlString := windows.UTF16ToString(xmlUTF16)
 
-	// Convert XML to JSON map using windowsevent package
-	eventMap, err := windowsevent.NewMapXMLWithOptions([]byte(xmlString), windowsevent.TransformOptions{
-		FormatEventData:  true,
-		FormatBinaryData: false, // Skip buggy binary transform
-		NormalizeEventID: true,
-	})
+	// Convert XML to JSON map
+	eventMap, err := parseEventXML([]byte(xmlString))
 	if err != nil {
 		return fmt.Errorf("failed to parse event XML: %w", err)
 	}
@@ -291,9 +343,7 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 		timestamp = time.Unix(unixTimestamp, 0)
 	}
 
-	log.Debugf("Collected notable event: provider=%s, event_id=%d, title=%s", providerName, eventID, def.Title)
-
-	// Build and send payload
+	// Build payload with defaults
 	payload := eventPayload{
 		Timestamp: timestamp,
 		EventType: def.EventType,
@@ -301,6 +351,14 @@ func (c *collector) processEvent(renderCtx evtapi.EventRenderContextHandle, even
 		Message:   def.Message,
 		Custom:    customData,
 	}
+
+	// Apply custom formatter if defined
+	if def.FormatPayload != nil {
+		def.FormatPayload(&payload, eventMap.Map)
+	}
+
+	log.Debugf("Collected notable event: provider=%s, event_id=%d, title=%s", providerName, eventID, payload.Title)
+
 	c.outChan <- payload
 
 	return nil

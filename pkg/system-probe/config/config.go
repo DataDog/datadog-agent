@@ -143,10 +143,18 @@ func load() (*types.Config, error) {
 		diEnabled {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
 	}
-	complianceEnabled := coreCfg.GetBool(compNS("enabled")) || // full module is enabled
-		cfg.GetBool(compNS("database_benchmarks.enabled")) || // only the DB benchmarks handler is enabled
-		(cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))) // only the DB benchmarks handler is enabled via the CWS config (legacy)
-	if complianceEnabled {
+	complianceEnabled := coreCfg.GetBool(compNS("enabled"))
+	complianceRunInSystemProbe := coreCfg.GetBool(compNS("run_in_system_probe"))
+	complianceDBBenchmarksEnabled := cfg.GetBool(compNS("database_benchmarks.enabled"))
+	complianceLegacyCWSEnabled := cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled"))
+
+	// Enable compliance module if:
+	// 1. Full compliance is enabled AND should run in system-probe, OR
+	// 2. Only DB benchmarks handler is needed (regardless of run_in_system_probe), OR
+	// 3. Legacy CWS config enables compliance module
+	shouldEnableComplianceModule := (complianceEnabled && complianceRunInSystemProbe) || complianceDBBenchmarksEnabled || complianceLegacyCWSEnabled
+
+	if shouldEnableComplianceModule {
 		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {

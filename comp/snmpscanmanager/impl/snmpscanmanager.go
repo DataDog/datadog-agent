@@ -157,7 +157,7 @@ func (m *snmpScanManagerImpl) RequestScan(req snmpscanmanager.ScanRequest, force
 	default:
 	}
 
-	if m.agentConfig.GetBool("network_devices.default_scan.disabled") {
+	if !m.agentConfig.GetBool("network_devices.default_scan.enabled") {
 		return
 	}
 

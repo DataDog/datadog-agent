@@ -10,6 +10,7 @@ package receiver
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/dd-otel-host-profiler/config"
@@ -94,6 +95,8 @@ func (c *Config) Validate() error {
 func defaultConfig() component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Tracers = getDefaultTracersString()
+	// 60s batches more samples per report, improving compression and reducing upload bandwidth
+	cfg.ReporterInterval = 60 * time.Second
 
 	return Config{
 		EbpfCollectorConfig: cfg,

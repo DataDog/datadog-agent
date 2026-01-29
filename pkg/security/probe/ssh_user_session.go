@@ -23,6 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
+const maxRetryForMsgWithSSHContext = 15
+
 // getEnvVar extracts a specific environment variable from a list of environment variables.
 // Each environment variable is in the format "KEY=VALUE".
 func getEnvVar(envp []string, key string) string {
@@ -37,6 +39,11 @@ func getEnvVar(envp []string, key string) string {
 
 // HandleSSHUserSession handles the ssh user session
 func (p *EBPFProbe) HandleSSHUserSession(event *model.Event) {
+	// Early return if SSH user sessions are disabled
+	if !p.config.RuntimeSecurity.SSHUserSessionsEnabled {
+		return
+	}
+
 	// First, we check if this event is link to an existing ssh session from his parent
 	ppid := event.ProcessContext.Process.PPid
 	parent := p.Resolvers.ProcessResolver.Resolve(ppid, ppid, 0, false, nil)
@@ -110,9 +117,7 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
 
-	p.resolver.SSHSessionParsed.Mu.Lock()
-	_, ok := p.resolver.SSHSessionParsed.Lru.Get(key)
-	p.resolver.SSHSessionParsed.Mu.Unlock()
+	_, ok := p.resolver.GetSSHSession(key)
 
 	if !ok {
 		return fmt.Errorf("ssh session not found in LRU for %s:%d",
@@ -120,6 +125,11 @@ func (p *SSHUserSessionPatcher) IsResolved() error {
 	}
 
 	return nil
+}
+
+// MaxRetry implements the DelayabledEvent interface for SSH user sessions
+func (p *SSHUserSessionPatcher) MaxRetry() int {
+	return maxRetryForMsgWithSSHContext
 }
 
 // PatchEvent implements the EventSerializerPatcher interface for SSH user sessions
@@ -136,9 +146,7 @@ func (p *SSHUserSessionPatcher) PatchEvent(ev *serializers.EventSerializer) {
 		IP:   p.userSessionCtx.SSHClientIP,
 		Port: strconv.Itoa(p.userSessionCtx.SSHClientPort),
 	}
-	p.resolver.SSHSessionParsed.Mu.Lock()
-	value, ok := p.resolver.SSHSessionParsed.Lru.Get(key)
-	p.resolver.SSHSessionParsed.Mu.Unlock()
+	value, ok := p.resolver.GetSSHSession(key)
 
 	if ok {
 		ev.ProcessContextSerializer.UserSession.SSHAuthMethod = model.SSHAuthMethodToString(usersession.AuthType(value.AuthenticationMethod))

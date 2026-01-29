@@ -45,16 +45,16 @@ type RunOption = func(*RunParams) error
 
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := &RunParams{
-		Name:               defaultKindName,
-		vmOptions:          []ec2.VMOption{},
-		agentOptions:       []kubernetesagentparams.Option{},
-		fakeintakeOptions:  []fakeintake.Option{},
-		workloadAppFuncs:   []kubecomp.WorkloadAppFunc{},
+		Name:                defaultKindName,
+		vmOptions:           []ec2.VMOption{},
+		agentOptions:        nil, // nil by default - Agent is only deployed when options are explicitly provided
+		fakeintakeOptions:   []fakeintake.Option{},
+		workloadAppFuncs:    []kubecomp.WorkloadAppFunc{},
 		depWorkloadAppFuncs: []kubecomp.AgentDependentWorkloadAppFunc{},
-		operatorOptions:    []operatorparams.Option{},
-		operatorDDAOptions: []agentwithoperatorparams.Option{},
-		deployDogstatsd:    false,
-		deployOperator:     false,
+		operatorOptions:     []operatorparams.Option{},
+		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
+		deployDogstatsd:     false,
+		deployOperator:      false,
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -131,9 +131,26 @@ func WithDeployOperator() RunOption {
 	return func(p *RunParams) error { p.deployOperator = true; return nil }
 }
 
-// WithOperatorDDAOptions sets DDA options for operator path
+// WithOperatorDDAOptions sets DDA options for operator path.
+// When called, the DatadogAgent custom resource will be deployed with these options.
 func WithOperatorDDAOptions(opts ...agentwithoperatorparams.Option) RunOption {
-	return func(p *RunParams) error { p.operatorDDAOptions = append(p.operatorDDAOptions, opts...); return nil }
+	return func(p *RunParams) error {
+		if p.operatorDDAOptions == nil {
+			p.operatorDDAOptions = opts
+		} else {
+			p.operatorDDAOptions = append(p.operatorDDAOptions, opts...)
+		}
+		return nil
+	}
+}
+
+// WithoutDDA removes the DatadogAgent custom resource deployment.
+// Use this to deploy only the operator without a DDA instance.
+func WithoutDDA() RunOption {
+	return func(p *RunParams) error {
+		p.operatorDDAOptions = nil
+		return nil
+	}
 }
 
 // WithDeployDogstatsd enables dogstatsd deployment

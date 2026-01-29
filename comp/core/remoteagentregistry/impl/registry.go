@@ -250,7 +250,7 @@ func (ra *remoteAgentRegistry) start() {
 					remoteAgentClient, ok := ra.agentMap[sessionID]
 					if ok {
 						if remoteAgentClient.unhealthy {
-							log.Warnf("Remote agent '%s' deregistered due to session ID validation failure (expected: %s, got: %s)", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.RegisteredAgent.SessionID, sessionID)
+							log.Warnf("Remote agent '%s' deregistered: %v", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentClient.unhealthyReason)
 						} else {
 							log.Infof("Remote agent '%s' deregistered after being idle for %s.", remoteAgentClient.RegisteredAgent.DisplayName, remoteAgentIdleTimeout)
 						}

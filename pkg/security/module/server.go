@@ -24,7 +24,6 @@ import (
 	empty "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -51,17 +50,11 @@ import (
 )
 
 const (
-	// events delay is used for 2 actions: hash and kills:
-	// - for hash actions, the reports will be marked as resolved after MAX 5 sec (so
-	//   it doesn't matter if this retry period lasts for longer)
-	// - for kill actions:
-	//   . a kill can be queued up to the end of the first disarmer period (1min by default)
-	//   . so, we set the server retry period to 1min and 2sec (+2sec to have the
-	//     time to trigger the kill and wait to catch the process exit)
-	maxRetryForMsgWithActions    = 62
-	maxRetryForMsgWithSSHContext = 62
-	maxRetryForRegularMsgs       = 5
-	retryDelay                   = time.Second
+	// defaultMaxRetry is the default maximum number of retries for a pending message
+	defaultMaxRetry = 5
+
+	// retryDelay is the delay between retries, changing this value may impact the retry logic.
+	retryDelay = time.Second
 )
 
 type pendingMsg struct {
@@ -80,17 +73,14 @@ type pendingMsg struct {
 }
 
 func (p *pendingMsg) getMaxRetry() int {
-	retry := maxRetryForRegularMsgs
-
-	if len(p.actionReports) != 0 {
-		retry = max(retry, maxRetryForMsgWithActions)
+	maxRetry := defaultMaxRetry
+	for _, report := range p.actionReports {
+		maxRetry = max(maxRetry, report.MaxRetry())
 	}
-
 	if p.sshSessionPatcher != nil {
-		retry = max(retry, maxRetryForMsgWithSSHContext)
+		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
 	}
-
-	return retry
+	return maxRetry
 }
 
 func (p *pendingMsg) isResolved() bool {
@@ -101,12 +91,13 @@ func (p *pendingMsg) isResolved() bool {
 		}
 	}
 
-	if p.sshSessionPatcher != nil {
-		if err := p.sshSessionPatcher.IsResolved(); err != nil {
-			seclog.Tracef("ssh session not resolved: %v", err)
-			return false
-		}
-	}
+	// TODO: for now skip the retry mechanism and always send the event
+	// if p.sshSessionPatcher != nil {
+	// 	if err := p.sshSessionPatcher.IsResolved(); err != nil {
+	// 		seclog.Tracef("ssh session not resolved: %v", err)
+	// 		return false
+	// 	}
+	// }
 	return true
 }
 
@@ -270,12 +261,12 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 
 		msgMaxRetry := msg.getMaxRetry()
 		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
+			seclog.Warnf("max retry reached: %d, sending event anyway", msg.retry)
 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to sent event, retry %d/%d, queue size: %d", msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -346,7 +337,7 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
 				if !isRetryAllowed {
-					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
+					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
 				if msg.extTagsCb != nil && isRetryAllowed {
@@ -494,16 +485,15 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		}
 
 		msg := &pendingMsg{
-			ruleID:          groupRuleID,
-			backendEvent:    backendEvent,
-			eventSerializer: serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
-			extTagsCb:       extTagsCb,
-			service:         service,
-			timestamp:       timestamp,
-			sendAfter:       time.Now().Add(retention),
-			tags:            tags,
-			actionReports:   actionReports,
-
+			ruleID:            groupRuleID,
+			backendEvent:      backendEvent,
+			eventSerializer:   serializers.NewEventSerializer(ev, rule, a.probe.GetScrubber()),
+			extTagsCb:         extTagsCb,
+			service:           service,
+			timestamp:         timestamp,
+			sendAfter:         time.Now().Add(retention),
+			tags:              tags,
+			actionReports:     actionReports,
 			sshSessionPatcher: sshSessionPatcher,
 		}
 
@@ -804,7 +794,7 @@ func getEnvAsTags(cfg *config.RuntimeSecurityConfig) []string {
 }
 
 // NewAPIServer returns a new gRPC event server
-func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, ipc ipc.Component) (*APIServer, error) {
+func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSender MsgSender[api.SecurityEventMessage], client statsd.ClientInterface, selfTester *selftests.SelfTester, compression compression.Component, hostname string) (*APIServer, error) {
 	stopper := startstop.NewSerialStopper()
 	containerFilter, err := utils.NewContainerFilter()
 	if err != nil {
@@ -843,7 +833,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 
 	if as.msgSender == nil {
 		if cfg.SendPayloadsFromSystemProbe {
-			msgSender, err := NewDirectEventMsgSender(stopper, compression, ipc)
+			msgSender, err := NewDirectEventMsgSender(stopper, compression, hostname)
 			if err != nil {
 				log.Errorf("failed to setup direct event sender: %v", err)
 			} else {

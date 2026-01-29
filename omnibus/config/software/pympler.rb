@@ -9,7 +9,7 @@
 name 'pympler'
 default_version "0.7"
 
-dependency 'pip3'
+dependency 'python3'
 dependency 'setuptools3'
 
 pympler_requirement = "pympler==#{default_version}"

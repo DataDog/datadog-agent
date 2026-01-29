@@ -150,7 +150,7 @@ other: value`) // Null value (YAML parses as nil)
 			structure.UnmarshalKey(cfg, "c", &result)
 
 			// Test settings retrieval with sequence ID
-			_, _ = cfg.AllSettingsWithSequenceID()
+			_, _ = cfg.AllFlattenedSettingsWithSequenceID()
 		}
 	})
 }

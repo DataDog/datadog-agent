@@ -191,6 +191,7 @@ def omnibus_compute_cache_key(ctx, env: dict[str, str]) -> str:
             'omnibus/resources',
             'omnibus/omnibus.rb',
             'deps',
+            'bazel',
         ],
     )
     print(f'Current hash value: {h.hexdigest()}')

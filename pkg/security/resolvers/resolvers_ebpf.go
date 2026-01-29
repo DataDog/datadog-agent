@@ -187,7 +187,7 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize)
+	userSessionsResolver, err := usersessions.NewResolver(config.RuntimeSecurity.UserSessionsCacheSize, config.RuntimeSecurity.SSHUserSessionsEnabled)
 	if err != nil {
 		return nil, err
 	}

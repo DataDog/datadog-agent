@@ -475,6 +475,34 @@ func (suite *ConfigTestSuite) TestProxyConfigURLOverridesDDConfig() {
 	assert.Equal(t, []string(nil), pkgconfig.GetStringSlice("proxy.no_proxy"))
 }
 
+// TestLogsEnabledViaEnvironmentVariable is a regression test for the issue where
+// LoadDatadog was called before BuildSchema, causing "attempt to ReadInConfig before config
+// is constructed" errors.
+func TestLogsEnabledViaEnvironmentVariable(t *testing.T) {
+	configmock.New(t)
+	t.Setenv("DD_LOGS_ENABLED", "true")
+	fileName := "testdata/config_default.yaml"
+
+	// This should not panic or error with "attempt to ReadInConfig before config is constructed"
+	c, err := NewConfigComponent(context.Background(), "", []string{fileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with DD_LOGS_ENABLED set")
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true when DD_LOGS_ENABLED=true")
+
+	libType := c.GetLibType()
+	assert.NotEmpty(t, libType, "config lib type should be set")
+}
+
+// TestLogsEnabledViaDatadogConfig tests that logs_enabled can be set via a separate
+// datadog.yaml config file and is correctly merged with the OTel config. This ensures
+// the config initialization order works correctly when both configs are present.
+func TestLogsEnabledViaDatadogConfig(t *testing.T) {
+	configmock.New(t)
+	ddFileName := "testdata/datadog_with_logs_enabled.yaml"
+	c, err := NewConfigComponent(context.Background(), "", []string{ddFileName})
+	require.NoError(t, err, "NewConfigComponent should succeed with datadog config")
+	assert.True(t, c.GetBool("logs_enabled"), "logs_enabled should be true from datadog config")
+}
+
 // TestSuite runs the CalculatorTestSuite
 func TestSuite(t *testing.T) {
 	suite.Run(t, new(ConfigTestSuite))

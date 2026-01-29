@@ -1,0 +1,35 @@
+"""nfsiostat - remote repo side build file"""
+
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_license//rules:license.bzl", "license")
+
+package(default_package_metadata = [":package_metadata"])
+
+VERSION = "2.1.1"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        package = "nfsiostat",
+        version = VERSION,
+        download_url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz",
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:GPL-2.0"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+# Use filegroup rather than exports_files so we pick up the package metadata.
+filegroup(
+    name = "nfsiostat_py",
+    srcs = ["tools/nfs-iostat/nfs-iostat.py"],
+    visibility = ["@@//deps/nfsiostat:__pkg__"],
+)
