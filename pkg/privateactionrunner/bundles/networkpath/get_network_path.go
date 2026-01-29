@@ -1,0 +1,91 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package com_datadoghq_networkpath
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	tracerouteconfig "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
+
+type GetNetworkPathHandler struct {
+	traceroute traceroute.Component
+}
+
+func NewGetNetworkPathHandler(traceroute traceroute.Component) *GetNetworkPathHandler {
+	return &GetNetworkPathHandler{
+		traceroute: traceroute,
+	}
+}
+
+type GetNetworkPathInputs struct {
+	Hostname           string            `json:"hostname"`
+	Port               uint16            `json:"port"`
+	SourceService      string            `json:"sourceService,omitempty"`
+	DestinationService string            `json:"destinationService,omitempty"`
+	MaxTTL             uint8             `json:"maxTtl,omitempty"`
+	Protocol           payload.Protocol  `json:"protocol,omitempty"`
+	TCPMethod          payload.TCPMethod `json:"tcpMethod,omitempty"`
+	Timeout            time.Duration     `json:"timeout,omitempty"`
+	TracerouteQueries  int               `json:"tracerouteQueries,omitempty"`
+	E2eQueries         int               `json:"e2eQueries,omitempty"`
+	Namespace          string            `json:"namespace,omitempty"`
+}
+
+func (h *GetNetworkPathHandler) Run(
+	ctx context.Context,
+	task *types.Task,
+	_ *privateconnection.PrivateCredentials,
+) (interface{}, error) {
+	if h.traceroute == nil {
+		return nil, fmt.Errorf("traceroute component is not available")
+	}
+
+	inputs, err := types.ExtractInputs[GetNetworkPathInputs](task)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg := tracerouteconfig.Config{
+		DestHostname:       inputs.Hostname,
+		DestPort:           inputs.Port,
+		DestinationService: inputs.DestinationService,
+		SourceService:      inputs.SourceService,
+		MaxTTL:             inputs.MaxTTL,
+		Timeout:            inputs.Timeout,
+		Protocol:           inputs.Protocol,
+		TCPMethod:          inputs.TCPMethod,
+		ReverseDNS:         true,
+		TracerouteQueries:  inputs.TracerouteQueries,
+		E2eQueries:         inputs.E2eQueries,
+	}
+
+	path, err := h.traceroute.Run(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to trace path: %w", err)
+	}
+
+	if err := payload.ValidateNetworkPath(&path); err != nil {
+		return nil, fmt.Errorf("failed to validate network path: %w", err)
+	}
+
+	path.Namespace = inputs.Namespace
+	path.Origin = payload.PathOriginNetworkPathIntegration
+	path.TestRunType = payload.TestRunTypeScheduled
+	path.SourceProduct = payload.GetSourceProduct(pkgconfigsetup.Datadog().GetString("infrastructure_mode"))
+	path.CollectorType = payload.CollectorTypeAgent
+	path.Source.Service = inputs.SourceService
+	path.Destination.Service = inputs.DestinationService
+
+	return &path, nil
+}

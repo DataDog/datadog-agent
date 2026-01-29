@@ -20,6 +20,7 @@ import (
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -65,6 +66,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				rcserviceimpl.Module(),
 				rcclientimpl.Module(),
 				fx.Supply(rcclient.Params{AgentName: "private-action-runner", AgentVersion: version.AgentVersion}),
+				remotetraceroute.Module(),
 				privateactionrunnerfx.Module(),
 			)
 			if errors.Is(err, privateactionrunner.ErrNotEnabled) {
