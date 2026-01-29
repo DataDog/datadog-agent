@@ -435,5 +435,8 @@ func (c *CWSConsumer) PrepareForFunctionalTests() {
 
 // GetStatus returns the status of the module
 func (c *CWSConsumer) GetStatus(ctx context.Context) (*api.Status, error) {
-	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{})
+	// Getting SECL variables should be done from the CLI status command
+	// as it turned out to be a performance issue to enumerate SECL variables
+	// and could also lead to deadlocks
+	return c.apiServer.GetStatus(ctx, &api.GetStatusParams{IncludeSECLVariables: false})
 }

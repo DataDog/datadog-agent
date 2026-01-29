@@ -120,7 +120,7 @@ func (c *RuntimeSecurityCmdClient) GetConfig() (*api.SecurityConfigMessage, erro
 // GetStatus returns the status of the module
 func (c *RuntimeSecurityCmdClient) GetStatus() (*api.Status, error) {
 	apiClient := api.NewSecurityModuleCmdClient(c.conn)
-	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{})
+	return apiClient.GetStatus(context.Background(), &api.GetStatusParams{IncludeSECLVariables: true})
 }
 
 // RunSelfTest instructs the system probe to run a self test
