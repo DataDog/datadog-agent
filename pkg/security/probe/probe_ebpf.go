@@ -3404,7 +3404,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
-				p.HandleKillRemediation(rule, ev)
+				p.HandleKillRemediation(rule, ev, action)
 			}
 
 		case action.Def.CoreDump != nil:
@@ -3459,7 +3459,7 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 			p.probe.onRuleActionPerformed(rule, action.Def)
 
-			p.HandleNetworkRemediation(rule, ev, report)
+			p.HandleNetworkRemediation(rule, ev, report, action)
 		}
 	}
 }
