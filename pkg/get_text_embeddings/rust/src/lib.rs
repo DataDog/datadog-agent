@@ -7,12 +7,26 @@ use std::ffi::CStr;
 use std::os::raw::c_char;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn dd_get_text_embeddings_print(input: *const c_char) {
-    if input.is_null() {
+pub extern "C" fn dd_get_text_embeddings_init(_err: *mut *mut c_char) {
+    println!("Init get_text_embeddings");
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn dd_get_text_embeddings_get_embeddings_size() -> usize {
+    // TODO
+    384
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn dd_get_text_embeddings_get_embeddings(text: *const c_char, _buffer: *mut f32, err: *mut *mut c_char) {
+    if text.is_null() {
+        unsafe {
+            *err = std::ffi::CString::new("Failed to get embeddings: text is null").unwrap().into_raw();
+        }
         return;
     }
 
-    let text = unsafe { CStr::from_ptr(input) }.to_string_lossy();
+    let text = unsafe { CStr::from_ptr(text) }.to_string_lossy();
     println!("{text}");
 }
 

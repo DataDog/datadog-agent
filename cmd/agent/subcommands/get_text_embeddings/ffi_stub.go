@@ -9,6 +9,10 @@ package get_text_embeddings
 
 import "fmt"
 
+func Init() error {
+	return fmt.Errorf("get-text-embeddings requires cgo on linux or darwin")
+}
+
 func printWithRust(_ string) error {
 	return fmt.Errorf("get-text-embeddings requires cgo on linux or darwin")
 }

@@ -10,7 +10,13 @@
 extern "C" {
 #endif
 
-void dd_get_text_embeddings_print(const char *input);
+#include <stddef.h>
+
+void dd_get_text_embeddings_init(char **err);
+
+size_t dd_get_text_embeddings_get_embeddings_size(void);
+
+void dd_get_text_embeddings_get_embeddings(const char *text, float *buffer, char **err);
 
 #ifdef __cplusplus
 } // extern "C"
