@@ -96,39 +96,6 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int, failove
 	return p
 }
 
-// createTestProviderWithoutFailover creates a test provider with failover disabled (legacy mode)
-func createTestProviderWithoutFailover(t *testing.T, numberOfPipelines int) *provider {
-	cfg := configmock.New(t)
-	cfg.SetWithoutSource("logs_config.pipeline_failover_enabled", false)
-	cfg.SetWithoutSource("logs_config.message_channel_size", 10)
-
-	endpoints := config.NewMockEndpointsWithOptions([]config.Endpoint{config.NewMockEndpoint()}, map[string]interface{}{
-		"use_http": true,
-	})
-
-	diagnosticMessageReceiver := &diagnostic.BufferedMessageReceiver{}
-	compression := compressionfx.NewMockCompressor()
-
-	// Use mock sender instead of real sender
-	mockSenderImpl := createMockSender()
-
-	p := newProvider(
-		numberOfPipelines,
-		diagnosticMessageReceiver,
-		nil, // processing rules
-		endpoints,
-		nil, // hostname
-		cfg,
-		compression,
-		sender.NewServerlessMeta(false),
-		mockSenderImpl,
-	).(*provider)
-
-	p.Start()
-
-	return p
-}
-
 func TestRouterChannelCreation(t *testing.T) {
 	p := createTestProviderWithFailover(t, 3, 10)
 	defer p.Stop()
@@ -353,32 +320,6 @@ func TestGracefulShutdownWithPendingMessages(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Stop() took too long to complete")
 	}
-}
-
-func TestLegacyModeStillWorks(t *testing.T) {
-	p := createTestProviderWithoutFailover(t, 3)
-	defer p.Stop()
-
-	// In legacy mode, NextPipelineChan should return direct pipeline channels
-	chan1 := p.NextPipelineChan()
-	require.NotNil(t, chan1)
-
-	// Verify it's one of the pipeline InputChans (not a router channel)
-	isDirectChannel := false
-	for _, pipeline := range p.pipelines {
-		if chan1 == pipeline.InputChan {
-			isDirectChannel = true
-			break
-		}
-	}
-	assert.True(t, isDirectChannel, "Legacy mode should return direct pipeline channels")
-
-	// No router channels should be created
-	p.routerMutex.Lock()
-	channelCount := len(p.routerChannels)
-	p.routerMutex.Unlock()
-
-	assert.Equal(t, 0, channelCount, "No router channels should be created in legacy mode")
 }
 
 func TestConcurrentRouterChannelCreation(t *testing.T) {
