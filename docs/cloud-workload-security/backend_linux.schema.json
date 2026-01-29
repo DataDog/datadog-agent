@@ -2319,6 +2319,9 @@
       "type": "string",
       "format": "date-time"
     },
+    "processingtime_microsec": {
+      "type": "integer"
+    },
     "file": {
       "$ref": "#/$defs/FileEvent"
     },
@@ -2426,6 +2429,7 @@
   "type": "object",
   "required": [
     "agent",
-    "title"
+    "title",
+    "processingtime_microsec"
   ]
 }

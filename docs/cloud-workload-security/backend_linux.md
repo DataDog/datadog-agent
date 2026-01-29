@@ -2330,6 +2330,9 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "format": "date-time"
         },
+        "processingtime_microsec": {
+            "type": "integer"
+        },
         "file": {
             "$ref": "#/$defs/FileEvent"
         },
@@ -2437,7 +2440,8 @@ Workload Protection events for Linux systems have the following JSON schema:
     "type": "object",
     "required": [
         "agent",
-        "title"
+        "title",
+        "processingtime_microsec"
     ]
 }
 
@@ -2449,6 +2453,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `title` | string |  |
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
 | `date` | string |  |
+| `processingtime_microsec` | integer |  |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
