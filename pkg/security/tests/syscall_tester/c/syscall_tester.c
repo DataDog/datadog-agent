@@ -298,19 +298,48 @@ int test_signal_sigusr(int child, int sig) {
 }
 
 int test_signal_eperm(void) {
-    int ppid = getpid();
-    int child = fork();
-    if (child == 0) {
-        /* switch to user daemon */
+    pid_t target_pid, sender_pid;
+
+    /*
+     * Create the signal target process: a child that just sleeps.
+     * It keeps running long enough for the signal attempt to be made.
+     */
+    target_pid = fork();
+    if (target_pid < 0) {
+        perror("fork");
+        return EXIT_FAILURE;
+    }
+    if (target_pid == 0) {
+        sleep(5);
+        _exit(EXIT_SUCCESS);
+    }
+
+    /*
+     * Create the sender process: drop privileges and try to send SIGKILL
+     * to the root-owned target process. This should fail with EPERM.
+     */
+    sender_pid = fork();
+    if (sender_pid < 0) {
+        perror("fork");
+        kill(target_pid, SIGTERM);
+        waitpid(target_pid, NULL, 0);
+        return EXIT_FAILURE;
+    }
+    if (sender_pid == 0) {
         if (setuid(1)) {
             fprintf(stderr, "Failed to setuid 1 (%s)\n", strerror(errno));
-            return EXIT_FAILURE;
+            _exit(EXIT_FAILURE);
         }
-        kill(ppid, SIGKILL);
-        sleep(1);
-    } else {
-        wait(NULL);
+
+        /* This kill is expected to fail with EPERM */
+        kill(target_pid, SIGKILL);
+        _exit(EXIT_SUCCESS);
     }
+
+    /* Parent: reap both children */
+    waitpid(sender_pid, NULL, 0);
+    waitpid(target_pid, NULL, 0);
+
     return EXIT_SUCCESS;
 }
 
