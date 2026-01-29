@@ -35,6 +35,8 @@ type WinHttpTransaction struct {
 
 	// ... plus some extra that's only valid when it's an ETW transactoin
 	AppPool string
+	// SubSite represents full iis application path
+	SubSite string
 
 	// <<<MORE ETW HttpService DETAILS>>>
 	// We can track FULL url and few other attributes. However it will require much memory.
