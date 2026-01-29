@@ -215,6 +215,15 @@ def build(
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
 
+    # TODO: Windows support
+    target_os = os.getenv("GOOS") or sys.platform
+    if target_os not in ("windows", "win32"):
+        with gitlab_section("Build get-text-embeddings rust library", collapsed=True):
+            with ctx.cd("pkg/get_text_embeddings/rust"):
+                ctx.run(
+                    "cargo build --release",
+                )
+
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
 
