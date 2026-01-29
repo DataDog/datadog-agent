@@ -1,6 +1,6 @@
 name 'datadog-agent-integrations-py3-dependencies'
 
-dependency 'pip3'
+dependency 'python3'
 dependency 'setuptools3'
 dependency 'openssl3'
 

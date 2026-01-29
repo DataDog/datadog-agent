@@ -6,6 +6,7 @@ load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_pkg//pkg:mappings.bzl", "strip_prefix")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes")
 load("@//deps/openssl:version.bzl", "OPENSSL_VERSION")
+load("@@//bazel/rules:dd_agent_expand_template.bzl", "dd_agent_expand_template")
 
 # Keep in sync with the ones on repos.MODULE.bazel
 python_externals = {
@@ -98,7 +99,7 @@ filegroup(
 )
 
 UNIX_BINS = [
-    "pip3",
+    "pip{}".format(VERSION_STR),
     "python{}".format(VERSION_STR),
 ]
 
@@ -259,6 +260,25 @@ copy_to_directory(
     root_paths = ["python_unix"],
 )
 
+filegroup(
+    name = "pip_exec",
+    srcs = [":python_unix"],
+    output_group = "pip{}".format(VERSION_STR),
+)
+
+genrule(
+    name = "patch_pip_shebang",
+    srcs = [":pip_exec"],
+    outs = ["pip_patched_tmp"],
+    cmd = "{ echo '#!{install_dir}/embedded/bin/python3\n' ; tail -n +4 $(location :pip_exec) ;} > $@",
+)
+
+dd_agent_expand_template(
+    name = "patch_pip_interpreter",
+    template = ":patch_pip_shebang",
+    out = "pip{}".format(VERSION_STR),
+)
+
 # Create symlinks for libpython (rules_pkg 1.2+ supports symlinks in pkg_install)
 pkg_mklink(
     name = "libpython_symlink",
@@ -267,11 +287,22 @@ pkg_mklink(
     attributes = pkg_attributes("0644")
 )
 
-pkg_mklink(
-    name = "python_bin_symlink",
-    link_name = "bin/python3",
-    target = "python{}".format(VERSION_STR)
-)
+BIN_SYMLINKS = {
+    "bin/python3": "python{}".format(VERSION_STR),
+    "bin/python": "python3",
+    "bin/pip3": "pip{}".format(VERSION_STR),
+    "bin/pip": "pip3",
+}
+
+[
+    pkg_mklink(
+        name = "python_bin_symlink_" + target,
+        link_name = link,
+        target = target,
+        attributes = pkg_attributes("0755")
+    )
+    for link, target in BIN_SYMLINKS.items()
+]
 
 filegroup(
     name = "headers_unix",
@@ -279,14 +310,11 @@ filegroup(
     output_group = "include",
 )
 
-[
-    filegroup(
-        name = "bins_unix_" + bin,
-        srcs = [":python_unix"],
-        output_group = bin,
-    )
-    for bin in UNIX_BINS
-]
+filegroup(
+    name = "python3_bin",
+    srcs = [":python_unix"],
+    output_group = "python{}".format(VERSION_STR),
+)
 
 pkg_files(
     name = "install_libs_unix",
@@ -294,7 +322,7 @@ pkg_files(
     renames = {
         "libs_unix_no_symlinks": REMOVE_BASE_DIRECTORY,
     },
-    attributes = pkg_attributes("0644")
+    attributes = pkg_attributes("0755")
 )
 
 pkg_files(
@@ -304,7 +332,10 @@ pkg_files(
 
 pkg_files(
     name = "install_bins_unix",
-    srcs = [":bins_unix_" + bin for bin in UNIX_BINS] + [":python_bin_symlink"],
+    srcs = [
+        ":python3_bin",
+        ":patch_pip_interpreter",
+    ],
     prefix = "bin",
     attributes = pkg_attributes("0755")
 )
@@ -320,8 +351,7 @@ pkg_install(
             ":install_libs_unix",
             ":install_headers_unix",
             ":install_bins_unix",
-            ":python_bin_symlink",
-        ],
+        ] + [":python_bin_symlink_" + name for name in BIN_SYMLINKS.values()],
     }) + select({
         "@platforms//os:linux": [":libpython_symlink"],
         "//conditions:default": [],
