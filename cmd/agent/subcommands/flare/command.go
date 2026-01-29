@@ -45,6 +45,7 @@ import (
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -126,6 +127,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), false),
 				}),
 				secretfx.Module(),
+				delegatedauthfx.Module(),
 				flare.Module(flare.NewLocalParams(
 					defaultpaths.GetDistPath(),
 					defaultpaths.PyChecksPath,

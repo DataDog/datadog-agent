@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -43,6 +44,7 @@ func getProcessAgentFxOptions(cliParams *processchecks.CliParams, bundleParams c
 		core.Bundle(),
 		hostnameimpl.Module(),
 		secretsfx.Module(),
+		delegatedauthfx.Module(),
 
 		// Provide eventplatformimpl module
 		eventplatformreceiverimpl.Module(),

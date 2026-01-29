@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-process"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
+	delegatedauthfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -134,6 +135,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		core.Bundle(),
 		hostnameimpl.Module(),
 		secretsfx.Module(),
+		delegatedauthfx.Module(),
 
 		// Provide process agent bundle so fx knows where to find components
 		process.Bundle(),

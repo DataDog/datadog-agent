@@ -8,9 +8,9 @@ Cloud Provider: {{ .provider }}
 AWS Region: {{ .awsRegion }}
 {{- end }}
 
-Configured API Keys:
+Configured Delegated Auth Instances:
 {{- range $key, $info := .instances }}
-- {{ $key }}:
+- {{ $key }}
   Status: {{ $info.Status }}
   Refresh Interval: {{ $info.RefreshInterval }}
   {{- if $info.LastRefresh }}

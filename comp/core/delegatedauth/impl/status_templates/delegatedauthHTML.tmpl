@@ -8,9 +8,9 @@
     {{- if .awsRegion }}
     <span class="stat_subtitle">AWS Region:</span> {{ .awsRegion }}<br>
     {{- end }}
-    <span class="stat_subtitle">Configured API Keys:</span><br>
+    <span class="stat_subtitle">Delegated Auth Instances:</span><br>
     {{- range $key, $info := .instances }}
-    <span class="stat_subsubtitle">{{ $key }}:</span><br>
+    <span class="stat_subsubtitle">{{ $key }}</span><br>
     &nbsp;&nbsp;Status: {{ $info.Status }}<br>
     &nbsp;&nbsp;Refresh Interval: {{ $info.RefreshInterval }}<br>
     {{- if $info.LastRefresh }}
