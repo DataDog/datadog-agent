@@ -2395,6 +2395,7 @@ core,go.mongodb.org/mongo-driver/v2/internal/aws,Apache-2.0,"Copyright © 2018 M
 core,go.mongodb.org/mongo-driver/v2/internal/aws/awserr,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/aws/credentials,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/aws/signer/v4,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
+core,go.mongodb.org/mongo-driver/v2/internal/binaryutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/bsoncoreutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/bsonutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
 core,go.mongodb.org/mongo-driver/v2/internal/codecutil,Apache-2.0,"Copyright © 2018 MongoDB, Inc."
