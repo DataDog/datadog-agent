@@ -254,14 +254,14 @@ if do_build
     dependency "init-scripts-agent"
   end
 elsif do_package
+  dependency "init-scripts-agent"
+  dependency 'datadog-agent-installer-symlinks'
   if do_repackage?
     dependency "existing-agent-package"
     dependency "datadog-agent"
   else
     dependency "package-artifact"
   end
-  dependency "init-scripts-agent"
-  dependency 'datadog-agent-installer-symlinks'
 end
 
 # version manifest is based on the built softwares.
