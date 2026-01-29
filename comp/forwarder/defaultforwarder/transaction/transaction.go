@@ -72,6 +72,10 @@ var (
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
 	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
+
+	// intakeOffsetExpVar stores the time offset between the agent and Datadog intake
+	// Captured from the Date header in successful HTTP responses
+	intakeOffsetExpVar = expvar.NewFloat("intakeOffset")
 )
 
 var trace *httptrace.ClientTrace
@@ -400,6 +404,17 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Capture intake server time for clock offset monitoring
+	// Parse the Date header to calculate the time difference between agent and intake
+	if dateHeader := resp.Header.Get("Date"); dateHeader != "" {
+		if serverTime, err := http.ParseTime(dateHeader); err == nil {
+			// Calculate offset using NTP convention: positive means agent clock is ahead, negative means behind
+			// serverTime - agentTime: if result is positive, agent is behind (needs to add time)
+			offset := serverTime.Sub(time.Now()).Seconds()
+			intakeOffsetExpVar.Set(offset)
+		}
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

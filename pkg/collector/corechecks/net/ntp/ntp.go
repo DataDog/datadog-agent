@@ -213,6 +213,22 @@ func (c *NTPCheck) Run() error {
 	serviceCheckMessage := ""
 	offsetThreshold := c.cfg.instance.OffsetThreshold
 
+	// Submit intake offset first (captured from forwarder responses)
+	// This is independent of NTP check success
+	if intakeOffsetVar := expvar.Get("intakeOffset"); intakeOffsetVar != nil {
+		if floatVar, ok := intakeOffsetVar.(*expvar.Float); ok {
+			intakeOffset := floatVar.Value()
+			if !math.IsNaN(intakeOffset) {
+				// Use server time as timestamp: positive offset means agent is behind (NTP convention)
+				// So server_time = agent_time + offset
+				agentTime := time.Now()
+				serverTime := agentTime.Add(time.Duration(intakeOffset * float64(time.Second)))
+				intakeTS := float64(serverTime.UnixNano()) / 1e9
+				_ = sender.GaugeWithTimestamp("ntp.offset", intakeOffset, "", []string{"source:intake"}, intakeTS)
+			}
+		}
+	}
+
 	clockOffset, ts, err := c.queryOffset()
 	if err != nil {
 		log.Error(err)
@@ -230,9 +246,10 @@ func (c *NTPCheck) Run() error {
 		serviceCheckStatus = servicecheck.ServiceCheckOK
 	}
 
-	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", nil, ts)
+	_ = sender.GaugeWithTimestamp("ntp.offset", clockOffset, "", []string{"source:ntp"}, ts)
 	ntpExpVar.Set(clockOffset)
 	tlmNtpOffset.Set(clockOffset)
+
 	sender.ServiceCheck("ntp.in_sync", serviceCheckStatus, "", nil, serviceCheckMessage)
 
 	c.lastCollection = time.Now()
