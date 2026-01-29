@@ -356,8 +356,8 @@ func TestStatusJSON_EnabledWithInstances(t *testing.T) {
 	// Test status when delegated auth is enabled with instances
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:      true,
-		resolvedProvider: cloudauth.ProviderAWS,
+		initialized:       true,
+		resolvedProvider:  cloudauth.ProviderAWS,
 		resolvedAWSRegion: "us-east-1",
 		instances: map[string]*authInstance{
 			"api_key": {
@@ -416,8 +416,8 @@ func TestStatusText_NotEnabled(t *testing.T) {
 func TestStatusText_EnabledWithInstances(t *testing.T) {
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:      true,
-		resolvedProvider: cloudauth.ProviderAWS,
+		initialized:       true,
+		resolvedProvider:  cloudauth.ProviderAWS,
 		resolvedAWSRegion: "us-west-2",
 		instances: map[string]*authInstance{
 			"api_key": {
@@ -463,8 +463,8 @@ func TestStatusHTML_NotEnabled(t *testing.T) {
 func TestStatusHTML_EnabledWithInstances(t *testing.T) {
 	apiKey := "test-api-key-1234567890"
 	comp := &delegatedAuthComponent{
-		initialized:      true,
-		resolvedProvider: cloudauth.ProviderAWS,
+		initialized:       true,
+		resolvedProvider:  cloudauth.ProviderAWS,
 		resolvedAWSRegion: "eu-west-1",
 		instances: map[string]*authInstance{
 			"api_key": {
