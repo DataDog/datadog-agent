@@ -218,9 +218,6 @@ include("//deps/gstatus:gstatus.MODULE.bazel")
 include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/openssl3:openssl3.MODULE.bazel")
-
-# buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")
 
 # buildifier: leave-alone
