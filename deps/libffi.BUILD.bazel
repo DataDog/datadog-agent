@@ -270,5 +270,6 @@ cc_library(
             }),
     implementation_deps = [":dlmalloc_header", ":libffi_include_headers"],
     visibility = ["//visibility:public"],
+    linkstatic = True,
 )
 
