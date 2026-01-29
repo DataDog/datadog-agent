@@ -2754,7 +2754,6 @@ api_key:
 ## How often to flush metrics to the parquet file.
 #
 #   parquet_flush_interval: 60s
-
 {{ if .JMX }}
 #######################
 ## JMX Configuration ##
