@@ -53,7 +53,7 @@ _replace_prefix = rule(
     },
 )
 
-def rewrite_rpath(name, input, prefix=None):
+def rewrite_rpath(name, input, prefix = None):
     _replace_prefix(
         name = name,
         input = input,
