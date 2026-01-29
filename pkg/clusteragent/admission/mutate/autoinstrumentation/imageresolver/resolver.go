@@ -211,6 +211,48 @@ func (r *rcResolver) processUpdate(update map[string]state.RawConfig, applyState
 	}
 }
 
+type bucketTagResolver struct {
+	cache               *httpDigestCache
+	bucketID            string
+	datadoghqRegistries map[string]struct{}
+}
+
+func (r *bucketTagResolver) createBucketTag(tag string) string {
+	normalizedTag := strings.TrimPrefix(tag, "v")
+
+	// DEV: Only create bucket tag for major versions (single number like "1" or "v1")
+	if !strings.Contains(normalizedTag, ".") {
+		return fmt.Sprintf("%s-gr%s", normalizedTag, r.bucketID)
+	}
+	return normalizedTag
+}
+
+func (r *bucketTagResolver) Resolve(registry string, repository string, tag string) (*ResolvedImage, bool) {
+	if !isDatadoghqRegistry(registry, r.datadoghqRegistries) {
+		log.Debugf("%s is not a Datadoghq registry, not resolving", registry)
+		metrics.ImageResolutionAttempts.Inc(repository, tag, tag)
+		return nil, false
+	}
+
+	bucketTag := r.createBucketTag(tag)
+
+	resolvedImage, ok := r.cache.get(registry, repository, bucketTag)
+	if !ok {
+		metrics.ImageResolutionAttempts.Inc(repository, bucketTag, tag)
+		return nil, false
+	}
+	metrics.ImageResolutionAttempts.Inc(repository, bucketTag, resolvedImage.FullImageRef)
+	return resolvedImage, true
+}
+
+func newBucketTagResolver(cfg Config) *bucketTagResolver {
+	return &bucketTagResolver{
+		cache:               newHTTPDigestCache(cfg.DigestCacheTTL),
+		bucketID:            cfg.BucketID,
+		datadoghqRegistries: cfg.DDRegistries,
+	}
+}
+
 // New creates the appropriate Resolver based on whether
 // a remote config client is available.
 func New(cfg Config) Resolver {
