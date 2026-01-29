@@ -1,5 +1,11 @@
-// Trace interface for accessing semantic attribute equivalences across different tracing conventions
-// (Datadog tracers, OpenTelemetry semantic convention versions, framework-specific variants).
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package semantics provides a unified interface for accessing semantic attribute
+// equivalences across different tracing conventions (Datadog tracers, OpenTelemetry
+// semantic convention versions, framework-specific variants).
 //
 // The semantic registry maps canonical attribute names to their various equivalents,
 // enabling consistent attribute access across all trace-agent subsystems (obfuscation,

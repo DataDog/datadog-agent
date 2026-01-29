@@ -44,8 +44,7 @@ func NewEmbeddedRegistry() *EmbeddedRegistry {
 	return &EmbeddedRegistry{}
 }
 
-// NewRegistryFromJSON creates a new EmbeddedRegistry from custom JSON data.
-// This is useful for testing or when loading mappings from an external source.
+// NewRegistryFromJSON creates a new EmbeddedRegistry from custom JSON data -- useful for testing or when loading mappings from an external source.
 func NewRegistryFromJSON(data []byte) (*EmbeddedRegistry, error) {
 	r := &EmbeddedRegistry{}
 	if err := r.loadFromJSON(data); err != nil {
@@ -88,8 +87,8 @@ func (r *EmbeddedRegistry) loadFromJSON(data []byte) error {
 	return nil
 }
 
-// GetAttributePrecedence returns the ordered list of attribute keys to check
-// for a given semantic concept. The first key in the list has highest precedence.
+// GetAttributePrecedence returns the ordered list of attribute keys to check for a given semantic concept.
+// First key in the list has highest precedence.
 // Returns nil if the concept is not found or if loading failed.
 func (r *EmbeddedRegistry) GetAttributePrecedence(concept Concept) []TagInfo {
 	r.load()
@@ -99,8 +98,7 @@ func (r *EmbeddedRegistry) GetAttributePrecedence(concept Concept) []TagInfo {
 	return r.mappings[concept]
 }
 
-// GetAllEquivalences returns all semantic equivalences as a map from
-// concept to the ordered list of equivalent attribute keys.
+// GetAllEquivalences returns all semantic equivalences as a map from concept to the ordered list of equivalent attribute keys.
 // Returns nil if loading failed.
 func (r *EmbeddedRegistry) GetAllEquivalences() map[Concept][]TagInfo {
 	r.load()
