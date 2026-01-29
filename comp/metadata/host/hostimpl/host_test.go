@@ -107,8 +107,8 @@ func TestNewHostProviderIntervalValidation(t *testing.T) {
 			overrides := map[string]any{
 				"metadata_providers": []map[string]interface{}{
 					{
-						"name":          "host",
-						"interval":      tt.mainInterval,
+						"name":           "host",
+						"interval":       tt.mainInterval,
 						"early_interval": tt.earlyInterval,
 					},
 				},
