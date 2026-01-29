@@ -12,7 +12,6 @@
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev
     - dda inv -- -e rtloader.install
-    - dda inv -- -e install-tools
     - dda inv -- -e linter.go --cpus $KUBERNETES_CPU_REQUEST --debug $FLAVORS $EXTRA_OPTS
 .linux_x64:
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
