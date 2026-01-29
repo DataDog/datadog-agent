@@ -261,12 +261,12 @@ func (a *APIServer) dequeue(now time.Time, cb func(msg *pendingMsg, retry bool) 
 
 		msgMaxRetry := msg.getMaxRetry()
 		if msg.retry >= msgMaxRetry {
-			seclog.Errorf("max retry reached: %dn, sending event anyway", msg.retry)
+			seclog.Warnf("max retry reached: %d, sending event anyway", msg.retry)
 
 			queueSize--
 			return true
 		}
-		seclog.Warnf("failed to sent event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
+		seclog.Warnf("failed to send event for rule `%s`, retry %d/%d, queue size: %d", msg.ruleID, msg.retry, msgMaxRetry, len(a.queue))
 
 		msg.sendAfter = now.Add(retryDelay)
 		msg.retry++
@@ -337,7 +337,7 @@ func (a *APIServer) start(ctx context.Context) {
 		case now := <-ticker.C:
 			a.dequeue(now, func(msg *pendingMsg, isRetryAllowed bool) bool {
 				if !isRetryAllowed {
-					seclog.Warnf("queue limit reached: %d, sending event anyway", len(a.queue))
+					seclog.Debugf("queue limit reached: %d, sending event anyway", len(a.queue))
 				}
 
 				if msg.extTagsCb != nil && isRetryAllowed {
