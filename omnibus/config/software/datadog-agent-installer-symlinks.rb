@@ -11,7 +11,6 @@ build do
   block do
     if linux_target? and install_dir == '/opt/datadog-agent'
       command_on_repo_root "bazelisk run -- //packages/agent/linux:install --destdir='/'"
-      # TODO: Use the hacky install trick to eliminate these commands and push the install up.
       project.extra_package_file "/opt/datadog-packages/datadog-agent"
       project.extra_package_file "/opt/datadog-packages/run"
     end
