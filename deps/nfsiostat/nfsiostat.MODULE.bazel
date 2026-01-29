@@ -1,0 +1,15 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "2.1.1"
+
+http_archive(
+    name = "nfsiostat",
+    files = {
+        "BUILD.bazel": "//deps/nfsiostat:nfsiostat.BUILD.bazel",
+    },
+    sha256 = "381bb3f6aa4b314538db0bcfb242da855c2eb36e2059cf61aa498c0220684363",
+    strip_prefix = "nfs-utils-{version}".format(version = VERSION),
+    url = "https://mirrors.edge.kernel.org/pub/linux/utils/nfs-utils/{version}/nfs-utils-{version}.tar.gz".format(
+        version = VERSION,
+    ),
+)
