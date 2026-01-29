@@ -8,6 +8,7 @@ package workloadlist
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -94,7 +95,7 @@ func workloadList(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) 
 	// Validate search argument
 	var searchTerm string
 	if len(cliParams.args) > 1 {
-		return fmt.Errorf("only one search term must be specified")
+		return errors.New("only one search term must be specified")
 	} else if len(cliParams.args) == 1 {
 		searchTerm = cliParams.args[0]
 	}
@@ -175,7 +176,7 @@ func workloadURL(verbose bool, structuredFormat bool, search string) (string, er
 		params = append(params, "format=json")
 	}
 	if search != "" {
-		params = append(params, fmt.Sprintf("search=%s", search))
+		params = append(params, "search="+search)
 	}
 
 	if len(params) > 0 {

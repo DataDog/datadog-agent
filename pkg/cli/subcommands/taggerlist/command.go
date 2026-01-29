@@ -7,6 +7,7 @@
 package taggerlist
 
 import (
+	"errors"
 	"fmt"
 
 	"go.uber.org/fx"
@@ -92,7 +93,7 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 	// Validate search argument
 	var searchTerm string
 	if len(cliParams.args) > 1 {
-		return fmt.Errorf("only one search term must be specified")
+		return errors.New("only one search term must be specified")
 	} else if len(cliParams.args) == 1 {
 		searchTerm = cliParams.args[0]
 	}
