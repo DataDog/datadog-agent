@@ -106,18 +106,24 @@ func NewComponent(deps Requires) Provides {
 	cfg := pkgconfigsetup.Datadog()
 
 	// Initialize parquet writer if configured
-	if parquetPath := cfg.GetString("observer.parquet_output_path"); parquetPath != "" {
+	if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
 		flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
 		if flushInterval == 0 {
 			flushInterval = 60 * time.Second
 		}
 
-		writer, err := NewParquetWriter(parquetPath, flushInterval)
+		retentionDuration := cfg.GetDuration("observer.parquet_retention")
+		// Default to 24 hours if not set or invalid
+		if retentionDuration <= 0 {
+			retentionDuration = 24 * time.Hour
+		}
+
+		writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
 		if err != nil {
 			pkglog.Errorf("Failed to create parquet writer: %v", err)
 		} else {
 			obs.parquetWriter = writer
-			pkglog.Infof("Observer parquet writer enabled: %s (flush interval: %v)", parquetPath, flushInterval)
+			pkglog.Infof("Observer parquet writer enabled: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
 		}
 	}
 

@@ -2742,18 +2742,27 @@ api_key:
 #
 #   high_frequency_interval: 0
 
-## @param observer.parquet_output_path - string - optional - default: ""
-## @env DD_OBSERVER_PARQUET_OUTPUT_PATH - string - optional - default: ""
-## Path to parquet file for long-term storage of observer metrics.
-## Set to empty string to disable (default). Example: "/tmp/observer-metrics.parquet"
+## @param observer.parquet_output_dir - string - optional - default: ""
+## @env DD_OBSERVER_PARQUET_OUTPUT_DIR - string - optional - default: ""
+## Directory where timestamped parquet files will be written for long-term storage.
+## Files are rotated at the flush interval to ensure they remain valid and readable.
+## Set to empty string to disable (default). Example: "/tmp/observer-metrics"
 #
-#   parquet_output_path: ""
+#   parquet_output_dir: ""
 
 ## @param observer.parquet_flush_interval - duration - optional - default: 60s
 ## @env DD_OBSERVER_PARQUET_FLUSH_INTERVAL - duration - optional - default: 60s
-## How often to flush metrics to the parquet file.
+## How often to flush metrics and rotate parquet files.
+## Each rotation creates a new timestamped file (e.g., observer-metrics-20260129-133045.parquet).
 #
 #   parquet_flush_interval: 60s
+
+## @param observer.parquet_retention - duration - optional - default: 24h
+## @env DD_OBSERVER_PARQUET_RETENTION - duration - optional - default: 24h
+## How long to keep parquet files before automatic cleanup.
+## Set to 0 to disable cleanup (files accumulate indefinitely).
+#
+#   parquet_retention: 24h
 {{ if .JMX }}
 #######################
 ## JMX Configuration ##

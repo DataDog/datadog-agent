@@ -10,6 +10,7 @@ package observerimpl
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -23,21 +24,32 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// ParquetWriter writes observer metrics to parquet files.
+// ParquetWriter writes observer metrics to rotating parquet files.
+// Files are rotated at the flush interval to ensure they remain valid and readable.
 // Schema is compatible with FGM (Flare Graph Metrics) format for consistency.
 type ParquetWriter struct {
-	filePath      string
-	writer        *pqarrow.FileWriter
-	file          *os.File
-	schema        *arrow.Schema
-	builder       *metricBatchBuilder
-	flushInterval time.Duration
-	stopCh        chan struct{}
-	mu            sync.Mutex
+	outputDir         string
+	currentFilePath   string
+	writer            *pqarrow.FileWriter
+	file              *os.File
+	schema            *arrow.Schema
+	builder           *metricBatchBuilder
+	flushInterval     time.Duration
+	retentionDuration time.Duration // 0 means no cleanup
+	stopCh            chan struct{}
+	mu                sync.Mutex
 }
 
-// NewParquetWriter creates a writer that periodically flushes metrics to parquet.
-func NewParquetWriter(filePath string, flushInterval time.Duration) (*ParquetWriter, error) {
+// NewParquetWriter creates a writer that rotates parquet files at the flush interval.
+// outputDir: directory where parquet files will be written
+// flushInterval: how often to rotate files (e.g., 60s creates a new file every minute)
+// retentionDuration: how long to keep old files (0 = no cleanup)
+func NewParquetWriter(outputDir string, flushInterval, retentionDuration time.Duration) (*ParquetWriter, error) {
+	// Create output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("creating output directory: %w", err)
+	}
+
 	// Define schema matching FGM format for compatibility with existing reader
 	schema := arrow.NewSchema(
 		[]arrow.Field{
@@ -50,38 +62,74 @@ func NewParquetWriter(filePath string, flushInterval time.Duration) (*ParquetWri
 		nil,
 	)
 
-	// Create parquet file writer
-	file, err := os.Create(filePath)
+	pw := &ParquetWriter{
+		outputDir:         outputDir,
+		schema:            schema,
+		builder:           newMetricBatchBuilder(schema),
+		flushInterval:     flushInterval,
+		retentionDuration: retentionDuration,
+		stopCh:            make(chan struct{}),
+	}
+
+	// Create initial file
+	if err := pw.rotateFile(); err != nil {
+		return nil, fmt.Errorf("creating initial parquet file: %w", err)
+	}
+
+	// Start flush and cleanup loops
+	go pw.flushLoop()
+	if retentionDuration > 0 {
+		go pw.cleanupLoop()
+	}
+
+	pkglog.Infof("Parquet writer initialized: dir=%s flush=%v retention=%v", outputDir, flushInterval, retentionDuration)
+
+	return pw, nil
+}
+
+// rotateFile closes the current file and opens a new timestamped one
+func (pw *ParquetWriter) rotateFile() error {
+	// Close existing file if any
+	if pw.writer != nil {
+		if err := pw.writer.Close(); err != nil {
+			pkglog.Warnf("Error closing parquet writer during rotation: %v", err)
+		}
+		pw.writer = nil
+	}
+	if pw.file != nil {
+		if err := pw.file.Close(); err != nil {
+			pkglog.Warnf("Error closing parquet file during rotation: %v", err)
+		}
+		pw.file = nil
+	}
+
+	// Generate timestamped filename: observer-metrics-20260129-133045.parquet
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("observer-metrics-%s.parquet", timestamp)
+	pw.currentFilePath = filepath.Join(pw.outputDir, filename)
+
+	// Create new file
+	file, err := os.Create(pw.currentFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("creating parquet file: %w", err)
+		return fmt.Errorf("creating parquet file %s: %w", pw.currentFilePath, err)
 	}
 
 	props := parquet.NewWriterProperties(
 		parquet.WithVersion(parquet.V2_LATEST),
 	)
 
-	writer, err := pqarrow.NewFileWriter(schema, file, props, pqarrow.DefaultWriterProps())
+	writer, err := pqarrow.NewFileWriter(pw.schema, file, props, pqarrow.DefaultWriterProps())
 	if err != nil {
 		file.Close()
-		return nil, fmt.Errorf("creating parquet writer: %w", err)
+		return fmt.Errorf("creating parquet writer: %w", err)
 	}
 
-	pw := &ParquetWriter{
-		filePath:      filePath,
-		writer:        writer,
-		file:          file,
-		schema:        schema,
-		builder:       newMetricBatchBuilder(schema),
-		flushInterval: flushInterval,
-		stopCh:        make(chan struct{}),
-	}
+	pw.file = file
+	pw.writer = writer
 
-	// Start flush loop
-	go pw.flushLoop()
+	pkglog.Debugf("Rotated to new parquet file: %s", pw.currentFilePath)
 
-	pkglog.Infof("Parquet writer initialized: %s (flush interval: %v)", filePath, flushInterval)
-
-	return pw, nil
+	return nil
 }
 
 // WriteMetric adds a metric to the batch (will be flushed on interval)
@@ -92,7 +140,7 @@ func (pw *ParquetWriter) WriteMetric(source, name string, value float64, tags []
 	pw.builder.add(source, name, value, tags, timestamp)
 }
 
-// flushLoop periodically flushes metrics to parquet file
+// flushLoop periodically flushes metrics and rotates files
 func (pw *ParquetWriter) flushLoop() {
 	ticker := time.NewTicker(pw.flushInterval)
 	defer ticker.Stop()
@@ -100,29 +148,86 @@ func (pw *ParquetWriter) flushLoop() {
 	for {
 		select {
 		case <-pw.stopCh:
-			pw.flush()
+			pw.flushAndRotate()
 			return
 		case <-ticker.C:
-			pw.flush()
+			pw.flushAndRotate()
 		}
 	}
 }
 
-// flush writes accumulated metrics to parquet file
-func (pw *ParquetWriter) flush() {
+// flushAndRotate writes accumulated metrics, closes file, and opens a new one
+func (pw *ParquetWriter) flushAndRotate() {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
+	// Write accumulated metrics to current file
 	record := pw.builder.build()
-	if record == nil {
-		return // No metrics to flush
+	if record != nil {
+		if err := pw.writer.Write(record); err != nil {
+			pkglog.Errorf("Failed to write metrics to parquet: %v", err)
+		}
+		record.Release()
 	}
 
-	if err := pw.writer.Write(record); err != nil {
-		pkglog.Errorf("Failed to write metrics to parquet: %v", err)
+	// Rotate to new file (closes current file, making it valid and readable)
+	if err := pw.rotateFile(); err != nil {
+		pkglog.Errorf("Failed to rotate parquet file: %v", err)
+	}
+}
+
+// cleanupLoop periodically removes old parquet files beyond retention period
+func (pw *ParquetWriter) cleanupLoop() {
+	// Run cleanup every 5 minutes
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-pw.stopCh:
+			return
+		case <-ticker.C:
+			pw.cleanup()
+		}
+	}
+}
+
+// cleanup removes parquet files older than retention duration
+func (pw *ParquetWriter) cleanup() {
+	entries, err := os.ReadDir(pw.outputDir)
+	if err != nil {
+		pkglog.Warnf("Failed to read parquet output directory for cleanup: %v", err)
+		return
 	}
 
-	record.Release()
+	cutoff := time.Now().Add(-pw.retentionDuration)
+	removed := 0
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".parquet") {
+			continue
+		}
+
+		filePath := filepath.Join(pw.outputDir, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			pkglog.Warnf("Failed to get file info for %s: %v", filePath, err)
+			continue
+		}
+
+		if info.ModTime().Before(cutoff) {
+			if err := os.Remove(filePath); err != nil {
+				pkglog.Warnf("Failed to remove old parquet file %s: %v", filePath, err)
+			} else {
+				removed++
+				pkglog.Debugf("Removed old parquet file: %s", filePath)
+			}
+		}
+	}
+
+	if removed > 0 {
+		pkglog.Infof("Cleaned up %d old parquet file(s)", removed)
+	}
 }
 
 // Close flushes remaining data and closes the writer
@@ -142,15 +247,19 @@ func (pw *ParquetWriter) Close() error {
 	}
 
 	// Close writer and file
-	if err := pw.writer.Close(); err != nil {
-		return fmt.Errorf("closing parquet writer: %w", err)
+	if pw.writer != nil {
+		if err := pw.writer.Close(); err != nil {
+			return fmt.Errorf("closing parquet writer: %w", err)
+		}
 	}
 
-	if err := pw.file.Close(); err != nil {
-		return fmt.Errorf("closing parquet file: %w", err)
+	if pw.file != nil {
+		if err := pw.file.Close(); err != nil {
+			return fmt.Errorf("closing parquet file: %w", err)
+		}
 	}
 
-	pkglog.Infof("Parquet writer closed: %s", pw.filePath)
+	pkglog.Infof("Parquet writer closed: %s", pw.currentFilePath)
 	return nil
 }
 
