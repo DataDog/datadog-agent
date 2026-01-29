@@ -117,6 +117,7 @@ func (d *directSender) addTags(nc network.ConnectionStats, c *model.Connection, 
 	var staticTags uint64
 	dynamicTags := nc.TLSTags.GetDynamicTags()
 	for _, encoder := range usmEncoders {
+		d.encodeBuf.Reset()
 		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnectionDirect(nc, c, &d.encodeBuf)
 		staticTags |= encoderStaticTags
 		dynamicTags = mergeDynamicTags(dynamicTags, encoderDynamicTags)

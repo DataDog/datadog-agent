@@ -37,7 +37,6 @@ func newPostgresEncoder(postgresPayloads map[postgres.Key]*postgres.RequestStat)
 }
 
 func (e *postgresEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection, buf *bytes.Buffer) (staticTags uint64, dynamicTags map[string]struct{}) {
-	buf.Reset()
 	staticTags = e.encodeData(c, buf)
 	conn.DatabaseAggregations = buf.Bytes()
 	return
