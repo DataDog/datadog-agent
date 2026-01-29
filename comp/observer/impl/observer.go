@@ -105,26 +105,32 @@ func NewComponent(deps Requires) Provides {
 
 	cfg := pkgconfigsetup.Datadog()
 
-	// Initialize parquet writer if configured
-	if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
-		flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
-		if flushInterval == 0 {
-			flushInterval = 60 * time.Second
-		}
+	// Initialize parquet writer only if both capture_metrics AND parquet_output_dir are configured.
+	// When capture_metrics is false, no metrics are recorded to parquet.
+	captureMetrics := cfg.GetBool("observer.capture_metrics")
+	if captureMetrics {
+		if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
+			flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
+			if flushInterval == 0 {
+				flushInterval = 60 * time.Second
+			}
 
-		retentionDuration := cfg.GetDuration("observer.parquet_retention")
-		// Default to 24 hours if not set or invalid
-		if retentionDuration <= 0 {
-			retentionDuration = 24 * time.Hour
-		}
+			retentionDuration := cfg.GetDuration("observer.parquet_retention")
+			// Default to 24 hours if not set or invalid
+			if retentionDuration <= 0 {
+				retentionDuration = 24 * time.Hour
+			}
 
-		writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
-		if err != nil {
-			pkglog.Errorf("Failed to create parquet writer: %v", err)
-		} else {
-			obs.parquetWriter = writer
-			pkglog.Infof("Observer parquet writer enabled: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
+			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
+			if err != nil {
+				pkglog.Errorf("Failed to create parquet writer: %v", err)
+			} else {
+				obs.parquetWriter = writer
+				pkglog.Infof("Observer parquet writer enabled: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
+			}
 		}
+	} else {
+		pkglog.Debug("Observer parquet writer disabled (observer.capture_metrics is false)")
 	}
 
 	go obs.run()
