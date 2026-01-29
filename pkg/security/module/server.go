@@ -692,7 +692,7 @@ func (a *APIServer) Stop() {
 }
 
 // GetStatus returns the status of the module
-func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
+func (a *APIServer) GetStatus(_ context.Context, params *api.GetStatusParams) (*api.Status, error) {
 	var apiStatus api.Status
 
 	if a.cfg.SendPayloadsFromSystemProbe {
@@ -713,7 +713,10 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 	}
 	apiStatus.PoliciesStatus = a.policiesStatus
 
-	seclVariables := a.GetSECLVariables()
+	var seclVariables map[string]*api.SECLVariableState
+	if params.IncludeSECLVariables {
+		seclVariables = a.GetSECLVariables()
+	}
 
 	var globals []*api.SECLVariableState
 	for _, global := range seclVariables {
