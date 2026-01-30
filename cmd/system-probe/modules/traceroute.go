@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(Traceroute) }
-
 type traceroute struct {
 	runner traceroutecomp.Component
 }
