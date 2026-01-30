@@ -267,6 +267,20 @@ func (i *InstallerExec) RemoveExtensions(ctx context.Context, pkg string, extens
 	return cmd.Run()
 }
 
+// SaveExtensions saves the extensions to a specific location on disk.
+func (i *InstallerExec) SaveExtensions(ctx context.Context, pkg string, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "extension save", pkg, path)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
+// RestoreExtensions restores the extensions from a specific location on disk.
+func (i *InstallerExec) RestoreExtensions(ctx context.Context, url string, path string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "extension restore", url, path)
+	defer func() { cmd.span.Finish(err) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)

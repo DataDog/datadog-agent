@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 				Title: "APM Commands",
 			},
 			&cobra.Group{
-				ID:    "extensions",
+				ID:    "extension",
 				Title: "Extensions Commands",
 			},
 		)

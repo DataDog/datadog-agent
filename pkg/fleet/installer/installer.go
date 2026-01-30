@@ -64,6 +64,8 @@ type Installer interface {
 
 	InstallExtensions(ctx context.Context, url string, extensions []string) error
 	RemoveExtensions(ctx context.Context, pkg string, extensions []string) error
+	SaveExtensions(ctx context.Context, pkg string, path string) error
+	RestoreExtensions(ctx context.Context, url string, path string) error
 
 	GarbageCollect(ctx context.Context) error
 
@@ -830,6 +832,27 @@ func (i *installerImpl) RemoveExtensions(ctx context.Context, pkg string, extens
 	}
 
 	return extensionsPkg.Remove(ctx, pkg, extensions, false, i.hooks)
+}
+
+// SaveExtensions saves the extensions to a specific location on disk.
+func (i *installerImpl) SaveExtensions(ctx context.Context, pkg string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	return extensionsPkg.Save(ctx, pkg, path)
+}
+
+// RestoreExtensions restores the extensions from a specific location on disk.
+func (i *installerImpl) RestoreExtensions(ctx context.Context, url string, path string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+	pkg, err := i.downloader.Download(ctx, url) // Downloads pkg metadata only
+	if err != nil {
+		return installerErrors.Wrap(
+			installerErrors.ErrDownloadFailed,
+			fmt.Errorf("could not download package: %w", err),
+		)
+	}
+	return extensionsPkg.Restore(ctx, i.downloader, pkg.Name, url, path, false, i.hooks)
 }
 
 // Close cleans up the Installer's dependencies, lock must be held by the caller

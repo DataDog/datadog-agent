@@ -81,7 +81,7 @@ Datadog Installer installs datadog-packages based on your commands.`,
 			Title: "APM Commands",
 		},
 		&cobra.Group{
-			ID:    "extensions",
+			ID:    "extension",
 			Title: "Extensions Commands",
 		},
 	)

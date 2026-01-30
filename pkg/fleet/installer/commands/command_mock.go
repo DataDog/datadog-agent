@@ -132,6 +132,14 @@ func (m *installerMock) RemoveExtensions(_ context.Context, _ string, _ []string
 	return nil
 }
 
+func (m *installerMock) SaveExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (m *installerMock) RestoreExtensions(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
 func (m *installerMock) Close() error {
 	return nil
 }
