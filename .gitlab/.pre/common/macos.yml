@@ -33,37 +33,12 @@
     echo "Temporary folder created, TMPDIR=$TMPDIR -> $NEWTMPDIR"
 
 .install_python_dependencies:
-  # Create custom temporary folder to isolate jobs from each other
-  # We have to symlink it to /tmp/gitlabci to avoid some path length issues (sockets should be <= 104 characters on MacOS)
+  # Update the version of dda to the latest version
+  # dda is already preinstalled in the runner image but it might be an outdated version if the runner image is outdated
   - |
-    if [ -z "$TMPDIR" ]; then
-      echo "TMPDIR must be set" >& 2
-      exit 1
-    fi
-  - export DDA_DIR="$TMPDIR/dda-${CI_JOB_ID}"
-  - export PATH="$DDA_DIR:$PATH"
-  - export DDA_NO_DYNAMIC_DEPS=1
-  - |
-    # Perform installation only if the directory does not exist
-    if [ ! -d "$DDA_DIR" ]; then
-      robust_curl="curl -fsSL --retry 4"  # recommended flags + resist transient errors like `Connection reset by peer`
-      # Get the commit from the build image variable in the format `vPIPELINE_ID-COMMIT`
-      export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-      export DDA_VERSION="$($robust_curl https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
-      # Detect architecture and download appropriate binary
-      if [ "$(uname -m)" = "arm64" ]; then
-        dda_target_triple="aarch64-apple-darwin"
-      else
-        dda_target_triple="x86_64-apple-darwin"
-      fi
-      $robust_curl -o dda.tar.gz https://github.com/DataDog/datadog-agent-dev/releases/download/${DDA_VERSION}/dda-${dda_target_triple}.tar.gz
-      tar -xzf dda.tar.gz
-      mkdir -p "$DDA_DIR"
-      sudo mv dda $DDA_DIR
-      rm -f dda.tar.gz
-      dda self dep sync -f legacy-tasks
-      dda self pip install awscli==1.29.45
-    fi
+    export DDA_VERSION="$($robust_curl https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
+    pip install --upgrade dda==$DDA_VERSION
+  - dda self dep sync -f legacy-tasks
 
 .vault_login:
   # Point the CLI to our internal vault
