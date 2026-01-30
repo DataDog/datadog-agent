@@ -364,6 +364,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceBentoMl,
 		metrics.MetricSourceHuggingFaceTgi,
 		metrics.MetricSourceIbmSpectrumLsf,
+		metrics.MetricSourcePinot,
 		metrics.MetricSourceDatadogOperator:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
@@ -1132,6 +1133,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 503
 	case metrics.MetricSourcePerfect:
 		return 504
+	case metrics.MetricSourcePinot:
+		return 512
 	default:
 		return 0
 	}
