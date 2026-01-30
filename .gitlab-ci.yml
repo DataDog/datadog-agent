@@ -357,7 +357,7 @@ variables:
     - MODULE.bazel
     - release.json
     # SMP regression detector experiments
-    - test/regression/**/*
+    - test/regression/**
 
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
