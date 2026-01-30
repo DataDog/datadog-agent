@@ -13,11 +13,21 @@ function parseTag(tag: string): { key: string; value: string } | null {
   return { key: tag.slice(0, idx), value: tag.slice(idx + 1) };
 }
 
+// Aggregation types available for metrics
+const AGGREGATION_TYPES = ['avg', 'count', 'sum', 'min', 'max'] as const;
+type AggregationType = typeof AGGREGATION_TYPES[number];
+
 // Get the base metric name without aggregation suffix
 function getBaseMetricName(name: string): string {
   // Series names often end with :avg, :sum, :count, :min, :max
   const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
   return match ? match[1] : name;
+}
+
+// Get the aggregation type from a series name
+function getAggregationType(name: string): AggregationType | null {
+  const match = name.match(/:(avg|sum|count|min|max)$/);
+  return match ? (match[1] as AggregationType) : null;
 }
 
 // Find all series variants (same base name, different tags)
@@ -83,6 +93,7 @@ function App() {
   const [smoothLines, setSmoothLines] = useState(true);
   const [splitByTag, setSplitByTag] = useState<string | null>(null);
   const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
+  const [aggregationType, setAggregationType] = useState<AggregationType>('avg');
   const isResizingRef = useRef(false);
 
   // Safely access arrays with fallbacks
@@ -115,6 +126,33 @@ function App() {
     });
     return Array.from(tagKeys).sort();
   }, [series]);
+
+  // Filter series by selected aggregation type and deduplicate by base name
+  const filteredSeries = useMemo(() => {
+    // First, filter to only include series with the selected aggregation type
+    const withAggType = series.filter((s) => {
+      const aggType = getAggregationType(s.name);
+      return aggType === aggregationType;
+    });
+
+    // Deduplicate by base name (in case there are multiple with same base but different tags)
+    const seen = new Set<string>();
+    return withAggType.filter((s) => {
+      const baseName = getBaseMetricName(s.name);
+      const key = `${s.namespace}/${baseName}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [series, aggregationType]);
+
+  // Create display series with stripped aggregation suffix for the tree
+  const displaySeries = useMemo(() => {
+    return filteredSeries.map((s) => ({
+      ...s,
+      displayName: getBaseMetricName(s.name),
+    }));
+  }, [filteredSeries]);
 
   // Initialize enabled analyzers when components load
   useEffect(() => {
@@ -431,18 +469,40 @@ function App() {
             </div>
           </div>
 
+          {/* Aggregation Type */}
+          <div className="p-4 border-b border-slate-700">
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+              Aggregation
+            </h2>
+            <div className="flex gap-1 flex-wrap">
+              {AGGREGATION_TYPES.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setAggregationType(type)}
+                  className={`text-xs px-2 py-1 rounded transition-colors ${
+                    aggregationType === type
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:bg-slate-600'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Series Tree */}
           <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Series ({series.length})
+                Series ({displaySeries.length})
               </h2>
               {/* Quick selection buttons */}
               <div className="flex gap-1">
                 <button
                   onClick={() => {
-                    const anomalousKeys = series
-                      .filter((s) => anomalies.some((a) => a.source === s.name))
+                    const anomalousKeys = displaySeries
+                      .filter((s) => anomalies.some((a) => a.source === s.name || a.source === s.displayName))
                       .map((s) => `${s.namespace}/${s.name}`);
                     setSelectedSeries(new Set(anomalousKeys));
                   }}
@@ -453,7 +513,7 @@ function App() {
                 </button>
                 <button
                   onClick={() => {
-                    const allKeys = series.map((s) => `${s.namespace}/${s.name}`);
+                    const allKeys = displaySeries.map((s) => `${s.namespace}/${s.name}`);
                     setSelectedSeries(new Set(allKeys));
                   }}
                   className="text-xs px-1.5 py-0.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-400"
@@ -471,7 +531,7 @@ function App() {
               </div>
             </div>
             <SeriesTree
-              series={series}
+              series={displaySeries}
               selectedSeries={selectedSeries}
               anomalousSources={anomalousSources}
               onSelectionChange={setSelectedSeries}
