@@ -151,6 +151,8 @@ def diff(
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
+                # Run all go list commands in parallel for this branch
+                promises = []
                 for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
                         for combo in details["platforms"]:
@@ -169,7 +171,16 @@ def diff(
                                 "CGO_ENABLED": "1",
                                 "GOTOOLCHAIN": f"go{dot_go_version(ctx)}",
                             }
-                            ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
+                            promise = ctx.run(
+                                f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}",
+                                env=env,
+                                asynchronous=True,
+                            )
+                            promises.append(promise)
+
+                # Wait for all commands to complete
+                for promise in promises:
+                    promise.join()
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 
