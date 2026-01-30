@@ -84,8 +84,8 @@ maintainer 'Datadog Packages <package@datadoghq.com>'
 if do_build
   dependency 'datadog-otel-agent'
 elsif do_package
-  dependency 'package-artifact'
   dependency 'init-scripts-ddot'
+  dependency 'package-artifact'
 end
 
 disable_version_manifest do_package
