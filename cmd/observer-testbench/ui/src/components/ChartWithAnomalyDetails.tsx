@@ -23,6 +23,7 @@ interface ChartWithAnomalyDetailsProps {
   enabledAnalyzers: Set<string>;
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
+  smoothLines?: boolean;
 }
 
 export function ChartWithAnomalyDetails({
@@ -34,6 +35,7 @@ export function ChartWithAnomalyDetails({
   enabledAnalyzers,
   timeRange,
   onTimeRangeChange,
+  smoothLines = true,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
@@ -64,6 +66,7 @@ export function ChartWithAnomalyDetails({
         timeRange={timeRange}
         onTimeRangeChange={onTimeRangeChange}
         height={200}
+        smoothLines={smoothLines}
       />
 
       {/* Anomaly details - compact list below chart */}

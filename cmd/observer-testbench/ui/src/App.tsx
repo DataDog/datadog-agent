@@ -47,6 +47,7 @@ function App() {
   const [timeRange, setTimeRange] = useState<TimeRange | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [correlationsExpanded, setCorrelationsExpanded] = useState(true);
+  const [smoothLines, setSmoothLines] = useState(true);
   const isResizingRef = useRef(false);
 
   // Safely access arrays with fallbacks
@@ -224,6 +225,22 @@ function App() {
                 Drag to zoom, middle-drag to pan
               </span>
             )}
+            {/* Smooth Lines Toggle */}
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-xs text-slate-400">Smooth</span>
+              <button
+                onClick={() => setSmoothLines(!smoothLines)}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                  smoothLines ? 'bg-purple-600' : 'bg-slate-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    smoothLines ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </label>
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
               <span className="text-sm text-slate-400">
@@ -502,6 +519,7 @@ function App() {
                         enabledAnalyzers={enabledAnalyzers}
                         timeRange={timeRange}
                         onTimeRangeChange={setTimeRange}
+                        smoothLines={smoothLines}
                       />
                     );
                   })}

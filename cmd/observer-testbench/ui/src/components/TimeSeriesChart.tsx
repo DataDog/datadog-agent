@@ -38,6 +38,7 @@ interface TimeSeriesChartProps {
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   height?: number;
+  smoothLines?: boolean;
 }
 
 export function TimeSeriesChart({
@@ -49,6 +50,7 @@ export function TimeSeriesChart({
   timeRange,
   onTimeRangeChange,
   height = 200,
+  smoothLines = true,
 }: TimeSeriesChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,7 +213,7 @@ export function TimeSeriesChart({
       .line<Point>()
       .x((d) => xScale(d.timestamp * 1000))
       .y((d) => yScale(d.value))
-      .curve(d3.curveMonotoneX);
+      .curve(smoothLines ? d3.curveMonotoneX : d3.curveLinear);
 
     // Draw the line
     g.append('path')
@@ -291,7 +293,7 @@ export function TimeSeriesChart({
       .attr('stroke', '#8b5cf6')
       .attr('stroke-width', 1);
 
-  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange]);
+  }, [points, displayPoints, filteredAnomalies, correlationRanges, height, timeRange, smoothLines]);
 
   // Handle resize
   useEffect(() => {
