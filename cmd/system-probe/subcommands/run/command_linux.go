@@ -33,6 +33,7 @@ import (
 	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
 	ping "github.com/DataDog/datadog-agent/comp/system-probe/ping/fx"
 	privilegedlogs "github.com/DataDog/datadog-agent/comp/system-probe/privilegedlogs/fx"
+	process "github.com/DataDog/datadog-agent/comp/system-probe/process/fx"
 	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -75,5 +76,6 @@ func getPlatformModules() fx.Option {
 		languagedetection.Module(),
 		ping.Module(),
 		privilegedlogs.Module(),
+		process.Module(),
 	)
 }
