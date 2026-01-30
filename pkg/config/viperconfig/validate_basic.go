@@ -23,9 +23,6 @@ var allowlistCaller = []string{
 	"comp/core/profiler/impl/profiler_test.go",
 	"comp/core/workloadfilter/catalog/filter_config_test.go",
 	"comp/core/workloadmeta/collectors/internal/kubeapiserver/kubeapiserver_test.go",
-	"comp/logs/agent/config/config_keys_test.go",
-	"comp/logs/agent/config/config_test.go",
-	"comp/logs/agent/config/endpoints_test.go",
 	"comp/metadata/host/hostimpl/host_test.go",
 	"comp/metadata/resources/resourcesimpl/resources_test.go",
 	"comp/networkpath/npcollector/npcollectorimpl/config_test.go",
@@ -63,7 +60,7 @@ func validate(v reflect.Value) bool {
 	if v.Interface() == nil {
 		return true
 	}
-	if v.Kind() == reflect.Pointer {
+	if v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface {
 		v = v.Elem()
 	}
 	switch v.Kind() {
