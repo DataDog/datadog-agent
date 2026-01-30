@@ -660,8 +660,8 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 					l.SetSeverityNumber(5)
 					l.Attributes().FromRaw(map[string]any{
 						"array_with_maps": []any{
-							map[string]any{"name": "item1", "value": int64(100)},
-							map[string]any{"name": "item2", "value": int64(200)},
+							map[string]any{"item_name": "item1", "value": int64(100)},
+							map[string]any{"item_name": "item2", "value": int64(200)},
 						},
 					})
 					return l
@@ -675,7 +675,10 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 				AdditionalProperties: map[string]interface{}{
 					"status":           "debug",
 					otelSeverityNumber: "5",
-					"array_with_maps":  []interface{}{map[string]interface{}{"item1": int64(100), "item2": int64(200)}},
+					"array_with_maps": []interface{}{
+						map[string]interface{}{"item_name": "item1", "value": int64(100)},
+						map[string]interface{}{"item_name": "item2", "value": int64(200)},
+					},
 				},
 			},
 		},

@@ -186,11 +186,23 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	result := make(map[string]any)
 
 	if val.Type() == pcommon.ValueTypeSlice {
-		if flattened, ok := flattenNameValueSlice(val.Slice()); ok {
-			result[key] = flattened
-			return result
+		slice := val.Slice()
+		flattened := make([]any, slice.Len())
+		for i := 0; i < slice.Len(); i++ {
+			elem := slice.At(i)
+			if elem.Type() == pcommon.ValueTypeMap {
+				elemResult := make(map[string]any)
+				elem.Map().Range(func(k string, v pcommon.Value) bool {
+					nestedResult := flattenAttribute(k, v, depth+1)
+					maps.Copy(elemResult, nestedResult)
+					return true
+				})
+				flattened[i] = elemResult
+			} else {
+				flattened[i] = elem.AsRaw()
+			}
 		}
-		result[key] = val.AsRaw()
+		result[key] = flattened
 		return result
 	}
 
@@ -214,28 +226,6 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	})
 
 	return result
-}
-
-func flattenNameValueSlice(slice pcommon.Slice) ([]any, bool) {
-	if slice.Len() == 0 {
-		return nil, false
-	}
-
-	flattened := make(map[string]any)
-	for i := 0; i < slice.Len(); i++ {
-		elem := slice.At(i)
-		if elem.Type() != pcommon.ValueTypeMap {
-			return nil, false
-		}
-		m := elem.Map()
-		nameVal, hasName := m.Get("name")
-		valueVal, hasValue := m.Get("value")
-		if !hasName || !hasValue || m.Len() != 2 {
-			return nil, false
-		}
-		flattened[nameVal.AsString()] = valueVal.AsRaw()
-	}
-	return []any{flattened}, true
 }
 
 func extractHostNameAndServiceName(resourceAttrs pcommon.Map, logAttrs pcommon.Map) (host string, service string) {
