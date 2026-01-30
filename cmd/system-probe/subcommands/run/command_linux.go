@@ -23,6 +23,7 @@ import (
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	compliance "github.com/DataDog/datadog-agent/comp/system-probe/compliance/fx"
+	discovery "github.com/DataDog/datadog-agent/comp/system-probe/discovery/fx"
 	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
@@ -58,5 +59,7 @@ func getPlatformModules() fx.Option {
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),
 		compliance.Module(),
+
+		discovery.Module(),
 	)
 }
