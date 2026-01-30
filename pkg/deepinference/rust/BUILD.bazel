@@ -16,4 +16,11 @@ rust_shared_library(
         "@deepinference_crates//:serde_json",
         "@deepinference_crates//:tokenizers",
     ],
+    # TODO: Macos...
+    rustc_flags = select({
+        "@platforms//os:linux": [
+            "-C", "link-arg=-Wl,-rpath=/opt/datadog-agent/embedded/lib",
+        ],
+        "//conditions:default": [],
+    }),
 )

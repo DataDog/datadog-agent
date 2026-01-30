@@ -165,6 +165,16 @@ def build(
             rtloader_make(ctx, install_prefix=embedded_path, cmake_options=cmake_options)
             rtloader_install(ctx)
 
+    # TODO: Windows support
+    target_os = os.getenv("GOOS") or sys.platform
+    if target_os not in ("windows", "win32"):
+        with gitlab_section("Build deepinference rust library", collapsed=True):
+            with ctx.cd("pkg/deepinference/rust"):
+                # TODO: Profile based on development mode
+                ctx.run(
+                    "cargo build --release",
+                )
+
     ldflags, gcflags, env = get_build_flags(
         ctx,
         install_path=install_path,
@@ -214,15 +224,6 @@ def build(
 
     if not glibc:
         build_tags = list(set(build_tags).difference({"nvml"}))
-
-    # TODO: Windows support
-    target_os = os.getenv("GOOS") or sys.platform
-    if target_os not in ("windows", "win32"):
-        with gitlab_section("Build deepinference rust library", collapsed=True):
-            with ctx.cd("pkg/deepinference/rust"):
-                ctx.run(
-                    "cargo build --release",
-                )
 
     if not agent_bin:
         agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
@@ -767,6 +768,9 @@ def clean(ctx):
     # remove the bin/agent folder
     print("Remove agent binary folder")
     ctx.run("rm -rf ./bin/agent")
+
+    print('Cleaning rust builds')
+    ctx.run("rm -rf ./pkg/deepinference/rust/target")
 
     print("Cleaning rtloader")
     rtloader_clean(ctx)
