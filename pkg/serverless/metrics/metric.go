@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -108,6 +109,27 @@ func (c *ServerlessMetricAgent) SetExtraTags(tagArray []string) {
 // GetExtraTags gets extra tags
 func (c *ServerlessMetricAgent) GetExtraTags() []string {
 	return c.tags
+}
+
+func (c *ServerlessMetricAgent) AddMetric(name string, value float64, metricSource metrics.MetricSource, metricType metrics.MetricType, extraTags ...string) {
+	if c.Demux == nil {
+		log.Debugf("Cannot add metric %s, the metric agent is not running", name)
+		return
+	}
+	metricTimestamp := float64(time.Now().UnixNano()) / float64(time.Second)
+	tags := c.GetExtraTags()
+	if len(extraTags) > 0 {
+		tags = append(append([]string{}, tags...), extraTags...)
+	}
+	c.Demux.AggregateSample(metrics.MetricSample{
+		Name:       name,
+		Value:      value,
+		Mtype:      metricType,
+		Tags:       tags,
+		SampleRate: 1,
+		Timestamp:  metricTimestamp,
+		Source:     metricSource,
+	})
 }
 
 func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarderTimeout time.Duration, tagger tagger.Component, shouldForceFlushAllOnForceFlushToSerializer bool) (aggregator.Demultiplexer, error) {

@@ -6,13 +6,11 @@
 package cloudservice
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +23,6 @@ type ContainerApp struct {
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ResourceGroup string
 	collector     *collector.Collector
-	collectorCtx  context.Context
 }
 
 const (
@@ -123,6 +120,10 @@ func (c *ContainerApp) GetDefaultLogsSource() string {
 	return ContainerAppOrigin
 }
 
+func (c *ContainerApp) GetMetricPrefix() string {
+	return containerAppPrefix
+}
+
 // GetOrigin returns the `origin` attribute type for the given
 // cloud service.
 func (c *ContainerApp) GetOrigin() string {
@@ -166,23 +167,6 @@ func (c *ContainerApp) Init(_ *TracingContext) error {
 	return nil
 }
 
-// StartCPUMetrics initializes and starts the cgroup metrics collector
-// This should be called after the metric agent is initialized
-func (c *ContainerApp) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
-	log.Debugf("StartEnhancedMetrics called with source: %d (%s)", c.GetSource(), c.GetSource().String())
-
-	col, err := collector.NewCollector(metricAgent, c.GetSource())
-	if err != nil {
-		log.Warnf("Failed to initialize cgroup metrics collector: %v", err)
-		return
-	}
-
-	c.collector = col
-	c.collectorCtx = context.Background()
-	c.collector.Start(c.collectorCtx)
-	log.Info("Cgroup metrics collection started for Azure Container Apps")
-}
-
 // Shutdown emits the shutdown metric for ContainerApp
 func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
 	// Stop cgroup metrics collector if running
@@ -190,7 +174,11 @@ func (c *ContainerApp) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 		c.collector.Stop()
 	}
 
-	metric.Add(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metricAgent)
+	metricAgent.AddMetric(containerAppPrefix+".enhanced.shutdown", 1.0, c.GetSource(), metrics.DistributionType)
+}
+
+func (c *ContainerApp) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
