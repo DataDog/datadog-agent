@@ -49,27 +49,7 @@ build do
     env = with_standard_compiler_flags(env)
 
     if fips_mode?
-      if windows_target?
-        msgoroot = ENV['MSGO_ROOT']
-        if msgoroot.nil? || msgoroot.empty?
-          raise "MSGO_ROOT not set"
-        end
-        if !File.exist?("#{msgoroot}\\bin\\go.exe")
-          raise "msgo go.exe not found at #{msgoroot}\\bin\\go.exe"
-        end
-        env["GOROOT"] = msgoroot
-        env["PATH"] = "#{msgoroot}\\bin;#{env['PATH']}"
-        # also update the global env so that the symbol inspector use the correct go version
-        ENV['GOROOT'] = msgoroot
-        ENV['PATH'] = "#{msgoroot}\\bin;#{ENV['PATH']}"
-      else
-        msgoroot = "/usr/local/msgo"
-        env["GOROOT"] = msgoroot
-        env["PATH"] = "#{msgoroot}/bin:#{env['PATH']}"
-        # also update the global env so that the symbol inspector use the correct go version
-        ENV['GOROOT'] = msgoroot
-        ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
-      end
+      fips_add_msgo_to_env(env)
     end
 
     if windows_target?
@@ -91,30 +71,12 @@ build do
     end
     move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
 
-    # Check that the build tags had an actual effect:
-    # the build tags added by fips mode (https://github.com/DataDog/datadog-agent/blob/7.75.1/tasks/build_tags.py#L140)
-    # only have the desired effect with the microsoft go compiler
-    # and are silently ignored by other compilers.
-    # As a consequence the build succeeding isn't enough of a guarantee, we need to check the symbols
-    # for a proof that openSSL is used
     if fips_mode?
       if linux_target?
-        block do
-          bin = "#{embedded_bin_dir}/otel-agent"
-          symbol = "_Cfunc__mkcgo_OPENSSL"
-
-          check_block = Proc.new { |binary, symbols|
-            count = symbols.scan(symbol).count
-            if count > 0
-              log.info(log_key) { "Symbol '#{symbol}' found #{count} times in binary '#{binary}'." }
-            else
-              raise FIPSSymbolsNotFound.new("Expected to find '#{symbol}' symbol in #{binary} but did not")
-            end
-          }.curry
-
-          partially_applied_check = check_block.call(bin)
-          GoSymbolsInspector.new(bin, &partially_applied_check).inspect()
-        end
+        bin = "#{embedded_bin_dir}/otel-agent"
+      else
+        bin = "#{embedded_bin_dir}\\otel-agent.exe"
       end
+      fips_check_binary_for_expected_symbol(bin)
     end
 end
