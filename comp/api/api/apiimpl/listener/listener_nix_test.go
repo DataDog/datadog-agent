@@ -23,8 +23,7 @@ func TestLinuxGetIPCServerPath(t *testing.T) {
 
 		path, enabled := GetIPCServerPath()
 		require.True(t, enabled)
-		// Default run path is {InstallPath}/run for container compatibility
-		// (containers mount volumes at /opt/datadog-agent/run, not /var/run/datadog)
+		// Default run path is {InstallPath}/run for consistency with other runtime files
 		require.Equal(t, "/opt/datadog-agent/run/agent_ipc.socket", path)
 	})
 }

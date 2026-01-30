@@ -43,9 +43,7 @@ const (
 	checkFlareDirectory = "/var/log/datadog/checks/"
 	jmxFlareDirectory   = "/var/log/datadog/jmxinfo/"
 
-	// Socket paths - these constants are used for config registration defaults.
-	// The actual runtime paths derive from GetRunPath() which uses {InstallPath}/run.
-	// Containers mount volumes at /opt/datadog-agent/run, not /var/run/datadog.
+	// Socket paths - use {InstallPath}/run for consistency with other runtime files
 	defaultStatsdSocket   = "/opt/datadog-agent/run/dsd.socket"
 	defaultReceiverSocket = "/opt/datadog-agent/run/apm.socket"
 
