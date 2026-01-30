@@ -5,6 +5,7 @@ go 1.25.3
 require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.76.0-devel
@@ -129,6 +130,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../comp/logs-library
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults => ../../../../comp/logs-library/defaults
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../comp/otelcol/collector-contrib/def
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl => ../../../../comp/otelcol/collector-contrib/impl
