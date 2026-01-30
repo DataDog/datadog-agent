@@ -11,11 +11,12 @@ pkg_filegroup(
         # have to include this explicitly because it is not hooked up with package_metadata
         "//deps/gstatus:license_file",
     ] + select({
-        "@platforms//os:linux": [
+        "//packages/agent:linux_default": [
             "//deps/compile_policy:bin_files",
             # have to include this explicitly because it is not hooked up with package_metadata
             "//deps/compile_policy:license_file",
         ],
+        "//packages/agent:linux_heroku": [],
         "//conditions:default": [],
     }),
 )
@@ -29,9 +30,7 @@ filegroup(
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
-            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
-            "@freetds//:all_files",
         ],
         "//conditions:default": [
             # This will become "//deps/openscap:all_deps" in the future
