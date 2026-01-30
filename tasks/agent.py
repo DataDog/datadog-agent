@@ -220,8 +220,50 @@ def build(
     if target_os not in ("windows", "win32"):
         with gitlab_section("Build get-text-embeddings rust library", collapsed=True):
             with ctx.cd("pkg/get_text_embeddings/rust"):
+                # Set up environment for GLIBC compatibility in omnibus builds
+                # The Rust stdlib may link against newer GLIBC symbols, so we need to ensure
+                # we're using the same cross-compiler toolchain as Go, which has the right GLIBC compatibility
+                rust_env = {}
+                cc = os.getenv("DD_CC") or os.getenv("CC")
+                cxx = os.getenv("DD_CXX") or os.getenv("CXX")
+
+                # If we have a cross-compiler, use it for Rust as well
+                # This ensures Rust uses the same toolchain with compatible GLIBC
+                if cc:
+                    rust_env["CC"] = cc
+                if cxx:
+                    rust_env["CXX"] = cxx
+
+                # For cross-compilation, ensure Rust uses the cross-compiler's target
+                # This helps ensure GLIBC compatibility by using the right toolchain
+                if cc and ("unknown-linux-gnu" in cc or "linux-gnu" in cc):
+                    print("CC LINUX")
+                    rustflags = os.getenv("RUSTFLAGS", "")
+                    # Extract the target triplet from the compiler name
+                    # e.g., "aarch64-unknown-linux-gnu-gcc" -> "aarch64-unknown-linux-gnu"
+                    target_triplet = cc.replace("-gcc", "").replace("-g++", "")
+                    if target_triplet != cc:  # Only if we successfully extracted a triplet
+                        # Set the target for Rust to match the cross-compiler
+                        # This ensures Rust uses the cross-compiler's stdlib and toolchain
+                        rust_env["CARGO_BUILD_TARGET"] = target_triplet
+
+                        # Also set RUSTFLAGS to use the cross-compiler's linker
+                        # This helps ensure GLIBC symbol resolution uses the right toolchain
+                        rustflags += f" -C linker={cc}"
+
+                    # Add version script if it exists (for symbol visibility control)
+                    # Note: This won't fix GLIBC compatibility issues as Rust's stdlib is pre-compiled
+                    version_script = os.path.join(
+                        os.getcwd(), "pkg/get_text_embeddings/rust/get_text_embeddings.map"
+                    )
+                    if os.path.exists(version_script):
+                        rustflags += f" -C link-arg=-Wl,--version-script={version_script}"
+
+                    rust_env["RUSTFLAGS"] = rustflags.strip()
+
                 ctx.run(
                     "cargo build --release",
+                    env=rust_env,
                 )
 
     if not agent_bin:
