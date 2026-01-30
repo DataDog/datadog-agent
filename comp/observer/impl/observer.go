@@ -238,6 +238,9 @@ type observerImpl struct {
 	signalEmitters   []observerdef.SignalEmitter   // Layer 1: Point-based anomaly detection
 	signalProcessors []observerdef.SignalProcessor // Layer 2: Signal correlation/filtering
 
+	// Deduplication layer (optional) - filters anomalies before correlation
+	deduplicator *AnomalyDeduplicator
+
 	// eventBuffer stores recent event signals (as unified Signals) for debugging/dumping.
 	// Ring buffer with maxEvents capacity.
 	eventBuffer []observerdef.Signal
@@ -251,6 +254,7 @@ type observerImpl struct {
 	currentDataTime    int64 // latest data timestamp seen
 	totalAnomalyCount  int   // total count of all anomalies ever detected (no cap)
 	uniqueAnomalySources map[string]bool // unique sources that had anomalies
+	dedupSkipped       int   // count of anomalies skipped by dedup
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -447,7 +451,20 @@ func aggSuffix(agg Aggregate) string {
 }
 
 // processAnomaly sends an anomaly to all registered anomaly processors.
+// If deduplicator is enabled, filters out duplicate anomalies first.
 func (o *observerImpl) processAnomaly(anomaly observerdef.AnomalyOutput) {
+	// Check deduplicator if enabled
+	if o.deduplicator != nil {
+		ts := anomaly.Timestamp
+		if ts == 0 {
+			ts = anomaly.TimeRange.End
+		}
+		if !o.deduplicator.ShouldProcess(anomaly.Source, ts) {
+			o.dedupSkipped++
+			return // Duplicate, skip
+		}
+	}
+
 	for _, processor := range o.anomalyProcessors {
 		processor.Process(anomaly)
 	}
@@ -532,6 +549,11 @@ func (o *observerImpl) UniqueAnomalySourceCount() int {
 	o.rawAnomalyMu.RLock()
 	defer o.rawAnomalyMu.RUnlock()
 	return len(o.uniqueAnomalySources)
+}
+
+// DedupSkippedCount returns the number of anomalies skipped by deduplication.
+func (o *observerImpl) DedupSkippedCount() int {
+	return o.dedupSkipped
 }
 
 // flushAndReport flushes all anomaly processors and notifies all reporters.

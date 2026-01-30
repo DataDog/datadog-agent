@@ -24,36 +24,152 @@ Collect evidence that gives an LLM enough context to identify what went wrong.
 
 **File:** `comp/observer/impl/anomaly_dedup.go`
 
-**Literature:** [BoomFilters](https://github.com/tylertreat/BoomFilters) - "Stable Bloom Filter can deduplicate events from unbounded streams"
+**Literature:** Deng & Rafiei (2006) - "Approximately Detecting Duplicates for Streaming Data using Stable Bloom Filters"
+
+**Custom Implementation (no external libraries):**
 
 ```go
-import "github.com/tylertreat/BoomFilters"
+package observerimpl
 
-type AnomalyDeduplicator struct {
-    filter            *boom.StableBloomFilter
-    bucketSizeSeconds int64  // Time granularity (e.g., 5s)
+import (
+    "hash/fnv"
+    "math/rand"
+    "sync"
+)
+
+// StableBloomFilter handles unbounded streams by probabilistically evicting old entries.
+// Unlike classic Bloom filters that fill up, this maintains a stable false positive rate.
+type StableBloomFilter struct {
+    cells     []uint8  // Each cell is a counter (0-max)
+    numCells  uint32
+    numHashes uint32
+    max       uint8    // Max counter value (e.g., 3)
+    p         uint32   // Number of cells to decrement on each add (controls eviction rate)
+    mu        sync.RWMutex
+    rng       *rand.Rand
 }
 
-func NewAnomalyDeduplicator(capacity uint, fpRate float64, bucketSize int64) *AnomalyDeduplicator {
+// NewStableBloomFilter creates a new Stable Bloom Filter.
+// - numCells: size of the filter (larger = lower FP rate)
+// - numHashes: number of hash functions (typically 3-5)
+// - max: maximum counter value (typically 3)
+// - p: cells to decrement per add (controls memory/accuracy tradeoff)
+func NewStableBloomFilter(numCells, numHashes uint32, max uint8, p uint32) *StableBloomFilter {
+    return &StableBloomFilter{
+        cells:     make([]uint8, numCells),
+        numCells:  numCells,
+        numHashes: numHashes,
+        max:       max,
+        p:         p,
+        rng:       rand.New(rand.NewSource(42)),
+    }
+}
+
+// hash returns k hash values for the given key
+func (f *StableBloomFilter) hash(key []byte) []uint32 {
+    hashes := make([]uint32, f.numHashes)
+    h1 := fnv.New32a()
+    h1.Write(key)
+    hash1 := h1.Sum32()
+
+    h2 := fnv.New32()
+    h2.Write(key)
+    hash2 := h2.Sum32()
+
+    // Double hashing: h(i) = h1 + i*h2
+    for i := uint32(0); i < f.numHashes; i++ {
+        hashes[i] = (hash1 + i*hash2) % f.numCells
+    }
+    return hashes
+}
+
+// Add inserts an element and randomly decrements p cells (eviction)
+func (f *StableBloomFilter) Add(key []byte) {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+
+    // Decrement p random cells (stable eviction)
+    for i := uint32(0); i < f.p; i++ {
+        idx := f.rng.Uint32() % f.numCells
+        if f.cells[idx] > 0 {
+            f.cells[idx]--
+        }
+    }
+
+    // Set cells for this key to max
+    for _, idx := range f.hash(key) {
+        f.cells[idx] = f.max
+    }
+}
+
+// Test checks if an element might be in the filter
+func (f *StableBloomFilter) Test(key []byte) bool {
+    f.mu.RLock()
+    defer f.mu.RUnlock()
+
+    for _, idx := range f.hash(key) {
+        if f.cells[idx] == 0 {
+            return false  // Definitely not present
+        }
+    }
+    return true  // Possibly present
+}
+
+// TestAndAdd atomically tests and adds
+func (f *StableBloomFilter) TestAndAdd(key []byte) bool {
+    f.mu.Lock()
+    defer f.mu.Unlock()
+
+    // Test first
+    present := true
+    for _, idx := range f.hash(key) {
+        if f.cells[idx] == 0 {
+            present = false
+            break
+        }
+    }
+
+    // Decrement p random cells
+    for i := uint32(0); i < f.p; i++ {
+        idx := f.rng.Uint32() % f.numCells
+        if f.cells[idx] > 0 {
+            f.cells[idx]--
+        }
+    }
+
+    // Add
+    for _, idx := range f.hash(key) {
+        f.cells[idx] = f.max
+    }
+
+    return present
+}
+
+// AnomalyDeduplicator wraps StableBloomFilter for anomaly deduplication
+type AnomalyDeduplicator struct {
+    filter            *StableBloomFilter
+    bucketSizeSeconds int64
+}
+
+func NewAnomalyDeduplicator(numCells uint32, bucketSize int64) *AnomalyDeduplicator {
     return &AnomalyDeduplicator{
-        filter:            boom.NewStableBloomFilter(capacity, 3, fpRate),
+        // numCells=100000, numHashes=3, max=3, p=1
+        filter:            NewStableBloomFilter(numCells, 3, 3, 1),
         bucketSizeSeconds: bucketSize,
     }
 }
 
-func (d *AnomalyDeduplicator) ShouldProcess(anomaly AnomalyOutput) bool {
-    key := fmt.Sprintf("%s|%d", anomaly.Source, anomaly.TimeRange.End/d.bucketSizeSeconds)
-    if d.filter.Test([]byte(key)) {
-        return false  // Duplicate
-    }
-    d.filter.Add([]byte(key))
-    return true
+func (d *AnomalyDeduplicator) ShouldProcess(source string, timestamp int64) bool {
+    key := fmt.Sprintf("%s|%d", source, timestamp/d.bucketSizeSeconds)
+    return !d.filter.TestAndAdd([]byte(key))
 }
 ```
 
 **Parameters:**
-- `capacity`: 100,000
-- `fpRate`: 0.01 (1%)
+- `numCells`: 100,000 (~100KB memory)
+- `numHashes`: 3
+- `max`: 3 (counter ceiling)
+- `p`: 1 (cells to decrement per add)
 - `bucketSizeSeconds`: 5
 
 ---
@@ -88,10 +204,10 @@ type LagHistogram struct {
 }
 
 type LeadLagEdge struct {
-    Leader      string  // Source that leads
-    Follower    string  // Source that follows
-    TypicalLag  int64   // Seconds
-    Confidence  float64 // Consistency of lag direction
+    Leader       string  // Source that leads
+    Follower     string  // Source that follows
+    TypicalLag   int64   // Seconds
+    Confidence   float64 // Consistency of lag direction
     Observations int
 }
 ```
@@ -280,7 +396,7 @@ type EvidencePackage struct {
 
 ## Literature References
 
-- [BoomFilters (Go library)](https://github.com/tylertreat/BoomFilters) - Stable Bloom Filter for streaming dedup
+- [Stable Bloom Filters (Deng & Rafiei 2006)](https://webdocs.cs.ualberta.ca/~drafiei/papers/DupDet06Sigmod.pdf) - Original SBF paper for streaming dedup
 - [RADICE 2025](https://arxiv.org/html/2501.11545v1) - Causal graph discovery for RCA
 - [CGAD (ACM TIST 2024)](https://dl.acm.org/doi/10.1145/3757922) - Transfer entropy for causal graphs
 - [Concept Drift Survey (Frontiers 2024)](https://www.frontiersin.org/journals/artificial-intelligence/articles/10.3389/frai.2024.1330257/full) - Gradual drift detection

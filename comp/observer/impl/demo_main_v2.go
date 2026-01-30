@@ -42,6 +42,14 @@ type DemoV2Config struct {
 	// EnableGraphSketchCorrelator enables the GraphSketch-based anomaly correlator
 	// This detects unusual co-occurrence patterns between anomalies
 	EnableGraphSketchCorrelator bool
+	// EnableLeadLagCorrelator enables temporal lead-lag pattern detection
+	EnableLeadLagCorrelator bool
+	// EnableSurpriseCorrelator enables lift-based surprise pattern detection
+	EnableSurpriseCorrelator bool
+
+	// Deduplication
+	// EnableDedup enables anomaly deduplication before correlation
+	EnableDedup bool
 
 	// OutputFile is the path to write JSON results (anomalies + correlations)
 	// If empty, no file is written
@@ -72,6 +80,19 @@ type DemoV2Config struct {
 
 	// TimeCluster correlator parameters (anomaly_processor_time_cluster.go)
 	TimeClusterSlackSeconds int64 // Default: 1
+
+	// LeadLag correlator parameters (anomaly_processor_leadlag.go)
+	LeadLagMaxLag    int64   // Default: 30, max lag seconds to track
+	LeadLagMinObs    int     // Default: 3, min observations for edge
+	LeadLagConfidence float64 // Default: 0.6, confidence threshold
+
+	// Surprise correlator parameters (anomaly_processor_surprise.go)
+	SurpriseWindowSeconds int64   // Default: 10, window size
+	SurpriseMinLift       float64 // Default: 2.0, min lift threshold
+	SurpriseMinSupport    int     // Default: 2, min co-occurrences
+
+	// Dedup parameters (anomaly_dedup.go)
+	DedupBucketSeconds int64 // Default: 5, time bucket for dedup
 }
 
 // RunDemoV2 runs the demo with the new signal-based architecture.
@@ -97,8 +118,52 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	var correlationState observerdef.CorrelationState
 	var gsCorrelator *GraphSketchCorrelator // Keep a specific pointer for debug and freezing
 	var tcCorrelator *TimeClusterCorrelator // Keep a specific pointer for visualization
+	var llCorrelator *LeadLagCorrelator     // Keep a specific pointer for lead-lag
+	var surpriseCorr *SurpriseCorrelator    // Keep a specific pointer for surprise
 
-	if config.EnableGraphSketchCorrelator {
+	// Deduplication layer (wraps the correlator)
+	var deduplicator *AnomalyDeduplicator
+	if config.EnableDedup {
+		dedupConfig := DefaultAnomalyDedupConfig()
+		if config.DedupBucketSeconds > 0 {
+			dedupConfig.BucketSizeSeconds = config.DedupBucketSeconds
+		}
+		deduplicator = NewAnomalyDeduplicator(dedupConfig)
+	}
+
+	if config.EnableLeadLagCorrelator {
+		llConfig := DefaultLeadLagConfig()
+		// Apply tuning overrides
+		if config.LeadLagMaxLag > 0 {
+			llConfig.MaxLagSeconds = config.LeadLagMaxLag
+		}
+		if config.LeadLagMinObs > 0 {
+			llConfig.MinObservations = config.LeadLagMinObs
+		}
+		if config.LeadLagConfidence > 0 {
+			llConfig.ConfidenceThreshold = config.LeadLagConfidence
+		}
+		llc := NewLeadLagCorrelator(llConfig)
+		correlator = llc
+		correlationState = llc
+		llCorrelator = llc
+	} else if config.EnableSurpriseCorrelator {
+		surpriseConfig := DefaultSurpriseConfig()
+		// Apply tuning overrides
+		if config.SurpriseWindowSeconds > 0 {
+			surpriseConfig.WindowSizeSeconds = config.SurpriseWindowSeconds
+		}
+		if config.SurpriseMinLift > 0 {
+			surpriseConfig.MinLift = config.SurpriseMinLift
+		}
+		if config.SurpriseMinSupport > 0 {
+			surpriseConfig.MinSupport = config.SurpriseMinSupport
+		}
+		sc := NewSurpriseCorrelator(surpriseConfig)
+		correlator = sc
+		correlationState = sc
+		surpriseCorr = sc
+	} else if config.EnableGraphSketchCorrelator {
 		gsConfig := DefaultGraphSketchCorrelatorConfig()
 		// Apply tuning overrides
 		if config.GraphSketchCoOccurrenceWindow > 0 {
@@ -121,13 +186,17 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		tcConfig := DefaultTimeClusterConfig()
 		// Apply tuning overrides
 		if config.TimeClusterSlackSeconds > 0 {
-			tcConfig.SlackSeconds = config.TimeClusterSlackSeconds
+			tcConfig.ProximitySeconds = config.TimeClusterSlackSeconds
 		}
 		tc := NewTimeClusterCorrelator(tcConfig)
 		correlator = tc
 		correlationState = tc
 		tcCorrelator = tc // Store for visualization
 	}
+
+	// Suppress unused variable warnings
+	_ = llCorrelator
+	_ = surpriseCorr
 
 	stdoutReporter := &StdoutReporter{}
 	if correlationState != nil {
@@ -221,7 +290,14 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	if len(tsAnalysisNames) > 0 {
 		fmt.Printf("  Detector (legacy): %v\n", tsAnalysisNames)
 	}
-	if config.EnableGraphSketchCorrelator {
+	if config.EnableDedup {
+		fmt.Println("  Dedup: Enabled (Stable Bloom Filter)")
+	}
+	if config.EnableLeadLagCorrelator {
+		fmt.Println("  Correlator: LeadLagCorrelator (temporal lead-lag patterns)")
+	} else if config.EnableSurpriseCorrelator {
+		fmt.Println("  Correlator: SurpriseCorrelator (lift-based surprise patterns)")
+	} else if config.EnableGraphSketchCorrelator {
 		fmt.Println("  Correlator: GraphSketchCorrelator (co-occurrence patterns)")
 	} else if config.UseTimeClusterCorrelator {
 		fmt.Println("  Correlator: TimeClusterCorrelator (time proximity)")
@@ -248,6 +324,8 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 		anomalyProcessors: anomalyProcessors,
 		// NEW path Layer 2: Signal processors (optional)
 		signalProcessors: processors,
+		// Deduplication layer (optional)
+		deduplicator:     deduplicator,
 		reporters:        reporters,
 		storage:          storage,
 		obsCh:            make(chan observation, 10000000), // Very large buffer (10M) to prevent drops during demo with large datasets
@@ -341,7 +419,9 @@ func RunDemoV2WithConfig(config DemoV2Config) {
 	fmt.Println("Demo complete.")
 
 	// Export results to file if requested
+	fmt.Printf("[DEBUG] OutputFile=%q\n", config.OutputFile)
 	if config.OutputFile != "" {
+		fmt.Println("[DEBUG] Calling exportResults...")
 		exportResults(config, obs, correlationState, gsCorrelator)
 	}
 
@@ -368,6 +448,7 @@ type DemoResults struct {
 	UniqueSourcesInAnomalies int `json:"unique_sources_in_anomalies"`
 	TotalCorrelations        int `json:"total_correlations"`
 	TotalEdges               int `json:"total_edges,omitempty"`
+	DedupSkipped             int `json:"dedup_skipped,omitempty"` // Anomalies filtered by deduplication
 
 	// Sample of anomalies (first 20 for reference)
 	SampleAnomalies []AnomalySample `json:"sample_anomalies,omitempty"`
@@ -419,10 +500,17 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 
 	// Determine correlator name
 	correlatorName := "none"
-	if config.EnableGraphSketchCorrelator {
+	if config.EnableLeadLagCorrelator {
+		correlatorName = "LeadLagCorrelator"
+	} else if config.EnableSurpriseCorrelator {
+		correlatorName = "SurpriseCorrelator"
+	} else if config.EnableGraphSketchCorrelator {
 		correlatorName = "GraphSketchCorrelator"
 	} else if config.UseTimeClusterCorrelator {
 		correlatorName = "TimeClusterCorrelator"
+	}
+	if config.EnableDedup {
+		correlatorName = "Dedup+" + correlatorName
 	}
 
 	results := DemoResults{
@@ -434,6 +522,7 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 	// Get total anomaly counts (uncapped)
 	results.TotalAnomalies = obs.TotalAnomalyCount()
 	results.UniqueSourcesInAnomalies = obs.UniqueAnomalySourceCount()
+	results.DedupSkipped = obs.DedupSkippedCount()
 
 	// Export sample of anomalies (first 20)
 	rawAnomalies := obs.RawAnomalies()
@@ -443,11 +532,16 @@ func exportResults(config DemoV2Config, obs *observerImpl, correlationState obse
 	}
 	for i := 0; i < sampleSize; i++ {
 		a := rawAnomalies[i]
+		// Use Timestamp if set, otherwise fall back to TimeRange.End
+		ts := a.Timestamp
+		if ts == 0 {
+			ts = a.TimeRange.End
+		}
 		results.SampleAnomalies = append(results.SampleAnomalies, AnomalySample{
 			Source:      a.Source,
 			Analyzer:    a.AnalyzerName,
 			Description: a.Description,
-			Timestamp:   a.TimeRange.End,
+			Timestamp:   ts,
 			Tags:        a.Tags,
 		})
 	}

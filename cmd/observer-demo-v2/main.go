@@ -25,6 +25,11 @@ func main() {
 	// Correlator selection
 	timeClusterCorrelator := flag.Bool("time-cluster", true, "use TimeClusterCorrelator to group anomalies by timestamp proximity")
 	graphSketchCorrelator := flag.Bool("graphsketch-correlator", false, "use GraphSketchCorrelator to group anomalies by co-occurrence patterns")
+	leadLagCorrelator := flag.Bool("lead-lag", false, "use LeadLagCorrelator to detect temporal lead-lag patterns")
+	surpriseCorrelator := flag.Bool("surprise", false, "use SurpriseCorrelator to detect unexpected co-occurrences")
+
+	// Deduplication
+	enableDedup := flag.Bool("dedup", false, "enable anomaly deduplication before correlation")
 
 	// Output
 	outputFile := flag.String("output", "", "path to write JSON results (anomalies + correlations)")
@@ -54,6 +59,19 @@ func main() {
 	// TimeCluster correlator tuning
 	tcSlackSeconds := flag.Int64("timecluster-slack-seconds", 0, "TimeCluster: seconds of slack for grouping (default: 1)")
 
+	// LeadLag correlator tuning
+	llMaxLag := flag.Int64("leadlag-max-lag", 0, "LeadLag: max lag seconds to track (default: 30)")
+	llMinObs := flag.Int("leadlag-min-obs", 0, "LeadLag: min observations for edge (default: 3)")
+	llConfidence := flag.Float64("leadlag-confidence", 0, "LeadLag: confidence threshold (default: 0.6)")
+
+	// Surprise correlator tuning
+	surpriseWindow := flag.Int64("surprise-window", 0, "Surprise: window size seconds (default: 10)")
+	surpriseMinLift := flag.Float64("surprise-min-lift", 0, "Surprise: min lift threshold (default: 2.0)")
+	surpriseMinSupport := flag.Int("surprise-min-support", 0, "Surprise: min co-occurrences (default: 2)")
+
+	// Dedup tuning
+	dedupBucket := flag.Int64("dedup-bucket", 0, "Dedup: bucket size seconds (default: 5)")
+
 	flag.Parse()
 
 	// If no emitters specified, default to CUSUM
@@ -73,6 +91,9 @@ func main() {
 		EnableGraphSketch:           *graphSketch,
 		UseTimeClusterCorrelator:    *timeClusterCorrelator,
 		EnableGraphSketchCorrelator: *graphSketchCorrelator,
+		EnableLeadLagCorrelator:     *leadLagCorrelator,
+		EnableSurpriseCorrelator:    *surpriseCorrelator,
+		EnableDedup:                 *enableDedup,
 		OutputFile:                  *outputFile,
 		ProcessAllData:              *processAll,
 
@@ -90,5 +111,12 @@ func main() {
 		GraphSketchMinCorrelation:       *gsMinCorrelation,
 		GraphSketchEdgeLimit:            *gsEdgeLimit,
 		TimeClusterSlackSeconds:         *tcSlackSeconds,
+		LeadLagMaxLag:                   *llMaxLag,
+		LeadLagMinObs:                   *llMinObs,
+		LeadLagConfidence:               *llConfidence,
+		SurpriseWindowSeconds:           *surpriseWindow,
+		SurpriseMinLift:                 *surpriseMinLift,
+		SurpriseMinSupport:              *surpriseMinSupport,
+		DedupBucketSeconds:              *dedupBucket,
 	})
 }

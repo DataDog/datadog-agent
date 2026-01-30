@@ -10,6 +10,7 @@ package observerimpl
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 )
@@ -60,83 +61,15 @@ func (c *CUSUMDetector) Name() string {
 	return "cusum_detector"
 }
 
-// Emit implements SignalEmitter. It runs CUSUM and emits point signals for anomalous points.
-// Unlike Analyze, this emits a signal for each point where CUSUM indicates an anomaly (S > threshold).
-func (c *CUSUMDetector) Emit(series observer.Series) []observer.Signal {
-	minPoints := c.MinPoints
-	if minPoints <= 0 {
-		minPoints = 5
-	}
-	baselineFrac := c.BaselineFraction
-	if baselineFrac <= 0 {
-		baselineFrac = 0.25
-	}
-	slackFactor := c.SlackFactor
-	if slackFactor <= 0 {
-		slackFactor = 0.5
-	}
-	thresholdFactor := c.ThresholdFactor
-	if thresholdFactor <= 0 {
-		thresholdFactor = 4.0
-	}
-
-	n := len(series.Points)
-	if n < minPoints {
-		return nil
-	}
-
-	// Estimate baseline from first portion of data
-	baselineEnd := int(float64(n) * baselineFrac)
-	if baselineEnd < 2 {
-		baselineEnd = 2
-	}
-	if baselineEnd >= n {
-		baselineEnd = n - 1
-	}
-
-	baselinePoints := series.Points[:baselineEnd]
-	baselineMean := mean(baselinePoints)
-	baselineStddev := sampleStddev(baselinePoints, baselineMean)
-
-	// Handle constant baseline (stddev ≈ 0)
-	const epsilon = 1e-10
-	if baselineStddev < epsilon {
-		if baselineMean > epsilon {
-			baselineStddev = baselineMean * 0.1
-		} else {
-			return nil
-		}
-	}
-
-	// CUSUM parameters
-	k := slackFactor * baselineStddev     // slack: ignore small deviations
-	h := thresholdFactor * baselineStddev // threshold: trigger level
-
-	// Run CUSUM and emit signals for points where S > h
-	var signals []observer.Signal
-	var S float64
-
-	for _, p := range series.Points {
-		S = math.Max(0, S+(p.Value-baselineMean-k))
-
-		// Emit signal when threshold exceeded
-		if S > h {
-			signals = append(signals, observer.Signal{
-				Source:    series.Name,
-				Timestamp: p.Timestamp,
-				Tags:      series.Tags,
-				Value:     p.Value,
-				Score:     nil, // CUSUM doesn't provide a probabilistic score
-			})
-		}
-	}
-
-	return signals
-}
-
 // Analyze runs CUSUM on the series and returns an anomaly if a shift is detected.
 // The anomaly's Timestamp indicates when the shift was first detected (threshold crossing).
 func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnalysisResult {
+	// Skip :count metrics - these are cardinality counts that create noise
+	// when container counts change (e.g., 1 -> 2 pods)
+	if strings.HasSuffix(series.Name, ":count") {
+		return observer.TimeSeriesAnalysisResult{}
+	}
+
 	minPoints := c.MinPoints
 	if minPoints <= 0 {
 		minPoints = 5
@@ -206,18 +139,6 @@ func (c *CUSUMDetector) Analyze(series observer.Series) observer.TimeSeriesAnaly
 	}
 
 	return observer.TimeSeriesAnalysisResult{Anomalies: []observer.AnomalyOutput{*anomaly}}
-	// Run CUSUM and collect anomaly regions
-	// An anomaly region starts when S first goes positive and ends when S returns to 0
-	anomalies := runCUSUM(series, baselineMean, baselineStddev, k, h)
-
-	return observer.TimeSeriesAnalysisResult{Anomalies: anomalies}
-}
-
-// anomalyRegion tracks a detected anomaly's boundaries.
-type anomalyRegion struct {
-	startIdx         int  // index where S first became positive
-	endIdx           int  // index where S returned to 0, or -1 if ongoing
-	crossedThreshold bool // true if S exceeded h at some point
 }
 
 // runCUSUM executes a two-sided CUSUM algorithm and returns an anomaly at the first threshold crossing.

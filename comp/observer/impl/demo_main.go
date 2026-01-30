@@ -53,9 +53,9 @@ func RunDemoWithConfig(config DemoConfig) {
 	}
 	if useTimeBasedCorrelation {
 		correlator = NewTimeClusterCorrelator(TimeClusterConfig{
-			SlackSeconds:   1,  // Only 1 second slack - anomalies must be nearly simultaneous
-			MinClusterSize: 2,  // need at least 2 anomalies to report
-			WindowSeconds:  60, // keep anomalies for 60s
+			ProximitySeconds: 1,  // Only 1 second proximity - anomalies must be nearly simultaneous
+			MinClusterSize:   2,  // need at least 2 anomalies to report
+			WindowSeconds:    60, // keep anomalies for 60s
 		})
 	} else {
 		correlator = NewCorrelator(CorrelatorConfig{})

@@ -1,0 +1,120 @@
+{
+  "generated": "2026-01-30T13:10:14.511795",
+  "scenarios": [
+    "memory-leak",
+    "crash-loop",
+    "connection-timeout",
+    "memory-exhaustion",
+    "traffic-spike",
+    "network-latency"
+  ],
+  "correlators": [
+    "timecluster",
+    "leadlag",
+    "surprise"
+  ],
+  "results": {
+    "memory-leak": {
+      "timecluster": {
+        "no_dedup": 78,
+        "with_dedup": 92,
+        "tuned": 98.0
+      },
+      "leadlag": {
+        "no_dedup": 85,
+        "with_dedup": 95,
+        "tuned": 95.0
+      },
+      "surprise": {
+        "no_dedup": 78,
+        "with_dedup": 82,
+        "tuned": null
+      }
+    },
+    "crash-loop": {
+      "timecluster": {
+        "no_dedup": 92,
+        "with_dedup": 85,
+        "tuned": null
+      },
+      "leadlag": {
+        "no_dedup": 2,
+        "with_dedup": 75,
+        "tuned": null
+      },
+      "surprise": {
+        "no_dedup": 78,
+        "with_dedup": 78,
+        "tuned": 95.0
+      }
+    },
+    "connection-timeout": {
+      "timecluster": {
+        "no_dedup": 8,
+        "with_dedup": 5,
+        "tuned": null
+      },
+      "leadlag": {
+        "no_dedup": 3,
+        "with_dedup": 5,
+        "tuned": null
+      },
+      "surprise": {
+        "no_dedup": 5,
+        "with_dedup": 5,
+        "tuned": null
+      }
+    },
+    "memory-exhaustion": {
+      "timecluster": {
+        "no_dedup": 15,
+        "with_dedup": 15,
+        "tuned": null
+      },
+      "leadlag": {
+        "no_dedup": 75,
+        "with_dedup": 75,
+        "tuned": 78.0
+      },
+      "surprise": {
+        "no_dedup": 5,
+        "with_dedup": 45,
+        "tuned": 40.0
+      }
+    },
+    "traffic-spike": {
+      "timecluster": {
+        "no_dedup": 65,
+        "with_dedup": 35,
+        "tuned": 78.0
+      },
+      "leadlag": {
+        "no_dedup": 5,
+        "with_dedup": 65,
+        "tuned": 15.0
+      },
+      "surprise": {
+        "no_dedup": 25,
+        "with_dedup": 35,
+        "tuned": null
+      }
+    },
+    "network-latency": {
+      "timecluster": {
+        "no_dedup": 15,
+        "with_dedup": 15,
+        "tuned": 15.0
+      },
+      "leadlag": {
+        "no_dedup": 5,
+        "with_dedup": 5,
+        "tuned": null
+      },
+      "surprise": {
+        "no_dedup": 2,
+        "with_dedup": 2,
+        "tuned": null
+      }
+    }
+  }
+}

@@ -236,14 +236,6 @@ func (tb *TestBench) LoadScenario(name string) error {
 		}
 	}
 
-	// Load event files
-	eventsDir := filepath.Join(scenarioPath, "events")
-	if _, err := os.Stat(eventsDir); err == nil {
-		if err := tb.loadEventsDir(eventsDir); err != nil {
-			return fmt.Errorf("failed to load events: %w", err)
-		}
-	}
-
 	// Run analyses on all loaded data
 	tb.runAnalyses()
 
@@ -351,37 +343,6 @@ func (tb *TestBench) loadLogsDir(dir string) error {
 	return nil
 }
 
-// loadEventsDir loads all event files from a directory.
-func (tb *TestBench) loadEventsDir(dir string) error {
-	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
-	if err != nil {
-		return err
-	}
-
-	totalEvents := 0
-	for _, file := range files {
-		events, err := LoadEventFile(file)
-		if err != nil {
-			fmt.Printf("  Warning: failed to load event file %s: %v\n", filepath.Base(file), err)
-			continue
-		}
-
-		// Send events to anomaly processors that support them
-		for _, event := range events {
-			for _, proc := range tb.anomalyProcessors {
-				if receiver, ok := proc.(observerdef.EventSignalReceiver); ok {
-					receiver.AddEventSignal(event)
-				}
-			}
-		}
-		totalEvents += len(events)
-	}
-
-	if totalEvents > 0 {
-		fmt.Printf("  Loaded %d events\n", totalEvents)
-	}
-	return nil
-}
 
 // runAnalyses runs all time series analyses on all stored series.
 func (tb *TestBench) runAnalyses() {

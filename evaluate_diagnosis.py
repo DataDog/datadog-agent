@@ -24,6 +24,14 @@ import urllib.error
 PROBLEM_TYPES = {
     "memory-leak": "memory leak",
     "network-latency": "network latency",
+    "crash-loop": "crash loop",
+    "oom-kill": "OOM kill",
+    "sigpipe-crash": "SIGPIPE crash",
+    "cpu-starvation": "CPU starvation",
+    "connection-timeout": "connection timeout",
+    "slow-serialization": "slow serialization",
+    "memory-exhaustion": "memory exhaustion",
+    "traffic-spike": "traffic spike",
 }
 
 # Built-in ground truths for common scenarios
@@ -73,6 +81,102 @@ tc_result = subprocess.run(
 ```
 
 **Root cause:** Network-level latency injection via tc qdisc netem on the Redis pod, simulating a network partition, congested link, or cross-datacenter communication delay.
+""",
+
+    "crash-loop": """
+## Ground Truth: Crash Loop Scenario
+
+The injected fault is a Python script that exits with code 1 after a random 5-15 second delay.
+
+**Mechanism:** sys.exit(1) with Kubernetes restartPolicy: Always triggers CrashLoopBackOff with exponential backoff.
+
+**Root cause:** Intentional application exit(1) causing CrashLoopBackOff - the container repeatedly crashes and restarts.
+
+**Key indicators:** Exit code 1, container restart count increasing, CrashLoopBackOff status.
+""",
+
+    "oom-kill": """
+## Ground Truth: OOM Kill Scenario
+
+The injected fault is a Python script that allocates 10MB memory chunks in a loop until killed.
+
+**Mechanism:** Memory limit 64Mi, kernel OOM killer sends SIGKILL when cgroup limit exceeded.
+
+**Root cause:** Rapid memory allocation exceeds 64Mi cgroup limit, OOM killer terminates process with exit code 137 (128 + SIGKILL signal 9).
+
+**Key indicators:** Exit code 137, OOMKilled status, memory usage at limit before termination.
+""",
+
+    "sigpipe-crash": """
+## Ground Truth: SIGPIPE Crash Scenario
+
+The injected fault is a Unix Domain Socket server (uds-server) that exits every 30 seconds, causing the victim-app to write to a closed socket.
+
+**Mechanism:** C library doesn't handle SIGPIPE, process killed with signal 13.
+
+**Root cause:** Broken Unix Domain Socket pipe - uds-server exits (code 0), victim-app gets SIGPIPE and exits with code 141 (128 + signal 13).
+
+**Key indicators:** Exit code 141, signal 13, broken pipe errors, socket communication failure.
+""",
+
+    "cpu-starvation": """
+## Ground Truth: CPU Starvation Scenario
+
+The injected fault is backend CPU limits too low for the incoming traffic load.
+
+**Mechanism:** CPU at 100%, Kubernetes CFS (Completely Fair Scheduler) throttling active, 22% of requests timeout.
+
+**Root cause:** CPU limits insufficient causing Kubernetes CFS throttling - 78% requests slow (8-12x normal latency), 22% timeout after 30s.
+
+**Key indicators:** CPU throttling metrics, cpu.cfs_throttled, high latency, request timeouts.
+""",
+
+    "connection-timeout": """
+## Ground Truth: Connection Timeout Scenario
+
+The injected fault is a network partition between backend and Redis pods.
+
+**Mechanism:** 80% of Redis operations timeout after 5 seconds.
+
+**Root cause:** Network partition causes 80% Redis connection timeouts (5s timeout), 20% succeed with ~4200ms latency.
+
+**Key indicators:** Redis connection errors, i/o timeout errors, high latency on successful connections.
+""",
+
+    "slow-serialization": """
+## Ground Truth: Slow Serialization Scenario
+
+The injected fault is a deployment (v2.0.5) that switched to reflection-based JSON marshaling.
+
+**Mechanism:** 3x serialization overhead, 12% panic rate from reflection errors.
+
+**Root cause:** Deployment v2.0.5 regression - reflection-based JSON marshaling causes 3-4x latency and 12% serialization panics.
+
+**Key indicators:** Deployment version change, latency increase correlated with deployment, serialization-related panics.
+""",
+
+    "memory-exhaustion": """
+## Ground Truth: Memory Exhaustion Scenario
+
+The injected fault is Redis maxmemory limit (256Mi) being exceeded.
+
+**Mechanism:** Eviction policy can't keep pace with writes, 70% writes fail with OOM error.
+
+**Root cause:** Redis maxmemory exceeded - 70% writes fail with 'OOM command not allowed when used memory > maxmemory', 30% succeed after evictions.
+
+**Key indicators:** Redis OOM errors, memory at maxmemory limit, write failures, eviction activity.
+""",
+
+    "traffic-spike": """
+## Ground Truth: Traffic Spike Scenario
+
+The injected fault is an 18x sudden increase in requests per second.
+
+**Mechanism:** All services saturated, only 48% success rate.
+
+**Root cause:** 18x RPS spike overwhelming system - backend and Redis at 100% CPU, 48% success, 42% overload errors (503), 10% timeout.
+
+**Key indicators:** Request rate spike, CPU saturation across services, high error rate, mixed error types (overload + timeout).
 """
 }
 

@@ -80,6 +80,12 @@ type MetricOutput struct {
 	Tags  []string
 }
 
+// TimeRange represents a time period covered by an analysis.
+type TimeRange struct {
+	Start int64 // earliest timestamp in analyzed data (unix seconds)
+	End   int64 // latest timestamp in analyzed data (unix seconds)
+}
+
 // AnomalyOutput is a detected anomaly event.
 // Anomalies represent a point in time where something anomalous was detected.
 type AnomalyOutput struct {
@@ -90,7 +96,8 @@ type AnomalyOutput struct {
 	Title        string
 	Description  string
 	Tags         []string
-	Timestamp    int64 // when the anomaly was detected (unix seconds)
+	Timestamp    int64     // when the anomaly was detected (unix seconds)
+	TimeRange    TimeRange // period covered by the analysis that produced this anomaly
 	// DebugInfo contains analyzer-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
 }

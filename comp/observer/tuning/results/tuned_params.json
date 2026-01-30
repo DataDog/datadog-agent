@@ -1,0 +1,156 @@
+{
+  "network-latency": {
+    "graphsketch": {
+      "best_score": null,
+      "params": {
+        "best_score": 12.5,
+        "best_params": {
+          "cusum_baseline_fraction": 0.10820209904204513,
+          "cusum_slack_factor": 1.4466132251125299,
+          "cusum_threshold_factor": 4.0691963792590675,
+          "gs_cooccurrence": 13,
+          "gs_decay": 0.6203891664218995,
+          "gs_min_corr": 4.782794283275795,
+          "gs_edge_limit": 636
+        },
+        "scenario": "network-latency",
+        "detector": "cusum",
+        "correlator": "graphsketch",
+        "total_trials": 20
+      }
+    },
+    "timecluster": {
+      "best_score": null,
+      "params": {
+        "best_score": 15.0,
+        "best_params": {
+          "lightesd_min_window": 170,
+          "lightesd_alpha": 0.0026587543983272706,
+          "lightesd_trend_frac": 0.09545624180177516,
+          "lightesd_period_sig": 0.002327067708383781,
+          "lightesd_max_periods": 2,
+          "tc_slack": 16
+        },
+        "scenario": "network-latency",
+        "detector": "lightesd",
+        "correlator": "timecluster",
+        "total_trials": 20
+      }
+    }
+  },
+  "memory-exhaustion": {
+    "leadlag": {
+      "best_score": 78.0,
+      "params": {
+        "best_score": 78.0,
+        "best_params": {
+          "cusum_baseline_fraction": 0.249816047538945,
+          "cusum_slack_factor": 1.9063571821788405,
+          "cusum_threshold_factor": 6.391963650868431,
+          "ll_max_lag": 40,
+          "ll_min_obs": 3,
+          "ll_confidence": 0.47799726016810135
+        },
+        "scenario": "memory-exhaustion",
+        "detector": "cusum",
+        "correlator": "leadlag",
+        "total_trials": 3
+      }
+    },
+    "surprise": {
+      "best_score": 40.0,
+      "params": {
+        "best_score": 40.0,
+        "best_params": {
+          "cusum_baseline_fraction": 0.12323344486727979,
+          "cusum_slack_factor": 1.7457346769723767,
+          "cusum_threshold_factor": 5.606690070459253,
+          "sp_window": 23,
+          "sp_min_lift": 1.2782210783240493,
+          "sp_min_support": 10
+        },
+        "scenario": "memory-exhaustion",
+        "detector": "cusum",
+        "correlator": "surprise",
+        "total_trials": 5
+      }
+    }
+  },
+  "memory-leak": {
+    "graphsketch": {
+      "best_score": null,
+      "params": {
+        "best_score": 96.5,
+        "best_params": {
+          "lightesd_min_window": 20,
+          "lightesd_alpha": 0.04274869455295218,
+          "lightesd_trend_frac": 0.22671433596190427,
+          "lightesd_period_sig": 0.028708753481954688,
+          "lightesd_max_periods": 4,
+          "gs_cooccurrence": 5,
+          "gs_decay": 0.6756482069866936,
+          "gs_min_corr": 1.6007560654887323,
+          "gs_edge_limit": 870
+        },
+        "scenario": "memory-leak",
+        "detector": "lightesd",
+        "correlator": "graphsketch",
+        "total_trials": 20
+      }
+    },
+    "timecluster": {
+      "best_score": null,
+      "params": {
+        "best_score": 98.0,
+        "best_params": {
+          "cusum_baseline_fraction": 0.17140556762230325,
+          "cusum_slack_factor": 1.0011370970645281,
+          "cusum_threshold_factor": 5.102008085910016,
+          "tc_slack": 21
+        },
+        "scenario": "memory-leak",
+        "detector": "cusum",
+        "correlator": "timecluster",
+        "total_trials": 20
+      }
+    }
+  },
+  "crash-loop": {
+    "surprise": {
+      "best_score": 95.0,
+      "params": {
+        "best_score": 95.0,
+        "best_params": {
+          "cusum_baseline_fraction": 0.12323344486727979,
+          "cusum_slack_factor": 1.7457346769723767,
+          "cusum_threshold_factor": 5.606690070459253,
+          "sp_window": 23,
+          "sp_min_lift": 1.2782210783240493,
+          "sp_min_support": 10
+        },
+        "scenario": "crash-loop",
+        "detector": "cusum",
+        "correlator": "surprise",
+        "total_trials": 5
+      }
+    }
+  },
+  "traffic-spike": {
+    "timecluster": {
+      "best_score": 78.0,
+      "params": {
+        "best_score": 78.0,
+        "best_params": {
+          "cusum_baseline_fraction": 0.249816047538945,
+          "cusum_slack_factor": 1.9063571821788405,
+          "cusum_threshold_factor": 6.391963650868431,
+          "tc_slack": 18
+        },
+        "scenario": "traffic-spike",
+        "detector": "cusum",
+        "correlator": "timecluster",
+        "total_trials": 3
+      }
+    }
+  }
+}

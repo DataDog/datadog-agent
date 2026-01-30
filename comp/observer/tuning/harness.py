@@ -41,6 +41,9 @@ except ImportError:
     print("Error: optuna not installed. Run: pip install optuna")
     sys.exit(1)
 
+# Default results directory (permanent location in repo)
+RESULTS_DIR = Path(__file__).parent / "results"
+
 
 class TuningHarness:
     """Bayesian optimization harness for observer parameter tuning."""
@@ -48,7 +51,7 @@ class TuningHarness:
     def __init__(self, parquet: str, scenario: str, detector: str, correlator: str,
                  model: str = "gpt-5.2-2025-12-11", verbose: bool = False,
                  log_file: str = None, output_dir: str = None, timescale: float = 0.25,
-                 runs_per_trial: int = 1, param_ranges: dict = None):
+                 runs_per_trial: int = 1, param_ranges: dict = None, dedup: bool = False):
         self.parquet = parquet
         self.scenario = scenario
         self.detector = detector
@@ -60,6 +63,7 @@ class TuningHarness:
         self.output_dir = output_dir  # Directory to save LLM outputs
         self.timescale = timescale  # Replay speed multiplier
         self.runs_per_trial = runs_per_trial  # Number of eval runs to average per param set
+        self.dedup = dedup  # Enable anomaly deduplication
         # Custom parameter ranges (defaults if not provided)
         self.param_ranges = param_ranges or {
             "cusum_baseline": (0.1, 0.5),
@@ -227,6 +231,22 @@ class TuningHarness:
             params["timecluster-slack-seconds"] = trial.suggest_int(
                 "tc_slack", int(r["tc_slack"][0]), int(r["tc_slack"][1]))
 
+        elif self.correlator == "leadlag":
+            params["leadlag-max-lag"] = trial.suggest_int(
+                "ll_max_lag", 10, 60)
+            params["leadlag-min-obs"] = trial.suggest_int(
+                "ll_min_obs", 2, 10)
+            params["leadlag-confidence"] = trial.suggest_float(
+                "ll_confidence", 0.4, 0.9)
+
+        elif self.correlator == "surprise":
+            params["surprise-window"] = trial.suggest_int(
+                "sp_window", 5, 30)
+            params["surprise-min-lift"] = trial.suggest_float(
+                "sp_min_lift", 1.2, 5.0)
+            params["surprise-min-support"] = trial.suggest_int(
+                "sp_min_support", 2, 10)
+
         return params
 
     def run_replay(self, params: dict) -> str:
@@ -253,6 +273,14 @@ class TuningHarness:
             cmd.extend(["--graphsketch-correlator", "--time-cluster=false"])
         elif self.correlator == "timecluster":
             cmd.append("--time-cluster")
+        elif self.correlator == "leadlag":
+            cmd.extend(["--lead-lag", "--time-cluster=false"])
+        elif self.correlator == "surprise":
+            cmd.extend(["--surprise", "--time-cluster=false"])
+
+        # Add dedup if enabled
+        if self.dedup:
+            cmd.append("--dedup")
 
         # Add tuning parameters
         for key, value in params.items():
@@ -411,6 +439,7 @@ def run_evaluate_mode(args):
         model=args.model,
         verbose=args.verbose,
         timescale=args.timescale,
+        dedup=args.dedup,
     )
 
     # Run replay once
@@ -442,8 +471,9 @@ def run_evaluate_mode(args):
     avg_score = sum(scores) / len(scores)
     print(f"\nResult: {avg_score:.1f} avg (scores: {scores})")
 
-    # Append to CSV
-    csv_file = args.results_csv
+    # Append to CSV (use results directory by default)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    csv_file = args.results_csv or str(RESULTS_DIR / "evaluation_results.csv")
     write_header = not os.path.exists(csv_file)
     with open(csv_file, "a") as f:
         if write_header:
@@ -486,13 +516,14 @@ def main():
     parser.add_argument("--parquet", required=True,
                         help="Path to parquet file")
     parser.add_argument("--scenario", required=True,
-                        choices=["memory-leak", "network-latency"],
+                        choices=["memory-leak", "network-latency", "crash-loop",
+                                 "connection-timeout", "memory-exhaustion", "traffic-spike"],
                         help="Scenario name for grading")
     parser.add_argument("--detector", required=True,
                         choices=["cusum", "lightesd"],
                         help="Anomaly detector to tune")
     parser.add_argument("--correlator", required=True,
-                        choices=["graphsketch", "timecluster"],
+                        choices=["graphsketch", "timecluster", "leadlag", "surprise"],
                         help="Correlator to tune")
     parser.add_argument("--trials", type=int, default=30,
                         help="Number of optimization trials (default: 30)")
@@ -519,13 +550,15 @@ def main():
                         help="CUSUM threshold_factor range (default: 2.0,8.0)")
     parser.add_argument("--tc-slack-range", default="1,30",
                         help="TimeCluster slack_seconds range (default: 1,30)")
+    parser.add_argument("--dedup", action="store_true",
+                        help="Enable anomaly deduplication before correlation")
     # Evaluate mode (fixed params, no tuning)
     parser.add_argument("--evaluate", action="store_true",
                         help="Run with fixed params (no tuning)")
     parser.add_argument("--params-file", default=None,
                         help="JSON file with params (from best_params_*.json). Omit for defaults.")
-    parser.add_argument("--results-csv", default="evaluation_results.csv",
-                        help="CSV file to append results (default: evaluation_results.csv)")
+    parser.add_argument("--results-csv", default=None,
+                        help="CSV file to append results (default: results/evaluation_results.csv)")
     args = parser.parse_args()
 
     # Check for API key
@@ -538,12 +571,15 @@ def main():
         run_evaluate_mode(args)
         sys.exit(0)
 
-    # Create study name and log file path
-    study_name = args.study_name or f"{args.scenario}_{args.detector}_{args.correlator}"
-    log_file = f"tuning_log_{study_name}.jsonl"
+    # Ensure results directory exists
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Set up output directory for LLM outputs
-    output_dir = args.output_dir or f"tuning_outputs_{study_name}"
+    # Create study name and log file path (in results directory)
+    study_name = args.study_name or f"{args.scenario}_{args.detector}_{args.correlator}"
+    log_file = str(RESULTS_DIR / f"tuning_log_{study_name}.jsonl")
+
+    # Set up output directory for LLM outputs (in results directory)
+    output_dir = args.output_dir or str(RESULTS_DIR / f"tuning_outputs_{study_name}")
     os.makedirs(output_dir, exist_ok=True)
 
     # Check for existing progress
@@ -578,6 +614,7 @@ def main():
         timescale=args.timescale,
         runs_per_trial=args.runs_per_trial,
         param_ranges=param_ranges,
+        dedup=args.dedup,
     )
     harness.trial_count = completed_trials  # Continue numbering
 
@@ -586,6 +623,7 @@ def main():
     print(f"  Scenario: {args.scenario}")
     print(f"  Detector: {args.detector}")
     print(f"  Correlator: {args.correlator}")
+    print(f"  Dedup: {'Enabled' if args.dedup else 'Disabled'}")
     print(f"  Trials: {args.trials} (remaining: {args.trials - completed_trials})")
     print(f"  Model: {args.model}")
     print(f"  Log file: {log_file}")
@@ -640,13 +678,13 @@ def main():
     print(f"Total trials: {total_trials}")
     print(f"This run: {remaining_trials} trials in {elapsed/60:.1f} minutes")
 
-    # Save results to CSV (this run only)
-    output_csv = f"tuning_{study_name}.csv"
+    # Save results to CSV (this run only) - in results directory
+    output_csv = str(RESULTS_DIR / f"tuning_{study_name}.csv")
     study.trials_dataframe().to_csv(output_csv, index=False)
     print(f"\nThis run's results: {output_csv}")
 
-    # Save best params to JSON (overall best)
-    output_json = f"best_params_{study_name}.json"
+    # Save best params to JSON (overall best) - in results directory
+    output_json = str(RESULTS_DIR / f"best_params_{study_name}.json")
     with open(output_json, 'w') as f:
         json.dump({
             "best_score": best_score,
