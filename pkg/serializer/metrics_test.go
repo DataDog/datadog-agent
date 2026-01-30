@@ -379,6 +379,18 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 
 	pipelines := s.buildPipelines(metricsKindSeries)
 
+	batchID := ""
+outer:
+	for _, ctx := range pipelines {
+		for _, d := range ctx.Destinations {
+			if d.ValidationBatchID != "" {
+				batchID = d.ValidationBatchID
+				break outer
+			}
+		}
+	}
+	require.NotEmpty(t, batchID)
+
 	testutil.ElementsMatchFn(t, maps.All(pipelines),
 		// v3 pipeline has one destination...
 		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
@@ -389,7 +401,7 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.V3SeriesEndpoint, dest.Endpoint)
-					require.True(t, dest.AddValidationHeaders)
+					require.Equal(t, batchID, dest.ValidationBatchID)
 				})
 		},
 		// v2 pipeline has two destinations...
@@ -401,13 +413,13 @@ func TestPipelinesWithV3Validate(t *testing.T) {
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://example.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.True(t, dest.AddValidationHeaders)
+					require.Equal(t, batchID, dest.ValidationBatchID)
 				},
 				// ... to the alternative domain without validation headers
 				func(t require.TestingT, _ int, dest metrics.PipelineDestination) {
 					require.Equal(t, "http://another.test", dest.Resolver.GetConfigName())
 					require.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
-					require.False(t, dest.AddValidationHeaders)
+					require.Empty(t, dest.ValidationBatchID)
 				},
 			)
 		},

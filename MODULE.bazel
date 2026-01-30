@@ -2,7 +2,21 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
-visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
+env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
+
+# Environment values available for packaging.
+env_vars(
+    name = "agent_volatile",
+    # Each variable needs a justification. Every time you use one, the
+    # target using it is potentially uncachable.
+    variables = [
+        # For some tests we want to run with higher compression, but
+        # not break caching and rebuild the binaries.
+        "FORCED_PACKAGE_COMPRESSION_LEVEL",
+        # This is the build pipeline id, which is used in some symlink paths.
+        "PACKAGE_VERSION",
+    ],
+)
 
 # package_metadata and rules_license are dependencies of every module in the
 # Bazel ecosystem.  We pin those first to get the versions we require.
@@ -84,6 +98,8 @@ register_toolchains(
     "@patchelf_toolchains//:all",
     dev_dependency = True,
 )
+
+visual_studio = use_repo_rule("//bazel/rules:visual_studio.bzl", "visual_studio")
 
 ######################################
 ## Compilers and toolchains        ##
@@ -187,8 +203,7 @@ crate = use_extension("@rules_rust//crate_universe:extension.bzl", "crate")
 
 include("//deps:crates.MODULE.bazel")
 
-crate.from_specs()
-use_repo(crate, "crates")
+use_repo(crate, "sdagent_crates")
 
 #########################
 ## Native dependencies ##
@@ -218,10 +233,10 @@ include("//deps/freetds:freetds.MODULE.bazel")
 include("//deps/gstatus:gstatus.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/openscap:openscap.MODULE.bazel")
+include("//deps/nfsiostat:nfsiostat.MODULE.bazel")
 
 # buildifier: leave-alone
-include("//deps/openssl3:openssl3.MODULE.bazel")
+include("//deps/openscap:openscap.MODULE.bazel")
 
 # buildifier: leave-alone
 include("//deps/libpcap:libpcap.MODULE.bazel")

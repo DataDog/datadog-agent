@@ -2202,5 +2202,91 @@ class TestGenerateMetricReports(unittest.TestCase):
         self.assertEqual(len(ctx.run.call_args_list), 0)
 
 
+class TestShouldSkipSendMetrics(unittest.TestCase):
+    """Test the _should_skip_send_metrics method for pipeline source filtering."""
+
+    def setUp(self):
+        """Create a GateMetricHandler instance for testing."""
+        self.handler = GateMetricHandler("main", "dev")
+
+    # Should SKIP metrics (return True) - main branch + non-push pipelines
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_skip_main_branch_web_trigger(self):
+        """Should skip metrics on main branch with manual web trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_skip_main_branch_trigger(self):
+        """Should skip metrics on main branch with downstream trigger."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'pipeline'})
+    def test_skip_main_branch_pipeline(self):
+        """Should skip metrics on main branch with multi-project downstream pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'schedule'})
+    def test_skip_main_branch_schedule(self):
+        """Should skip metrics on main branch with scheduled pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'api'})
+    def test_skip_main_branch_api(self):
+        """Should skip metrics on main branch with API-triggered pipeline."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - main branch + push pipeline
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_main_branch_push(self):
+        """Should NOT skip metrics on main branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Should NOT skip metrics (return False) - non-main branches
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_feature_branch_push(self):
+        """Should NOT skip metrics on feature branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_feature_branch_web(self):
+        """Should NOT skip metrics on feature branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'feature/my-branch', 'CI_PIPELINE_SOURCE': 'trigger'})
+    def test_no_skip_feature_branch_trigger(self):
+        """Should NOT skip metrics on feature branch with trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'push'})
+    def test_no_skip_release_branch_push(self):
+        """Should NOT skip metrics on release branch with push pipeline."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '7.55.x', 'CI_PIPELINE_SOURCE': 'web'})
+    def test_no_skip_release_branch_web(self):
+        """Should NOT skip metrics on release branch with web trigger."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    # Edge cases - missing/empty environment variables
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': '', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_no_skip_empty_env_vars(self):
+        """Should NOT skip metrics when both env vars are empty."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_COMMIT_BRANCH': 'main', 'CI_PIPELINE_SOURCE': ''}, clear=True)
+    def test_skip_main_empty_source(self):
+        """Should skip metrics on main branch when pipeline source is empty (not 'push')."""
+        self.assertTrue(self.handler._should_skip_send_metrics())
+
+    @patch.dict('os.environ', {'CI_PIPELINE_SOURCE': 'push'}, clear=True)
+    def test_no_skip_empty_branch(self):
+        """Should NOT skip metrics when branch is empty (not 'main')."""
+        self.assertFalse(self.handler._should_skip_send_metrics())
+
+
 if __name__ == '__main__':
     unittest.main()

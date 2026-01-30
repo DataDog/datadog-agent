@@ -400,11 +400,16 @@ type MatchedRule struct {
 	PolicyVersion string
 }
 
+type DelayabledEvent interface {
+	IsResolved() error
+	MaxRetry() int
+}
+
 // ActionReport defines an action report
 type ActionReport interface {
+	DelayabledEvent
 	ToJSON() ([]byte, error)
 	IsMatchingRule(ruleID eval.RuleID) bool
-	IsResolved() error
 }
 
 // NewMatchedRule return a new MatchedRule instance
