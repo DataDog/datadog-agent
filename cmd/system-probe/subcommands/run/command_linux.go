@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
+	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -24,6 +25,7 @@ import (
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	compliance "github.com/DataDog/datadog-agent/comp/system-probe/compliance/fx"
 	discovery "github.com/DataDog/datadog-agent/comp/system-probe/discovery/fx"
+	dynamicinstrumentation "github.com/DataDog/datadog-agent/comp/system-probe/dynamicinstrumentation/fx"
 	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
@@ -61,5 +63,8 @@ func getPlatformModules() fx.Option {
 		compliance.Module(),
 
 		discovery.Module(),
+
+		ipcfx.ModuleReadWrite(),
+		dynamicinstrumentation.Module(),
 	)
 }
