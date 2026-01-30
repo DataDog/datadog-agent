@@ -274,7 +274,6 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 
 func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace.ResourceSpans, clientComputedStats bool, hostFromAttributesHandler attributes.HostFromAttributesHandler) source.Source {
 	otelres := rspans.Resource()
-	resourceAttributes := otelres.Attributes()
 
 	// Get the hostname or set to empty if source is empty
 	var hostname string
@@ -295,43 +294,40 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	if o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		hostname = ""
 	}
-	if incomingHostname := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogHost); incomingHostname != "" {
+	if incomingHostname := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogHost); incomingHostname != "" {
 		hostname = incomingHostname
 	}
 
-	containerID := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerID)
+	containerID := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerID)
 	if containerID == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-			containerID = traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey))
+			containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey))
 		} else {
-			containerID = traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
+			containerID = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.ContainerIDKey), string(semconv.K8SPodUIDKey))
 		}
 	}
 
-	env := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogEnvironment)
+	env := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogEnvironment)
 	if env == "" && !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
-		env = traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
+		env = traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv127.DeploymentEnvironmentNameKey), string(semconv.DeploymentEnvironmentKey))
 	}
 
 	var containerTags string
-	if incomingContainerTags := traceutilotel.GetOTelAttrVal(resourceAttributes, true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
+	if incomingContainerTags := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, transform.KeyDatadogContainerTags); incomingContainerTags != "" {
 		containerTags = incomingContainerTags
 	} else if !o.conf.OTLPReceiver.IgnoreMissingDatadogFields {
 		var builder *strings.Builder
 		if o.conf.HasFeature("enable_otlp_container_tags_v2") {
-			// RemoveContainerTagsFromAttributes will remove some resource attributes
-			// to avoid duplicating them as both span attributes and container tags.
-			// Since the input data is immutable when this function is used as part of the Datadog exporter,
-			// we make a copy of the resource before modifying it.
-			newRes := pcommon.NewResource()
-			otelres.CopyTo(newRes)
-			otelres = newRes
-			resourceAttributes = otelres.Attributes()
-
-			builder = flatten(attributes.RemoveContainerTagsFromAttributes(otelres.Attributes()))
+			// As part of extracting container tags, we remove some of the corresponding resource attributes
+			// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
+			// Because otelres is immutable when this function is called from the Datadog exporter,
+			// ConsumeContainerTagsFromResource will make a copy instead of modifying it in-place.
+			var containerTagsMap map[string]string
+			containerTagsMap, otelres = attributes.ConsumeContainerTagsFromResource(otelres)
+			builder = flatten(containerTagsMap)
 
 		} else {
-			builder = flatten(attributes.ContainerTagsFromResourceAttributes(resourceAttributes))
+			builder = flatten(attributes.ContainerTagsFromResourceAttributes(otelres.Attributes()))
 
 			// Populate container tags by calling ContainerTags tagger from configuration
 			if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
@@ -368,11 +364,11 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 		}
 	}
 
-	lang := traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKLanguageKey))
+	lang := traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.TelemetrySDKLanguageKey))
 	tagstats := &info.TagStats{
 		Tags: info.Tags{
 			Lang:            lang,
-			TracerVersion:   "otlp-" + traceutilotel.GetOTelAttrVal(resourceAttributes, true, string(semconv.TelemetrySDKVersionKey)),
+			TracerVersion:   "otlp-" + traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, string(semconv.TelemetrySDKVersionKey)),
 			EndpointVersion: "opentelemetry_grpc_v1",
 		},
 		Stats: info.NewStats(),
@@ -383,7 +379,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	_ = o.statsd.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
 		Source:                 tagstats,
-		ClientComputedStats:    traceutilotel.GetOTelAttrVal(resourceAttributes, true, keyStatsComputed) != "" || clientComputedStats,
+		ClientComputedStats:    traceutilotel.GetOTelAttrVal(otelres.Attributes(), true, keyStatsComputed) != "" || clientComputedStats,
 		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind"),
 		TracerPayload: &pb.TracerPayload{
 			Hostname:      hostname,
