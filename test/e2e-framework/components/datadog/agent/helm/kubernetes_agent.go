@@ -46,6 +46,7 @@ func NewKubernetesAgent(e config.Env, resourceName string, kubeProvider *kuberne
 			GKEAutopilot:                   params.GKEAutopilot,
 			FIPS:                           params.FIPS,
 			JMX:                            params.JMX,
+			TimeoutSeconds:                 params.TimeoutSeconds,
 		}, pulumiResourceOptions...)
 		if err != nil {
 			return err
