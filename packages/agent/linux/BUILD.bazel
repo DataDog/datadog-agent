@@ -20,6 +20,7 @@ filegroup(
         "//deps:all_deps",
     ] + select({
         "@platforms//os:linux": [
+            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
         ],
         "//conditions:default": [],
@@ -83,7 +84,10 @@ pkg_filegroup(
 
 pkg_install(
     name = "install",
-    srcs = [
-        ":datadog_agent_installer_symlinks",
-    ],
+    srcs = select({
+        "//:is_standard_install": [
+            ":datadog_agent_installer_symlinks",
+        ],
+        "//conditions:default": [],
+    }),
 )
