@@ -14,8 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
 
-func init() { registerModule(EventMonitor) }
-
 // EventMonitor - Event monitor Factory
 var EventMonitor = &module.Factory{
 	Name:             config.EventMonitorModule,
