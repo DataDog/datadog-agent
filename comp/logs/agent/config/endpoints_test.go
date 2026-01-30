@@ -14,6 +14,7 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -150,7 +151,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
+	suite.Equal(endpoint.CompressionLevel, pkgconfigsetup.DefaultZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -240,7 +241,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldFallbackOnDefaultWithIn
 		suite.config.SetWithoutSource("logs_config.batch_wait", batchWait)
 		endpoints, err := BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
 		suite.Nil(err)
-		suite.Equal(endpoints.BatchWait, pkgconfigsetup.DefaultBatchWait*time.Second)
+		suite.Equal(endpoints.BatchWait, defaults.DefaultBatchWait*time.Second)
 	}
 }
 
@@ -659,11 +660,11 @@ func (suite *EndpointsTestSuite) TestLogCompressionKind() {
 	suite.Equal(logsConfig.compressionKind(), "zstd")
 
 	suite.config.SetWithoutSource("logs_config.compression_kind", "")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), defaults.DefaultLogCompressionKind)
 
 	// Invalid compression should fall back to the default log agent compression kind
 	suite.config.SetWithoutSource("logs_config.compression_kind", "notgzip")
-	suite.Equal(logsConfig.compressionKind(), pkgconfigsetup.DefaultLogCompressionKind)
+	suite.Equal(logsConfig.compressionKind(), defaults.DefaultLogCompressionKind)
 }
 
 func (suite *EndpointsTestSuite) TestLogsConfigApiKeyRotation() {
@@ -895,16 +896,16 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 			name:                "No additional endpoints - use default",
 			additionalEndpoints: "",
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  ZstdCompressionKind,
-				CompressionLevel: ZstdCompressionLevel,
+				CompressionKind:  defaults.ZstdCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultZstdCompressionLevel,
 			},
 		},
 		{
 			name:                "Additional endpoints without explicit compression - fallback to gzip",
 			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  GzipCompressionKind,
-				CompressionLevel: GzipCompressionLevel,
+				CompressionKind:  defaults.GzipCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultGzipCompressionLevel,
 			},
 		},
 		{
@@ -912,8 +913,8 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
 			compressionKind:     "zstd",
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  ZstdCompressionKind,
-				CompressionLevel: ZstdCompressionLevel,
+				CompressionKind:  defaults.ZstdCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultZstdCompressionLevel,
 			},
 		},
 	}
