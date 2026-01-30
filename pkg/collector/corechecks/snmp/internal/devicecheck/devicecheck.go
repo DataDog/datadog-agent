@@ -348,8 +348,8 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	// Create connection with automatic UDP fallback for multi-homed devices
 	sess, deviceReachable, connErr := d.connMgr.Connect()
 
-	// If no session at all, cannot proceed
-	if sess == nil {
+	// If connection failed, cannot proceed
+	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
 		// cannot connect -> use cached profile
 		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
@@ -362,13 +362,6 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 			log.Warnf("failed to close session (count: %d): %v", d.sessionCloseErrorCount.Load(), err)
 		}
 	}()
-
-	// Emit metric if using unconnected UDP mode
-	if sess.IsUnconnectedUDP() {
-		tags := []string{fmt.Sprintf("device_ip:%s", d.config.IPAddress)}
-		tags = append(tags, d.config.GetStaticTags()...)
-		d.sender.Gauge("snmp.devices.using_unconnected_socket", 1, tags)
-	}
 
 	// Check if the device is reachable
 	if !deviceReachable {
@@ -452,6 +445,11 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetCount()), append(utils.CopyStrings(newTags), snmpGetRequestTag))
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetBulkCount()), append(utils.CopyStrings(newTags), snmpGetBulkRequestTag))
 	d.sender.Gauge(snmpRequestMetric, float64(sess.GetSnmpGetNextCount()), append(utils.CopyStrings(newTags), snmpGetNextReqestTag))
+
+	// Emit metric if using unconnected UDP socket mode
+	if sess.IsUnconnectedUDP() {
+		d.sender.Gauge("snmp.devices.using_unconnected_socket", 1, newTags)
+	}
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
