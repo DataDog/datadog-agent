@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/test"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 
 	"github.com/stretchr/testify/assert"
@@ -132,11 +133,13 @@ apm_config:
 		}
 		waitForTrace(t, &r, func(p *pb.AgentPayload) {
 			assert := assert.New(t)
-			assert.Equal(p.Env, "my-env")
-			assert.Len(p.TracerPayloads, 1)
-			assert.Len(p.TracerPayloads[0].Chunks, 1)
-			assert.Len(p.TracerPayloads[0].Chunks[0].Spans, 1)
-			assert.Equal(p.TracerPayloads[0].Chunks[0].Spans[0].Meta["name"], "john")
+			assert.Equal("my-env", p.Env)
+			internalPayload := idx.FromProto(p.IdxTracerPayloads[0])
+			assert.Len(internalPayload.Chunks, 1)
+			assert.Len(internalPayload.Chunks[0].Spans, 1)
+			name, ok := internalPayload.Chunks[0].Spans[0].GetAttributeAsString("name")
+			assert.True(ok)
+			assert.Equal("john", name)
 		})
 	})
 
@@ -198,10 +201,11 @@ apm_config:
 		for {
 			select {
 			case <-timeout:
+				log.Printf("Agent log: %s", r.AgentLog())
 				t.Fatal("Timed out waiting for duplicate SpanID warning.")
 			default:
 				time.Sleep(10 * time.Millisecond)
-				if strings.Contains(r.AgentLog(), `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service:"pylons"`) {
+				if strings.Contains(r.AgentLog(), `Found malformed trace with duplicate span ID (reason:duplicate_span_id): service=pylons`) {
 					break loop
 				}
 			}
@@ -210,10 +214,13 @@ apm_config:
 
 	// topLevelSpansAgentFn checks that the given agent payload matches with the testSpans input
 	topLevelSpansAgentFn := func(v *pb.AgentPayload) {
-		var serverSpan, internalSpan, clientSpan, producerSpan *pb.Span
-		for _, chunk := range v.TracerPayloads[0].Chunks {
+		var serverSpan, internalSpan, clientSpan, producerSpan *idx.InternalSpan
+		internalPayload := idx.FromProto(v.IdxTracerPayloads[0])
+		for _, chunk := range internalPayload.Chunks {
 			for _, span := range chunk.Spans {
-				switch span.Meta["name"] {
+				name, ok := span.GetAttributeAsString("name")
+				assert.True(t, ok)
+				switch name {
 				case "server":
 					assert.Len(t, chunk.Spans, 3)
 					serverSpan = span
@@ -230,9 +237,10 @@ apm_config:
 			}
 		}
 		assert.Equal(t, "my-env", v.Env)
-		assert.Len(t, v.TracerPayloads, 1)
-		assert.Len(t, v.TracerPayloads[0].Chunks, 2)
+		assert.Len(t, v.IdxTracerPayloads, 1)
+		assert.Len(t, v.IdxTracerPayloads[0].Chunks, 2)
 		assert.True(t, serverSpan != nil && internalSpan != nil && clientSpan != nil && producerSpan != nil)
+		assert.Equal(t, "server", serverSpan.SpanKind(), "server span kind should be server, got %s", serverSpan.DebugString())
 	}
 
 	t.Run("top-level-by-span-kind", func(t *testing.T) {

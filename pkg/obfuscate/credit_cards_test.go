@@ -274,11 +274,12 @@ func TestIINIsSensitive(t *testing.T) {
 }
 
 func TestCCKeepValues(t *testing.T) {
-	possibleCard := "378282246310005"
 	o := NewObfuscator(Config{CreditCard: CreditCardsConfig{Enabled: true, KeepValues: []string{"skip_me"}}})
 
-	assert.Equal(t, possibleCard, o.ObfuscateCreditCardNumber("skip_me", possibleCard))
-	assert.Equal(t, "?", o.ObfuscateCreditCardNumber("obfuscate_me", possibleCard))
+	assert.False(t, o.ShouldObfuscateCCKey("skip_me"))
+	assert.False(t, o.ShouldObfuscateCCKey("_some_safe_tag"))
+	assert.False(t, o.ShouldObfuscateCCKey("http.status_code"))
+	assert.True(t, o.ShouldObfuscateCCKey("obfuscate_me"))
 }
 
 func BenchmarkIsSensitive(b *testing.B) {

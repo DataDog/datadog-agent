@@ -706,13 +706,20 @@ func TestLexerNormalization(t *testing.T) {
 	cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
 	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 	defer cancelFunc()
-	span := &pb.Span{
-		Resource: "SELECT * FROM [u].[users]",
-		Type:     "sql",
-		Meta:     map[string]string{"db.type": "sqlserver"},
-	}
-	agnt.obfuscateSpan(span)
-	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
+	st := idx.NewStringTable()
+	span := idx.NewInternalSpan(st, &idx.Span{
+		ResourceRef: st.Add("SELECT * FROM [u].[users]"),
+		TypeRef:     st.Add("sql"),
+		Attributes: map[uint32]*idx.AnyValue{
+			st.Add("db.type"): {
+				Value: &idx.AnyValue_StringValueRef{
+					StringValueRef: st.Add("sqlserver"),
+				},
+			},
+		},
+	})
+	agnt.obfuscateSpanInternal(span)
+	assert.Equal(t, "SELECT * FROM u.users", span.Resource())
 }
 
 func TestNormalizeServicePassThruV1(t *testing.T) {

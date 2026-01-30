@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: The Trace Agent now represents all Trace data internally using the new indexed trace format. Emitted traces will be attached to a new protobuf field ``idxTracerPayloads``.
+    The primary changes of this change include: Automatic interning of strings to reduce memory usage and payload size, typed attributes for future extensibility, some common tags
+    have been promoted to named fields, and Trace IDs are represented at the chunk level as bytes.
