@@ -204,8 +204,6 @@ modules:
     used_by_otel: true
   pkg/gohai:
     used_by_otel: true
-  pkg/logs/client:
-    used_by_otel: true
   pkg/logs/diagnostic:
     used_by_otel: true
   pkg/logs/message:
