@@ -4334,3 +4334,92 @@ func TestAgentWriteTagsBufferedChunksV1(t *testing.T) {
 		})
 	}
 }
+
+func TestTraceChunkContainsProbabilitySamplingV1(t *testing.T) {
+	tests := map[string]struct {
+		chunk    *idx.InternalTraceChunk
+		expected bool
+	}{
+		"nil chunk": {
+			chunk:    nil,
+			expected: false,
+		},
+		"chunk with probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(probabilitySamplingV1)
+				return chunk
+			}(),
+			expected: true,
+		},
+		"chunk without probability sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				return idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+			}(),
+			expected: false,
+		},
+		"chunk with different sampling mechanism": {
+			chunk: func() *idx.InternalTraceChunk {
+				strs := idx.NewStringTable()
+				span := idx.NewInternalSpan(strs, &idx.Span{
+					SpanID:      1,
+					ServiceRef:  strs.Add("test-service"),
+					NameRef:     strs.Add("test-name"),
+					ResourceRef: strs.Add("test-resource"),
+				})
+				chunk := idx.NewInternalTraceChunk(
+					strs,
+					int32(sampler.PriorityAutoDrop),
+					"",
+					nil,
+					[]*idx.InternalSpan{span},
+					false,
+					[]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+					0,
+				)
+				chunk.SetSamplingMechanism(8) // Different mechanism
+				return chunk
+			}(),
+			expected: false,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := traceChunkContainsProbabilitySamplingV1(tt.chunk)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
