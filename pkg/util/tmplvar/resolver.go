@@ -66,16 +66,6 @@ func noResolverError(message string) *NoResolverError {
 // VariableGetter is a function that resolves a template variable
 type VariableGetter func(key string, res Resolvable) (string, error)
 
-var templateVariables = map[string]VariableGetter{
-	"host":     GetHost,
-	"pid":      GetPid,
-	"port":     GetPort,
-	"hostname": GetHostname,
-	"env":      GetEnvvar,
-	"extra":    GetAdditionalTplVariables,
-	"kube":     GetAdditionalTplVariables,
-}
-
 // Parser handles marshaling/unmarshaling of data
 type Parser struct {
 	Marshal   func(interface{}) ([]byte, error)
@@ -96,10 +86,32 @@ var YAMLParser = Parser{
 
 var varPattern = regexp.MustCompile(`‰(.+?)(?:_(.+?))?‰`)
 
+type TemplateResolver struct {
+	parser        Parser
+	postProcessor func(interface{}) error
+	supportedVars map[string]VariableGetter
+}
+
+func NewTemplateResolver(parser Parser, postProcessor func(interface{}) error, supportEnvVars bool) *TemplateResolver {
+	templateVariables := map[string]VariableGetter{
+		"host":     GetHost,
+		"pid":      GetPid,
+		"port":     GetPort,
+		"hostname": GetHostname,
+		"extra":    GetAdditionalTplVariables,
+		"kube":     GetAdditionalTplVariables,
+	}
+	if supportEnvVars {
+		templateVariables["env"] = GetEnvvar
+	}
+
+	return &TemplateResolver{parser: parser, postProcessor: postProcessor, supportedVars: templateVariables}
+}
+
 // ResolveDataWithTemplateVars resolves template variables in a data structure (YAML/JSON).
 // It walks through the tree structure and replaces %%var%% patterns in all strings.
 // If postProcessor is not nil, it's called on the tree before marshaling back.
-func ResolveDataWithTemplateVars(data []byte, res Resolvable, parser Parser, postProcessor func(interface{}) error) ([]byte, error) {
+func (t TemplateResolver) ResolveDataWithTemplateVars(data []byte, res Resolvable) ([]byte, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -108,7 +120,7 @@ func ResolveDataWithTemplateVars(data []byte, res Resolvable, parser Parser, pos
 
 	// Percent character is not allowed in unquoted yaml strings.
 	data2 := strings.ReplaceAll(string(data), "%%", "‰")
-	if err := parser.Unmarshal([]byte(data2), &tree); err != nil {
+	if err := t.parser.Unmarshal([]byte(data2), &tree); err != nil {
 		return data, err
 	}
 
@@ -175,7 +187,7 @@ func ResolveDataWithTemplateVars(data []byte, res Resolvable, parser Parser, pos
 			}
 
 		case string:
-			s, err := ResolveStringWithTemplateVars(elem, res)
+			s, err := resolveStringWithTemplateVars(elem, res, t.supportedVars)
 			if err != nil {
 				return data, err
 			}
@@ -193,25 +205,25 @@ func ResolveDataWithTemplateVars(data []byte, res Resolvable, parser Parser, pos
 		}
 	}
 
-	if postProcessor != nil {
-		if err := postProcessor(tree); err != nil {
+	if t.postProcessor != nil {
+		if err := t.postProcessor(tree); err != nil {
 			return data, err
 		}
 	}
 
-	return parser.Marshal(&tree)
+	return t.parser.Marshal(&tree)
 }
 
-// ResolveStringWithTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
+// resolveStringWithTemplateVars takes a string as input and replaces all the `‰var_param‰` patterns by the value returned by the appropriate variable getter.
 // It delegates all the work to resolveStringWithAdHocTemplateVars and implements only the following trick:
 // for `‰host‰` patterns, if the value of the variable is an IPv6 *and* it appears in an URL context, then it is surrounded by square brackets.
 // Indeed, IPv6 needs to be surrounded by square brackets inside URL to distinguish the colons of the IPv6 itself from the one separating the IP from the port
 // like in: http://[::1]:80/
-func ResolveStringWithTemplateVars(in string, res Resolvable) (out interface{}, err error) {
+func resolveStringWithTemplateVars(in string, res Resolvable, templateVars map[string]VariableGetter) (out interface{}, err error) {
 	isThereAnIPv6Host := false
 
 	adHocTemplateVars := make(map[string]VariableGetter)
-	for k, v := range templateVariables {
+	for k, v := range templateVars {
 		if k == "host" {
 			adHocTemplateVars[k] = func(tplVar string, res Resolvable) (string, error) {
 				host, err := v(tplVar, res)
@@ -273,7 +285,7 @@ func ResolveStringWithTemplateVars(in string, res Resolvable) (out interface{}, 
 
 	_, err = url.Parse(resolvedStringWithIPv6.(string))
 	if err != nil {
-		return resolveStringWithAdHocTemplateVars(in, res, templateVariables)
+		return resolveStringWithAdHocTemplateVars(in, res, templateVars)
 	}
 
 	return resolvedStringWithIPv6, err

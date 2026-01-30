@@ -1086,7 +1086,8 @@ func parseJSONValueWithResolution(value string, tags *taglist.TagList, resolvabl
 		return parseJSONValue(value, tags)
 	}
 
-	resolved, err := tmplvar.ResolveDataWithTemplateVars([]byte(value), resolvable, tmplvar.JSONParser, nil)
+	resolver := tmplvar.NewTemplateResolver(tmplvar.JSONParser, nil, false)
+	resolved, err := resolver.ResolveDataWithTemplateVars([]byte(value), resolvable)
 	if err != nil {
 		// If resolution fails, log but try to parse the original value
 		log.Debugf("Failed to resolve template variables in tags: %v", err)

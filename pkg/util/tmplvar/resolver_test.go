@@ -69,6 +69,7 @@ func (m *mockResolvable) GetExtraConfig(key string) (string, error) {
 }
 
 func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
+	t.Setenv("test_envvar", "test_value")
 	svc := &mockResolvable{
 		serviceID: "test-service",
 		hosts:     map[string]string{"pod": "10.0.0.5"},
@@ -81,10 +82,13 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		svc      *mockResolvable
-		input    string
-		expected string
+		name          string
+		svc           *mockResolvable
+		input         string
+		postProcessor func(interface{}) error
+		envEnabled    bool
+		expected      string
+		expectedErr   bool
 	}{
 		{
 			name:     "simple host resolution",
@@ -97,6 +101,21 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			svc:      svc,
 			input:    `{"pod": "%%hostname%%"}`,
 			expected: `{"pod":"my-pod-123"}`,
+		},
+		{
+			name:       "environment variable resolution",
+			svc:        svc,
+			envEnabled: true,
+			input:      `{"env": "%%env_test_envvar%%"}`,
+			expected:   `{"env": "test_value"}`,
+		},
+		{
+			name:        "environment variable resolution disabled",
+			svc:         svc,
+			envEnabled:  false,
+			input:       `{"test": "%%env_test_envvar%%"}`,
+			expected:    `{"test": "%%env_test_envvar%%"}`,
+			expectedErr: true,
 		},
 		{
 			name:     "kube namespace resolution",
@@ -180,17 +199,34 @@ func TestResolveDataWithTemplateVars_JSON(t *testing.T) {
 			input:    `{"port": "%%port%%", "pid": "%%pid%%", "port_string": "port is %%port%%"}`,
 			expected: `{"port":8080, "pid":1234, "port_string":"port is 8080"}`,
 		},
+		{
+			name:     "resolved with post-processing",
+			svc:      svc,
+			input:    `{"host": "%%host%%", "tags": ["existing:tag"]}`,
+			expected: `{"host":"10.0.0.5", "tags":["existing:tag","injected:tag"]}`,
+			postProcessor: func(tree interface{}) error {
+				if typedTree, ok := tree.(map[string]interface{}); ok {
+					if tags, ok := typedTree["tags"].([]interface{}); ok {
+						tags = append(tags, "injected:tag")
+						typedTree["tags"] = tags
+					}
+				}
+				return nil
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testSvc := svc
-			if tt.svc != nil {
-				testSvc = tt.svc
+			testSvc := tt.svc
+			resolver := NewTemplateResolver(JSONParser, tt.postProcessor, tt.envEnabled)
+			resolved, err := resolver.ResolveDataWithTemplateVars([]byte(tt.input), testSvc)
+			if tt.expectedErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.JSONEq(t, tt.expected, string(resolved))
 			}
-			resolved, err := ResolveDataWithTemplateVars([]byte(tt.input), testSvc, JSONParser, nil)
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.expected, string(resolved))
 		})
 	}
 }
@@ -211,7 +247,8 @@ tags:
   - pod:%%hostname%%
 `
 
-	resolved, err := ResolveDataWithTemplateVars([]byte(input), svc, YAMLParser, nil)
+	resolver := NewTemplateResolver(YAMLParser, nil, true)
+	resolved, err := resolver.ResolveDataWithTemplateVars([]byte(input), svc)
 	require.NoError(t, err)
 
 	// Parse back to check values
@@ -244,30 +281,4 @@ func TestGetFallbackHost(t *testing.T) {
 	ip, err = getFallbackHost(map[string]string{"foo": "172.17.0.1", "bar": "172.17.0.2"})
 	assert.Equal(t, "", ip)
 	assert.NotNil(t, err)
-}
-
-func TestResolveDataWithTemplateVars_WithPostProcessor(t *testing.T) {
-	svc := &mockResolvable{
-		serviceID: "test-service",
-		hosts:     map[string]string{"pod": "10.0.0.5"},
-	}
-
-	input := `{"host": "%%host%%", "tags": ["existing:tag"]}`
-
-	// Post-processor that adds additional tags
-	postProcessor := func(tree interface{}) error {
-		if typedTree, ok := tree.(map[string]interface{}); ok {
-			if tags, ok := typedTree["tags"].([]interface{}); ok {
-				tags = append(tags, "injected:tag")
-				typedTree["tags"] = tags
-			}
-		}
-		return nil
-	}
-
-	resolved, err := ResolveDataWithTemplateVars([]byte(input), svc, JSONParser, postProcessor)
-	require.NoError(t, err)
-
-	expected := `{"host":"10.0.0.5","tags":["existing:tag","injected:tag"]}`
-	assert.JSONEq(t, expected, string(resolved))
 }

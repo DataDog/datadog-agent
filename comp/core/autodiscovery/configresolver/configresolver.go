@@ -99,7 +99,8 @@ func substituteTemplateVariables(config *integration.Config, svc listeners.Servi
 		if toResolve.dtype == dataInstance {
 			pp = postProcessor
 		}
-		*toResolve.data, err = tmplvar.ResolveDataWithTemplateVars(*toResolve.data, svc, toResolve.parser, pp)
+		resolver := tmplvar.NewTemplateResolver(toResolve.parser, pp, true)
+		*toResolve.data, err = resolver.ResolveDataWithTemplateVars(*toResolve.data, svc)
 		if err != nil {
 			return err
 		}

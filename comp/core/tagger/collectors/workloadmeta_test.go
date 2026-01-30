@@ -70,6 +70,8 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
+	t.Setenv("test_envvar", "test_value")
+
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component { return config.NewMock(t) }),
@@ -1034,6 +1036,39 @@ func TestHandleKubePod(t *testing.T) {
 						"short_image:agent",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "pod with environment variable in AD annotation is not resolved",
+			pod: workloadmeta.KubernetesPod{
+				EntityID: podEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      podName,
+					Namespace: podNamespace,
+					Annotations: map[string]string{
+						"ad.datadoghq.com/tags": `{
+							"test":"%%env_test_envvar%%",
+							"static":"value"
+						}`,
+					},
+				},
+				IP: "10.244.0.15",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       podSource,
+					EntityID:     podTaggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"pod_name:" + podName,
+					},
+					LowCardTags: []string{
+						"kube_namespace:" + podNamespace,
+						"test:%%env_test_envvar%%",
+						"static:value",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
