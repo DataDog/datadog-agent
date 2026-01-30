@@ -292,6 +292,17 @@ func WithMIGDisabled() NvmlMockOption {
 	}
 }
 
+// WithMigMode sets the MIG mode and pending mode for devices.
+func WithMigMode(current int, pending int) NvmlMockOption {
+	return func(o *nvmlMockOptions) {
+		o.deviceOptions = append(o.deviceOptions, func(d *nvmlmock.Device) {
+			d.GetMigModeFunc = func() (int, int, nvml.Return) {
+				return current, pending, nvml.SUCCESS
+			}
+		})
+	}
+}
+
 // WithDeviceCount influences the return value of DeviceGetCount for the nvml mock
 func WithDeviceCount(count int) NvmlMockOption {
 	return func(o *nvmlMockOptions) {

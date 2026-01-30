@@ -98,7 +98,7 @@ func TestPopulateCapabilities(t *testing.T) {
 			// Test lookup for specific symbols
 			safenvml.lib = mockNvml
 			safenvml.capabilities = capabilities
-			err = safenvml.lookup(tc.testSymbol)
+			err = safenvml.isAvailable(tc.testSymbol)
 			require.Equal(t, tc.expectedLookupErr, err)
 		})
 	}

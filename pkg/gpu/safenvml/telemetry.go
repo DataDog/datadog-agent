@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -27,14 +28,18 @@ const (
 
 // NvmlStateTelemetry tracks the state of the NVML library initialization
 // and reports telemetry when it remains unavailable for extended periods.
-// Not thread-safe, should only be used from a single goroutine.
 type NvmlStateTelemetry struct {
+	mu             sync.Mutex
 	firstCheckTime time.Time
 
 	// Telemetry metrics
-	errorCounter     telemetry.Counter
-	unavailableGauge telemetry.Gauge
-	checkInterval    time.Duration
+	errorCounter      telemetry.Counter
+	unavailableGauge  telemetry.Gauge
+	migPendingGauge   telemetry.Gauge
+	nvmlPausedGauge   telemetry.Gauge
+	migInstancesGauge telemetry.Gauge
+	pauseTransitions  telemetry.Counter
+	checkInterval     time.Duration
 
 	// Goroutine lifecycle management
 	done chan struct{}
@@ -46,19 +51,30 @@ func NewNvmlStateTelemetry(tm telemetry.Component) *NvmlStateTelemetry {
 	subsystem := "gpu__nvml"
 
 	return &NvmlStateTelemetry{
-		errorCounter:     tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
-		unavailableGauge: tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
-		done:             make(chan struct{}),
-		checkInterval:    defaultCheckInterval,
+		errorCounter:      tm.NewCounter(subsystem, "init_errors", nil, "Number of errors when initializing NVML library"),
+		unavailableGauge:  tm.NewGauge(subsystem, "library_unavailable", nil, "Whether NVML library is unavailable after threshold time (1=unavailable, 0=available)"),
+		migPendingGauge:   tm.NewGauge(subsystem, "mig_pending", nil, "Whether a MIG configuration change is pending (1=pending, 0=ready)"),
+		nvmlPausedGauge:   tm.NewGauge(subsystem, "nvml_paused", nil, "Whether NVML is paused due to MIG reconfiguration (1=paused, 0=active)"),
+		migInstancesGauge: tm.NewGauge(subsystem, "mig_instances_present", nil, "Whether MIG GI/CI entries are present in procfs (1=present, 0=absent)"),
+		pauseTransitions:  tm.NewCounter(subsystem, "pause_transitions", []string{"action", "reason"}, "Number of NVML pause/unpause transitions"),
+		done:              make(chan struct{}),
+		checkInterval:     defaultCheckInterval,
 	}
 }
 
 // Check attempts to get the NVML library and tracks errors.
 // If the library remains unavailable for more than nvmlUnavailableThreshold,
-// it sets the unavailable gauge to 1. Should only be called from a single goroutine.
+// it sets the unavailable gauge to 1.
 func (n *NvmlStateTelemetry) Check() {
 	_, err := GetSafeNvmlLib() // GetSafeNvmlLib is thread-safe
+	n.mu.Lock()
+	defer n.mu.Unlock()
 	if err != nil {
+		if errors.Is(err, ErrNvmlPaused) {
+			n.unavailableGauge.Set(0)
+			n.firstCheckTime = time.Time{}
+			return
+		}
 		// Track the first check time
 		if n.firstCheckTime.IsZero() {
 			n.firstCheckTime = time.Now()
@@ -77,6 +93,39 @@ func (n *NvmlStateTelemetry) Check() {
 		n.unavailableGauge.Set(0)
 		n.firstCheckTime = time.Time{}
 	}
+}
+
+// SetPaused updates the pause gauge for NVML.
+func (n *NvmlStateTelemetry) SetPaused(paused bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.nvmlPausedGauge.Set(boolToFloat(paused))
+}
+
+// SetMigPending updates the MIG pending gauge.
+func (n *NvmlStateTelemetry) SetMigPending(pending bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.migPendingGauge.Set(boolToFloat(pending))
+}
+
+// SetMigInstancesPresent updates the MIG instance presence gauge.
+func (n *NvmlStateTelemetry) SetMigInstancesPresent(present bool) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.migInstancesGauge.Set(boolToFloat(present))
+}
+
+// AddPauseTransition records a pause/unpause transition with a reason.
+func (n *NvmlStateTelemetry) AddPauseTransition(action string, reason string) {
+	n.pauseTransitions.Add(1, action, reason)
+}
+
+func boolToFloat(v bool) float64 {
+	if v {
+		return 1
+	}
+	return 0
 }
 
 // Start begins periodic checking of the NVML library status in a background goroutine.

@@ -9,6 +9,7 @@ package nvml
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -22,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -196,12 +197,13 @@ func GetFxOptions() fx.Option {
 }
 
 // Start initializes the NVML library and sets the store
-func (c *collector) Start(_ context.Context, store workloadmeta.Component) error {
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
 	if !env.IsFeaturePresent(env.NVML) {
-		return errors.NewDisabled(componentName, "Agent does not have NVML library available")
+		return dderrors.NewDisabled(componentName, "Agent does not have NVML library available")
 	}
 
 	c.store = store
+	c.configureMigConfigStateProvider(ctx)
 
 	return nil
 }
@@ -210,6 +212,9 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 func (c *collector) Pull(ctx context.Context) error {
 	lib, err := ddnvml.GetSafeNvmlLib()
 	if err != nil {
+		if errors.Is(err, ddnvml.ErrNvmlPaused) {
+			return nil
+		}
 		// Do not consider an unloaded driver as an error more than once.
 		// Some installations will have the NVIDIA libraries but not the driver. Report the error
 		// only once to avoid log spam, treat it the same as if there was no library available or
