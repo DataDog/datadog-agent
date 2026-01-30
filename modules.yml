@@ -115,7 +115,8 @@ modules:
     used_by_otel: true
   comp/otelcol/otlp/components/metricsclient:
     used_by_otel: true
-  comp/otelcol/otlp/components/processor/infraattributesprocessor: default
+  comp/otelcol/otlp/components/processor/infraattributesprocessor:
+    used_by_otel: true
   comp/otelcol/otlp/testutil:
     used_by_otel: true
   comp/otelcol/status/def: default
