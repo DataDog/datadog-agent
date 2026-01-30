@@ -111,9 +111,10 @@ func TestConnectionManager_ConnectSuccess(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	sess, err := connMgr.Connect()
+	sess, reachable, err := connMgr.Connect()
 
 	assert.NoError(t, err)
+	assert.True(t, reachable)
 	assert.Equal(t, mainSess, sess)
 
 	gotSess, err := connMgr.GetSession()
@@ -164,9 +165,10 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	sess, err := connMgr.Connect()
+	sess, reachable, err := connMgr.Connect()
 
 	assert.NoError(t, err)
+	assert.True(t, reachable)
 	assert.Equal(t, newSess, sess)
 	assert.True(t, config.UseUnconnectedUDPSocket, "Config should be updated")
 
@@ -195,10 +197,10 @@ func TestConnectionManager_NonTimeoutError(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	sess, err := connMgr.Connect()
+	sess, reachable, err := connMgr.Connect()
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "authentication failed")
+	assert.NoError(t, err)
+	assert.False(t, reachable)
 	// Session should be returned even on reachability failure so caller can continue
 	assert.NotNil(t, sess)
 	assert.Equal(t, mainSess, sess)
@@ -236,10 +238,10 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	sess, err := connMgr.Connect()
+	sess, reachable, err := connMgr.Connect()
 
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "timeout")
+	assert.NoError(t, err)
+	assert.False(t, reachable)
 	// Session should be returned even when fallback test fails so caller can continue
 	assert.NotNil(t, sess)
 	assert.Equal(t, mainSess, sess)
@@ -264,8 +266,9 @@ func TestConnectionManager_Close(t *testing.T) {
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
-	gotSess, err := connMgr.Connect()
+	gotSess, reachable, err := connMgr.Connect()
 	assert.NoError(t, err)
+	assert.True(t, reachable)
 	assert.Equal(t, sess, gotSess)
 
 	err = connMgr.Close()
@@ -292,8 +295,9 @@ func TestConnectionManager_GetSessionAfterClose(t *testing.T) {
 	connMgr := NewConnectionManager(config, sessionFactory)
 
 	// Connect should succeed
-	gotSess, err := connMgr.Connect()
+	gotSess, reachable, err := connMgr.Connect()
 	assert.NoError(t, err)
+	assert.True(t, reachable)
 	assert.Equal(t, sess, gotSess)
 
 	// GetSession should work before Close

@@ -346,7 +346,7 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	var tags []string
 
 	// Create connection with automatic UDP fallback for multi-homed devices
-	sess, connErr := d.connMgr.Connect()
+	sess, deviceReachable, connErr := d.connMgr.Connect()
 
 	// If no session at all, cannot proceed
 	if sess == nil {
@@ -370,15 +370,13 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 		d.sender.Gauge("snmp.devices.using_unconnected_socket", 1, tags)
 	}
 
-	// Check if the device is reachable based on Connect() result
-	if connErr != nil {
+	// Check if the device is reachable
+	if !deviceReachable {
 		// Connection succeeded but reachability check failed
-		deviceReachable = false
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_POLL_DEVICE", "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.")
-		checkErrors = append(checkErrors, fmt.Sprintf("check device reachable: failed: %s", connErr))
+		checkErrors = append(checkErrors, "check device reachable: failed: no value for GetNext")
 	} else {
 		// Both connection and reachability check succeeded
-		deviceReachable = true
 		if log.ShouldLog(log.DebugLvl) {
 			log.Debugf("check device reachable: success (verified during connection)")
 		}

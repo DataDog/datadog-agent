@@ -18,8 +18,12 @@ import (
 
 // ConnectionManager handles SNMP session creation and connection management.
 type ConnectionManager interface {
-	// Connect establishes a connection and returns the active session.
-	Connect() (session.Session, error)
+	// Connect establishes a connection and returns (session, deviceReachable, error).
+	// Returns:
+	//   - (nil, false, error): Cannot connect at all (socket failure)
+	//   - (session, false, nil): Connected but device is unreachable
+	//   - (session, true, nil): Connected and device is reachable
+	Connect() (session.Session, bool, error)
 
 	// GetSession returns the current active session if initialized.
 	GetSession() (session.Session, error)
@@ -54,20 +58,20 @@ func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory sessio
 	}
 }
 
-// Connect establishes a connection and returns the active session.
+// Connect establishes a connection and returns (session, deviceReachable, error).
 // Automatically falls back to unconnected UDP sockets for multi-homed devices.
-func (m *snmpConnectionManager) Connect() (session.Session, error) {
+func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 	// Create initial session
 	sess, err := m.sessionFactory(m.config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
+		return nil, false, fmt.Errorf("failed to create session: %w", err)
 	}
 
 	// Try to connect
 	connectErr := sess.Connect()
 	if connectErr != nil {
 		// Socket connection failed - cannot use this session at all
-		return nil, connectErr
+		return nil, false, connectErr
 	}
 
 	// Connection succeeded - now test reachability
@@ -79,7 +83,7 @@ func (m *snmpConnectionManager) Connect() (session.Session, error) {
 			m.fallbackState.connectedSocketSucceeded = true
 		}
 		m.session = sess
-		return sess, nil
+		return sess, true, nil
 	}
 
 	// Reachability check failed - check if we should attempt fallback
@@ -87,20 +91,17 @@ func (m *snmpConnectionManager) Connect() (session.Session, error) {
 		// Socket is connected but device is unreachable
 		// Return session so caller can continue and report device as unreachable
 		m.session = sess
-		return sess, reachErr
+		return sess, false, nil
 	}
 
 	// Timeout occurred - attempt fallback
-	err = reachErr
-
-	// Attempt unconnected UDP fallback for multi-homed devices
 	log.Infof("[%s] Connected socket failed with timeout, testing unconnected socket fallback", m.config.IPAddress)
 
 	if !m.testFallback() {
 		log.Infof("[%s] Unconnected socket test failed, keeping connected mode", m.config.IPAddress)
 		// Return the session anyway so caller can continue and report device as unreachable
 		m.session = sess
-		return sess, err
+		return sess, false, nil
 	}
 
 	// Fallback test succeeded - switch to unconnected mode permanently
@@ -111,16 +112,16 @@ func (m *snmpConnectionManager) Connect() (session.Session, error) {
 	m.config.UseUnconnectedUDPSocket = true
 	newSess, createErr := m.sessionFactory(m.config)
 	if createErr != nil {
-		return nil, fmt.Errorf("failed to recreate session with unconnected socket for %s: %w", m.config.IPAddress, createErr)
+		return nil, false, fmt.Errorf("failed to recreate session with unconnected socket for %s: %w", m.config.IPAddress, createErr)
 	}
 
 	// Try connecting with new session
 	if connectErr := newSess.Connect(); connectErr != nil {
-		return nil, connectErr
+		return nil, false, connectErr
 	}
 
 	m.session = newSess
-	return newSess, nil
+	return newSess, true, nil
 }
 
 // GetSession returns the current active session.
