@@ -342,19 +342,18 @@ func (p *EBPFProbe) SendRemediationEvent(re *RemediationEvent) {
 func (p *EBPFProbe) HandleRemediationNotTriggered() {
 	p.activeRemediationsLock.Lock()
 	defer p.activeRemediationsLock.Unlock()
-	for remediationKey, state := range p.activeRemediations {
-		if len(remediationKey) > 4 && remediationKey[0:4] != "rem_" {
+	for remediationKey, remediation := range p.activeRemediations {
+		if len(remediationKey) > 4 && remediationKey[0:4] != remediationKeyPrefix {
 			// Only send events for remediation rules
 			continue
 		}
 		var remediationStr string
-		if !state.triggered {
-			if state.actionType == RemediationTypeNetworkIsolation {
+		if !remediation.triggered {
+			if remediation.actionType == RemediationTypeNetworkIsolation {
 				remediationStr = "network_isolation"
-			} else if state.actionType == RemediationTypeKill {
+			} else if remediation.actionType == RemediationTypeKill {
 				remediationStr = "kill"
 			}
-			remediation := p.activeRemediations[remediationKey]
 			re := NewRemediationEvent(p, remediation, "not_triggered", remediationStr)
 			p.SendRemediationEvent(re)
 		}
