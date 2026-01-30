@@ -188,3 +188,21 @@ func (cgce *CacheEntry) CGroupContextEquals(other *CacheEntry) bool {
 
 	return cgce.cgroupContext.Equals(&other.cgroupContext)
 }
+
+// SetSandbox sets the sandbox flag and return true if it was not set before
+func (cgce *CacheEntry) SetSandbox() bool {
+	cgce.lock.Lock()
+	defer cgce.lock.Unlock()
+
+	prev := cgce.containerContext.IsSandbox
+	cgce.containerContext.IsSandbox = true
+	return !prev
+}
+
+// Sandbox returns whether the cache entry is a sandbox/pause container
+func (cgce *CacheEntry) Sandbox() bool {
+	cgce.lock.RLock()
+	defer cgce.lock.RUnlock()
+
+	return cgce.containerContext.Sandbox()
+}

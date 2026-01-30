@@ -206,6 +206,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
 	container := ev.Entity.(*workloadmeta.Container)
 
+	// Sandbox/pause containers have tags generated under a separate entity type (KubernetesPodSandbox)
+	// so they can be resolved via fallback in the tags resolver using the container ID
+	if container.IsSandbox {
+		return c.handleSandboxContainer(container)
+	}
+
 	// Garden containers tagging is specific as we don't have any information locally
 	// Metadata are not available and tags are retrieved as-is from Cluster Agent
 	if container.Runtime == workloadmeta.ContainerRuntimeGarden {
@@ -273,6 +279,54 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		{
 			Source:               containerSource,
 			EntityID:             common.BuildTaggerEntityID(container.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+}
+
+// handleSandboxContainer generates tags for sandbox/pause containers under the KubernetesPodSandbox entity type.
+// This allows the tags resolver to find these tags via fallback using the container ID.
+func (c *WorkloadMetaCollector) handleSandboxContainer(container *workloadmeta.Container) []*types.TagInfo {
+	tagList := taglist.NewTagList()
+
+	// Add container ID as high cardinality tag
+	tagList.AddHigh(tags.ContainerID, container.ID)
+
+	// Add image tags
+	image := container.Image
+	tagList.AddLow(tags.ImageName, image.Name)
+	tagList.AddLow(tags.ShortImage, image.ShortName)
+	tagList.AddLow(tags.ImageTag, image.Tag)
+	tagList.AddLow(tags.ImageID, image.ID)
+
+	// Extract Kubernetes pod info from CRI labels
+	if podName, ok := container.Labels["io.kubernetes.cri.sandbox-name"]; ok {
+		tagList.AddOrchestrator(tags.KubePod, podName)
+	}
+	if podNamespace, ok := container.Labels["io.kubernetes.cri.sandbox-namespace"]; ok {
+		tagList.AddLow(tags.KubeNamespace, podNamespace)
+	}
+
+	// Also extract from standard Kubernetes labels if present
+	if podName, ok := container.Labels["io.kubernetes.pod.name"]; ok {
+		tagList.AddOrchestrator(tags.KubePod, podName)
+	}
+	if podNamespace, ok := container.Labels["io.kubernetes.pod.namespace"]; ok {
+		tagList.AddLow(tags.KubeNamespace, podNamespace)
+	}
+
+	low, orch, high, standard := tagList.Compute()
+
+	// Use KubernetesPodSandbox as the entity type with container ID as the identifier
+	sandboxEntityID := types.NewEntityID(types.KubernetesPodSandbox, container.ID)
+
+	return []*types.TagInfo{
+		{
+			Source:               containerSource,
+			EntityID:             sandboxEntityID,
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
