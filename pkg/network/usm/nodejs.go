@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -230,7 +231,11 @@ func newNodeJSMonitor(mgr *manager.Manager, c *config.Config) (protocols.Protoco
 	}
 
 	procMon := monitor.GetProcessMonitor()
-	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, &uprobes.NativeBinaryInspector{}, procMon)
+	attacher, err := uprobes.NewUprobeAttacher(consts.USMModuleName, nodeJsAttacherName, attachCfg, mgr, uprobes.NopOnAttachCallback, uprobes.AttacherDependencies{
+		Inspector:      &uprobes.NativeBinaryInspector{},
+		ProcessMonitor: procMon,
+		Telemetry:      telemetry.GetCompatComponent(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create uprobe attacher: %w", err)
 	}
