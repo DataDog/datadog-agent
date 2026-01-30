@@ -5,8 +5,16 @@
 
 package run
 
-import "go.uber.org/fx"
+import (
+	"go.uber.org/fx"
+
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
+	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
+)
 
 func getPlatformModules() fx.Option {
-	return fx.Options()
+	return fx.Options(
+		localtraceroute.Module(),
+		traceroute.Module(),
+	)
 }

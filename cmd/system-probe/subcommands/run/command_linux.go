@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	compliance "github.com/DataDog/datadog-agent/comp/system-probe/compliance/fx"
@@ -35,6 +36,7 @@ import (
 	privilegedlogs "github.com/DataDog/datadog-agent/comp/system-probe/privilegedlogs/fx"
 	process "github.com/DataDog/datadog-agent/comp/system-probe/process/fx"
 	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
+	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -77,5 +79,8 @@ func getPlatformModules() fx.Option {
 		ping.Module(),
 		privilegedlogs.Module(),
 		process.Module(),
+
+		localtraceroute.Module(),
+		traceroute.Module(),
 	)
 }

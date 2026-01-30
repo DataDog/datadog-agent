@@ -16,9 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/pid/pidimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
+	traceroute "github.com/DataDog/datadog-agent/comp/system-probe/traceroute/fx"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -96,5 +98,8 @@ func getPlatformModules() fx.Option {
 	return fx.Options(
 		networktracer.Module(),
 		softwareinventory.Module(),
+
+		localtraceroute.Module(),
+		traceroute.Module(),
 	)
 }
