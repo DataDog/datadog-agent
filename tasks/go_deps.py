@@ -107,6 +107,7 @@ def diff(
     report_file=None,
     report_metrics: bool = False,
     git_ref: str | None = None,
+    binaries: list[str] | None = None,
 ):
     if check_uncommitted_changes(ctx):
         raise Exit(
@@ -136,6 +137,10 @@ def diff(
         base_branch = f'origin/{_get_release_json_value("base_branch")}'
         baseline_ref = get_common_ancestor(ctx, commit_sha, base_branch)
 
+    binary_details = BINARIES
+    if binaries is not None:
+        binary_details = {binary: details for binary, details in BINARIES.items() if binary in binaries}
+
     diffs = {}
     dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
 
@@ -147,7 +152,7 @@ def diff(
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
-                for binary, details in BINARIES.items():
+                for binary, details in binary_details.items():
                     with ctx.cd(details.get("entrypoint")):
                         for combo in details["platforms"]:
                             platform, arch = combo.split("/")
@@ -170,7 +175,7 @@ def diff(
             ctx.run(f"git checkout -q {current_branch}")
 
         # compute diffs for each target
-        for binary, details in BINARIES.items():
+        for binary, details in binary_details.items():
             for combo in details["platforms"]:
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
@@ -200,7 +205,7 @@ def diff(
             f"Comparison: {commit_sha}\n",
             "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
         ]
-        for binary, details in BINARIES.items():
+        for binary, details in binary_details.items():
             for combo in details["platforms"]:
                 flavor = details.get("flavor", AgentFlavor.base)
                 build = details.get("build", binary)
