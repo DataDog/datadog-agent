@@ -74,6 +74,10 @@ type LibraryInjectionConfig struct {
 	// Possible values: "auto" (default), "init_container" and "csi".
 	InjectionMode string
 
+	// CSIEnabled indicates if CSI injection is enabled in the cluster agent configuration.
+	// When false, CSI mode requests will fall back to init_container mode.
+	CSIEnabled bool
+
 	// DefaultResourceRequirements are the default resource requirements for init containers.
 	// If empty, the provider will compute requirements based on the pod's existing resources.
 	DefaultResourceRequirements map[corev1.ResourceName]resource.Quantity

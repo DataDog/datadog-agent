@@ -8,6 +8,8 @@
 package libraryinjection
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
@@ -32,18 +34,21 @@ const (
 // ProviderFactory holds the default injection mode and creates providers on demand.
 type ProviderFactory struct {
 	defaultMode InjectionMode
+	csiEnabled  bool
 }
 
 // NewProviderFactory creates a new provider factory with the specified default mode.
-func NewProviderFactory(defaultMode InjectionMode) *ProviderFactory {
+func NewProviderFactory(defaultMode InjectionMode, csiEnabled bool) *ProviderFactory {
 	return &ProviderFactory{
 		defaultMode: defaultMode,
+		csiEnabled:  csiEnabled,
 	}
 }
 
 // GetProviderForPod returns the appropriate injection provider for a pod.
 // It checks for the injection mode annotation on the pod and returns the corresponding provider.
 // If no annotation is present or the value is invalid, it returns the default provider.
+// For CSI mode, it verifies that the CSI driver is available and SSI-enabled before using it.
 func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectionConfig) LibraryInjectionProvider {
 	mode := f.defaultMode
 
@@ -60,6 +65,26 @@ func (f *ProviderFactory) GetProviderForPod(pod *corev1.Pod, cfg LibraryInjectio
 	case InjectionModeInitContainer:
 		return NewInitContainerProvider(cfg)
 	case InjectionModeCSI:
+		if !f.isCSIAvailable() {
+			log.Warnf("CSI injection mode requested for pod %s/%s but CSI driver is not available, falling back to init_container",
+				pod.Namespace, pod.Name)
+			return NewInitContainerProvider(cfg)
+		}
 		return NewCSIProvider(cfg)
 	}
+}
+
+func (f *ProviderFactory) isCSIAvailable() bool {
+	// Check if CSI is enabled in the configuration
+	if !f.csiEnabled {
+		return false
+	}
+
+	// Check the CSI driver configMap to see if it is available and SSI-enabled
+	csiStatus := GetCSIDriverStatus(context.TODO())
+	if !csiStatus.Available {
+		return false
+	}
+
+	return csiStatus.SSIEnabled
 }
