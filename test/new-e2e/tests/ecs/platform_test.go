@@ -11,11 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
+	awsecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/stretchr/testify/assert"
 
 	scenecs "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ecs"
@@ -46,6 +50,85 @@ func (suite *ecsPlatformSuite) SetupSuite() {
 	suite.Fakeintake = suite.Env().FakeIntake.Client()
 	suite.ecsClusterName = suite.Env().ECSCluster.ClusterName
 	suite.ClusterName = suite.Env().ECSCluster.ClusterName
+}
+
+// Test00UpAndRunning is a foundation test that ensures all ECS tasks and services
+// are in RUNNING state before other tests execute. The 00 prefix ensures it runs first.
+func (suite *ecsPlatformSuite) Test00UpAndRunning() {
+	ctx := suite.T().Context()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	suite.Require().NoErrorf(err, "Failed to load AWS config")
+
+	client := awsecs.NewFromConfig(cfg)
+
+	suite.Run("ECS tasks are ready", func() {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
+			var initToken string
+			for nextToken := &initToken; nextToken != nil; {
+				if nextToken == &initToken {
+					nextToken = nil
+				}
+
+				servicesList, err := client.ListServices(ctx, &awsecs.ListServicesInput{
+					Cluster:    &suite.ecsClusterName,
+					MaxResults: pointer.Ptr(int32(10)), // Because `DescribeServices` takes at most 10 services in input
+					NextToken:  nextToken,
+				})
+				if !assert.NoErrorf(c, err, "Failed to list ECS services") {
+					return
+				}
+
+				nextToken = servicesList.NextToken
+
+				servicesDescription, err := client.DescribeServices(ctx, &awsecs.DescribeServicesInput{
+					Cluster:  &suite.ecsClusterName,
+					Services: servicesList.ServiceArns,
+				})
+				if !assert.NoErrorf(c, err, "Failed to describe ECS services %v", servicesList.ServiceArns) {
+					continue
+				}
+
+				for _, serviceDescription := range servicesDescription.Services {
+					assert.NotZerof(c, serviceDescription.DesiredCount, "ECS service %s has no task", *serviceDescription.ServiceName)
+
+					for nextToken := &initToken; nextToken != nil; {
+						if nextToken == &initToken {
+							nextToken = nil
+						}
+
+						tasksList, err := client.ListTasks(ctx, &awsecs.ListTasksInput{
+							Cluster:       &suite.ecsClusterName,
+							ServiceName:   serviceDescription.ServiceName,
+							DesiredStatus: awsecstypes.DesiredStatusRunning,
+							MaxResults:    pointer.Ptr(int32(100)), // Because `DescribeTasks` takes at most 100 tasks in input
+							NextToken:     nextToken,
+						})
+						if !assert.NoErrorf(c, err, "Failed to list ECS tasks for service %s", *serviceDescription.ServiceName) {
+							break
+						}
+
+						nextToken = tasksList.NextToken
+
+						tasksDescription, err := client.DescribeTasks(ctx, &awsecs.DescribeTasksInput{
+							Cluster: &suite.ecsClusterName,
+							Tasks:   tasksList.TaskArns,
+						})
+						if !assert.NoErrorf(c, err, "Failed to describe ECS tasks %v", tasksList.TaskArns) {
+							continue
+						}
+
+						for _, taskDescription := range tasksDescription.Tasks {
+							assert.Equalf(c, string(awsecstypes.DesiredStatusRunning), *taskDescription.LastStatus,
+								"Task %s of service %s is not running", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+							assert.NotEqualf(c, awsecstypes.HealthStatusUnhealthy, taskDescription.HealthStatus,
+								"Task %s of service %s is unhealthy", *taskDescription.TaskArn, *serviceDescription.ServiceName)
+						}
+					}
+				}
+			}
+		}, 15*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+	})
 }
 
 func (suite *ecsPlatformSuite) TestWindowsFargate() {
