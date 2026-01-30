@@ -10,8 +10,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-devel
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.61.0
 	github.com/DataDog/datadog-agent/pkg/config/model v0.72.2
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.61.0
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/logs/types v0.71.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/status/health v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.64.1
@@ -21,6 +21,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/http v0.61.0
 	github.com/DataDog/datadog-agent/pkg/util/log v0.72.2
 	github.com/DataDog/datadog-agent/pkg/util/startstop v0.61.0
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/version v0.72.2
 	github.com/benbjohnson/clock v1.3.5
 	github.com/stretchr/testify v1.11.1
@@ -50,14 +51,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/viperconfig v0.72.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/fips v0.64.0-rc.12 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/option v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.72.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.64.0-rc.12 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.64.0-rc.12 // indirect
@@ -203,7 +202,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/fips => ../../pkg/fips
 	github.com/DataDog/datadog-agent/pkg/fleet/installer => ../../pkg/fleet/installer
 	github.com/DataDog/datadog-agent/pkg/gohai => ../../pkg/gohai
-	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
 	github.com/DataDog/datadog-agent/pkg/logs/types => ../../pkg/logs/types

@@ -8,8 +8,8 @@ package schedulers
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 // Schedulers manages a collection of schedulers.
