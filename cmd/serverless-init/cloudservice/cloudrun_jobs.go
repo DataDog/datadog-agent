@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/exitcode"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -47,6 +47,7 @@ const (
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
 type CloudRunJobs struct {
+	collector  *collector.Collector
 	startTime  time.Time
 	jobSpan    *pb.Span
 	traceAgent TraceAgent
@@ -96,6 +97,10 @@ func (c *CloudRunJobs) GetDefaultLogsSource() string {
 	return CloudRunOrigin
 }
 
+func (c *CloudRunJobs) GetMetricPrefix() string {
+	return cloudRunJobsPrefix
+}
+
 // GetOrigin returns the `origin` attribute type for the given cloud service.
 func (c *CloudRunJobs) GetOrigin() string {
 	return CloudRunJobsOrigin
@@ -125,7 +130,7 @@ func (c *CloudRunJobs) Init(ctx *TracingContext) error {
 func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, runErr error) {
 	durationMetricName := cloudRunJobsPrefix + ".enhanced.task.duration"
 	duration := float64(time.Since(c.startTime).Milliseconds())
-	metric.Add(durationMetricName, duration, c.GetSource(), metricAgent)
+	metricAgent.AddMetric(durationMetricName, duration, c.GetSource(), metrics.DistributionType)
 
 	shutdownMetricName := cloudRunJobsPrefix + ".enhanced.task.ended"
 	exitCode := exitcode.From(runErr)
@@ -133,9 +138,13 @@ func (c *CloudRunJobs) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAg
 	if exitCode != 0 {
 		succeededTag = "succeeded:false"
 	}
-	metric.Add(shutdownMetricName, 1.0, c.GetSource(), metricAgent, succeededTag)
+	metricAgent.AddMetric(shutdownMetricName, 1.0, c.GetSource(), metrics.DistributionType, succeededTag)
 
 	c.completeAndSubmitJobSpan(runErr)
+}
+
+func (c *CloudRunJobs) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start events

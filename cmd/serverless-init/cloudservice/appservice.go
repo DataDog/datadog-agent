@@ -10,14 +10,16 @@ import (
 	"maps"
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/collector"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // AppService has helper functions for getting specific Azure Container App data
-type AppService struct{}
+type AppService struct {
+	collector *collector.Collector
+}
 
 const (
 	//nolint:revive // TODO(SERV) Fix revive linter
@@ -63,6 +65,10 @@ func (a *AppService) GetOrigin() string {
 	return AppServiceOrigin
 }
 
+func (a *AppService) GetMetricPrefix() string {
+	return appServicePrefix
+}
+
 // GetSource returns the metrics source
 func (a *AppService) GetSource() metrics.MetricSource {
 	return metrics.MetricSourceAzureAppServiceEnhanced
@@ -75,7 +81,11 @@ func (a *AppService) Init(_ *TracingContext) error {
 
 // Shutdown emits the shutdown metric for AppService
 func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, _ error) {
-	metric.Add(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metricAgent)
+	metricAgent.AddMetric(appServicePrefix+".enhanced.shutdown", 1.0, a.GetSource(), metrics.DistributionType)
+}
+
+func (c *AppService) StartEnhancedMetrics(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
+	c.collector = startEnhancedMetrics(metricAgent, c.GetSource(), c.GetMetricPrefix())
 }
 
 // GetStartMetricName returns the metric name for container start (coldstart) events
