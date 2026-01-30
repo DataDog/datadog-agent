@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

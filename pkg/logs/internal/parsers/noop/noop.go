@@ -7,8 +7,8 @@
 package noop
 
 import (
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // New creates a default parser that simply returns lines unchanged as messages

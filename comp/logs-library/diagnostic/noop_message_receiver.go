@@ -5,7 +5,7 @@
 
 package diagnostic
 
-import "github.com/DataDog/datadog-agent/pkg/logs/message"
+import "github.com/DataDog/datadog-agent/comp/logs-library/message"
 
 // NoopMessageReceiver for cases where diagnosing messages is unsupported or not needed (tests)
 type NoopMessageReceiver struct{}

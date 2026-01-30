@@ -10,7 +10,7 @@
 // before further processing and aggregation of log messages.
 package parsers
 
-import "github.com/DataDog/datadog-agent/pkg/logs/message"
+import "github.com/DataDog/datadog-agent/comp/logs-library/message"
 
 // Parser parses messages, given as a raw byte sequence, into content and metadata.
 type Parser interface {
