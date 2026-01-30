@@ -46,6 +46,12 @@ func warnf(format string, args ...interface{}) *Warning {
 // application, including identification, versioning, installation details,
 // and system-specific information.
 type Entry struct {
+	// Source indicates the type or source of the software installation
+	// (e.g., "app", "pkg", "homebrew", "pip"). This field helps categorize
+	// software by its installation method or distribution channel.
+	// Placed first for easy identification when scanning JSON output.
+	Source string `json:"software_type"`
+
 	// DisplayName is the human-readable name of the software application
 	// as it appears to users (e.g., "Microsoft Office 365", "Adobe Photoshop").
 	// This field is used for display purposes and software identification.
@@ -62,11 +68,6 @@ type Entry struct {
 	// This field is optional and may be empty if the installation date
 	// cannot be determined.
 	InstallDate string `json:"deployment_time,omitempty"`
-
-	// Source indicates the type or source of the software installation
-	// (e.g., "desktop", "msstore", "msu"). This field helps categorize
-	// software by its installation method or distribution channel.
-	Source string `json:"software_type"`
 
 	// UserSID is the Security Identifier of the user who installed the software,
 	// particularly relevant for user-specific installations on Windows.
@@ -87,21 +88,89 @@ type Entry struct {
 	// the operational state of the software installation.
 	Status string `json:"deployment_status"`
 
+	// BrokenReason explains why the software installation is marked as broken.
+	// This field is only populated when Status is "broken" and provides
+	// specific details to help diagnose the issue.
+	// Examples:
+	//   - "executable not found: Contents/MacOS/MyApp"
+	//   - "install path not found: /usr/local/bin"
+	//   - "Info.plist missing CFBundleExecutable" (macOS)
+	//   - "MSI record not found in registry" (Windows)
+	BrokenReason string `json:"broken_reason,omitempty"`
+
 	// ProductCode is a unique identifier for the software product,
 	// often used in package management systems or installation databases
 	// (e.g., Windows Product Code, package identifiers). This field
 	// provides a stable identifier for tracking software across systems.
 	ProductCode string `json:"product_code"`
+
+	// InstallSource indicates how the software was installed on macOS.
+	// Possible values:
+	//   - "pkg": Installed via a .pkg installer package
+	//   - "mas": Installed from the Mac App Store
+	//   - "manual": Installed manually (drag-and-drop from DMG, etc.)
+	// This field is macOS-specific and helps understand the installation method.
+	InstallSource string `json:"install_source,omitempty"`
+
+	// PkgID is the package identifier from the macOS installer receipt database.
+	// This field is populated when InstallSource is "pkg" and provides a link
+	// to the corresponding PKG receipt in /var/db/receipts/. This enables
+	// cross-referencing between application entries and their installation records.
+	// Example: "com.microsoft.Word" for Microsoft Word installed via PKG.
+	PkgID string `json:"pkg_id,omitempty"`
+
+	// InstallPath is the filesystem path where the software is installed.
+	// This field helps identify the exact location of an installation, which is
+	// particularly useful when multiple versions of the same software exist
+	// in different locations (e.g., /Applications vs ~/Applications).
+	// Examples:
+	//   - Applications: "/Applications/Safari.app", "~/Applications/MyApp.app"
+	//   - Kernel extensions: "/Library/Extensions/SoftRAID.kext"
+	//   - System extensions: "/Library/SystemExtensions/.../com.example.extension.systemextension"
+	// For PKG receipts, this may be "N/A" if no single meaningful path exists;
+	// use InstallPaths for the full list of installation directories.
+	InstallPath string `json:"install_path,omitempty"`
+
+	// InstallPaths contains the top-level directories where a PKG installed files.
+	// This field is specific to PKG receipts and provides visibility into where
+	// the package scattered its files across the filesystem.
+	// Unlike InstallPath (single path), this captures all installation locations
+	// for packages that install to multiple directories (e.g., CLI tools that
+	// install binaries to /usr/local/bin and libraries to /usr/local/lib).
+	// Examples: ["/usr/local/bin", "/usr/local/ykman", "/Library/LaunchDaemons"]
+	InstallPaths []string `json:"install_paths,omitempty"`
 }
 
 // GetID returns a unique identifier for the software entry.
 // This method provides a consistent way to identify software entries
-// across different collection runs and system restarts. The current
-// implementation uses the DisplayName as the identifier, but this
-// could be enhanced to use more stable identifiers like ProductCode
-// when available.
+// across different collection runs and system restarts.
+//
+// The ID format is: "{source}:{identifier}:{path}" where:
+//   - source: the software type (e.g., "app", "homebrew", "pkg", "pip")
+//   - identifier: ProductCode if available, otherwise DisplayName
+//   - path: InstallPath to distinguish multiple installations of same software
+//
+// This ensures each installation location is tracked separately.
+// For example, pip packages installed in different Python environments
+// will each have their own entry.
 func (se *Entry) GetID() string {
-	return se.DisplayName
+	identifier := se.ProductCode
+	if identifier == "" {
+		identifier = se.DisplayName
+	}
+
+	// Build ID with source prefix
+	id := identifier
+	if se.Source != "" {
+		id = se.Source + ":" + identifier
+	}
+
+	// Include InstallPath to make each installation unique
+	if se.InstallPath != "" {
+		id = id + ":" + se.InstallPath
+	}
+
+	return id
 }
 
 // GetSoftwareInventoryWithCollectors returns a list of software entries using the provided collectors
