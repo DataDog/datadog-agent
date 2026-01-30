@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(Process) }
-
 // Process is a module that fetches process level data
 var Process = &module.Factory{
 	Name:             config.ProcessModule,
