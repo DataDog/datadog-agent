@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -128,6 +129,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
 		go updateModuleStats(name, mod)
 	})
+	go updateGlobalStats()
 
 	return nil
 }
@@ -136,7 +138,9 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 func GetStats() map[string]interface{} {
 	l.Lock()
 	defer l.Unlock()
-	return l.stats
+
+	// Copy the stats map to avoid race conditions
+	return maps.Clone(l.stats)
 }
 
 // RestartModule triggers a module restart
@@ -207,12 +211,9 @@ func (l *loader) IsClosed() bool {
 }
 
 func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
-	start := time.Now()
-	lastUpdate := start
 	nameStr := string(name)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
-	var now time.Time
 
 	for {
 		if l.IsClosed() {
@@ -225,20 +226,36 @@ func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 		l.statsUpdateTime.Set(updateTimeSeconds, nameStr)
 		l.statsUpdateCount.Inc(nameStr)
 
-		now = time.Now()
-
 		l.Lock()
 		l.stats[nameStr] = stats
-		if l.errors[name] != nil {
-			l.stats[nameStr] = map[string]string{"Error": l.errors[name].Error()}
-		}
-
-		l.stats["updated_at"] = now.Unix()
-		l.stats["delta_seconds"] = now.Sub(lastUpdate).Seconds()
-		l.stats["uptime"] = now.Sub(start).String()
 		l.Unlock()
 
-		lastUpdate = now
+		<-ticker.C
+	}
+}
+
+func updateGlobalStats() {
+	start := time.Now()
+	lastUpdate := start
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		if l.IsClosed() {
+			return
+		}
+
+		l.Lock()
+		for name, err := range l.errors {
+			l.stats[string(name)] = map[string]string{"Error": err.Error()}
+		}
+
+		l.stats["updated_at"] = time.Now().Unix()
+		l.stats["delta_seconds"] = time.Since(lastUpdate).Seconds()
+		l.stats["uptime"] = time.Since(start).String()
+		l.Unlock()
+
+		lastUpdate = time.Now()
 		<-ticker.C
 	}
 }
