@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 

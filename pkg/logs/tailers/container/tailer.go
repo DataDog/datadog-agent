@@ -26,9 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerstream"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/tag"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

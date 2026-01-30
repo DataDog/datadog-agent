@@ -8,9 +8,9 @@ package decoder
 import (
 	"regexp"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"

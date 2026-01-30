@@ -9,10 +9,10 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	status "github.com/DataDog/datadog-agent/comp/logs-library/status/utils"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/dockerfile"

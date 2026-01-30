@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	logstcp "github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
-	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"

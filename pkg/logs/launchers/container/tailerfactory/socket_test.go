@@ -14,9 +14,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers"
 	dockerutilPkg "github.com/DataDog/datadog-agent/pkg/util/docker"

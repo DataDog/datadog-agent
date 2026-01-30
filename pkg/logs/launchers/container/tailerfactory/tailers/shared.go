@@ -11,7 +11,7 @@ package tailers
 import (
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 )
 

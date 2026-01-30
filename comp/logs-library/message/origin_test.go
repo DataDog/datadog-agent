@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestSetTagsEmpty(t *testing.T) {

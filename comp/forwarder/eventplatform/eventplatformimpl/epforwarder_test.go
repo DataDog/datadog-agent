@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	laconfig "github.com/DataDog/datadog-agent/comp/logs-library/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfxmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

@@ -9,11 +9,11 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 

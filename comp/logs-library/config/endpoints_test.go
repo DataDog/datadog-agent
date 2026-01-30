@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -150,7 +151,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 
 	endpoint = endpoints.Main
 	suite.True(endpoint.UseCompression)
-	suite.Equal(endpoint.CompressionLevel, ZstdCompressionLevel)
+	suite.Equal(endpoint.CompressionLevel, pkgconfigsetup.DefaultZstdCompressionLevel)
 }
 
 func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPConfigAndCompressionAndOverride() {
@@ -895,16 +896,16 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 			name:                "No additional endpoints - use default",
 			additionalEndpoints: "",
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  ZstdCompressionKind,
-				CompressionLevel: ZstdCompressionLevel,
+				CompressionKind:  defaults.ZstdCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultZstdCompressionLevel,
 			},
 		},
 		{
 			name:                "Additional endpoints without explicit compression - fallback to gzip",
 			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  GzipCompressionKind,
-				CompressionLevel: GzipCompressionLevel,
+				CompressionKind:  defaults.GzipCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultGzipCompressionLevel,
 			},
 		},
 		{
@@ -912,8 +913,8 @@ func (suite *EndpointsTestSuite) TestCompressionKindWithAdditionalEndpoints() {
 			additionalEndpoints: `[{"api_key":"foo","host":"bar"}]`,
 			compressionKind:     "zstd",
 			expectedMain: EndpointCompressionOptions{
-				CompressionKind:  ZstdCompressionKind,
-				CompressionLevel: ZstdCompressionLevel,
+				CompressionKind:  defaults.ZstdCompressionKind,
+				CompressionLevel: pkgconfigsetup.DefaultZstdCompressionLevel,
 			},
 		},
 	}

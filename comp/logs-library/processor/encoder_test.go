@@ -17,9 +17,9 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/pb"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestRawEncoder(t *testing.T) {

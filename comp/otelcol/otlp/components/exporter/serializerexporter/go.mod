@@ -50,7 +50,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.71.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.71.0 // indirect
@@ -263,6 +263,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../../../comp/logs-library
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults => ../../../../../../comp/logs-library/defaults
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../../../comp/otelcol/collector-contrib/def

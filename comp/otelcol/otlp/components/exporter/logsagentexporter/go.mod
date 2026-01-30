@@ -7,7 +7,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata v0.76.0-devel
 	github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes v0.76.0-devel
@@ -41,6 +40,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/utils v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
@@ -237,6 +237,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../../../comp/logs-library
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults => ../../../../../../comp/logs-library/defaults
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../../../comp/otelcol/collector-contrib/def

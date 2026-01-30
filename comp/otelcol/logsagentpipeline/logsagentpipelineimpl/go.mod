@@ -8,7 +8,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.64.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.64.0-devel
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.76.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.61.0
 	github.com/DataDog/datadog-agent/comp/serializer/logscompression v0.64.0-rc.12
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.76.0-devel
@@ -32,6 +31,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.76.0-devel // indirect
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/create v0.76.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.76.0-devel // indirect
@@ -156,6 +156,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../../../comp/forwarder/defaultforwarder
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface => ../../../../comp/forwarder/orchestrator/orchestratorinterface
 	github.com/DataDog/datadog-agent/comp/logs-library => ../../../../comp/logs-library
+	github.com/DataDog/datadog-agent/comp/logs-library/defaults => ../../../../comp/logs-library/defaults
 	github.com/DataDog/datadog-agent/comp/logs/agent/config => ../../../../comp/logs/agent/config
 	github.com/DataDog/datadog-agent/comp/netflow/payload => ../../../../comp/netflow/payload
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../../../../comp/otelcol/collector-contrib/def

@@ -12,10 +12,10 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs-library/types"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"

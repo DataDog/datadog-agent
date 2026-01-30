@@ -23,7 +23,7 @@ import (
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/bmatcuk/doublestar/v4"
 )

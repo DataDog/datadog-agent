@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/defaults"
 	"github.com/DataDog/datadog-agent/comp/logs-library/types"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 type ConfigTestSuite struct {
@@ -672,7 +673,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
 		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
 		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
@@ -712,8 +713,8 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 		Port:                   0,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionKind:        ZstdCompressionKind,
-		CompressionLevel:       ZstdCompressionLevel,
+		CompressionKind:        defaults.ZstdCompressionKind,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
 		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
 		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
@@ -745,7 +746,7 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 	e := NewEndpoint("123", "", host, port, EmptyPathPrefix, ssl)
 	e.UseCompression = true
-	e.CompressionLevel = ZstdCompressionLevel // by default endpoints uses zstd
+	e.CompressionLevel = pkgconfigsetup.DefaultZstdCompressionLevel // by default endpoints uses zstd
 	e.BackoffFactor = defaults.DefaultLogsSenderBackoffFactor
 	e.BackoffBase = defaults.DefaultLogsSenderBackoffBase
 	e.BackoffMax = defaults.DefaultLogsSenderBackoffMax
@@ -906,7 +907,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
 		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
 		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,
@@ -951,7 +952,7 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 		Port:                   443,
 		useSSL:                 true,
 		UseCompression:         true,
-		CompressionLevel:       ZstdCompressionLevel,
+		CompressionLevel:       pkgconfigsetup.DefaultZstdCompressionLevel,
 		BackoffFactor:          defaults.DefaultLogsSenderBackoffFactor,
 		BackoffBase:            defaults.DefaultLogsSenderBackoffBase,
 		BackoffMax:             defaults.DefaultLogsSenderBackoffMax,

@@ -24,7 +24,7 @@ const (
 	DefaultBatchMaxContentSize = 5000000
 
 	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
+	DefaultLogCompressionKind = ZstdCompressionKind
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -38,4 +38,8 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	// Can be overridden by DefaultForwarderRecoveryInterval from pkg/config/setup/config.go
 	DefaultLogsSenderBackoffRecoveryInterval = 2
+
+	// The set of valid compression kinds for logs
+	GzipCompressionKind = "gzip"
+	ZstdCompressionKind = "zstd"
 )

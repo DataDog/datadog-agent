@@ -11,8 +11,8 @@ import (
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/status/statusinterface"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // AddrToHostPort converts a net.Addr to a (string, int).

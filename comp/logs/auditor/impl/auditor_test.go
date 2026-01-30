@@ -17,10 +17,10 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/config"
 	kubehealthmock "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	"github.com/DataDog/datadog-agent/comp/logs-library/types"
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 var testpath = "testpath"
