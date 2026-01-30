@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"sync"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -486,4 +487,55 @@ func TestNetworkConnectionProcessTags(t *testing.T) {
 	// Check tags for fourth connection (PID 4, no tags configured)
 	conn3Tags := connections1.GetConnectionsTags(connections1.Connections[1].TagsIdx)
 	assert.Empty(t, conn3Tags, "Connection with no configured process tags should have no tags")
+}
+
+// TestServiceExtractorConcurrentAccess tests for race conditions between
+// HandleEvent (writing to serviceByPID) and batches/addTags (reading from serviceByPID).
+// Run with: go test -race -run TestServiceExtractorConcurrentAccess ./pkg/network/sender/
+func TestServiceExtractorConcurrentAccess(t *testing.T) {
+	d := mockDirectSender(t)
+	d.sysprobeconfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
+
+	evm := &fakeEventMonitor{}
+	dsc, err := NewDirectSenderConsumer(evm, d.log, d.sysprobeconfig)
+	require.NoError(t, err)
+	dsch := dsc.(eventmonitor.EventConsumerHandler)
+
+	// Store the consumer instance so batches() -> addTags() can find it
+	directSenderConsumerInstance.Store(dsc.(*directSenderConsumer))
+	defer directSenderConsumerInstance.Store(nil)
+
+	conns := &network.Connections{BufferedData: network.BufferedData{Conns: makeConnections(100)}}
+
+	var wg sync.WaitGroup
+
+	// Goroutine 1: Continuously process events (writes to serviceByPID via ExtractSingle)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			e := evmodel.NewFakeEvent()
+			e.Type = uint32(evmodel.ExecEventType)
+			e.ProcessContext = &evmodel.ProcessContext{
+				Process: evmodel.Process{
+					PIDContext: evmodel.PIDContext{Pid: uint32(i%100) + 1},
+					Argv:       []string{"server.sh"},
+				},
+			}
+			e.Exec.Process = &e.ProcessContext.Process
+			proc := dsch.Copy(e)
+			dsch.HandleEvent(proc)
+		}
+	}()
+
+	// Goroutine 2: Continuously call batches which reads serviceByPID via GetServiceContext
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			_ = slices.Collect(d.batches(conns, int32(i)))
+		}
+	}()
+
+	wg.Wait()
 }
