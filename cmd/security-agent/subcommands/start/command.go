@@ -138,6 +138,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return status.NewInformationProvider(runtimeAgent.StatusProvider()), runtimeAgent, nil
 				}),
 				fx.Provide(func(stopper startstop.Stopper, log log.Component, config config.Component, statsdClient ddgostatsd.ClientInterface, sysprobeconfig sysprobeconfig.Component, wmeta workloadmeta.Component, filterStore workloadfilter.Component, compression logscompression.Component, ipc ipc.Component, hostname hostnameinterface.Component) (status.InformationProvider, *compliance.Agent, error) {
+					// Check if compliance should run in system-probe instead
+					if config.GetBool("compliance_config.run_in_system_probe") {
+						log.Info("compliance_config.run_in_system_probe is enabled, compliance will run in system-probe")
+						return status.NewInformationProvider(nil), nil, nil
+					}
+
 					hostnameDetected, err := hostname.Get(context.TODO())
 					if err != nil {
 						return status.NewInformationProvider(nil), nil, err
@@ -267,7 +273,12 @@ func RunAgent(log log.Component, config config.Component, secrets secrets.Compon
 	}
 
 	// Check if we have at least one component to start based on config
-	if !config.GetBool("compliance_config.enabled") && !config.GetBool("runtime_security_config.enabled") {
+	// Check if security-agent should run compliance
+	complianceEnabled := config.GetBool("compliance_config.enabled")
+	complianceRunInSystemProbe := config.GetBool("compliance_config.run_in_system_probe")
+	securityAgentShouldRunCompliance := complianceEnabled && !complianceRunInSystemProbe
+
+	if !securityAgentShouldRunCompliance && !config.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
