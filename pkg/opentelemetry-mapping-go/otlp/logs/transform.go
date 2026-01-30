@@ -189,17 +189,11 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 		slice := val.Slice()
 		flattened := make([]any, slice.Len())
 		for i := 0; i < slice.Len(); i++ {
-			elem := slice.At(i)
-			if elem.Type() == pcommon.ValueTypeMap {
-				elemResult := make(map[string]any)
-				elem.Map().Range(func(k string, v pcommon.Value) bool {
-					nestedResult := flattenAttribute(k, v, depth+1)
-					maps.Copy(elemResult, nestedResult)
-					return true
-				})
-				flattened[i] = elemResult
+			elemResult := flattenAttribute("", slice.At(i), depth+1)
+			if val, ok := elemResult[""]; ok {
+				flattened[i] = val
 			} else {
-				flattened[i] = elem.AsRaw()
+				flattened[i] = elemResult
 			}
 		}
 		result[key] = flattened
@@ -219,7 +213,10 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	}
 
 	val.Map().Range(func(k string, v pcommon.Value) bool {
-		newKey := key + "." + k
+		newKey := k
+		if key != "" {
+			newKey = key + "." + k
+		}
 		nestedResult := flattenAttribute(newKey, v, depth+1)
 		maps.Copy(result, nestedResult)
 		return true
