@@ -16,10 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/sources"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
-	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	serverlessTag "github.com/DataDog/datadog-agent/pkg/serverless/tags"
 )
