@@ -12,8 +12,6 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
-func init() { registerModule(PrivilegedLogs) }
-
 // PrivilegedLogs is a module that provides privileged logs access capabilities
 var PrivilegedLogs = &module.Factory{
 	Name:             config.PrivilegedLogsModule,
