@@ -68,6 +68,9 @@ type discovery struct {
 
 	// privilegedDetector is used to detect the language of a process.
 	privilegedDetector privileged.LanguageDetector
+
+	// ciliumConntracker reads Cilium eBPF maps for NAT-translated connections.
+	ciliumConntracker *ciliumConntracker
 }
 
 // NewDiscoveryModule creates a new discovery system probe module.
@@ -105,6 +108,12 @@ func (s *discovery) Register(httpMux *module.Router) error {
 func (s *discovery) Close() {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	if s.ciliumConntracker != nil {
+		if err := s.ciliumConntracker.Close(); err != nil {
+			log.Warnf("Failed to close Cilium conntracker: %v", err)
+		}
+	}
 
 	s.core.Close()
 }
@@ -1199,6 +1208,30 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 		connections = filtered
 	}
 
+	// Collect Cilium connections if enabled
+	var ciliumConnections []model.Connection
+	if s.config.EnableCiliumConntracker {
+		if s.ciliumConntracker == nil {
+			var err error
+			s.ciliumConntracker, err = newCiliumConntracker()
+			if err != nil {
+				log.Warnf("Failed to initialize Cilium conntracker: %v", err)
+			}
+		}
+		if s.ciliumConntracker != nil {
+			ciliumConns, err := s.ciliumConntracker.getConnections()
+			if err != nil {
+				log.Warnf("Failed to get Cilium connections: %v", err)
+			} else {
+				ciliumConnections = ciliumConns
+				log.Debugf("Retrieved %d connections from Cilium", len(ciliumConnections))
+			}
+		}
+	}
+
+	// Merge connections (prefer Cilium NAT if both sources have same connection)
+	connections = mergeConnections(connections, ciliumConnections)
+
 	// Apply NAT translations using conntrack
 	if s.config.EnableConntrack {
 		ctxTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -1225,4 +1258,66 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 	return &model.ConnectionsResponse{
 		Connections: connections,
 	}, nil
+}
+
+// mergeConnections deduplicates connections by 4-tuple, preferring Cilium NAT translations.
+// If a connection appears in both /proc and Cilium sources, and Cilium has NAT information,
+// the Cilium NAT translation is used.
+func mergeConnections(procConns, ciliumConns []model.Connection) []model.Connection {
+	if len(ciliumConns) == 0 {
+		return procConns
+	}
+
+	// Map connections by 4-tuple key
+	type connKey struct {
+		localIP    string
+		localPort  uint16
+		remoteIP   string
+		remotePort uint16
+	}
+
+	connMap := make(map[connKey]*model.Connection)
+
+	// Add /proc connections first
+	for i := range procConns {
+		key := connKey{
+			localIP:    procConns[i].Laddr.IP,
+			localPort:  procConns[i].Laddr.Port,
+			remoteIP:   procConns[i].Raddr.IP,
+			remotePort: procConns[i].Raddr.Port,
+		}
+		connMap[key] = &procConns[i]
+	}
+
+	// Merge Cilium connections, preferring Cilium NAT if both have the connection
+	for i := range ciliumConns {
+		key := connKey{
+			localIP:    ciliumConns[i].Laddr.IP,
+			localPort:  ciliumConns[i].Laddr.Port,
+			remoteIP:   ciliumConns[i].Raddr.IP,
+			remotePort: ciliumConns[i].Raddr.Port,
+		}
+
+		if existing, ok := connMap[key]; ok {
+			// Connection exists in both sources - merge NAT info from Cilium if available
+			if ciliumConns[i].TranslatedRaddr != nil {
+				existing.TranslatedRaddr = ciliumConns[i].TranslatedRaddr
+				log.Debugf("Merged Cilium NAT for connection %s:%d -> %s:%d (translated to %s:%d)",
+					existing.Laddr.IP, existing.Laddr.Port,
+					existing.Raddr.IP, existing.Raddr.Port,
+					existing.TranslatedRaddr.IP, existing.TranslatedRaddr.Port)
+			}
+		} else {
+			// Connection only in Cilium - add it
+			connMap[key] = &ciliumConns[i]
+		}
+	}
+
+	// Convert map back to slice
+	result := make([]model.Connection, 0, len(connMap))
+	for _, conn := range connMap {
+		result = append(result, *conn)
+	}
+
+	return result
 }
