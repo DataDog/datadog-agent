@@ -195,7 +195,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.7
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.1
 	github.com/aws/aws-sdk-go-v2/service/rds v1.113.2
-	github.com/aws/karpenter-provider-aws v1.8.2
+	github.com/aws/karpenter-provider-aws v1.8.6
 	github.com/beevik/ntp v1.5.0
 	github.com/benbjohnson/clock v1.3.5
 	github.com/bhmj/jsonslice v1.1.3
@@ -427,7 +427,7 @@ require (
 	pgregory.net/rapid v1.2.0
 	sigs.k8s.io/custom-metrics-apiserver v1.33.0
 	sigs.k8s.io/gateway-api v1.3.1-0.20250527223622-54df0a899c1c
-	sigs.k8s.io/karpenter v1.8.0
+	sigs.k8s.io/karpenter v1.8.2
 	sigs.k8s.io/yaml v1.6.0
 )
 
