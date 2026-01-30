@@ -7,11 +7,6 @@ on:
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
-  workflow_run:
-    # We need to run the label analysis as workflow_run because the label addition will not trigger it.
-    # See documentation https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow
-    workflows: ["Add labels to PR", "Add labels to community PRs"]
-    types: [completed]
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -20,45 +15,24 @@ permissions: {}
 
 jobs:
   get-pr-context:
-    if: |
-      (github.event_name == 'pull_request' && github.triggering_actor != 'dd-devflow[bot]') ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     outputs:
       PR_NUMBER: ${{ steps.context.outputs.pr_number }}
       HEAD_REF: ${{ steps.context.outputs.head_ref }}
       IS_FORK: ${{ steps.context.outputs.is_fork }}
     steps:
-      - name: Download PR number artifact
-        if: github.event_name == 'workflow_run'
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: pr_number
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
       - name: Get PR context
         id: context
         env:
           HEAD_REF: ${{ github.head_ref }}
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-            echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
-            if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-              echo "is_fork=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "is_fork=false" >> "$GITHUB_OUTPUT"
-            fi
+          echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          echo "head_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
+            echo "is_fork=true" >> "$GITHUB_OUTPUT"
           else
-            pr_number=$(cat pr_number.txt)
-            echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
-            echo "head_ref=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
-            if [[ "${{ github.event.workflow_run.head_repository.full_name }}" != "${{ github.repository }}" ]]; then
-              echo "is_fork=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "is_fork=false" >> "$GITHUB_OUTPUT"
-            fi
+            echo "is_fork=false" >> "$GITHUB_OUTPUT"
           fi
 
   release-note-check:
