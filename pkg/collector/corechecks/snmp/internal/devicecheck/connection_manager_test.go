@@ -130,38 +130,31 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 		IPAddress: "10.0.0.1",
 	}
 
-	mainSess := new(mockSession)
-	testSess := new(mockSession)
-	newSess := new(mockSession)
+	connectedSess := new(mockSession)
+	unconnectedSess := new(mockSession)
 
-	// Main session fails with timeout on reachability check
-	mainSess.On("Connect").Return(nil).Once()
-	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
+	// Connected session fails with timeout on reachability check
+	connectedSess.On("Connect").Return(nil).Once()
+	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, newMockTimeoutError("timeout")).Once()
+	connectedSess.On("Close").Return(nil).Once()
 
-	// Test session with unconnected socket succeeds
-	testSess.On("Connect").Return(nil).Once()
-	testSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
-	testSess.On("Close").Return(nil).Once()
-
-	// New session with unconnected socket for actual use
-	newSess.On("Connect").Return(nil).Once()
+	// Unconnected session succeeds
+	unconnectedSess.On("Connect").Return(nil).Once()
+	unconnectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
+		Return(&gosnmp.SnmpPacket{}, nil).Once()
 
 	callCount := 0
 	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
 		callCount++
 		if callCount == 1 {
-			// First call - main session
-			return mainSess, nil
-		} else if callCount == 2 {
-			// Second call - test session (with UseUnconnectedUDPSocket = true)
-			assert.True(t, cfg.UseUnconnectedUDPSocket, "Test session should have UseUnconnectedUDPSocket enabled")
-			return testSess, nil
-		} else {
-			// Third call - new session for actual use
-			assert.True(t, cfg.UseUnconnectedUDPSocket, "New session should have UseUnconnectedUDPSocket enabled")
-			return newSess, nil
+			// First call - connected session
+			assert.False(t, cfg.UseUnconnectedUDPSocket, "First session should use connected mode")
+			return connectedSess, nil
 		}
+		// Second call - unconnected session
+		assert.True(t, cfg.UseUnconnectedUDPSocket, "Second session should have UseUnconnectedUDPSocket enabled")
+		return unconnectedSess, nil
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
@@ -169,16 +162,15 @@ func TestConnectionManager_TimeoutTriggersFallback(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, reachable)
-	assert.Equal(t, newSess, sess)
-	assert.True(t, config.UseUnconnectedUDPSocket, "Config should be updated")
+	assert.Equal(t, unconnectedSess, sess)
+	// Note: Original config should NOT be modified (ConnectionManager makes a copy)
 
 	gotSess, err := connMgr.GetSession()
 	assert.NoError(t, err)
-	assert.Equal(t, newSess, gotSess)
+	assert.Equal(t, unconnectedSess, gotSess)
 
-	mainSess.AssertExpectations(t)
-	testSess.AssertExpectations(t)
-	newSess.AssertExpectations(t)
+	connectedSess.AssertExpectations(t)
+	unconnectedSess.AssertExpectations(t)
 }
 
 // TestConnectionManager_NonTimeoutError tests that non-timeout errors don't trigger fallback
@@ -208,33 +200,33 @@ func TestConnectionManager_NonTimeoutError(t *testing.T) {
 	mainSess.AssertExpectations(t)
 }
 
-// TestConnectionManager_FallbackTestFails tests fallback failure
+// TestConnectionManager_FallbackTestFails tests fallback when unconnected is also unreachable
 func TestConnectionManager_FallbackTestFails(t *testing.T) {
 	config := &checkconfig.CheckConfig{
 		IPAddress: "10.0.0.1",
 	}
 
-	mainSess := new(mockSession)
-	testSess := new(mockSession)
+	connectedSess := new(mockSession)
+	unconnectedSess := new(mockSession)
 
-	// Main session fails with timeout
-	mainSess.On("Connect").Return(nil).Once()
-	mainSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
+	// Connected session fails with timeout
+	connectedSess.On("Connect").Return(nil).Once()
+	connectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, newMockTimeoutError("timeout")).Once()
+	connectedSess.On("Close").Return(nil).Once()
 
-	// Test session fails
-	testSess.On("Connect").Return(nil).Once()
-	testSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
+	// Unconnected session connects but is also unreachable
+	unconnectedSess.On("Connect").Return(nil).Once()
+	unconnectedSess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).
 		Return(nil, errors.New("still fails")).Once()
-	testSess.On("Close").Return(nil).Once()
 
 	callCount := 0
 	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
 		callCount++
 		if callCount == 1 {
-			return mainSess, nil
+			return connectedSess, nil
 		}
-		return testSess, nil
+		return unconnectedSess, nil
 	}
 
 	connMgr := NewConnectionManager(config, sessionFactory)
@@ -242,12 +234,12 @@ func TestConnectionManager_FallbackTestFails(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.False(t, reachable)
-	// Session should be returned even when fallback test fails so caller can continue
+	// With new logic, we use unconnected session even if unreachable
 	assert.NotNil(t, sess)
-	assert.Equal(t, mainSess, sess)
+	assert.Equal(t, unconnectedSess, sess)
 
-	mainSess.AssertExpectations(t)
-	testSess.AssertExpectations(t)
+	connectedSess.AssertExpectations(t)
+	unconnectedSess.AssertExpectations(t)
 }
 
 // TestConnectionManager_Close tests connection closing

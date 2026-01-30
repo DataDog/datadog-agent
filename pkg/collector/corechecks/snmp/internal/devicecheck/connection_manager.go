@@ -52,7 +52,7 @@ type udpFallbackState struct {
 // NewConnectionManager creates a new SNMP connection manager.
 func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory session.Factory) ConnectionManager {
 	return &snmpConnectionManager{
-		config:         config,
+		config:         config.Copy(), // Make a copy to avoid mutating caller's config
 		sessionFactory: sessionFactory,
 		fallbackState:  udpFallbackState{},
 	}
@@ -61,24 +61,15 @@ func NewConnectionManager(config *checkconfig.CheckConfig, sessionFactory sessio
 // Connect establishes a connection and returns (session, deviceReachable, error).
 // Automatically falls back to unconnected UDP sockets for multi-homed devices.
 func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
-	// Create initial session
-	sess, err := m.sessionFactory(m.config)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to create session: %w", err)
+	// Try connected socket first (unless already using unconnected)
+	sess, reachable, reachErr := m.tryConnect(m.config)
+	if sess == nil {
+		// Socket connection failed - cannot connect at all
+		return nil, false, reachErr
 	}
 
-	// Try to connect
-	connectErr := sess.Connect()
-	if connectErr != nil {
-		// Socket connection failed - cannot use this session at all
-		return nil, false, connectErr
-	}
-
-	// Connection succeeded - now test reachability
-	// For UDP, Connect() doesn't establish a real connection; timeouts occur during read operations
-	_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-	if reachErr == nil {
-		// Both connect and reachability check succeeded
+	if reachable {
+		// Connected socket works perfectly
 		if !m.fallbackState.useUnconnectedSocket {
 			m.fallbackState.connectedSocketSucceeded = true
 		}
@@ -88,40 +79,38 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 
 	// Reachability check failed - check if we should attempt fallback
 	if !m.shouldAttemptFallback(reachErr) {
-		// Socket is connected but device is unreachable
-		// Return session so caller can continue and report device as unreachable
+		// Not a timeout or shouldn't fallback - return unreachable
 		m.session = sess
 		return sess, false, nil
 	}
 
-	// Timeout occurred - attempt fallback
-	log.Infof("[%s] Connected socket failed with timeout, testing unconnected socket fallback", m.config.IPAddress)
+	// Timeout occurred - try unconnected socket once
+	log.Infof("[%s] Connected socket failed with timeout, trying unconnected socket", m.config.IPAddress)
+	m.fallbackState.fallbackTestAttempted = true
+	m.config.UseUnconnectedUDPSocket = true
 
-	if !m.testFallback() {
-		log.Infof("[%s] Unconnected socket test failed, keeping connected mode", m.config.IPAddress)
-		// Return the session anyway so caller can continue and report device as unreachable
+	unconnectedSess, unconnectedReachable, unconnectedErr := m.tryConnect(m.config)
+	if unconnectedSess == nil {
+		// Unconnected socket failed to connect - fall back to connected
+		log.Infof("[%s] Unconnected socket failed: %s, keeping connected mode", m.config.IPAddress, unconnectedErr)
 		m.session = sess
 		return sess, false, nil
 	}
 
-	// Fallback test succeeded - switch to unconnected mode permanently
-	log.Infof("[%s] Unconnected socket test succeeded, switching to unconnected mode", m.config.IPAddress)
+	// Unconnected socket connected successfully - use it regardless of reachability
+	if unconnectedReachable {
+		log.Infof("[%s] Unconnected socket succeeded, switching to unconnected mode", m.config.IPAddress)
+	} else {
+		log.Infof("[%s] Unconnected socket connected but device unreachable, switching to unconnected mode", m.config.IPAddress)
+	}
 	m.fallbackState.useUnconnectedSocket = true
 
-	// Update config and recreate session for normal use
-	m.config.UseUnconnectedUDPSocket = true
-	newSess, createErr := m.sessionFactory(m.config)
-	if createErr != nil {
-		return nil, false, fmt.Errorf("failed to recreate session with unconnected socket for %s: %w", m.config.IPAddress, createErr)
+	// Close the old connected session and use unconnected
+	if err := sess.Close(); err != nil {
+		log.Debugf("[%s] Failed to close connected session: %s", m.config.IPAddress, err)
 	}
-
-	// Try connecting with new session
-	if connectErr := newSess.Connect(); connectErr != nil {
-		return nil, false, connectErr
-	}
-
-	m.session = newSess
-	return newSess, true, nil
+	m.session = unconnectedSess
+	return unconnectedSess, unconnectedReachable, nil
 }
 
 // GetSession returns the current active session.
@@ -161,38 +150,23 @@ func (m *snmpConnectionManager) shouldAttemptFallback(err error) bool {
 	return true
 }
 
-// testFallback tests if unconnected socket works for multi-homed devices.
-// Returns true if the test succeeded.
-func (m *snmpConnectionManager) testFallback() bool {
-	m.fallbackState.fallbackTestAttempted = true
-
-	// Create test session with unconnected socket
-	testConfig := m.config.Copy()
-	testConfig.UseUnconnectedUDPSocket = true
-
-	testSession, err := m.sessionFactory(testConfig)
+// tryConnect attempts to create a session, connect, and check reachability.
+// Returns (session, reachable, error).
+// If session is nil, connection failed and error is set.
+// If session is non-nil, connection succeeded; reachable indicates if device responded.
+func (m *snmpConnectionManager) tryConnect(config *checkconfig.CheckConfig) (session.Session, bool, error) {
+	sess, err := m.sessionFactory(config)
 	if err != nil {
-		log.Debugf("[%s] Fallback test: failed to create session: %s", m.config.IPAddress, err)
-		return false
-	}
-	defer func() {
-		if closeErr := testSession.Close(); closeErr != nil {
-			log.Debugf("[%s] Fallback test: failed to close session: %s", m.config.IPAddress, closeErr)
-		}
-	}()
-
-	if err := testSession.Connect(); err != nil {
-		log.Debugf("[%s] Fallback test: connect failed: %s", m.config.IPAddress, err)
-		return false
+		return nil, false, fmt.Errorf("failed to create session: %w", err)
 	}
 
-	_, err = testSession.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
-	if err != nil {
-		log.Debugf("[%s] Fallback test: GetNext failed: %s", m.config.IPAddress, err)
-		return false
+	connectErr := sess.Connect()
+	if connectErr != nil {
+		return nil, false, connectErr
 	}
 
-	return true
+	_, reachErr := sess.GetNext([]string{coresnmp.DeviceReachableGetNextOid})
+	return sess, reachErr == nil, reachErr
 }
 
 // isTimeoutError checks if error is a network timeout.
