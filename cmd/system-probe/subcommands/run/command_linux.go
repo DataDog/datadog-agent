@@ -31,6 +31,7 @@ import (
 	languagedetection "github.com/DataDog/datadog-agent/comp/system-probe/languagedetection/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
+	ping "github.com/DataDog/datadog-agent/comp/system-probe/ping/fx"
 	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
@@ -71,5 +72,6 @@ func getPlatformModules() fx.Option {
 
 		gpu.Module(),
 		languagedetection.Module(),
+		ping.Module(),
 	)
 }

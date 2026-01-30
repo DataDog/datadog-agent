@@ -25,8 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(Pinger) }
-
 const (
 	countParam    = "count"
 	intervalParam = "interval"
