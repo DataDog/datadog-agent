@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -92,6 +93,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 		logscompression.MockModule(),
 		metricscompression.MockModule(),
 		filterlistmock.MockModule(),
+		fx.Supply(option.None[observer.Component]()),
 
 		Module(Params{Serverless: false}),
 	))
@@ -111,6 +113,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlistmock.MockModule(),
+		fx.Supply(option.None[observer.Component]()),
 
 		Module(Params{Serverless: false}),
 	))
@@ -133,6 +136,7 @@ func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (de
 		metricscompression.MockModule(),
 		logscompression.MockModule(),
 		filterlistmock.MockModule(),
+		fx.Supply(option.None[observer.Component]()),
 	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)

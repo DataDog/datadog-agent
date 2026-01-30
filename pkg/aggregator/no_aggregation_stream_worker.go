@@ -10,6 +10,7 @@ import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
@@ -54,6 +55,10 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	// observerHandle is used to mirror timestamped metrics to the observer
+	// for local analysis
+	observerHandle observer.Handle
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -193,6 +198,11 @@ func (w *noAggregationStreamWorker) run() {
 						countUnsupportedType := 0
 
 						for _, sample := range samples {
+							// Mirror to observer before serialization (best-effort, non-blocking)
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(&sample)
+							}
+
 							mtype, supported := metricSampleAPIType(sample)
 
 							if !supported {

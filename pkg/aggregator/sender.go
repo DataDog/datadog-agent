@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -425,7 +426,7 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 	defer sp.m.Unlock()
 
 	err := sp.agg.registerSender(id)
-	sender := newCheckSender(
+	backendSender := newCheckSender(
 		id,
 		sp.agg.hostname,
 		sp.agg.checkItems,
@@ -435,8 +436,20 @@ func (sp *checkSenderPool) mkSender(id checkid.ID) (sender.Sender, error) {
 		sp.agg.orchestratorManifestIn,
 		sp.agg.eventPlatformIn,
 	)
-	sp.senders[id] = sender
-	return sender, err
+
+	// If observer high-frequency collection is enabled, wrap sender with AggregatingSender
+	var finalSender sender.Sender = backendSender
+	if highFreqInterval := pkgconfigsetup.Datadog().GetDuration("observer.high_frequency_interval"); highFreqInterval > 0 && sp.agg.observerHandle != nil {
+		// Get original check interval (default to 15s as per common check default)
+		// TODO: In the future, we could look this up from check configuration
+		originalInterval := 15 * time.Second
+
+		log.Debugf("Wrapping sender for check %s with AggregatingSender (high-freq: %v, original: %v)", id, highFreqInterval, originalInterval)
+		finalSender = sender.NewAggregatingSender(backendSender, sp.agg.observerHandle, originalInterval)
+	}
+
+	sp.senders[id] = finalSender
+	return finalSender, err
 }
 
 func (sp *checkSenderPool) setSender(sender sender.Sender, id checkid.ID) error {

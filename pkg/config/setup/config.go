@@ -842,6 +842,14 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
+	// Observer component configuration for metric capture and anomaly detection
+	config.BindEnvAndSetDefault("observer.capture_metrics.enabled", false)
+	config.BindEnvAndSetDefault("observer.capture_metrics.sample_rate", 1.0)
+	config.BindEnvAndSetDefault("observer.high_frequency_interval", 0*time.Second) // 0 = disabled
+	config.BindEnvAndSetDefault("observer.parquet_output_dir", "")                 // Directory for parquet files
+	config.BindEnvAndSetDefault("observer.parquet_flush_interval", 60*time.Second) // File rotation interval
+	config.BindEnvAndSetDefault("observer.parquet_retention", 24*time.Hour)        // Cleanup after 24 hours
+
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")

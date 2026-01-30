@@ -102,9 +102,38 @@ func NewComponent(deps Requires) Provides {
 		obsCh:     make(chan observation, 1000),
 		maxEvents: 1000, // Keep last 1000 events for debugging
 	}
-	go obs.run()
 
 	cfg := pkgconfigsetup.Datadog()
+
+	// Initialize parquet writer only if both capture_metrics.enabled AND parquet_output_dir are configured.
+	// When capture_metrics.enabled is false, no metrics are recorded to parquet.
+	captureMetricsEnabled := cfg.GetBool("observer.capture_metrics.enabled")
+	if captureMetricsEnabled {
+		if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
+			flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
+			if flushInterval == 0 {
+				flushInterval = 60 * time.Second
+			}
+
+			retentionDuration := cfg.GetDuration("observer.parquet_retention")
+			// Default to 24 hours if not set or invalid
+			if retentionDuration <= 0 {
+				retentionDuration = 24 * time.Hour
+			}
+
+			writer, err := NewParquetWriter(parquetDir, flushInterval, retentionDuration)
+			if err != nil {
+				pkglog.Errorf("Failed to create parquet writer: %v", err)
+			} else {
+				obs.parquetWriter = writer
+				pkglog.Infof("Observer parquet writer enabled: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
+			}
+		}
+	} else {
+		pkglog.Debug("Observer parquet writer disabled (observer.capture_metrics.enabled is false)")
+	}
+
+	go obs.run()
 
 	// Start periodic metric dump if configured
 	dumpPath := cfg.GetString("observer.debug_dump_path")
@@ -241,6 +270,9 @@ type observerImpl struct {
 	rawAnomalyMu     sync.RWMutex
 	rawAnomalyWindow int64 // seconds to keep raw anomalies (0 = unlimited)
 	currentDataTime  int64 // latest data timestamp seen
+
+	// Parquet writer for long-term storage of metrics
+	parquetWriter *ParquetWriter
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -263,6 +295,11 @@ var analysisAggregations = []Aggregate{AggregateAverage, AggregateCount}
 func (o *observerImpl) processMetric(source string, m *metricObs) {
 	// Add to storage
 	o.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
+
+	// Write to parquet if enabled
+	if o.parquetWriter != nil {
+		o.parquetWriter.WriteMetric(source, m.name, m.value, m.tags, m.timestamp)
+	}
 
 	// Run time series analyses on multiple aggregations
 	for _, agg := range analysisAggregations {
