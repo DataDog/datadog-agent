@@ -344,6 +344,9 @@ def get_build_flags(
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
 
+    if 'CC' in env:
+        env["RUST_CC"] = env["CC"]
+
     return ldflags, gcflags, env
 
 
