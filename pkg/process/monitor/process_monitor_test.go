@@ -8,7 +8,6 @@
 package monitor
 
 import (
-	"os"
 	"os/exec"
 	"sync"
 	"testing"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/consumers/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	netnsutil "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
@@ -113,17 +111,6 @@ func registerCallback(t *testing.T, pm *ProcessMonitor, isExec bool, callback *P
 	return unsubscribe
 }
 
-func getTestBinaryPath(t *testing.T) string {
-	tmpFile, err := os.CreateTemp("", "echo")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		os.Remove(tmpFile.Name())
-	})
-	require.NoError(t, filesystem.CopyFile("/bin/echo", tmpFile.Name()))
-
-	return tmpFile.Name()
-}
-
 func TestProcessMonitorSingleton(t *testing.T) {
 	// Making sure we get the same process monitor if we call it twice.
 	pm := getProcessMonitor(t)
@@ -140,7 +127,6 @@ type processMonitorSuite struct {
 func (s *processMonitorSuite) TestProcessMonitorSanity() {
 	t := s.T()
 	pm := getProcessMonitor(t)
-	testBinaryPath := getTestBinaryPath(t)
 
 	execRecorder := newPidRecorder()
 	registerCallback(t, pm, true, getProcessCallback(execRecorder))
@@ -149,7 +135,7 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 	registerCallback(t, pm, false, getProcessCallback(exitRecorder))
 
 	initializePM(t, pm, s.useEventStream)
-	cmd := exec.Command(testBinaryPath, "test")
+	cmd := exec.Command("/bin/echo", "test")
 	require.NoError(t, cmd.Run())
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		assert.Truef(ct, execRecorder.has(uint32(cmd.Process.Pid)), "didn't capture exec event %d", cmd.Process.Pid)
