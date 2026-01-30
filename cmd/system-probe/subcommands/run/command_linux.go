@@ -13,7 +13,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
+	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
+	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
+	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
 )
 
 func getPlatformModules() fx.Option {
@@ -26,5 +29,9 @@ func getPlatformModules() fx.Option {
 		npcollectorimpl.Module(),
 		// above are deps for system-probe module below
 		networktracer.Module(),
+
+		ebpf.Module(),
+		tcpqueuelength.Module(),
+		oomkill.Module(),
 	)
 }

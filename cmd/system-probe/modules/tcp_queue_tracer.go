@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
-func init() { registerModule(TCPQueueLength) }
-
 // TCPQueueLength Factory
 var TCPQueueLength = &module.Factory{
 	Name:             config.TCPQueueLengthTracerModule,

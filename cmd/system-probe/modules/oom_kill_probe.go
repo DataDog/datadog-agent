@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(OOMKillProbe) }
-
 // OOMKillProbe Factory
 var OOMKillProbe = &module.Factory{
 	Name:             config.OOMKillProbeModule,
