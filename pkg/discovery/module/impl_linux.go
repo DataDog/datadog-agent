@@ -1260,15 +1260,15 @@ func (s *discovery) getConnections() (*model.ConnectionsResponse, error) {
 	}, nil
 }
 
-// mergeConnections deduplicates connections by 4-tuple, preferring Cilium NAT translations.
-// If a connection appears in both /proc and Cilium sources, and Cilium has NAT information,
-// the Cilium NAT translation is used.
+// mergeConnections enriches /proc connections with NAT information from Cilium.
+// Only connections that exist in /proc are kept (we need PID information).
+// Cilium-only connections are skipped since they lack PID info.
 func mergeConnections(procConns, ciliumConns []model.Connection) []model.Connection {
 	if len(ciliumConns) == 0 {
 		return procConns
 	}
 
-	// Map connections by 4-tuple key
+	// Map Cilium connections by 4-tuple key for quick lookup
 	type connKey struct {
 		localIP    string
 		localPort  uint16
@@ -1276,9 +1276,23 @@ func mergeConnections(procConns, ciliumConns []model.Connection) []model.Connect
 		remotePort uint16
 	}
 
-	connMap := make(map[connKey]*model.Connection)
+	ciliumNATMap := make(map[connKey]*model.Address)
 
-	// Add /proc connections first
+	// Build lookup map of Cilium NAT translations
+	for i := range ciliumConns {
+		if ciliumConns[i].TranslatedRaddr != nil {
+			key := connKey{
+				localIP:    ciliumConns[i].Laddr.IP,
+				localPort:  ciliumConns[i].Laddr.Port,
+				remoteIP:   ciliumConns[i].Raddr.IP,
+				remotePort: ciliumConns[i].Raddr.Port,
+			}
+			ciliumNATMap[key] = ciliumConns[i].TranslatedRaddr
+		}
+	}
+
+	// Enrich /proc connections with Cilium NAT info
+	enrichedCount := 0
 	for i := range procConns {
 		key := connKey{
 			localIP:    procConns[i].Laddr.IP,
@@ -1286,38 +1300,20 @@ func mergeConnections(procConns, ciliumConns []model.Connection) []model.Connect
 			remoteIP:   procConns[i].Raddr.IP,
 			remotePort: procConns[i].Raddr.Port,
 		}
-		connMap[key] = &procConns[i]
-	}
 
-	// Merge Cilium connections, preferring Cilium NAT if both have the connection
-	for i := range ciliumConns {
-		key := connKey{
-			localIP:    ciliumConns[i].Laddr.IP,
-			localPort:  ciliumConns[i].Laddr.Port,
-			remoteIP:   ciliumConns[i].Raddr.IP,
-			remotePort: ciliumConns[i].Raddr.Port,
-		}
-
-		if existing, ok := connMap[key]; ok {
-			// Connection exists in both sources - merge NAT info from Cilium if available
-			if ciliumConns[i].TranslatedRaddr != nil {
-				existing.TranslatedRaddr = ciliumConns[i].TranslatedRaddr
-				log.Debugf("Merged Cilium NAT for connection %s:%d -> %s:%d (translated to %s:%d)",
-					existing.Laddr.IP, existing.Laddr.Port,
-					existing.Raddr.IP, existing.Raddr.Port,
-					existing.TranslatedRaddr.IP, existing.TranslatedRaddr.Port)
-			}
-		} else {
-			// Connection only in Cilium - add it
-			connMap[key] = &ciliumConns[i]
+		if translatedAddr, ok := ciliumNATMap[key]; ok {
+			procConns[i].TranslatedRaddr = translatedAddr
+			enrichedCount++
+			log.Debugf("Enriched connection with Cilium NAT: %s:%d -> %s:%d (translated to %s:%d)",
+				procConns[i].Laddr.IP, procConns[i].Laddr.Port,
+				procConns[i].Raddr.IP, procConns[i].Raddr.Port,
+				translatedAddr.IP, translatedAddr.Port)
 		}
 	}
 
-	// Convert map back to slice
-	result := make([]model.Connection, 0, len(connMap))
-	for _, conn := range connMap {
-		result = append(result, *conn)
+	if enrichedCount > 0 {
+		log.Debugf("Enriched %d connections with Cilium NAT information", enrichedCount)
 	}
 
-	return result
+	return procConns
 }

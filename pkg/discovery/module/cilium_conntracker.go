@@ -11,8 +11,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"os"
-	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -87,13 +85,9 @@ type backend struct {
 
 // ciliumConntracker reads Cilium eBPF maps to discover NAT-translated connections.
 type ciliumConntracker struct {
-	ctTCP        *maps.GenericMap[tupleKey4, ctEntry]
-	ctUDP        *maps.GenericMap[tupleKey4, ctEntry]
-	backends     *maps.GenericMap[backend4KeyV3, backend4ValueV3]
-	backendCache map[uint64]*backend
-	mu           sync.RWMutex
-	stop         chan struct{}
-	closeOnce    sync.Once
+	ctTCP    *maps.GenericMap[tupleKey4, ctEntry]
+	ctUDP    *maps.GenericMap[tupleKey4, ctEntry]
+	backends *maps.GenericMap[backend4KeyV3, backend4ValueV3]
 }
 
 // newCiliumConntracker creates a new Cilium conntracker.
@@ -116,10 +110,7 @@ func newCiliumConntracker() (*ciliumConntracker, error) {
 		return nil, nil
 	}
 
-	cc := &ciliumConntracker{
-		backendCache: make(map[uint64]*backend),
-		stop:         make(chan struct{}),
-	}
+	cc := &ciliumConntracker{}
 
 	// Wrap the raw eBPF maps with GenericMap for type-safe access
 	if cc.ctTCP, err = maps.Map[tupleKey4, ctEntry](ctTCP); err != nil {
@@ -134,24 +125,6 @@ func newCiliumConntracker() (*ciliumConntracker, error) {
 		log.Debugf("Could not make generic map for Cilium backends map: %v", err)
 		return nil, nil
 	}
-
-	// Start background goroutine to update backend cache
-	go func() {
-		// Initial update
-		cc.updateBackends()
-
-		tick := time.NewTicker(10 * time.Second)
-		defer tick.Stop()
-		for {
-			select {
-			case <-tick.C:
-				cc.updateBackends()
-			case <-cc.stop:
-				close(cc.stop)
-				return
-			}
-		}
-	}()
 
 	log.Info("Cilium conntracker initialized successfully")
 	return cc, nil
@@ -209,16 +182,15 @@ func loadCiliumMap(path string) (*ebpf.Map, error) {
 	return m, nil
 }
 
-// updateBackends refreshes the backend cache from the backends eBPF map.
-func (cc *ciliumConntracker) updateBackends() {
-	cc.mu.Lock()
-	defer cc.mu.Unlock()
+// snapshotBackends reads all backends from the eBPF map into a snapshot map.
+func (cc *ciliumConntracker) snapshotBackends() map[uint64]*backend {
+	backendCache := make(map[uint64]*backend)
 
 	it := cc.backends.Iterate()
 	var k backend4KeyV3
 	var v backend4ValueV3
 	for it.Next(&k, &v) {
-		cc.backendCache[uint64(k.ID)] = &backend{
+		backendCache[uint64(k.ID)] = &backend{
 			ip:   fmt.Sprintf("%d.%d.%d.%d", v.Address[0], v.Address[1], v.Address[2], v.Address[3]),
 			port: ntohs(v.Port),
 		}
@@ -227,14 +199,19 @@ func (cc *ciliumConntracker) updateBackends() {
 	if err := it.Err(); err != nil {
 		log.Warnf("Error iterating Cilium backends map: %v", err)
 	}
+
+	return backendCache
 }
 
 // getConnections retrieves all connections from Cilium's connection tracking maps.
 func (cc *ciliumConntracker) getConnections() ([]model.Connection, error) {
+	// Snapshot backends once at the start
+	backendCache := cc.snapshotBackends()
+
 	var connections []model.Connection
 
 	// Get TCP connections
-	tcpConns, err := cc.getConnectionsFromMap(cc.ctTCP, unix.IPPROTO_TCP)
+	tcpConns, err := cc.getConnectionsFromMap(cc.ctTCP, unix.IPPROTO_TCP, backendCache)
 	if err != nil {
 		log.Warnf("Failed to get TCP connections from Cilium: %v", err)
 	} else {
@@ -242,7 +219,7 @@ func (cc *ciliumConntracker) getConnections() ([]model.Connection, error) {
 	}
 
 	// Get UDP connections
-	udpConns, err := cc.getConnectionsFromMap(cc.ctUDP, unix.IPPROTO_UDP)
+	udpConns, err := cc.getConnectionsFromMap(cc.ctUDP, unix.IPPROTO_UDP, backendCache)
 	if err != nil {
 		log.Warnf("Failed to get UDP connections from Cilium: %v", err)
 	} else {
@@ -253,7 +230,7 @@ func (cc *ciliumConntracker) getConnections() ([]model.Connection, error) {
 }
 
 // getConnectionsFromMap extracts connections from a specific Cilium ct map.
-func (cc *ciliumConntracker) getConnectionsFromMap(ctMap *maps.GenericMap[tupleKey4, ctEntry], proto uint8) ([]model.Connection, error) {
+func (cc *ciliumConntracker) getConnectionsFromMap(ctMap *maps.GenericMap[tupleKey4, ctEntry], proto uint8, backendCache map[uint64]*backend) ([]model.Connection, error) {
 	var connections []model.Connection
 
 	it := ctMap.Iterate()
@@ -284,9 +261,7 @@ func (cc *ciliumConntracker) getConnectionsFromMap(ctMap *maps.GenericMap[tupleK
 		}
 
 		// Look up backend if available
-		cc.mu.RLock()
-		backend, hasBackend := cc.backendCache[value.BackendID]
-		cc.mu.RUnlock()
+		backend, hasBackend := backendCache[value.BackendID]
 
 		if hasBackend && backend != nil {
 			// Check if backend is different from destination (indicates NAT)
@@ -314,19 +289,15 @@ func (cc *ciliumConntracker) getConnectionsFromMap(ctMap *maps.GenericMap[tupleK
 
 // Close closes the Cilium conntracker and releases resources.
 func (cc *ciliumConntracker) Close() error {
-	cc.closeOnce.Do(func() {
-		cc.stop <- struct{}{}
-		<-cc.stop
-		if cc.ctTCP != nil {
-			cc.ctTCP.Map().Close()
-		}
-		if cc.ctUDP != nil {
-			cc.ctUDP.Map().Close()
-		}
-		if cc.backends != nil {
-			cc.backends.Map().Close()
-		}
-	})
+	if cc.ctTCP != nil {
+		cc.ctTCP.Map().Close()
+	}
+	if cc.ctUDP != nil {
+		cc.ctUDP.Map().Close()
+	}
+	if cc.backends != nil {
+		cc.backends.Map().Close()
+	}
 	return nil
 }
 
