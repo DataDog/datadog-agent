@@ -123,10 +123,13 @@ func (m *snmpConnectionManager) GetSession() (session.Session, error) {
 	return m.session, nil
 }
 
-// Close closes the current session.
+// Close closes the current session and clears it.
+// After Close(), GetSession() will return an error until Connect() is called again.
 func (m *snmpConnectionManager) Close() error {
 	if m.session != nil {
-		return m.session.Close()
+		err := m.session.Close()
+		m.session = nil
+		return err
 	}
 	return nil
 }

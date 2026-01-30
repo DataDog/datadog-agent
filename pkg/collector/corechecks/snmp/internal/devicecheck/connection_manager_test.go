@@ -257,6 +257,46 @@ func TestConnectionManager_Close(t *testing.T) {
 	sess.AssertExpectations(t)
 }
 
+// TestConnectionManager_GetSessionAfterClose tests that GetSession returns error after Close
+func TestConnectionManager_GetSessionAfterClose(t *testing.T) {
+	config := &checkconfig.CheckConfig{
+		IPAddress: "10.0.0.1",
+	}
+
+	sess := new(mockSession)
+	sess.On("Connect").Return(nil).Once()
+	sess.On("GetNext", []string{coresnmp.DeviceReachableGetNextOid}).Return(&gosnmp.SnmpPacket{}, nil).Once()
+	sess.On("Close").Return(nil).Once()
+
+	sessionFactory := func(cfg *checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+
+	// Connect should succeed
+	gotSess, err := connMgr.Connect()
+	assert.NoError(t, err)
+	assert.Equal(t, sess, gotSess)
+
+	// GetSession should work before Close
+	gotSess, err = connMgr.GetSession()
+	assert.NoError(t, err)
+	assert.Equal(t, sess, gotSess)
+
+	// Close the session
+	err = connMgr.Close()
+	assert.NoError(t, err)
+
+	// GetSession should now return an error
+	gotSess, err = connMgr.GetSession()
+	assert.Error(t, err)
+	assert.Nil(t, gotSess)
+	assert.Contains(t, err.Error(), "session not initialized")
+
+	sess.AssertExpectations(t)
+}
+
 // TestIsTimeoutError tests timeout error detection
 func TestIsTimeoutError(t *testing.T) {
 	tests := []struct {
