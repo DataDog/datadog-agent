@@ -252,12 +252,8 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 		}
 	}
 	// After all the rule are loaded, check if some isolation actions were removed
-	for remediationKey, state := range p.activeRemediations {
-		if state.actionType == RemediationTypeNetworkIsolation && !state.isolationReApplied && !state.isolationNew {
-			remediation, ok := p.activeRemediations[remediationKey]
-			if !ok || remediation == nil {
-				continue
-			}
+	for remediationKey, remediation := range p.activeRemediations {
+		if remediation.actionType == RemediationTypeNetworkIsolation && !remediation.isolationReApplied && !remediation.isolationNew {
 			networkFilterEvent := NewRemediationEvent(p, remediation, "removed", "cancel_network_isolation")
 			p.SendRemediationEvent(networkFilterEvent)
 			delete(p.activeRemediations, remediationKey)
