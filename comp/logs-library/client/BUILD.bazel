@@ -9,7 +9,7 @@ go_library(
         "destinations_context.go",
         "errors.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/pkg/logs/client",
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/client",
     visibility = ["//visibility:public"],
     deps = ["//pkg/logs/message"],
 )
