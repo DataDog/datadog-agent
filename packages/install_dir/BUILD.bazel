@@ -7,11 +7,9 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "embedded",
     srcs = [
-        "@freetds//:all_files",
         "//deps/gstatus:bin_files",
         # have to include this explicitly because it is not hooked up with package_metadata
         "//deps/gstatus:license_file",
-        "//deps/nfsiostat:all_files",
     ] + select({
         "@platforms//os:linux": [
             "//deps/compile_policy:bin_files",
@@ -31,7 +29,9 @@ filegroup(
     ] + select({
         "//packages/agent:linux_heroku": [],
         "//packages/agent:linux_default": [
+            "//deps/nfsiostat:all_files",
             "//deps/openscap:all_deps",
+            "@freetds//:all_files",
         ],
         "//conditions:default": [
             # This will become "//deps/openscap:all_deps" in the future
