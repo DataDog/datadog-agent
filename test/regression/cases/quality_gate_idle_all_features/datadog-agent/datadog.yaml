@@ -35,6 +35,7 @@ network_path:
 runtime_security_config:
   ## Set to true to enable CWS
   enabled: true
+  direct_send_from_system_probe: true
 
 cluster_checks:
   enabled: true
@@ -56,6 +57,7 @@ remote_configuration:
 compliance_config:
   ## Set to true to enable CIS benchmarks for Misconfigurations.
   enabled: true
+  run_in_system_probe: true
   host_benchmarks:
     enabled: true
 
