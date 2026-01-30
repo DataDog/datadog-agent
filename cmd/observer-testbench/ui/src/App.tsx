@@ -3,7 +3,40 @@ import { useObserver } from './hooks/useObserver';
 import { ChartWithAnomalyDetails } from './components/ChartWithAnomalyDetails';
 import { SeriesTree } from './components/SeriesTree';
 import { api } from './api/client';
-import type { SeriesData } from './api/client';
+import type { SeriesData, SeriesInfo } from './api/client';
+import type { SplitSeries } from './components/TimeSeriesChart';
+
+// Parse tag string "key:value" into parts
+function parseTag(tag: string): { key: string; value: string } | null {
+  const idx = tag.indexOf(':');
+  if (idx === -1) return null;
+  return { key: tag.slice(0, idx), value: tag.slice(idx + 1) };
+}
+
+// Get the base metric name without aggregation suffix
+function getBaseMetricName(name: string): string {
+  // Series names often end with :avg, :sum, :count, :min, :max
+  const match = name.match(/^(.+):(avg|sum|count|min|max)$/);
+  return match ? match[1] : name;
+}
+
+// Find all series variants (same base name, different tags)
+function findSeriesVariants(
+  baseName: string,
+  allSeries: SeriesInfo[],
+  splitByTag: string
+): SeriesInfo[] {
+  const base = getBaseMetricName(baseName);
+  return allSeries.filter((s) => {
+    const sBase = getBaseMetricName(s.name);
+    if (sBase !== base) return false;
+    // Must have the split tag key
+    return (s.tags ?? []).some((t) => {
+      const parsed = parseTag(t);
+      return parsed?.key === splitByTag;
+    });
+  });
+}
 
 function ConnectionStatus({ state }: { state: string }) {
   const colors: Record<string, string> = {
@@ -48,6 +81,8 @@ function App() {
   const [sidebarWidth, setSidebarWidth] = useState(320);
   const [correlationsExpanded, setCorrelationsExpanded] = useState(true);
   const [smoothLines, setSmoothLines] = useState(true);
+  const [splitByTag, setSplitByTag] = useState<string | null>(null);
+  const [splitSeriesData, setSplitSeriesData] = useState<Map<string, SeriesData[]>>(new Map());
   const isResizingRef = useRef(false);
 
   // Safely access arrays with fallbacks
@@ -68,6 +103,18 @@ function App() {
     () => components.filter((c) => c.type === 'ts_analysis').map((c) => c.name),
     [components]
   );
+
+  // Extract available tag keys from all series
+  const availableTagKeys = useMemo(() => {
+    const tagKeys = new Set<string>();
+    series.forEach((s) => {
+      (s.tags ?? []).forEach((t) => {
+        const parsed = parseTag(t);
+        if (parsed) tagKeys.add(parsed.key);
+      });
+    });
+    return Array.from(tagKeys).sort();
+  }, [series]);
 
   // Initialize enabled analyzers when components load
   useEffect(() => {
@@ -145,6 +192,45 @@ function App() {
 
     fetchSeriesData();
   }, [selectedSeries, state.connectionState, state.activeScenario]);
+
+  // Fetch split series data when splitByTag is enabled
+  useEffect(() => {
+    setSplitSeriesData(new Map());
+
+    if (!splitByTag || selectedSeries.size === 0 || state.connectionState !== 'ready') {
+      return;
+    }
+
+    const fetchSplitData = async () => {
+      const newSplitData = new Map<string, SeriesData[]>();
+
+      for (const key of selectedSeries) {
+        const [namespace, ...nameParts] = key.split('/');
+        const name = nameParts.join('/');
+
+        // Find all series variants with different tag values for the split key
+        const variants = findSeriesVariants(name, series, splitByTag);
+
+        if (variants.length > 1) {
+          // Fetch data for each variant
+          const variantData: SeriesData[] = [];
+          for (const variant of variants) {
+            try {
+              const data = await api.getSeriesData(variant.namespace, variant.name);
+              variantData.push(data);
+            } catch (e) {
+              console.error(`Failed to fetch variant ${variant.name}:`, e);
+            }
+          }
+          newSplitData.set(key, variantData);
+        }
+      }
+
+      setSplitSeriesData(newSplitData);
+    };
+
+    fetchSplitData();
+  }, [splitByTag, selectedSeries, series, state.connectionState]);
 
   const toggleAnalyzer = (name: string) => {
     const newSet = new Set(enabledAnalyzers);
@@ -241,6 +327,24 @@ function App() {
                 />
               </button>
             </label>
+            {/* Split by Tag Dropdown */}
+            {availableTagKeys.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">Split by</span>
+                <select
+                  value={splitByTag ?? ''}
+                  onChange={(e) => setSplitByTag(e.target.value || null)}
+                  className="text-xs bg-slate-700 text-slate-300 rounded px-2 py-1 border border-slate-600 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                >
+                  <option value="">None</option>
+                  {availableTagKeys.map((key) => (
+                    <option key={key} value={key}>
+                      {key}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <ConnectionStatus state={state.connectionState} />
             {state.status && (
               <span className="text-sm text-slate-400">
@@ -508,6 +612,25 @@ function App() {
                         start: c.firstSeen,
                         end: c.lastUpdated,
                       }));
+
+                    // Build split series if tag splitting is enabled
+                    let splitSeries: SplitSeries[] | undefined;
+                    if (splitByTag) {
+                      const variants = splitSeriesData.get(key);
+                      if (variants && variants.length > 1) {
+                        splitSeries = variants.map((v) => {
+                          // Find the value for the split tag
+                          const tagValue = (v.tags ?? [])
+                            .map((t) => parseTag(t))
+                            .find((p) => p?.key === splitByTag)?.value ?? 'unknown';
+                          return {
+                            label: `${splitByTag}:${tagValue}`,
+                            points: v.points,
+                          };
+                        });
+                      }
+                    }
+
                     return (
                       <ChartWithAnomalyDetails
                         key={key}
@@ -520,6 +643,7 @@ function App() {
                         timeRange={timeRange}
                         onTimeRangeChange={setTimeRange}
                         smoothLines={smoothLines}
+                        splitSeries={splitSeries}
                       />
                     );
                   })}

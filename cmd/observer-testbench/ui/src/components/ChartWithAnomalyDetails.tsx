@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { TimeSeriesChart } from './TimeSeriesChart';
+import type { SplitSeries } from './TimeSeriesChart';
 import type { Point, AnomalyMarker, Anomaly } from '../api/client';
 
 export interface CorrelationRange {
@@ -24,6 +25,7 @@ interface ChartWithAnomalyDetailsProps {
   timeRange?: TimeRange | null;
   onTimeRangeChange?: (range: TimeRange | null) => void;
   smoothLines?: boolean;
+  splitSeries?: SplitSeries[];
 }
 
 export function ChartWithAnomalyDetails({
@@ -36,6 +38,7 @@ export function ChartWithAnomalyDetails({
   timeRange,
   onTimeRangeChange,
   smoothLines = true,
+  splitSeries,
 }: ChartWithAnomalyDetailsProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
@@ -67,6 +70,7 @@ export function ChartWithAnomalyDetails({
         onTimeRangeChange={onTimeRangeChange}
         height={200}
         smoothLines={smoothLines}
+        splitSeries={splitSeries}
       />
 
       {/* Anomaly details - compact list below chart */}
