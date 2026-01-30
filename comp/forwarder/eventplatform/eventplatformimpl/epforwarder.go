@@ -68,7 +68,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    10e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -82,7 +82,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -99,7 +99,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -113,7 +113,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		},
@@ -128,7 +128,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
 			defaultBatchMaxConcurrentSend: 10,
 			defaultBatchMaxContentSize:    20e6,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
 		}, {
@@ -139,9 +139,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndm",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeSnmpTraps,
@@ -151,9 +151,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "snmp-traps-intake.",
 			intakeTrackType:               "ndmtraps",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeNetworkDevicesNetFlow,
@@ -163,7 +163,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndmflow-intake.",
 			intakeTrackType:               "ndmflow",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
 
 			// Each NetFlow flow is about 500 bytes
 			// 10k BatchMaxSize is about 5Mo of content size
@@ -185,9 +185,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "netpath-intake.",
 			intakeTrackType:               "netpath",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
@@ -197,9 +197,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndmconfig",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerLifecycle,
@@ -209,9 +209,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contlcycle-intake.",
 			intakeTrackType:               "contlcycle",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerImages,
@@ -221,9 +221,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "contimage-intake.",
 			intakeTrackType:               "contimage",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeContainerSBOM,
@@ -233,8 +233,8 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "sbom-intake.",
 			intakeTrackType:               "sbom",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
 			// on every periodic refresh, we re-send all the SBOMs for all the
 			// container images in the workloadmeta store. This can be a lot of
 			// payloads at once, so we need a large input channel size to avoid dropping
@@ -248,9 +248,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "http-synthetics.",
 			intakeTrackType:               "synthetics",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 		{
 			eventType:                     eventplatform.EventTypeEventManagement,
@@ -260,9 +260,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "event-management-intake.",
 			intakeTrackType:               "events",
 			defaultBatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 			//nolint:misspell
 			// TODO(ECT-4272): event-management-intake does not support batching/array, must send one event at a time
 			useStreamStrategy: true,
@@ -275,9 +275,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "trace.agent.",
 			intakeTrackType:               "data_streams_messages",
 			defaultBatchMaxConcurrentSend: 10,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		},
 	}
 
@@ -290,9 +290,9 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			hostnameEndpointPrefix:        "softinv-intake.",
 			intakeTrackType:               "softinv",
 			defaultBatchMaxConcurrentSend: defaults.DefaultBatchMaxConcurrentSend,
-			defaultBatchMaxContentSize:    pkgconfigsetup.DefaultBatchMaxContentSize,
-			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
-			defaultInputChanSize:          pkgconfigsetup.DefaultInputChanSize,
+			defaultBatchMaxContentSize:    defaults.DefaultBatchMaxContentSize,
+			defaultBatchMaxSize:           defaults.DefaultBatchMaxSize,
+			defaultInputChanSize:          defaults.DefaultInputChanSize,
 		}
 		passthroughPipelineDescs = append(passthroughPipelineDescs, softinvPipeline)
 	}
@@ -517,13 +517,13 @@ func newHTTPPassthroughPipeline(
 	if endpoints.BatchMaxConcurrentSend <= 0 {
 		endpoints.BatchMaxConcurrentSend = desc.defaultBatchMaxConcurrentSend
 	}
-	if endpoints.BatchMaxContentSize <= pkgconfigsetup.DefaultBatchMaxContentSize {
+	if endpoints.BatchMaxContentSize <= defaults.DefaultBatchMaxContentSize {
 		endpoints.BatchMaxContentSize = desc.defaultBatchMaxContentSize
 	}
-	if endpoints.BatchMaxSize <= pkgconfigsetup.DefaultBatchMaxSize {
+	if endpoints.BatchMaxSize <= defaults.DefaultBatchMaxSize {
 		endpoints.BatchMaxSize = desc.defaultBatchMaxSize
 	}
-	if endpoints.InputChanSize <= pkgconfigsetup.DefaultInputChanSize {
+	if endpoints.InputChanSize <= defaults.DefaultInputChanSize {
 		endpoints.InputChanSize = desc.defaultInputChanSize
 	}
 
