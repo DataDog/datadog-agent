@@ -8,9 +8,13 @@
 package integrationtests
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"testing"
+	"time"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -86,4 +90,65 @@ func TestMIGParentChildCoreCount(t *testing.T) {
 	}
 
 	require.True(t, foundMIGParent, "Should have at least one physical device with MIG enabled and children")
+}
+
+// TestMIGEnableModeWithSafeNVML verifies that MIG mode can be enabled while safenvml is active.
+func TestMIGEnableModeWithSafeNVML(t *testing.T) {
+	testutil.RequireGPU(t)
+	requireMIGTests(t)
+
+	if os.Geteuid() != 0 {
+		t.Skip("Skipping MIG enable test: requires root to change MIG mode")
+	}
+
+	if _, err := exec.LookPath("nvidia-smi"); err != nil {
+		t.Skip("Skipping MIG enable test: nvidia-smi not found")
+	}
+
+	lib := initNVML(t)
+	cache := safenvml.NewDeviceCache(safenvml.WithDeviceCacheLib(lib))
+	_, err := cache.AllPhysicalDevices()
+	require.NoError(t, err, "Should be able to list physical devices with safenvml")
+
+	deviceCount, err := lib.DeviceGetCount()
+	require.NoError(t, err, "Should be able to get device count")
+	require.Greater(t, deviceCount, 0, "Should have at least one GPU")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "nvidia-smi", "-mig", "0")
+	output, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("nvidia-smi timed out disabling MIG: %s", string(output))
+	}
+	require.NoError(t, err, "nvidia-smi should disable MIG mode, output: %s", string(output))
+
+	for i := 0; i < deviceCount; i++ {
+		device, err := lib.DeviceGetHandleByIndex(i)
+		require.NoError(t, err, "Should get device handle for index %d", i)
+
+		migMode, _, err := device.GetMigMode()
+		require.NoError(t, err, "Should get MIG mode for GPU %d", i)
+		require.Equal(t, nvml.DEVICE_MIG_DISABLE, migMode, "MIG mode should be disabled for GPU %d", i)
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd = exec.CommandContext(ctx, "nvidia-smi", "-mig", "1")
+	output, err = cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		t.Fatalf("nvidia-smi timed out enabling MIG: %s", string(output))
+	}
+	require.NoError(t, err, "nvidia-smi should enable MIG mode, output: %s", string(output))
+
+	for i := 0; i < deviceCount; i++ {
+		device, err := lib.DeviceGetHandleByIndex(i)
+		require.NoError(t, err, "Should get device handle for index %d", i)
+
+		migMode, _, err := device.GetMigMode()
+		require.NoError(t, err, "Should get MIG mode for GPU %d", i)
+		require.Equal(t, nvml.DEVICE_MIG_ENABLE, migMode, "MIG mode should be enabled for GPU %d", i)
+	}
 }
