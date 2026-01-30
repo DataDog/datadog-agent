@@ -197,6 +197,7 @@ func (e *Engine) Evaluate(input CELInput) *ServiceDiscoveryResult {
 }
 
 // getRuleID returns the rule name if set, otherwise the index as a string.
+// This is used for logging and debugging to identify which rule matched or failed.
 func getRuleID(rule compiledRule) string {
 	if rule.name != "" {
 		return rule.name

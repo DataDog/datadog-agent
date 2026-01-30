@@ -59,6 +59,7 @@ func LoadFromAgentConfig(cfg pkgconfigmodel.Reader) (*AgentServiceDiscoveryConfi
 }
 
 // loadFromReader is the internal implementation that works with the minimal configReader interface.
+// It extracts service discovery configuration from the config reader and validates it if enabled.
 func loadFromReader(cfg configReader) (*AgentServiceDiscoveryConfig, error) {
 	config := &AgentServiceDiscoveryConfig{
 		Enabled: cfg.GetBool("service_discovery.enabled"),
@@ -90,9 +91,11 @@ func loadFromReader(cfg configReader) (*AgentServiceDiscoveryConfig, error) {
 
 // parseServiceDefinitions converts the raw config value to typed ServiceDefinition slice.
 // Handles various slice types that config sources may produce:
-// - []interface{} (common from YAML unmarshaling)
-// - []map[string]interface{} (common from programmatic sources)
-// - []map[interface{}]interface{} (can occur with some YAML parsers)
+//   - []interface{} (common from YAML unmarshaling)
+//   - []map[string]interface{} (common from programmatic sources)
+//   - []map[interface{}]interface{} (can occur with some YAML parsers)
+//
+// Returns an error if the structure is invalid or required fields are missing.
 func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 	// Normalize different slice types to []interface{}
 	slice, err := normalizeSlice(raw)
@@ -137,6 +140,8 @@ func parseServiceDefinitions(raw interface{}) ([]ServiceDefinition, error) {
 
 // normalizeSlice converts various slice types to []interface{}.
 // Handles []interface{}, []map[string]interface{}, and []map[interface{}]interface{}.
+// This is necessary because different config sources (YAML files, env vars, remote config)
+// may produce different slice types.
 func normalizeSlice(raw interface{}) ([]interface{}, error) {
 	switch s := raw.(type) {
 	case []interface{}:
@@ -160,6 +165,7 @@ func normalizeSlice(raw interface{}) ([]interface{}, error) {
 
 // toStringMap converts a map to map[string]interface{}, handling both
 // map[string]interface{} and map[interface{}]interface{} (YAML unmarshaling returns the latter).
+// This normalization is required because YAML parsers may use interface{} keys.
 func toStringMap(v interface{}) (map[string]interface{}, error) {
 	switch m := v.(type) {
 	case map[string]interface{}:
@@ -248,7 +254,8 @@ func (c *AgentServiceDiscoveryConfig) Validate() error {
 	return nil
 }
 
-// validateCELBooleanExpression validates that an expression compiles and returns boolean
+// validateCELBooleanExpression validates that an expression compiles and returns boolean.
+// It accepts both BoolType and DynType (runtime validation ensures actual boolean value).
 func validateCELBooleanExpression(expr string) error {
 	env, err := engine.CreateCELEnvironment()
 	if err != nil {
@@ -269,7 +276,8 @@ func validateCELBooleanExpression(expr string) error {
 	return nil
 }
 
-// validateCELStringExpression validates that an expression compiles and returns string
+// validateCELStringExpression validates that an expression compiles and returns string.
+// It accepts both StringType and DynType (runtime validation ensures actual string value).
 func validateCELStringExpression(expr string) error {
 	env, err := engine.CreateCELEnvironment()
 	if err != nil {

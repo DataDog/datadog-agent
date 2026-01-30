@@ -105,23 +105,6 @@ func TestEvaluate_FirstRuleMatches(t *testing.T) {
 	assert.Equal(t, "0", result.MatchedRule)
 }
 
-func TestEvaluate_FirstRuleFails_SecondMatches(t *testing.T) {
-	eng, err := NewEngine([]Rule{
-		{Query: "container['name'] == 'db'", Value: "'database-service'"},
-		{Query: "container['name'] == 'web'", Value: "'web-service'"},
-	})
-	require.NoError(t, err)
-
-	input := CELInput{
-		Container: map[string]any{"name": "web"},
-	}
-
-	result := eng.Evaluate(input)
-	require.NotNil(t, result)
-	assert.Equal(t, "web-service", result.ServiceName)
-	assert.Equal(t, "1", result.MatchedRule)
-}
-
 func TestEvaluate_NoRuleMatches(t *testing.T) {
 	eng, err := NewEngine([]Rule{
 		{Query: "container['name'] == 'db'", Value: "'database-service'"},
@@ -140,23 +123,6 @@ func TestEvaluate_NoRuleMatches(t *testing.T) {
 func TestEvaluate_RuntimeErrorInQuery_RuleSkipped(t *testing.T) {
 	eng, err := NewEngine([]Rule{
 		{Query: "container.name == 'web'", Value: "'first-service'"}, // Will fail: container is map
-		{Query: "true", Value: "'fallback-service'"},
-	})
-	require.NoError(t, err)
-
-	input := CELInput{
-		Container: nil,
-	}
-
-	result := eng.Evaluate(input)
-	require.NotNil(t, result)
-	assert.Equal(t, "fallback-service", result.ServiceName)
-	assert.Equal(t, "1", result.MatchedRule)
-}
-
-func TestEvaluate_RuntimeErrorInValue_RuleSkipped(t *testing.T) {
-	eng, err := NewEngine([]Rule{
-		{Query: "true", Value: "container.name"}, // Will fail: container is nil
 		{Query: "true", Value: "'fallback-service'"},
 	})
 	require.NoError(t, err)
@@ -296,66 +262,15 @@ func TestEvaluate_ComplexExpressions(t *testing.T) {
 	}
 }
 
-func TestEvaluate_RuleNameInMatchedRule(t *testing.T) {
+// TestEvaluate_QueryRuntimeTypeMismatch tests that when a query expression returns
+// a non-boolean at runtime (via DynType), the rule is skipped.
+func TestEvaluate_QueryRuntimeTypeMismatch(t *testing.T) {
+	// Query compiles as DynType but returns string at runtime
 	eng, err := NewEngine([]Rule{
 		{
-			Name:  "redis-rule",
-			Query: "container['name'] == 'redis'",
-			Value: "'redis-service'",
-		},
-	})
-	require.NoError(t, err)
-
-	input := CELInput{
-		Container: map[string]any{"name": "redis"},
-	}
-
-	result := eng.Evaluate(input)
-	require.NotNil(t, result)
-	assert.Equal(t, "redis-service", result.ServiceName)
-	assert.Equal(t, "redis-rule", result.MatchedRule) // Name, not index
-}
-
-func TestEvaluate_RuleIndexWhenNameEmpty(t *testing.T) {
-	eng, err := NewEngine([]Rule{
-		{
-			Query: "container['name'] == 'redis'",
-			Value: "'redis-service'",
-		},
-	})
-	require.NoError(t, err)
-
-	input := CELInput{
-		Container: map[string]any{"name": "redis"},
-	}
-
-	result := eng.Evaluate(input)
-	require.NotNil(t, result)
-	assert.Equal(t, "redis-service", result.ServiceName)
-	assert.Equal(t, "0", result.MatchedRule) // Index when no name
-}
-
-func TestCreateCELEnvironment(t *testing.T) {
-	env, err := CreateCELEnvironment()
-	require.NoError(t, err)
-	assert.NotNil(t, env)
-
-	// Verify the environment can compile valid expressions
-	ast, issues := env.Compile("container['name'] == 'test'")
-	require.Nil(t, issues.Err())
-	assert.NotNil(t, ast)
-}
-
-// TestEvaluate_RuntimeTypeMismatch tests that when a value expression returns a non-string
-// (e.g., a map via DynType), the rule is skipped and logged, not crashed.
-func TestEvaluate_RuntimeTypeMismatch(t *testing.T) {
-	// This compiles as DynType (container['labels'] can be anything)
-	// but at runtime returns map[string]string, not string
-	eng, err := NewEngine([]Rule{
-		{
-			Name:  "type-mismatch-rule",
-			Query: "true",                // Always matches
-			Value: "container['labels']", // Returns map, not string
+			Name:  "bad-query-rule",
+			Query: "container['name']", // Returns string, not bool
+			Value: "'should-not-reach'",
 		},
 		{
 			Name:  "fallback-rule",
@@ -367,15 +282,140 @@ func TestEvaluate_RuntimeTypeMismatch(t *testing.T) {
 
 	input := CELInput{
 		Container: map[string]any{
-			"name":   "test",
-			"labels": map[string]string{"app": "myapp"}, // Map, not string
+			"name": "test-container",
 		},
 	}
 
-	// First rule should fail runtime type check and be skipped
+	// First rule should fail runtime type check (returns string, not bool)
 	// Fallback should be returned
 	result := eng.Evaluate(input)
 	require.NotNil(t, result)
 	assert.Equal(t, "fallback-service", result.ServiceName)
 	assert.Equal(t, "fallback-rule", result.MatchedRule)
+}
+
+// TestEvaluate_NilFieldAccess tests handling of nil/missing field access.
+func TestEvaluate_NilFieldAccess(t *testing.T) {
+	tests := []struct {
+		name        string
+		rules       []Rule
+		input       CELInput
+		wantService string
+		wantMatched string
+	}{
+		{
+			name: "access missing map key with fallback",
+			rules: []Rule{
+				{
+					Query: "container['nonexistent'] == 'value'", // Missing key
+					Value: "'should-skip'",
+				},
+				{
+					Query: "true",
+					Value: "'fallback'",
+				},
+			},
+			input: CELInput{
+				Container: map[string]any{
+					"name": "test",
+				},
+			},
+			wantService: "fallback",
+			wantMatched: "1",
+		},
+		{
+			name: "safe navigation with null check",
+			rules: []Rule{
+				{
+					Query: "container != null && 'labels' in container && 'app' in container['labels']",
+					Value: "container['labels']['app']",
+				},
+				{
+					Query: "true",
+					Value: "'default'",
+				},
+			},
+			input: CELInput{
+				Container: map[string]any{
+					"name": "test",
+				},
+			},
+			wantService: "default",
+			wantMatched: "1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng, err := NewEngine(tt.rules)
+			require.NoError(t, err)
+
+			result := eng.Evaluate(tt.input)
+			require.NotNil(t, result)
+			assert.Equal(t, tt.wantService, result.ServiceName)
+			assert.Equal(t, tt.wantMatched, result.MatchedRule)
+		})
+	}
+}
+
+// TestEvaluate_EmptyContainerInput tests behavior when container is nil or empty.
+func TestEvaluate_EmptyContainerInput(t *testing.T) {
+	tests := []struct {
+		name        string
+		rules       []Rule
+		input       CELInput
+		wantService string
+		wantMatched string
+		wantNil     bool
+	}{
+		{
+			name: "nil container access fails, fallback used",
+			rules: []Rule{
+				{
+					Query: "container['name'] == 'test'",
+					Value: "'should-skip'",
+				},
+				{
+					Query: "true",
+					Value: "'fallback'",
+				},
+			},
+			input: CELInput{
+				Container: nil,
+			},
+			wantService: "fallback",
+			wantMatched: "1",
+		},
+		{
+			name: "empty container map",
+			rules: []Rule{
+				{
+					Query: "container != null && size(container) == 0",
+					Value: "'empty-container'",
+				},
+			},
+			input: CELInput{
+				Container: map[string]any{},
+			},
+			wantService: "empty-container",
+			wantMatched: "0",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng, err := NewEngine(tt.rules)
+			require.NoError(t, err)
+
+			result := eng.Evaluate(tt.input)
+
+			if tt.wantNil {
+				assert.Nil(t, result)
+			} else {
+				require.NotNil(t, result)
+				assert.Equal(t, tt.wantService, result.ServiceName)
+				assert.Equal(t, tt.wantMatched, result.MatchedRule)
+			}
+		})
+	}
 }

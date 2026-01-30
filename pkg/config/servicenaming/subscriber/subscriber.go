@@ -94,7 +94,8 @@ func (s *Subscriber) Start(ctx context.Context) {
 	}
 }
 
-// handleEvents processes a batch of container events
+// handleEvents processes a batch of container events.
+// Only EventTypeSet events for containers are processed; others are skipped.
 func (s *Subscriber) handleEvents(events []workloadmeta.Event) {
 	for _, event := range events {
 		if event.Type != workloadmeta.EventTypeSet {
@@ -110,7 +111,9 @@ func (s *Subscriber) handleEvents(events []workloadmeta.Event) {
 	}
 }
 
-// processContainer evaluates CEL rules for a single container and stores the result
+// processContainer evaluates CEL rules for a single container and stores the result.
+// If a rule matches, the computed service name is stored back into workloadmeta
+// as CELServiceDiscovery metadata. If no rule matches, no metadata is written.
 func (s *Subscriber) processContainer(container *workloadmeta.Container) {
 	// Build CELInput from container metadata
 	input := buildCELInput(container)
@@ -145,7 +148,9 @@ func (s *Subscriber) processContainer(container *workloadmeta.Container) {
 	}
 }
 
-// buildCELInput creates a servicenaming.CELInput from a workloadmeta.Container
+// buildCELInput creates a servicenaming.CELInput from a workloadmeta.Container.
+// This function maps workloadmeta container metadata to the CEL input structure,
+// including image info, labels, environment variables, and ports.
 func buildCELInput(container *workloadmeta.Container) servicenaming.CELInput {
 	// Map ports from workloadmeta format to CEL format
 	ports := make([]servicenaming.PortCEL, len(container.Ports))

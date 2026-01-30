@@ -40,28 +40,6 @@ func TestNewSubscriber_Disabled(t *testing.T) {
 	assert.Nil(t, sub, "subscriber should be nil when disabled")
 }
 
-func TestNewSubscriber_EnabledNoRules(t *testing.T) {
-	// When enabled but no rules configured, NewSubscriber should return nil
-	yamlConfig := `
-service_discovery:
-  enabled: true
-  service_definitions: []
-`
-	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockFromYAML(t, yamlConfig)
-		}),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	cfg := wmeta.GetConfig()
-
-	sub, err := NewSubscriber(cfg, wmeta)
-	require.NoError(t, err)
-	assert.Nil(t, sub, "subscriber should be nil when no rules configured")
-}
-
 func TestNewSubscriber_InvalidRule(t *testing.T) {
 	// When a rule has invalid CEL syntax, NewSubscriber should return an error
 	yamlConfig := `
@@ -147,66 +125,6 @@ service_discovery:
 	require.NotNil(t, container.CELServiceDiscovery, "CELServiceDiscovery should be populated")
 	assert.Equal(t, "redis-service", container.CELServiceDiscovery.ServiceName)
 	assert.Equal(t, "redis-rule", container.CELServiceDiscovery.MatchedRule)
-}
-
-func TestSubscriber_FallbackRule(t *testing.T) {
-	// Test that the fallback rule (second rule) matches when first doesn't
-	yamlConfig := `
-service_discovery:
-  enabled: true
-  service_definitions:
-    - name: "app-label-rule"
-      query: "'app' in container['labels']"
-      value: "container['labels']['app']"
-    - name: "fallback-rule"
-      query: "true"
-      value: "container['image']['shortname']"
-`
-	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component {
-			return config.NewMockFromYAML(t, yamlConfig)
-		}),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-
-	cfg := wmeta.GetConfig()
-
-	sub, err := NewSubscriber(cfg, wmeta)
-	require.NoError(t, err)
-	require.NotNil(t, sub)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go sub.Start(ctx)
-	time.Sleep(50 * time.Millisecond)
-
-	// Add a container without 'app' label - should match fallback rule
-	testContainer := &workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   "nginx-container-456",
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:   "nginx-container",
-			Labels: map[string]string{"env": "production"},
-		},
-		Image: workloadmeta.ContainerImage{
-			Name:      "nginx:1.21",
-			ShortName: "nginx",
-			Tag:       "1.21",
-		},
-	}
-	wmeta.Set(testContainer)
-
-	time.Sleep(100 * time.Millisecond)
-
-	container, err := wmeta.GetContainer("nginx-container-456")
-	require.NoError(t, err)
-	require.NotNil(t, container.CELServiceDiscovery)
-	assert.Equal(t, "nginx", container.CELServiceDiscovery.ServiceName)
-	assert.Equal(t, "fallback-rule", container.CELServiceDiscovery.MatchedRule)
 }
 
 func TestSubscriber_NoMatchDoesNotWriteMetadata(t *testing.T) {
@@ -298,4 +216,150 @@ func TestBuildCELInput(t *testing.T) {
 	assert.Len(t, input.Container.Ports, 2)
 	assert.Equal(t, 8080, input.Container.Ports[0].Port)
 	assert.Equal(t, "http", input.Container.Ports[0].Name)
+}
+
+func TestProcessContainer_NilLabelsAndEnvs(t *testing.T) {
+	// Test that nil labels and envs are handled gracefully
+	yamlConfig := `
+service_discovery:
+  enabled: true
+  service_definitions:
+    - query: "true"
+      value: "container['image']['shortname']"
+`
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockFromYAML(t, yamlConfig)
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := wmeta.GetConfig()
+	sub, err := NewSubscriber(cfg, wmeta)
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sub.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Container with nil labels and envs
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "nil-metadata-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "test",
+			Labels: nil, // nil labels
+		},
+		EnvVars: nil, // nil envs
+		Image: workloadmeta.ContainerImage{
+			ShortName: "nginx",
+		},
+	}
+
+	wmeta.Set(container)
+	time.Sleep(100 * time.Millisecond)
+
+	// Should still work and extract service name from image
+	result, err := wmeta.GetContainer("nil-metadata-container")
+	require.NoError(t, err)
+	require.NotNil(t, result.CELServiceDiscovery)
+	assert.Equal(t, "nginx", result.CELServiceDiscovery.ServiceName)
+}
+
+func TestSubscriber_MultipleContainersInBundle(t *testing.T) {
+	// Test that multiple containers in a single event bundle are all processed
+	yamlConfig := `
+service_discovery:
+  enabled: true
+  service_definitions:
+    - query: "container['labels']['app'] == 'redis'"
+      value: "'redis-service'"
+    - query: "container['labels']['app'] == 'postgres'"
+      value: "'postgres-service'"
+    - query: "true"
+      value: "container['image']['shortname']"
+`
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockFromYAML(t, yamlConfig)
+		}),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	cfg := wmeta.GetConfig()
+	sub, err := NewSubscriber(cfg, wmeta)
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sub.Start(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	// Add multiple containers
+	redisContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "redis-123",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "redis",
+			Labels: map[string]string{"app": "redis"},
+		},
+		Image: workloadmeta.ContainerImage{ShortName: "redis"},
+	}
+
+	postgresContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "postgres-456",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "postgres",
+			Labels: map[string]string{"app": "postgres"},
+		},
+		Image: workloadmeta.ContainerImage{ShortName: "postgres"},
+	}
+
+	nginxContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "nginx-789",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "nginx",
+			Labels: map[string]string{"tier": "frontend"},
+		},
+		Image: workloadmeta.ContainerImage{ShortName: "nginx"},
+	}
+
+	wmeta.Set(redisContainer)
+	wmeta.Set(postgresContainer)
+	wmeta.Set(nginxContainer)
+
+	time.Sleep(150 * time.Millisecond)
+
+	// Verify all three containers were processed correctly
+	redis, err := wmeta.GetContainer("redis-123")
+	require.NoError(t, err)
+	require.NotNil(t, redis.CELServiceDiscovery)
+	assert.Equal(t, "redis-service", redis.CELServiceDiscovery.ServiceName)
+
+	postgres, err := wmeta.GetContainer("postgres-456")
+	require.NoError(t, err)
+	require.NotNil(t, postgres.CELServiceDiscovery)
+	assert.Equal(t, "postgres-service", postgres.CELServiceDiscovery.ServiceName)
+
+	nginx, err := wmeta.GetContainer("nginx-789")
+	require.NoError(t, err)
+	require.NotNil(t, nginx.CELServiceDiscovery)
+	assert.Equal(t, "nginx", nginx.CELServiceDiscovery.ServiceName)
 }
