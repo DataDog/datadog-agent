@@ -185,12 +185,20 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	result := make(map[string]any)
 
+	if val.Type() == pcommon.ValueTypeSlice {
+		if flattened, ok := flattenNameValueSlice(val.Slice()); ok {
+			result[key] = flattened
+			return result
+		}
+		result[key] = val.AsRaw()
+		return result
+	}
+
 	if val.Type() != pcommon.ValueTypeMap || depth == 10 {
 		if val.Type() == pcommon.ValueTypeStr ||
 			val.Type() == pcommon.ValueTypeInt ||
 			val.Type() == pcommon.ValueTypeBool ||
-			val.Type() == pcommon.ValueTypeDouble ||
-			val.Type() == pcommon.ValueTypeSlice {
+			val.Type() == pcommon.ValueTypeDouble {
 			result[key] = val.AsRaw()
 		} else {
 			result[key] = val.AsString()
@@ -206,6 +214,28 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	})
 
 	return result
+}
+
+func flattenNameValueSlice(slice pcommon.Slice) ([]any, bool) {
+	if slice.Len() == 0 {
+		return nil, false
+	}
+
+	flattened := make(map[string]any)
+	for i := 0; i < slice.Len(); i++ {
+		elem := slice.At(i)
+		if elem.Type() != pcommon.ValueTypeMap {
+			return nil, false
+		}
+		m := elem.Map()
+		nameVal, hasName := m.Get("name")
+		valueVal, hasValue := m.Get("value")
+		if !hasName || !hasValue || m.Len() != 2 {
+			return nil, false
+		}
+		flattened[nameVal.AsString()] = valueVal.AsRaw()
+	}
+	return []any{flattened}, true
 }
 
 func extractHostNameAndServiceName(resourceAttrs pcommon.Map, logAttrs pcommon.Map) (host string, service string) {
