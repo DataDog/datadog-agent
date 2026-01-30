@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	backoffticker "github.com/cenkalti/backoff/v4"
+	backoffticker "github.com/cenkalti/backoff/v5"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -292,7 +292,6 @@ func newLogBackoffTicker() *backoffticker.Ticker {
 	expBackoff := backoffticker.NewExponentialBackOff()
 	expBackoff.InitialInterval = 2 * time.Second
 	expBackoff.MaxInterval = 60 * time.Second
-	expBackoff.MaxElapsedTime = 0
 	expBackoff.Reset()
 	return backoffticker.NewTicker(expBackoff)
 }

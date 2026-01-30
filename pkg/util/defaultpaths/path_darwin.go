@@ -21,19 +21,20 @@ const (
 	additionalChecksPath = "/opt/datadog-agent/etc/checks.d"
 
 	// Log files
-	logFile                  = "/opt/datadog-agent/logs/agent.log"
-	dcaLogFile               = "/opt/datadog-agent/logs/cluster-agent.log"
-	jmxLogFile               = "/opt/datadog-agent/logs/jmxfetch.log"
-	dogstatsDProtocolLogFile = "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log"
-	dogstatsDServiceLogFile  = "/opt/datadog-agent/logs/dogstatsd.log"
-	traceAgentLogFile        = "/opt/datadog-agent/logs/trace-agent.log"
-	streamlogsLogFile        = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
-	updaterLogFile           = "/opt/datadog-agent/logs/updater.log"
-	securityAgentLogFile     = "/opt/datadog-agent/logs/security-agent.log"
-	processAgentLogFile      = "/opt/datadog-agent/logs/process-agent.log"
-	otelAgentLogFile         = "/opt/datadog-agent/logs/otel-agent.log"
-	hostProfilerLogFile      = "/opt/datadog-agent/logs/host-profiler.log"
-	systemProbeLogFile       = "/opt/datadog-agent/logs/system-probe.log"
+	logFile                    = "/opt/datadog-agent/logs/agent.log"
+	dcaLogFile                 = "/opt/datadog-agent/logs/cluster-agent.log"
+	jmxLogFile                 = "/opt/datadog-agent/logs/jmxfetch.log"
+	dogstatsDProtocolLogFile   = "/opt/datadog-agent/logs/dogstatsd_info/dogstatsd-stats.log"
+	dogstatsDServiceLogFile    = "/opt/datadog-agent/logs/dogstatsd.log"
+	traceAgentLogFile          = "/opt/datadog-agent/logs/trace-agent.log"
+	streamlogsLogFile          = "/opt/datadog-agent/logs/streamlogs_info/streamlogs.log"
+	updaterLogFile             = "/opt/datadog-agent/logs/updater.log"
+	securityAgentLogFile       = "/opt/datadog-agent/logs/security-agent.log"
+	processAgentLogFile        = "/opt/datadog-agent/logs/process-agent.log"
+	otelAgentLogFile           = "/opt/datadog-agent/logs/otel-agent.log"
+	hostProfilerLogFile        = "/opt/datadog-agent/logs/host-profiler.log"
+	privateActionRunnerLogFile = "/opt/datadog-agent/logs/private-action-runner.log"
+	systemProbeLogFile         = "/opt/datadog-agent/logs/system-probe.log"
 
 	// Flare directories
 	checkFlareDirectory = "/opt/datadog-agent/logs/checks/"
@@ -59,20 +60,21 @@ const (
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
 // These are the raw, untransformed paths. Use getter functions for runtime transformed paths.
 const (
-	DefaultConfPath             = confPath
-	DefaultConfdPath            = confdPath
-	DefaultAdditionalChecksPath = additionalChecksPath
-	DefaultLogFile              = logFile
-	DefaultUpdaterLogFile       = updaterLogFile
-	DefaultSecurityAgentLogFile = securityAgentLogFile
-	DefaultProcessAgentLogFile  = processAgentLogFile
-	DefaultOTelAgentLogFile     = otelAgentLogFile
-	DefaultHostProfilerLogFile  = hostProfilerLogFile
-	DefaultStreamlogsLogFile    = streamlogsLogFile
-	DefaultSystemProbeLogFile   = systemProbeLogFile
-	DefaultStatsdSocket         = statsdSocket
-	DefaultReceiverSocket       = receiverSocket
-	DefaultRunPath              = runPath
+	DefaultConfPath                   = confPath
+	DefaultConfdPath                  = confdPath
+	DefaultAdditionalChecksPath       = additionalChecksPath
+	DefaultLogFile                    = logFile
+	DefaultUpdaterLogFile             = updaterLogFile
+	DefaultSecurityAgentLogFile       = securityAgentLogFile
+	DefaultProcessAgentLogFile        = processAgentLogFile
+	DefaultOTelAgentLogFile           = otelAgentLogFile
+	DefaultHostProfilerLogFile        = hostProfilerLogFile
+	DefaultPrivateActionRunnerLogFile = privateActionRunnerLogFile
+	DefaultStreamlogsLogFile          = streamlogsLogFile
+	DefaultSystemProbeLogFile         = systemProbeLogFile
+	DefaultStatsdSocket               = statsdSocket
+	DefaultReceiverSocket             = receiverSocket
+	DefaultRunPath                    = runPath
 )
 
 var (

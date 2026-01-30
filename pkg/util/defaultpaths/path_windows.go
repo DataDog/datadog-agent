@@ -35,20 +35,21 @@ var (
 // These are the static default values before init() may update them based on registry.
 // For runtime paths that reflect registry customization, use getter functions instead.
 const (
-	DefaultConfPath             = "c:\\programdata\\datadog"
-	DefaultConfdPath            = "c:\\programdata\\datadog\\conf.d"
-	DefaultAdditionalChecksPath = "c:\\programdata\\datadog\\checks.d"
-	DefaultLogFile              = "c:\\programdata\\datadog\\logs\\agent.log"
-	DefaultUpdaterLogFile       = "c:\\programdata\\datadog\\logs\\updater.log"
-	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
-	DefaultProcessAgentLogFile  = "c:\\programdata\\datadog\\logs\\process-agent.log"
-	DefaultOTelAgentLogFile     = "c:\\programdata\\datadog\\logs\\otel-agent.log"
-	DefaultHostProfilerLogFile  = "c:\\programdata\\datadog\\logs\\host-profiler.log"
-	DefaultStreamlogsLogFile    = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
-	DefaultSystemProbeLogFile   = "c:\\programdata\\datadog\\logs\\system-probe.log"
-	DefaultStatsdSocket         = ""
-	DefaultReceiverSocket       = ""
-	DefaultRunPath              = "c:\\programdata\\datadog\\run"
+	DefaultConfPath                   = "c:\\programdata\\datadog"
+	DefaultConfdPath                  = "c:\\programdata\\datadog\\conf.d"
+	DefaultAdditionalChecksPath       = "c:\\programdata\\datadog\\checks.d"
+	DefaultLogFile                    = "c:\\programdata\\datadog\\logs\\agent.log"
+	DefaultUpdaterLogFile             = "c:\\programdata\\datadog\\logs\\updater.log"
+	DefaultSecurityAgentLogFile       = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	DefaultProcessAgentLogFile        = "c:\\programdata\\datadog\\logs\\process-agent.log"
+	DefaultOTelAgentLogFile           = "c:\\programdata\\datadog\\logs\\otel-agent.log"
+	DefaultHostProfilerLogFile        = "c:\\programdata\\datadog\\logs\\host-profiler.log"
+	DefaultPrivateActionRunnerLogFile = "c:\\programdata\\datadog\\logs\\private-action-runner.log"
+	DefaultStreamlogsLogFile          = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
+	DefaultSystemProbeLogFile         = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	DefaultStatsdSocket               = ""
+	DefaultReceiverSocket             = ""
+	DefaultRunPath                    = "c:\\programdata\\datadog\\run"
 )
 
 // Default paths for Windows systems.
@@ -60,19 +61,20 @@ var (
 	additionalChecksPath = DefaultAdditionalChecksPath
 
 	// Log files
-	logFile                  = DefaultLogFile
-	dcaLogFile               = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
-	jmxLogFile               = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
-	dogstatsDProtocolLogFile = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
-	dogstatsDServiceLogFile  = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
-	traceAgentLogFile        = "c:\\programdata\\datadog\\logs\\trace-agent.log"
-	streamlogsLogFile        = DefaultStreamlogsLogFile
-	updaterLogFile           = DefaultUpdaterLogFile
-	securityAgentLogFile     = DefaultSecurityAgentLogFile
-	processAgentLogFile      = DefaultProcessAgentLogFile
-	otelAgentLogFile         = DefaultOTelAgentLogFile
-	hostProfilerLogFile      = DefaultHostProfilerLogFile
-	systemProbeLogFile       = DefaultSystemProbeLogFile
+	logFile                    = DefaultLogFile
+	dcaLogFile                 = "c:\\programdata\\datadog\\logs\\cluster-agent.log"
+	jmxLogFile                 = "c:\\programdata\\datadog\\logs\\jmxfetch.log"
+	dogstatsDProtocolLogFile   = "c:\\programdata\\datadog\\logs\\dogstatsd_info\\dogstatsd-stats.log"
+	dogstatsDServiceLogFile    = "c:\\programdata\\datadog\\logs\\dogstatsd.log"
+	traceAgentLogFile          = "c:\\programdata\\datadog\\logs\\trace-agent.log"
+	streamlogsLogFile          = DefaultStreamlogsLogFile
+	updaterLogFile             = DefaultUpdaterLogFile
+	securityAgentLogFile       = DefaultSecurityAgentLogFile
+	processAgentLogFile        = DefaultProcessAgentLogFile
+	otelAgentLogFile           = DefaultOTelAgentLogFile
+	hostProfilerLogFile        = DefaultHostProfilerLogFile
+	privateActionRunnerLogFile = DefaultPrivateActionRunnerLogFile
+	systemProbeLogFile         = DefaultSystemProbeLogFile
 
 	// Flare directories
 	checkFlareDirectory = "c:\\programdata\\datadog\\logs\\checks\\"
@@ -106,6 +108,7 @@ func init() {
 		processAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
 		otelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
 		hostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
+		privateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
 		systemProbeLogFile = filepath.Join(pd, "logs", "system-probe.log")
 		checkFlareDirectory = filepath.Join(pd, "logs", "checks") + "\\"
 		jmxFlareDirectory = filepath.Join(pd, "logs", "jmxinfo") + "\\"

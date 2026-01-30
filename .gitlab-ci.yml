@@ -1,5 +1,8 @@
 ---
 include:
+  - local: .adms/npm/gitlab.yaml
+  - local: .adms/go/gitlab.yaml
+  - local: .adms/python/gitlab.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
   - local: .gitlab/deploy/**.yml
@@ -330,6 +333,30 @@ variables:
     - .gitlab/deploy/container_build/fakeintake.yml
     - .gitlab/deploy/dev_container_deploy/fakeintake.yml
 
+# Paths that impact the final build artifacts (rpm, deb, docker images, etc.)
+# Used to conditionally skip expensive tests like SMP when only non-artifact files change
+# like documentation, CI config, e2e tests.
+.artifacts_build_impacting_paths: &artifacts_build_impacting_paths
+  paths:
+    # agent source code
+    - go.mod
+    - go.sum
+    - cmd/**/*
+    - comp/**/*
+    - internal/**/*
+    - pkg/**/*
+    - rtloader/**/*
+    # Build system
+    - tasks/**/*.py
+    - deps/**/*
+    - omnibus/**/*
+    - .bazelrc
+    - .bazelversion
+    - bazel/**/*
+    - BUILD.bazel
+    - MODULE.bazel
+    - release.json
+
 .if_coverage_pipeline: &if_coverage_pipeline
   if: $E2E_COVERAGE_PIPELINE == "true"
 
@@ -476,6 +503,12 @@ workflow:
   - !reference [.except_main_release_or_mq]
   - <<: *if_tagged_commit
     when: never
+
+.on_dev_branches_with_artifact_changes:
+  - !reference [.on_dev_branches]
+  - changes:
+      <<: *artifacts_build_impacting_paths
+      compare_to: $COMPARE_TO_BRANCH
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy

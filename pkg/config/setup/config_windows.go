@@ -35,6 +35,8 @@ var (
 	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
 	// DefaultHostProfilerLogFile is the default host-profiler log file
 	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
+	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
+	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
 	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
@@ -46,10 +48,23 @@ var (
 )
 
 func osinit() {
+	// The config dir is configurable on Windows, so fetch the path from the registry
+	// This updates the exported vars to reflect the actual ProgramData location
+	pd, err := winutil.GetProgramDataDir()
+	if err == nil {
+		DefaultSecurityAgentLogFile = filepath.Join(pd, "logs", "security-agent.log")
+		DefaultProcessAgentLogFile = filepath.Join(pd, "logs", "process-agent.log")
+		DefaultUpdaterLogFile = filepath.Join(pd, "logs", "updater.log")
+		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
+		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
+		DefaultPrivateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
+		DefaultStreamlogsLogFile = filepath.Join(pd, "logs", "streamlogs_info", "streamlogs.log")
+	}
+
 	// The install path is configurable on Windows, so fetch the path from the registry
 	// Do NOT use executable.Folder() or _here to calculate the path, some exe files are in different locations
 	// so this can lead to an incorrect result.
-	pd, err := winutil.GetProgramFilesDirForProduct("Datadog Agent")
+	pd, err = winutil.GetProgramFilesDirForProduct("Datadog Agent")
 	if err == nil {
 		InstallPath = pd
 		DefaultDDAgentBin = filepath.Join(InstallPath, "bin", "agent.exe")

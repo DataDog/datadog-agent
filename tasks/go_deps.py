@@ -61,7 +61,10 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/sbomgen",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "system-probe": {
+        "entrypoint": "cmd/system-probe",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
     "cws-instrumentation": {
         "entrypoint": "cmd/cws-instrumentation",
         "platforms": ["linux/x64", "linux/arm64"],
@@ -91,6 +94,10 @@ BINARIES: dict[str, dict] = {
     "installer": {
         "entrypoint": "cmd/installer",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64"],
+    },
+    "privateactionrunner": {
+        "entrypoint": "cmd/privateactionrunner",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
     },
 }
 

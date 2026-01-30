@@ -24,19 +24,20 @@ const (
 	additionalChecksPath = "/etc/datadog-agent/checks.d"
 
 	// Log files
-	logFile                  = "/var/log/datadog/agent.log"
-	dcaLogFile               = "/var/log/datadog/cluster-agent.log"
-	jmxLogFile               = "/var/log/datadog/jmxfetch.log"
-	dogstatsDProtocolLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
-	dogstatsDServiceLogFile  = "/var/log/datadog/dogstatsd.log"
-	traceAgentLogFile        = "/var/log/datadog/trace-agent.log"
-	streamlogsLogFile        = "/var/log/datadog/streamlogs_info/streamlogs.log"
-	updaterLogFile           = "/var/log/datadog/updater.log"
-	securityAgentLogFile     = "/var/log/datadog/security-agent.log"
-	processAgentLogFile      = "/var/log/datadog/process-agent.log"
-	otelAgentLogFile         = "/var/log/datadog/otel-agent.log"
-	hostProfilerLogFile      = "/var/log/datadog/host-profiler.log"
-	systemProbeLogFile       = "/var/log/datadog/system-probe.log"
+	logFile                    = "/var/log/datadog/agent.log"
+	dcaLogFile                 = "/var/log/datadog/cluster-agent.log"
+	jmxLogFile                 = "/var/log/datadog/jmxfetch.log"
+	dogstatsDProtocolLogFile   = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
+	dogstatsDServiceLogFile    = "/var/log/datadog/dogstatsd.log"
+	traceAgentLogFile          = "/var/log/datadog/trace-agent.log"
+	streamlogsLogFile          = "/var/log/datadog/streamlogs_info/streamlogs.log"
+	updaterLogFile             = "/var/log/datadog/updater.log"
+	securityAgentLogFile       = "/var/log/datadog/security-agent.log"
+	processAgentLogFile        = "/var/log/datadog/process-agent.log"
+	otelAgentLogFile           = "/var/log/datadog/otel-agent.log"
+	hostProfilerLogFile        = "/var/log/datadog/host-profiler.log"
+	privateActionRunnerLogFile = "/var/log/datadog/private-action-runner.log"
+	systemProbeLogFile         = "/var/log/datadog/system-probe.log"
 
 	// Flare directories
 	checkFlareDirectory = "/var/log/datadog/checks/"
@@ -58,19 +59,20 @@ const (
 // Exported default path constants for use in BindEnvAndSetDefault and similar config registration.
 // These are the raw, untransformed FHS paths. Use getter functions for runtime transformed paths.
 const (
-	DefaultConfPath             = confPath
-	DefaultConfdPath            = confdPath
-	DefaultAdditionalChecksPath = additionalChecksPath
-	DefaultLogFile              = logFile
-	DefaultUpdaterLogFile       = updaterLogFile
-	DefaultSecurityAgentLogFile = securityAgentLogFile
-	DefaultProcessAgentLogFile  = processAgentLogFile
-	DefaultOTelAgentLogFile     = otelAgentLogFile
-	DefaultHostProfilerLogFile  = hostProfilerLogFile
-	DefaultStreamlogsLogFile    = streamlogsLogFile
-	DefaultSystemProbeLogFile   = systemProbeLogFile
-	DefaultStatsdSocket         = defaultStatsdSocket
-	DefaultReceiverSocket       = defaultReceiverSocket
+	DefaultConfPath                   = confPath
+	DefaultConfdPath                  = confdPath
+	DefaultAdditionalChecksPath       = additionalChecksPath
+	DefaultLogFile                    = logFile
+	DefaultUpdaterLogFile             = updaterLogFile
+	DefaultSecurityAgentLogFile       = securityAgentLogFile
+	DefaultProcessAgentLogFile        = processAgentLogFile
+	DefaultOTelAgentLogFile           = otelAgentLogFile
+	DefaultHostProfilerLogFile        = hostProfilerLogFile
+	DefaultPrivateActionRunnerLogFile = privateActionRunnerLogFile
+	DefaultStreamlogsLogFile          = streamlogsLogFile
+	DefaultSystemProbeLogFile         = systemProbeLogFile
+	DefaultStatsdSocket               = defaultStatsdSocket
+	DefaultReceiverSocket             = defaultReceiverSocket
 )
 
 var (

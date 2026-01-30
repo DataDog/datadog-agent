@@ -31,6 +31,8 @@ var (
 	DefaultOTelAgentLogFile = defaultpaths.DefaultOTelAgentLogFile
 	// DefaultHostProfilerLogFile is the default host-profiler log file
 	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
+	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
+	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
 	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
 	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
 	// DefaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe

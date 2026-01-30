@@ -83,3 +83,39 @@ func RunServerNodeJS(t *testing.T, key, cert, serverPort string) error {
 func GetNodeJSDockerPID() (int64, error) {
 	return dockerutils.GetMainPID("node-node-1")
 }
+
+// RunServerNodeJSUbuntu launches an HTTPs server written in NodeJS using the Ubuntu-based image.
+// Ubuntu 22.04's nodejs package has SSL symbols bundled in libnode.so (not imported from libssl.so).
+func RunServerNodeJSUbuntu(t *testing.T, key, cert, serverPort string) error {
+	t.Helper()
+	dir, _ := testutil.CurDir()
+	if err := linkFile(t, key, dir+"/testdata/certs/srv.key"); err != nil {
+		return err
+	}
+	if err := linkFile(t, cert, dir+"/testdata/certs/srv.crt"); err != nil {
+		return err
+	}
+	env := []string{
+		"ADDR=0.0.0.0",
+		"PORT=" + serverPort,
+		"CERTS_DIR=/v/certs",
+		"TESTDIR=" + dir + "/testdata",
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("Server running at https.*"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"nodejs-ubuntu-server",
+			scanner,
+			dockerutils.WithEnv(env),
+		),
+		path.Join(dir, "testdata", "docker-compose-ubuntu.yml"))
+	return dockerutils.Run(t, dockerCfg)
+}
+
+// GetNodeJSUbuntuDockerPID returns the PID of the nodejs Ubuntu docker container.
+func GetNodeJSUbuntuDockerPID() (int64, error) {
+	return dockerutils.GetMainPID("node-ubuntu-node-1")
+}

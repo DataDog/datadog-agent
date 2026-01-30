@@ -9,7 +9,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -151,7 +150,7 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	logsAgent := serverlessInitLog.SetupLogAgent(agentLogConfig, tags, tagger, compression, hostname, origin)
 
 	traceTags := serverlessInitTag.MakeTraceAgentTags(tags)
-	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger)
+	traceAgent := setupTraceAgent(traceTags, configuredTags, tagger, origin)
 
 	tracingCtx := &cloudservice.TracingContext{
 		TraceAgent: traceAgent,
@@ -172,7 +171,8 @@ func setup(secretComp secrets.Component, _ mode.Conf, tagger tagger.Component, c
 	return cloudService, agentLogConfig, tracingCtx, metricAgent, logsAgent
 }
 
-var azureServerlessTags = []string{
+var serverlessProfileTags = []string{
+	// Azure tags
 	"subscription_id",
 	"resource_group",
 	"resource_id",
@@ -184,24 +184,34 @@ var azureServerlessTags = []string{
 	"aas.subscription.id",
 	"aas.resource.group",
 	"aas.resource.id",
+	// Cloud-agnostic origin tag
 	"_dd.origin",
 }
 
-func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component) trace.ServerlessTraceAgent {
-	var azureTags strings.Builder
-	for _, azureServerlessTag := range azureServerlessTags {
-		if value, ok := tags[azureServerlessTag]; ok {
-			azureTags.WriteString(fmt.Sprintf(",%s:%s", azureServerlessTag, value))
+func setupTraceAgent(tags map[string]string, configuredTags []string, tagger tagger.Component, origin string) trace.ServerlessTraceAgent {
+	profileTags := make(map[string]string)
+	for _, serverlessProfileTag := range serverlessProfileTags {
+		if value, ok := tags[serverlessProfileTag]; ok {
+			profileTags[serverlessProfileTag] = value
+		}
+	}
+
+	// For Google Cloud Run Functions, add functionname tag to profiles so the profiling team can filter by functions
+	if origin == cloudservice.CloudRunOrigin {
+		_, functionTargetExists := os.LookupEnv("FUNCTION_TARGET")
+
+		if functionTargetExists {
+			profileTags["functionname"] = os.Getenv(cloudservice.ServiceNameEnvVar)
 		}
 	}
 
 	// Note: serverless trace tag logic also in comp/trace/payload-modifier/impl/payloadmodifier_test.go
 	functionTags := strings.Join(configuredTags, ",")
 	traceAgent := trace.StartServerlessTraceAgent(trace.StartServerlessTraceAgentArgs{
-		Enabled:             pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
-		LoadConfig:          &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
-		AzureServerlessTags: azureTags.String(),
-		FunctionTags:        functionTags,
+		Enabled:               pkgconfigsetup.Datadog().GetBool("apm_config.enabled"),
+		LoadConfig:            &trace.LoadConfig{Path: datadogConfigPath, Tagger: tagger},
+		AdditionalProfileTags: profileTags,
+		FunctionTags:          functionTags,
 	})
 	traceAgent.SetTags(tags)
 	go func() {
