@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build kubeapiserver
+
 package appsec
 
 import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -29,6 +31,6 @@ func (m mutationFilter) IsNamespaceEligible(ns string) bool {
 
 func newMutationFilter() *mutationFilter {
 	return &mutationFilter{
-		ddNamespace: apiServerCommon.GetResourcesNamespace(),
+		ddNamespace: namespace.GetResourcesNamespace(),
 	}
 }
