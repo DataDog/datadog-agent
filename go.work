@@ -102,7 +102,6 @@ use (
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
