@@ -7,7 +7,7 @@
 package client
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 )
 
 // Destination sends a payload to a specific endpoint over a given network protocol.

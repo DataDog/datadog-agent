@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // MessageReceiver interface to handle messages for diagnostics

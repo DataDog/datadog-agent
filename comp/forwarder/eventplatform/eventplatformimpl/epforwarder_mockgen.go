@@ -7,7 +7,7 @@ package eventplatformimpl
 import (
 	reflect "reflect"
 
-	message "github.com/DataDog/datadog-agent/pkg/logs/message"
+	message "github.com/DataDog/datadog-agent/comp/logs-library/message"
 	gomock "github.com/golang/mock/gomock"
 )
 

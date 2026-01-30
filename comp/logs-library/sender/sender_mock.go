@@ -8,8 +8,8 @@ package sender
 import (
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/message"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // NewMockSender generates a mock sender
