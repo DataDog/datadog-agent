@@ -105,10 +105,10 @@ func NewComponent(deps Requires) Provides {
 
 	cfg := pkgconfigsetup.Datadog()
 
-	// Initialize parquet writer only if both capture_metrics AND parquet_output_dir are configured.
-	// When capture_metrics is false, no metrics are recorded to parquet.
-	captureMetrics := cfg.GetBool("observer.capture_metrics")
-	if captureMetrics {
+	// Initialize parquet writer only if both capture_metrics.enabled AND parquet_output_dir are configured.
+	// When capture_metrics.enabled is false, no metrics are recorded to parquet.
+	captureMetricsEnabled := cfg.GetBool("observer.capture_metrics.enabled")
+	if captureMetricsEnabled {
 		if parquetDir := cfg.GetString("observer.parquet_output_dir"); parquetDir != "" {
 			flushInterval := cfg.GetDuration("observer.parquet_flush_interval")
 			if flushInterval == 0 {
@@ -130,7 +130,7 @@ func NewComponent(deps Requires) Provides {
 			}
 		}
 	} else {
-		pkglog.Debug("Observer parquet writer disabled (observer.capture_metrics is false)")
+		pkglog.Debug("Observer parquet writer disabled (observer.capture_metrics.enabled is false)")
 	}
 
 	go obs.run()

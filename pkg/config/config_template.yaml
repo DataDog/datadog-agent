@@ -2717,14 +2717,14 @@ api_key:
 ## Observer Component   ##
 ##########################
 
-## @param observer.capture_metrics - boolean - optional - default: false
-## @env DD_OBSERVER_CAPTURE_METRICS - boolean - optional - default: false
+## @param observer.capture_metrics.enabled - boolean - optional - default: false
+## @env DD_OBSERVER_CAPTURE_METRICS_ENABLED - boolean - optional - default: false
 ## Enable capturing all metrics flowing through the agent (check metrics, DogStatsD, timestamped).
 ## When enabled, metrics are mirrored to the observer component for local analysis and anomaly detection.
 ## This adds a small overhead for metric observation but enables powerful local analysis capabilities.
 #
 # observer:
-#   capture_metrics: false
+#   capture_metrics.enabled: false
 
 ## @param observer.capture_metrics.sample_rate - number - optional - default: 1.0
 ## @env DD_OBSERVER_CAPTURE_METRICS_SAMPLE_RATE - number - optional - default: 1.0

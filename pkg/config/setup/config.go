@@ -843,7 +843,7 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
 	// Observer component configuration for metric capture and anomaly detection
-	config.BindEnvAndSetDefault("observer.capture_metrics", false)
+	config.BindEnvAndSetDefault("observer.capture_metrics.enabled", false)
 	config.BindEnvAndSetDefault("observer.capture_metrics.sample_rate", 1.0)
 	config.BindEnvAndSetDefault("observer.high_frequency_interval", 0*time.Second) // 0 = disabled
 	config.BindEnvAndSetDefault("observer.parquet_output_dir", "")                 // Directory for parquet files

@@ -120,7 +120,7 @@ Enable Parquet recording in `datadog.yaml`:
 
 ```yaml
 observer:
-  capture_metrics: true
+  capture_metrics.enabled: true
   parquet_output_dir: "/var/log/datadog/observer-metrics"
   parquet_flush_interval: 60s  # File rotation interval
   parquet_retention: 24h        # Automatic cleanup (0 = disabled)
