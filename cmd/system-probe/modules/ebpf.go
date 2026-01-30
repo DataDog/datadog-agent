@@ -23,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(EBPFProbe) }
-
 // EBPFProbe Factory
 var EBPFProbe = &module.Factory{
 	Name:             config.EBPFModule,
