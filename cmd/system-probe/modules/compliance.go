@@ -27,8 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-func init() { registerModule(ComplianceModule) }
-
 var complianceConfigNamespaces = []string{"compliance_config", "runtime_security_config"}
 
 // ComplianceModule is a system-probe module that exposes an HTTP api to
