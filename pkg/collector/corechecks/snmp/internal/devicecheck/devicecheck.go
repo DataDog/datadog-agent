@@ -44,21 +44,22 @@ import (
 )
 
 const (
-	snmpLoaderTag           = "loader:core"
-	snmpRequestMetric       = "datadog.snmp.requests"
-	snmpGetRequestTag       = "request_type:get"
-	snmpGetBulkRequestTag   = "request_type:getbulk"
-	snmpGetNextReqestTag    = "request_type:getnext"
-	serviceCheckName        = "snmp.can_check"
-	deviceReachableMetric   = "snmp.device.reachable"
-	deviceUnreachableMetric = "snmp.device.unreachable"
-	pingReachableMetric     = "networkdevice.ping.reachable"
-	pingUnreachableMetric   = "networkdevice.ping.unreachable"
-	pingPacketLoss          = "networkdevice.ping.packet_loss"
-	pingAvgRttMetric        = "networkdevice.ping.avg_rtt"
-	deviceHostnamePrefix    = "device:"
-	checkDurationThreshold  = 30  // Thirty seconds
-	profileRefreshDelay     = 600 // Number of seconds after which a profile needs to be refreshed
+	snmpLoaderTag                      = "loader:core"
+	snmpRequestMetric                  = "datadog.snmp.requests"
+	snmpGetRequestTag                  = "request_type:get"
+	snmpGetBulkRequestTag              = "request_type:getbulk"
+	snmpGetNextReqestTag               = "request_type:getnext"
+	serviceCheckName                   = "snmp.can_check"
+	deviceReachableMetric              = "snmp.device.reachable"
+	deviceUnreachableMetric            = "snmp.device.unreachable"
+	unconnectedSocketFallbackMetric    = "snmp.unconnected_socket_fallback"
+	pingReachableMetric                = "networkdevice.ping.reachable"
+	pingUnreachableMetric              = "networkdevice.ping.unreachable"
+	pingPacketLoss                     = "networkdevice.ping.packet_loss"
+	pingAvgRttMetric                   = "networkdevice.ping.avg_rtt"
+	deviceHostnamePrefix               = "device:"
+	checkDurationThreshold             = 30  // Thirty seconds
+	profileRefreshDelay                = 600 // Number of seconds after which a profile needs to be refreshed
 )
 
 type profileCache struct {
@@ -151,6 +152,7 @@ type DeviceCheck struct {
 	cacheKey                string
 	agentConfig             config.Component
 	profileCache            profileCache
+	udpFallback             udpSocketFallbackConnector // Handles automatic fallback to unconnected UDP sockets
 }
 
 const cacheKeyPrefix = "snmp-tags"
@@ -181,6 +183,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
 		agentConfig:             agentConfig,
+		udpFallback:             newUDPSocketFallbackManager(newConfig, sessionFactory),
 	}
 
 	d.readTagsFromCache()
@@ -356,12 +359,20 @@ func (d *DeviceCheck) getValuesAndTags() (bool, profiledefinition.ProfileDefinit
 	var checkErrors []string
 	var tags []string
 
-	// Create connection
-	connErr := d.session.Connect()
+	// Create connection with automatic UDP fallback for multi-homed devices
+	var fallbackEnabled bool
+	var connErr error
+	d.session, fallbackEnabled, connErr = d.udpFallback.connectWithFallback(d.session)
+
 	if connErr != nil {
 		d.diagnoses.Add("error", "SNMP_FAILED_TO_OPEN_CONNECTION", "Agent failed to open connection.")
 		// cannot connect -> use cached profile
 		return false, d.profileCache.GetProfile(), tags, nil, fmt.Errorf("snmp connection error: %s", connErr)
+	}
+
+	// Emit metric if unconnected UDP fallback was enabled on this run
+	if fallbackEnabled {
+		d.sender.Gauge(unconnectedSocketFallbackMetric, 1.0, append(d.config.GetStaticTags(), "status:enabled"))
 	}
 	defer func() {
 		err := d.session.Close()

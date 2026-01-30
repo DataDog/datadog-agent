@@ -453,3 +453,131 @@ func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
 	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
 	assert.Equal(t, []string(nil), resultOIDs)
 }
+
+// mockTimeoutError implements net.Error with Timeout() returning true
+type mockTimeoutError struct {
+	msg string
+}
+
+func (e *mockTimeoutError) Error() string   { return e.msg }
+func (e *mockTimeoutError) Timeout() bool   { return true }
+func (e *mockTimeoutError) Temporary() bool { return true }
+
+// mockNonTimeoutError is a regular error that doesn't implement net.Error
+type mockNonTimeoutError struct {
+	msg string
+}
+
+func (e *mockNonTimeoutError) Error() string { return e.msg }
+
+// TestIsNetworkTimeout tests the isNetworkTimeout helper function
+func TestIsNetworkTimeout(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "timeout error",
+			err:      &mockTimeoutError{msg: "i/o timeout"},
+			expected: true,
+		},
+		{
+			name:     "wrapped timeout error",
+			err:      errors.New("wrapped: i/o timeout"),
+			expected: false, // Plain error wrapping doesn't preserve net.Error interface
+		},
+		{
+			name:     "non-timeout error",
+			err:      &mockNonTimeoutError{msg: "connection refused"},
+			expected: false,
+		},
+		{
+			name:     "generic error",
+			err:      errors.New("some error"),
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isNetworkTimeout(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestConnectionTimeoutErrorType tests the ConnectionTimeoutError type behavior
+// Note: The actual wrapping of timeout errors in Connect() is tested through
+// the integration tests in udp_socket_fallback_test.go with mocked sessions
+func TestConnectionTimeoutErrorType(t *testing.T) {
+	// Test that ConnectionTimeoutError can be created and detected
+	underlyingErr := &mockTimeoutError{msg: "i/o timeout"}
+	timeoutErr := NewConnectionTimeoutError("10.0.0.1", underlyingErr)
+
+	// Verify error message format
+	assert.Contains(t, timeoutErr.Error(), "connection timeout to 10.0.0.1")
+	assert.Contains(t, timeoutErr.Error(), "i/o timeout")
+
+	// Verify Unwrap returns underlying error
+	assert.Equal(t, underlyingErr, timeoutErr.Unwrap())
+
+	// Verify it can be detected with errors.As()
+	var ctErr *ConnectionTimeoutError
+	assert.True(t, errors.As(timeoutErr, &ctErr))
+
+	// Verify wrapping in error chain works
+	wrappedErr := errors.New("outer error: " + timeoutErr.Error())
+	// Note: Simple string wrapping doesn't preserve error chain,
+	// but fmt.Errorf with %w does
+	chainedErr := errors.Join(wrappedErr, timeoutErr)
+	var ctErr2 *ConnectionTimeoutError
+	assert.True(t, errors.As(chainedErr, &ctErr2))
+}
+
+// TestUseUnconnectedUDPSocketPropagation tests that UseUnconnectedUDPSocket config is applied to gosnmp
+func TestUseUnconnectedUDPSocketPropagation(t *testing.T) {
+	tests := []struct {
+		name                     string
+		useUnconnectedUDPSocket  bool
+		expectedGosnmpValue      bool
+	}{
+		{
+			name:                    "UseUnconnectedUDPSocket true is propagated",
+			useUnconnectedUDPSocket: true,
+			expectedGosnmpValue:     true,
+		},
+		{
+			name:                    "UseUnconnectedUDPSocket false is propagated",
+			useUnconnectedUDPSocket: false,
+			expectedGosnmpValue:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &checkconfig.CheckConfig{
+				IPAddress:               "127.0.0.1",
+				Port:                    161,
+				CommunityString:         "public",
+				SnmpVersion:             "2c",
+				UseUnconnectedUDPSocket: tt.useUnconnectedUDPSocket,
+			}
+
+			sess, err := NewGosnmpSession(config)
+			require.NoError(t, err)
+			require.NotNil(t, sess)
+
+			gosnmpSess, ok := sess.(*GosnmpSession)
+			require.True(t, ok, "Expected *GosnmpSession type")
+
+			assert.Equal(t, tt.expectedGosnmpValue, gosnmpSess.gosnmpInst.UseUnconnectedUDPSocket,
+				"UseUnconnectedUDPSocket should be propagated to gosnmp instance")
+		})
+	}
+}
