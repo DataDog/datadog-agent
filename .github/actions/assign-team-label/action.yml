@@ -1,0 +1,27 @@
+---
+name: Install dda
+description: Installs the defined version of dda
+inputs:
+  pr-number:
+    description: The PR number
+    required: true
+  github-token:
+    description: Github token to write label in the PR
+    required: true
+
+runs:
+  using: composite
+  steps:
+  - name: Assign team label
+    shell: bash
+    run: dda inv -- -e github.assign-team-label --pr-id="${{ inputs.pr-number }}"
+    env:
+      GITHUB_TOKEN: ${{ inputs.github-token }}
+  - name: Save PR number for workflow_run
+    shell: bash
+    run: echo "${{ inputs.pr-number }}" > pr_number.txt
+  - name: Upload PR number artifact
+    uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+    with:
+      name: pr_number
+      path: pr_number.txt
