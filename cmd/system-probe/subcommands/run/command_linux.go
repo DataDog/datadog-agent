@@ -12,6 +12,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -28,6 +30,7 @@ import (
 	discovery "github.com/DataDog/datadog-agent/comp/system-probe/discovery/fx"
 	dynamicinstrumentation "github.com/DataDog/datadog-agent/comp/system-probe/dynamicinstrumentation/fx"
 	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/fx"
+	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/fx"
 	gpu "github.com/DataDog/datadog-agent/comp/system-probe/gpu/fx"
 	languagedetection "github.com/DataDog/datadog-agent/comp/system-probe/languagedetection/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
@@ -51,36 +54,32 @@ func getPlatformModules() fx.Option {
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-
-		// TODO should this be a bundle?
 		connectionsforwarderfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerierfx.Module(),
 		npcollectorimpl.Module(),
-		networktracer.Module(),
-
-		ebpf.Module(),
-		tcpqueuelength.Module(),
-		oomkill.Module(),
-
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		ipcfx.ModuleReadWrite(),
 		remoteWorkloadfilterfx.Module(),
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),
+		localtraceroute.Module(),
+
+		// system-probe modules
+		networktracer.Module(),
+		ebpf.Module(),
+		tcpqueuelength.Module(),
+		oomkill.Module(),
 		compliance.Module(),
-
 		discovery.Module(),
-
-		ipcfx.ModuleReadWrite(),
 		dynamicinstrumentation.Module(),
-
 		gpu.Module(),
 		languagedetection.Module(),
 		ping.Module(),
 		privilegedlogs.Module(),
 		process.Module(),
-
-		localtraceroute.Module(),
 		traceroute.Module(),
+		eventmonitor.Module(),
 	)
 }
