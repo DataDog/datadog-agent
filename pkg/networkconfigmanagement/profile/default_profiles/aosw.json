@@ -9,7 +9,7 @@
         "validation": [
           {
             "type": "valid_output",
-            "pattern": "(?i)Building Configuration"
+            "pattern": "Building Configuration..."
           }
         ],
         "redaction": [

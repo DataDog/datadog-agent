@@ -21,6 +21,10 @@
           {
             "type": "valid_output",
             "pattern": "Building configuration..."
+          },
+          {
+            "type": "valid_output",
+            "pattern": "Current configuration :"
           }
         ],
         "redaction": [
