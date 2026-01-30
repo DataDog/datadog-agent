@@ -13,11 +13,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf/ringbuf"
+	"golang.org/x/sys/unix"
 
 	ebpfTelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -63,6 +66,11 @@ func (rb *RingBuffer) startDispatcherLoop(ctx context.Context) {
 	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
+		runtime.LockOSThread()
+		if err := unix.Setpriority(unix.PRIO_PROCESS, unix.Gettid(), -20); err != nil {
+			seclog.Warnf("failed to renice kernel event ingestion thread (ringbuf) to nice=-18: %v", err)
+		}
+
 		for {
 			select {
 			case <-signalChan:
