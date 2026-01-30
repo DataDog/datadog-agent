@@ -28,6 +28,7 @@ import (
 	dynamicinstrumentation "github.com/DataDog/datadog-agent/comp/system-probe/dynamicinstrumentation/fx"
 	ebpf "github.com/DataDog/datadog-agent/comp/system-probe/ebpf/fx"
 	gpu "github.com/DataDog/datadog-agent/comp/system-probe/gpu/fx"
+	languagedetection "github.com/DataDog/datadog-agent/comp/system-probe/languagedetection/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	oomkill "github.com/DataDog/datadog-agent/comp/system-probe/oomkill/fx"
 	tcpqueuelength "github.com/DataDog/datadog-agent/comp/system-probe/tcpqueuelength/fx"
@@ -69,5 +70,6 @@ func getPlatformModules() fx.Option {
 		dynamicinstrumentation.Module(),
 
 		gpu.Module(),
+		languagedetection.Module(),
 	)
 }
