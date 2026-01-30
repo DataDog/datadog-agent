@@ -48,9 +48,11 @@ build do
     'PATH' => ["#{gopath.to_path}/bin", env['PATH']].join(File::PATH_SEPARATOR),
   }
   unless windows_target?
+    # TODO: Do it also in other builds
+    rust_lib_path = "#{project_dir}/pkg/deepinference/rust/target/release"
     env['LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
     env['CGO_CFLAGS'] = "-I. -I#{install_dir}/embedded/include"
-    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib"
+    env['CGO_LDFLAGS'] = "-Wl,-rpath,#{install_dir}/embedded/lib -L#{install_dir}/embedded/lib -L#{rust_lib_path}"
   end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
@@ -84,6 +86,9 @@ build do
       ENV['PATH'] = "#{msgoroot}/bin:#{ENV['PATH']}"
     end
   end
+
+  # Clean Rust target directory to avoid CMake cache path conflicts
+  delete "pkg/deepinference/rust/target"
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
