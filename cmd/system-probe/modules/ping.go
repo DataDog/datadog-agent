@@ -16,6 +16,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -52,7 +53,7 @@ func (p *pinger) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (p *pinger) Register(httpMux *module.Router) error {
+func (p *pinger) Register(httpMux types.SystemProbeRouter) error {
 	var runCounter atomic.Uint64
 
 	httpMux.HandleFunc("/ping/{host}", func(w http.ResponseWriter, req *http.Request) {

@@ -7,9 +7,6 @@
 package modules
 
 import (
-	"slices"
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
@@ -17,7 +14,7 @@ import (
 
 var all []*module.Factory
 
-var moduleOrder = []types.ModuleName{
+var ModuleOrder = []types.ModuleName{
 	config.EBPFModule,
 	config.NetworkTracerModule,
 	config.TCPQueueLengthTracerModule,
@@ -42,11 +39,3 @@ func registerModule(mod *module.Factory) {
 	}
 	all = append(all, mod)
 }
-
-// All is the list of supported modules in the order specified by `moduleOrder`
-var All = sync.OnceValue(func() []*module.Factory {
-	slices.SortStableFunc(all, func(a, b *module.Factory) int {
-		return slices.Index(moduleOrder, a.Name) - slices.Index(moduleOrder, b.Name)
-	})
-	return all
-})

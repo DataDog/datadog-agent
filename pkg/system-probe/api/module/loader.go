@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,9 +27,9 @@ var l *loader
 
 func init() {
 	l = &loader{
-		modules: make(map[sysconfigtypes.ModuleName]Module),
+		modules: make(map[sysconfigtypes.ModuleName]types.SystemProbeModule),
 		errors:  make(map[sysconfigtypes.ModuleName]error),
-		routers: make(map[sysconfigtypes.ModuleName]*Router),
+		routers: make(map[sysconfigtypes.ModuleName]types.SystemProbeRouter),
 	}
 }
 
@@ -38,18 +39,18 @@ func init() {
 // * Module telemetry consolidation;
 type loader struct {
 	sync.Mutex
-	modules map[sysconfigtypes.ModuleName]Module
+	modules map[sysconfigtypes.ModuleName]types.SystemProbeModule
 	errors  map[sysconfigtypes.ModuleName]error
 	stats   map[string]interface{}
 	cfg     *sysconfigtypes.Config
-	routers map[sysconfigtypes.ModuleName]*Router
+	routers map[sysconfigtypes.ModuleName]types.SystemProbeRouter
 	closed  bool
 
 	statsUpdateTime  telemetry.Gauge
 	statsUpdateCount telemetry.Counter
 }
 
-func (l *loader) forEachModule(fn func(name sysconfigtypes.ModuleName, mod Module)) {
+func (l *loader) forEachModule(fn func(name sysconfigtypes.ModuleName, mod types.SystemProbeModule)) {
 	for name, mod := range l.modules {
 		withModule(name, func() {
 			fn(name, mod)
@@ -72,49 +73,50 @@ func withModule(name sysconfigtypes.ModuleName, fn func()) {
 // * Initialization using the provided Factory;
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
-func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Factory, rcclient rcclient.Component, deps FactoryDependencies) error {
-	var enabledModulesFactories []*Factory
-	for _, factory := range factories {
-		if !cfg.ModuleIsEnabled(factory.Name) {
-			log.Infof("module %s disabled", factory.Name)
+func Register(cfg *sysconfigtypes.Config, telemetry telemetry.Component, httpMux *mux.Router, modules []types.SystemProbeModuleComponent, rcclient rcclient.Component) error {
+	var enabledModules []types.SystemProbeModuleComponent
+	// TODO can we filter out disabled modules before this?
+	for _, mod := range modules {
+		if !cfg.ModuleIsEnabled(mod.Name()) {
+			log.Infof("module %s disabled", mod.Name())
 			continue
 		}
-		enabledModulesFactories = append(enabledModulesFactories, factory)
+		enabledModules = append(enabledModules, mod)
 	}
 
-	if err := preRegister(cfg, rcclient, enabledModulesFactories); err != nil {
+	if err := preRegister(cfg, rcclient, enabledModules); err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
-	for _, factory := range enabledModulesFactories {
+	for _, mod := range enabledModules {
 		var err error
-		var module Module
-		withModule(factory.Name, func() {
-			module, err = factory.Fn(cfg, deps)
+		var module types.SystemProbeModule
+		withModule(mod.Name(), func() {
+			module, err = mod.Create()
 		})
 
 		// In case a module failed to be started, do not make the whole `system-probe` abort.
 		// Let `system-probe` run the other modules.
 		if err != nil {
-			l.errors[factory.Name] = err
-			log.Errorf("error creating module %s: %s", factory.Name, err)
+			l.errors[mod.Name()] = err
+			log.Errorf("error creating module %s: %s", mod.Name(), err)
 			continue
 		}
 
-		subRouter := NewRouter(string(factory.Name), httpMux)
+		subRouter := NewRouter(string(mod.Name()), httpMux)
 		if err = module.Register(subRouter); err != nil {
-			l.errors[factory.Name] = err
-			log.Errorf("error registering HTTP endpoints for module %s: %s", factory.Name, err)
+			l.errors[mod.Name()] = err
+			log.Errorf("error registering HTTP endpoints for module %s: %s", mod.Name(), err)
 			continue
 		}
 
-		l.routers[factory.Name] = subRouter
-		l.modules[factory.Name] = module
+		l.routers[mod.Name()] = subRouter
+		l.modules[mod.Name()] = module
 
-		log.Infof("module %s started", factory.Name)
+		log.Infof("module %s started", mod.Name())
 	}
 
-	if err := postRegister(cfg, enabledModulesFactories); err != nil {
+	if err := postRegister(cfg, enabledModules); err != nil {
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
@@ -123,10 +125,10 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 		return errors.New("no module could be loaded")
 	}
 
-	l.configureTelemetry(deps.Telemetry)
+	l.configureTelemetry(telemetry)
 
 	l.stats = make(map[string]interface{})
-	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
+	l.forEachModule(func(name sysconfigtypes.ModuleName, mod types.SystemProbeModule) {
 		go updateModuleStats(name, mod)
 	})
 	go updateGlobalStats()
@@ -144,7 +146,7 @@ func GetStats() map[string]interface{} {
 }
 
 // RestartModule triggers a module restart
-func RestartModule(factory *Factory, deps FactoryDependencies) error {
+func RestartModule(mod types.SystemProbeModuleComponent) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -152,35 +154,35 @@ func RestartModule(factory *Factory, deps FactoryDependencies) error {
 		return errors.New("can't restart module because system-probe is shutting down")
 	}
 
-	currentModule := l.modules[factory.Name]
+	currentModule := l.modules[mod.Name()]
 	if currentModule == nil {
-		return fmt.Errorf("module %s is not running", factory.Name)
+		return fmt.Errorf("module %s is not running", mod.Name())
 	}
-	currentRouter, ok := l.routers[factory.Name]
+	currentRouter, ok := l.routers[mod.Name()]
 	if !ok {
-		return fmt.Errorf("module %s does not have an associated router", factory.Name)
+		return fmt.Errorf("module %s does not have an associated router", mod.Name())
 	}
 
-	var newModule Module
+	var newModule types.SystemProbeModule
 	var err error
-	withModule(factory.Name, func() {
+	withModule(mod.Name(), func() {
 		currentRouter.Unregister()
 		currentModule.Close()
-		newModule, err = factory.Fn(l.cfg, deps)
+		newModule, err = mod.Create()
 	})
 	if err != nil {
-		l.errors[factory.Name] = err
+		l.errors[mod.Name()] = err
 		return err
 	}
-	delete(l.errors, factory.Name)
-	log.Infof("module %s restarted", factory.Name)
+	delete(l.errors, mod.Name())
+	log.Infof("module %s restarted", mod.Name())
 
 	err = newModule.Register(currentRouter)
 	if err != nil {
 		return err
 	}
 
-	l.modules[factory.Name] = newModule
+	l.modules[mod.Name()] = newModule
 	return nil
 }
 
@@ -194,7 +196,7 @@ func Close() {
 	}
 
 	l.closed = true
-	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
+	l.forEachModule(func(name sysconfigtypes.ModuleName, mod types.SystemProbeModule) {
 		currentRouter, ok := l.routers[name]
 		if ok {
 			currentRouter.Unregister()
@@ -210,7 +212,7 @@ func (l *loader) IsClosed() bool {
 	return l.closed
 }
 
-func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
+func updateModuleStats(name sysconfigtypes.ModuleName, mod types.SystemProbeModule) {
 	nameStr := string(name)
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()

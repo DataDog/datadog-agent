@@ -18,6 +18,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -283,7 +283,7 @@ func (m *Module) GetStats() map[string]any {
 }
 
 // Register registers the module to the router
-func (m *Module) Register(router *module.Router) error {
+func (m *Module) Register(router types.SystemProbeRouter) error {
 	router.HandleFunc(
 		"/check",
 		utils.WithConcurrencyLimit(

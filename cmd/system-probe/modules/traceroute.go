@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 
 	traceroutecomp "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -48,7 +49,7 @@ func (t *traceroute) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (t *traceroute) Register(httpMux *module.Router) error {
+func (t *traceroute) Register(httpMux types.SystemProbeRouter) error {
 	// Start platform-specific driver (Windows only, no-op on other platforms)
 	driverError := startPlatformDriver()
 

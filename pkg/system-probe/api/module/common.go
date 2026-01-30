@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 )
 
 // ErrNotEnabled is a special error type that should be returned by a Factory
@@ -32,11 +33,7 @@ import (
 var ErrNotEnabled = errors.New("module is not enabled")
 
 // Module defines the common API implemented by every System Probe Module
-type Module interface {
-	GetStats() map[string]interface{}
-	Register(*Router) error
-	Close()
-}
+type Module = types.SystemProbeModule
 
 // FactoryDependencies defines the fx dependencies for a module factory
 type FactoryDependencies struct {

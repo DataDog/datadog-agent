@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	languageDetectionProto "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
@@ -47,7 +48,7 @@ func (l *languageDetectionModule) GetStats() map[string]interface{} {
 	return nil
 }
 
-func (l *languageDetectionModule) Register(router *module.Router) error {
+func (l *languageDetectionModule) Register(router types.SystemProbeRouter) error {
 	router.HandleFunc("/detect", l.detectLanguage)
 	return nil
 }

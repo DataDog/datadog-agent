@@ -3,14 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build windows && npm
+//go:build !linux
 
-package modules
+package types
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-)
-
-func registerUSMEndpoints(nt *networkTracer, httpMux *module.Router) {
-	registerUSMCommonEndpoints(nt, httpMux)
+type SystemProbeModuleComponent interface {
+	Name() types.ModuleName
+	Create() (SystemProbeModule, error)
 }

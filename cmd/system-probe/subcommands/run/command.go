@@ -48,21 +48,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
-	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -112,6 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
+				getPlatformModules(),
 			)
 		},
 	}
@@ -173,25 +171,28 @@ func getSharedFxOption() fx.Option {
 		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
-		connectionsforwarderfx.Module(),
-		eventplatformreceiverimpl.Module(),
-		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
-		rdnsquerierfx.Module(),
-		npcollectorimpl.Module(),
 	)
 }
 
+type runDependencies struct {
+	fx.In
+
+	CoreConfig     config.Component
+	SysprobeConfig sysprobeconfig.Component
+	Log            log.Component
+	RCClient       rcclient.Component
+	PID            pid.Component
+	HealthProbe    healthprobe.Component
+	AutoExit       autoexit.Component
+	Settings       settings.Component
+	IPC            ipc.Component
+	Telemetry      telemetry.Component
+
+	Modules []types.SystemProbeModuleComponent `group:"systemprobe_module"`
+}
+
 // run starts the main loop.
-func run(
-	_ config.Component,
-	rcclient rcclient.Component,
-	_ pid.Component,
-	_ healthprobe.Component,
-	_ autoexit.Component,
-	settings settings.Component,
-	_ ipc.Component,
-	deps module.FactoryDependencies,
-) error {
+func run(deps runDependencies) error {
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
@@ -234,7 +235,7 @@ func run(
 		}
 	}()
 
-	if err := startSystemProbe(rcclient, settings, deps); err != nil {
+	if err := startSystemProbe(deps); err != nil {
 		if errors.Is(err, ErrNotEnabled) {
 			// A sleep is necessary to ensure that supervisor registers this process as "STARTED"
 			// If the exit is "too quick", we enter a BACKOFF->FATAL loop even though this is an expected exit
@@ -248,7 +249,7 @@ func run(
 }
 
 // startSystemProbe Initializes the system-probe process
-func startSystemProbe(rcclient rcclient.Component, settings settings.Component, deps module.FactoryDependencies) error {
+func startSystemProbe(deps runDependencies) error {
 	var err error
 	cfg := deps.SysprobeConfig.SysProbeObject()
 
@@ -277,7 +278,7 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 		}
 	}
 
-	setupInternalProfiling(settings, deps.SysprobeConfig, configPrefix, deps.Log)
+	setupInternalProfiling(deps.Settings, deps.SysprobeConfig, configPrefix, deps.Log)
 
 	if isValidPort(cfg.DebugPort) {
 		if cfg.TelemetryEnabled {
@@ -304,7 +305,7 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 		}()
 	}
 
-	if err = api.StartServer(cfg, settings, rcclient, deps); err != nil {
+	if err = api.StartServer(cfg, deps.Settings, deps.RCClient, deps.Telemetry, deps.Modules); err != nil {
 		return deps.Log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil

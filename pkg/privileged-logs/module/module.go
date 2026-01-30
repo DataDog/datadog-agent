@@ -11,9 +11,11 @@ package module
 import (
 	"sync"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 // NewPrivilegedLogsModule creates a new instance of the privileged logs module.
@@ -42,7 +44,7 @@ func (f *privilegedLogsModule) GetStats() map[string]interface{} {
 }
 
 // Register registers endpoints for the module to expose data
-func (f *privilegedLogsModule) Register(httpMux *module.Router) error {
+func (f *privilegedLogsModule) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/open", f.openFileHandler).Methods("POST")
 	return nil
 }

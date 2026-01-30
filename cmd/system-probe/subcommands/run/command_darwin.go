@@ -3,11 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && linux_bpf && nvml
+package run
 
-package modules
+import "go.uber.org/fx"
 
-//func TestGPUModuleOrder(t *testing.T) {
-//	allModules := All()
-//	assert.Less(t, slices.Index(allModules, EventMonitor), slices.Index(allModules, GPUMonitoring))
-//}
+func getPlatformModules() fx.Option {
+	return fx.Options()
+}

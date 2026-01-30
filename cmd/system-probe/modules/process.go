@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/system-probe/types"
 	"github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -60,7 +61,7 @@ func (t *process) GetStats() map[string]interface{} {
 }
 
 // Register registers endpoints for the module to expose data
-func (t *process) Register(httpMux *module.Router) error {
+func (t *process) Register(httpMux types.SystemProbeRouter) error {
 	httpMux.HandleFunc("/stats", t.statsHandler).Methods("POST")
 	httpMux.HandleFunc("/service", t.serviceHandler).Methods("POST")
 	httpMux.HandleFunc("/network", t.networkHandler).Methods("POST")
