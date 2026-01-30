@@ -23,6 +23,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const (
+	KillKeyPrefix             string = "kill_"
+	NetworkIsolationKeyPrefix string = "net_"
+	RemediationKeyPrefix      string = "rem_"
+)
+
+const (
+	RemediationTypeNetworkIsolationStr        string = "network_isolation"
+	RemediationTypeNetworkIsolationRemovedStr string = "cancel_network_isolation"
+	RemediationTypeKillStr                    string = "kill"
+)
+
+const (
+	RemediationStatusNotTriggered string = "not_triggered"
+	RemediationStatusRemoved      string = "removed"
+)
+
 // Remediation tracks the state of an applied remediation
 type Remediation struct {
 	actionType         uint8
@@ -113,16 +130,19 @@ func getRemediationTagBool(rule *rules.Rule) bool {
 }
 
 func generateKillActionKey(ruleID string, scope string, signal string) string {
-	return "kill_" + ruleID + scope + signal
+	// prefix + ruleID + scope + signal
+	return KillKeyPrefix + ruleID + scope + signal
 }
 
 func generateNetworkIsolationActionKey(ruleID string, filter string) string {
+	// prefix + ruleID + sha256(filter)[:10]
 	hash := sha256.Sum256([]byte(filter))
-	return "net_" + ruleID + hex.EncodeToString(hash[:10])
+	return NetworkIsolationKeyPrefix + ruleID + hex.EncodeToString(hash[:10])
 
 }
 func generateRemediationActionKey(rule *rules.Rule) string {
-	return "rem_" + getAgentEventID(rule)
+	// prefix + agent_event_id
+	return RemediationKeyPrefix + getAgentEventID(rule)
 }
 
 func getRemediationKeyFromAction(rule *rules.Rule, action *rules.Action) string {
@@ -131,16 +151,14 @@ func getRemediationKeyFromAction(rule *rules.Rule, action *rules.Action) string 
 		return generateRemediationActionKey(rule)
 	}
 	// Having multiple actions in the same rulemeans that they are from a rule that was not dynamically generated for the remediation feature
+	// We assume this combination unique
 	if action.Def.Kill != nil {
-		// We assume this combination unique
-		scope := action.Def.Kill.Scope
-		signal := action.Def.Kill.Signal
-
-		return generateKillActionKey(rule.ID, scope, signal)
+		// ruleID + scope + signal
+		return generateKillActionKey(rule.ID, action.Def.Kill.Scope, action.Def.Kill.Signal)
 	}
 	if action.Def.NetworkFilter != nil {
-		filter := action.Def.NetworkFilter.BPFFilter
-		return generateNetworkIsolationActionKey(rule.ID, filter)
+		// ruleID + bpffilter
+		return generateNetworkIsolationActionKey(rule.ID, action.Def.NetworkFilter.BPFFilter)
 	}
 	return ""
 
@@ -254,7 +272,7 @@ func (p *EBPFProbe) HandleRemediationStatus(rs *rules.RuleSet) {
 	// After all the rule are loaded, check if some isolation actions were removed
 	for remediationKey, remediation := range p.activeRemediations {
 		if remediation.actionType == RemediationTypeNetworkIsolation && !remediation.isolationReApplied && !remediation.isolationNew {
-			networkFilterEvent := NewRemediationEvent(p, remediation, "removed", "cancel_network_isolation")
+			networkFilterEvent := NewRemediationEvent(p, remediation, RemediationStatusRemoved, RemediationTypeNetworkIsolationRemovedStr)
 			p.SendRemediationEvent(networkFilterEvent)
 			delete(p.activeRemediations, remediationKey)
 		}
@@ -297,7 +315,7 @@ func (p *EBPFProbe) HandleKillRemediation(rule *rules.Rule, ev *model.Event, rep
 	status := string(report.Status)
 	report.RUnlock()
 	// Send custom event
-	killActionEvent := NewRemediationEvent(p, remediation, status, "kill")
+	killActionEvent := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
 	p.SendRemediationEvent(killActionEvent)
 
 }
@@ -325,7 +343,7 @@ func (p *EBPFProbe) HandleNetworkRemediation(rule *rules.Rule, ev *model.Event, 
 	remediation.policy = string(report.Policy)
 
 	// Send an event
-	networkFilterEvent := NewRemediationEvent(p, remediation, string(report.Status), "network_isolation")
+	networkFilterEvent := NewRemediationEvent(p, remediation, string(report.Status), RemediationTypeNetworkIsolationStr)
 	p.SendRemediationEvent(networkFilterEvent)
 
 }
@@ -343,18 +361,18 @@ func (p *EBPFProbe) HandleRemediationNotTriggered() {
 	p.activeRemediationsLock.Lock()
 	defer p.activeRemediationsLock.Unlock()
 	for remediationKey, remediation := range p.activeRemediations {
-		if len(remediationKey) > 4 && remediationKey[0:4] != remediationKeyPrefix {
+		if len(remediationKey) > 4 && remediationKey[0:4] != RemediationKeyPrefix {
 			// Only send events for remediation rules
 			continue
 		}
 		var remediationStr string
 		if !remediation.triggered {
 			if remediation.actionType == RemediationTypeNetworkIsolation {
-				remediationStr = "network_isolation"
+				remediationStr = RemediationTypeNetworkIsolationStr
 			} else if remediation.actionType == RemediationTypeKill {
-				remediationStr = "kill"
+				remediationStr = RemediationTypeKillStr
 			}
-			re := NewRemediationEvent(p, remediation, "not_triggered", remediationStr)
+			re := NewRemediationEvent(p, remediation, RemediationStatusNotTriggered, remediationStr)
 			p.SendRemediationEvent(re)
 		}
 	}
