@@ -10,6 +10,7 @@ package appsec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -119,6 +120,7 @@ func newSecurityInjector(ctx context.Context, logger logComp.Component, config a
 		maps.Copy(config.Proxies, detectedProxies)
 	}
 
+	// Cleanup resources of disabled proxies
 	if len(config.Proxies) == 0 {
 		logger.Debug("No appsec proxies enabled for injection")
 		return nil
@@ -193,7 +195,6 @@ func (si *securityInjector) run(ctx context.Context, proxyType appsecconfig.Prox
 			select {
 			case <-health.C:
 			case <-ctx.Done():
-				cancel()
 				return
 			}
 		}
@@ -256,7 +257,7 @@ func (si *securityInjector) runLeader(ctx context.Context, proxyType appsecconfi
 
 	if !cache.WaitForCacheSync(ctx.Done(), handle.HasSynced) {
 		si.logger.Warnf("timed out waiting for informer caches to sync for resource %s", proxyType)
-		return err
+		return fmt.Errorf("timed out waiting for informer caches to sync for resource %s", proxyType)
 	}
 
 	si.logger.Debug("Watching resource as leader:", proxyType)

@@ -61,11 +61,11 @@ func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	// Check if the EnvoyFilter CRD is present
 	_, err := i.client.Resource(crdGVR).Get(ctx, gvrToName(filterGVR), metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		return fmt.Errorf("%w: EnvoyExtensionPolicy CRD not found, is the Istio CRDs installed in the cluster? Cannot enable appsec proxy injection for istio", err)
+		return fmt.Errorf("%w: EnvoyFilter CRD not found, is the Istio CRDs installed in the cluster? Cannot enable appsec proxy injection for istio", err)
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting EnvoyFilter", err)
 	}
 
 	// Check if the Gateway CRDs is present
@@ -75,10 +75,10 @@ func (i *istioInjectionPattern) IsInjectionPossible(ctx context.Context) error {
 	}
 
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: error getting Gateway", err)
 	}
 
-	return err
+	return nil
 }
 
 func (i *istioInjectionPattern) Resource() schema.GroupVersionResource {
