@@ -28,6 +28,7 @@ import (
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
+	crashdetect "github.com/DataDog/datadog-agent/comp/system-probe/crashdetect/fx"
 	eventmonitor "github.com/DataDog/datadog-agent/comp/system-probe/eventmonitor/fx"
 	networktracer "github.com/DataDog/datadog-agent/comp/system-probe/networktracer/fx"
 	softwareinventory "github.com/DataDog/datadog-agent/comp/system-probe/softwareinventory/fx"
@@ -108,12 +109,7 @@ func runSystemProbe(ctxChan <-chan context.Context, errChan chan error) error {
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		networktracer.Module(),
-		softwareinventory.Module(),
-
 		localtraceroute.Module(),
-		traceroute.Module(),
-
 		statsd.Module(),
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
@@ -127,6 +123,12 @@ func getPlatformModules() fx.Option {
 		remotehostnameimpl.Module(),
 		logscompressionfx.Module(),
 		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+
+		// system-probe modules
+		networktracer.Module(),
+		softwareinventory.Module(),
+		traceroute.Module(),
 		eventmonitor.Module(),
+		crashdetect.Module(),
 	)
 }

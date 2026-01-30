@@ -20,8 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(WinCrashProbe) }
-
 // WinCrashProbe Factory
 var WinCrashProbe = &module.Factory{
 	Name:             config.WindowsCrashDetectModule,
