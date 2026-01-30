@@ -35,8 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func init() { registerModule(GPUMonitoring) }
-
 var _ module.Module = &GPUMonitoringModule{}
 var gpuMonitoringConfigNamespaces = []string{gpuconfigconsts.GPUNS}
 
