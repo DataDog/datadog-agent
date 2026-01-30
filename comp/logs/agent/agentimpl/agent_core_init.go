@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/afero"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -27,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
