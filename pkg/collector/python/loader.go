@@ -162,14 +162,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	modules := []string{fmt.Sprintf("%s.%s", wheelNamespace, moduleName), moduleName}
 	var loadedAsWheel bool
 
-	var name string
 	loadedName := ""
 	var checkModule *C.rtloader_pyobject_t
 	var checkClass *C.rtloader_pyobject_t
 	var loadErrors []string // store errors for each module
 
-	// IMPORTANT: use '=' so we don't shadow the outer 'name'
-	for _, name = range modules {
+	for _, name := range modules {
 		// TrackedCStrings untracked by memory tracker currently
 		moduleName := TrackedCString(name)
 		defer C.call_free(unsafe.Pointer(moduleName))
@@ -225,7 +223,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 			goCheckFilePath = C.GoString(checkFilePath)
 			C.rtloader_free(rtloader, unsafe.Pointer(checkFilePath))
 		} else {
-			log.Debugf("Could not query the __file__ attribute for check %s: %s", name, getRtLoaderError())
+			log.Debugf("Could not query the __file__ attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 
 		// Ensure we never emit an empty check_name tag
@@ -244,7 +242,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		if res := C.get_attr_bool(rtloader, checkClass, haSupportedAttr, &haSupported); res != 0 {
 			goHASupported = haSupported == C.bool(true)
 		} else {
-			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", name, getRtLoaderError())
+			log.Debugf("Could not query the HA_SUPPORTED attribute for check %s: %s", moduleName, getRtLoaderError())
 		}
 	}
 
