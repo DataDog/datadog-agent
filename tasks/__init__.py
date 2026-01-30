@@ -42,6 +42,7 @@ from tasks import (
     invoke_unit_tests,
     issue,
     k8s_versions,
+    kind_node_image,
     kmt,
     linter,
     loader,
@@ -67,7 +68,7 @@ from tasks import (
     release,
     rtloader,
     sbomgen,
-    secret_backend,
+    secret_generic_connector,
     security_agent,
     selinux,
     setup,
@@ -224,7 +225,7 @@ ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(privateactionrunner)
 ns.add_collection(testwasher)
-ns.add_collection(secret_backend)
+ns.add_collection(secret_generic_connector)
 ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
@@ -232,6 +233,7 @@ ns.add_collection(new_e2e_tests)
 ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(k8s_versions)
+ns.add_collection(kind_node_image)
 ns.add_collection(diff)
 ns.add_collection(installer)
 ns.add_collection(owners)
