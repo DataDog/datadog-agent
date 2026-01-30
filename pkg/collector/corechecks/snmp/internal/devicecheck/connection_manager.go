@@ -75,32 +75,61 @@ func (m *snmpConnectionManager) Connect() (session.Session, bool, error) {
 	}
 
 	// Try connected socket
-	sess, reachable, err := m.tryConnect(m.config)
+	connectedSess, reachable, err := m.tryConnect(m.config)
 
 	// Check if connected socket works perfectly
 	if err == nil && reachable {
 		// Connected socket works - remember this for future calls
 		m.fallbackState.connectedSocketSucceeded = true
-		m.session = sess
-		return sess, true, nil
+		m.session = connectedSess
+		return connectedSess, true, nil
 	}
 
 	// Something went wrong (connection error or reachability error)
-	// If socket connection failed completely, cannot proceed
-	if sess == nil {
+	// Should we test unconnected mode?
+	if !m.shouldTestUnconnected(err) {
+		// Already tested or shouldn't test
+		if connectedSess != nil {
+			m.session = connectedSess
+			return connectedSess, false, nil
+		}
 		return nil, false, err
 	}
 
-	// Socket connected but device unreachable
-	// Should we test unconnected mode?
-	if m.shouldTestUnconnected(err) {
-		// First time encountering timeout - test unconnected once
-		return m.testUnconnectedFallback(sess)
+	// First time encountering timeout - test unconnected socket once
+	log.Infof("[%s] Connected socket timed out, testing unconnected socket", m.config.IPAddress)
+	m.fallbackState.fallbackTestAttempted = true
+
+	// Create temporary config for testing
+	testConfig := m.config.Copy()
+	testConfig.UseUnconnectedUDPSocket = true
+
+	unconnectedSess, unconnectedReachable, unconnectedErr := m.tryConnect(testConfig)
+
+	// Decide which mode to use based on test results
+	if unconnectedErr == nil && unconnectedReachable {
+		// Unconnected works! Switch permanently
+		log.Infof("[%s] Unconnected socket succeeded, switching to unconnected mode permanently", m.config.IPAddress)
+		m.config.UseUnconnectedUDPSocket = true
+		m.fallbackState.useUnconnectedSocket = true
+		if connectedSess != nil {
+			connectedSess.Close()
+		}
+		m.session = unconnectedSess
+		return unconnectedSess, true, nil
 	}
 
-	// Already tested or shouldn't test - return unreachable
-	m.session = sess
-	return sess, false, nil
+	// Unconnected didn't work - keep connected mode
+	log.Infof("[%s] Unconnected socket failed, keeping connected mode", m.config.IPAddress)
+	if unconnectedSess != nil {
+		unconnectedSess.Close()
+	}
+	if connectedSess != nil {
+		m.session = connectedSess
+		return connectedSess, false, nil
+	}
+	// Both failed
+	return nil, false, err
 }
 
 // GetSession returns the current active session.
@@ -136,7 +165,7 @@ func (m *snmpConnectionManager) connectWithUnconnectedSocket() (session.Session,
 
 // shouldTestUnconnected determines if we should test unconnected socket mode.
 // Returns true only on the first timeout, before we've made a decision.
-func (m *snmpConnectionManager) shouldTestUnconnected(reachErr error) bool {
+func (m *snmpConnectionManager) shouldTestUnconnected(err error) bool {
 	// Already tested unconnected mode
 	if m.fallbackState.fallbackTestAttempted {
 		return false
@@ -146,43 +175,7 @@ func (m *snmpConnectionManager) shouldTestUnconnected(reachErr error) bool {
 		return false
 	}
 	// Only test on timeout errors (not auth errors, SNMP errors, etc.)
-	return isTimeoutError(reachErr)
-}
-
-// testUnconnectedFallback tests unconnected socket mode once and permanently decides which mode to use.
-// Called only on the first timeout. Future calls will use the decided mode.
-func (m *snmpConnectionManager) testUnconnectedFallback(connectedSess session.Session) (session.Session, bool, error) {
-	log.Infof("[%s] Connected socket timed out, testing unconnected socket", m.config.IPAddress)
-	m.fallbackState.fallbackTestAttempted = true
-
-	// Create temporary config for testing
-	testConfig := m.config.Copy()
-	testConfig.UseUnconnectedUDPSocket = true
-
-	unconnectedSess, reachable, err := m.tryConnect(testConfig)
-	if unconnectedSess == nil {
-		// Unconnected socket failed to connect - keep using connected mode
-		log.Infof("[%s] Unconnected socket failed: %s, keeping connected mode", m.config.IPAddress, err)
-		m.session = connectedSess
-		return connectedSess, false, nil
-	}
-
-	if !reachable {
-		// Unconnected socket also unreachable - keep using connected mode
-		log.Infof("[%s] Unconnected socket also unreachable, keeping connected mode", m.config.IPAddress)
-		unconnectedSess.Close()
-		m.session = connectedSess
-		return connectedSess, false, nil
-	}
-
-	// Device is reachable with unconnected socket - switch permanently
-	log.Infof("[%s] Unconnected socket succeeded, switching to unconnected mode permanently", m.config.IPAddress)
-	m.config.UseUnconnectedUDPSocket = true
-	m.fallbackState.useUnconnectedSocket = true
-
-	connectedSess.Close()
-	m.session = unconnectedSess
-	return unconnectedSess, true, nil
+	return isTimeoutError(err)
 }
 
 // tryConnect attempts to create a session, connect, and check reachability.
