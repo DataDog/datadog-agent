@@ -563,8 +563,8 @@
 /pkg/util/clusteragent/                 @DataDog/container-platform
 /pkg/util/containerd/                   @DataDog/container-integrations
 /pkg/util/containers/                   @DataDog/container-integrations
-/pkg/util/containers/metrics/ecsfargate/          @DataDog/ecs-experiences
-/pkg/util/containers/metrics/ecsmanagedinstances/ @DataDog/ecs-experiences
+/pkg/util/containers/metrics/ecsfargate/          @DataDog/ecs-experiences @DataDog/container-integrations
+/pkg/util/containers/metrics/ecsmanagedinstances/ @DataDog/ecs-experiences @DataDog/container-integrations
 /pkg/util/crio/                         @DataDog/container-integrations
 /pkg/util/docker/                       @DataDog/container-integrations
 /pkg/util/ecs/                          @DataDog/ecs-experiences
